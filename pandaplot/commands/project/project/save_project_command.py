@@ -148,7 +148,7 @@ class SaveProjectAsCommand(SaveProjectCommand):
             
             # Set the save path and delegate to parent
             self.save_as_path = save_path
-            super().execute(*args, **kwargs)
+            super().execute()
                 
         except Exception as e:
             error_msg = f"Failed to save project as: {str(e)}"

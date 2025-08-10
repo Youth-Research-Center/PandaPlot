@@ -73,4 +73,3 @@ class NewProjectCommand(Command):
     def redo(self):
         """Redo the new project command."""
         self.execute()
-

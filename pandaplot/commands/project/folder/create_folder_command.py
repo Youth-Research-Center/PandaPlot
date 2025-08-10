@@ -25,9 +25,14 @@ class CreateFolderCommand(Command):
         self.created_folder_id = None
         self.created_folder = None
         self.project = None
+<<<<<<< HEAD
 
     @override
     def execute(self) -> bool:
+=======
+        
+    def execute(self, *args, **kwargs):
+>>>>>>> main
         """Execute the create folder command."""
         try:
             # Check if we have a project loaded
@@ -89,7 +94,10 @@ class CreateFolderCommand(Command):
             self.ui_controller.show_error_message("Create Folder Error", error_msg)
             return False
     
+<<<<<<< HEAD
     @override
+=======
+>>>>>>> main
     def undo(self):
         """Undo the create folder command."""
         try:
@@ -113,8 +121,12 @@ class CreateFolderCommand(Command):
             error_msg = f"Failed to undo create folder: {str(e)}"
             print(f"CreateFolderCommand Undo Error: {error_msg}")
             self.ui_controller.show_error_message("Undo Error", error_msg)
+<<<<<<< HEAD
 
     @override
+=======
+            
+>>>>>>> main
     def redo(self):
         """Redo the create folder command."""
         try:
@@ -145,4 +157,13 @@ class CreateFolderCommand(Command):
             print(f"CreateFolderCommand Redo Error: {error_msg}")
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
+<<<<<<< HEAD
+=======
+        
+    def clone(self):
+        """Create a copy of this command."""
+        return CreateFolderCommand(self.app_context, self.folder_name, self.parent_id)
+    def __str__(self):
+        return f"Create Folder '{self.folder_name or 'New Folder'}'"
+>>>>>>> main
 
