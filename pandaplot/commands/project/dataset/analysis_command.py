@@ -2,7 +2,7 @@
 Analysis command for applying mathematical analysis operations with undo/redo support.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, override
 import pandas as pd
 
 from pandaplot.commands.base_command import Command
@@ -48,6 +48,7 @@ class AnalysisCommand(Command):
         self.replace_existing = analysis_config.get('replace_existing', False)
         self.parameters = analysis_config.get('parameters', {})
     
+    @override
     def execute(self) -> bool:
         """Execute the analysis and add result column to dataset."""
         try:

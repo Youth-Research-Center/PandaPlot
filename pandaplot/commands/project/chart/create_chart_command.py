@@ -29,7 +29,7 @@ class CreateChartCommand(Command):
         self.parent_id = parent_id
 
     @override
-    def execute(self):
+    def execute(self) -> bool:
         """
         Execute the create chart command.
 

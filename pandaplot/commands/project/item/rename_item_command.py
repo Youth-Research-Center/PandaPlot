@@ -1,3 +1,4 @@
+from typing import override
 from pandaplot.commands.base_command import Command
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
@@ -20,7 +21,8 @@ class RenameItemCommand(Command):
         # Store state for undo
         self.old_name = None
         
-    def execute(self, *args, **kwargs):
+    @override
+    def execute(self) -> bool:
         """Execute the rename item command."""
         try:
             # Check if we have a project loaded
@@ -29,12 +31,12 @@ class RenameItemCommand(Command):
                     "Rename Item", 
                     "No project is currently loaded."
                 )
-                return
-                
+                return False
+
             project = self.app_state.current_project
             if not project:
-                return
-            
+                return False
+
             # Check in metadata notes
             note = project.find_item(self.note_id)
 
@@ -43,7 +45,7 @@ class RenameItemCommand(Command):
                     "Rename Item", 
                     f"Item with ID '{self.note_id}' not found."
                 )
-                return
+                return False
 
             self.old_name = note.name
             note.update_name(self.new_name)
@@ -57,7 +59,7 @@ class RenameItemCommand(Command):
             })
             
             print(f"RenameNoteCommand: Renamed note from '{self.old_name}' to '{self.new_name}'")
-            
+            return True
         except Exception as e:
             error_msg = f"Failed to rename note: {str(e)}"
             print(f"RenameNoteCommand Error: {error_msg}")

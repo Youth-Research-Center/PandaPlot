@@ -2,7 +2,7 @@ from pandaplot.commands.base_command import Command
 from pandaplot.commands.project.project.load_project_command import LoadProjectCommand
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.data_managers.project_manager import ProjectManager
-from typing import Optional
+from typing import Optional, override
 
 
 class OpenProjectCommand(Command):
@@ -20,6 +20,7 @@ class OpenProjectCommand(Command):
         self.load_command: Optional[LoadProjectCommand] = None
         self.was_executed = False
 
+    @override
     def execute(self):
         """Execute the open project command."""
         try:

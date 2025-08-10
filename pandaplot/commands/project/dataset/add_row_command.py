@@ -2,15 +2,12 @@
 Command to add a new row to a dataset.
 """
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, override
 import pandas as pd
 from pandaplot.commands.base_command import Command
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.gui.controllers.ui_controller import UIController
-
-if TYPE_CHECKING:
-    from pandaplot.models.project.items.dataset import Dataset
 
 
 class AddRowCommand(Command):
@@ -33,7 +30,8 @@ class AddRowCommand(Command):
         self.dataset = None  # Will be cast to Dataset when found
         self.inserted_at = None
 
-    def execute(self, row_position: Optional[int] = None, **kwargs):
+    @override
+    def execute(self) -> bool:
         """Execute the add row command."""
         try:
             # Check if we have a project loaded
@@ -78,10 +76,6 @@ class AddRowCommand(Command):
             
             # Store original data for undo
             self.original_data = self.dataset.data.copy()
-            
-            # Determine insertion position
-            if row_position is not None:
-                self.row_position = row_position
             
             # Create new row with appropriate default values
             new_row_data = {}
@@ -166,4 +160,4 @@ class AddRowCommand(Command):
     def redo(self):
         """Redo the add row command."""
         # Re-execute with stored parameters
-        return self.execute(row_position=self.row_position)
+        return self.execute()

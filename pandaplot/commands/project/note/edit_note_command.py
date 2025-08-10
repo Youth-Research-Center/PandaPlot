@@ -1,3 +1,4 @@
+from typing import override
 from pandaplot.commands.base_command import Command
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
@@ -21,7 +22,8 @@ class EditNoteCommand(Command):
         # Store state for undo
         self.old_content = None
         
-    def execute(self, *args, **kwargs):
+    @override
+    def execute(self) -> bool:
         """Execute the edit note command."""
         try:
             # Check if we have a project loaded
