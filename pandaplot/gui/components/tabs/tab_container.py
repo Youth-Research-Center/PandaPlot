@@ -23,10 +23,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
 
         self.app_context = app_context
-<<<<<<< HEAD
         # TODO: we shouldn't know about these tab types here
-=======
->>>>>>> main
         self.note_tabs = {}  # Track note tabs by note_id
         self.chart_tabs = {}  # Track chart tabs by chart_id
         self.dataset_tabs = {}  # Track dataset tabs by dataset_id

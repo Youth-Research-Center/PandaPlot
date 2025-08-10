@@ -2,11 +2,7 @@
 Transform column command for applying data transformations with undo/redo support.
 """
 
-<<<<<<< HEAD
 from typing import Dict, Any, Optional, override
-=======
-from typing import Dict, Any, Optional
->>>>>>> main
 import pandas as pd
 
 from pandaplot.commands.base_command import Command
@@ -50,10 +46,7 @@ class TransformColumnCommand(Command):
         self.expression = transform_config['expression']
         self.replace_existing = transform_config.get('replace_existing', False)
     
-<<<<<<< HEAD
     @override
-=======
->>>>>>> main
     def execute(self) -> bool:
         """Execute the transformation and add new column to dataset."""
         try:
@@ -129,10 +122,7 @@ class TransformColumnCommand(Command):
             print(f"Transform undo failed: {e}")
             return False
     
-<<<<<<< HEAD
     @override
-=======
->>>>>>> main
     def redo(self) -> bool:
         """Re-execute the transformation."""
         return self.execute()
@@ -343,16 +333,3 @@ class TransformColumnCommand(Command):
         }
         
         return safe_globals
-<<<<<<< HEAD
-
-=======
-    
-    def get_description(self) -> str:
-        """Get command description for UI display."""
-        action = "Replace" if self.replace_existing else "Create"
-        source_desc = ", ".join(self.source_columns[:2])  # Show first 2 columns
-        if len(self.source_columns) > 2:
-            source_desc += f" (+{len(self.source_columns) - 2} more)"
-            
-        return f"{action} column '{self.new_column_name}' from [{source_desc}] using: {self.expression[:50]}..."
->>>>>>> main
