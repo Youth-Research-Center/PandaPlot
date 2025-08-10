@@ -1,9 +1,9 @@
+from typing import override
 from pandaplot.commands.base_command import Command
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.services.data_managers.project_manager import ProjectManager
-from typing import Optional
 
 
 class SaveProjectCommand(Command):
@@ -21,7 +21,8 @@ class SaveProjectCommand(Command):
         self.save_as_path = None
         self.previous_file_path = None
         
-    def execute(self, *args, **kwargs):
+    @override
+    def execute(self) -> bool:
         """Execute the save project command."""
         try:
             # Check if we have a project to save
@@ -30,16 +31,16 @@ class SaveProjectCommand(Command):
                     "Save Project", 
                     "No project is currently loaded to save."
                 )
-                return
-            
+                return False
+
             project = self.app_state.current_project
             if not project:  # Additional safety check
                 self.ui_controller.show_warning_message(
                     "Save Project", 
                     "No project is currently loaded to save."
                 )
-                return
-                
+                return False
+
             current_path = self.app_state.project_file_path
             
             # Determine the save path
@@ -55,8 +56,8 @@ class SaveProjectCommand(Command):
                     default_name=f"{project.name}.pplot"
                 )
                 if not save_path:
-                    return  # User cancelled
-            
+                    return False  # User cancelled
+
             # Store previous path for undo
             self.previous_file_path = current_path
             
@@ -83,7 +84,9 @@ class SaveProjectCommand(Command):
                         "Project Saved", 
                         f"Project '{project.name}' has been saved to:\n{save_path}"
                     )
+                return True
             else:
+                # TODO: we probably should raise exception here, but check command executor
                 raise Exception("Save operation failed")
                 
         except Exception as e:
@@ -111,16 +114,6 @@ class SaveProjectCommand(Command):
     def redo(self):
         """Redo the save project command."""
         self.execute()
-        
-    def clone(self):
-        """Create a copy of this command."""
-        return SaveProjectCommand(self.app_context)
-        
-    def __str__(self):
-        if self.save_as_path:
-            return f"Save Project As '{self.save_as_path}'"
-        return "Save Project"
-
 
 class SaveProjectAsCommand(SaveProjectCommand):
     """
@@ -130,8 +123,9 @@ class SaveProjectAsCommand(SaveProjectCommand):
     
     def __init__(self, app_context: AppContext):
         super().__init__(app_context)
-        
-    def execute(self, *args, **kwargs):
+
+    @override
+    def execute(self) -> bool:
         """Execute the save as command."""
         try:
             # Check if we have a project to save
@@ -140,36 +134,30 @@ class SaveProjectAsCommand(SaveProjectCommand):
                     "Save Project As", 
                     "No project is currently loaded to save."
                 )
-                return
-            
+                return False
+
             project = self.app_state.current_project
             if not project:  # Additional safety check
                 self.ui_controller.show_warning_message(
                     "Save Project As", 
                     "No project is currently loaded to save."
                 )
-                return
-            
+                return False
+
             # Always prompt for new save location
             save_path = self.ui_controller.show_save_project_dialog(
                 default_name=f"{project.name}.pplot"
             )
             if not save_path:
-                return  # User cancelled
-            
+                return False  # User cancelled
+
             # Set the save path and delegate to parent
             self.save_as_path = save_path
-            super().execute(*args, **kwargs)
+            return super().execute()
+
                 
         except Exception as e:
             error_msg = f"Failed to save project as: {str(e)}"
             print(f"SaveProjectAsCommand Error: {error_msg}")
             self.ui_controller.show_error_message("Save Project As Error", error_msg)
             raise
-        
-    def clone(self):
-        """Create a copy of this command."""
-        return SaveProjectAsCommand(self.app_context)
-        
-    def __str__(self):
-        return "Save Project As"

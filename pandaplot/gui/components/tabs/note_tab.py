@@ -2,15 +2,24 @@
 Note tab widget for displaying and editing notes in the main tab container.
 """
 
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, 
-                             QLabel, QLineEdit, QPushButton, QFrame,
-                             QToolBar)
-from PySide6.QtCore import Signal, QTimer
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtGui import QAction, QFont, QKeySequence
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTextEdit,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
+)
+
 from pandaplot.commands.project.item.rename_item_command import RenameItemCommand
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.project.items.note import Note
 from pandaplot.commands.project.note.edit_note_command import EditNoteCommand
+from pandaplot.models.project.items.note import Note
+from pandaplot.models.state.app_context import AppContext
 
 
 class NoteEditorWidget(QWidget):

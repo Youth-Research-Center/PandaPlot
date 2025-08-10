@@ -163,22 +163,3 @@ class MoveItemCommand(Command):
     def redo(self):
         """Redo the move item command."""
         self.execute()
-        
-    def clone(self):
-        """Create a copy of this command."""
-        return MoveItemCommand(self.app_context, self.item_id, self.item_type, 
-                             self.source_folder_id, self.target_folder_id)
-        
-    def __str__(self):
-        # Try to get item name for better command description
-        item_display = self.item_id
-        if self.app_state and self.app_state.has_project:
-            project = self.app_state.current_project
-            if project and self.item_id:
-                item = project.find_item(self.item_id)
-                if item is not None:
-                    item_name = getattr(item, 'name', '')
-                    if item_name:
-                        item_display = f"{item_name} ({self.item_id})"
-        
-        return f"Move {self.item_type} '{item_display}'"

@@ -2,7 +2,7 @@
 Command to add a new column to a dataset.
 """
 
-from typing import Optional
+from typing import Optional, override
 import pandas as pd
 import numpy as np
 from pandaplot.commands.base_command import Command
@@ -31,7 +31,8 @@ class AddColumnCommand(Command):
         self.project = None
         self.dataset = None  # Will be cast to Dataset when found
 
-    def execute(self, column_name: Optional[str] = None, default_value: str|int|float = "", **kwargs):
+    @override
+    def execute(self) -> bool:
         """Execute the add column command."""
         try:
             # Check if we have a project loaded
@@ -78,9 +79,7 @@ class AddColumnCommand(Command):
             self.original_data = self.dataset.data.copy()
             
             # Get column name if not provided
-            if column_name:
-                self.column_name = column_name
-            elif not self.column_name:
+            if self.column_name is None:
                 self.column_name = self.ui_controller.get_text_input(
                     "Add Column", 
                     "Enter column name:",
@@ -99,9 +98,7 @@ class AddColumnCommand(Command):
                 return False
             
             # Determine default value
-            if default_value:
-                self.default_value = default_value
-            else:
+            if self.default_value is None:
                 # Try to infer a reasonable default based on existing data
                 numeric_cols = self.dataset.data.select_dtypes(include=[np.number]).columns
                 if len(numeric_cols) > 0:
@@ -169,6 +166,3 @@ class AddColumnCommand(Command):
         # Re-execute with stored parameters
         return self.execute(column_name=self.column_name, default_value=self.default_value)
 
-    def get_description(self) -> str:
-        """Get command description for UI display."""
-        return f"Add column '{self.column_name}' to dataset"

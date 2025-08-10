@@ -356,37 +356,6 @@ class TestCreateNoteCommand:
         assert command.created_note_id == "generated-uuid-123"
         mock_uuid.assert_called_once()
 
-    def test_clone_method(self, mock_app_context):
-        """Test the clone method creates a new instance with same parameters."""
-        app_context, app_state, ui_controller = mock_app_context
-        
-        original = CreateNoteCommand(app_context, "Original Note", "Original content", "folder-123")
-        clone = original.clone()
-        
-        assert clone is not original
-        assert isinstance(clone, CreateNoteCommand)
-        assert clone.app_context == original.app_context
-        assert clone.note_name == "Original Note"
-        assert clone.content == "Original content"
-        assert clone.folder_id == "folder-123"
-        
-        # Clone should have fresh state
-        assert clone.created_note_id is None
-        assert clone.created_note is None
-        assert clone.project is None
-
-    def test_str_method(self, mock_app_context):
-        """Test string representation of the command."""
-        app_context, app_state, ui_controller = mock_app_context
-        
-        # Test with note name
-        command_with_name = CreateNoteCommand(app_context, "My Note")
-        assert str(command_with_name) == "Create Note 'My Note'"
-        
-        # Test without note name
-        command_without_name = CreateNoteCommand(app_context)
-        assert str(command_without_name) == "Create Note 'New Note'"
-
     def test_command_state_isolation(self, mock_app_context, sample_project):
         """Test that multiple command instances don't interfere with each other."""
         app_context, app_state, ui_controller = mock_app_context

@@ -385,37 +385,6 @@ class TestDeleteItemCommand:
         ui_controller.show_error_message.assert_called_once()
         assert "Failed to redo delete item: Test error" in ui_controller.show_error_message.call_args[0][1]
 
-    def test_clone_method(self, mock_app_context):
-        """Test the clone method creates a new instance with same parameters."""
-        app_context, app_state, ui_controller = mock_app_context
-        
-        original = DeleteItemCommand(app_context, "item-123")
-        original.deleted_item_class = Note
-        original.deleted_item_data = {"id": "note-123", "name": "Test"}
-        
-        clone = original.clone()
-        
-        assert clone is not original
-        assert isinstance(clone, DeleteItemCommand)
-        assert clone.app_context == original.app_context
-        assert clone.item_id == "item-123"
-        
-        # Clone should have fresh state
-        assert clone.deleted_item_data is None
-        assert clone.deleted_item_class is None
-
-    def test_str_method(self, mock_app_context):
-        """Test string representation of the command."""
-        app_context, app_state, ui_controller = mock_app_context
-        
-        # Test without deleted item class
-        command = DeleteItemCommand(app_context, "item-123")
-        assert str(command) == "Delete Item 'item-123'"
-        
-        # Test with deleted item class
-        command.deleted_item_class = Note
-        assert str(command) == "Delete note 'item-123'"
-
     def test_different_item_types(self, mock_app_context, sample_project):
         """Test deletion of different item types."""
         app_context, app_state, ui_controller = mock_app_context

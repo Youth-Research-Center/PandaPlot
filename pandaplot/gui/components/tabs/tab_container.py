@@ -23,6 +23,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
 
         self.app_context = app_context
+        # TODO: we shouldn't know about these tab types here
         self.note_tabs = {}  # Track note tabs by note_id
         self.chart_tabs = {}  # Track chart tabs by chart_id
         self.dataset_tabs = {}  # Track dataset tabs by dataset_id
@@ -504,26 +505,14 @@ class TabContainer(EventBusComponentMixin, QWidget):
 
         # Use CreateChartCommand to properly add chart to project hierarchy
         from pandaplot.commands.project.chart.create_chart_command import CreateChartCommand
-        command = CreateChartCommand(self.app_context)
-        
-        # Execute the command with parameters
-        chart_id = command.execute(
-            dataset_id=dataset_id,
-            chart_name=chart_name,
-            parent_id=dataset_item.parent_id  # Same level as the dataset
-        )
-        
-        if chart_id:
-            print(f"TabContainer: Created new chart '{chart_name}' (ID: {chart_id}) from dataset '{dataset_id}' using command pattern")
-            return self.open_chart_tab(chart_id, chart_name)
+        command = CreateChartCommand(self.app_context, dataset_id, chart_name, dataset_item.parent_id)
+        self.app_context.get_command_executor().execute_command(command)
 
-    def has_welcome_tab(self):
-        """Check if there's currently a welcome tab open."""
-        for i in range(self.tab_widget.count()):
-            widget = self.tab_widget.widget(i)
-            if isinstance(widget, WelcomeTab):
-                return True
-        return False
+        chart_id = command.created_chart_id
+
+        if chart_id:
+            # TODO: this should be handled on tab container level by listening on new item creation
+            return self.open_chart_tab(chart_id, chart_name)
     
     def on_project_loaded(self):
         """Called when a project is loaded - welcome tab stays open."""
@@ -538,13 +527,6 @@ class TabContainer(EventBusComponentMixin, QWidget):
         self.chart_tabs.clear()
         
         if self.tab_widget.count() == 0:
-            self.create_welcome_tab()
-    
-    def ensure_welcome_tab_when_no_project(self):
-        """Ensure welcome tab is shown when no project is loaded and no tabs are open."""
-        if (self.app_context and 
-            not self.app_context.get_app_state().has_project and 
-            self.tab_widget.count() == 0):
             self.create_welcome_tab()
     
     def on_project_loaded_event(self, event_data):

@@ -1,3 +1,4 @@
+import logging
 from pandaplot.commands.base_command import Command
 from typing import List, Optional
 
@@ -8,6 +9,8 @@ class CommandExecutor:
     """
     
     def __init__(self):
+        self.logger = logging.getLogger(__name__)
+
         # Undo/Redo functionality
         self.undo_stack: List[Command] = []
         self.redo_stack: List[Command] = []
@@ -38,7 +41,7 @@ class CommandExecutor:
             return True
             
         except Exception as e:
-            print(f"Error executing command '{command.__class__.__name__}': {str(e)}")
+            self.logger.error(f"Error executing command '{command.__class__.__name__}': {str(e)}")
             return False
     
     def undo(self) -> bool:
@@ -58,7 +61,7 @@ class CommandExecutor:
             return True
             
         except Exception as e:
-            print(f"Error undoing command: {str(e)}")
+            self.logger.error(f"Error undoing command: {str(e)}")
             return False
     
     def redo(self) -> bool:
@@ -78,7 +81,7 @@ class CommandExecutor:
             return True
             
         except Exception as e:
-            print(f"Error redoing command: {str(e)}")
+            self.logger.error(f"Error redoing command: {str(e)}")
             return False
     
     def can_undo(self) -> bool:

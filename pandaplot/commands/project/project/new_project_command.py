@@ -1,3 +1,4 @@
+from typing import override
 from pandaplot.commands.base_command import Command
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
@@ -21,7 +22,8 @@ class NewProjectCommand(Command):
         self.previous_project = None
         self.previous_file_path = None
         
-    def execute(self, *args, **kwargs):
+    @override
+    def execute(self) -> bool:
         """Execute the new project command."""
         try:
             # Check if there's a current project - for now we'll just create new project
@@ -32,7 +34,7 @@ class NewProjectCommand(Command):
                     "This will replace the current project.\nDo you want to continue?"
                 )
                 if not response:
-                    return  # User cancelled
+                    return False# User cancelled
             
             # Store current state for undo
             if self.app_state.has_project:
@@ -46,7 +48,7 @@ class NewProjectCommand(Command):
             self.app_state.load_project(new_project, None)  # None file path for new project
             
             print(f"NewProjectCommand: Created new project '{new_project.name}'")
-            
+            return True
         except Exception as e:
             error_msg = f"Failed to create new project: {str(e)}"
             print(f"NewProjectCommand Error: {error_msg}")
@@ -73,10 +75,3 @@ class NewProjectCommand(Command):
     def redo(self):
         """Redo the new project command."""
         self.execute()
-        
-    def clone(self):
-        """Create a copy of this command."""
-        return NewProjectCommand(self.app_context)
-        
-    def __str__(self):
-        return "Create New Project"

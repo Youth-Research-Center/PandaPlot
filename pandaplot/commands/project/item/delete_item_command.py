@@ -1,13 +1,9 @@
 from pandaplot.commands.base_command import Command
 from pandaplot.models.project.items.item import Item
-from pandaplot.models.project.items.note import Note
-from pandaplot.models.project.items.folder import Folder
-from pandaplot.models.project.items.chart import Chart
-from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.gui.controllers.ui_controller import UIController
-from typing import Optional, Dict, Any, Type
+from typing import Optional, Dict, Any, Type, override
 
 
 class DeleteItemCommand(Command):
@@ -15,15 +11,6 @@ class DeleteItemCommand(Command):
     Generic command to delete any project item using to_dict/from_dict serialization.
     This command works with any item type that extends the Item base class.
     """
-    
-    # Registry of item types to their classes
-    ITEM_TYPE_REGISTRY: Dict[str, Type[Item]] = {
-        'note': Note,
-        'folder': Folder,
-        'chart': Chart,
-        'dataset': Dataset,
-        # Add more item types as they're implemented
-    }
     
     def __init__(self, app_context: AppContext, item_id: str):
         super().__init__()
@@ -37,8 +24,9 @@ class DeleteItemCommand(Command):
         self.deleted_item_data: Optional[Dict[str, Any]] = None
         self.deleted_item_class: Optional[Type[Item]] = None
         self.parent_item: Optional[Item] = None
-        
-    def execute(self, *args, **kwargs) -> bool:
+    
+    @override
+    def execute(self) -> bool:
         """Execute the delete item command."""
         try:
             # Check if we have a project loaded
@@ -189,13 +177,3 @@ class DeleteItemCommand(Command):
             print(f"DeleteItemCommand Redo Error: {error_msg}")
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
-        
-    def clone(self) -> 'DeleteItemCommand':
-        """Create a copy of this command."""
-        return DeleteItemCommand(self.app_context, self.item_id)
-        
-    def __str__(self) -> str:
-        if self.deleted_item_class:
-            item_type = self.deleted_item_class.__name__.lower()
-            return f"Delete {item_type} '{self.item_id}'"
-        return f"Delete Item '{self.item_id}'"

@@ -4,7 +4,7 @@ from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.gui.controllers.ui_controller import UIController
-from typing import Optional
+from typing import Optional, override
 class CreateNoteCommand(Command):
     """
     Command to create a new note in the project.
@@ -25,8 +25,9 @@ class CreateNoteCommand(Command):
         self.created_note_id = None
         self.created_note = None
         self.project = None
-        
-    def execute(self, *args, **kwargs):
+
+    @override
+    def execute(self) -> bool:
         """Execute the create note command."""
         try:
             # Check if we have a project loaded
@@ -131,11 +132,3 @@ class CreateNoteCommand(Command):
             print(f"CreateNoteCommand Redo Error: {error_msg}")
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
-        
-    def clone(self):
-        """Create a copy of this command."""
-        return CreateNoteCommand(self.app_context, self.note_name, self.content, self.folder_id)
-        
-    def __str__(self):
-        return f"Create Note '{self.note_name or 'New Note'}'"
-

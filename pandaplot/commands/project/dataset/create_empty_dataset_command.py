@@ -4,7 +4,7 @@ Command for creating empty datasets that can be filled in the app.
 
 import uuid
 import pandas as pd
-from typing import Optional
+from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.models.project.items.dataset import Dataset
@@ -18,20 +18,21 @@ class CreateEmptyDatasetCommand(Command):
     Command to create a new empty dataset that can be filled in the app.
     """
 
-    def __init__(self, app_context: AppContext, folder_id: Optional[str] = None):
+    def __init__(self, app_context: AppContext, folder_id: Optional[str] = None, dataset_name: Optional[str] = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
         
         self.folder_id = folder_id
-        self.dataset_name = None
+        self.dataset_name = dataset_name
         
         # Store state for undo
         self.dataset_id = None
         self.project = None
 
-    def execute(self, dataset_name: Optional[str] = None, **kwargs):
+    @override
+    def execute(self) -> bool:
         """Execute the create empty dataset command."""
         try:
             # Check if we have a project loaded
@@ -47,18 +48,16 @@ class CreateEmptyDatasetCommand(Command):
                 return False
             
             # Get dataset name from user if not provided
-            if not dataset_name:
-                dataset_name = self.ui_controller.get_text_input(
+            if self.dataset_name is None:
+                self.dataset_name = self.ui_controller.get_text_input(
                     "Create New Dataset",
                     "Enter dataset name:",
                     "New Dataset"
                 )
-                
-            if not dataset_name:
+
+            if not self.dataset_name:
                 return False  # User cancelled
                 
-            self.dataset_name = dataset_name
-
             # Create empty DataFrame with basic structure
             empty_data = pd.DataFrame({
                 'Column1': [''],
@@ -125,19 +124,9 @@ class CreateEmptyDatasetCommand(Command):
         """Redo the create empty dataset command."""
         try:
             if self.dataset_name:
-                return self.execute(self.dataset_name)
+                return self.execute()
         except Exception as e:
             error_msg = f"Failed to redo dataset creation: {str(e)}"
             print(f"CreateEmptyDatasetCommand Redo Error: {error_msg}")
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
-
-    def can_undo(self) -> bool:
-        """Check if this command can be undone."""
-        return self.dataset_id is not None
-
-    def get_description(self) -> str:
-        """Get description of this command for UI purposes."""
-        if self.dataset_name:
-            return f"Create empty dataset '{self.dataset_name}'"
-        return "Create empty dataset"

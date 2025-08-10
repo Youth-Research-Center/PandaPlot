@@ -3,7 +3,7 @@ from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.gui.controllers.ui_controller import UIController
-from typing import Optional
+from typing import Optional, override
 
 class RenameFolderCommand(Command):
     """
@@ -21,8 +21,9 @@ class RenameFolderCommand(Command):
         
         # Store state for undo
         self.old_name = None
-        
-    def execute(self, *args, **kwargs):
+
+    @override
+    def execute(self) -> bool:
         """Execute the rename folder command."""
         try:
             # Check if we have a project loaded
@@ -77,7 +78,8 @@ class RenameFolderCommand(Command):
             print(f"RenameFolderCommand Error: {error_msg}")
             self.ui_controller.show_error_message("Rename Folder Error", error_msg)
             return False
-    
+
+    @override
     def undo(self):
         """Undo the rename folder command."""
         try:
@@ -118,7 +120,8 @@ class RenameFolderCommand(Command):
             print(f"RenameFolderCommand Undo Error: {error_msg}")
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return False
-            
+
+    @override
     def redo(self):
         """Redo the rename folder command."""
         try:
@@ -153,10 +156,3 @@ class RenameFolderCommand(Command):
             print(f"RenameFolderCommand Redo Error: {error_msg}")
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
-        
-    def clone(self):
-        """Create a copy of this command."""
-        return RenameFolderCommand(self.app_context, self.folder_id, self.new_name)
-        
-    def __str__(self):
-        return f"Rename Folder to '{self.new_name}'"

@@ -4,7 +4,7 @@ from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.gui.controllers.ui_controller import UIController
-from typing import Optional
+from typing import Optional, override
 import pandas as pd
 import os
 
@@ -28,8 +28,9 @@ class ImportCsvCommand(Command):
         self.dataset_id = None
         self.imported_data = None
         self.project = None
-        
-    def execute(self, *args, **kwargs):
+
+    @override
+    def execute(self) -> bool:
         """Execute the import CSV command."""
         try:
             # Check if we have a project loaded

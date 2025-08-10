@@ -84,14 +84,12 @@ class TestCommandExecution:
         executor = CommandExecutor()
         command = MockCommand("FailingCommand", should_fail=True, fail_on="execute")
         
-        with patch('builtins.print') as mock_print:
-            result = executor.execute_command(command)
+        result = executor.execute_command(command)
         
         assert result is False
         assert not command.executed
         assert len(executor.undo_stack) == 0
         assert len(executor.redo_stack) == 0
-        mock_print.assert_called_once_with("Error executing command 'MockCommand': FailingCommand execute failed")
     
     def test_execute_multiple_commands(self):
         """Test executing multiple commands."""
@@ -163,14 +161,12 @@ class TestUndoFunctionality:
         
         executor.execute_command(command)
         
-        with patch('builtins.print') as mock_print:
-            result = executor.undo()
+        result = executor.undo()
         
         assert result is False
         # Command should be removed from undo stack even if undo fails
         assert len(executor.undo_stack) == 0
         assert len(executor.redo_stack) == 0
-        mock_print.assert_called_once_with("Error undoing command: FailingCommand undo failed")
     
     def test_multiple_undo_operations(self):
         """Test multiple undo operations."""
@@ -233,14 +229,12 @@ class TestRedoFunctionality:
         executor.execute_command(command)
         executor.undo()
         
-        with patch('builtins.print') as mock_print:
-            result = executor.redo()
+        result = executor.redo()
         
         assert result is False
         # Command should be removed from redo stack even if redo fails
         assert len(executor.undo_stack) == 0
         assert len(executor.redo_stack) == 0
-        mock_print.assert_called_once_with("Error redoing command: FailingCommand redo failed")
     
     def test_multiple_redo_operations(self):
         """Test multiple redo operations."""

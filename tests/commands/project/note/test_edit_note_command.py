@@ -388,31 +388,6 @@ class TestEditNoteCommand:
         ui_controller.show_error_message.assert_called_once()
         assert "Failed to redo edit note: Test error" in ui_controller.show_error_message.call_args[0][1]
 
-    def test_clone_method(self, mock_app_context):
-        """Test the clone method creates a new instance with same parameters."""
-        app_context, app_state, ui_controller = mock_app_context
-        
-        original = EditNoteCommand(app_context, "note-123", "New content")
-        original.old_content = "Original content"  # Simulate execution
-        
-        clone = original.clone()
-        
-        assert clone is not original
-        assert isinstance(clone, EditNoteCommand)
-        assert clone.app_context == original.app_context
-        assert clone.note_id == "note-123"
-        assert clone.new_content == "New content"
-        
-        # Clone should have fresh state
-        assert clone.old_content is None
-
-    def test_str_method(self, mock_app_context):
-        """Test string representation of the command."""
-        app_context, app_state, ui_controller = mock_app_context
-        
-        command = EditNoteCommand(app_context, "note-123", "New content")
-        assert str(command) == "Edit Note 'note-123'"
-
     def test_content_storage_during_execute(self, mock_app_context, sample_project, sample_note):
         """Test that old content is properly stored during execute."""
         app_context, app_state, ui_controller = mock_app_context

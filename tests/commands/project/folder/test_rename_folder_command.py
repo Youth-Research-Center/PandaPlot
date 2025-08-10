@@ -481,35 +481,6 @@ class TestRenameFolderCommand:
         ui_controller.show_error_message.assert_called_once()
         assert "Failed to redo rename folder: Test error" in ui_controller.show_error_message.call_args[0][1]
 
-    def test_clone_method(self, mock_app_context):
-        """Test the clone method creates a new instance with same parameters."""
-        app_context, app_state, ui_controller = mock_app_context
-        
-        original = RenameFolderCommand(app_context, "folder-123", "New Name")
-        original.old_name = "Original Name"  # Simulate execution
-        
-        clone = original.clone()
-        
-        assert clone is not original
-        assert isinstance(clone, RenameFolderCommand)
-        assert clone.app_context == original.app_context
-        assert clone.folder_id == "folder-123"
-        assert clone.new_name == "New Name"
-        
-        # Clone should have fresh state
-        assert clone.old_name is None
-
-    def test_str_method(self, mock_app_context):
-        """Test string representation of the command."""
-        app_context, app_state, ui_controller = mock_app_context
-        
-        command = RenameFolderCommand(app_context, "folder-123", "New Folder Name")
-        assert str(command) == "Rename Folder to 'New Folder Name'"
-        
-        # Test with None new_name
-        command_none = RenameFolderCommand(app_context, "folder-123", None)
-        assert str(command_none) == "Rename Folder to 'None'"
-
     def test_name_storage_during_execute(self, mock_app_context, sample_project, sample_folder):
         """Test that old name is properly stored during execute."""
         app_context, app_state, ui_controller = mock_app_context

@@ -409,34 +409,6 @@ class TestCreateFolderCommand:
         assert folder is not None
         assert folder.id == test_uuid
 
-    def test_clone_method(self, mock_app_context):
-        """Test the clone method creates a proper copy."""
-        app_context, app_state, ui_controller = mock_app_context
-        
-        original_command = CreateFolderCommand(app_context, "Original Folder", "parent-123")
-        cloned_command = original_command.clone()
-        
-        assert cloned_command.app_context == original_command.app_context
-        assert cloned_command.folder_name == original_command.folder_name
-        assert cloned_command.parent_id == original_command.parent_id
-        
-        # But they should be different instances
-        assert cloned_command is not original_command
-        assert cloned_command.created_folder_id is None
-        assert cloned_command.created_folder is None
-
-    def test_str_method(self, mock_app_context):
-        """Test the __str__ method."""
-        app_context, app_state, ui_controller = mock_app_context
-        
-        # Test with folder name
-        command1 = CreateFolderCommand(app_context, "Test Folder")
-        assert str(command1) == "Create Folder 'Test Folder'"
-        
-        # Test without folder name
-        command2 = CreateFolderCommand(app_context)
-        assert str(command2) == "Create Folder 'New Folder'"
-
     def test_command_state_isolation(self, mock_app_context):
         """Test that multiple command instances don't interfere with each other."""
         app_context, app_state, ui_controller = mock_app_context

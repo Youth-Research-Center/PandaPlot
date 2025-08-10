@@ -45,6 +45,7 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         self.create_widgets(main_layout)
         self.setup_event_subscriptions()
         self.app_context.event_bus.subscribe(AppEvents.APP_CLOSING, self.closeEvent)
+        self.logger.info("PandaMainWindow initialized.")
         
     def create_widgets(self, main_layout):
         # Create menu

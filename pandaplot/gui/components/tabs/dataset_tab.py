@@ -1,15 +1,26 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QTableWidget, QTableWidgetItem, QHeaderView, 
-                             QPushButton, QFrame, QCheckBox, QMessageBox)
+import numpy as np
+import pandas as pd
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
-import pandas as pd
-import numpy as np
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.project.items.dataset import Dataset
-from pandaplot.models.events.mixins import EventBusComponentMixin
+from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
 from pandaplot.models.events.event_types import DatasetEvents, DatasetOperationEvents
+from pandaplot.models.events.mixins import EventBusComponentMixin
+from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.state.app_context import AppContext
 
 
 class DatasetTab(EventBusComponentMixin, QWidget):
@@ -638,7 +649,6 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         if not self.app_context:
             return
         
-        from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
         
         command = AddColumnCommand(self.app_context, self.dataset.id)
         success = self.app_context.get_command_executor().execute_command(command)

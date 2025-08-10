@@ -2,7 +2,7 @@
 Analysis command for applying mathematical analysis operations with undo/redo support.
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, override
 import pandas as pd
 
 from pandaplot.commands.base_command import Command
@@ -48,13 +48,14 @@ class AnalysisCommand(Command):
         self.replace_existing = analysis_config.get('replace_existing', False)
         self.parameters = analysis_config.get('parameters', {})
     
+    @override
     def execute(self) -> bool:
         """Execute the analysis and add result column to dataset."""
         try:
             # Get dataset
             self.dataset = self._get_dataset()
             if not self.dataset:
-                print(f"Analysis execution failed: Dataset {self.dataset_id} not found")
+                self.logger.warning(f"Analysis execution failed: Dataset {self.dataset_id} not found")
                 return False
             
             # Validate inputs
@@ -64,14 +65,14 @@ class AnalysisCommand(Command):
             # Store original state for undo
             df = self.dataset.data
             if df is None:
-                print("Analysis execution failed: Dataset is empty")
+                self.logger.warning("Analysis execution failed: Dataset is empty")
                 return False
             self._store_original_state(df)
             
             # Execute analysis
             result = self._execute_analysis(df)
             if result is None:
-                print("Analysis execution failed: Analysis returned no result")
+                self.logger.warning("Analysis execution failed: Analysis returned no result")
                 return False
             
             # Add result column to dataset
@@ -80,36 +81,36 @@ class AnalysisCommand(Command):
             # Handle result data alignment
             result_data_length = len(result.result_data)
             df_length = len(df)
-            print(f"Comparing lengths: result_data={result_data_length}, df={df_length}")
-            
+            self.logger.info(f"Comparing lengths: result_data={result_data_length}, df={df_length}")
+
             if result_data_length == df_length:
                 # Direct assignment if lengths match
                 df_copy[self.new_column_name] = result.result_data
-                print(f"Direct assignment: new column '{self.new_column_name}' added, shape now: {df_copy.shape}")
+                self.logger.info(f"Direct assignment: new column '{self.new_column_name}' added, shape now: {df_copy.shape}")
             else:
                 # Handle cases where result data is shorter (e.g., derivatives, arc length)
                 df_copy[self.new_column_name] = pd.NA
                 df_copy.iloc[:len(result.result_data), df_copy.columns.get_loc(self.new_column_name)] = result.result_data
-                print(f"Partial assignment: new column '{self.new_column_name}' added, shape now: {df_copy.shape}")
+                self.logger.info(f"Partial assignment: new column '{self.new_column_name}' added, shape now: {df_copy.shape}")
             
             # Update dataset
             self.dataset.set_data(df_copy)
             return True
             
         except Exception as e:
-            print(f"Analysis execution failed: {e}")
+            self.logger.error(f"Analysis execution failed: {e}")
             return False
     
     def undo(self) -> bool:
         """Remove the analysis result column or restore original data."""
         try:
             if not self.dataset or not isinstance(self.dataset, Dataset):
-                print("Undo failed: Invalid dataset reference")
+                self.logger.warning("Undo failed: Invalid dataset reference")
                 return False
             
             df = self.dataset.data
             if df is None:
-                print("Undo failed: No data in dataset")
+                self.logger.warning("Undo failed: No data in dataset")
                 return False
             
             if self.column_existed_before and self.original_data is not None:
@@ -122,12 +123,12 @@ class AnalysisCommand(Command):
                 df_copy = df.copy()
                 df_copy = df_copy.drop(columns=[self.new_column_name])
                 self.dataset.set_data(df_copy)
-            
-            print(f"Analysis undone successfully: {self.new_column_name}")
+
+            self.logger.info(f"Analysis undone successfully: {self.new_column_name}")
             return True
             
         except Exception as e:
-            print(f"Analysis undo failed: {e}")
+            self.logger.error(f"Analysis undo failed: {e}")
             return False
     
     def redo(self) -> bool:
@@ -146,17 +147,17 @@ class AnalysisCommand(Command):
                         return dataset_item  # Return the dataset object, not the data
             return None
         except Exception as e:
-            print(f"Error getting dataset: {e}")
+            self.logger.error(f"Error getting dataset: {e}")
             return None
     
     def _validate_inputs(self) -> bool:
         """Validate all required inputs are present and valid."""
         if not self.new_column_name.strip():
-            print("Error: New column name cannot be empty")
+            self.logger.error("Error: New column name cannot be empty")
             return False
         
         if self.dataset is None or not hasattr(self.dataset, 'data') or self.dataset.data is None:
-            print("Error: Dataset has no data")
+            self.logger.error("Error: Dataset has no data")
             return False
             
         df = self.dataset.data
@@ -169,21 +170,21 @@ class AnalysisCommand(Command):
             missing_columns.append(self.y_column)
             
         if missing_columns:
-            print(f"Error: Source columns not found: {missing_columns}")
+            self.logger.error(f"Error: Source columns not found: {missing_columns}")
             return False
         
         # Check if new column already exists
         if self.new_column_name in df.columns and not self.replace_existing:
-            print(f"Error: Column '{self.new_column_name}' already exists")
+            self.logger.error(f"Error: Column '{self.new_column_name}' already exists")
             return False
         
         # Check data types for numeric operations
         if not pd.api.types.is_numeric_dtype(df[self.x_column]):
-            print(f"Error: X column '{self.x_column}' must be numeric")
+            self.logger.error(f"Error: X column '{self.x_column}' must be numeric")
             return False
             
         if not pd.api.types.is_numeric_dtype(df[self.y_column]):
-            print(f"Error: Y column '{self.y_column}' must be numeric")
+            self.logger.error(f"Error: Y column '{self.y_column}' must be numeric")
             return False
         
         return True
@@ -232,9 +233,5 @@ class AnalysisCommand(Command):
                 x_data, y_data, method, num_points, start_index, end_index
             )
         else:
-            print(f"Unknown analysis type: {self.analysis_type}")
+            self.logger.error(f"Unknown analysis type: {self.analysis_type}")
             return None
-    
-    def get_description(self) -> str:
-        """Get human-readable description of this command."""
-        return f"Apply {self.analysis_type.value} analysis to {self.y_column}"

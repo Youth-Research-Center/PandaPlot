@@ -1,11 +1,12 @@
 import logging
 from pathlib import Path
+from typing import Optional
 
 def setup_logging(
     log_file: str | Path = "application.log",
     level: int = logging.INFO,
-    cli_level: int = logging.INFO,
-    file_level: int = logging.DEBUG,
+    cli_level: Optional[int] = logging.INFO,
+    file_level: Optional[int] = logging.DEBUG,
     datefmt: str = "%Y-%m-%d %H:%M:%S"
 ):
     """
@@ -38,18 +39,18 @@ def setup_logging(
     formatter = logging.Formatter(fmt=log_format, datefmt=datefmt)
 
     # File handler
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
-    file_handler.setLevel(file_level)
-    file_handler.setFormatter(formatter)
+    if file_level is not None:
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setLevel(file_level)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
 
     # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(cli_level)
-    console_handler.setFormatter(formatter)
+    if cli_level is not None:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(cli_level)
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
 
-    # Add handlers
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    logger.debug(f"Logging initialized. Log file at: {log_file}")
+    logger.debug("Logging initialized.")
     return logger

@@ -4,7 +4,7 @@ from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.gui.controllers.ui_controller import UIController
-from typing import Optional
+from typing import Optional, override
 
 
 class CreateFolderCommand(Command):
@@ -25,8 +25,9 @@ class CreateFolderCommand(Command):
         self.created_folder_id = None
         self.created_folder = None
         self.project = None
-        
-    def execute(self, *args, **kwargs):
+
+    @override
+    def execute(self) -> bool:
         """Execute the create folder command."""
         try:
             # Check if we have a project loaded
@@ -88,6 +89,7 @@ class CreateFolderCommand(Command):
             self.ui_controller.show_error_message("Create Folder Error", error_msg)
             return False
     
+    @override
     def undo(self):
         """Undo the create folder command."""
         try:
@@ -111,7 +113,8 @@ class CreateFolderCommand(Command):
             error_msg = f"Failed to undo create folder: {str(e)}"
             print(f"CreateFolderCommand Undo Error: {error_msg}")
             self.ui_controller.show_error_message("Undo Error", error_msg)
-            
+
+    @override
     def redo(self):
         """Redo the create folder command."""
         try:
@@ -142,10 +145,4 @@ class CreateFolderCommand(Command):
             print(f"CreateFolderCommand Redo Error: {error_msg}")
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
-        
-    def clone(self):
-        """Create a copy of this command."""
-        return CreateFolderCommand(self.app_context, self.folder_name, self.parent_id)
-    def __str__(self):
-        return f"Create Folder '{self.folder_name or 'New Folder'}'"
 

@@ -2,7 +2,7 @@ from pandaplot.commands.base_command import Command
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.project.project import Project
 from pandaplot.services.data_managers.project_manager import ProjectManager
-from typing import Optional
+from typing import Optional, override
 
 
 class LoadProjectCommand(Command):
@@ -22,15 +22,9 @@ class LoadProjectCommand(Command):
         self.previous_project: Optional[Project] = None
         self.previous_file_path: Optional[str] = None
         self.loaded_project: Optional[Project] = None
-
-    def clone(self) -> 'LoadProjectCommand':
-        """
-        Create a new instance of this command.
-        This is useful to ensure we execute a fresh instance each time.
-        """
-        return LoadProjectCommand(self.app_context, self.file_path)
         
-    def execute(self):
+    @override
+    def execute(self) -> bool:
         """Execute the load project command."""
         try:
             # Store current state for undo
@@ -42,9 +36,12 @@ class LoadProjectCommand(Command):
             
             # Update app state (this will emit events)
             self.app_state.load_project(self.loaded_project, self.file_path)
-            
+            return True
+
         except Exception as e:
             # If loading fails, ensure state remains consistent
+            # TODO: instead of raising an exception, we could return False
+            # and ensure the state is handled well.
             raise Exception(f"Failed to load project from {self.file_path}: {str(e)}")
     
     def undo(self):
@@ -61,6 +58,3 @@ class LoadProjectCommand(Command):
         else:
             # Re-execute if we don't have the loaded project cached
             self.execute()
-    
-    def __repr__(self):
-        return f"LoadProjectCommand(file_path='{self.file_path}')"

@@ -14,3 +14,10 @@ Activate virtual environment and run the following command.
 ```
 python -m pandaplot.app
 ```
+
+## Run tests
+```bash
+pytest
+pytest --verbose
+pytest --cov
+```

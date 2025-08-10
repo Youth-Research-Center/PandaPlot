@@ -1,8 +1,12 @@
 from abc import ABC, abstractmethod
+import logging
 
 class Command(ABC):
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+
     @abstractmethod
-    def execute(self):
+    def execute(self) -> bool:
         pass
 
     @abstractmethod
