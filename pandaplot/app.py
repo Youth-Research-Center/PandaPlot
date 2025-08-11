@@ -1,14 +1,32 @@
 
+import re
 import sys
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
+from pandaplot.storage.project_data_manager import ProjectDataManager
+from pandaplot.storage.note_data_manager import NoteDataManager
 from pandaplot.utils.log import setup_logging
+
+def create_project_data_manager() -> ProjectDataManager:
+    item_data_manager_factory = ItemDataManagerFactory()
+
+    item_data_manager_factory.register(
+        type_name="note",
+        item_class=Note,
+        manager=NoteDataManager(),
+        extension="note"  # base name, manager decides if it's `.json`/`.md`
+    )
+
+    project_data_manager = ProjectDataManager(item_data_manager_factory)
+    return project_data_manager
 
 def main():
     # Setup logging 
@@ -21,7 +39,9 @@ def main():
     
     # Create UI controller (will be updated with main window reference later)
     ui_controller = UIController()
-    
+
+    project_data_manager = create_project_data_manager()
+
     # Create command executor
     command_executor = CommandExecutor()
     app_context = AppContext(
