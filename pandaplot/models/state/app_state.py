@@ -2,6 +2,8 @@ from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.project.project import Project
 from typing import Optional
 
+from pandaplot.storage.project_data_manager import ProjectDataManager
+
 
 class AppState:
     """
@@ -9,8 +11,9 @@ class AppState:
     when state changes occur.
     """
     
-    def __init__(self, event_bus: Optional[EventBus] = None):
-        self.event_bus = event_bus or EventBus()
+    def __init__(self, event_bus: EventBus, project_data_manager: ProjectDataManager):
+        self.event_bus = event_bus
+        self.project_data_manager = project_data_manager
         self._current_project: Optional[Project] = None
         # TODO: move to the project model or project container model
         self._project_file_path: Optional[str] = None  
@@ -30,7 +33,7 @@ class AppState:
         """Check if a project is currently loaded."""
         return self._current_project is not None
     
-    def load_project(self, project: Project, file_path: Optional[str] = None):
+    def load_project(self, project: Project):
         """
         Load a project into the application state.
         
@@ -40,22 +43,24 @@ class AppState:
         """
         old_project = self._current_project
         self._current_project = project
-        self._project_file_path = file_path
         
         # Emit events
         self.event_bus.emit('project_loaded', {
             'project': project,
-            'file_path': file_path,
             'previous_project': old_project
         })
         
         if old_project is None:
             # TODO: this should be removed
             self.event_bus.emit('first_project_loaded', {
-                'project': project,
-                'file_path': file_path
+                'project': project
             })
-    
+
+    def load_project_from_file(self, file_path):
+        project = self.project_data_manager.load(file_path)
+        if project:
+            self.load_project(project)
+
     def close_project(self):
         """Close the currently loaded project."""
         if self._current_project is not None:
@@ -96,6 +101,7 @@ class AppState:
         })
         
         # TODO: Implement actual saving logic in a service
+        self.project_data_manager.save(self._current_project, save_path)
         
         self.event_bus.emit('project_saved', {
             'project': self._current_project,

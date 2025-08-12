@@ -3,7 +3,6 @@ from pandaplot.commands.base_command import Command
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.services.data_managers.project_manager import ProjectManager
 
 
 class SaveProjectCommand(Command):
@@ -17,7 +16,6 @@ class SaveProjectCommand(Command):
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
-        self.project_manager = ProjectManager()
         self.save_as_path = None
         self.previous_file_path = None
         
@@ -62,12 +60,12 @@ class SaveProjectCommand(Command):
             self.previous_file_path = current_path
             
             # Save the project
-            success = self.project_manager.save_project(project, save_path)
+            success = self.app_state.save_project(save_path)
             
             if success:
                 # Update app state with new file path (if it changed)
                 if save_path != current_path:
-                    self.app_state.load_project(project, save_path)
+                    self.app_state.load_project(project)
                 
                 # Emit save event
                 self.app_state.event_bus.emit('project_saved', {
@@ -103,7 +101,8 @@ class SaveProjectCommand(Command):
                 if self.app_state.has_project:
                     project = self.app_state.current_project
                     if project:  # Additional safety check
-                        self.app_state.load_project(project, self.previous_file_path)
+                        self.app_state.load_project(project)
+                        # TODO: this doesn't do anything currently
                         print(f"SaveProjectCommand: Reverted file path to '{self.previous_file_path}'")
                 
         except Exception as e:

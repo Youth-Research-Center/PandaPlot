@@ -45,7 +45,7 @@ class NewProjectCommand(Command):
             new_project = Project(name="New Project", description="A new project created with PandaPlot")
             
             # Update app state - use load_project method
-            self.app_state.load_project(new_project, None)  # None file path for new project
+            self.app_state.load_project(new_project)
             
             print(f"NewProjectCommand: Created new project '{new_project.name}'")
             return True
@@ -60,7 +60,7 @@ class NewProjectCommand(Command):
         try:
             if self.previous_project:
                 # Restore previous project
-                self.app_state.load_project(self.previous_project, self.previous_file_path)
+                self.app_state.load_project(self.previous_project)
                 print(f"NewProjectCommand: Restored previous project '{self.previous_project.name}'")
             else:
                 # No previous project, close current project
