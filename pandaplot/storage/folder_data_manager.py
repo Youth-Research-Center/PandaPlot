@@ -10,9 +10,6 @@ class FolderDataManager(ItemDataManager):
         Save folder metadata as JSON.
         path_in_zip should be without extension, e.g. 'items/<id>'
         """
-        # Save content as Markdown
-        zip_file.writestr(f"{path_in_zip}.md", item.content or "")
-
         # Prepare metadata (excluding full content)
         metadata = item.to_dict()
         zip_file.writestr(f"{path_in_zip}.json", json.dumps(metadata, indent=2))

@@ -1,3 +1,4 @@
+import logging
 from pandaplot.commands.base_command import Command
 from pandaplot.commands.project.project.load_project_command import LoadProjectCommand
 from pandaplot.models.state.app_context import AppContext
@@ -15,6 +16,7 @@ class OpenProjectCommand(Command):
     """
 
     def __init__(self, app_context: AppContext):
+        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.project_manager = ProjectManager()
         self.load_command: Optional[LoadProjectCommand] = None
@@ -24,14 +26,17 @@ class OpenProjectCommand(Command):
     def execute(self):
         """Execute the open project command."""
         try:
+            self.logger.info("Executing OpenProjectCommand")
             # Show file dialog to user
             file_path = self.app_context.ui_controller.show_open_project_dialog()
 
             if file_path is None:
                 # User cancelled the dialog
-                print("Open project cancelled by user")
+                self.logger.info("Open project cancelled by user")
                 self.was_executed = False
                 return
+
+            self.logger.info(f"Opening project: {file_path}")
 
             # Validate the file before attempting to load
             if not self.project_manager.validate_project_file(file_path):
@@ -52,7 +57,7 @@ class OpenProjectCommand(Command):
                 )
 
                 if not should_continue:
-                    print("Open project cancelled by user (current project protection)")
+                    self.logger.info("Open project cancelled by user (current project protection)")
                     self.was_executed = False
                     return
 

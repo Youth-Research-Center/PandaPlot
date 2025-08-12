@@ -1,3 +1,4 @@
+import logging
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.project.project import Project
 from typing import Optional
@@ -12,6 +13,7 @@ class AppState:
     """
     
     def __init__(self, event_bus: EventBus, project_data_manager: ProjectDataManager):
+        self.logger = logging.getLogger(__name__)
         self.event_bus = event_bus
         self.project_data_manager = project_data_manager
         self._current_project: Optional[Project] = None
@@ -41,6 +43,7 @@ class AppState:
             project (Project): The project to load
             file_path (str, optional): The file path where the project is stored
         """
+        self.logger.info(f"Loading project: {project.name}")
         old_project = self._current_project
         self._current_project = project
         
@@ -57,12 +60,14 @@ class AppState:
             })
 
     def load_project_from_file(self, file_path):
+        self.logger.info(f"Loading project from file: {file_path}")
         project = self.project_data_manager.load(file_path)
         if project:
             self.load_project(project)
 
     def close_project(self):
         """Close the currently loaded project."""
+        self.logger.info("Closing project")
         if self._current_project is not None:
             # TODO: add support for multiple projects
             old_project = self._current_project
@@ -76,19 +81,24 @@ class AppState:
                 'file_path': old_file_path
             })
     
-    def save_project(self, file_path: Optional[str] = None):
+    def save_project(self, file_path: Optional[str] = None) -> bool:
         """
         Save the current project.
         
         Args:
             file_path (str, optional): New file path to save to. If None, uses current path.
         """
+        if self._current_project is None:
+            return False
+        self.logger.info(f"Saving project {self._current_project.name} to {file_path}")
         # TODO: this shouldn't be in the application state. 
         if self._current_project is None:
+            # TODO: consider returning false
             raise ValueError("No project loaded to save")
         
         save_path = file_path or self._project_file_path
         if save_path is None:
+            # TODO: consider returning false
             raise ValueError("No file path specified for saving")
         
         # Update the stored path if a new one was provided
@@ -107,3 +117,5 @@ class AppState:
             'project': self._current_project,
             'file_path': save_path
         })
+
+        return True

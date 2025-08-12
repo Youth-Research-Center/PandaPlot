@@ -1,3 +1,4 @@
+import logging
 from typing import override
 from pandaplot.commands.base_command import Command
 from pandaplot.models.state.app_context import AppContext
@@ -13,6 +14,7 @@ class SaveProjectCommand(Command):
     
     def __init__(self, app_context: AppContext):
         super().__init__()
+        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
@@ -74,8 +76,8 @@ class SaveProjectCommand(Command):
                     'previous_path': current_path
                 })
                 
-                print(f"SaveProjectCommand: Successfully saved project '{project.name}' to '{save_path}'")
-                
+                self.logger.info(f"Project '{project.name}' saved successfully to '{save_path}'")
+
                 # Show success message for Save As operations
                 if self.save_as_path or not current_path:
                     self.ui_controller.show_info_message(
@@ -89,7 +91,7 @@ class SaveProjectCommand(Command):
                 
         except Exception as e:
             error_msg = f"Failed to save project: {str(e)}"
-            print(f"SaveProjectCommand Error: {error_msg}")
+            self.logger.error(f"SaveProjectCommand Error: {error_msg}")
             self.ui_controller.show_error_message("Save Project Error", error_msg)
             raise
     

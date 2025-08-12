@@ -1,3 +1,4 @@
+import logging
 from pandaplot.storage.item_data_manager import ItemDataManager
 
 class RegistryItem:
@@ -9,6 +10,7 @@ class RegistryItem:
 class ItemDataManagerFactory:
     def __init__(self):
         self._registry : dict[str, RegistryItem] = {}
+        self.logger = logging.getLogger(__name__)
 
     def register(self, type_name: str, item_class: type, manager: ItemDataManager, extension: str):
         """
@@ -18,6 +20,7 @@ class ItemDataManagerFactory:
           - manager: Data manager instance implementing IItemDataManager
           - extension: base file extension (without dot) for save/load
         """
+        self.logger.info(f"Registering item type '{type_name}' with extension '{extension}'")
         self._registry[type_name] = RegistryItem(item_class, manager, extension)
 
     def get_manager(self, type_name: str) -> ItemDataManager:
