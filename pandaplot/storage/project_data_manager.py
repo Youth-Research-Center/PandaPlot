@@ -4,7 +4,7 @@ import json
 from pandaplot.models.project.project import Project
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 
-class ProjectDataManager():
+class ProjectDataManager:
     def __init__(self, item_data_manager_factory: ItemDataManagerFactory):
         self.data_factory = item_data_manager_factory
 
