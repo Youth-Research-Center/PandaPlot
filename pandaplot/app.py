@@ -89,3 +89,5 @@ if __name__ == "__main__":
     main()
     # TODO: fix remove series
     # TODO: fix file tree widget to get refreshed after deleting items and item collections
+    # TODO: convert prints into log statements
+    # TODO: log error messages to the user
