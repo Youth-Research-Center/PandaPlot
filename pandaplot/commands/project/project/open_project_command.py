@@ -1,8 +1,9 @@
+from typing import Optional, override
+
 from pandaplot.commands.base_command import Command
 from pandaplot.commands.project.project.load_project_command import LoadProjectCommand
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.data_managers.project_manager import ProjectManager
-from typing import Optional, override
 
 
 class OpenProjectCommand(Command):
@@ -56,7 +57,8 @@ class OpenProjectCommand(Command):
                 )
 
                 if not should_continue:
-                    self.logger.info("Open project cancelled by user (current project protection)")
+                    self.logger.info(
+                        "Open project cancelled by user (current project protection)")
                     self.was_executed = False
                     return
 

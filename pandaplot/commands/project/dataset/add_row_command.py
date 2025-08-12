@@ -2,7 +2,6 @@
 Command to add a new row to a dataset.
 """
 
-import logging
 from typing import Optional, override
 import pandas as pd
 from pandaplot.commands.base_command import Command
