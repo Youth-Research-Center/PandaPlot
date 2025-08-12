@@ -1,3 +1,4 @@
+import logging
 from pandaplot.commands.base_command import Command
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState

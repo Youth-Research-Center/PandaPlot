@@ -1,3 +1,4 @@
+import logging
 import uuid
 from pandaplot.commands.base_command import Command
 from pandaplot.models.project.items.folder import Folder
@@ -30,6 +31,7 @@ class CreateFolderCommand(Command):
     def execute(self) -> bool:
         """Execute the create folder command."""
         try:
+            self.logger.info("Executing CreateFolderCommand")
             # Check if we have a project loaded
             if not self.app_state.has_project:
                 self.ui_controller.show_warning_message(

@@ -2,6 +2,7 @@
 Command to add a new column to a dataset.
 """
 
+import logging
 from typing import Optional, override
 import pandas as pd
 import numpy as np
@@ -35,6 +36,7 @@ class AddColumnCommand(Command):
     def execute(self) -> bool:
         """Execute the add column command."""
         try:
+            self.logger.info("Executing AddColumnCommand")
             # Check if we have a project loaded
             if not self.app_state.has_project:
                 self.ui_controller.show_warning_message(

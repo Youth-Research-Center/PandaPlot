@@ -2,6 +2,7 @@
 Transform column command for applying data transformations with undo/redo support.
 """
 
+import logging
 from typing import Dict, Any, Optional, override
 import pandas as pd
 
@@ -30,6 +31,7 @@ class TransformColumnCommand(Command):
                 - expression: str - transformation expression
                 - replace_existing: bool - whether to replace existing column
         """
+        super().__init__()
         self.app_context = app_context
         self.dataset_id = dataset_id
         self.transform_config = transform_config
@@ -50,15 +52,16 @@ class TransformColumnCommand(Command):
     def execute(self) -> bool:
         """Execute the transformation and add new column to dataset."""
         try:
+            self.logger.info("Executing TransformColumnCommand")
             # Get dataset from app context
             self.dataset = self._get_dataset()
             if not self.dataset:
-                print(f"Dataset {self.dataset_id} not found")
+                self.logger.warning(f"Dataset {self.dataset_id} not found")
                 return False
             
             # Ensure we have a Dataset object
             if not isinstance(self.dataset, Dataset):
-                print(f"Retrieved item is not a Dataset: {type(self.dataset)}")
+                self.logger.warning(f"Retrieved item is not a Dataset: {type(self.dataset)}")
                 return False
             
             # Validate inputs
@@ -67,7 +70,7 @@ class TransformColumnCommand(Command):
             
             # Get current dataframe
             if not hasattr(self.dataset, 'data') or self.dataset.data is None:
-                print("Dataset has no data")
+                self.logger.warning("Dataset has no data")
                 return False
                 
             df = self.dataset.data.copy()  # Work with a copy
@@ -86,11 +89,11 @@ class TransformColumnCommand(Command):
             # Update dataset using proper method
             self.dataset.set_data(df)
             
-            print(f"Transform applied: '{self.new_column_name}' created from {self.source_columns}")
+            self.logger.info(f"Transform applied: '{self.new_column_name}' created from {self.source_columns}")
             return True
             
         except Exception as e:
-            print(f"Transform execution failed: {e}")
+            self.logger.error(f"Transform execution failed: {e}")
             return False
     
     @override

@@ -1,4 +1,3 @@
-import logging
 from typing import override
 from pandaplot.commands.base_command import Command
 from pandaplot.models.state.app_context import AppContext
@@ -14,7 +13,6 @@ class SaveProjectCommand(Command):
     
     def __init__(self, app_context: AppContext):
         super().__init__()
-        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()

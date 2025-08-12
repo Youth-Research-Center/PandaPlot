@@ -2,6 +2,7 @@
 Analysis command for applying mathematical analysis operations with undo/redo support.
 """
 
+import logging
 from typing import Dict, Any, override
 import pandas as pd
 
@@ -31,6 +32,7 @@ class AnalysisCommand(Command):
                 - replace_existing: bool - whether to replace existing column
                 - parameters: dict - analysis-specific parameters
         """
+        super().__init__()
         self.app_context = app_context
         self.dataset_id = dataset_id
         self.analysis_config = analysis_config
@@ -52,6 +54,7 @@ class AnalysisCommand(Command):
     def execute(self) -> bool:
         """Execute the analysis and add result column to dataset."""
         try:
+            self.logger.info("Executing AnalysisCommand")
             # Get dataset
             self.dataset = self._get_dataset()
             if not self.dataset:

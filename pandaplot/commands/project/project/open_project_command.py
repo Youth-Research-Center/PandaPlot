@@ -1,4 +1,3 @@
-import logging
 from pandaplot.commands.base_command import Command
 from pandaplot.commands.project.project.load_project_command import LoadProjectCommand
 from pandaplot.models.state.app_context import AppContext
@@ -16,7 +15,7 @@ class OpenProjectCommand(Command):
     """
 
     def __init__(self, app_context: AppContext):
-        self.logger = logging.getLogger(__name__)
+        super().__init__()
         self.app_context = app_context
         self.project_manager = ProjectManager()
         self.load_command: Optional[LoadProjectCommand] = None

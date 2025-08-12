@@ -1,3 +1,4 @@
+import logging
 import uuid
 from pandaplot.commands.base_command import Command
 from pandaplot.models.project.items.dataset import Dataset

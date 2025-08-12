@@ -14,6 +14,7 @@ class LoadProjectCommand(Command):
     """
     
     def __init__(self, app_context:AppContext, file_path:str):
+        super().__init__()
         self.app_state = app_context.app_state
         self.app_context = app_context
         self.file_path = file_path

@@ -2,6 +2,7 @@
 Command for creating empty datasets that can be filled in the app.
 """
 
+import logging
 import uuid
 import pandas as pd
 from typing import Optional, override
@@ -35,6 +36,7 @@ class CreateEmptyDatasetCommand(Command):
     def execute(self) -> bool:
         """Execute the create empty dataset command."""
         try:
+            self.logger.info("Executing CreateEmptyDatasetCommand")
             # Check if we have a project loaded
             if not self.app_state.has_project:
                 self.ui_controller.show_warning_message(

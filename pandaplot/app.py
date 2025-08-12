@@ -41,9 +41,9 @@ def create_project_data_manager() -> ProjectDataManager:
 
 def main():
     # Setup logging
-    setup_logging()
+    logger = setup_logging()
     # Load configuration
-
+    logger.info("--------------Starting PandaPlot application--------------")
     # Initialize application state
     event_bus = EventBus()
     project_data_manager = create_project_data_manager()
