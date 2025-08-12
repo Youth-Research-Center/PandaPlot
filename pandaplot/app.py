@@ -25,7 +25,7 @@ def create_project_data_manager() -> ProjectDataManager:
         type_name="note",
         item_class=Note,
         manager=NoteDataManager(),
-        extension="note"
+        extension="note" # TODO: verify if we need file extension at all
     )
 
     item_data_manager_factory.register(
