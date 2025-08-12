@@ -25,7 +25,7 @@ def create_project_data_manager() -> ProjectDataManager:
         type_name="note",
         item_class=Note,
         manager=NoteDataManager(),
-        extension="note"  # base name, manager decides if it's `.json`/`.md`
+        extension="note"
     )
 
     item_data_manager_factory.register(
