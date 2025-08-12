@@ -1,6 +1,7 @@
 import zipfile
 import json
 
+from pandaplot.models.project.items.item import ItemCollection
 from pandaplot.models.project.project import Project
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 
@@ -31,9 +32,28 @@ class ProjectDataManager:
             project_dict = json.loads(zf.read("project.json").decode('utf-8'))
             project = Project.from_dict(project_dict)
 
-            # TODO: we should first load all of the folders and then load the items
-            # to ensure parent id exists
-            for item_id, info in project_dict.get("item_files", {}).items():
+            items = project_dict.get("item_files", {}).items()
+            loaded_items = set()
+            
+
+            # We need to first load all collection items to ensure parent id exists
+            for item_id, info in items:
+                type_name = info["type"]
+                item_class = self.data_factory.resolve_item_class(type_name)
+                
+                if not issubclass(item_class, ItemCollection):
+                    continue
+
+                path = info["path"]
+                manager = self.data_factory.get_manager(type_name)
+                item = manager.load(item_class, zf, path)
+                project.add_item(item, parent_id=item.parent_id)
+                loaded_items.add(item_id)
+
+            # Load other items
+            for item_id, info in items:
+                if item_id in loaded_items:
+                    continue
                 type_name = info["type"]
                 path = info["path"]
                 manager = self.data_factory.get_manager(type_name)
@@ -41,6 +61,7 @@ class ProjectDataManager:
                 item_class = self.data_factory.resolve_item_class(type_name)
                 item = manager.load(item_class, zf, path)
                 project.add_item(item, parent_id=item.parent_id)
+                loaded_items.add(item_id)
 
         return project
 

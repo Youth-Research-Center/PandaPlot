@@ -7,9 +7,11 @@ from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
+from pandaplot.storage.folder_data_manager import FolderDataManager
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.storage.note_data_manager import NoteDataManager
 from pandaplot.storage.project_data_manager import ProjectDataManager
@@ -24,6 +26,13 @@ def create_project_data_manager() -> ProjectDataManager:
         item_class=Note,
         manager=NoteDataManager(),
         extension="note"  # base name, manager decides if it's `.json`/`.md`
+    )
+
+    item_data_manager_factory.register(
+        type_name="folder",
+        item_class=Folder,
+        manager=FolderDataManager(),
+        extension="folder"
     )
 
     project_data_manager = ProjectDataManager(item_data_manager_factory)

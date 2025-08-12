@@ -1,5 +1,3 @@
-
-
 import json
 from typing import override
 from pandaplot.storage.item_data_manager import ItemDataManager
@@ -21,14 +19,13 @@ class FolderDataManager(ItemDataManager):
 
     @override
     def load(self, item_class, zip_file, path_in_zip: str):
-        """Read and deserialize item data from given path in the zip."""+
+        """Read and deserialize item data from given path in the zip."""
         # Read metadata
         metadata = json.loads(zip_file.read(
             f"{path_in_zip}.json").decode('utf-8'))
 
         # Reconstruct folder
-        # TODO: problem with reconstructing folder is that it needs to reference specific object 
-        # instances and not recreate new ones
+        # We aren't loading items as they will get loaded independently
         folder = item_class(
             id=metadata.get("id"),
             name=metadata.get("name", "")

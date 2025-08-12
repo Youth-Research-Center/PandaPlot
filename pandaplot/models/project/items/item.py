@@ -111,6 +111,7 @@ class ItemCollection(Item):
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ItemCollection':
         """Create collection from dictionary."""
+        # TODO: We should consider getting rid of this method, or changing the scope
         collection = cls(
             id=data.get('id'),
             name=data.get('name', 'Collection')
@@ -119,6 +120,6 @@ class ItemCollection(Item):
         collection.created_at = data.get('created_at', datetime.now().isoformat())
         collection.modified_at = data.get('modified_at', collection.created_at)
         collection.metadata = data.get('metadata', {})
-        
+
         # TODO: Parse nested items when their specific types are implemented
         return collection
