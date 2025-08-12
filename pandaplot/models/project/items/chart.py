@@ -354,20 +354,6 @@ class Chart(Item):
             )
             chart.fit_data.append(fit)
         
-        # Handle legacy data format (single dataset_id)
-        if not series_data and 'dataset_id' in data:
-            # Create a default series from legacy format
-            x_col = data.get('config', {}).get('x_column', '')
-            y_cols = data.get('config', {}).get('y_columns', [])
-            if x_col and y_cols:
-                for y_col in y_cols:
-                    chart.add_data_series(
-                        dataset_id=data['dataset_id'],
-                        x_column=x_col,
-                        y_column=y_col,
-                        label=f"{data['dataset_id']}:{y_col}"
-                    )
-        
         # Ensure required config keys exist
         if not chart.config:
             chart._init_default_config()

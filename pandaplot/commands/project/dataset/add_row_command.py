@@ -34,6 +34,7 @@ class AddRowCommand(Command):
     def execute(self) -> bool:
         """Execute the add row command."""
         try:
+            self.logger.info("Executing AddRowCommand")
             # Check if we have a project loaded
             if not self.app_state.has_project:
                 self.ui_controller.show_warning_message(

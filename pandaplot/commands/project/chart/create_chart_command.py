@@ -2,6 +2,7 @@
 Command for creating chart items from datasets.
 """
 
+import logging
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
@@ -39,6 +40,7 @@ class CreateChartCommand(Command):
             parent_id: Parent folder ID (optional)
         """
         try:
+            self.logger.info("Executing CreateChartCommand")
             app_state = self.app_context.get_app_state()
 
             if not app_state.has_project:

@@ -11,7 +11,7 @@ class ProjectManager:
     """
     
     def __init__(self):
-        self.supported_extensions = ['.pplot', '.json']
+        self.supported_extensions = ['.pplot']
         
     def create_project(self, name: str) -> Project:
         """Create a new empty project."""
@@ -119,13 +119,14 @@ class ProjectManager:
             path = Path(file_path)
             if path.suffix not in self.supported_extensions:
                 return False
-                
-            with open(file_path, 'r', encoding='utf-8') as file:
+            
+            return True
+            """with open(file_path, 'r', encoding='utf-8') as file:
                 data = json.load(file)
                 
             # Basic validation - check if it has required project fields
             required_fields = ['name', 'version']
-            return all(field in data for field in required_fields)
+            return all(field in data for field in required_fields)"""
             
         except Exception:
             return False

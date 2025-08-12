@@ -35,6 +35,7 @@ class AddColumnCommand(Command):
     def execute(self) -> bool:
         """Execute the add column command."""
         try:
+            self.logger.info("Executing AddColumnCommand")
             # Check if we have a project loaded
             if not self.app_state.has_project:
                 self.ui_controller.show_warning_message(
@@ -130,12 +131,12 @@ class AddColumnCommand(Command):
                 'dataset_data': self.dataset.data
             })
 
-            print(f"AddColumnCommand: Added column '{self.column_name}' to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
+            self.logger.info(f"AddColumnCommand: Added column '{self.column_name}' to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return True
             
         except Exception as e:
             error_msg = f"Failed to add column: {str(e)}"
-            print(f"AddColumnCommand Error: {error_msg}")
+            self.logger.error(f"AddColumnCommand Error: {error_msg}")
             self.ui_controller.show_error_message("Add Column Error", error_msg)
             return False
 
@@ -155,14 +156,14 @@ class AddColumnCommand(Command):
                     'dataset_data': self.dataset.data
                 })
                 
-                print(f"AddColumnCommand: Undid adding column '{self.column_name}' to dataset '{self.dataset.name}'")
+                self.logger.info(f"AddColumnCommand: Undid adding column '{self.column_name}' to dataset '{self.dataset.name}'")
                 return True
         except Exception as e:
-            print(f"AddColumnCommand Undo Error: {e}")
+            self.logger.error(f"AddColumnCommand Undo Error: {e}")
             return False
 
     def redo(self):
         """Redo the add column command."""
         # Re-execute with stored parameters
-        return self.execute(column_name=self.column_name, default_value=self.default_value)
+        return self.execute()
 

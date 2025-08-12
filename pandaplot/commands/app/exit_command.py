@@ -1,6 +1,7 @@
 # exit_command.py
 # Command to handle application exit in PandaPlot.
 
+import logging
 from typing import override
 from pandaplot.commands.base_command import Command
 from pandaplot.models.events.event_types import AppEvents
@@ -20,6 +21,7 @@ class ExitCommand(Command):
         """
         Execute the exit command.
         """
+        self.logger.info("Executing ExitCommand")
         self.app_context.event_bus.emit(AppEvents.APP_CLOSING)
 
     @override
