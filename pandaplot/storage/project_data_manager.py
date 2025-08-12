@@ -31,6 +31,8 @@ class ProjectDataManager:
             project_dict = json.loads(zf.read("project.json").decode('utf-8'))
             project = Project.from_dict(project_dict)
 
+            # TODO: we should first load all of the folders and then load the items
+            # to ensure parent id exists
             for item_id, info in project_dict.get("item_files", {}).items():
                 type_name = info["type"]
                 path = info["path"]

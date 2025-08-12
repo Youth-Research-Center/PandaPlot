@@ -6,13 +6,13 @@ from pandaplot.storage.item_data_manager import ItemDataManager
 
 class NoteDataManager(ItemDataManager):
     @override
-    def save(self, item, zip_file, base_path: str) -> None:
+    def save(self, item, zip_file, path_in_zip: str) -> None:
         """
         Save note content as markdown, and metadata as JSON.
-        base_path should be without extension, e.g. 'items/<id>'
+        path_in_zip should be without extension, e.g. 'items/<id>'
         """
         # Save content as Markdown
-        zip_file.writestr(f"{base_path}.md", item.content or "")
+        zip_file.writestr(f"{path_in_zip}.md", item.content or "")
 
         # Prepare metadata (excluding full content)
         metadata = {
@@ -24,20 +24,20 @@ class NoteDataManager(ItemDataManager):
             "modified_at": item.modified_at,
             "metadata": item.metadata
         }
-        zip_file.writestr(f"{base_path}.json", json.dumps(metadata, indent=2))
+        zip_file.writestr(f"{path_in_zip}.json", json.dumps(metadata, indent=2))
 
     @override
-    def load(self, item_class, zip_file, base_path: str):
+    def load(self, item_class, zip_file, path_in_zip: str):
         """
         Load note from markdown + metadata json.
-        base_path is without extension.
+        path_in_zip is without extension.
         """
         # Read markdown content
-        content = zip_file.read(f"{base_path}.md").decode('utf-8')
+        content = zip_file.read(f"{path_in_zip}.md").decode('utf-8')
 
         # Read metadata
         metadata = json.loads(zip_file.read(
-            f"{base_path}.json").decode('utf-8'))
+            f"{path_in_zip}.json").decode('utf-8'))
 
         # Reconstruct note
         note = item_class(
