@@ -4,7 +4,10 @@ Provides reusable condition functions for different panel types.
 """
 
 from typing import Optional
+import logging
 from PySide6.QtWidgets import QWidget
+
+logger = logging.getLogger(__name__)
 
 
 def is_dataset_tab_active(tab_widget: Optional[QWidget]) -> bool:
@@ -102,7 +105,7 @@ def has_numeric_columns(tab_widget: Optional[QWidget]) -> bool:
                 numeric_columns = df.select_dtypes(include=['number']).columns
                 return len(numeric_columns) > 0
     except Exception as e:
-        print(f"Error checking numeric columns: {e}")
+        logger.error("Error checking numeric columns: %s", e, exc_info=True)
     
     return False
 
@@ -129,7 +132,7 @@ def has_sufficient_data_for_analysis(tab_widget: Optional[QWidget], min_rows: in
                 df = dataset.data
                 return len(df) >= min_rows
     except Exception as e:
-        print(f"Error checking data sufficiency: {e}")
+        logger.error("Error checking data sufficiency: %s", e, exc_info=True)
     
     return False
 
@@ -152,7 +155,7 @@ def is_editable_dataset(tab_widget: Optional[QWidget]) -> bool:
         if hasattr(tab_widget, 'is_editing_enabled'):
             return getattr(tab_widget, 'is_editing_enabled', False)
     except Exception as e:
-        print(f"Error checking dataset editability: {e}")
+        logger.error("Error checking dataset editability: %s", e, exc_info=True)
     
     return False
 
@@ -178,7 +181,7 @@ def has_data_loaded(tab_widget: Optional[QWidget]) -> bool:
                 data = getattr(dataset, 'data', None)
                 return data is not None and not data.empty
     except Exception as e:
-        print(f"Error checking data loaded status: {e}")
+        logger.error("Error checking data loaded status: %s", e, exc_info=True)
     
     return False
 
@@ -205,7 +208,7 @@ def has_multiple_columns(tab_widget: Optional[QWidget], min_columns: int = 2) ->
                 df = dataset.data
                 return len(df.columns) >= min_columns
     except Exception as e:
-        print(f"Error checking column count: {e}")
+        logger.error("Error checking column count: %s", e, exc_info=True)
     
     return False
 
@@ -290,7 +293,7 @@ def is_chart_with_dataset(tab_widget: Optional[QWidget]) -> bool:
                 dataset_id = getattr(chart, 'dataset_id', None)
                 return dataset_id is not None
     except Exception as e:
-        print(f"Error checking chart dataset association: {e}")
+        logger.error("Error checking chart dataset association: %s", e, exc_info=True)
     
     return False
 
@@ -387,7 +390,7 @@ def has_xy_data(tab_widget: Optional[QWidget]) -> bool:
                 numeric_columns = df.select_dtypes(include=['number']).columns
                 return len(numeric_columns) >= 2
     except Exception as e:
-        print(f"Error checking XY data: {e}")
+        logger.error("Error checking XY data: %s", e, exc_info=True)
     
     return False
 

@@ -60,34 +60,34 @@ class DatasetTab(EventBusComponentMixin, QWidget):
     
     def on_dataset_column_added(self, event_data):
         """Handle when a column is added to any dataset."""
-        print(f"DEBUG: DatasetTab received DATASET_COLUMN_ADDED event: {event_data}")
+        self.logger.debug("DatasetTab received DATASET_COLUMN_ADDED event: %s", event_data)
         dataset_id = event_data.get('dataset_id')
-        print(f"DEBUG: Event dataset_id: {dataset_id}, Current dataset_id: {self.dataset.id if self.dataset else 'None'}")
+        self.logger.debug("Event dataset_id: %s, current dataset_id: %s", dataset_id, self.dataset.id if self.dataset else 'None')
         if dataset_id == self.dataset.id:
-            print(f"DatasetTab: Column added event received for dataset {dataset_id}")
+            self.logger.info("Column added event received for dataset %s", dataset_id)
             self.load_dataset_data()  # Refresh the table to show new column
         else:
-            print("DEBUG: Dataset IDs don't match, ignoring event")
+            self.logger.debug("Dataset IDs don't match, ignoring DATASET_COLUMN_ADDED event for dataset %s", dataset_id)
     
     def on_dataset_row_added(self, event_data):
         """Handle when a row is added to any dataset."""
         dataset_id = event_data.get('dataset_id')
         if dataset_id == self.dataset.id:
-            print(f"DatasetTab: Row added event received for dataset {dataset_id}")
+            self.logger.info("Row added event received for dataset %s", dataset_id)
             self.load_dataset_data()  # Refresh the table to show new row
     
     def on_dataset_bulk_update(self, event_data):
         """Handle bulk updates to any dataset."""
         dataset_id = event_data.get('dataset_id')
         if dataset_id == self.dataset.id:
-            print(f"DatasetTab: Bulk update event received for dataset {dataset_id}")
+            self.logger.info("Bulk update event received for dataset %s", dataset_id)
             self.load_dataset_data()  # Refresh the table
     
     def on_dataset_data_changed(self, event_data):
         """Handle when dataset data changes."""
         dataset_id = event_data.get('dataset_id')
         if dataset_id == self.dataset.id:
-            print(f"DatasetTab: Dataset data changed event received for dataset {dataset_id}")
+            self.logger.info("Dataset data changed event received for dataset %s", dataset_id)
             self.load_dataset_data()  # Refresh the table
     
     def setup_ui(self):
@@ -442,21 +442,21 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         except Exception as e:
             error_msg = f"Failed to load dataset data: {str(e)}"
             self.logger.error("Error loading dataset '%s': %s", 
-                            self.dataset.name if self.dataset else 'Unknown', error_msg, exc_info=True)
+                              self.dataset.name if self.dataset else 'Unknown', error_msg, exc_info=True)
             self.info_label.setText(error_msg)
             # Show error to user
             QMessageBox.critical(self, "Dataset Load Error", error_msg)
             
             # Resize columns to content
             self.table_widget.resizeColumnsToContents()
-            
-        except Exception as e:
-            self.info_label.setText(f"Error loading data: {str(e)}")
-            print(f"DatasetTab: Error loading dataset data: {e}")
     
     def toggle_edit_mode(self, state):
         """Toggle between read-only and editable modes."""
         self.is_editing_enabled = state == Qt.CheckState.Checked.value
+        self.logger.info(
+            "Toggling edit mode for dataset %s to %s", 
+            self.dataset.id, 'ENABLED' if self.is_editing_enabled else 'DISABLED'
+        )
         
         # Update all table items
         for row in range(self.table_widget.rowCount()):
@@ -612,9 +612,8 @@ class DatasetTab(EventBusComponentMixin, QWidget):
                                   f"Successfully saved changes to '{self.dataset.name}'")
             
         except Exception as e:
-            QMessageBox.critical(self, "Save Error", 
-                               f"Failed to save changes:\n{str(e)}")
-            print(f"DatasetTab: Error saving changes: {e}")
+            self.logger.error("Error saving changes for dataset %s: %s", self.dataset.id, e, exc_info=True)
+            QMessageBox.critical(self, "Save Error", f"Failed to save changes:\n{str(e)}")
     
     def discard_changes(self):
         """Discard all unsaved changes and reload original data."""
@@ -637,8 +636,8 @@ class DatasetTab(EventBusComponentMixin, QWidget):
                 self.edit_status_label.setStyleSheet("color: #28a745; font-weight: bold;" if self.is_editing_enabled else "color: #666666; font-style: italic;")
                 
         except Exception as e:
+            self.logger.error("Failed to discard changes for dataset %s: %s", self.dataset.id, e, exc_info=True)
             QMessageBox.critical(self, "Error", f"Failed to discard changes:\n{str(e)}")
-            print(f"DatasetTab: Error discarding changes: {e}")
     
     def get_tab_title(self) -> str:
         """Get the title for this tab."""
@@ -655,23 +654,32 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         # Request chart creation through the main window's signal system
         # We can emit a signal that will be handled by the tab container
         chart_name = f"Chart from {self.dataset.name}"
-        print(f"DatasetTab: Requesting chart creation from dataset {self.dataset.id}")
-        
+        self.logger.info("Requesting chart creation from dataset %s", self.dataset.id)
+
         # Get the tab container from parent hierarchy
         parent_widget = self.parent()
         while parent_widget and not hasattr(parent_widget, 'create_chart_from_dataset'):
             parent_widget = parent_widget.parent()
-        
+
         if parent_widget and hasattr(parent_widget, 'create_chart_from_dataset'):
-            # Found the tab container, call its method directly
-            parent_widget.create_chart_from_dataset(self.dataset.id, chart_name)
+            try:
+                create_method = getattr(parent_widget, 'create_chart_from_dataset', None)
+                if callable(create_method):
+                    create_method(self.dataset.id, chart_name)
+                else:
+                    self.logger.warning("create_chart_from_dataset not callable on parent for dataset %s", self.dataset.id)
+            except Exception as e:
+                self.logger.error("Error creating chart from dataset %s: %s", self.dataset.id, e, exc_info=True)
         else:
-            print("DatasetTab: Could not find tab container to create chart")
+            self.logger.warning("Could not find tab container to create chart for dataset %s", self.dataset.id)
     
     def export_data(self):
         """Export the dataset to a file."""
         # TODO: Implement data export functionality
-        print("DatasetTab: Export data functionality - TODO")
+        self.logger.info(
+            "Export data requested for dataset %s (TODO not implemented)",
+            self.dataset.id,
+        )
     
     def add_column_to_dataset(self):
         """Add a new column to the dataset."""
@@ -685,9 +693,9 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         if success:
             # Reload the dataset data to show the new column
             self.load_dataset_data()
-            print(f"DatasetTab: Added column to dataset {self.dataset.id}")
+            self.logger.info("Added column to dataset %s", self.dataset.id)
         else:
-            print(f"DatasetTab: Failed to add column to dataset {self.dataset.id}")
+            self.logger.error("Failed to add column to dataset %s", self.dataset.id)
     
     def add_row_to_dataset(self):
         """Add a new row to the dataset."""
@@ -702,9 +710,9 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         if success:
             # Reload the dataset data to show the new row
             self.load_dataset_data()
-            print(f"DatasetTab: Added row to dataset {self.dataset.id}")
+            self.logger.info("Added row to dataset %s", self.dataset.id)
         else:
-            print(f"DatasetTab: Failed to add row to dataset {self.dataset.id}")
+            self.logger.error("Failed to add row to dataset %s", self.dataset.id)
     
     def get_dataset_id(self) -> str:
         """Get the dataset ID."""

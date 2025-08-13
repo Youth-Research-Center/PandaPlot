@@ -18,6 +18,7 @@ from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.events.event_types import (
     DatasetEvents, DatasetOperationEvents, UIEvents
 )
+import logging
 
 
 class TransformPanel(EventBusComponentMixin, QWidget):
@@ -28,6 +29,7 @@ class TransformPanel(EventBusComponentMixin, QWidget):
     
     def __init__(self, app_context: AppContext, parent=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
+        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.current_dataset_tab = None
         self.current_dataset = None
@@ -44,7 +46,7 @@ class TransformPanel(EventBusComponentMixin, QWidget):
             "Date/Time Operations",
             "Statistical Operations"
         ]
-        
+
         self.setup_ui()
         self.setup_connections()
         self.setup_event_subscriptions()
@@ -281,16 +283,20 @@ class TransformPanel(EventBusComponentMixin, QWidget):
     
     def on_controller_transform_completed(self, dataset_id: str, column_name: str, result_data):
         """Handle successful transformation from controller."""
-        print(f"Controller: Transform completed for dataset {dataset_id}, column '{column_name}'")
+        self.logger.info(
+            "TransformPanel controller transform completed for dataset %s, column %s", dataset_id, column_name
+        )
         # The transform_applied signal is already emitted from apply_transform
     
     def on_controller_transform_failed(self, dataset_id: str, error_message: str):
         """Handle failed transformation from controller."""
-        print(f"Controller error: {error_message}")
+        self.logger.error(
+            "TransformPanel controller error for dataset %s: %s", dataset_id, error_message
+        )
     
     def on_controller_preview_ready(self, dataset_id: str, preview_data):
         """Handle preview data from controller."""
-        print(f"Controller: Preview ready for dataset {dataset_id}")
+        self.logger.debug("TransformPanel preview ready for dataset %s", dataset_id)
     
     def set_active_dataset(self, dataset_tab):
         """Update panel context when dataset tab becomes active."""
@@ -345,7 +351,7 @@ class TransformPanel(EventBusComponentMixin, QWidget):
                 self.available_columns = list(df.columns)
                 self.source_column_list.addItems(self.available_columns)
             except Exception as e:
-                print(f"Error getting columns: {e}")
+                self.logger.error("TransformPanel: error getting columns: %s", e, exc_info=True)
     
     def enable_controls(self, enabled: bool):
         """Enable or disable all controls based on dataset availability."""
@@ -459,7 +465,7 @@ class TransformPanel(EventBusComponentMixin, QWidget):
         """Apply the transformation to the dataset."""
         selected_columns = self.get_selected_columns()
         if not self.current_dataset or not selected_columns:
-            print("No dataset or source column selected")
+            self.logger.warning("TransformPanel: no dataset or source column selected for transform")
             return
         
         source_column = selected_columns[0]  # Use first selected column for transformation
@@ -468,18 +474,18 @@ class TransformPanel(EventBusComponentMixin, QWidget):
         replace_existing = self.replace_column_check.isChecked()
         
         if not new_column_name:
-            print("Please enter a name for the new column")
+            self.logger.warning("TransformPanel: no new column name provided")
             return
         
         if not function_code:
-            print("Please enter a transformation function")
+            self.logger.warning("TransformPanel: no transformation function provided")
             return
         
         try:
             # Get dataset ID
             dataset_id = getattr(self.current_dataset, 'id', None)
             if not dataset_id:
-                print("Dataset ID not available")
+                self.logger.warning("TransformPanel: dataset id not available; aborting transform")
                 return
             
             # Apply transformation through controller
@@ -500,14 +506,14 @@ class TransformPanel(EventBusComponentMixin, QWidget):
                     'source_column': source_column,
                     'function_code': function_code
                 })
-                print(f"Transform applied: {source_column} -> {new_column_name} using {function_code}")
+                self.logger.info("TransformPanel: transform applied %s -> %s using %s", source_column, new_column_name, function_code)
                 # Clear the panel after successful transform
                 self.clear_panel()
             else:
-                print("Transform failed - see console for details")
+                self.logger.error("TransformPanel: transform failed - see logs for details")
             
         except Exception as e:
-            print(f"Transform failed: {str(e)}")
+            self.logger.error("TransformPanel: transform failed: %s", e, exc_info=True)
     
     def clear_panel(self):
         """Reset panel to initial state."""

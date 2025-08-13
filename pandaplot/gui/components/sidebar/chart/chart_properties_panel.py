@@ -1,5 +1,6 @@
 """Chart properties side panel for configuring chart appearance and data."""
 
+import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, 
     QComboBox, QPushButton, QSpinBox, QDoubleSpinBox, QLineEdit, 
@@ -62,6 +63,7 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
     
     def __init__(self, app_context: AppContext, parent=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
+        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.command_executor = app_context.command_executor
         self.style_manager = ChartStyleManager()
@@ -69,7 +71,7 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self.current_chart_id: Optional[str] = None
         self.current_chart = None  # Current Chart object being edited
         self.datasets: List = []
-        
+
         self._setup_ui()
         self._connect_signals()
         self._setup_event_subscriptions()
@@ -402,12 +404,12 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
                 if chart:
                     # Load the chart into the properties panel
                     self.load_chart_object(chart)
-                    print(f"Chart properties panel updated with chart: {chart.name}")
+                    self.logger.info("Chart properties panel context set to chart %s", chart.name)
                 else:
-                    print(f"Chart with ID {chart_id} not found in project")
+                    self.logger.warning("Chart properties panel: chart id %s not found in project", chart_id)
             else:
-                print("No current project available")
-                        
+                self.logger.warning("Chart properties panel: no current project available while switching tab")
+
         elif current_tab_type == 'dataset' and dataset_id:
             # For dataset tabs, provide context for creating new charts
             project = self.app_context.app_state.current_project
@@ -416,11 +418,12 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
                 if dataset:
                     self.set_project(project)
                     self.load_chart_object(None)  # Clear chart for new creation
-                    print(f"Chart properties panel updated with project for dataset: {dataset.name}")
+                    self.logger.debug("Chart properties panel dataset context set for dataset %s", dataset.name)
+
         else:
             # Clear chart properties panel context when no relevant tab is active
             self.load_chart_object(None)
-            print("Chart properties panel context cleared")
+            self.logger.debug("Chart properties panel context cleared")
     
     def _on_chart_updated(self, event_data):
         """Handle chart updated events to refresh the panel."""
@@ -432,7 +435,7 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
             # Refresh the series list to show new series (like fit lines)
             if update_type in ['fit_added', 'series_added', 'series_updated']:
                 self._update_series_list()
-                print(f"Chart properties panel refreshed for update: {update_type}")
+                self.logger.debug("Chart properties panel refreshed for update: %s", update_type)
     
     def _add_series(self):
         """Add a new data series."""
@@ -893,11 +896,12 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         current_row = self.series_list.currentRow()
         if (current_row >= 0 and current_row < len(chart.data_series)):
             series = chart.data_series[current_row]
-            print(f"DEBUG: Updating series {current_row}: {series.label} (dataset_id: {series.dataset_id})")
-            print(f"DEBUG: Style updates: {style_updates}")
+            self.logger.debug(
+                "Updating series %d: %s (dataset_id=%s) with style %s", 
+                current_row, getattr(series, 'label', '?'), getattr(series, 'dataset_id', '?'), style_updates
+            )
             for key, value in style_updates.items():
                 if hasattr(series, key):
-                    print(f"DEBUG: Setting {key} = {value}")
                     setattr(series, key, value)
         
         # If no series exist but we have configuration, create a default series

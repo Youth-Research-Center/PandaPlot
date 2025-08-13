@@ -1,3 +1,4 @@
+import logging
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
@@ -21,6 +22,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
     
     def __init__(self, app_context:AppContext, parent=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
+        self.logger = logging.getLogger(__name__)
 
         self.app_context = app_context
         # TODO: we shouldn't know about these tab types here
@@ -242,7 +244,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
             note_name (str): The name of the note
         """
         if not self.app_context:
-            print("Cannot open note tab: No app context provided")
+            self.logger.warning("Cannot open note tab: No app context provided")
             return
         
         # Check if note tab is already open
@@ -263,23 +265,23 @@ class TabContainer(EventBusComponentMixin, QWidget):
         
         # Get note data from project
         if not self.app_context.get_app_state().has_project:
-            print("Cannot open note: No project loaded")
+            self.logger.warning("Cannot open note: No project loaded")
             return
             
         project = self.app_context.get_app_state().current_project
         if not project:
-            print("Cannot open note: No project loaded")
+            self.logger.warning("Cannot open note: No project loaded")
             return
             
         # Find the note item in the project hierarchy
         note_item = project.find_item(note_id)
         if not note_item:
-            print(f"Cannot open note: Note {note_id} not found")
+            self.logger.warning("Cannot open note: Note %s not found", note_id)
             return
         
         # Verify it's actually a Note object
         if not isinstance(note_item, Note):
-            print(f"Cannot open note: Item {note_id} is not a note")
+            self.logger.warning("Cannot open note: Item %s is not a note", note_id)
             return
         
         # Create note tab
@@ -399,24 +401,24 @@ class TabContainer(EventBusComponentMixin, QWidget):
 
         # Get dataset from project
         if not self.app_context or not self.app_context.get_app_state().has_project:
-            print("Cannot open dataset: No project loaded")
+            self.logger.warning("Cannot open dataset: No project loaded")
             return
 
         project = self.app_context.get_app_state().current_project
         if not project:
-            print("Cannot open dataset: No project loaded")
+            self.logger.warning("Cannot open dataset: No project loaded")
             return
 
         # Find the dataset item in the project hierarchy
         dataset_item = project.find_item(dataset_id)
         if not dataset_item:
-            print(f"Cannot open dataset: Dataset {dataset_id} not found")
+            self.logger.warning("Cannot open dataset: Dataset %s not found", dataset_id)
             return
 
         # Verify it's actually a Dataset object
         from pandaplot.models.project.items.dataset import Dataset
         if not isinstance(dataset_item, Dataset):
-            print(f"Cannot open dataset: Item {dataset_id} is not a dataset")
+            self.logger.warning("Cannot open dataset: Item %s is not a dataset", dataset_id)
             return
 
         # Create dataset tab using our new DatasetTab
@@ -434,7 +436,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
     def open_chart_tab(self, chart_id: str, chart_name: str):
         """Open a chart in a new tab or switch to existing tab."""
         if not self.app_context:
-            print("Cannot open chart tab: No app context provided")
+            self.logger.warning("Cannot open chart tab: No app context provided")
             return
 
         # Check if chart tab is already open
@@ -455,17 +457,17 @@ class TabContainer(EventBusComponentMixin, QWidget):
 
         # Get chart data from project
         if not self.app_context.get_app_state().has_project:
-            print("Cannot open chart: No project loaded")
+            self.logger.warning("Cannot open chart: No project loaded")
             return
             
         project = self.app_context.get_app_state().current_project
         if not project:
-            print("Cannot open chart: No project found")
+            self.logger.warning("Cannot open chart: No project found")
             return
             
         chart_item = project.find_item(chart_id)
         if not chart_item or not isinstance(chart_item, Chart):
-            print(f"Cannot open chart: Chart {chart_id} not found")
+            self.logger.warning("Cannot open chart: Chart %s not found", chart_id)
             return
 
         # Create chart tab
@@ -484,23 +486,23 @@ class TabContainer(EventBusComponentMixin, QWidget):
     def create_chart_from_dataset(self, dataset_id: str, chart_name: str):
         """Create a new chart from a dataset and open it in a tab."""
         if not self.app_context:
-            print("Cannot create chart: No app context provided")
+            self.logger.warning("Cannot create chart: No app context provided")
             return
 
         app_state = self.app_context.get_app_state()
         if app_state.has_project and app_state.current_project is None:
-            print("Cannot create chart: No project loaded")
+            self.logger.warning("Cannot create chart: No project loaded")
             return
 
         project = app_state.current_project
 
         # Verify dataset exists
         if project is None:
-            print("Cannot create chart: No project loaded")
+            self.logger.warning("Cannot create chart: No project loaded")
             return
         dataset_item = project.find_item(dataset_id)
         if not dataset_item:
-            print(f"Cannot create chart: Dataset {dataset_id} not found")
+            self.logger.warning("Cannot create chart: Dataset %s not found", dataset_id)
             return
 
         # Use CreateChartCommand to properly add chart to project hierarchy

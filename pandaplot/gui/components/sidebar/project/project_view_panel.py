@@ -16,6 +16,7 @@ from pandaplot.commands.project.item.move_item_command import MoveItemCommand
 from pandaplot.commands.project.item.rename_item_command import RenameItemCommand
 from pandaplot.commands.project.folder.rename_folder_command import RenameFolderCommand
 from pandaplot.models.project.visitors import ProjectTreeBuilder
+import logging
 
 class ProjectTreeWidget(QTreeWidget):
     """Custom tree widget that handles drag and drop properly."""
@@ -23,6 +24,7 @@ class ProjectTreeWidget(QTreeWidget):
     def __init__(self, parent_panel):
         super().__init__()
         self.parent_panel = parent_panel
+        self.logger = logging.getLogger(__name__)
         
         # Enable drag and drop
         self.setDragDropMode(QTreeWidget.DragDropMode.InternalMove)
@@ -85,7 +87,7 @@ class ProjectTreeWidget(QTreeWidget):
                 # If dropping on a folder, make it the parent
                 if target_type == 'folder':
                     new_parent_id = target_data.get('id', 'root')
-                    print(f"ProjectTreeWidget: Dropping on folder, new_parent_id = '{new_parent_id}'")
+                    self.logger.debug("ProjectTreeWidget: dropping on folder new_parent_id=%s", new_parent_id)
                 # If dropping on another item, use its parent folder
                 elif target_type in ['note', 'dataset', 'chart']:
                     target_item_obj = target_data.get('data')
@@ -94,13 +96,13 @@ class ProjectTreeWidget(QTreeWidget):
                         project = self.parent_panel.app_state.current_project
                         if project and target_item_obj.parent_id == project.root.id:
                             new_parent_id = 'root'
-                            print("ProjectTreeWidget: Target item parent is root, new_parent_id = 'root'")
+                            self.logger.debug("ProjectTreeWidget: target item parent is root; new_parent_id=root")
                         else:
                             new_parent_id = target_item_obj.parent_id
-                            print(f"ProjectTreeWidget: Target item parent is '{new_parent_id}'")
+                            self.logger.debug("ProjectTreeWidget: target item parent set to %s", new_parent_id)
                     else:
                         new_parent_id = 'root'
-                        print("ProjectTreeWidget: Target item has no parent, new_parent_id = 'root'")
+                        self.logger.debug("ProjectTreeWidget: target item has no parent; new_parent_id=root")
                 # If dropping on project root, use root
                 elif target_type == 'project':
                     new_parent_id = 'root'
@@ -112,17 +114,17 @@ class ProjectTreeWidget(QTreeWidget):
             project = self.parent_panel.app_state.current_project
             if project and current_item_obj.parent_id == project.root.id:
                 current_parent_id = 'root'
-                print("ProjectTreeWidget: Current item parent is root, current_parent_id = 'root'")
+                self.logger.debug("ProjectTreeWidget: current item parent is root")
             else:
                 current_parent_id = current_item_obj.parent_id if current_item_obj.parent_id else 'root'
-                print(f"ProjectTreeWidget: Current item parent is '{current_parent_id}'")
+                self.logger.debug("ProjectTreeWidget: current item parent is %s", current_parent_id)
         else:
             current_parent_id = 'root'
-            print("ProjectTreeWidget: No current item data, current_parent_id = 'root'")
+            self.logger.debug("ProjectTreeWidget: no current item data; current_parent_id=root")
         
         # Only execute move if parent actually changed
         if new_parent_id != current_parent_id:
-            print(f"ProjectTreeWidget: Moving {source_type} '{source_id}' from '{current_parent_id}' to '{new_parent_id}'")
+            self.logger.info("ProjectTreeWidget: moving %s %s from %s to %s", source_type, source_id, current_parent_id, new_parent_id)
             
             # Execute the move command
             command = MoveItemCommand(
@@ -163,7 +165,7 @@ class ProjectTreeWidget(QTreeWidget):
                         target_type = target_data.get('type', '')
                         target_id = target_data.get('id', '')
                         
-                        print(f"Drag over item: {target_type} '{target_id}'")
+                        self.logger.debug("ProjectTreeWidget: drag over item %s %s", target_type, target_id)
                         
                         # Valid drop targets: folders (drop into), project root, or any item (to drop beside it)
                         if target_type in ['folder', 'project', 'note', 'dataset', 'chart']:
@@ -212,10 +214,10 @@ class ProjectTreeWidget(QTreeWidget):
             # Check if the item is still valid (not deleted by Qt)
             try:
                 item_data = item.data(0, Qt.ItemDataRole.UserRole)
-                print(f"Highlighting item: {item_data.get('type', 'unknown')} '{item_data.get('id', 'no-id')}'")
+                self.logger.debug("ProjectTreeWidget: highlighting %s %s", item_data.get('type', 'unknown'), item_data.get('id', 'no-id'))
             except RuntimeError:
                 # Item has been deleted by Qt, skip highlighting
-                print("Skipping highlight - item deleted by Qt")
+                self.logger.debug("ProjectTreeWidget: skipping highlight - item deleted by Qt")
                 return
             
             # Store original background

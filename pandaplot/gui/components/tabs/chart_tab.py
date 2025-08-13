@@ -1,6 +1,4 @@
-"""
-Chart tab widget for displaying and editing charts in the main tab container.
-"""
+"""Chart tab widget for displaying and editing charts."""
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
                              QPushButton, QFrame, QToolBar, QSizePolicy)
@@ -19,11 +17,12 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import numpy as np
 import pandas as pd
+import logging
 
 
 class ChartCanvas(FigureCanvas):
     """Custom matplotlib canvas for displaying charts."""
-    
+
     def __init__(self, width=10, height=6, dpi=100):
         self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor='white')
         super().__init__(self.fig)
@@ -38,6 +37,7 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
     
     def __init__(self, app_context: AppContext, chart: Chart, parent=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
+        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.chart = chart
         self.is_modified = False
@@ -46,16 +46,15 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
         self.auto_save_timer.setSingleShot(True)
         
         # Sample data for preview
+        # TODO: do we need this?
         self.sample_data = self.generate_sample_data()
-        
+
         self.setup_ui()
-        self.setup_event_subscriptions()
         self.load_chart_config()
         self.setup_connections()
         self.update_chart()
     
     def setup_ui(self):
-        """Set up the user interface."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(4)
@@ -403,7 +402,7 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
             self.chart_canvas.draw()
             
         except Exception as e:
-            print(f"Error updating chart: {e}")
+            self.logger.exception("Error updating chart")
             self.update_status(f"Chart error: {str(e)}")
     
     def save_chart(self):
@@ -540,6 +539,7 @@ class ChartTab(EventBusComponentMixin, QWidget):
     
     def __init__(self, app_context: AppContext, chart: Chart, parent=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
+        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.chart = chart
         self.setup_ui()
@@ -578,7 +578,7 @@ class ChartTab(EventBusComponentMixin, QWidget):
             # Refresh the chart display
             if hasattr(self.chart_editor, 'refresh_chart'):
                 self.chart_editor.refresh_chart()
-                print(f"Chart tab refreshed for chart: {self.chart.name}")
+                self.logger.debug("ChartTab refreshed for chart %s", self.chart.name)
     
     def on_fit_applied(self, event_data: dict):
         """Handle fit applied events to add fit curves to the chart."""

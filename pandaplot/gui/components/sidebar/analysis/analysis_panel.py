@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QScrollArea
 )
 from PySide6.QtCore import Qt
+import logging
 from typing import Dict, Any
 
 from pandaplot.models.state.app_context import AppContext
@@ -26,10 +27,11 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
     
     def __init__(self, app_context: AppContext, parent=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
+        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.current_dataset = None
         self.current_dataset_id = None
-        
+
         self.setup_ui()
         self.setup_connections()
         self.setup_event_subscriptions()
@@ -503,7 +505,7 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
                     
                     self.preview_text.setText(f"✅ Analysis applied successfully!\nColumn '{config['new_column_name']}' added to dataset.")
                 else:
-                    print("DEBUG: Command execution failed!")
+                    self.logger.error("Command execution failed for dataset %s", self.current_dataset_id)
                     self.preview_text.setText("❌ Command execution failed. Please check your inputs.")
             else:
                 self.preview_text.setText("❌ Failed to apply analysis. Please check your inputs.")

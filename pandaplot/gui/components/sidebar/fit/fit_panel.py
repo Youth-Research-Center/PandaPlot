@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QCheckBox, QSpinBox
 )
 from PySide6.QtCore import Qt, Signal
+import logging
 import numpy as np
 import pandas as pd
 
@@ -29,17 +30,17 @@ class FitPanel(EventBusComponentMixin, QWidget):
     
     def __init__(self, app_context: AppContext, parent=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
+        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.current_project = None
         self.current_chart = None
         self.fit_results = None
         self.datasets = []
-        
+
         self._setup_ui()
         self._connect_signals()
         self._setup_event_subscriptions()
-        
-        # Check scipy availability
+
         if not SCIPY_AVAILABLE:
             self._show_scipy_warning()
     
@@ -251,13 +252,13 @@ class FitPanel(EventBusComponentMixin, QWidget):
                     # Load the chart into the fit panel for data analysis
                     self.load_chart_object(chart)
                     self.set_project(project)
-                    print(f"Fit panel updated with chart: {chart.name}")
+                    self.logger.info("Fit panel context set to chart %s", chart.name)
                 else:
-                    print(f"Chart with ID {chart_id} not found in project")
+                    self.logger.warning("Fit panel: chart id %s not found in project", chart_id)
             else:
-                print("No current project available")
+                self.logger.warning("No current project available while switching tab")
                     
-        elif current_tab_type == 'dataset' and dataset_id:
+            elif current_tab_type == 'dataset' and dataset_id:
             # For dataset tabs, provide context for data fitting
             project = self.app_context.app_state.current_project
             if project is not None:
@@ -266,11 +267,11 @@ class FitPanel(EventBusComponentMixin, QWidget):
                     # Set project context for dataset access
                     self.set_project(project)
                     self.load_chart_object(None)  # Clear chart context
-                    print(f"Fit panel updated with project for dataset: {dataset.name}")
+                    self.logger.debug("Fit panel dataset context set for dataset %s", dataset.name)
         else:
             # Clear fit panel context when no relevant tab is active
             self.load_chart_object(None)
-            print("Fit panel context cleared")
+            self.logger.debug("Fit panel context cleared")
     
     def _show_scipy_warning(self):
         """Show warning if scipy is not available."""
