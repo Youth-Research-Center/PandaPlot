@@ -110,3 +110,5 @@ if __name__ == "__main__":
     # TODO: convert prints into log statements
     # TODO: log error messages to the user
     # TODO: fix how we treat transformed columns, they aren't saved correctly
+    # TODO: allow project rename, consider creating project creation dialog
+    # TODO: improve view of project name

@@ -153,12 +153,7 @@ class ProjectManager:
                 return False
             
             return True
-            """with open(file_path, 'r', encoding='utf-8') as file:
-                data = json.load(file)
-                
-            # Basic validation - check if it has required project fields
-            required_fields = ['name', 'version']
-            return all(field in data for field in required_fields)"""
-            
+
+            #TODO: Implement project file validation
         except Exception:
             return False

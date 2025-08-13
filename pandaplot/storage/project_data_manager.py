@@ -12,6 +12,7 @@ class ProjectDataManager:
         self.logger = logging.getLogger(__name__)
 
     def save(self, project: Project, filepath: str):
+        self.logger.info(f"Saving project {project.name} to {filepath}")
         with zipfile.ZipFile(filepath, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
             project_dict = project.to_dict()
             
@@ -30,6 +31,7 @@ class ProjectDataManager:
             zf.writestr("project.json", json.dumps(project_dict, indent=2))
 
     def load(self, filepath: str) -> Project:
+        self.logger.info(f"Loading project from {filepath}")
         with zipfile.ZipFile(filepath, 'r') as zf:
             project_dict = json.loads(zf.read("project.json").decode('utf-8'))
             project = Project.from_dict(project_dict)
