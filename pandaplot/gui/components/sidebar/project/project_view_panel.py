@@ -351,6 +351,7 @@ class ProjectViewPanel(QWidget):
         super().__init__(parent)
         self.app_context = app_context
         self.app_state = app_context.get_app_state()
+        self.logger = logging.getLogger(__name__)
         self.setStyleSheet("background-color: #ffffff; color: black;")
         
         # Main layout
@@ -491,7 +492,7 @@ class ProjectViewPanel(QWidget):
         project = event_data.get('project')
         file_path = event_data.get('file_path')
         
-        print(f"ProjectViewPanel: Project loaded - {project.name}")
+        self.logger.info(f"Project loaded - {project.name}")
         
         # Update project info display
         self.project_title_label.setText(project.name)
@@ -505,7 +506,7 @@ class ProjectViewPanel(QWidget):
         
     def on_project_closed(self, event_data):
         """Handle project closed event."""
-        print("ProjectViewPanel: Project closed")
+        self.logger.info("Project closed")
         
         # Reset to no project state
         self.project_title_label.setText("No project loaded")
@@ -515,7 +516,7 @@ class ProjectViewPanel(QWidget):
     def on_first_project_loaded(self, event_data):
         """Handle first project loaded event."""
         project = event_data.get('project')
-        print(f"ProjectViewPanel: First project loaded - {project.name}")
+        self.logger.info(f"First project loaded - {project.name}")
         # Could add special handling for first project load (e.g., welcome message)
     
     def on_item_changed(self, event_data):
@@ -748,7 +749,7 @@ class ProjectViewPanel(QWidget):
         
         # Prevent rename operations during drag and drop
         if hasattr(self.tree, '_is_dragging') and self.tree._is_dragging:
-            print("Skipping rename during drag operation")
+            self.logger.debug("Skipping rename during drag operation")
             return
             
         item_data = item.data(0, Qt.ItemDataRole.UserRole)
@@ -781,7 +782,7 @@ class ProjectViewPanel(QWidget):
         
         # Only process if name actually changed
         if new_name and new_name != current_name and new_name.strip():
-            print(f"Item name changed: {current_name} -> {new_name} (type: {item_type}, id: {item_id})")
+            self.logger.debug(f"Item name changed: {current_name} -> {new_name} (type: {item_type}, id: {item_id})")
             
             # Set flag to prevent recursive updates
             self._editing_in_progress = True
@@ -796,7 +797,7 @@ class ProjectViewPanel(QWidget):
                     self.app_context.get_command_executor().execute_command(command)
                 else:
                     # TODO: Add rename commands for datasets and charts
-                    print(f"Inline rename not yet implemented for {item_type}")
+                    self.logger.debug(f"Inline rename not yet implemented for {item_type}")
                     # Revert the name change in the UI
                     old_prefix = '📊 ' if item_type == 'dataset' else '📈 '
                     item.setText(0, f"{old_prefix}{current_name}")
@@ -930,7 +931,7 @@ class ProjectViewPanel(QWidget):
         if dataset_id:
             # Signal to create a new chart tab with this dataset
             self.chart_create_requested.emit(dataset_id, f"Chart from {dataset_name}")
-            print(f"ProjectViewPanel: Requesting chart creation for dataset '{dataset_id}'")
+            self.logger.debug(f"Requesting chart creation for dataset '{dataset_id}'")
     
     def rename_selected_item(self):
         """Rename the selected item by starting inline editing."""
@@ -996,9 +997,9 @@ class ProjectViewPanel(QWidget):
         success = self.app_context.get_command_executor().execute_command(command)
         
         if success:
-            print(f"ProjectViewPanel: Added column to dataset {dataset_id}")
+            self.logger.info(f"Added column to dataset {dataset_id}")
         else:
-            print(f"ProjectViewPanel: Failed to add column to dataset {dataset_id}")
+            self.logger.warning(f"Failed to add column to dataset {dataset_id}")
     
     def add_row_to_dataset(self):
         """Add a new row to the selected dataset."""
@@ -1012,6 +1013,6 @@ class ProjectViewPanel(QWidget):
         success = self.app_context.get_command_executor().execute_command(command)
         
         if success:
-            print(f"ProjectViewPanel: Added row to dataset {dataset_id}")
+            self.logger.info(f"Added row to dataset {dataset_id}")
         else:
-            print(f"ProjectViewPanel: Failed to add row to dataset {dataset_id}")
+            self.logger.warning(f"Failed to add row to dataset {dataset_id}")

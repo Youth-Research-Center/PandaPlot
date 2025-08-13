@@ -258,7 +258,7 @@ class FitPanel(EventBusComponentMixin, QWidget):
             else:
                 self.logger.warning("No current project available while switching tab")
                     
-            elif current_tab_type == 'dataset' and dataset_id:
+        elif current_tab_type == 'dataset' and dataset_id:
             # For dataset tabs, provide context for data fitting
             project = self.app_context.app_state.current_project
             if project is not None:
@@ -272,7 +272,7 @@ class FitPanel(EventBusComponentMixin, QWidget):
             # Clear fit panel context when no relevant tab is active
             self.load_chart_object(None)
             self.logger.debug("Fit panel context cleared")
-    
+        
     def _show_scipy_warning(self):
         """Show warning if scipy is not available."""
         warning_text = (

@@ -2,6 +2,7 @@
 Command to add a new row to a dataset.
 """
 
+import logging
 from typing import Optional, override
 import pandas as pd
 from pandaplot.commands.base_command import Command
@@ -127,12 +128,12 @@ class AddRowCommand(Command):
                 'dataset_data': self.dataset.data
             })
 
-            print(f"AddRowCommand: Added row at position {self.inserted_at} to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
+            self.logger.info(f"Added row at position {self.inserted_at} to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return True
             
         except Exception as e:
             error_msg = f"Failed to add row: {str(e)}"
-            print(f"AddRowCommand Error: {error_msg}")
+            self.logger.error(error_msg)
             self.ui_controller.show_error_message("Add Row Error", error_msg)
             return False
 
@@ -152,10 +153,10 @@ class AddRowCommand(Command):
                     'dataset_data': self.dataset.data
                 })
                 
-                print(f"AddRowCommand: Undid adding row at position {self.inserted_at} to dataset '{self.dataset.name}'")
+                self.logger.info(f"Undid adding row at position {self.inserted_at} to dataset '{self.dataset.name}'")
                 return True
         except Exception as e:
-            print(f"AddRowCommand Undo Error: {e}")
+            self.logger.error(f"Undo Error: {e}")
             return False
 
     def redo(self):

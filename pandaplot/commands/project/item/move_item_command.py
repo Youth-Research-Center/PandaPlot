@@ -35,8 +35,8 @@ class MoveItemCommand(Command):
 
         try:
             # Debug logging
-            print(
-                f"MoveItemCommand: Moving item '{self.item_id}' from '{self.source_folder_id}' to '{self.target_folder_id}'")
+            self.logger.debug(
+                f"Moving item '{self.item_id}' from '{self.source_folder_id}' to '{self.target_folder_id}'")
 
             # Check if we have a project loaded
             if not self.app_state.has_project:
@@ -68,27 +68,23 @@ class MoveItemCommand(Command):
 
             # Store item name for better error messages
             item_name = getattr(item, 'name', 'Unnamed Item')
-            print(
-                f"MoveItemCommand: Moving item '{item_name}' (ID: {self.item_id})")
+            self.logger.debug(f"Moving item '{item_name}' (ID: {self.item_id})")
 
             # Validate target folder exists (if specified)
             if self.target_folder_id and self.target_folder_id != 'root':
-                print(
-                    f"MoveItemCommand: Looking for target folder '{self.target_folder_id}'")
+                self.logger.debug(f"Looking for target folder '{self.target_folder_id}'")
                 target_folder = project.find_item(self.target_folder_id)
                 if target_folder is None:
                     error_msg = f"Target folder '{self.target_folder_id}' does not exist."
-                    print(f"MoveItemCommand Error: {error_msg}")
-                    print(
-                        f"Available items in project: {list(project.items_index.keys())}")
+                    self.logger.error(error_msg)
+                    self.logger.debug(f"Available items in project: {list(project.items_index.keys())}")
                     self.ui_controller.show_error_message(
                         "Move Item Error",
                         f"Cannot move '{item_name}' - target folder '{self.target_folder_id}' does not exist."
                     )
                     return
                 else:
-                    print(
-                        f"MoveItemCommand: Found target folder: {target_folder.name} (type: {type(target_folder).__name__})")
+                    self.logger.debug(f"Found target folder: {target_folder.name} (type: {type(target_folder).__name__})")
 
             # Remove item from current parent
             project.remove_item(item)
@@ -110,12 +106,11 @@ class MoveItemCommand(Command):
                 'item': item
             })
 
-            print(
-                f"MoveItemCommand: Moved {self.item_type} '{item_name}' (ID: {self.item_id}) from '{self.source_folder_id}' to '{self.target_folder_id}'")
+            self.logger.info(f"Moved {self.item_type} '{item_name}' (ID: {self.item_id}) from '{self.source_folder_id}' to '{self.target_folder_id}'")
 
         except Exception as e:
             error_msg = f"Failed to move item '{item_name}': {str(e)}"
-            print(f"MoveItemCommand Error: {error_msg}")
+            self.logger.error(error_msg)
             self.ui_controller.show_error_message("Move Item Error", error_msg)
             raise
 
@@ -150,8 +145,7 @@ class MoveItemCommand(Command):
                             'undo': True
                         })
 
-                        print(
-                            f"MoveItemCommand: Undid move of {self.item_type} '{item_name}' (ID: {self.item_id})")
+                        self.logger.info(f"Undid move of {self.item_type} '{item_name}' (ID: {self.item_id})")
 
         except Exception as e:
             # Try to get item name for error message
@@ -164,7 +158,7 @@ class MoveItemCommand(Command):
                         item_name = getattr(item, 'name', self.item_id)
 
             error_msg = f"Failed to undo move of '{item_name}': {str(e)}"
-            print(f"MoveItemCommand Undo Error: {error_msg}")
+            self.logger.error(error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
 
     def redo(self):
