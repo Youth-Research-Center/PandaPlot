@@ -25,21 +25,33 @@ class ItemDataManagerFactory:
 
     def get_manager(self, type_name: str) -> ItemDataManager:
         try:
-            return self._registry[type_name].manager
+            manager = self._registry[type_name].manager
+            self.logger.debug("Retrieved data manager for type '%s': %s", type_name, type(manager).__name__)
+            return manager
         except KeyError:
-            raise ValueError(f"No data manager registered for type '{type_name}'")
+            error_msg = f"No data manager registered for type '{type_name}'"
+            self.logger.error(error_msg + ". Available types: %s", list(self._registry.keys()))
+            raise ValueError(error_msg)
 
     def resolve_item_class(self, type_name: str) -> type:
         try:
-            return self._registry[type_name].item_class
+            item_class = self._registry[type_name].item_class
+            self.logger.debug("Resolved item class for type '%s': %s", type_name, item_class.__name__)
+            return item_class
         except KeyError:
-            raise ValueError(f"No item class registered for type '{type_name}'")
+            error_msg = f"No item class registered for type '{type_name}'"
+            self.logger.error(error_msg + ". Available types: %s", list(self._registry.keys()))
+            raise ValueError(error_msg)
 
     def get_extension_for_type(self, type_name: str) -> str:
         try:
-            return self._registry[type_name].extension
+            extension = self._registry[type_name].extension
+            self.logger.debug("Retrieved extension for type '%s': %s", type_name, extension)
+            return extension
         except KeyError:
-            raise ValueError(f"No extension registered for type '{type_name}'")
+            error_msg = f"No extension registered for type '{type_name}'"
+            self.logger.error(error_msg + ". Available types: %s", list(self._registry.keys()))
+            raise ValueError(error_msg)
 
     def get_registered_types(self) -> list[str]:
         return list(self._registry.keys())

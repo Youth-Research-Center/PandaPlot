@@ -26,6 +26,9 @@ class CommandExecutor:
         Returns:
             bool: True if command executed successfully
         """
+        command_name = command.__class__.__name__
+        self.logger.debug("Executing command: %s", command_name)
+        
         try:
             command.execute()
             
@@ -33,15 +36,21 @@ class CommandExecutor:
             self.undo_stack.append(command)
             if len(self.undo_stack) > self.max_undo_levels:
                 #TODO: ensure we clean command references properly
-                self.undo_stack.pop(0)
+                removed_command = self.undo_stack.pop(0)
+                self.logger.debug("Removed old command from undo stack: %s", removed_command.__class__.__name__)
                 
             # Clear redo stack since we executed a new command
-            self.redo_stack.clear()
+            if self.redo_stack:
+                self.logger.debug("Clearing redo stack (%d commands) due to new command execution", len(self.redo_stack))
+                self.redo_stack.clear()
             
+            self.logger.info("Successfully executed command: %s", command_name)
             return True
             
         except Exception as e:
-            self.logger.error(f"Error executing command '{command.__class__.__name__}': {str(e)}")
+            self.logger.error("Error executing command '%s': %s", 
+                            command.__class__.__name__, str(e), exc_info=True)
+            self.logger.debug("Command execution failed for: %s", repr(command))
             return False
     
     def undo(self) -> bool:
@@ -52,16 +61,24 @@ class CommandExecutor:
             bool: True if undo was successful
         """
         if not self.undo_stack:
+            self.logger.debug("Undo requested but no commands in undo stack")
             return False
             
+        command = self.undo_stack[-1]  # Peek at the command
+        command_name = command.__class__.__name__
+        self.logger.debug("Undoing command: %s", command_name)
+        
         try:
             command = self.undo_stack.pop()
             command.undo()
             self.redo_stack.append(command)
+            self.logger.info("Successfully undid command: %s", command_name)
             return True
             
         except Exception as e:
-            self.logger.error(f"Error undoing command: {str(e)}")
+            self.logger.error("Error undoing command '%s': %s", 
+                            command.__class__.__name__ if command else "Unknown", str(e), exc_info=True)
+            self.logger.debug("Undo operation failed for command: %s", repr(command) if command else "None")
             return False
     
     def redo(self) -> bool:
@@ -72,16 +89,24 @@ class CommandExecutor:
             bool: True if redo was successful
         """
         if not self.redo_stack:
+            self.logger.debug("Redo requested but no commands in redo stack")
             return False
             
+        command = self.redo_stack[-1]  # Peek at the command
+        command_name = command.__class__.__name__
+        self.logger.debug("Redoing command: %s", command_name)
+        
         try:
             command = self.redo_stack.pop()
             command.redo()
             self.undo_stack.append(command)
+            self.logger.info("Successfully redid command: %s", command_name)
             return True
             
         except Exception as e:
-            self.logger.error(f"Error redoing command: {str(e)}")
+            self.logger.error("Error redoing command '%s': %s", 
+                            command.__class__.__name__ if command else "Unknown", str(e), exc_info=True)
+            self.logger.debug("Redo operation failed for command: %s", repr(command) if command else "None")
             return False
     
     def can_undo(self) -> bool:

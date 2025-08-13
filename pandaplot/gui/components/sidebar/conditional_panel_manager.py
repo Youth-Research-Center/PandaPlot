@@ -4,6 +4,7 @@ Provides a generic framework for panels that should appear/disappear based on co
 """
 
 from typing import Dict, Callable, Optional, Any
+import logging
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QWidget
 
@@ -33,7 +34,8 @@ class ConditionalPanelManager(QObject):
         self.tab_container = tab_container
         self.registered_panels: Dict[str, Dict[str, Any]] = {}
         self.current_tab_widget: Optional[QWidget] = None
-        
+        self._logger = logging.getLogger(__name__)
+
         # Connect to tab change events
         self._connect_tab_events()
     
@@ -64,7 +66,7 @@ class ConditionalPanelManager(QObject):
                   reverse=True)
         )
         
-        print(f"ConditionalPanelManager: Registered panel '{panel_name}' with priority {priority}")
+        self._logger.debug("Registered panel '%s' priority=%s", panel_name, priority)
     
     def unregister_conditional_panel(self, panel_name: str):
         """
@@ -75,7 +77,7 @@ class ConditionalPanelManager(QObject):
         """
         if panel_name in self.registered_panels:
             del self.registered_panels[panel_name]
-            print(f"ConditionalPanelManager: Unregistered panel '{panel_name}'")
+            self._logger.debug("Unregistered panel '%s'", panel_name)
     
     def _on_tab_index_changed(self, index: int):
         """
@@ -100,7 +102,7 @@ class ConditionalPanelManager(QObject):
         """
         # Handle case where int (tab index) is passed instead of widget
         if isinstance(current_tab_widget, int):
-            print(f"ConditionalPanelManager: Received tab index {current_tab_widget}, converting to widget")
+            self._logger.debug("Received tab index %s -> converting to widget", current_tab_widget)
             if current_tab_widget >= 0:
                 current_tab_widget = self.tab_container.tab_widget.widget(current_tab_widget)
             else:
@@ -108,12 +110,12 @@ class ConditionalPanelManager(QObject):
         
         self.current_tab_widget = current_tab_widget
         tab_class_name = type(current_tab_widget).__name__ if current_tab_widget else 'None'
-        print(f"ConditionalPanelManager: Tab changed to {tab_class_name}")
+        self._logger.debug("Tab changed to %s", tab_class_name)
         
         # Debug: Check if it's a dataset tab
         if current_tab_widget:
             is_dataset = tab_class_name == 'DatasetTab'
-            print(f"ConditionalPanelManager: Is dataset tab? {is_dataset}")
+            self._logger.debug("Is dataset tab? %s", is_dataset)
         
         # Evaluate all panel conditions
         self.evaluate_panel_visibility()
@@ -139,10 +141,10 @@ class ConditionalPanelManager(QObject):
                     # Emit signal
                     self.panel_visibility_changed.emit(panel_name, should_be_visible)
                     
-                    print(f"ConditionalPanelManager: Panel '{panel_name}' visibility changed to {should_be_visible}")
+                    self._logger.debug("Panel '%s' visibility changed -> %s", panel_name, should_be_visible)
                     
-            except Exception as e:
-                print(f"ConditionalPanelManager: Error evaluating condition for panel '{panel_name}': {e}")
+            except Exception:
+                self._logger.error("Error evaluating condition for panel '%s'", panel_name, exc_info=True)
     
     def _update_panel_visibility(self, panel_name: str, should_be_visible: bool):
         """
@@ -249,7 +251,7 @@ class ConditionalPanelManager(QObject):
     
     def force_evaluate_all_panels(self):
         """Force re-evaluation of all panel conditions."""
-        print("ConditionalPanelManager: Force evaluating all panel conditions")
+        self._logger.debug("Force evaluating all panel conditions")
         
         # Reset all visibility states
         for panel_config in self.registered_panels.values():
@@ -275,6 +277,6 @@ class ConditionalPanelManager(QObject):
         
         try:
             return condition_func(self.current_tab_widget)
-        except Exception as e:
-            print(f"ConditionalPanelManager: Error checking visibility for panel '{panel_name}': {e}")
+        except Exception:
+            self._logger.error("Error checking visibility for panel '%s'", panel_name, exc_info=True)
             return False

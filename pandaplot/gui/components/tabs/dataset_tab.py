@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt
@@ -30,11 +31,15 @@ class DatasetTab(EventBusComponentMixin, QWidget):
     
     def __init__(self, app_context: AppContext, dataset: Dataset, parent=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
+        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.dataset = dataset
         self.original_data = None  # Store original data for comparison
         self.is_editing_enabled = False  # Track editing state
         self.has_unsaved_changes = False  # Track if data has been modified
+        
+        self.logger.debug("Initializing DatasetTab for dataset: %s (ID: %s)", 
+                         dataset.name, dataset.id)
         
         self.setup_ui()
         self.load_dataset_data()
@@ -350,14 +355,15 @@ class DatasetTab(EventBusComponentMixin, QWidget):
     
     def load_dataset_data(self):
         """Load and display the dataset data."""
-        print(f"load_dataset_data() called for dataset: {self.dataset.name if self.dataset else 'None'}")
+        self.logger.debug("Loading dataset data for: %s", self.dataset.name if self.dataset else 'None')
         try:
             # Get the pandas DataFrame from the dataset
             df = self.dataset.data
-            print(f"Dataset data shape: {df.shape if df is not None else 'None'}")
+            self.logger.debug("Dataset data shape: %s", df.shape if df is not None else 'None')
             
             if df is None or df.empty:
                 self.info_label.setText("No data available")
+                self.logger.info("Dataset '%s' has no data to display", self.dataset.name)
                 return
             
             # Store original data for comparison and reset functionality
@@ -366,7 +372,8 @@ class DatasetTab(EventBusComponentMixin, QWidget):
             # Update info label
             rows, cols = df.shape
             self.info_label.setText(f"Shape: {rows:,} rows × {cols} columns")
-            print(f"Updated info label to show: {rows:,} rows × {cols} columns")
+            self.logger.debug("Updated info label for dataset '%s': %d rows × %d columns", 
+                            self.dataset.name, rows, cols)
             
             # Configure table dimensions
             max_rows = min(rows, 1000)  # Limit to first 1000 rows for performance
@@ -375,13 +382,15 @@ class DatasetTab(EventBusComponentMixin, QWidget):
             
             # Set column headers
             column_names = list(df.columns)
-            print(f"Setting column headers: {column_names}")
+            self.logger.debug("Setting column headers for dataset '%s': %s", 
+                            self.dataset.name, column_names)
             self.table_widget.setHorizontalHeaderLabels(column_names)
             
             # Temporarily disconnect itemChanged signal to avoid triggering during loading
             self.table_widget.itemChanged.disconnect()
             
             # Populate table data
+            data_errors = 0
             for row in range(max_rows):
                 for col in range(cols):
                     try:
@@ -407,9 +416,16 @@ class DatasetTab(EventBusComponentMixin, QWidget):
                         self.table_widget.setItem(row, col, item)
                     except Exception as e:
                         # Handle any data conversion issues
+                        data_errors += 1
+                        self.logger.warning("Data conversion error at row %d, col %d in dataset '%s': %s", 
+                                          row, col, self.dataset.name, str(e))
                         item = QTableWidgetItem(f"Error: {str(e)}")
                         item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                         self.table_widget.setItem(row, col, item)
+            
+            if data_errors > 0:
+                self.logger.warning("Dataset '%s' had %d data conversion errors during loading", 
+                                  self.dataset.name, data_errors)
             
             # Reconnect itemChanged signal
             self.table_widget.itemChanged.connect(self.on_item_changed)
@@ -417,6 +433,19 @@ class DatasetTab(EventBusComponentMixin, QWidget):
             # Update info if we're showing limited rows
             if rows > 1000:
                 self.info_label.setText(f"Shape: {rows:,} rows × {cols} columns (showing first 1,000 rows)")
+                self.logger.info("Dataset '%s': Displaying first 1,000 of %d rows for performance", 
+                               self.dataset.name, rows)
+            
+            self.logger.info("Successfully loaded dataset '%s' with %d rows and %d columns", 
+                           self.dataset.name, rows, cols)
+            
+        except Exception as e:
+            error_msg = f"Failed to load dataset data: {str(e)}"
+            self.logger.error("Error loading dataset '%s': %s", 
+                            self.dataset.name if self.dataset else 'Unknown', error_msg, exc_info=True)
+            self.info_label.setText(error_msg)
+            # Show error to user
+            QMessageBox.critical(self, "Dataset Load Error", error_msg)
             
             # Resize columns to content
             self.table_widget.resizeColumnsToContents()

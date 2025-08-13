@@ -320,11 +320,17 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close event - clean up matplotlib figures and exit"""
+        self.logger.info("Application close event triggered")
         try:
             # Close all documents and clean up
+            self.logger.debug("Starting application cleanup process")
+            
+            # Log cleanup completion
+            self.logger.info("Application cleanup completed successfully")
             event.accept()
             
         except Exception as e:
-            self.logger.error(f"Error during cleanup: {e}")
+            self.logger.error("Error during cleanup: %s", str(e), exc_info=True)
             # Force exit even if cleanup fails
+            self.logger.warning("Forcing application exit despite cleanup errors")
             event.accept()

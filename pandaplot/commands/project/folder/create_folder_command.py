@@ -81,15 +81,18 @@ class CreateFolderCommand(Command):
                 'parent_id': self.parent_id,
                 'folder': self.created_folder
             })
-
-            print(
-                f"CreateFolderCommand: Created folder '{folder_name}' with ID '{self.created_folder_id}'")
+            self.logger.info(
+                "CreateFolderCommand: Created folder '%s' (id=%s) under parent %s",
+                folder_name,
+                self.created_folder_id,
+                self.parent_id or "root"
+            )
 
             return True
 
         except Exception as e:
             error_msg = f"Failed to create folder: {str(e)}"
-            print(f"CreateFolderCommand Error: {error_msg}")
+            self.logger.error("CreateFolderCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "Create Folder Error", error_msg)
             return False
@@ -111,13 +114,15 @@ class CreateFolderCommand(Command):
                         'folder_id': self.created_folder_id,
                         'folder': self.created_folder
                     })
-
-                    print(
-                        f"CreateFolderCommand: Undone creation of folder '{self.created_folder_id}'")
+                    self.logger.info(
+                        "CreateFolderCommand: Undo creation of folder id=%s (name=%s)",
+                        self.created_folder_id,
+                        getattr(self.created_folder, 'name', '<unknown>')
+                    )
 
         except Exception as e:
             error_msg = f"Failed to undo create folder: {str(e)}"
-            print(f"CreateFolderCommand Undo Error: {error_msg}")
+            self.logger.error("CreateFolderCommand Undo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
 
     @override
@@ -140,15 +145,18 @@ class CreateFolderCommand(Command):
                     'parent_id': self.parent_id,
                     'folder': self.created_folder
                 })
-
-                print(
-                    f"CreateFolderCommand: Redone creation of folder '{self.created_folder.name}' with ID '{self.created_folder_id}'")
+                self.logger.info(
+                    "CreateFolderCommand: Redo creation of folder '%s' (id=%s) under parent %s",
+                    self.created_folder.name,
+                    self.created_folder_id,
+                    self.parent_id or "root"
+                )
                 return True
             else:
                 return False
 
         except Exception as e:
             error_msg = f"Failed to redo create folder: {str(e)}"
-            print(f"CreateFolderCommand Redo Error: {error_msg}")
+            self.logger.error("CreateFolderCommand Redo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False

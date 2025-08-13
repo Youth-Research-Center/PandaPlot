@@ -70,15 +70,18 @@ class CreateNoteCommand(Command):
                 'folder_id': self.folder_id,
                 'note': self.created_note
             })
-
-            print(
-                f"CreateNoteCommand: Created note '{note_name}' with ID '{self.created_note_id}'")
+            self.logger.info(
+                "CreateNoteCommand: Created note '%s' (id=%s) in folder %s",
+                note_name,
+                self.created_note_id,
+                self.folder_id or "root"
+            )
 
             return True
 
         except Exception as e:
             error_msg = f"Failed to create note: {str(e)}"
-            print(f"CreateNoteCommand Error: {error_msg}")
+            self.logger.error("CreateNoteCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "Create Note Error", error_msg)
             return False
@@ -99,13 +102,15 @@ class CreateNoteCommand(Command):
                         'note_id': self.created_note_id,
                         'note': self.created_note
                     })
-
-                    print(
-                        f"CreateNoteCommand: Undid creation of note '{self.created_note_id}'")
+                    self.logger.info(
+                        "CreateNoteCommand: Undo creation of note id=%s (name=%s)",
+                        self.created_note_id,
+                        getattr(self.created_note, 'name', '<unknown>')
+                    )
 
         except Exception as e:
             error_msg = f"Failed to undo create note: {str(e)}"
-            print(f"CreateNoteCommand Undo Error: {error_msg}")
+            self.logger.error("CreateNoteCommand Undo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
 
     def redo(self):
@@ -127,15 +132,18 @@ class CreateNoteCommand(Command):
                     'folder_id': self.folder_id,
                     'note': self.created_note
                 })
-
-                print(
-                    f"CreateNoteCommand: Redone creation of note '{self.created_note.name}' with ID '{self.created_note_id}'")
+                self.logger.info(
+                    "CreateNoteCommand: Redo creation of note '%s' (id=%s) in folder %s",
+                    self.created_note.name,
+                    self.created_note_id,
+                    self.folder_id or "root"
+                )
                 return True
             else:
                 return False
 
         except Exception as e:
             error_msg = f"Failed to redo create note: {str(e)}"
-            print(f"CreateNoteCommand Redo Error: {error_msg}")
+            self.logger.error("CreateNoteCommand Redo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
