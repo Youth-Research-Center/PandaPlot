@@ -15,8 +15,12 @@ class AppState:
     def __init__(self, event_bus: EventBus, project_data_manager: ProjectDataManager):
         self.logger = logging.getLogger(__name__)
         self.event_bus = event_bus
+
+        # encapsulate project data manager inside project manager
         self.project_data_manager = project_data_manager
+
         self._current_project: Optional[Project] = None
+
         # TODO: move to the project model or project container model
         self._project_file_path: Optional[str] = None  
         

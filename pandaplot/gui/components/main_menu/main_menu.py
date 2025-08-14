@@ -10,6 +10,7 @@ from pandaplot.commands.project.dataset.import_csv_command import ImportCsvComma
 from pandaplot.commands.project.dataset.create_empty_dataset_command import CreateEmptyDatasetCommand
 from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
 from pandaplot.models.state.app_context import AppContext
+import logging
 
 def show_about():
     # TODO: Implement a proper about dialog
@@ -20,6 +21,7 @@ class MainMenu(QMenuBar):
     def __init__(self, parent: QWidget, app_context:AppContext):
         super().__init__(parent)
         self.app_context = app_context
+        self.logger = logging.getLogger(__name__)
         self.create_menu()
 
     def create_menu(self):
@@ -105,5 +107,5 @@ class MainMenu(QMenuBar):
     
     def on_settings_changed(self, settings):
         """Handle settings changes."""
-        print(f"Settings changed: {settings}")
+        self.logger.info("MainMenu settings changed: %s", settings)
         # TODO: Apply settings to the application

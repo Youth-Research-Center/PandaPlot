@@ -120,11 +120,11 @@ class TransformColumnCommand(Command):
             # Update dataset
             self.dataset.set_data(df)
 
-            print(f"Transform undone: '{self.new_column_name}' reverted")
+            self.logger.info(f"Transform undone: '{self.new_column_name}' reverted")
             return True
 
         except Exception as e:
-            print(f"Transform undo failed: {e}")
+            self.logger.error(f"Transform undo failed: {e}")
             return False
 
     @override
@@ -141,49 +141,48 @@ class TransformColumnCommand(Command):
                     return current_project.find_item(self.dataset_id)
             return None
         except Exception as e:
-            print(f"Error getting dataset: {e}")
+            self.logger.error(f"Error getting dataset: {e}")
             return None
 
     def _validate_inputs(self) -> bool:
         """Validate all required inputs are present and valid."""
         if not self.new_column_name.strip():
-            print("Error: New column name cannot be empty")
+            self.logger.error("New column name cannot be empty")
             return False
 
         if not self.expression.strip():
-            print("Error: Transform expression cannot be empty")
+            self.logger.error("Transform expression cannot be empty")
             return False
 
         if not self.source_columns:
-            print("Error: At least one source column must be selected")
+            self.logger.error("At least one source column must be selected")
             return False
 
         # Check if dataset is available
         if not self.dataset or not isinstance(self.dataset, Dataset):
-            print("Error: Dataset not available for validation")
+            self.logger.error("Dataset not available for validation")
             return False
 
         # Get dataframe for validation
         try:
             if not hasattr(self.dataset, 'data') or self.dataset.data is None:
-                print("Error: Dataset has no data")
+                self.logger.error("Dataset has no data")
                 return False
             df = self.dataset.data
         except Exception as e:
-            print(f"Error: Cannot access dataset dataframe: {e}")
+            self.logger.error(f"Cannot access dataset dataframe: {e}")
             return False
 
         # Check if source columns exist
         missing_columns = [
             col for col in self.source_columns if col not in df.columns]
         if missing_columns:
-            print(f"Error: Source columns not found: {missing_columns}")
+            self.logger.error(f"Source columns not found: {missing_columns}")
             return False
 
         # Check if target column exists and handle accordingly
         if self.new_column_name in df.columns and not self.replace_existing:
-            print(
-                f"Error: Column '{self.new_column_name}' already exists. Enable replace option or choose different name.")
+            self.logger.error(f"Column '{self.new_column_name}' already exists. Enable replace option or choose different name.")
             return False
 
         return True
@@ -210,11 +209,11 @@ class TransformColumnCommand(Command):
             elif self.transform_type == 'multi_column':
                 return self._execute_multi_column_operation(df, safe_globals)
             else:
-                print(f"Error: Unknown transform type: {self.transform_type}")
+                self.logger.error(f"Unknown transform type: {self.transform_type}")
                 return None
 
         except Exception as e:
-            print(f"Transform logic execution failed: {e}")
+            self.logger.error(f"Transform logic execution failed: {e}")
             return None
 
     def _execute_column_operation(self, df: pd.DataFrame, safe_globals: dict) -> pd.Series:

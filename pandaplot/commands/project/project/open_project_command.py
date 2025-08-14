@@ -68,7 +68,7 @@ class OpenProjectCommand(Command):
             self.load_command.execute()
 
             self.was_executed = True
-            print(f"Project opened successfully: {file_path}")
+            self.logger.info(f"Project opened successfully: {file_path}")
 
             # Show success message
             project = self.app_context.app_state.current_project
@@ -80,7 +80,7 @@ class OpenProjectCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to open project: {str(e)}"
-            print(error_msg)
+            self.logger.error(error_msg)
             self.app_context.ui_controller.show_error_message(
                 "Open Project Error", error_msg)
             self.was_executed = False
@@ -89,16 +89,16 @@ class OpenProjectCommand(Command):
         """Undo the open project command."""
         if self.was_executed and self.load_command:
             self.load_command.undo()
-            print("Open project command undone")
+            self.logger.info("Open project command undone")
         else:
-            print("Nothing to undo for open project command")
+            self.logger.debug("Nothing to undo for open project command")
 
     def redo(self):
         """Redo the open project command."""
         if self.was_executed and self.load_command:
             self.load_command.redo()
-            print("Open project command redone")
+            self.logger.info("Open project command redone")
         else:
             # Re-execute the command (will show dialog again)
-            print("Re-executing open project command")
+            self.logger.debug("Re-executing open project command")
             self.execute()

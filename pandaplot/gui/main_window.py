@@ -252,19 +252,18 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
     def on_transform_applied(self, dataset_id: str, new_column_name: str):
         """Handle successful transform application."""
         # TODO: transform applied callback should be handled differently
-        print(f"Transform applied to dataset {dataset_id}: new column '{new_column_name}'")
+        self.logger.info("Transform applied to dataset %s: new column '%s'", dataset_id, new_column_name)
         
         # Find and refresh the dataset tab
         current_widget = self.tab_container.tab_widget.currentWidget()
         if current_widget and type(current_widget).__name__ == 'DatasetTab':
             # Use getattr for safe attribute access
             dataset = getattr(current_widget, 'dataset', None)
-            if dataset and hasattr(dataset, 'id') and dataset.id == dataset_id:
-                # Refresh the current dataset tab
+            if dataset and getattr(dataset, 'id', None) == dataset_id:
                 load_method = getattr(current_widget, 'load_dataset_data', None)
                 if callable(load_method):
                     load_method()
-                    print(f"Refreshed dataset tab for dataset {dataset_id}")
+                    self.logger.debug("Refreshed dataset tab for dataset %s", dataset_id)
                     
                     # Also update the transform panel to show new columns
                     if hasattr(self, 'transform_panel'):
@@ -273,7 +272,7 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
     def on_transform_error(self, error_message: str):
         """Handle transform error."""
         # TODO: transform error callback should be handled differently
-        print(f"Transform error: {error_message}")
+        self.logger.error("Transform error: %s", error_message)
         # TODO: Show error dialog or status message
 
     def show_settings_dialog(self):
@@ -285,9 +284,9 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
     
     def on_settings_changed(self, settings):
         """Handle settings changes."""
-        # TODO: this shouldn't be here, move when refactoring icon bar 
-        print(f"Settings changed: {settings}")
-        # TODO: Apply settings to the application
+        # Instrumentation
+        self.logger.info("Settings changed: %s", settings)
+        # TODO: Apply settings to the application (defer until refactor of icon bar responsibilities)
     
     def setup_event_subscriptions(self):
         """Set up event subscriptions for the main window."""
@@ -320,11 +319,17 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
 
     def closeEvent(self, event):
         """Handle window close event - clean up matplotlib figures and exit"""
+        self.logger.info("Application close event triggered")
         try:
             # Close all documents and clean up
+            self.logger.debug("Starting application cleanup process")
+            
+            # Log cleanup completion
+            self.logger.info("Application cleanup completed successfully")
             event.accept()
             
         except Exception as e:
-            self.logger.error(f"Error during cleanup: {e}")
+            self.logger.error("Error during cleanup: %s", str(e), exc_info=True)
             # Force exit even if cleanup fails
+            self.logger.warning("Forcing application exit despite cleanup errors")
             event.accept()

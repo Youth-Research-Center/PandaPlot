@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushB
                              QScrollArea, QFrame, QGridLayout, QSizePolicy)
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
+import logging
 
 
 class WelcomeTab(QWidget):
@@ -20,6 +21,7 @@ class WelcomeTab(QWidget):
     def __init__(self, app_context=None, parent=None):
         super().__init__(parent)
         self.app_context = app_context
+        self.logger = logging.getLogger(__name__)
         self.setup_ui()
     
     def setup_ui(self):
@@ -138,7 +140,7 @@ class WelcomeTab(QWidget):
         examples_btn = self.create_action_button(
             "📚 Examples", 
             "Browse sample projects and tutorials",
-            lambda: print("Examples action")  # TODO: Implement
+            lambda: self.logger.info("Examples action triggered")  # TODO: Implement
         )
         actions_layout.addWidget(examples_btn, 1, 1)
         
@@ -310,10 +312,8 @@ class WelcomeTab(QWidget):
                 background-color: transparent;
             }
         """)
-        
-        # Connect to a placeholder action for now
-        button.clicked.connect(lambda: print(f"Getting started step clicked: {title}"))
-        
+        # Connect to a placeholder action (logging only)
+        button.clicked.connect(lambda: self.logger.info("Getting started step clicked: %s", title)) #TODO: not implemented
         return button
     
     def create_recent_project_item(self, project_name, project_path, last_opened):

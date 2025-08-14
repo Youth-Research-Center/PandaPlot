@@ -82,14 +82,17 @@ class DeleteItemCommand(Command):
                 'item_name': item_name,
                 'item_data': self.deleted_item_data
             })
-
-            print(
-                f"DeleteItemCommand: Deleted {item_type} '{item_name}' (ID: {self.item_id})")
+            self.logger.info(
+                "DeleteItemCommand: Deleted %s '%s' (id=%s)",
+                item_type,
+                item_name,
+                self.item_id
+            )
             return True
 
         except Exception as e:
             error_msg = f"Failed to delete item: {str(e)}"
-            print(f"DeleteItemCommand Error: {error_msg}")
+            self.logger.error("DeleteItemCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "Delete Item Error", error_msg)
             return False
@@ -130,14 +133,17 @@ class DeleteItemCommand(Command):
                 'item_name': item_name,
                 'item': restored_item
             })
-
-            print(
-                f"DeleteItemCommand: Restored {item_type} '{item_name}' (ID: {self.item_id})")
+            self.logger.info(
+                "DeleteItemCommand: Restored %s '%s' (id=%s)",
+                item_type,
+                item_name,
+                self.item_id
+            )
             return True
 
         except Exception as e:
             error_msg = f"Failed to undo delete item: {str(e)}"
-            print(f"DeleteItemCommand Undo Error: {error_msg}")
+            self.logger.error("DeleteItemCommand Undo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return False
 
@@ -173,13 +179,16 @@ class DeleteItemCommand(Command):
                 'item_name': item_name,
                 'item_data': self.deleted_item_data
             })
-
-            print(
-                f"DeleteItemCommand: Redone deletion of {item_type} '{item_name}' (ID: {self.item_id})")
+            self.logger.info(
+                "DeleteItemCommand: Redone deletion of %s '%s' (id=%s)",
+                item_type,
+                item_name,
+                self.item_id
+            )
             return True
 
         except Exception as e:
             error_msg = f"Failed to redo delete item: {str(e)}"
-            print(f"DeleteItemCommand Redo Error: {error_msg}")
+            self.logger.error("DeleteItemCommand Redo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False

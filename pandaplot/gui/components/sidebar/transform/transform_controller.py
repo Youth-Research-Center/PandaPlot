@@ -5,6 +5,7 @@ Extracted from transform_tab.py to provide safe execution environment
 and transformation logic for the transform panel.
 """
 
+import logging
 import pandas as pd
 import numpy as np
 import re
@@ -29,6 +30,7 @@ class TransformController(QObject):
     def __init__(self, app_context: AppContext, parent=None):
         super().__init__(parent)
         self.app_context = app_context
+        self.logger = logging.getLogger(__name__)
         
         # Safe execution environment
         self.safe_globals = {
@@ -325,6 +327,6 @@ class TransformController(QObject):
                     return app_state.current_project.find_item(dataset_id)
             return None
         except Exception as e:
-            print(f"Error getting dataset {dataset_id}: {e}")
+            self.logger.error(f"Error getting dataset {dataset_id}: {e}")
             return None
     

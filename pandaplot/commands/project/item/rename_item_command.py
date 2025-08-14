@@ -60,12 +60,13 @@ class RenameItemCommand(Command):
                 'new_name': self.new_name
             })
 
-            print(
-                f"RenameNoteCommand: Renamed note from '{self.old_name}' to '{self.new_name}'")
+            self.logger.info(
+                "Renamed note '%s' -> '%s' (id=%s)", self.old_name, self.new_name, self.note_id
+            )
             return True
         except Exception as e:
-            error_msg = f"Failed to rename note: {str(e)}"
-            print(f"RenameNoteCommand Error: {error_msg}")
+            error_msg = f"Failed to rename note: {e}"
+            self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "Rename Note Error", error_msg)
             raise
@@ -99,12 +100,13 @@ class RenameItemCommand(Command):
                             'new_name': self.old_name
                         })
 
-                        print(
-                            f"RenameNoteCommand: Restored note name to '{self.old_name}'")
+                        self.logger.info(
+                            "Restored note name to '%s' (id=%s)", self.old_name, self.note_id
+                        )
 
         except Exception as e:
-            error_msg = f"Failed to undo rename note: {str(e)}"
-            print(f"RenameNoteCommand Undo Error: {error_msg}")
+            error_msg = f"Failed to undo rename note: {e}"
+            self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
 
     def redo(self):
