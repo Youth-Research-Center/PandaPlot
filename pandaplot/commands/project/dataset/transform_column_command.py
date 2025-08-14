@@ -2,7 +2,6 @@
 Transform column command for applying data transformations with undo/redo support.
 """
 
-import logging
 from typing import Any, Dict, Optional, override
 
 import pandas as pd

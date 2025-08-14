@@ -1,6 +1,8 @@
 import logging
-from pandaplot.commands.base_command import Command
 from typing import List, Optional
+
+from pandaplot.commands.base_command import Command
+
 
 class CommandExecutor:
     """

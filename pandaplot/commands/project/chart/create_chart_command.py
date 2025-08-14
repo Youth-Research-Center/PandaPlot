@@ -2,7 +2,6 @@
 Command for creating chart items from datasets.
 """
 
-import logging
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
