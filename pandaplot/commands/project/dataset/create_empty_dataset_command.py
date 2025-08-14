@@ -29,7 +29,7 @@ class CreateEmptyDatasetCommand(Command):
         self.dataset_name = dataset_name
 
         # Store state for undo
-        self.dataset_id = None
+        self.dataset_id: Optional[str] = None
         self.project = None
 
     @override
@@ -88,14 +88,19 @@ class CreateEmptyDatasetCommand(Command):
                 'dataset_data': dataset.data
             })
 
-            print(
-                f"CreateEmptyDatasetCommand: Created empty dataset '{self.dataset_name}' with ID '{self.dataset_id}'")
+            self.logger.info(
+                "Created empty dataset '%s' with ID '%s' (rows=%d, cols=%d)",
+                self.dataset_name,
+                self.dataset_id,
+                dataset.data.shape[0],
+                dataset.data.shape[1],
+            )
 
             return True
 
         except Exception as e:
             error_msg = f"Failed to create empty dataset: {str(e)}"
-            print(f"CreateEmptyDatasetCommand Error: {error_msg}")
+            self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "Create Dataset Error", error_msg)
             return False
@@ -117,12 +122,13 @@ class CreateEmptyDatasetCommand(Command):
                         'dataset_name': self.dataset_name
                     })
 
-                    print(
-                        f"CreateEmptyDatasetCommand: Undone creation of dataset '{self.dataset_id}'")
+                    self.logger.info(
+                        "Undone creation of dataset '%s'", self.dataset_id
+                    )
 
         except Exception as e:
             error_msg = f"Failed to undo dataset creation: {str(e)}"
-            print(f"CreateEmptyDatasetCommand Undo Error: {error_msg}")
+            self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
 
     def redo(self):
@@ -132,6 +138,6 @@ class CreateEmptyDatasetCommand(Command):
                 return self.execute()
         except Exception as e:
             error_msg = f"Failed to redo dataset creation: {str(e)}"
-            print(f"CreateEmptyDatasetCommand Redo Error: {error_msg}")
+            self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False

@@ -6,7 +6,7 @@ from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 
-
+# TODO: do we need this command at all? 
 class RenameFolderCommand(Command):
     """
     Command to rename a folder in the project structure.
@@ -72,13 +72,14 @@ class RenameFolderCommand(Command):
                 'folder': folder
             })
 
-            print(
-                f"RenameFolderCommand: Renamed folder from '{self.old_name}' to '{self.new_name}'")
+            self.logger.info(
+                "Renamed folder '%s' -> '%s' (id=%s)", self.old_name, self.new_name, self.folder_id
+            )
             return True
 
         except Exception as e:
-            error_msg = f"Failed to rename folder: {str(e)}"
-            print(f"RenameFolderCommand Error: {error_msg}")
+            error_msg = f"Failed to rename folder: {e}"
+            self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "Rename Folder Error", error_msg)
             return False
@@ -116,13 +117,14 @@ class RenameFolderCommand(Command):
                     'folder': folder
                 })
 
-                print(
-                    f"RenameFolderCommand: Restored folder name to '{self.old_name}'")
+                self.logger.info(
+                    "Restored folder name to '%s' (id=%s)", self.old_name, self.folder_id
+                )
                 return True
 
         except Exception as e:
-            error_msg = f"Failed to undo rename folder: {str(e)}"
-            print(f"RenameFolderCommand Undo Error: {error_msg}")
+            error_msg = f"Failed to undo rename folder: {e}"
+            self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return False
 
@@ -151,14 +153,15 @@ class RenameFolderCommand(Command):
                     'folder': folder
                 })
 
-                print(
-                    f"RenameFolderCommand: Redone rename to '{self.new_name}'")
+                self.logger.info(
+                    "Redone folder rename to '%s' (id=%s)", self.new_name, self.folder_id
+                )
                 return True
             else:
                 return False
 
         except Exception as e:
-            error_msg = f"Failed to redo rename folder: {str(e)}"
-            print(f"RenameFolderCommand Redo Error: {error_msg}")
+            error_msg = f"Failed to redo rename folder: {e}"
+            self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False

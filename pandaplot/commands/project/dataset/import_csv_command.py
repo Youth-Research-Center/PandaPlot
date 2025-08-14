@@ -104,8 +104,14 @@ class ImportCsvCommand(Command):
                 'dataframe': self.imported_data
             })
 
-            print(
-                f"ImportCsvCommand: Imported CSV '{self.dataset_name}' from '{self.file_path}' with ID '{self.dataset_id}'")
+            self.logger.info(
+                "Imported CSV '%s' from '%s' with ID '%s' (rows=%d, cols=%d)",
+                self.dataset_name,
+                self.file_path,
+                self.dataset_id,
+                self.imported_data.shape[0],
+                self.imported_data.shape[1],
+            )
 
             # Show success message to user
             self.ui_controller.show_info_message(
@@ -118,7 +124,7 @@ class ImportCsvCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to import CSV: {str(e)}"
-            print(f"ImportCsvCommand Error: {error_msg}")
+            self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "Import CSV Error", error_msg)
             return False
@@ -140,12 +146,13 @@ class ImportCsvCommand(Command):
                         'dataset_data': self.imported_data
                     })
 
-                    print(
-                        f"ImportCsvCommand: Undone import of dataset '{self.dataset_id}'")
+                    self.logger.info(
+                        "Undone import of dataset '%s'", self.dataset_id
+                    )
 
         except Exception as e:
             error_msg = f"Failed to undo CSV import: {str(e)}"
-            print(f"ImportCsvCommand Undo Error: {error_msg}")
+            self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
 
     def redo(self):
@@ -156,6 +163,6 @@ class ImportCsvCommand(Command):
                 return self.execute()
         except Exception as e:
             error_msg = f"Failed to redo CSV import: {str(e)}"
-            print(f"ImportCsvCommand Redo Error: {error_msg}")
+            self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
