@@ -76,7 +76,7 @@ class SaveProjectCommand(Command):
                 })
 
                 self.logger.info(
-                    f"Project '{project.name}' saved successfully to '{save_path}'")
+                    "Project '%s' saved successfully to '%s'", project.name, save_path)
 
                 # Show success message for Save As operations
                 if self.save_as_path or not current_path:
@@ -90,8 +90,8 @@ class SaveProjectCommand(Command):
                 raise Exception("Save operation failed")
 
         except Exception as e:
-            error_msg = f"Failed to save project: {str(e)}"
-            self.logger.error(f"SaveProjectCommand Error: {error_msg}")
+            error_msg = f"Failed to save project: {e}"
+            self.logger.error("SaveProjectCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "Save Project Error", error_msg)
             raise
@@ -106,12 +106,13 @@ class SaveProjectCommand(Command):
                     if project:  # Additional safety check
                         self.app_state.load_project(project)
                         # TODO: this doesn't do anything currently
-                        print(
-                            f"SaveProjectCommand: Reverted file path to '{self.previous_file_path}'")
+                        self.logger.info(
+                            "Reverted file path to '%s'", self.previous_file_path
+                        )
 
         except Exception as e:
-            error_msg = f"Failed to undo save project: {str(e)}"
-            print(f"SaveProjectCommand Undo Error: {error_msg}")
+            error_msg = f"Failed to undo save project: {e}"
+            self.logger.error("SaveProjectCommand Undo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
 
     def redo(self):
@@ -160,8 +161,8 @@ class SaveProjectAsCommand(SaveProjectCommand):
             return super().execute()
 
         except Exception as e:
-            error_msg = f"Failed to save project as: {str(e)}"
-            print(f"SaveProjectAsCommand Error: {error_msg}")
+            error_msg = f"Failed to save project as: {e}"
+            self.logger.error("SaveProjectAsCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "Save Project As Error", error_msg)
             raise

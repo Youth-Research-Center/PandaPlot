@@ -61,12 +61,14 @@ class EditNoteCommand(Command):
                 'new_content': self.new_content
             })
 
-            print(f"EditNoteCommand: Edited content of note '{self.note_id}'")
+            self.logger.info(
+                "Edited content of note '%s'", self.note_id
+            )
             return True
 
         except Exception as e:
-            error_msg = f"Failed to edit note: {str(e)}"
-            print(f"EditNoteCommand Error: {error_msg}")
+            error_msg = f"Failed to edit note: {e}"
+            self.logger.error("EditNoteCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Edit Note Error", error_msg)
             return False
 
@@ -102,13 +104,14 @@ class EditNoteCommand(Command):
                     'new_content': self.old_content
                 })
 
-                print(
-                    f"EditNoteCommand: Restored note content for '{self.note_id}'")
+                self.logger.info(
+                    "Restored note content for '%s'", self.note_id
+                )
                 return True
 
         except Exception as e:
-            error_msg = f"Failed to undo edit note: {str(e)}"
-            print(f"EditNoteCommand Undo Error: {error_msg}")
+            error_msg = f"Failed to undo edit note: {e}"
+            self.logger.error("EditNoteCommand Undo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return False
 
@@ -135,13 +138,15 @@ class EditNoteCommand(Command):
                     'new_content': self.new_content
                 })
 
-                print(f"EditNoteCommand: Redone edit of note '{self.note_id}'")
+                self.logger.info(
+                    "Redone edit of note '%s'", self.note_id
+                )
                 return True
             else:
                 return False
 
         except Exception as e:
-            error_msg = f"Failed to redo edit note: {str(e)}"
-            print(f"EditNoteCommand Redo Error: {error_msg}")
+            error_msg = f"Failed to redo edit note: {e}"
+            self.logger.error("EditNoteCommand Redo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False

@@ -49,12 +49,13 @@ class NewProjectCommand(Command):
             # Update app state - use load_project method
             self.app_state.load_project(new_project)
 
-            print(
-                f"NewProjectCommand: Created new project '{new_project.name}'")
+            self.logger.info(
+                "Created new project '%s'", new_project.name
+            )
             return True
         except Exception as e:
-            error_msg = f"Failed to create new project: {str(e)}"
-            print(f"NewProjectCommand Error: {error_msg}")
+            error_msg = f"Failed to create new project: {e}"
+            self.logger.error("NewProjectCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "New Project Error", error_msg)
             raise
@@ -65,17 +66,19 @@ class NewProjectCommand(Command):
             if self.previous_project:
                 # Restore previous project
                 self.app_state.load_project(self.previous_project)
-                print(
-                    f"NewProjectCommand: Restored previous project '{self.previous_project.name}'")
+                self.logger.info(
+                    "Restored previous project '%s'", self.previous_project.name
+                )
             else:
                 # No previous project, close current project
                 self.app_state.close_project()
-                print(
-                    "NewProjectCommand: Closed project (no previous project to restore)")
+                self.logger.info(
+                    "Closed project (no previous project to restore)"
+                )
 
         except Exception as e:
-            error_msg = f"Failed to undo new project: {str(e)}"
-            print(f"NewProjectCommand Undo Error: {error_msg}")
+            error_msg = f"Failed to undo new project: {e}"
+            self.logger.error("NewProjectCommand Undo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
 
     def redo(self):
