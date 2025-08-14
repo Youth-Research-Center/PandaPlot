@@ -1,4 +1,5 @@
 
+import logging
 import sys
 
 from PySide6.QtWidgets import QApplication
@@ -59,7 +60,7 @@ def create_project_data_manager() -> ProjectDataManager:
 
 def main():
     # Setup logging
-    logger = setup_logging()
+    logger = setup_logging(level = logging.DEBUG)
     # Load configuration
     logger.info("--------------Starting PandaPlot application--------------")
     # Initialize application state
@@ -107,7 +108,6 @@ if __name__ == "__main__":
     main()
     # TODO: fix remove series
     # TODO: fix file tree widget to get refreshed after deleting items and item collections
-    # TODO: convert prints into log statements
     # TODO: log error messages to the user
     # TODO: fix how we treat transformed columns, they aren't saved correctly
     # TODO: allow project rename, consider creating project creation dialog

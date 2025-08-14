@@ -14,7 +14,6 @@ from pandaplot.commands.project.dataset.add_row_command import AddRowCommand
 from pandaplot.commands.project.item.delete_item_command import DeleteItemCommand
 from pandaplot.commands.project.item.move_item_command import MoveItemCommand
 from pandaplot.commands.project.item.rename_item_command import RenameItemCommand
-from pandaplot.commands.project.folder.rename_folder_command import RenameFolderCommand
 from pandaplot.models.project.visitors import ProjectTreeBuilder
 import logging
 
@@ -789,18 +788,8 @@ class ProjectViewPanel(QWidget):
             
             try:
                 # Execute appropriate rename command based on item type
-                if item_type == 'folder':
-                    command = RenameFolderCommand(self.app_context, item_id, new_name)
-                    self.app_context.get_command_executor().execute_command(command)
-                elif item_type == 'note':
-                    command = RenameItemCommand(self.app_context, item_id, new_name)
-                    self.app_context.get_command_executor().execute_command(command)
-                else:
-                    # TODO: Add rename commands for datasets and charts
-                    self.logger.debug(f"Inline rename not yet implemented for {item_type}")
-                    # Revert the name change in the UI
-                    old_prefix = '📊 ' if item_type == 'dataset' else '📈 '
-                    item.setText(0, f"{old_prefix}{current_name}")
+                command = RenameItemCommand(self.app_context, item_id, new_name)
+                self.app_context.get_command_executor().execute_command(command)
             finally:
                 self._editing_in_progress = False
         else:
