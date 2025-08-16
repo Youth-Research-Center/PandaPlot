@@ -82,10 +82,10 @@ def main():
     )
 
     # Initialize GUI components
-
     app = QApplication(sys.argv)
 
     # Set global application stylesheet with black text color as default
+    # TODO: improve how we handle styles and themes
     app.setStyleSheet("""
         * {
             color: black;
