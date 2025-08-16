@@ -10,3 +10,10 @@ Contributions are welcome! If you would like to contribute to PandaPlot, please 
     pytest
     ```
 5.  Submit a pull request.
+
+Additional checks
+
+Run bandit
+```bash
+bandit -r pandaplot -f html -o bandit_report.html
+```
