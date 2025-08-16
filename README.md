@@ -22,6 +22,7 @@ python -m pandaplot.app
 pytest
 pytest --verbose
 pytest --cov
+pytest --cov=pandaplot --cov-report=html
 ```
 
 ## Contributing
