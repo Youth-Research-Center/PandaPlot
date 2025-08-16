@@ -108,7 +108,10 @@ if __name__ == "__main__":
     main()
     # TODO: fix remove series
     # TODO: fix file tree widget to get refreshed after deleting items and item collections
+    # TODO: convert prints into log statements
     # TODO: log error messages to the user
     # TODO: fix how we treat transformed columns, they aren't saved correctly
     # TODO: allow project rename, consider creating project creation dialog
     # TODO: improve view of project name
+    # TODO: create process for multi-threaded operations
+    # TODO: improve initial loading of the app
