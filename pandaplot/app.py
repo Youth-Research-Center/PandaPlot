@@ -106,7 +106,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # TODO: fix remove series
+    # TODO: fix add or remove series
     # TODO: convert prints into log statements
     # TODO: log error messages to the user
     # TODO: fix how we treat transformed columns, they aren't saved correctly
@@ -114,3 +114,4 @@ if __name__ == "__main__":
     # TODO: improve view of project name
     # TODO: create process for multi-threaded operations
     # TODO: improve initial loading of the app
+    # TODO: clean state on opening new project or add support for multiple projects
