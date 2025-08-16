@@ -396,6 +396,7 @@ class ProjectViewPanel(QWidget):
             self.app_state.event_bus.subscribe('dataset_row_added', self.on_item_changed)
             self.app_state.event_bus.subscribe('dataset_row_removed', self.on_item_changed)
             self.app_state.event_bus.subscribe('item_moved', self.on_item_changed)
+            self.app_state.event_bus.subscribe('item_deleted', self.on_item_changed)
             
             # Subscribe to chart events
             self.app_state.event_bus.subscribe('chart.created', self.on_item_changed)
