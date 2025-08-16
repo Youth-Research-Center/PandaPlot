@@ -56,11 +56,14 @@ class MainMenu(QMenuBar):
         # Edit menu
         edit_menu = QMenu("Edit", self)
         self.addMenu(edit_menu)
-        
+
+        # TODO: disable undo/redo when there are no actions to undo/redo
         undo_action = QAction("Undo", self)
+        undo_action.triggered.connect(lambda: self.app_context.get_command_executor().undo())
         edit_menu.addAction(undo_action)
         
         redo_action = QAction("Redo", self)
+        redo_action.triggered.connect(lambda: self.app_context.get_command_executor().redo())
         edit_menu.addAction(redo_action)
 
         # Data menu
@@ -75,13 +78,11 @@ class MainMenu(QMenuBar):
         create_empty_dataset_action.triggered.connect(lambda: self.app_context.get_command_executor().execute_command(CreateEmptyDatasetCommand(self.app_context)))
         data_menu.addAction(create_empty_dataset_action)
 
-        # Notes menu
-        notes_menu = QMenu("Notes", self)
-        self.addMenu(notes_menu)
+        data_menu.addSeparator()
         
         new_note_action = QAction("New Note", self)
         new_note_action.triggered.connect(lambda: self.app_context.get_command_executor().execute_command(CreateNoteCommand(self.app_context)))
-        notes_menu.addAction(new_note_action)
+        data_menu.addAction(new_note_action)
 
         # Settings menu
         settings_menu = QMenu("Settings", self)

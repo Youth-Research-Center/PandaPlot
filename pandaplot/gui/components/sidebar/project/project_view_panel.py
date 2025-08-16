@@ -382,6 +382,7 @@ class ProjectViewPanel(QWidget):
             self.app_state.event_bus.subscribe('first_project_loaded', self.on_first_project_loaded)
             
             # Subscribe to item events for automatic tree updates
+            # TODO: simplify subscriptions, we probably don't need all of them
             self.app_state.event_bus.subscribe('folder_created', self.on_item_changed)
             self.app_state.event_bus.subscribe('folder_renamed', self.on_item_changed)
             self.app_state.event_bus.subscribe('folder_deleted', self.on_item_changed)
@@ -396,6 +397,7 @@ class ProjectViewPanel(QWidget):
             self.app_state.event_bus.subscribe('dataset_row_added', self.on_item_changed)
             self.app_state.event_bus.subscribe('dataset_row_removed', self.on_item_changed)
             self.app_state.event_bus.subscribe('item_moved', self.on_item_changed)
+            self.app_state.event_bus.subscribe('item_deleted', self.on_item_changed)
             
             # Subscribe to chart events
             self.app_state.event_bus.subscribe('chart.created', self.on_item_changed)

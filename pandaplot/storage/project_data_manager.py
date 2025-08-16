@@ -39,6 +39,9 @@ class ProjectDataManager:
             items = project_dict.get("item_files", {}).items()
             loaded_items : set[str] = set()
 
+            #TODO: fix loading hierarchy as items don't have parent id and we need to know all parents in the collection
+            # we should probably first create all items with ids and then try to recreate project
+
             # We need to first load all collection items to ensure parent id exists
             for item_id, info in items:
                 item_class = self.data_factory.resolve_item_class(info["type"])

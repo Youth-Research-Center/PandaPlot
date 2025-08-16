@@ -1,4 +1,5 @@
 
+import logging
 from typing import Dict, Any, List, Optional
 from pandaplot.models.project.items.item import Item, ItemCollection
 
@@ -11,6 +12,7 @@ class Project:
     """
     
     def __init__(self, name: str = "Untitled Project", description: str = ""):
+        self.logger = logging.getLogger(__name__)
         self.name = name
         self.description = description
         
@@ -35,6 +37,7 @@ class Project:
             if parent is not None and isinstance(parent, ItemCollection):
                 parent.add_item(item)
             else:
+                self.logger.warning(f"Parent not found or not a collection: {parent_id}")
                 # If parent not found or not a collection, add to root
                 # TODO: see if we need to handle this case differently, e.g. recursively search for a collection
                 self.root.add_item(item)

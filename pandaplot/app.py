@@ -82,10 +82,10 @@ def main():
     )
 
     # Initialize GUI components
-
     app = QApplication(sys.argv)
 
     # Set global application stylesheet with black text color as default
+    # TODO: improve how we handle styles and themes
     app.setStyleSheet("""
         * {
             color: black;
@@ -106,9 +106,13 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # TODO: fix add (load damped pendulum project, try to add series to energy graph)
     # TODO: fix remove series
-    # TODO: fix file tree widget to get refreshed after deleting items and item collections
+    # TODO: convert prints into log statements
     # TODO: log error messages to the user
     # TODO: fix how we treat transformed columns, they aren't saved correctly
     # TODO: allow project rename, consider creating project creation dialog
     # TODO: improve view of project name
+    # TODO: create process for multi-threaded operations
+    # TODO: improve initial loading of the app
+    # TODO: clean state on opening new project or add support for multiple projects
