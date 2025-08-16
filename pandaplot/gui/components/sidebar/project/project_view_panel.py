@@ -382,6 +382,7 @@ class ProjectViewPanel(QWidget):
             self.app_state.event_bus.subscribe('first_project_loaded', self.on_first_project_loaded)
             
             # Subscribe to item events for automatic tree updates
+            # TODO: simplify subscriptions, we probably don't need all of them
             self.app_state.event_bus.subscribe('folder_created', self.on_item_changed)
             self.app_state.event_bus.subscribe('folder_renamed', self.on_item_changed)
             self.app_state.event_bus.subscribe('folder_deleted', self.on_item_changed)

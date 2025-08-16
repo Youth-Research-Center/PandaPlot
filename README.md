@@ -1,5 +1,6 @@
 # PandaPlot
-PandaPlot is educational scientific visualization and analysis application built with Python. The project is open source and welcomes contribution.
+
+PandaPlot is an open-source, Python-based desktop application for scientific data visualization and analysis. It is designed to be an educational tool for learning and applying data analysis concepts.
 
 
 ## Setup
@@ -9,15 +10,20 @@ We use [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage o
 uv sync
 ```
 
-## Run app
-Activate virtual environment and run the following command.
-```
+## Running the Application
+To run the PandaPlot application, execute the following command from the root directory of the project:
+
+```bash
 python -m pandaplot.app
 ```
 
-## Run tests
+## Running Tests
 ```bash
 pytest
 pytest --verbose
 pytest --cov
 ```
+
+## License
+
+PandaPlot is licensed under the [MIT License](LICENSE).

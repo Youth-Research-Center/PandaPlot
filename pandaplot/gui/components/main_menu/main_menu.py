@@ -56,7 +56,8 @@ class MainMenu(QMenuBar):
         # Edit menu
         edit_menu = QMenu("Edit", self)
         self.addMenu(edit_menu)
-        
+
+        # TODO: disable undo/redo when there are no actions to undo/redo
         undo_action = QAction("Undo", self)
         undo_action.triggered.connect(lambda: self.app_context.get_command_executor().undo())
         edit_menu.addAction(undo_action)
