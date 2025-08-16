@@ -106,7 +106,8 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # TODO: fix add or remove series
+    # TODO: fix add (load damped pendulum project, try to add series to energy graph)
+    # TODO: fix remove series
     # TODO: convert prints into log statements
     # TODO: log error messages to the user
     # TODO: fix how we treat transformed columns, they aren't saved correctly
