@@ -24,6 +24,11 @@ pytest --verbose
 pytest --cov
 ```
 
+## Contributing
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute to this project.
+
+
 ## License
 
 PandaPlot is licensed under the [MIT License](LICENSE).
