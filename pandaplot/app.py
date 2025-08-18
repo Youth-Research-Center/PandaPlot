@@ -108,7 +108,6 @@ if __name__ == "__main__":
     main()
     # TODO: fix add (load damped pendulum project, try to add series to energy graph)
     # TODO: fix remove series
-    # TODO: convert prints into log statements
     # TODO: log error messages to the user
     # TODO: fix how we treat transformed columns, they aren't saved correctly
     # TODO: allow project rename, consider creating project creation dialog
@@ -116,3 +115,4 @@ if __name__ == "__main__":
     # TODO: create process for multi-threaded operations
     # TODO: improve initial loading of the app
     # TODO: clean state on opening new project or add support for multiple projects
+    # TODO: list and implement copy paste capabilities we want to support
