@@ -102,6 +102,7 @@ class ApplicationConfig:
 	appearance: AppearanceConfig = field(default_factory=AppearanceConfig)
 	editor: EditorConfig = field(default_factory=EditorConfig)
 	project: ProjectConfig = field(default_factory=ProjectConfig)
+	recent_projects: list[str] = field(default_factory=list)
 
 	# ----- construction helpers -------------------------------------------------
 	@classmethod
@@ -124,6 +125,7 @@ class ApplicationConfig:
 			},
 			"editor": asdict(self.editor),
 			"project": asdict(self.project),
+			"recent_projects": list(self.recent_projects),
 		}
 
 	def to_json(self, *, indent: int | None = 2) -> str:
@@ -151,6 +153,21 @@ class ApplicationConfig:
 			"editor": self.editor,
 			"project": self.project,
 		}
+
+		# Handle recent_projects specially (flat list of strings)
+		if isinstance(data.get("recent_projects"), list):
+			clean: list[str] = []
+			for entry in data["recent_projects"]:
+				if isinstance(entry, str) and entry:
+					clean.append(entry)
+			# De-duplicate preserving order
+			seen: set[str] = set()
+			unique: list[str] = []
+			for p in clean:
+				if p not in seen:
+					seen.add(p)
+					unique.append(p)
+			self.recent_projects = unique[:50]  # Cap to avoid unbounded growth
 
 		for key, value in data.items():
 			if key == "version":

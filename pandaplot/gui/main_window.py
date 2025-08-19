@@ -46,6 +46,8 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         self.setup_event_subscriptions()
         self.app_context.event_bus.subscribe(AppEvents.APP_CLOSING, self.closeEvent)
         self.logger.info("PandaMainWindow initialized.")
+        # Subscribe to new event-based note open requests
+        self.app_context.event_bus.subscribe('ui.note.open_requested', self.on_note_open_requested)
         
     def create_widgets(self, main_layout):
         # Create menu
@@ -120,9 +122,8 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         self.sidebar.add_panel("explorer", "📁", self.project_view_panel)
         self.sidebar.show_panel("explorer")
         
-        # Connect project view signals to tab container
-        # TODO: remove signals
-        self.project_view_panel.note_open_requested.connect(self.tab_container.open_note_tab)
+    # Connect project view signals to tab container (note opening now via event bus only)
+    # note_open_requested legacy signal removed
         self.project_view_panel.dataset_open_requested.connect(self.tab_container.open_dataset_tab)
         self.project_view_panel.chart_open_requested.connect(self.tab_container.open_chart_tab)
         self.project_view_panel.chart_create_requested.connect(self.tab_container.create_chart_from_dataset)
@@ -297,7 +298,15 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self.on_tab_changed_event)
         # React to theme changes if window-specific adjustments are ever needed
         self.app_context.event_bus.subscribe('theme.changed', lambda d: self.logger.debug("Theme changed event received in main window"))
-    
+        # note open subscription is registered in __init__
+
+    def on_note_open_requested(self, event_data):
+        """Handle note open request from event bus (dotted UI event)."""
+        note_id = event_data.get('note_id')
+        note_name = event_data.get('note_name')
+        if note_id and note_name:
+            self.tab_container.open_note_tab(note_id, note_name)
+
     def on_transform_applied_event(self, event_data):
         """Handle transform applied events from the event system."""
         # TODO: this shouldn't be in main window

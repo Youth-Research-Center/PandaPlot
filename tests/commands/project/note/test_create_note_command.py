@@ -107,7 +107,7 @@ class TestCreateNoteCommand:
         assert command.created_note.name == "New Note"
         assert command.created_note.content == ""
         sample_project.add_item.assert_called_once()
-        app_state.event_bus.emit.assert_called_once_with('note_created', {
+        app_state.event_bus.emit.assert_called_once_with('note.created', {
             'project': sample_project,
             'note_id': "test-uuid",
             'note_name': "New Note",
@@ -190,7 +190,7 @@ class TestCreateNoteCommand:
         
         sample_project.find_item.assert_called_once_with("test-id")
         sample_project.remove_item.assert_called_once_with(mock_note)
-        app_state.event_bus.emit.assert_called_once_with('note_deleted', {
+        app_state.event_bus.emit.assert_called_once_with('note.deleted', {
             'project': sample_project,
             'note_id': "test-id",
             'note': mock_note
@@ -268,7 +268,7 @@ class TestCreateNoteCommand:
         
         assert result is True
         sample_project.add_item.assert_called_once_with(mock_note, parent_id="parent-folder")
-        app_state.event_bus.emit.assert_called_once_with('note_created', {
+        app_state.event_bus.emit.assert_called_once_with('note.created', {
             'project': sample_project,
             'note_id': "test-id",
             'note_name': "Test Note",
@@ -398,7 +398,7 @@ class TestCreateNoteCommand:
         app_state.event_bus.emit.assert_called_once()
         event_name, event_data = app_state.event_bus.emit.call_args[0]
         
-        assert event_name == 'note_created'
+        assert event_name == 'note.created'
         assert 'project' in event_data
         assert 'note_id' in event_data
         assert 'note_name' in event_data

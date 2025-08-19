@@ -78,6 +78,20 @@ class OpenProjectCommand(Command):
                     f"Successfully opened project: {project.name}"
                 )
 
+            # Update recent projects list in config
+            try:
+                cfg_manager = getattr(self.app_context, 'get_config_manager', lambda: None)()
+                if cfg_manager:
+                    cfg = cfg_manager.config
+                    paths = list(cfg.recent_projects)
+                    # Prepend new path, remove duplicates
+                    if file_path in paths:
+                        paths.remove(file_path)
+                    paths.insert(0, file_path)
+                    cfg_manager.update({"recent_projects": paths[:50]}, save=True)
+            except Exception as e:  # noqa: BLE001
+                self.logger.warning("Failed to update recent projects list: %s", e)
+
         except Exception as e:
             error_msg = f"Failed to open project: {str(e)}"
             self.logger.error(error_msg)

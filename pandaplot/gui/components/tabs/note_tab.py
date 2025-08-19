@@ -22,16 +22,19 @@ from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
 
 
-class NoteEditorWidget(QWidget):
+from pandaplot.models.events.event_types import NoteEvents, UIEvents
+from pandaplot.models.events.mixins import EventBusComponentMixin
+
+
+class NoteEditorWidget(EventBusComponentMixin, QWidget):
     """
     A modern note editor widget with text editing capabilities.
     """
     
-    content_changed = Signal(str)  # Emitted when content changes
-    note_renamed = Signal(str, str)  # Emitted when note is renamed (old_name, new_name)
+    content_changed = Signal(str)  # Local signal for immediate editor reactions
     
     def __init__(self, app_context: AppContext, note: Note, parent=None):
-        super().__init__(parent)
+        super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.app_context = app_context
         self.note = note
         self.is_modified = False
@@ -253,9 +256,12 @@ class NoteEditorWidget(QWidget):
         layout.addWidget(status_frame)
     
     def setup_connections(self):
-        """Set up signal connections."""
+        """Set up signal connections and event subscriptions."""
         self.text_edit.textChanged.connect(self.on_content_changed)
         self.title_edit.textChanged.connect(self.on_title_changed)
+        # Subscribe to external rename/content change events for this note
+        self.subscribe_to_event(NoteEvents.NOTE_RENAMED, self.on_note_renamed_event)
+        self.subscribe_to_event(NoteEvents.NOTE_CONTENT_CHANGED, self.on_note_content_changed_event)
     
     def load_note_content(self):
         """Load the note content into the editor."""
@@ -315,8 +321,7 @@ class NoteEditorWidget(QWidget):
             command = EditNoteCommand(self.app_context, self.note.id, content)
             self.app_context.get_command_executor().execute_command(command)
             
-            # Update local note object
-            self.note.update_content(content)
+            # Local model already updated by command; avoid duplicate mutation
             
             # Update UI
             self.is_modified = False
@@ -346,16 +351,20 @@ class NoteEditorWidget(QWidget):
             command = RenameItemCommand(self.app_context, self.note.id, new_title)
             self.app_context.get_command_executor().execute_command(command)
             
-            # Update local note object
-            self.note.update_name(new_title)
+            # Local model already updated by command
             
             # Update UI
             self.save_title_btn.setEnabled(False)
             self.update_status("Title saved ✓")
             self.update_metadata()
             
-            # Emit signal
-            self.note_renamed.emit(old_name, new_title)
+            # Publish UI tab title changed event for tab container
+            self.publish_event(UIEvents.TAB_TITLE_CHANGED, {
+                'old_title': old_name,
+                'new_title': new_title,
+                'tab_type': 'note',
+                'note_id': self.note.id
+            })
             
             # Reset status after 2 seconds
             QTimer.singleShot(2000, lambda: self.update_status("Ready"))
@@ -371,6 +380,39 @@ class NoteEditorWidget(QWidget):
     def update_metadata(self):
         """Update the metadata labels."""
         self.modified_label.setText(f"Modified: {self.note.modified_at[:19] if self.note.modified_at else 'Unknown'}")
+
+    # --- Event handlers ---
+    def on_note_renamed_event(self, event_data: dict):
+        """Handle external note rename events (including undo/redo)."""
+        if event_data.get('note_id') != self.note.id:
+            return
+        new_title = event_data.get('new_name')
+        if new_title and self.title_edit.text().strip() != new_title:
+            # Update UI field without triggering save button enable logic incorrectly
+            self.title_edit.blockSignals(True)
+            self.title_edit.setText(new_title)
+            self.title_edit.blockSignals(False)
+            self.save_title_btn.setEnabled(False)
+            # Fire UI title changed event for tab container consistency
+            self.publish_event(UIEvents.TAB_TITLE_CHANGED, {
+                'old_title': event_data.get('old_name'),
+                'new_title': new_title,
+                'tab_type': 'note',
+                'note_id': self.note.id
+            })
+
+    def on_note_content_changed_event(self, event_data: dict):
+        """Handle external note content changes (undo/redo or other editors)."""
+        if event_data.get('note_id') != self.note.id:
+            return
+        new_content = event_data.get('new_content')
+        if new_content is not None and self.text_edit.toPlainText() != new_content:
+            self.text_edit.blockSignals(True)
+            self.text_edit.setPlainText(new_content)
+            self.text_edit.blockSignals(False)
+            self.update_statistics()
+            self.is_modified = False
+            self.update_status("Synced ✓")
     
     def toggle_bold(self):
         """Toggle bold formatting."""
@@ -414,16 +456,15 @@ class NoteEditorWidget(QWidget):
         return self.is_modified
 
 
-class NoteTab(QWidget):
+class NoteTab(EventBusComponentMixin, QWidget):
     """
     A tab widget for displaying and editing notes.
     """
     
     tab_close_requested = Signal()
-    title_changed = Signal(str)
     
     def __init__(self, app_context: AppContext, note: Note, parent=None):
-        super().__init__(parent)
+        super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.app_context = app_context
         self.note = note
         
@@ -440,12 +481,39 @@ class NoteTab(QWidget):
         layout.addWidget(self.note_editor)
     
     def setup_connections(self):
-        """Set up signal connections."""
-        self.note_editor.note_renamed.connect(self.on_note_renamed)
+        """Set up event subscriptions instead of Qt rename signal."""
+        self.subscribe_to_event(UIEvents.TAB_TITLE_CHANGED, self.on_tab_title_changed_event)
+        self.subscribe_to_event(NoteEvents.NOTE_RENAMED, self.on_note_renamed_event)
+        self.subscribe_to_event(NoteEvents.NOTE_CONTENT_CHANGED, self.on_note_content_changed_event)
     
-    def on_note_renamed(self, old_name: str, new_name: str):
-        """Handle note rename event."""
-        self.title_changed.emit(f"📝 {new_name}")
+    def on_tab_title_changed_event(self, event_data: dict):
+        """Update tab title when UI tab title changed event is emitted for this note."""
+        if event_data.get('tab_type') == 'note' and event_data.get('note_id') == self.note.id:
+            self.refresh_tab_title()
+
+    def on_note_renamed_event(self, event_data: dict):
+        """Fallback in case UI event wasn't published (should be) - ensures title refresh."""
+        if event_data.get('note_id') == self.note.id:
+            self.refresh_tab_title()
+
+    def on_note_content_changed_event(self, event_data: dict):
+        if event_data.get('note_id') == self.note.id:
+            self.refresh_tab_title()
+
+    def refresh_tab_title(self):
+        """Helper to update the tab title via parent tab widget."""
+        parent_container = self.parent()
+        # Climb up if needed
+        while parent_container is not None and not hasattr(parent_container, 'update_tab_title'):
+            parent_container = parent_container.parent()
+        if parent_container:
+            update_fn = getattr(parent_container, 'update_tab_title', None)
+            if callable(update_fn):
+                new_title = self.get_tab_title()
+                try:
+                    update_fn(self, new_title)
+                except Exception:
+                    pass
     
     def get_tab_title(self) -> str:
         """Get the title for this tab."""
