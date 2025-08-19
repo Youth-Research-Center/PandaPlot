@@ -49,8 +49,7 @@ class WelcomeTab(QWidget):
 
     def setup_ui(self):
         """Initialize the welcome tab UI."""
-        # Minimal placeholder stylesheet (replaced by _apply_local_theme)
-        self.setStyleSheet("QWidget#WelcomeTabRoot { border: 0px; }")
+        self._apply_local_theme()
 
         # Main layout
         main_layout = QVBoxLayout(self)
@@ -123,9 +122,10 @@ class WelcomeTab(QWidget):
 
             # Scoped QSS (only applies within this tab widget)
             qss = f"""
-                QWidget#WelcomeTabRoot {{
+                QWidget {{
                     border: 0px;
                     background: transparent; /* allow window palette to show */
+                    color: {base_fg};
                 }}
                 QWidget#WelcomeTabRoot QLabel[secondary="true"] {{
                     color: {secondary_fg};

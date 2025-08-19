@@ -78,22 +78,39 @@ class ThemeManager:
 
     def build_stylesheet(self, ctx: ThemeContext) -> str:
         accent = ctx.accent
+        text_color = "#FFFFFF"  # fallback
+        hover = accent
+        pressed = accent
         try:
             c = QColor(accent)
-            if not c.isValid():
-                raise ValueError
-            hover = c.lighter(110).name()
-            pressed = c.darker(115).name()
+            if c.isValid():
+                # Derive hover / pressed variants
+                hover = c.lighter(110).name()
+                pressed = c.darker(115).name()
+                # Compute relative luminance to decide contrasting text color
+                r, g, b = c.red(), c.green(), c.blue()
+                lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0
+                # If accent is light, use dark text; if dark, use light text
+                if lum > 0.6:
+                    text_color = "#000000"
+                else:
+                    text_color = "#FFFFFF"
+            # Adjust for overall theme preference so light theme favors dark text unless accent is extremely dark
+            if ctx.theme != Theme.DARK and text_color == "#FFFFFF":
+                # Force dark text if accent still offers 4.5:1 contrast against white background (approx luminance threshold)
+                # If accent is very dark (lum < 0.25) keep white text.
+                if 'lum' in locals() and lum >= 0.25:
+                    text_color = "#000000"
         except Exception:  # noqa: BLE001
-            hover = accent
-            pressed = accent
+            pass
+
         return f"""
             QPushButton[primary="true"] {{
                 background-color: {accent};
                 border: 1px solid {accent};
                 border-radius: 4px;
                 padding: 4px 8px;
-                color: white;
+                color: {text_color};
             }}
             QPushButton[primary="true"]:hover {{
                 background-color: {hover};
