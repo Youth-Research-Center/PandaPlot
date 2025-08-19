@@ -140,7 +140,8 @@ class WelcomeTab(QWidget):
                     background-color: {card_bg};
                     border: 1px solid {card_border};
                     border-radius: 8px;
-                    padding: 0;
+                    /* Provide vertical padding so larger fonts aren't clipped */
+                    padding: 6px 0;
                     color: {base_fg};
                     text-align: left;
                 }}
@@ -278,6 +279,8 @@ class WelcomeTab(QWidget):
         # Recent projects will be populated dynamically
         self.recent_projects_layout = QVBoxLayout()
         self.recent_projects_layout.setContentsMargins(0, 0, 0, 20)
+        # Add a bit more spacing so each item breathes vertically
+        self.recent_projects_layout.setSpacing(12)
         layout.addLayout(self.recent_projects_layout)
         
         # Update recent projects
@@ -403,64 +406,74 @@ class WelcomeTab(QWidget):
     def create_recent_project_item(self, project_name, project_path, last_opened):
         """Create a recent project item."""
         button = QPushButton()
-        button.setMinimumHeight(75)
+        # Increase height for more vertical space for name line and new spacing
+        button.setMinimumHeight(96)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         button.setObjectName("WelcomeProjectButton")
-        
+
         # Create layout for button content
         button_layout = QHBoxLayout(button)
-        button_layout.setContentsMargins(20, 15, 20, 15)
-        
-        # Project info layout
+        # Top/bottom padding
+        button_layout.setContentsMargins(20, 18, 20, 18)
+
+        # Project info layout (vertical stack)
         info_layout = QVBoxLayout()
-        info_layout.setSpacing(3)
-        
-        # Project name
+        # Wider spacing so name->path gap is clear (user request)
+        info_layout.setSpacing(12)
+
+        # Project name (flush left relative to button content area)
         name_label = QLabel(project_name)
         name_font = QFont()
         name_font.setBold(True)
-        name_font.setPointSize(10)
+        name_font.setPointSize(11)
         name_label.setFont(name_font)
-        # primary text inherits
         name_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        name_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)  # Prevent text selection
-        
-        # Project path
+        name_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        # Ensure vertical room for descenders
+        fm = name_label.fontMetrics()
+        required_h = fm.height() + fm.descent() + 6
+        name_label.setMinimumHeight(required_h)
+        # Only vertical padding; no left padding so it sits as far left as possible
+        name_label.setStyleSheet("padding:2px 0 4px 0;")
+
+        # Project path (optionally slightly indented to the right)
         path_label = QLabel(project_path)
         path_font = QFont()
         path_font.setPointSize(8)
         path_label.setFont(path_font)
         path_label.setProperty("secondary", True)
         path_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        path_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)  # Prevent text selection
-        
-        # Last opened
+        path_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        # Provide minimal left indent to visually separate while keeping nearly aligned
+        path_label.setStyleSheet("min-height:14px; padding-left:2px;")
+
+        # Last opened label (kept aligned with path)
         last_opened_label = QLabel(f"Last opened: {last_opened}")
         last_opened_label.setFont(path_font)
         last_opened_label.setProperty("secondary", True)
         last_opened_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        last_opened_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)  # Prevent text selection
-        
+        last_opened_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        last_opened_label.setStyleSheet("min-height:14px; padding-left:2px;")
+
         info_layout.addWidget(name_label)
         info_layout.addWidget(path_label)
         info_layout.addWidget(last_opened_label)
-        
+
         button_layout.addLayout(info_layout)
         button_layout.addStretch()
-        
+
         # Project type icon
         icon_label = QLabel("📊")
         icon_label.setStyleSheet("font-size: 20px;")
         icon_label.setProperty("accentIcon", True)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)  # Prevent text selection
+        icon_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         button_layout.addWidget(icon_label)
-        # No inline stylesheet; themed globally
-        
+
         # Connect to the signal
         button.clicked.connect(lambda: self.recent_project_selected.emit(project_path))
-        
+
         return button
     
     def update_recent_projects(self):
