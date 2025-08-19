@@ -76,47 +76,88 @@ class ThemeManager:
             "font_size": ctx.interface_font_size,
         })
 
-    def _apply_to_qapp(self, ctx: ThemeContext) -> None:
-        palette = self._app.palette() if self._app else QPalette()
-        if ctx.theme == Theme.DARK:
-            base_bg = QColor(30, 30, 30)
-            base_fg = QColor(224, 224, 224)
-        elif ctx.theme == Theme.LIGHT:
-            base_bg = QColor(255, 255, 255)
-            base_fg = QColor(0, 0, 0)
-        else:
-            base_bg = QColor(255, 255, 255)
-            base_fg = QColor(0, 0, 0)
-        palette.setColor(QPalette.ColorRole.Window, base_bg)
-        palette.setColor(QPalette.ColorRole.WindowText, base_fg)
-        palette.setColor(QPalette.ColorRole.Base, base_bg)
-        palette.setColor(QPalette.ColorRole.Text, base_fg)
-        palette.setColor(QPalette.ColorRole.Button, QColor(ctx.accent))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor("white"))
-        if self._app:
-            self._app.setPalette(palette)
-            stylesheet = self.build_stylesheet(ctx)
-            self._app.setStyleSheet(stylesheet)
-            default_font = self._app.font()
-            default_font.setPointSize(ctx.interface_font_size)
-            self._app.setFont(default_font)
-
     def build_stylesheet(self, ctx: ThemeContext) -> str:
         accent = ctx.accent
+        try:
+            c = QColor(accent)
+            if not c.isValid():
+                raise ValueError
+            hover = c.lighter(110).name()
+            pressed = c.darker(115).name()
+        except Exception:  # noqa: BLE001
+            hover = accent
+            pressed = accent
         return f"""
-            QPushButton {{
+            QPushButton[primary="true"] {{
                 background-color: {accent};
                 border: 1px solid {accent};
                 border-radius: 4px;
                 padding: 4px 8px;
+                color: white;
             }}
-            QPushButton:hover {{
-                filter: brightness(1.1);
+            QPushButton[primary="true"]:hover {{
+                background-color: {hover};
+                border-color: {hover};
             }}
-            QTabBar::tab:selected {{
-                color: {accent};
+            QPushButton[primary="true"]:pressed {{
+                background-color: {pressed};
+                border-color: {pressed};
             }}
+            QTabBar::tab:selected {{ color: {accent}; }}
         """
+
+    def _apply_to_qapp(self, ctx: ThemeContext) -> None:
+        """Apply palette & global QSS to the QApplication."""
+        if not self._app:
+            return
+        palette = self._app.palette() if self._app else QPalette()
+        if ctx.theme == Theme.DARK:
+            bg = QColor(30, 30, 30)
+            fg = QColor(224, 224, 224)
+        else:
+            bg = QColor(255, 255, 255)
+            fg = QColor(0, 0, 0)
+        palette.setColor(QPalette.ColorRole.Window, bg)
+        palette.setColor(QPalette.ColorRole.WindowText, fg)
+        palette.setColor(QPalette.ColorRole.Base, bg)
+        palette.setColor(QPalette.ColorRole.Text, fg)
+        self._app.setPalette(palette)
+        self._app.setStyleSheet(self.build_stylesheet(ctx))
+        f = self._app.font()
+        f.setPointSize(ctx.interface_font_size)
+        self._app.setFont(f)
+
+    def get_surface_palette(self) -> dict:
+        if not self._current:
+            return {
+                "card_bg": "#f8f9fa",
+                "card_hover": "#e9ecef",
+                "card_pressed": "#dee2e6",
+                "card_border": "#dee2e6",
+                "base_fg": "#000000",
+                "secondary_fg": "#555555",
+                "accent": "#4A90E2",
+            }
+        ctx = self._current
+        if ctx.theme == Theme.DARK:
+            return {
+                "card_bg": "#2a2c2e",
+                "card_hover": "#323437",
+                "card_pressed": "#3a3d40",
+                "card_border": "#404347",
+                "base_fg": "#e2e2e2",
+                "secondary_fg": "#a8adb2",
+                "accent": ctx.accent,
+            }
+        return {
+            "card_bg": "#f8f9fa",
+            "card_hover": "#e9ecef",
+            "card_pressed": "#dee2e6",
+            "card_border": "#dee2e6",
+            "base_fg": "#000000",
+            "secondary_fg": "#555555",
+            "accent": ctx.accent,
+        }
 
     def _on_config_event(self, data):  # signature per EventBus
         cfg = data.get("config")
