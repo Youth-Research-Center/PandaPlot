@@ -21,6 +21,8 @@ from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.storage.note_data_manager import NoteDataManager
 from pandaplot.storage.project_data_manager import ProjectDataManager
 from pandaplot.utils.log import setup_logging
+from pandaplot.services.config_manager import ConfigManager
+from pandaplot.services.theme_manager import ThemeManager
 
 
 def create_project_data_manager() -> ProjectDataManager:
@@ -69,6 +71,11 @@ def main():
     app_state = AppState(event_bus,
                          project_data_manager=project_data_manager)
 
+    # Configuration manager
+    config_manager = ConfigManager(event_bus)
+    config_manager.load()
+    theme_manager = ThemeManager(event_bus, config_manager)
+
     # Create UI controller (will be updated with main window reference later)
     ui_controller = UIController()
 
@@ -78,7 +85,9 @@ def main():
         app_state=app_state,
         event_bus=event_bus,
         command_executor=command_executor,
-        ui_controller=ui_controller
+        ui_controller=ui_controller,
+        config_manager=config_manager,
+        theme_manager=theme_manager,
     )
 
     # Initialize GUI components
@@ -94,6 +103,11 @@ def main():
     """)
 
     main_window = PandaMainWindow(app_context)
+    theme_manager.set_qt_app(app)
+    try:
+        theme_manager.apply_current()
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed applying initial theme")
 
     # Update UI controller with main window reference
     ui_controller.set_parent_widget(main_window)

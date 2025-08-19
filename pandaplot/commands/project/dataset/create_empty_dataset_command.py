@@ -88,13 +88,16 @@ class CreateEmptyDatasetCommand(Command):
                 'dataset_data': dataset.data
             })
 
-            self.logger.info(
-                "Created empty dataset '%s' with ID '%s' (rows=%d, cols=%d)",
-                self.dataset_name,
-                self.dataset_id,
-                dataset.data.shape[0],
-                dataset.data.shape[1],
-            )
+            if dataset.data is None:
+                self.logger.warning("Created dataset '%s' has None data", self.dataset_name)
+            else:
+                self.logger.info(
+                    "Created empty dataset '%s' with ID '%s' (rows=%d, cols=%d)",
+                    self.dataset_name,
+                    self.dataset_id,
+                    dataset.data.shape[0],
+                    dataset.data.shape[1],
+                )
 
             return True
 

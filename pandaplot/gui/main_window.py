@@ -283,8 +283,7 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         dialog.exec()
     
     def on_settings_changed(self, settings):
-        """Handle settings changes."""
-        # Instrumentation
+        """Handle settings changes (ThemeManager will react to config events)."""
         self.logger.info("Settings changed: %s", settings)
         # TODO: Apply settings to the application (defer until refactor of icon bar responsibilities)
     
@@ -296,6 +295,8 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         
         # Subscribe to UI events for tab changes
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self.on_tab_changed_event)
+        # React to theme changes if window-specific adjustments are ever needed
+        self.app_context.event_bus.subscribe('theme.changed', lambda d: self.logger.debug("Theme changed event received in main window"))
     
     def on_transform_applied_event(self, event_data):
         """Handle transform applied events from the event system."""
