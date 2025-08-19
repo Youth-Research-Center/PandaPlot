@@ -138,10 +138,11 @@ class FitPanel(EventBusComponentMixin, QWidget):
         self.custom_params_edit.setPlaceholderText("e.g., a, b, c")
         custom_layout.addWidget(self.custom_params_edit, 1, 1)
         
-        custom_layout.addWidget(QLabel("Initial Guess:"), 2, 0)
+        custom_layout.addWidget(QLabel("Define parameters values:"), 2, 0)
         self.initial_guess_edit = QLineEdit()
-        self.initial_guess_edit.setPlaceholderText("e.g., 1, 1, 1")
+        self.initial_guess_edit.setPlaceholderText("e.g. b=2.1, c=1")
         custom_layout.addWidget(self.initial_guess_edit, 2, 1)
+        # display that some parameters are free
         
         self.custom_group.setVisible(False)
         fit_layout.addWidget(self.custom_group)
@@ -386,23 +387,38 @@ class FitPanel(EventBusComponentMixin, QWidget):
         """Create a custom fitting function from user input."""
         function_str = self.custom_function_edit.text().strip()
         params_str = self.custom_params_edit.text().strip()
-        
+        initial_str = self.initial_guess_edit.text().strip() #use as predefined values, not initial guess
+
         if not function_str or not params_str:
             raise ValueError("Custom function and parameters must be specified")
-        
+
         # Parse parameters
         params = [p.strip() for p in params_str.split(",")]
+
+        # Parse initial values (fixed params)
+        fixed_params = {}
+        if initial_str:
+            for item in initial_str.split(","):
+                if "=" in item:
+                    key, val = item.split("=")
+                    fixed_params[key.strip()] = float(val)
+
+        # free parameters for fit
+        free_params = [p for p in params if p not in fixed_params]
         
         # Create function dynamically
-        # This is a simplified approach - in production, you'd want better parsing
-        def custom_func(x, *args):
+        def custom_func(x, *free_args):
             local_vars = {"x": x, "np": np}
-            for i, param in enumerate(params):
-                local_vars[param] = args[i]
+            # Fill in predifined fixed values
+            for k, v in fixed_params.items():
+                local_vars[k] = v
+            # Fill in free values
+            for i, p in enumerate(free_params):
+                local_vars[p] = free_args[i]
             return eval(function_str, {"__builtins__": {}}, local_vars)
-        
-        return custom_func, params
-    
+
+        return custom_func, free_params
+
     def _perform_fit(self):
         """Perform the curve fitting."""
         if not SCIPY_AVAILABLE:
@@ -425,19 +441,9 @@ class FitPanel(EventBusComponentMixin, QWidget):
             # Get fit function
             fit_type = self.fit_type_combo.currentText()
             fit_func, param_names = self._get_fit_function(fit_type)
-            
-            # Get initial guess for custom functions
-            initial_guess = None
-            if "Custom" in fit_type:
-                guess_str = self.initial_guess_edit.text().strip()
-                if guess_str:
-                    initial_guess = [float(x.strip()) for x in guess_str.split(",")]
-            
+
             # Perform fit
-            if initial_guess:
-                popt, pcov = curve_fit(fit_func, x_data, y_data, p0=initial_guess)
-            else:
-                popt, pcov = curve_fit(fit_func, x_data, y_data)
+            popt, pcov = curve_fit(fit_func, x_data, y_data, p0=[1] * len(param_names))
             
             # Calculate errors
             perr = np.sqrt(np.diag(pcov))
