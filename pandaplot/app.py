@@ -115,3 +115,4 @@ if __name__ == "__main__":
     # TODO: clean state on opening new project or add support for multiple projects
     # TODO: list and implement copy paste capabilities we want to support
     # TODO: improve how we handle styles and themes
+    # TODO: ask whether open project needs to be saved before closing - either a new project or open documents that have been modified. We can track modifications somewhere if needed.
