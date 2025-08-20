@@ -44,7 +44,6 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         
         self.create_widgets(main_layout)
         self.setup_event_subscriptions()
-        self.app_context.event_bus.subscribe(AppEvents.APP_CLOSING, self.closeEvent)
         self.logger.info("PandaMainWindow initialized.")
         # Subscribe to new event-based note open requests
         self.app_context.event_bus.subscribe('ui.note.open_requested', self.on_note_open_requested)
@@ -292,6 +291,7 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         """Set up event subscriptions for the main window."""
         # TODO: remove unrelevant subscriptions
         # Subscribe to dataset operation events to handle transforms
+        self.subscribe_to_event(AppEvents.APP_CLOSING, self.on_app_closing_event)
         self.subscribe_to_event(DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_transform_applied_event)
         
         # Subscribe to UI events for tab changes
@@ -325,21 +325,37 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
                 self.transform_panel.set_active_dataset(current_widget)
             else:
                 self.transform_panel.set_active_dataset(None)
-        
 
-    def closeEvent(self, event):
-        """Handle window close event - clean up matplotlib figures and exit"""
+    # --- Application Closing Handling -----------------------------------------------------
+    def on_app_closing_event(self, event_data: dict):  # event_data required by event bus signature
+        """Handle app closing event from the internal event bus.
+
+        This should initiate the normal Qt window close sequence which will emit a
+        QCloseEvent and invoke the overridden closeEvent below with a proper event object.
+        We avoid doing cleanup work here to prevent duplication and to ensure the
+        correct event type is passed to the Qt closeEvent handler.
+        """
+        self.logger.debug("Received app.closing event via event bus; initiating Qt close()")
+
+        # Mark closing state to avoid re-entrancy if event bus emission triggers close()
+        self._is_closing = True
         self.logger.info("Application close event triggered")
         try:
             # Close all documents and clean up
             self.logger.debug("Starting application cleanup process")
-            
+
+            #TODO: Implement cleanup logic here
+            # we need to ask for saving open modified files/projects
+            # we need to cleanup matplotlib charts to avoid memory leaks
+
             # Log cleanup completion
             self.logger.info("Application cleanup completed successfully")
-            event.accept()
             
         except Exception as e:
             self.logger.error("Error during cleanup: %s", str(e), exc_info=True)
             # Force exit even if cleanup fails
             self.logger.warning("Forcing application exit despite cleanup errors")
-            event.accept()
+        finally:
+            # Cleanup flag
+            self._is_closing = False
+        self.close()

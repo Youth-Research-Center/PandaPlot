@@ -1,6 +1,7 @@
 
 import logging
 import sys
+import signal
 
 from PySide6.QtWidgets import QApplication
 
@@ -8,12 +9,15 @@ from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.events.event_types import AppEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
+from pandaplot.services.config_manager import ConfigManager
+from pandaplot.services.theme_manager import ThemeManager
 from pandaplot.storage.chart_data_manager import ChartDataManager
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
 from pandaplot.storage.folder_data_manager import FolderDataManager
@@ -21,67 +25,29 @@ from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.storage.note_data_manager import NoteDataManager
 from pandaplot.storage.project_data_manager import ProjectDataManager
 from pandaplot.utils.log import setup_logging
-from pandaplot.services.config_manager import ConfigManager
-from pandaplot.services.theme_manager import ThemeManager
 
 
 def create_project_data_manager() -> ProjectDataManager:
-    item_data_manager_factory = ItemDataManagerFactory()
-
-    item_data_manager_factory.register(
-        type_name="note",
-        item_class=Note,
-        manager=NoteDataManager(),
-        extension="note" # TODO: verify if we need file extension at all
-    )
-
-    item_data_manager_factory.register(
-        type_name="folder",
-        item_class=Folder,
-        manager=FolderDataManager(),
-        extension="folder"
-    )
-
-    item_data_manager_factory.register(
-        type_name="chart",
-        item_class=Chart,
-        manager=ChartDataManager(),
-        extension="chart"
-    )
-
-    item_data_manager_factory.register(
-        type_name="dataset",
-        item_class=Dataset,
-        manager=DatasetDataManager(),
-        extension="dataset"
-    )
-
-    project_data_manager = ProjectDataManager(item_data_manager_factory)
-    return project_data_manager
+    """Register item data managers and build the project data manager."""
+    factory = ItemDataManagerFactory()
+    factory.register("note", Note, NoteDataManager(), "note")  # TODO: verify extension usage
+    factory.register("folder", Folder, FolderDataManager(), "folder")
+    factory.register("chart", Chart, ChartDataManager(), "chart")
+    factory.register("dataset", Dataset, DatasetDataManager(), "dataset")
+    return ProjectDataManager(factory)
 
 
-def main():
-    # Setup logging
-    logger = setup_logging(level = logging.DEBUG)
-    # Load configuration
-    logger.info("--------------Starting PandaPlot application--------------")
-    # Initialize application state
+def build_app_context(logger: logging.Logger) -> AppContext:
+    """Create and return a fully initialized AppContext (no Qt widgets yet)."""
     event_bus = EventBus()
     project_data_manager = create_project_data_manager()
-    app_state = AppState(event_bus,
-                         project_data_manager=project_data_manager)
-
-    # Configuration manager
+    app_state = AppState(event_bus, project_data_manager=project_data_manager)
     config_manager = ConfigManager(event_bus)
     config_manager.load()
     theme_manager = ThemeManager(event_bus, config_manager)
-
-    # Create UI controller (will be updated with main window reference later)
     ui_controller = UIController()
-
-    # Create command executor
     command_executor = CommandExecutor()
-    app_context = AppContext(
+    return AppContext(
         app_state=app_state,
         event_bus=event_bus,
         command_executor=command_executor,
@@ -90,32 +56,79 @@ def main():
         theme_manager=theme_manager,
     )
 
-    # Initialize GUI components
-    app = QApplication(sys.argv)
 
-    # Set global application stylesheet with black text color as default
-    # TODO: improve how we handle styles and themes
-    app.setStyleSheet("""
-        * {
-            color: black;
-            background-color: white;
-        }
-    """)
+def create_qt_application(app_context: AppContext, argv: list[str] | None = None) -> tuple[QApplication, PandaMainWindow]:
+    """Instantiate QApplication and the main window.
+
+    Returns (app, main_window)
+    """
+    if argv is None:
+        argv = sys.argv
+    app = QApplication(argv)
+    # Global simple baseline stylesheet (theme manager can override specifics)
+    app.setStyleSheet("""* { color: black; background-color: white; }""")
 
     main_window = PandaMainWindow(app_context)
-    theme_manager.set_qt_app(app)
+    theme_mgr = app_context.get_theme_manager()
+    theme_mgr.set_qt_app(app)
     try:
-        theme_manager.apply_current()
+        theme_mgr.apply_current()
     except Exception:  # noqa: BLE001
-        logger.exception("Failed applying initial theme")
+        logging.getLogger(__name__).exception("Failed applying initial theme")
+    app_context.ui_controller.set_parent_widget(main_window)
+    return app, main_window
 
-    # Update UI controller with main window reference
-    ui_controller.set_parent_widget(main_window)
 
+def register_signal_handlers(app: QApplication, app_context: AppContext, logger: logging.Logger) -> None:
+    """Register Ctrl+C / SIGINT (and SIGTERM where available) for graceful shutdown."""
+    shutting_down = {"value": False}
+
+    def _initiate_shutdown_via_signal(signum, frame):  # noqa: D401, D417 - required signature
+        if shutting_down["value"]:
+            return
+        shutting_down["value"] = True
+        logger.info("Signal %s received; emitting %s", signum, AppEvents.APP_CLOSING)
+        try:
+            app_context.event_bus.emit(AppEvents.APP_CLOSING, {"reason": "signal", "signum": signum})
+        except Exception:  # noqa: BLE001
+            logger.exception("Signal shutdown path failed; forcing quit")
+            app.quit()
+
+    try:
+        signal.signal(signal.SIGINT, _initiate_shutdown_via_signal)
+    except Exception:  # noqa: BLE001
+        logger.debug("Could not register SIGINT handler", exc_info=True)
+    for maybe_sig in [getattr(signal, "SIGTERM", None)]:
+        if maybe_sig is not None:
+            try:
+                signal.signal(maybe_sig, _initiate_shutdown_via_signal)
+            except Exception:  # noqa: BLE001
+                logger.debug("Could not register %s handler", maybe_sig, exc_info=True)
+
+
+def launch(app_context: AppContext | None = None) -> int:
+    """Launch the GUI event loop.
+
+    Returns the Qt application's exit code.
+    """
+    logger = logging.getLogger(__name__)
+    if app_context is None:
+        if not logging.getLogger().handlers:
+            setup_logging(level=logging.DEBUG)
+        logger.info("Building default AppContext inside launch()")
+        app_context = build_app_context(logger)
+    app, main_window = create_qt_application(app_context)
+    register_signal_handlers(app, app_context, logger)
     main_window.show()
+    return app.exec()
 
-    # Start the main event loop
-    sys.exit(app.exec())
+
+def main() -> None:
+    """CLI entry point for `python -m pandaplot.app`."""
+    logger = setup_logging(level=logging.DEBUG)
+    logger.info("--------------Starting PandaPlot application--------------")
+    app_context = build_app_context(logger)
+    sys.exit(launch(app_context))
 
 
 if __name__ == "__main__":
@@ -130,3 +143,4 @@ if __name__ == "__main__":
     # TODO: improve initial loading of the app
     # TODO: clean state on opening new project or add support for multiple projects
     # TODO: list and implement copy paste capabilities we want to support
+    # TODO: improve how we handle styles and themes
