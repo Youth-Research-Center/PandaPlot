@@ -1,7 +1,6 @@
 
 import logging
 import sys
-import signal
 
 from PySide6.QtWidgets import QApplication
 
@@ -9,7 +8,6 @@ from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.models.events.event_bus import EventBus
-from pandaplot.models.events.event_types import AppEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.items.folder import Folder
@@ -30,7 +28,8 @@ from pandaplot.utils.log import setup_logging
 def create_project_data_manager() -> ProjectDataManager:
     """Register item data managers and build the project data manager."""
     factory = ItemDataManagerFactory()
-    factory.register("note", Note, NoteDataManager(), "note")  # TODO: verify extension usage
+    # TODO: verify extension usage
+    factory.register("note", Note, NoteDataManager(), "note")
     factory.register("folder", Folder, FolderDataManager(), "folder")
     factory.register("chart", Chart, ChartDataManager(), "chart")
     factory.register("dataset", Dataset, DatasetDataManager(), "dataset")
@@ -79,33 +78,6 @@ def create_qt_application(app_context: AppContext, argv: list[str] | None = None
     return app, main_window
 
 
-def register_signal_handlers(app: QApplication, app_context: AppContext, logger: logging.Logger) -> None:
-    """Register Ctrl+C / SIGINT (and SIGTERM where available) for graceful shutdown."""
-    shutting_down = {"value": False}
-
-    def _initiate_shutdown_via_signal(signum, frame):  # noqa: D401, D417 - required signature
-        if shutting_down["value"]:
-            return
-        shutting_down["value"] = True
-        logger.info("Signal %s received; emitting %s", signum, AppEvents.APP_CLOSING)
-        try:
-            app_context.event_bus.emit(AppEvents.APP_CLOSING, {"reason": "signal", "signum": signum})
-        except Exception:  # noqa: BLE001
-            logger.exception("Signal shutdown path failed; forcing quit")
-            app.quit()
-
-    try:
-        signal.signal(signal.SIGINT, _initiate_shutdown_via_signal)
-    except Exception:  # noqa: BLE001
-        logger.debug("Could not register SIGINT handler", exc_info=True)
-    for maybe_sig in [getattr(signal, "SIGTERM", None)]:
-        if maybe_sig is not None:
-            try:
-                signal.signal(maybe_sig, _initiate_shutdown_via_signal)
-            except Exception:  # noqa: BLE001
-                logger.debug("Could not register %s handler", maybe_sig, exc_info=True)
-
-
 def launch(app_context: AppContext | None = None) -> int:
     """Launch the GUI event loop.
 
@@ -118,7 +90,6 @@ def launch(app_context: AppContext | None = None) -> int:
         logger.info("Building default AppContext inside launch()")
         app_context = build_app_context(logger)
     app, main_window = create_qt_application(app_context)
-    register_signal_handlers(app, app_context, logger)
     main_window.show()
     return app.exec()
 
