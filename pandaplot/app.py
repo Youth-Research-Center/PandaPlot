@@ -116,3 +116,4 @@ if __name__ == "__main__":
     # TODO: list and implement copy paste capabilities we want to support
     # TODO: improve how we handle styles and themes
     # TODO: ask whether open project needs to be saved before closing - either a new project or open documents that have been modified. We can track modifications somewhere if needed.
+    # TODO: save on an existing project is acting as save as, we need to fix this behavior.
