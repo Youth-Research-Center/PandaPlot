@@ -117,3 +117,12 @@ if __name__ == "__main__":
     # TODO: improve how we handle styles and themes
     # TODO: ask whether open project needs to be saved before closing - either a new project or open documents that have been modified. We can track modifications somewhere if needed.
     # TODO: save on an existing project is acting as save as, we need to fix this behavior.
+    # TODO: enable chart creation without opening a dataset
+    # TODO: remove dialog on project open success
+    # TODO: improve project info display in sidebar
+    # TODO: fix saved state tracking - when opening a project it should say it's saved until modified
+    # TODO: disable chart properties and curve fitting sidepanels on dataset view
+    # TODO: close open tabs related to a project when closing project
+    # TODO: in chart properties panel, fix tab display, ensure buttons are visible
+    # TODO: fix how we use font size across the app.
+    # TODO: fix dark theme colors
