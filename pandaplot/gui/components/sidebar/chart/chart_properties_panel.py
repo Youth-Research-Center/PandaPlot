@@ -103,6 +103,15 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         
         # Tab widget for organizing other properties
         self.tab_widget = QTabWidget()
+        # Add visual borders so tabs look like traditional tabs
+        self.tab_widget.setStyleSheet(
+            """
+            QTabWidget::pane { border: 1px solid #888; top: 1px; background: #ffffff; }
+            QTabBar::tab { background: #e0e0e0; border: 1px solid #888; border-bottom: none; padding: 4px 8px; margin-right: 2px; border-top-left-radius:4px; border-top-right-radius:4px; }
+            QTabBar::tab:selected { background: #ffffff; font-weight: bold; }
+            QTabBar::tab:hover { background: #f5f5f5; }
+            """
+        )
         
         # Style tab (simplified, no data source controls)
         self.style_tab = self._create_style_tab()
@@ -115,24 +124,69 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         # Legend tab
         self.legend_tab = self._create_legend_tab()
         self.tab_widget.addTab(self.legend_tab, "Legend")
-        
+
         content_layout.addWidget(self.tab_widget)
-        
-        # Buttons
+        # Add stretch so tab area uses available space and buttons (outside scroll) stay fixed
+        content_layout.addStretch(1)
+
+        scroll.setWidget(content_widget)
+        layout.addWidget(scroll)
+
+        # Buttons (moved outside scroll so they're always visible)
         button_layout = QHBoxLayout()
-        
+        button_layout.setContentsMargins(0, 6, 0, 0)
+        button_layout.setSpacing(8)
         self.preview_button = QPushButton("Preview")
         self.apply_button = QPushButton("Apply")
         self.reset_button = QPushButton("Reset")
-        
+
+        # Mark buttons with a dynamic property for targeted styling
+        # Style buttons similarly to curve fitting panel (primary + secondary)
+        primary_style = """
+            QPushButton {
+                background-color: #007bff;
+                color: white;
+                padding: 6px 14px;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover { background-color: #0056b3; }
+            QPushButton:pressed { background-color: #004a99; }
+            QPushButton:disabled { background-color: #6c757d; }
+        """
+        secondary_style = """
+            QPushButton {
+                background-color: #e0e0e0;
+                color: #000;
+                padding: 6px 14px;
+                border: 1px solid #888;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #d5d5d5; }
+            QPushButton:pressed { background-color: #c8c8c8; }
+            QPushButton:disabled { background-color: #f3f3f3; color: #888; }
+        """
+
+        # Assign object names for future theming if needed
+        self.preview_button.setObjectName("chartPreviewButton")
+        self.apply_button.setObjectName("chartApplyButton")
+        self.reset_button.setObjectName("chartResetButton")
+
+        # Apply styles
+        self.apply_button.setStyleSheet(primary_style)
+        self.preview_button.setStyleSheet(secondary_style)
+        self.reset_button.setStyleSheet(secondary_style)
+
+        for btn in (self.preview_button, self.apply_button, self.reset_button):
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setMinimumHeight(30)
+
         button_layout.addWidget(self.preview_button)
         button_layout.addWidget(self.apply_button)
         button_layout.addWidget(self.reset_button)
-        
-        content_layout.addLayout(button_layout)
-        
-        scroll.setWidget(content_widget)
-        layout.addWidget(scroll)
+        button_layout.addStretch(1)
+        layout.addLayout(button_layout)
     
     def _create_chart_info_section(self, layout):
         """Create the basic chart information section."""
