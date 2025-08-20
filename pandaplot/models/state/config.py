@@ -89,6 +89,18 @@ class ProjectConfig:
 
 
 @dataclass(slots=True)
+class ChartDisplayConfig:
+	"""Configuration for global chart display defaults (rendering / preview)."""
+	dpi: int = 100
+
+	def validate(self) -> None:
+		if self.dpi < 50:
+			self.dpi = 50
+		if self.dpi > 600:
+			self.dpi = 600
+
+
+@dataclass(slots=True)
 class ApplicationConfig:
 	"""Top-level application configuration.
 
@@ -102,6 +114,7 @@ class ApplicationConfig:
 	appearance: AppearanceConfig = field(default_factory=AppearanceConfig)
 	editor: EditorConfig = field(default_factory=EditorConfig)
 	project: ProjectConfig = field(default_factory=ProjectConfig)
+	chart_display: ChartDisplayConfig = field(default_factory=ChartDisplayConfig)
 	recent_projects: list[str] = field(default_factory=list)
 
 	# ----- construction helpers -------------------------------------------------
@@ -125,6 +138,7 @@ class ApplicationConfig:
 			},
 			"editor": asdict(self.editor),
 			"project": asdict(self.project),
+			"chart_display": asdict(self.chart_display),
 			"recent_projects": list(self.recent_projects),
 		}
 
@@ -137,6 +151,7 @@ class ApplicationConfig:
 		self.appearance.validate()
 		self.editor.validate()
 		self.project.validate()
+		self.chart_display.validate()
 
 	# ----- mutation / update ----------------------------------------------------
 	def update_from_mapping(self, data: Mapping[str, Any]) -> None:
@@ -152,6 +167,7 @@ class ApplicationConfig:
 			"appearance": self.appearance,
 			"editor": self.editor,
 			"project": self.project,
+			"chart_display": self.chart_display,
 		}
 
 		# Handle recent_projects specially (flat list of strings)

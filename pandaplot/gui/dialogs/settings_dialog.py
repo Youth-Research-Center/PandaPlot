@@ -159,6 +159,52 @@ class SettingsDialog(QDialog):
         ag_layout.addLayout(interval_layout)
         layout.addWidget(autosave_group)
 
+        # Chart display group (preview settings like DPI)
+        chart_group = QGroupBox("📈 Chart Display Settings")
+        cd_layout = QVBoxLayout(chart_group)
+        
+        # DPI setting
+        dpi_layout = QHBoxLayout()
+        dpi_label = QLabel("Preview DPI:")
+        dpi_label.setStyleSheet("color: #495057;")
+        dpi_layout.addWidget(dpi_label)
+        self.chart_dpi_spin = QSpinBox()
+        self.chart_dpi_spin.setRange(50, 600)
+        self.chart_dpi_spin.setSingleStep(10)
+        self.chart_dpi_spin.setSuffix(" dpi")
+        self.chart_dpi_spin.setValue(100)  # default fallback; overwritten when loading settings
+        self.chart_dpi_spin.setToolTip("Chart resolution for previews and exports")
+        dpi_layout.addWidget(self.chart_dpi_spin)
+        dpi_layout.addStretch()
+        cd_layout.addLayout(dpi_layout)
+        
+        # Default chart size
+        size_layout = QHBoxLayout()
+        size_label = QLabel("Default size:")
+        size_label.setStyleSheet("color: #495057;")
+        size_layout.addWidget(size_label)
+        self.chart_width_spin = QSpinBox()
+        self.chart_width_spin.setRange(4, 20)
+        self.chart_width_spin.setValue(8)
+        self.chart_width_spin.setSuffix(" in")
+        self.chart_width_spin.setToolTip("Default chart width in inches")
+        size_layout.addWidget(self.chart_width_spin)
+        
+        multiply_label = QLabel("×")
+        multiply_label.setStyleSheet("color: #495057;")
+        size_layout.addWidget(multiply_label)
+        
+        self.chart_height_spin = QSpinBox()
+        self.chart_height_spin.setRange(3, 15)
+        self.chart_height_spin.setValue(6)
+        self.chart_height_spin.setSuffix(" in")
+        self.chart_height_spin.setToolTip("Default chart height in inches")
+        size_layout.addWidget(self.chart_height_spin)
+        size_layout.addStretch()
+        cd_layout.addLayout(size_layout)
+        
+        layout.addWidget(chart_group)
+
         layout.addStretch()
         self.tab_widget.addTab(tab, "⚙️ General")
 
@@ -349,6 +395,7 @@ class SettingsDialog(QDialog):
             'word_wrap': cfg.editor.word_wrap,
             'line_numbers': cfg.editor.line_numbers,
             'tab_size': cfg.editor.tab_size,
+            'chart_dpi': getattr(getattr(cfg, 'chart_display', None), 'dpi', 100),
         }
         self.current_settings = self.original_settings.copy()
         self.apply_settings_to_ui()
@@ -383,6 +430,12 @@ class SettingsDialog(QDialog):
         self.word_wrap_check.setChecked(self.current_settings['word_wrap'])
         self.line_numbers_check.setChecked(self.current_settings['line_numbers'])
         self.tab_size_spin.setValue(self.current_settings['tab_size'])
+        if 'chart_dpi' in self.current_settings:
+            self.chart_dpi_spin.setValue(self.current_settings['chart_dpi'])
+        if 'chart_width' in self.current_settings:
+            self.chart_width_spin.setValue(self.current_settings['chart_width'])
+        if 'chart_height' in self.current_settings:
+            self.chart_height_spin.setValue(self.current_settings['chart_height'])
         
         # Update accent color button
         color = self.current_settings['accent_color']
@@ -399,7 +452,10 @@ class SettingsDialog(QDialog):
             'editor_font_size': self.editor_font_size.value(),
             'word_wrap': self.word_wrap_check.isChecked(),
             'line_numbers': self.line_numbers_check.isChecked(),
-            'tab_size': self.tab_size_spin.value()
+            'tab_size': self.tab_size_spin.value(),
+            'chart_dpi': self.chart_dpi_spin.value(),
+            'chart_width': self.chart_width_spin.value(),
+            'chart_height': self.chart_height_spin.value()
         }
     
     def choose_accent_color(self):
@@ -465,6 +521,9 @@ class SettingsDialog(QDialog):
                         'line_numbers': self.current_settings['line_numbers'],
                         'tab_size': self.current_settings['tab_size'],
                     },
+                    'chart_display': {
+                        'dpi': self.current_settings.get('chart_dpi', 100)
+                    }
                 }
                 self._config_manager.update(mapping, save=True)
             self.settings_changed.emit(self.current_settings)

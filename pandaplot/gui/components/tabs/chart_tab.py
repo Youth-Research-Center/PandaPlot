@@ -1,7 +1,7 @@
 """Chart tab widget for displaying and editing charts."""
 
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
-                             QPushButton, QFrame, QToolBar, QSizePolicy)
+                             QPushButton, QFrame, QToolBar, QSizePolicy, QSpinBox)
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction, QKeySequence
 
@@ -28,6 +28,155 @@ class ChartCanvas(FigureCanvas):
         super().__init__(self.fig)
         self.axes = self.fig.add_subplot(111)
         self.setParent(None)
+        
+        # Enable zoom and pan functionality
+        self.setup_navigation()
+        
+        # Store original limits for reset functionality
+        self.original_xlim = None
+        self.original_ylim = None
+        
+    def setup_navigation(self):
+        """Set up zoom and pan functionality."""
+        # Enable matplotlib's built-in navigation toolbar functionality
+        # This provides zoom, pan, and reset functionality
+        from matplotlib.backends.backend_qt import NavigationToolbar2QT
+        self.toolbar = NavigationToolbar2QT(self, self.parent())
+        
+        # Store the navigation toolbar for external access
+        self.navigation_toolbar = self.toolbar
+        
+    def apply_navigation_theme(self, base_fg='#495057', surface_bg='#f8f9fa', border_color='#e9ecef'):
+        """Apply theme-aware styling to the navigation toolbar."""
+        if hasattr(self, 'navigation_toolbar'):
+            hover_bg = border_color
+            pressed_bg = '#dee2e6'
+            
+            # More aggressive styling for matplotlib NavigationToolbar2QT
+            self.navigation_toolbar.setStyleSheet(f"""
+                QToolBar {{
+                    background-color: {surface_bg};
+                    border: 1px solid {border_color};
+                    border-radius: 3px;
+                    margin: 2px;
+                    color: {base_fg};
+                    spacing: 2px;
+                }}
+                QToolBar QToolButton {{
+                    background-color: {surface_bg};
+                    color: {base_fg};
+                    border: 1px solid {border_color};
+                    padding: 4px 6px;
+                    margin: 1px;
+                    border-radius: 3px;
+                    font-size: 12px;
+                    min-width: 24px;
+                    min-height: 24px;
+                }}
+                QToolBar QToolButton:hover {{
+                    background-color: {hover_bg};
+                    color: {base_fg};
+                    border-color: {base_fg};
+                }}
+                QToolBar QToolButton:pressed {{
+                    background-color: {pressed_bg};
+                    color: {base_fg};
+                    border-color: {base_fg};
+                }}
+                QToolBar QToolButton:checked {{
+                    background-color: {pressed_bg};
+                    color: {base_fg};
+                    border-color: {base_fg};
+                }}
+                QToolBar QToolButton:disabled {{
+                    color: #999999;
+                    background-color: {surface_bg};
+                    border-color: #cccccc;
+                }}
+                QToolBar QLabel {{
+                    color: {base_fg};
+                    background-color: transparent;
+                    padding: 2px;
+                }}
+                QToolBar QLineEdit {{
+                    background-color: {surface_bg};
+                    border: 1px solid {border_color};
+                    color: {base_fg};
+                    padding: 2px;
+                    border-radius: 2px;
+                }}
+            """)
+            
+            # Force icon color update by setting the toolbar's palette
+            # This is crucial for matplotlib's _icon() method to work correctly
+            from PySide6.QtGui import QPalette, QColor
+            palette = self.navigation_toolbar.palette()
+            
+            # Convert hex color to QColor
+            fg_color = QColor(base_fg)
+            bg_color = QColor(surface_bg)
+            
+            # Set palette colors that matplotlib's _icon() method checks
+            # Matplotlib checks: self.palette().color(self.backgroundRole()).value() < 128
+            # and uses: self.palette().color(self.foregroundRole())
+            palette.setColor(QPalette.ColorRole.WindowText, fg_color)
+            palette.setColor(QPalette.ColorRole.ButtonText, fg_color)
+            palette.setColor(QPalette.ColorRole.Text, fg_color)
+            palette.setColor(QPalette.ColorRole.Window, bg_color)
+            palette.setColor(QPalette.ColorRole.Button, bg_color)
+            palette.setColor(QPalette.ColorRole.Base, bg_color)
+            
+            self.navigation_toolbar.setPalette(palette)
+            
+            # Force toolbar to regenerate icons with new colors
+            # This triggers matplotlib's icon color logic
+            if hasattr(self.navigation_toolbar, '_actions'):
+                for action_name, action in self.navigation_toolbar._actions.items():
+                    if hasattr(action, 'setIcon'):
+                        # Get the original icon file name and regenerate it
+                        # This forces matplotlib to re-evaluate the colors
+                        try:
+                            # Get the icon file from the toolbar's _icon method
+                            # Based on matplotlib's NavigationToolbar2QT.toolitems
+                            icon_mapping = {
+                                'home': 'home',
+                                'back': 'back',
+                                'forward': 'forward',
+                                'pan': 'move',
+                                'zoom': 'zoom_to_rect',
+                                'configure_subplots': 'subplots',
+                                'edit_parameters': 'qt4_editor_options',  # Edit axis button
+                                'save_figure': 'filesave'  # Save figure button
+                            }
+                            if action_name in icon_mapping:
+                                new_icon = self.navigation_toolbar._icon(f"{icon_mapping[action_name]}.png")
+                                action.setIcon(new_icon)
+                        except Exception as e:
+                            # If regeneration fails, continue with other actions
+                            # Add some debug info
+                            if hasattr(self, 'logger'):
+                                self.logger.debug(f"Failed to regenerate icon for {action_name}: {e}")
+                            pass
+        
+    def store_original_limits(self):
+        """Store the original axis limits for reset functionality."""
+        if self.original_xlim is None:
+            self.original_xlim = self.axes.get_xlim()
+        if self.original_ylim is None:
+            self.original_ylim = self.axes.get_ylim()
+            
+    def reset_zoom(self):
+        """Reset zoom to original view."""
+        if self.original_xlim and self.original_ylim:
+            self.axes.set_xlim(self.original_xlim)
+            self.axes.set_ylim(self.original_ylim)
+            self.draw()
+            
+    def set_size(self, width, height):
+        """Change the figure size."""
+        self.fig.set_size_inches(width, height)
+        self.fig.tight_layout()
+        self.draw()
 
 
 class ChartEditorWidget(EventBusComponentMixin, QWidget):
@@ -53,6 +202,114 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
         self.load_chart_config()
         self.setup_connections()
         self.update_chart()
+        
+        # Apply theme-aware colors after everything is set up
+        QTimer.singleShot(100, self.apply_theme_aware_colors)  # Delay to ensure UI is fully constructed
+    
+    def apply_theme_aware_colors(self):
+        """Apply theme-aware colors to controls that need proper text visibility."""
+        try:
+            # Get theme manager and surface palette
+            theme_manager = getattr(self.app_context, 'theme_manager', None)
+            if theme_manager:
+                palette = theme_manager.get_surface_palette()
+                base_fg = palette.get('base_fg', '#495057')
+                surface_bg = palette.get('surface', '#f8f9fa')
+                border_color = palette.get('border', '#e9ecef')
+                
+                # Apply theme-aware styling to the chart canvas navigation toolbar
+                if hasattr(self, 'chart_canvas'):
+                    self.chart_canvas.apply_navigation_theme(base_fg, surface_bg, border_color)
+                
+                # Apply colors to size control labels if they exist
+                if hasattr(self, 'width_spin') and hasattr(self, 'height_spin'):
+                    # Find the size label and multiply label in the toolbar
+                    toolbar = None
+                    for child in self.findChildren(QToolBar):
+                        if child.actions():  # Find toolbar with actions
+                            toolbar = child
+                            break
+                    
+                    if toolbar:
+                        # Update toolbar style with proper colors
+                        toolbar.setStyleSheet(f"""
+                            QToolBar {{
+                                background-color: {surface_bg};
+                                border-bottom: 1px solid {border_color};
+                                padding: 4px;
+                                color: {base_fg};
+                            }}
+                            QToolBar QAction {{
+                                color: {base_fg};
+                                padding: 5px 10px;
+                            }}
+                            QToolBar QAction:hover {{
+                                background-color: {border_color};
+                                border-radius: 3px;
+                            }}
+                        """)
+                
+        except Exception as e:
+            self.logger.debug(f"Could not apply theme-aware colors: {e}")
+    
+    def _apply_spinbox_style(self, spinbox):
+        """Apply theme-aware styling to a QSpinBox"""
+        try:
+            theme_manager = getattr(self.app_context, 'theme_manager', None)
+            if theme_manager:
+                palette = theme_manager.get_surface_palette()
+                base_fg = palette.get('base_fg', '#495057')
+                border_color = palette.get('border', '#dee2e6')
+                bg_color = palette.get('surface', 'white')
+                
+                spinbox.setStyleSheet(f"""
+                    QSpinBox {{
+                        background-color: {bg_color};
+                        border: 1px solid {border_color};
+                        border-radius: 3px;
+                        padding: 2px 5px;
+                        color: {base_fg};
+                        font-size: 12px;
+                    }}
+                    QSpinBox:focus {{
+                        border-color: #007bff;
+                        background-color: {bg_color};
+                    }}
+                """)
+        except Exception as e:
+            self.logger.debug(f"Could not apply spinbox style: {e}")
+    
+    def _apply_label_style(self, label):
+        """Apply theme-aware styling to a QLabel"""
+        try:
+            theme_manager = getattr(self.app_context, 'theme_manager', None)
+            if theme_manager:
+                palette = theme_manager.get_surface_palette()
+                base_fg = palette.get('base_fg', '#495057')
+                
+                label.setStyleSheet(f"""
+                    QLabel {{
+                        color: {base_fg};
+                        font-weight: 500;
+                        margin: 0 5px;
+                    }}
+                """)
+        except Exception as e:
+            self.logger.debug(f"Could not apply label style: {e}")
+    
+    def refresh_theme_styling(self):
+        """Refresh all theme-dependent styling. Call this when theme changes."""
+        self.apply_theme_aware_colors()
+        
+        # Force refresh chart canvas navigation toolbar styling
+        if hasattr(self, 'chart_canvas'):
+            theme_manager = getattr(self.app_context, 'theme_manager', None)
+            if theme_manager:
+                palette = theme_manager.get_surface_palette()
+                base_fg = palette.get('base_fg', '#495057')
+                surface_bg = palette.get('surface', '#f8f9fa')
+                border_color = palette.get('border', '#e9ecef')
+                self.chart_canvas.apply_navigation_theme(base_fg, surface_bg, border_color)
     
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -70,8 +327,30 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
     
     def setup_event_subscriptions(self):
         """Set up event subscriptions for the chart editor."""
-        # Subscribe to relevant events if needed
-        pass
+        # Subscribe to config updates to adjust display settings like DPI
+        bus = self.app_context.get_event_bus()
+        try:
+            bus.subscribe('config.updated', self._on_config_updated)
+        except Exception:
+            self.logger.debug("Could not subscribe to config.updated for DPI handling")
+
+    def _on_config_updated(self, data):
+        """Handle config.updated events to apply display changes (e.g., DPI)."""
+        try:
+            cfg = data.get('config') if isinstance(data, dict) else None
+            if not cfg:
+                return
+            dpi = getattr(getattr(cfg, 'chart_display', None), 'dpi', None)
+            if dpi and self.chart_canvas and self.chart_canvas.fig.dpi != dpi:
+                self.chart_canvas.fig.set_dpi(dpi)
+                # Matplotlib may need a tight_layout or redraw
+                try:
+                    self.chart_canvas.fig.tight_layout()
+                except Exception:
+                    pass
+                self.chart_canvas.draw()
+        except Exception:
+            self.logger.exception("Failed applying updated DPI setting")
     
     def create_header_section(self, layout):
         """Create the header section with chart title and metadata."""
@@ -179,23 +458,89 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
         preview_layout = QVBoxLayout(preview_frame)
         preview_layout.setContentsMargins(10, 10, 10, 10)
         
-        # Preview toolbar
+        # Preview toolbar with chart actions and size controls
         preview_toolbar = QToolBar()
         preview_toolbar.setStyleSheet("""
             QToolBar {
                 background-color: #f8f9fa;
                 border-bottom: 1px solid #e9ecef;
                 padding: 4px;
+                color: #495057;
+            }
+            QToolBar QAction {
+                color: #495057;
+                padding: 5px 10px;
+            }
+            QToolBar QAction:hover {
+                background-color: #e9ecef;
+                border-radius: 3px;
             }
         """)
         
         # Add chart actions
         self.create_chart_toolbar_actions(preview_toolbar)
+        
+        # Add separator
+        preview_toolbar.addSeparator()
+        
+        # Add size controls
+        size_label = QLabel("Size:")
+        size_label.setStyleSheet("color: #495057; font-weight: 500;")
+        preview_toolbar.addWidget(size_label)
+        
+        # Width control
+        self.width_spin = QSpinBox()
+        self.width_spin.setRange(4, 20)
+        self.width_spin.setValue(8)
+        self.width_spin.setSuffix(" in")
+        self.width_spin.setToolTip("Chart width in inches")
+        # Apply theme-aware styling
+        self._apply_spinbox_style(self.width_spin)
+        self.width_spin.valueChanged.connect(self._on_size_changed)
+        preview_toolbar.addWidget(self.width_spin)
+        
+        multiply_label = QLabel("×")
+        self._apply_label_style(multiply_label)
+        preview_toolbar.addWidget(multiply_label)
+        
+        # Height control
+        self.height_spin = QSpinBox()
+        self.height_spin.setRange(3, 15)
+        self.height_spin.setValue(6)
+        self.height_spin.setSuffix(" in")
+        self.height_spin.setToolTip("Chart height in inches")
+        # Apply theme-aware styling
+        self._apply_spinbox_style(self.height_spin)
+        self.height_spin.valueChanged.connect(self._on_size_changed)
+        preview_toolbar.addWidget(self.height_spin)
+        
+        # Reset zoom button
+        reset_zoom_action = QAction("🔍 Reset Zoom", self)
+        reset_zoom_action.setToolTip("Reset chart zoom to fit all data")
+        reset_zoom_action.triggered.connect(self._on_reset_zoom)
+        preview_toolbar.addAction(reset_zoom_action)
+        
         preview_layout.addWidget(preview_toolbar)
         
         # Chart canvas
-        self.chart_canvas = ChartCanvas(width=8, height=6, dpi=100)
+        # Fetch preferred DPI from config manager
+        dpi = 100
+        try:
+            cfg_manager = self.app_context.get_config_manager()
+            cfg = getattr(cfg_manager, 'config', None)
+            if cfg and getattr(cfg, 'chart_display', None):
+                dpi = getattr(cfg.chart_display, 'dpi', dpi) or dpi
+        except Exception:
+            pass
+        self.chart_canvas = ChartCanvas(width=8, height=6, dpi=dpi)
         self.chart_canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        
+        # Add navigation toolbar for zoom/pan
+        if hasattr(self.chart_canvas, 'navigation_toolbar'):
+            nav_toolbar = self.chart_canvas.navigation_toolbar
+            # Theme-aware styling will be applied in apply_theme_aware_colors()
+            preview_layout.addWidget(nav_toolbar)
+        
         preview_layout.addWidget(self.chart_canvas)
         
         layout.addWidget(preview_frame)
@@ -398,6 +743,9 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
             if config.get('show_legend', True) and (self.chart.data_series or self.chart.fit_data):
                 self.chart_canvas.axes.legend(loc=config.get('legend_position', 'upper right'))
             
+            # Store original limits for zoom reset functionality
+            self.chart_canvas.store_original_limits()
+            
             # Refresh canvas
             self.chart_canvas.draw()
             
@@ -512,6 +860,26 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
             self.status_label.setStyleSheet("color: #dc3545; font-size: 12px; font-weight: bold;")
         else:
             self.status_label.setStyleSheet("color: #6c757d; font-size: 12px; font-weight: bold;")
+    
+    def _on_size_changed(self):
+        """Handle chart size changes."""
+        if hasattr(self, 'chart_canvas'):
+            width = self.width_spin.value()
+            height = self.height_spin.value()
+            self.chart_canvas.set_size(width, height)
+            self.update_status("Chart size updated")
+            
+            # Reset status after 2 seconds
+            QTimer.singleShot(2000, lambda: self.update_status("Ready"))
+    
+    def _on_reset_zoom(self):
+        """Handle reset zoom action."""
+        if hasattr(self, 'chart_canvas'):
+            self.chart_canvas.reset_zoom()
+            self.update_status("Zoom reset")
+            
+            # Reset status after 2 seconds
+            QTimer.singleShot(2000, lambda: self.update_status("Ready"))
     
     def update_metadata(self):
         """Update the metadata labels."""

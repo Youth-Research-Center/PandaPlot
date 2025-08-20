@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QListWidget
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QPainter
 from typing import Optional, List
 
 from pandaplot.models.chart.chart_configuration import (
@@ -50,8 +50,23 @@ class ColorButton(QPushButton):
             self.set_color(color.name())
     
     def _update_appearance(self):
-        """Update button appearance to show current color."""
-        self.setStyleSheet(f"QPushButton {{ background-color: {self._color}; border: 1px solid #ccc; }}")
+        """Trigger a repaint with stable button styling."""
+        # Stable neutral background; colored swatch drawn in paintEvent
+        self.setStyleSheet(
+            "QPushButton { background: #f5f5f5; border:1px solid #888; border-radius:4px; }"
+            "QPushButton:hover { background:#eaeaea; }"
+            "QPushButton:pressed { background:#e0e0e0; }"
+        )
+        self.update()
+
+    def paintEvent(self, event):  # noqa: D401 (Qt override)
+        super().paintEvent(event)
+        # Draw inner color swatch
+        painter = QPainter(self)
+        swatch_rect = self.rect().adjusted(6, 6, -6, -6)
+        painter.setPen(QColor('#555555'))
+        painter.setBrush(QColor(self._color))
+        painter.drawRect(swatch_rect)
 
 
 class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
@@ -135,48 +150,31 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         scroll.setWidget(content_widget)
         layout.addWidget(scroll)
 
-        # Buttons (moved outside scroll so they're always visible)
+        # Buttons (outside scroll so they're always visible)
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 6, 0, 0)
         button_layout.setSpacing(8)
         self.preview_button = QPushButton("Preview")
         self.apply_button = QPushButton("Apply")
-        self.reset_button = QPushButton("Reset")
+        self.reset_button = QPushButton("Cancel")
 
-        # Mark buttons with a dynamic property for targeted styling
-        # Style buttons similarly to curve fitting panel (primary + secondary)
-        primary_style = """
-            QPushButton {
-                background-color: #007bff;
-                color: white;
-                padding: 6px 14px;
-                border: none;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #0056b3; }
-            QPushButton:pressed { background-color: #004a99; }
-            QPushButton:disabled { background-color: #6c757d; }
-        """
-        secondary_style = """
-            QPushButton {
-                background-color: #e0e0e0;
-                color: #000;
-                padding: 6px 14px;
-                border: 1px solid #888;
-                border-radius: 4px;
-            }
-            QPushButton:hover { background-color: #d5d5d5; }
-            QPushButton:pressed { background-color: #c8c8c8; }
-            QPushButton:disabled { background-color: #f3f3f3; color: #888; }
-        """
+        primary_style = (
+            "QPushButton { background-color:#007bff; color:#fff; padding:6px 14px; border:none; border-radius:4px; font-weight:600; }"
+            "QPushButton:hover { background-color:#005ec2; }"
+            "QPushButton:pressed { background-color:#004f9f; }"
+            "QPushButton:disabled { background-color:#6c757d; }"
+        )
+        secondary_style = (
+            "QPushButton { background-color:#e0e0e0; color:#000; padding:6px 14px; border:1px solid #888; border-radius:4px; }"
+            "QPushButton:hover { background-color:#d5d5d5; }"
+            "QPushButton:pressed { background-color:#c8c8c8; }"
+            "QPushButton:disabled { background-color:#f3f3f3; color:#888; }"
+        )
 
-        # Assign object names for future theming if needed
         self.preview_button.setObjectName("chartPreviewButton")
         self.apply_button.setObjectName("chartApplyButton")
-        self.reset_button.setObjectName("chartResetButton")
+        self.reset_button.setObjectName("chartCancelButton")
 
-        # Apply styles
         self.apply_button.setStyleSheet(primary_style)
         self.preview_button.setStyleSheet(secondary_style)
         self.reset_button.setStyleSheet(secondary_style)
@@ -440,6 +438,15 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self.apply_button.clicked.connect(self._on_apply)
         self.reset_button.clicked.connect(self._on_reset)
         
+        # Connect chart-level configuration changes
+        self.chart_type_combo.currentIndexChanged.connect(self._on_chart_config_changed)
+        self.title_edit.textChanged.connect(self._on_chart_config_changed)
+        self.x_label_edit.textChanged.connect(self._on_chart_config_changed)
+        self.y_label_edit.textChanged.connect(self._on_chart_config_changed)
+        self.x_grid_check.toggled.connect(self._on_chart_config_changed)
+        self.y_grid_check.toggled.connect(self._on_chart_config_changed)
+        self.legend_show_check.toggled.connect(self._on_chart_config_changed)
+        
         # Connect series configuration change signals
         self.x_column_combo.currentTextChanged.connect(self._on_series_config_changed)
         self.y_column_combo.currentTextChanged.connect(self._on_series_config_changed)
@@ -450,7 +457,13 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         # Connect style change signals
         self.line_color_button.colorChanged.connect(self._on_style_changed)
         self.line_width_spin.valueChanged.connect(self._on_style_changed)
+        self.line_transparency_spin.valueChanged.connect(self._on_style_changed)
+        self.line_style_combo.currentIndexChanged.connect(self._on_style_changed)
+        
+        self.marker_color_button.colorChanged.connect(self._on_style_changed)
+        self.marker_edge_color_button.colorChanged.connect(self._on_style_changed)
         self.marker_size_spin.valueChanged.connect(self._on_style_changed)
+        self.marker_type_combo.currentIndexChanged.connect(self._on_style_changed)
     
     def _setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
@@ -645,11 +658,27 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
             # Updating a data series
             if current_row >= len(self.current_chart.data_series):
                 return
-            
             series = self.current_chart.data_series[current_row]
+            
+            # Update basic style properties that exist in DataSeries model
             series.color = self.line_color_button.get_color()
             series.line_width = self.line_width_spin.value()
             series.marker_size = self.marker_size_spin.value()
+                
+            # Line style & marker style (store enum values as strings)
+            if hasattr(self, 'line_style_combo') and self.line_style_combo.currentData():
+                series.line_style = self.line_style_combo.currentData().value
+            if hasattr(self, 'marker_type_combo') and self.marker_type_combo.currentData():
+                series.marker_style = self.marker_type_combo.currentData().value
+                
+            # If marker color is set differently, use that instead of line color
+            # (For now, DataSeries only has one color field, so we prioritize marker color if it's different)
+            if hasattr(self, 'marker_color_button'):
+                marker_color = self.marker_color_button.get_color()
+                # If user specifically changed marker color and it's different from line color, use marker color
+                if marker_color != self.line_color_button.get_color():
+                    series.color = marker_color
+                
         else:
             # Updating fit data
             fit_index = current_row - total_series
@@ -659,7 +688,52 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
             fit = self.current_chart.fit_data[fit_index]
             fit.color = self.line_color_button.get_color()
             fit.line_width = self.line_width_spin.value()
-            # Note: fit data doesn't use marker_size
+            # Note: fit data doesn't use marker_size or marker colors
+
+        # Emit update event so any open chart tab refreshes immediately
+        if self.current_chart:
+            self.publish_event(ChartEvents.CHART_UPDATED, {
+                'chart_id': self.current_chart.id,
+                'update_type': 'series_updated'
+            })
+    
+    def _on_chart_config_changed(self):
+        """Handle chart-level configuration changes."""
+        if not self.current_chart or self._updating_controls:
+            return
+        
+        # Update chart configuration from UI controls
+        if hasattr(self, 'title_edit'):
+            self.current_chart.name = self.title_edit.text()
+        
+        config = self.current_chart.config
+        if hasattr(self, 'x_label_edit'):
+            config['x_label'] = self.x_label_edit.text()
+        if hasattr(self, 'y_label_edit'):
+            config['y_label'] = self.y_label_edit.text()
+        if hasattr(self, 'x_grid_check') and hasattr(self, 'y_grid_check'):
+            config['show_grid'] = self.x_grid_check.isChecked() and self.y_grid_check.isChecked()
+        if hasattr(self, 'legend_show_check'):
+            config['show_legend'] = self.legend_show_check.isChecked()
+        if hasattr(self, 'chart_type_combo') and self.chart_type_combo.currentData():
+            chart_type_map = {
+                ChartType.LINE: 'line',
+                ChartType.SCATTER: 'scatter',
+                ChartType.BAR: 'bar',
+                ChartType.HISTOGRAM: 'hist',
+                ChartType.BOX: 'box',
+                ChartType.VIOLIN: 'violin'
+            }
+            chart_type = self.chart_type_combo.currentData()
+            if chart_type in chart_type_map:
+                self.current_chart.chart_type = chart_type_map[chart_type]
+        
+        # Emit update event so any open chart tab refreshes immediately
+        if self.current_chart:
+            self.publish_event(ChartEvents.CHART_UPDATED, {
+                'chart_id': self.current_chart.id,
+                'update_type': 'config_updated'
+            })
     
     def _update_series_list(self):
         """Update the series list widget."""
@@ -711,9 +785,39 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
             self._pending_label = series.label
 
             # Update style controls to reflect this series
+            self.line_color_button.blockSignals(True)
             self.line_color_button.set_color(series.color)
+            self.line_color_button.blockSignals(False)
+            
+            self.line_width_spin.blockSignals(True)
             self.line_width_spin.setValue(series.line_width)
+            self.line_width_spin.blockSignals(False)
+            
+            self.marker_size_spin.blockSignals(True)
             self.marker_size_spin.setValue(series.marker_size)
+            self.marker_size_spin.blockSignals(False)
+            
+            # Update other style controls if they exist
+            if hasattr(self, 'marker_color_button'):
+                self.marker_color_button.blockSignals(True)
+                self.marker_color_button.set_color(series.color)  # Use same color for marker
+                self.marker_color_button.blockSignals(False)
+                
+            if hasattr(self, 'line_style_combo'):
+                self.line_style_combo.blockSignals(True)
+                for i in range(self.line_style_combo.count()):
+                    if self.line_style_combo.itemData(i) and self.line_style_combo.itemData(i).value == series.line_style:
+                        self.line_style_combo.setCurrentIndex(i)
+                        break
+                self.line_style_combo.blockSignals(False)
+                
+            if hasattr(self, 'marker_type_combo'):
+                self.marker_type_combo.blockSignals(True)
+                for i in range(self.marker_type_combo.count()):
+                    if self.marker_type_combo.itemData(i) and self.marker_type_combo.itemData(i).value == series.marker_style:
+                        self.marker_type_combo.setCurrentIndex(i)
+                        break
+                self.marker_type_combo.blockSignals(False)
         finally:
             self._updating_controls = False
     
@@ -733,9 +837,17 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
             self._pending_label = fit.label
 
             # Update style controls to reflect this fit
+            self.line_color_button.blockSignals(True)
             self.line_color_button.set_color(fit.color)
+            self.line_color_button.blockSignals(False)
+            
+            self.line_width_spin.blockSignals(True)
             self.line_width_spin.setValue(fit.line_width)
+            self.line_width_spin.blockSignals(False)
+            
+            self.marker_size_spin.blockSignals(True)
             self.marker_size_spin.setValue(0.0)  # Fit lines typically don't have markers
+            self.marker_size_spin.blockSignals(False)
         finally:
             self._updating_controls = False
 
