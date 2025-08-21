@@ -340,7 +340,7 @@ class ProjectViewPanel(QWidget):
     """
     
     # Signals emitted when items should be opened in tabs (legacy note_open_requested removed; use event bus ui.note.open_requested)
-    # note_open_requested signal removed after migration
+    # TODO: signals to be migrated to event bus
     dataset_open_requested = Signal(str, str)  # dataset_id, dataset_name
     chart_open_requested = Signal(str, str)  # chart_id, chart_name
     chart_create_requested = Signal(str, str)  # dataset_id, chart_name
@@ -387,12 +387,14 @@ class ProjectViewPanel(QWidget):
             self.app_state.event_bus.subscribe('folder_renamed', self.on_item_changed)
             self.app_state.event_bus.subscribe('folder_deleted', self.on_item_changed)
             # Dotted note events (new)
+            # TODO: update this to use item events
             self.app_state.event_bus.subscribe('note.created', self.on_item_changed)
             self.app_state.event_bus.subscribe('note.renamed', self.on_item_changed)
             self.app_state.event_bus.subscribe('note.deleted', self.on_item_changed)
             self.app_state.event_bus.subscribe('note.moved', self.on_item_changed)
             self.app_state.event_bus.subscribe('note.content_changed', self.on_item_changed)
             # Legacy underscore note events removed
+            # TODO: remove old events, check if they are in use
             self.app_state.event_bus.subscribe('dataset_created', self.on_item_changed)
             self.app_state.event_bus.subscribe('dataset_imported', self.on_item_changed)
             self.app_state.event_bus.subscribe('dataset_removed', self.on_item_changed)

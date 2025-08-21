@@ -99,7 +99,7 @@ class ThemeManager:
             if ctx.theme != Theme.DARK and text_color == "#FFFFFF":
                 # Force dark text if accent still offers 4.5:1 contrast against white background (approx luminance threshold)
                 # If accent is very dark (lum < 0.25) keep white text.
-                if 'lum' in locals() and lum >= 0.25:
+                if lum >= 0.25:
                     text_color = "#000000"
         except Exception:  # noqa: BLE001
             pass

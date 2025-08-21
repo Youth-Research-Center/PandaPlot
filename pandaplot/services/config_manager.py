@@ -32,7 +32,7 @@ from pandaplot.services.config_validation import validate_config
 class ConfigManager:
     """Manage application configuration persistence & lifecycle."""
 
-    def __init__(self, event_bus: EventBus, config_path: Path | None = None, *, auto_save: bool = True, backup: bool = True) -> None:
+    def __init__(self, event_bus: EventBus, config_path: Optional[Path] = None, *, auto_save: bool = True, backup: bool = True) -> None:
         self._log = logging.getLogger(__name__)
         self._event_bus = event_bus
         self._auto_save = auto_save

@@ -398,6 +398,8 @@ class SettingsDialog(QDialog):
             'chart_dpi': getattr(getattr(cfg, 'chart_display', None), 'dpi', 100),
         }
         self.current_settings = self.original_settings.copy()
+
+        # TODO: call apply only if the settings changed
         self.apply_settings_to_ui()
 
     def setup_event_subscriptions(self):

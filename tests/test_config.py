@@ -1,6 +1,6 @@
 """Unit tests for the configuration data model (Phase 1.1).
 
-These tests focus purely on the data model behaviour implemented in
+These tests focus purely on the data model behavior implemented in
 `pandaplot.models.state.config`:
     * Defaults & serialization
     * Update / partial merges & coercion

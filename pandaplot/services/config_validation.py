@@ -26,7 +26,7 @@ MAX_AUTO_SAVE_INTERVAL = 3600  # 1 hour
 MAX_INTERFACE_FONT = 36
 MAX_EDITOR_FONT = 48
 
-_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+_HEX_COLOR_RE = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 
 
 def validate_config(cfg: ApplicationConfig) -> List[str]:

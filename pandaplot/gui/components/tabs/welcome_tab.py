@@ -1,8 +1,21 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-                             QScrollArea, QFrame, QGridLayout, QSizePolicy)
+import datetime
+import logging
+import os
+from pathlib import Path
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
-import logging
+from PySide6.QtWidgets import (
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class WelcomeTab(QWidget):
@@ -563,9 +576,6 @@ class WelcomeTab(QWidget):
             if not recent_paths:
                 return []
             results = []
-            from pathlib import Path
-            import os
-            import datetime
             for p in recent_paths:
                 if not p:
                     continue
