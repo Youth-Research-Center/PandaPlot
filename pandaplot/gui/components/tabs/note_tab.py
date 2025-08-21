@@ -206,7 +206,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
     def load_note_content(self):
         """Load the note content into the editor."""
-        self.text_edit.setPlainText(self.note.content)
+        self.text_edit.setMarkdown(self.note.content)
         self.update_statistics()
         self.is_modified = False
         self.update_status("Ready")
@@ -221,12 +221,12 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         self.auto_save_timer.start(2000)
 
         # Emit content changed signal
-        content = self.text_edit.toPlainText()
+        content = self.text_edit.toMarkdown()
         self.content_changed.emit(content)
 
     def update_statistics(self):
         """Update word and character count."""
-        content = self.text_edit.toPlainText()
+        content = self.text_edit.toMarkdown()
         word_count = len(content.split()) if content.strip() else 0
         char_count = len(content)
 
@@ -254,7 +254,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     def save_content(self):
         """Save the note content."""
         try:
-            content = self.text_edit.toPlainText()
+            content = self.text_edit.toMarkdown()
 
             # Execute save command
             command = EditNoteCommand(self.app_context, self.note.id, content)
@@ -282,9 +282,9 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         if event_data.get('note_id') != self.note.id:
             return
         new_content = event_data.get('new_content')
-        if new_content is not None and self.text_edit.toPlainText() != new_content:
+        if new_content is not None and self.text_edit.toMarkdown() != new_content:
             self.text_edit.blockSignals(True)
-            self.text_edit.setPlainText(new_content)
+            self.text_edit.setMarkdown(new_content)
             self.text_edit.blockSignals(False)
             self.update_statistics()
             self.is_modified = False
