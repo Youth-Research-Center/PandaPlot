@@ -5,6 +5,7 @@ from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.state.app_state import AppState
 from pandaplot.services.config_manager import ConfigManager
+from pandaplot.services.theme_manager import ThemeManager
 from pandaplot.storage.project_data_manager import ProjectDataManager
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 
@@ -15,7 +16,8 @@ def test_app_context_has_config_manager(tmp_path):
     app_state = AppState(event_bus, project_data_manager=project_data_manager)
     cfg_manager = ConfigManager(event_bus, config_path=tmp_path / "cfg.json")
     cfg_manager.load()
-    ctx = AppContext(app_state, event_bus, command_executor=None, ui_controller=None, config_manager=cfg_manager)  # type: ignore[arg-type]
+    theme_manager = ThemeManager(event_bus, cfg_manager, None)
+    ctx = AppContext(app_state, event_bus, command_executor=None, ui_controller=None, config_manager=cfg_manager, theme_manager=theme_manager)  # type: ignore[arg-type]
 
     assert ctx.get_config_manager() is cfg_manager
     # Ensure version present

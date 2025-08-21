@@ -1,21 +1,37 @@
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGroupBox, QTreeWidget, 
-                             QTreeWidgetItem, QMenu, QMessageBox, QStyledItemDelegate, QLineEdit, 
-                             QAbstractItemView)
-from PySide6.QtCore import Qt, Signal, QTimer
+import logging
+
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QAction
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
-from pandaplot.commands.project.folder.create_folder_command import CreateFolderCommand
-from pandaplot.commands.project.note.create_note_command import CreateNoteCommand
-from pandaplot.commands.project.dataset.import_csv_command import ImportCsvCommand
-from pandaplot.commands.project.dataset.create_empty_dataset_command import CreateEmptyDatasetCommand
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QGroupBox,
+    QLabel,
+    QLayout,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QStyledItemDelegate,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
+
 from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
 from pandaplot.commands.project.dataset.add_row_command import AddRowCommand
+from pandaplot.commands.project.dataset.create_empty_dataset_command import (
+    CreateEmptyDatasetCommand,
+)
+from pandaplot.commands.project.dataset.import_csv_command import ImportCsvCommand
+from pandaplot.commands.project.folder.create_folder_command import CreateFolderCommand
 from pandaplot.commands.project.item.delete_item_command import DeleteItemCommand
 from pandaplot.commands.project.item.move_item_command import MoveItemCommand
 from pandaplot.commands.project.item.rename_item_command import RenameItemCommand
+from pandaplot.commands.project.note.create_note_command import CreateNoteCommand
 from pandaplot.models.project.visitors import ProjectTreeBuilder
-import logging
+from pandaplot.models.state.app_context import AppContext
+from pandaplot.models.state.app_state import AppState
+
 
 class ProjectTreeWidget(QTreeWidget):
     """Custom tree widget that handles drag and drop properly."""
@@ -410,7 +426,7 @@ class ProjectViewPanel(QWidget):
             self.app_state.event_bus.subscribe('chart.updated', self.on_item_changed)
             self.app_state.event_bus.subscribe('chart.deleted', self.on_item_changed)
 
-    def create_treeview(self, layout):
+    def create_treeview(self, layout: QLayout):
         """Create the treeview widget."""
         # Create project title display
         self.title_frame = QGroupBox("Project Info")
