@@ -70,17 +70,43 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
         # Toolbar
         toolbar = QToolBar()
-        toolbar.setStyleSheet("""
-            QToolBar {
-                background-color: #f8f9fa;
-                border-bottom: 1px solid #e9ecef;
+        
+        # Apply theme-aware styling to the toolbar
+        theme_manager = self.app_context.theme_manager
+        palette = theme_manager.get_surface_palette()
+        base_fg = palette.get('base_fg', '#495057')
+        surface_bg = palette.get('surface', '#f8f9fa')
+        border_color = palette.get('border', '#e9ecef')
+        
+        toolbar.setStyleSheet(f"""
+            QToolBar {{
+                background-color: {surface_bg};
+                border-bottom: 1px solid {border_color};
                 padding: 4px;
-            }
-            QToolBar::separator {
-                background-color: #e9ecef;
+                color: {base_fg};
+            }}
+            QToolBar QToolButton {{
+                color: {base_fg};
+                background-color: transparent;
+                border: none;
+                padding: 6px 10px;
+                margin: 1px;
+                border-radius: 3px;
+                font-weight: 500;
+            }}
+            QToolBar QToolButton:hover {{
+                background-color: {border_color};
+                color: {base_fg};
+            }}
+            QToolBar QToolButton:pressed {{
+                background-color: {border_color};
+                color: {base_fg};
+            }}
+            QToolBar::separator {{
+                background-color: {border_color};
                 width: 1px;
                 margin: 4px 2px;
-            }
+            }}
         """)
 
         # Add formatting actions
@@ -263,6 +289,48 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
             self.update_statistics()
             self.is_modified = False
             self.update_status("Synced ✓")
+
+    def refresh_theme_styling(self):
+        """Refresh all theme-dependent styling. Call this when theme changes."""
+        theme_manager = self.app_context.theme_manager
+        palette = theme_manager.get_surface_palette()
+        base_fg = palette.get('base_fg', '#495057')
+        surface_bg = palette.get('surface', '#f8f9fa')
+        border_color = palette.get('border', '#e9ecef')
+        
+        # Find and update the toolbar styling
+        for child in self.findChildren(QToolBar):
+            child.setStyleSheet(f"""
+                QToolBar {{
+                    background-color: {surface_bg};
+                    border-bottom: 1px solid {border_color};
+                    padding: 4px;
+                    color: {base_fg};
+                }}
+                QToolBar QToolButton {{
+                    color: {base_fg};
+                    background-color: transparent;
+                    border: none;
+                    padding: 6px 10px;
+                    margin: 1px;
+                    border-radius: 3px;
+                    font-weight: 500;
+                }}
+                QToolBar QToolButton:hover {{
+                    background-color: {border_color};
+                    color: {base_fg};
+                }}
+                QToolBar QToolButton:pressed {{
+                    background-color: {border_color};
+                    color: {base_fg};
+                }}
+                QToolBar::separator {{
+                    background-color: {border_color};
+                    width: 1px;
+                    margin: 4px 2px;
+                }}
+            """)
+            break #TODO: not sure why we break here
 
     def toggle_bold(self):
         """Toggle bold formatting."""

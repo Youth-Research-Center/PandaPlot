@@ -127,3 +127,4 @@ if __name__ == "__main__":
     # TODO: fix how we use font size across the app.
     # TODO: fix dark theme colors
     # TODO: make chart area scrollable
+    # TODO: in dataset tab we should show all of the data, but we should load it lazily
