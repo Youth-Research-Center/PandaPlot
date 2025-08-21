@@ -126,3 +126,4 @@ if __name__ == "__main__":
     # TODO: in chart properties panel, fix tab display, ensure buttons are visible
     # TODO: fix how we use font size across the app.
     # TODO: fix dark theme colors
+    # TODO: make chart area scrollable
