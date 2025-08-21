@@ -222,14 +222,14 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
 
         # Preview toolbar with chart actions and size controls
         preview_toolbar = QToolBar()
-        
+
         # Apply theme-aware styling to the preview toolbar
         theme_manager = self.app_context.theme_manager
         palette = theme_manager.get_surface_palette()
         base_fg = palette.get('base_fg', '#495057')
         surface_bg = palette.get('surface', '#f8f9fa')
         border_color = palette.get('border', '#e9ecef')
-        
+
         preview_toolbar.setStyleSheet(f"""
             QToolBar {{
                 background-color: {surface_bg};
@@ -255,7 +255,7 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
                 color: {base_fg};
             }}
         """)
-            
+
         # Add chart actions
         self.create_chart_toolbar_actions(preview_toolbar)
 
