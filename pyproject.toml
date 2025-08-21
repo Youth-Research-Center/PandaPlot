@@ -22,4 +22,5 @@ dev = [
     "pytest-mock>=3.14.1",
     "ruff>=0.12.9",
     "viztracer>=1.0.4",
+    "vulture>=2.14",
 ]

@@ -37,7 +37,6 @@ class SettingsDialog(QDialog):
 
         self.setup_ui()
         self.load_current_settings()
-        self.setup_connections()
         self.setup_event_subscriptions()
     
     def setup_ui(self):
@@ -368,15 +367,6 @@ class SettingsDialog(QDialog):
         
         layout.addWidget(button_frame)
     
-    def setup_connections(self):
-        """Set up signal connections."""
-        # Connect theme change to preview
-        self.theme_combo.currentTextChanged.connect(self.preview_theme)
-        
-        # Connect font size changes to preview
-        self.interface_font_size.valueChanged.connect(self.preview_interface_font)
-        self.editor_font_size.valueChanged.connect(self.preview_editor_font)
-    
     def load_current_settings(self):
         """Load current settings from the configuration manager (or defaults)."""
         cfg: Optional[ApplicationConfig] = None
@@ -469,21 +459,6 @@ class SettingsDialog(QDialog):
             color_str = color.name()
             self.current_settings['accent_color'] = color_str
             self.accent_color_btn.setStyleSheet(f"background-color: {color_str}; border-radius: 4px;")
-    
-    def preview_theme(self, theme_name):
-        """Preview theme changes."""
-        # TODO: Implement theme preview
-        pass
-    
-    def preview_interface_font(self, size):
-        """Preview interface font changes."""
-        # TODO: Implement font preview
-        pass
-    
-    def preview_editor_font(self, size):
-        """Preview editor font changes."""
-        # TODO: Implement editor font preview
-        pass
     
     def reset_to_defaults(self):
         """Reset all settings to defaults."""

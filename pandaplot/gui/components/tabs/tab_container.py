@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout
 
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
 from pandaplot.gui.components.tabs.note_tab import NoteTab
-from pandaplot.gui.components.tabs.chart_tab import ChartTab
+from pandaplot.gui.components.tabs.chart.chart_tab import ChartTab
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.note import Note

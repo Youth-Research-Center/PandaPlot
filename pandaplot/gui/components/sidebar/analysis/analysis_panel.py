@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.analysis import AnalysisEngine
@@ -24,8 +24,8 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
     """
     Side panel for mathematical analysis operations on dataset columns.
     """
-    
-    def __init__(self, app_context: AppContext, parent=None):
+
+    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context
