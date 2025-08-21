@@ -1,4 +1,5 @@
 import logging
+from typing import override
 
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QAction
@@ -298,6 +299,7 @@ class ProjectTreeWidget(QTreeWidget):
 class ItemNameDelegate(QStyledItemDelegate):
     """Custom delegate to handle editing only the name portion of tree items, not the icon."""
     
+    @override
     def createEditor(self, parent, option, index):
         """Create editor that only shows the name part."""
         editor = QLineEdit(parent)
@@ -322,11 +324,13 @@ class ItemNameDelegate(QStyledItemDelegate):
         
         return editor
     
+    @override
     def setEditorData(self, editor, index):
         """Set the editor data to just the name portion."""
         # This is handled in createEditor
         pass
     
+    @override
     def setModelData(self, editor, model, index):
         """Set the model data with the icon prefix preserved."""
         new_name = editor.text().strip()

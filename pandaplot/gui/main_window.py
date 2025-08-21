@@ -297,7 +297,7 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         # Subscribe to UI events for tab changes
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self.on_tab_changed_event)
         # React to theme changes if window-specific adjustments are ever needed
-        self.app_context.event_bus.subscribe('theme.changed', lambda d: self.logger.debug("Theme changed event received in main window"))
+        self.app_context.event_bus.subscribe('theme.changed', lambda _: self.logger.debug("Theme changed event received in main window"))
         # note open subscription is registered in __init__
 
     def on_note_open_requested(self, event_data):
