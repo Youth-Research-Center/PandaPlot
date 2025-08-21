@@ -283,10 +283,9 @@ class TabContainer(EventBusComponentMixin, QWidget):
         if not isinstance(note_item, Note):
             self.logger.warning("Cannot open note: Item %s is not a note", note_id)
             return
-        
-        # Create note tab
+
+        # Create note tab (event bus will drive title updates)
         note_tab = NoteTab(self.app_context, note_item)
-        note_tab.title_changed.connect(lambda new_title: self.update_tab_title(note_tab, new_title))
         
         # Add tab
         tab_index = self.add_closable_tab(note_tab, note_tab.get_tab_title())

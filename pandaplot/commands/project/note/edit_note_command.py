@@ -53,8 +53,8 @@ class EditNoteCommand(Command):
             self.old_content = note.content
             note.update_content(self.new_content)
 
-            # Emit event
-            self.app_state.event_bus.emit('note_edited', {
+            # Emit dotted content changed event only
+            self.app_state.event_bus.emit('note.content_changed', {
                 'project': project,
                 'note_id': self.note_id,
                 'old_content': self.old_content,
@@ -96,8 +96,8 @@ class EditNoteCommand(Command):
                 note: Note = item
                 note.update_content(self.old_content)
 
-                # Emit event
-                self.app_state.event_bus.emit('note_edited', {
+                # Emit dotted content changed event only (reversal)
+                self.app_state.event_bus.emit('note.content_changed', {
                     'project': project,
                     'note_id': self.note_id,
                     'old_content': self.new_content,
@@ -130,8 +130,8 @@ class EditNoteCommand(Command):
                 note: Note = item
                 note.update_content(self.new_content)
 
-                # Emit event
-                self.app_state.event_bus.emit('note_edited', {
+                # Emit dotted content changed event only (redo)
+                self.app_state.event_bus.emit('note.content_changed', {
                     'project': project,
                     'note_id': self.note_id,
                     'old_content': self.old_content,

@@ -135,7 +135,7 @@ class TestEditNoteCommand:
         sample_note.update_content.assert_called_once_with("New content")
         
         # Check event emission
-        app_state.event_bus.emit.assert_called_once_with('note_edited', {
+        app_state.event_bus.emit.assert_called_once_with('note.content_changed', {
             'project': sample_project,
             'note_id': "note-123",
             'old_content': "Original content",
@@ -175,7 +175,7 @@ class TestEditNoteCommand:
         sample_note.update_content.assert_called_once_with("Original content")
         
         # Check event emission
-        app_state.event_bus.emit.assert_called_once_with('note_edited', {
+        app_state.event_bus.emit.assert_called_once_with('note.content_changed', {
             'project': sample_project,
             'note_id': "note-123",
             'old_content': "New content",
@@ -297,7 +297,7 @@ class TestEditNoteCommand:
         sample_note.update_content.assert_called_once_with("New content")
         
         # Check event emission
-        app_state.event_bus.emit.assert_called_once_with('note_edited', {
+        app_state.event_bus.emit.assert_called_once_with('note.content_changed', {
             'project': sample_project,
             'note_id': "note-123",
             'old_content': "Original content",
@@ -449,7 +449,7 @@ class TestEditNoteCommand:
         app_state.event_bus.emit.assert_called_once()
         event_name, event_data = app_state.event_bus.emit.call_args[0]
         
-        assert event_name == 'note_edited'
+        assert event_name == 'note.content_changed'
         assert 'project' in event_data
         assert 'note_id' in event_data
         assert 'old_content' in event_data

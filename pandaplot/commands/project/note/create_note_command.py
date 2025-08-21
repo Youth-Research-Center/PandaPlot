@@ -62,8 +62,8 @@ class CreateNoteCommand(Command):
             # Add note to project using hierarchical structure
             self.project.add_item(self.created_note, parent_id=self.folder_id)
 
-            # Emit event
-            self.app_state.event_bus.emit('note_created', {
+            # Emit dotted event only (legacy underscore events removed)
+            self.app_state.event_bus.emit('note.created', {
                 'project': self.project,
                 'note_id': self.created_note_id,
                 'note_name': note_name,
@@ -96,8 +96,8 @@ class CreateNoteCommand(Command):
                     if note is not None:
                         project.remove_item(note)
 
-                    # Emit event
-                    self.app_state.event_bus.emit('note_deleted', {
+                    # Emit dotted delete event
+                    self.app_state.event_bus.emit('note.deleted', {
                         'project': project,
                         'note_id': self.created_note_id,
                         'note': self.created_note
@@ -124,8 +124,8 @@ class CreateNoteCommand(Command):
                 # Re-add the same note object to the project
                 project.add_item(self.created_note, parent_id=self.folder_id)
 
-                # Emit event
-                self.app_state.event_bus.emit('note_created', {
+                # Emit dotted event only
+                self.app_state.event_bus.emit('note.created', {
                     'project': project,
                     'note_id': self.created_note_id,
                     'note_name': self.created_note.name,

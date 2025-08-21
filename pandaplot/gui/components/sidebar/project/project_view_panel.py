@@ -339,8 +339,8 @@ class ProjectViewPanel(QWidget):
     This follows the MVC pattern by listening to events from the app state.
     """
     
-    # Signals emitted when items should be opened in tabs
-    note_open_requested = Signal(str, str)  # note_id, note_name
+    # Signals emitted when items should be opened in tabs (legacy note_open_requested removed; use event bus ui.note.open_requested)
+    # TODO: signals to be migrated to event bus
     dataset_open_requested = Signal(str, str)  # dataset_id, dataset_name
     chart_open_requested = Signal(str, str)  # chart_id, chart_name
     chart_create_requested = Signal(str, str)  # dataset_id, chart_name
@@ -386,9 +386,15 @@ class ProjectViewPanel(QWidget):
             self.app_state.event_bus.subscribe('folder_created', self.on_item_changed)
             self.app_state.event_bus.subscribe('folder_renamed', self.on_item_changed)
             self.app_state.event_bus.subscribe('folder_deleted', self.on_item_changed)
-            self.app_state.event_bus.subscribe('note_created', self.on_item_changed)
-            self.app_state.event_bus.subscribe('note_renamed', self.on_item_changed)
-            self.app_state.event_bus.subscribe('note_deleted', self.on_item_changed)
+            # Dotted note events (new)
+            # TODO: update this to use item events
+            self.app_state.event_bus.subscribe('note.created', self.on_item_changed)
+            self.app_state.event_bus.subscribe('note.renamed', self.on_item_changed)
+            self.app_state.event_bus.subscribe('note.deleted', self.on_item_changed)
+            self.app_state.event_bus.subscribe('note.moved', self.on_item_changed)
+            self.app_state.event_bus.subscribe('note.content_changed', self.on_item_changed)
+            # Legacy underscore note events removed
+            # TODO: remove old events, check if they are in use
             self.app_state.event_bus.subscribe('dataset_created', self.on_item_changed)
             self.app_state.event_bus.subscribe('dataset_imported', self.on_item_changed)
             self.app_state.event_bus.subscribe('dataset_removed', self.on_item_changed)
@@ -817,10 +823,14 @@ class ProjectViewPanel(QWidget):
             # Toggle folder expansion
             current_item.setExpanded(not current_item.isExpanded())
         elif item_type == 'note':
-            # Open note in a tab
+            # Publish event bus request to open note (event bus only)
             note_obj = item_data.get('data')
             note_name = note_obj.name if note_obj else 'Unnamed Note'
-            self.note_open_requested.emit(item_id, note_name)
+            if self.app_state:
+                self.app_state.event_bus.emit('ui.note.open_requested', {
+                    'note_id': item_id,
+                    'note_name': note_name
+                })
         elif item_type == 'dataset':
             # Open dataset in a tab (could show data table view)
             dataset_obj = item_data.get('data')
