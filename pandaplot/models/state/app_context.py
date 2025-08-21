@@ -10,7 +10,7 @@ from pandaplot.services.theme_manager import ThemeManager
 
 
 class AppContext:
-    def __init__(self, app_state: AppState, event_bus: EventBus, command_executor: CommandExecutor, ui_controller: UIController, config_manager: ConfigManager | None = None, theme_manager: ThemeManager | None = None):
+    def __init__(self, app_state: AppState, event_bus: EventBus, command_executor: CommandExecutor, ui_controller: UIController, config_manager: ConfigManager, theme_manager: ThemeManager):
         self.app_state = app_state
         self.event_bus = event_bus
         self.command_executor = command_executor

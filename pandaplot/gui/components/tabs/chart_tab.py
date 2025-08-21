@@ -231,31 +231,35 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
 
                 # Apply colors to size control labels if they exist
                 if hasattr(self, 'width_spin') and hasattr(self, 'height_spin'):
-                    # Find the size label and multiply label in the toolbar
-                    toolbar = None
+                    # Find the preview toolbar and update its styling
                     for child in self.findChildren(QToolBar):
                         if child.actions():  # Find toolbar with actions
-                            toolbar = child
+                            child.setStyleSheet(f"""
+                                QToolBar {{
+                                    background-color: {surface_bg};
+                                    border-bottom: 1px solid {border_color};
+                                    padding: 4px;
+                                    color: {base_fg};
+                                }}
+                                QToolBar QToolButton {{
+                                    color: {base_fg};
+                                    background-color: transparent;
+                                    border: none;
+                                    padding: 6px 10px;
+                                    margin: 1px;
+                                    border-radius: 3px;
+                                    font-weight: 500;
+                                }}
+                                QToolBar QToolButton:hover {{
+                                    background-color: {border_color};
+                                    color: {base_fg};
+                                }}
+                                QToolBar QToolButton:pressed {{
+                                    background-color: {border_color};
+                                    color: {base_fg};
+                                }}
+                            """)
                             break
-
-                    if toolbar:
-                        # Update toolbar style with proper colors
-                        toolbar.setStyleSheet(f"""
-                            QToolBar {{
-                                background-color: {surface_bg};
-                                border-bottom: 1px solid {border_color};
-                                padding: 4px;
-                                color: {base_fg};
-                            }}
-                            QToolBar QAction {{
-                                color: {base_fg};
-                                padding: 5px 10px;
-                            }}
-                            QToolBar QAction:hover {{
-                                background-color: {border_color};
-                                border-radius: 3px;
-                            }}
-                        """)
 
         except Exception as e:
             self.logger.debug(f"Could not apply theme-aware colors: {e}")
@@ -383,23 +387,40 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
 
         # Preview toolbar with chart actions and size controls
         preview_toolbar = QToolBar()
-        preview_toolbar.setStyleSheet("""
-            QToolBar {
-                background-color: #f8f9fa;
-                border-bottom: 1px solid #e9ecef;
+        
+        # Apply theme-aware styling to the preview toolbar
+        theme_manager = self.app_context.theme_manager
+        palette = theme_manager.get_surface_palette()
+        base_fg = palette.get('base_fg', '#495057')
+        surface_bg = palette.get('surface', '#f8f9fa')
+        border_color = palette.get('border', '#e9ecef')
+        
+        preview_toolbar.setStyleSheet(f"""
+            QToolBar {{
+                background-color: {surface_bg};
+                border-bottom: 1px solid {border_color};
                 padding: 4px;
-                color: #495057;
-            }
-            QToolBar QAction {
-                color: #495057;
-                padding: 5px 10px;
-            }
-            QToolBar QAction:hover {
-                background-color: #e9ecef;
+                color: {base_fg};
+            }}
+            QToolBar QToolButton {{
+                color: {base_fg};
+                background-color: transparent;
+                border: none;
+                padding: 6px 10px;
+                margin: 1px;
                 border-radius: 3px;
-            }
+                font-weight: 500;
+            }}
+            QToolBar QToolButton:hover {{
+                background-color: {border_color};
+                color: {base_fg};
+            }}
+            QToolBar QToolButton:pressed {{
+                background-color: {border_color};
+                color: {base_fg};
+            }}
         """)
-
+            
         # Add chart actions
         self.create_chart_toolbar_actions(preview_toolbar)
 
