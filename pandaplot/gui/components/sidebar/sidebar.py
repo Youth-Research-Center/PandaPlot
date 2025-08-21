@@ -10,7 +10,7 @@ from pandaplot.gui.components.sidebar.panel_area import PanelArea
 class CollapsibleSidebar(QWidget):
     """A collapsible sidebar that contains an icon bar and panel area."""
 
-    def __init__(self, parent: Optional[QWidget]=None, width:int=400, collapsed_width:int=40):
+    def __init__(self, parent: Optional[QWidget] = None, width: int = 400, collapsed_width: int = 40):
         super().__init__(parent)
         self.default_width = width
         self.collapsed_width = collapsed_width
