@@ -23,10 +23,10 @@ class CreateChartCommand(Command):
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
 
-        self.created_chart_id = None
-        self.dataset_id = dataset_id
-        self.chart_name = chart_name
-        self.parent_id = parent_id
+        self.created_chart_id: Optional[str] = None
+        self.dataset_id: str = dataset_id
+        self.chart_name: Optional[str] = chart_name
+        self.parent_id: Optional[str] = parent_id
 
     @override
     def execute(self) -> bool:

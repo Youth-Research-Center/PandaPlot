@@ -2,10 +2,12 @@
 Command to add a new column to a dataset.
 """
 
-from typing import Optional, override
+from typing import Optional, Union, override
 import pandas as pd
 import numpy as np
 from pandaplot.commands.base_command import Command
+from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.gui.controllers.ui_controller import UIController
@@ -16,20 +18,20 @@ class AddColumnCommand(Command):
     Command to add a new column to an existing dataset.
     """
 
-    def __init__(self, app_context: AppContext, dataset_id: str, column_name: Optional[str] = None, default_value: str|int|float = ""):
+    def __init__(self, app_context: AppContext, dataset_id: str, column_name: Optional[str] = None, default_value: Union[str, int, float] = ""):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
-        
-        self.dataset_id = dataset_id
-        self.column_name = column_name
-        self.default_value = default_value
-        
+
+        self.dataset_id: str = dataset_id
+        self.column_name: Optional[str] = column_name
+        self.default_value: Union[str, int, float] = default_value
+
         # Store state for undo
-        self.original_data = None
-        self.project = None
-        self.dataset = None  # Will be cast to Dataset when found
+        self.original_data: Optional[pd.DataFrame] = None
+        self.project: Optional[Project] = None
+        self.dataset: Optional[Dataset] = None  # Will be cast to Dataset when found
 
     @override
     def execute(self) -> bool:

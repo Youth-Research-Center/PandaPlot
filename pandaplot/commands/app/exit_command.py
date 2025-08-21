@@ -30,6 +30,7 @@ class ExitCommand(Command):
         """
         This is not applicable for exit command.
         """
+        self.logger.error("ExitCommand cannot be undone.")
         raise NotImplementedError("Exit command cannot be undone.")
 
     @override
@@ -37,4 +38,5 @@ class ExitCommand(Command):
         """
         This is not applicable for exit command.
         """
+        self.logger.error("ExitCommand cannot be redone.")
         raise NotImplementedError("Exit command cannot be redone.")
