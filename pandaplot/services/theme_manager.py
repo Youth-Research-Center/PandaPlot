@@ -78,7 +78,7 @@ class ThemeManager:
 
     def build_stylesheet(self, ctx: ThemeContext) -> str:
         accent = ctx.accent
-        text_color = "#FFFFFF"  # fallback
+        text_color = "#000000"  # fallback
         hover = accent
         pressed = accent
         try:
