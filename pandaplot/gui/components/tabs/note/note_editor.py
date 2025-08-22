@@ -206,10 +206,12 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
             self.text_edit.setParent(self.splitter)
             self.preview.setParent(self.splitter)
             self._changePreviewConnection(True)
+            self.update_preview()
             self.stack.setCurrentIndex(2)
 
     def _changePreviewConnection(self, shouldBeConnected: bool):
         """Change the connection state of the preview."""
+        self.logger.debug(f"Changing preview connection from {self.preview_connected} to {shouldBeConnected}")
         if shouldBeConnected and not self.preview_connected:
             self.text_edit.textChanged.connect(self.update_preview)
             self.preview_connected = True
