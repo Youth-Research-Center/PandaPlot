@@ -2,17 +2,19 @@
 Note tab widget for displaying and editing notes in the main tab container.
 """
 import logging
+from typing import Optional
 
 from markdown import markdown
-from PySide6.QtCore import Qt, QTimer, Signal, QMetaMethod
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QSplitter,  # Added import for QSplitter
+    QLayout,
+    QSplitter,
     QStackedWidget,
-    QTextBrowser,  # Added import for QTextBrowser
+    QTextBrowser,
     QTextEdit,
     QToolBar,
     QVBoxLayout,
@@ -34,7 +36,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     # Local signal for immediate editor reactions
     content_changed = Signal(str)
 
-    def __init__(self, app_context: AppContext, note: Note, parent=None):
+    def __init__(self, app_context: AppContext, note: Note, parent: Optional[QWidget] = None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context
@@ -63,7 +65,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         # Status bar
         self.create_status_section(layout)
 
-    def create_content_section(self, layout):
+    def create_content_section(self, layout: QLayout):
         """Create the main content editing section."""
         # Content frame
         content_frame = QFrame()
@@ -79,14 +81,14 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
         # Toolbar
         toolbar = QToolBar()
-        
+
         # Apply theme-aware styling to the toolbar
         theme_manager = self.app_context.theme_manager
         palette = theme_manager.get_surface_palette()
         base_fg = palette.get('base_fg', '#495057')
         surface_bg = palette.get('surface', '#f8f9fa')
         border_color = palette.get('border', '#e9ecef')
-        
+
         toolbar.setStyleSheet(f"""
             QToolBar {{
                 background-color: {surface_bg};
@@ -122,22 +124,6 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         self.create_toolbar_actions(toolbar)
         content_layout.addWidget(toolbar)
 
-        # Add mode switching actions
-        toolbar.addSeparator()
-        self.edit_mode_action = QAction("✍ Edit", self)
-        self.edit_mode_action.triggered.connect(lambda: self.set_mode("edit"))
-        toolbar.addAction(self.edit_mode_action)
-
-        self.preview_mode_action = QAction("👁 Preview", self)
-        self.preview_mode_action.triggered.connect(lambda: self.set_mode("preview"))
-        toolbar.addAction(self.preview_mode_action)
-
-        self.split_mode_action = QAction("⇔ Split", self)
-        self.split_mode_action.triggered.connect(lambda: self.set_mode("split"))
-        toolbar.addAction(self.split_mode_action)
-
-        content_layout.addWidget(toolbar)
-
         # Create main editor and preview widgets
         self.text_edit = QTextEdit()
         font = QFont("Segoe UI", 11)
@@ -147,7 +133,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         self.preview.setOpenExternalLinks(True)
 
         # Create container widgets for each mode
-        
+
         # Edit mode container - just the text editor
         self.edit_container = QWidget()
         self.edit_layout = QVBoxLayout(self.edit_container)
@@ -161,12 +147,12 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         self.preview_layout.addWidget(self.preview)
 
         # Split mode container - splitter with both widgets
-        #self.split_container = QWidget()
-        #split_layout = QVBoxLayout(self.split_container)
-        #split_layout.setContentsMargins(0, 0, 0, 0)
-        
+        # self.split_container = QWidget()
+        # split_layout = QVBoxLayout(self.split_container)
+        # split_layout.setContentsMargins(0, 0, 0, 0)
+
         self.splitter = QSplitter(orientation=Qt.Orientation.Horizontal)
-        #split_layout.addWidget(self.splitter)
+        # split_layout.addWidget(self.splitter)
 
         # Stack for mode switching
         self.stack = QStackedWidget()
@@ -211,7 +197,8 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
     def _changePreviewConnection(self, shouldBeConnected: bool):
         """Change the connection state of the preview."""
-        self.logger.debug(f"Changing preview connection from {self.preview_connected} to {shouldBeConnected}")
+        self.logger.debug(
+            f"Changing preview connection from {self.preview_connected} to {shouldBeConnected}")
         if shouldBeConnected and not self.preview_connected:
             self.text_edit.textChanged.connect(self.update_preview)
             self.preview_connected = True
@@ -225,28 +212,8 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         html = markdown(md_text, extensions=["tables", "fenced_code"])
         self.preview.setHtml(html)
 
-
-    def create_toolbar_actions(self, toolbar):
+    def create_toolbar_actions(self, toolbar: QToolBar):
         """Create toolbar actions for text formatting."""
-        # Bold action
-        bold_action = QAction("🅱 Bold", self)
-        bold_action.setShortcut(QKeySequence.StandardKey.Bold)
-        bold_action.triggered.connect(self.toggle_bold)
-        toolbar.addAction(bold_action)
-
-        # Italic action
-        italic_action = QAction("🇮 Italic", self)
-        italic_action.setShortcut(QKeySequence.StandardKey.Italic)
-        italic_action.triggered.connect(self.toggle_italic)
-        toolbar.addAction(italic_action)
-
-        # Underline action
-        underline_action = QAction("🇺 Underline", self)
-        underline_action.setShortcut(QKeySequence.StandardKey.Underline)
-        underline_action.triggered.connect(self.toggle_underline)
-        toolbar.addAction(underline_action)
-
-        toolbar.addSeparator()
 
         # Save action
         save_action = QAction("💾 Save", self)
@@ -259,7 +226,22 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         clear_action.triggered.connect(self.clear_content)
         toolbar.addAction(clear_action)
 
-    def create_status_section(self, layout):
+        toolbar.addSeparator()
+        self.edit_mode_action = QAction("✍ Edit", self)
+        self.edit_mode_action.triggered.connect(lambda: self.set_mode("edit"))
+        toolbar.addAction(self.edit_mode_action)
+
+        self.preview_mode_action = QAction("👁 Preview", self)
+        self.preview_mode_action.triggered.connect(
+            lambda: self.set_mode("preview"))
+        toolbar.addAction(self.preview_mode_action)
+
+        self.split_mode_action = QAction("⇔ Split", self)
+        self.split_mode_action.triggered.connect(
+            lambda: self.set_mode("split"))
+        toolbar.addAction(self.split_mode_action)
+
+    def create_status_section(self, layout: QLayout):
         """Create the status section with statistics."""
         status_frame = QFrame()
         status_frame.setStyleSheet("""
@@ -293,7 +275,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     def setup_connections(self):
         """Set up signal connections and event subscriptions."""
         self.text_edit.textChanged.connect(self.on_content_changed)
-        
+
         # Subscribe to external rename/content change events for this note
         self.subscribe_to_event(
             NoteEvents.NOTE_CONTENT_CHANGED, self.on_note_content_changed_event)
@@ -317,7 +299,6 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         # Emit content changed signal
         content = self.text_edit.toPlainText()
         self.content_changed.emit(content)
-
 
     def update_statistics(self):
         """Update word and character count."""
@@ -392,7 +373,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         base_fg = palette.get('base_fg', '#495057')
         surface_bg = palette.get('surface', '#f8f9fa')
         border_color = palette.get('border', '#e9ecef')
-        
+
         # Find and update the toolbar styling
         for child in self.findChildren(QToolBar):
             child.setStyleSheet(f"""
@@ -425,36 +406,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
                     margin: 4px 2px;
                 }}
             """)
-            break #TODO: not sure why we break here
-
-    def toggle_bold(self):
-        """Toggle bold formatting."""
-        cursor = self.text_edit.textCursor()
-        char_format = cursor.charFormat()
-
-        if char_format.fontWeight() == QFont.Weight.Bold:
-            char_format.setFontWeight(QFont.Weight.Normal)
-        else:
-            char_format.setFontWeight(QFont.Weight.Bold)
-
-        cursor.setCharFormat(char_format)
-        self.text_edit.setTextCursor(cursor)
-
-    def toggle_italic(self):
-        """Toggle italic formatting."""
-        cursor = self.text_edit.textCursor()
-        char_format = cursor.charFormat()
-        char_format.setFontItalic(not char_format.fontItalic())
-        cursor.setCharFormat(char_format)
-        self.text_edit.setTextCursor(cursor)
-
-    def toggle_underline(self):
-        """Toggle underline formatting."""
-        cursor = self.text_edit.textCursor()
-        char_format = cursor.charFormat()
-        char_format.setFontUnderline(not char_format.fontUnderline())
-        cursor.setCharFormat(char_format)
-        self.text_edit.setTextCursor(cursor)
+            break  # TODO: not sure why we break here
 
     def clear_content(self):
         """Clear all content."""
@@ -467,4 +419,3 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     def has_unsaved_changes(self) -> bool:
         """Check if there are unsaved changes."""
         return self.is_modified
-
