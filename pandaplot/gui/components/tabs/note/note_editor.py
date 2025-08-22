@@ -1,13 +1,20 @@
 """
 Note tab widget for displaying and editing notes in the main tab container.
 """
+import logging
+from typing import Optional
 
-from PySide6.QtCore import QTimer, Signal
+from markdown import markdown
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLayout,
+    QSplitter,
+    QStackedWidget,
+    QTextBrowser,
     QTextEdit,
     QToolBar,
     QVBoxLayout,
@@ -15,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.commands.project.note.edit_note_command import EditNoteCommand
-from pandaplot.models.events.event_types import NoteEvents, UIEvents
+from pandaplot.models.events.event_types import NoteEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
@@ -29,14 +36,18 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     # Local signal for immediate editor reactions
     content_changed = Signal(str)
 
-    def __init__(self, app_context: AppContext, note: Note, parent=None):
+    def __init__(self, app_context: AppContext, note: Note, parent: Optional[QWidget] = None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
+        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.note = note
         self.is_modified = False
         self.auto_save_timer = QTimer()
         self.auto_save_timer.timeout.connect(self.auto_save)
         self.auto_save_timer.setSingleShot(True)
+
+        # Since we can't check if the preview is connected, track it with a flag
+        self.preview_connected = False
 
         self.setup_ui()
         self.load_note_content()
@@ -54,7 +65,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         # Status bar
         self.create_status_section(layout)
 
-    def create_content_section(self, layout):
+    def create_content_section(self, layout: QLayout):
         """Create the main content editing section."""
         # Content frame
         content_frame = QFrame()
@@ -70,14 +81,14 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
         # Toolbar
         toolbar = QToolBar()
-        
+
         # Apply theme-aware styling to the toolbar
         theme_manager = self.app_context.theme_manager
         palette = theme_manager.get_surface_palette()
         base_fg = palette.get('base_fg', '#495057')
         surface_bg = palette.get('surface', '#f8f9fa')
         border_color = palette.get('border', '#e9ecef')
-        
+
         toolbar.setStyleSheet(f"""
             QToolBar {{
                 background-color: {surface_bg};
@@ -113,47 +124,88 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         self.create_toolbar_actions(toolbar)
         content_layout.addWidget(toolbar)
 
-        # Text editor
+        # Create main editor and preview widgets
         self.text_edit = QTextEdit()
-        self.text_edit.setStyleSheet("""
-            QTextEdit {
-                border: none;
-                padding: 12px;
-                font-family: 'Segoe UI', Arial, sans-serif;
-                font-size: 14px;
-                line-height: 1.6;
-            }
-        """)
-
-        # Set a nice font
         font = QFont("Segoe UI", 11)
         self.text_edit.setFont(font)
 
-        content_layout.addWidget(self.text_edit)
+        self.preview = QTextBrowser()
+        self.preview.setOpenExternalLinks(True)
 
+        # Create container widgets for each mode
+
+        # Edit mode container - just the text editor
+        self.edit_container = QWidget()
+        self.edit_layout = QVBoxLayout(self.edit_container)
+        self.edit_layout.setContentsMargins(0, 0, 0, 0)
+        self.edit_layout.addWidget(self.text_edit)
+
+        # Preview mode container - just the preview
+        self.preview_container = QWidget()
+        self.preview_layout = QVBoxLayout(self.preview_container)
+        self.preview_layout.setContentsMargins(0, 0, 0, 0)
+        self.preview_layout.addWidget(self.preview)
+
+        # Split mode container - splitter with both widgets
+        self.splitter = QSplitter(orientation=Qt.Orientation.Horizontal)
+
+        # Stack for mode switching
+        self.stack = QStackedWidget()
+        self.stack.addWidget(self.edit_container)     # index 0
+        self.stack.addWidget(self.preview_container)  # index 1
+        self.stack.addWidget(self.splitter)    # index 2
+
+        content_layout.addWidget(self.stack)
         layout.addWidget(content_frame)
 
-    def create_toolbar_actions(self, toolbar):
+        # Default mode
+        self.set_mode("edit")
+
+    def set_mode(self, mode: str):
+        """Switch between edit, preview, and split modes."""
+        if mode not in ["edit", "preview", "split"]:
+            self.logger.warning(f"Unknown mode: {mode}")
+            return
+
+        if mode == "edit":
+            self.text_edit.setParent(self.edit_container)
+            self.edit_layout.addWidget(self.text_edit)
+            self.stack.setCurrentIndex(0)
+            self._changePreviewConnection(False)
+
+        elif mode == "preview":
+            self.preview.setParent(self.preview_container)
+            self.preview_layout.addWidget(self.preview)
+            self.update_preview()
+            self.stack.setCurrentIndex(1)
+            self._changePreviewConnection(False)
+
+        elif mode == "split":
+            self.text_edit.setParent(self.splitter)
+            self.preview.setParent(self.splitter)
+            self._changePreviewConnection(True)
+            self.update_preview()
+            self.stack.setCurrentIndex(2)
+
+    def _changePreviewConnection(self, shouldBeConnected: bool):
+        """Change the connection state of the preview."""
+        self.logger.debug(
+            f"Changing preview connection from {self.preview_connected} to {shouldBeConnected}")
+        if shouldBeConnected and not self.preview_connected:
+            self.text_edit.textChanged.connect(self.update_preview)
+            self.preview_connected = True
+        elif not shouldBeConnected and self.preview_connected:
+            self.text_edit.textChanged.disconnect(self.update_preview)
+            self.preview_connected = False
+
+    def update_preview(self):
+        """Render Markdown into preview panel."""
+        md_text = self.text_edit.toPlainText()
+        html = markdown(md_text, extensions=["tables", "fenced_code"])
+        self.preview.setHtml(html)
+
+    def create_toolbar_actions(self, toolbar: QToolBar):
         """Create toolbar actions for text formatting."""
-        # Bold action
-        bold_action = QAction("🅱 Bold", self)
-        bold_action.setShortcut(QKeySequence.StandardKey.Bold)
-        bold_action.triggered.connect(self.toggle_bold)
-        toolbar.addAction(bold_action)
-
-        # Italic action
-        italic_action = QAction("🇮 Italic", self)
-        italic_action.setShortcut(QKeySequence.StandardKey.Italic)
-        italic_action.triggered.connect(self.toggle_italic)
-        toolbar.addAction(italic_action)
-
-        # Underline action
-        underline_action = QAction("🇺 Underline", self)
-        underline_action.setShortcut(QKeySequence.StandardKey.Underline)
-        underline_action.triggered.connect(self.toggle_underline)
-        toolbar.addAction(underline_action)
-
-        toolbar.addSeparator()
 
         # Save action
         save_action = QAction("💾 Save", self)
@@ -166,7 +218,22 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         clear_action.triggered.connect(self.clear_content)
         toolbar.addAction(clear_action)
 
-    def create_status_section(self, layout):
+        toolbar.addSeparator()
+        self.edit_mode_action = QAction("✍ Edit", self)
+        self.edit_mode_action.triggered.connect(lambda: self.set_mode("edit"))
+        toolbar.addAction(self.edit_mode_action)
+
+        self.preview_mode_action = QAction("👁 Preview", self)
+        self.preview_mode_action.triggered.connect(
+            lambda: self.set_mode("preview"))
+        toolbar.addAction(self.preview_mode_action)
+
+        self.split_mode_action = QAction("⇔ Split", self)
+        self.split_mode_action.triggered.connect(
+            lambda: self.set_mode("split"))
+        toolbar.addAction(self.split_mode_action)
+
+    def create_status_section(self, layout: QLayout):
         """Create the status section with statistics."""
         status_frame = QFrame()
         status_frame.setStyleSheet("""
@@ -200,6 +267,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     def setup_connections(self):
         """Set up signal connections and event subscriptions."""
         self.text_edit.textChanged.connect(self.on_content_changed)
+
         # Subscribe to external rename/content change events for this note
         self.subscribe_to_event(
             NoteEvents.NOTE_CONTENT_CHANGED, self.on_note_content_changed_event)
@@ -284,7 +352,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         new_content = event_data.get('new_content')
         if new_content is not None and self.text_edit.toPlainText() != new_content:
             self.text_edit.blockSignals(True)
-            self.text_edit.setPlainText(new_content)
+            self.text_edit.setMarkdown(new_content)
             self.text_edit.blockSignals(False)
             self.update_statistics()
             self.is_modified = False
@@ -297,7 +365,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         base_fg = palette.get('base_fg', '#495057')
         surface_bg = palette.get('surface', '#f8f9fa')
         border_color = palette.get('border', '#e9ecef')
-        
+
         # Find and update the toolbar styling
         for child in self.findChildren(QToolBar):
             child.setStyleSheet(f"""
@@ -330,36 +398,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
                     margin: 4px 2px;
                 }}
             """)
-            break #TODO: not sure why we break here
-
-    def toggle_bold(self):
-        """Toggle bold formatting."""
-        cursor = self.text_edit.textCursor()
-        char_format = cursor.charFormat()
-
-        if char_format.fontWeight() == QFont.Weight.Bold:
-            char_format.setFontWeight(QFont.Weight.Normal)
-        else:
-            char_format.setFontWeight(QFont.Weight.Bold)
-
-        cursor.setCharFormat(char_format)
-        self.text_edit.setTextCursor(cursor)
-
-    def toggle_italic(self):
-        """Toggle italic formatting."""
-        cursor = self.text_edit.textCursor()
-        char_format = cursor.charFormat()
-        char_format.setFontItalic(not char_format.fontItalic())
-        cursor.setCharFormat(char_format)
-        self.text_edit.setTextCursor(cursor)
-
-    def toggle_underline(self):
-        """Toggle underline formatting."""
-        cursor = self.text_edit.textCursor()
-        char_format = cursor.charFormat()
-        char_format.setFontUnderline(not char_format.fontUnderline())
-        cursor.setCharFormat(char_format)
-        self.text_edit.setTextCursor(cursor)
+            break  # TODO: not sure why we break here
 
     def clear_content(self):
         """Clear all content."""
@@ -372,90 +411,3 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     def has_unsaved_changes(self) -> bool:
         """Check if there are unsaved changes."""
         return self.is_modified
-
-
-class NoteTab(EventBusComponentMixin, QWidget):
-    """
-    A tab widget for displaying and editing notes.
-    """
-
-    tab_close_requested = Signal()
-
-    def __init__(self, app_context: AppContext, note: Note, parent=None):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.app_context = app_context
-        self.note = note
-
-        self.setup_ui()
-        self.setup_connections()
-
-    def setup_ui(self):
-        """Set up the user interface."""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        # Create note editor
-        self.note_editor = NoteEditorWidget(self.app_context, self.note)
-        layout.addWidget(self.note_editor)
-
-    def setup_connections(self):
-        """Set up event subscriptions instead of Qt rename signal."""
-        self.subscribe_to_event(
-            UIEvents.TAB_TITLE_CHANGED, self.on_tab_title_changed_event)
-        self.subscribe_to_event(NoteEvents.NOTE_RENAMED,
-                                self.on_note_renamed_event)
-        self.subscribe_to_event(
-            NoteEvents.NOTE_CONTENT_CHANGED, self.on_note_content_changed_event)
-
-    def on_tab_title_changed_event(self, event_data: dict):
-        """Update tab title when UI tab title changed event is emitted for this note."""
-        if event_data.get('tab_type') == 'note' and event_data.get('note_id') == self.note.id:
-            self.refresh_tab_title()
-
-    def on_note_renamed_event(self, event_data: dict):
-        """Fallback in case UI event wasn't published (should be) - ensures title refresh."""
-        if event_data.get('note_id') == self.note.id:
-            self.refresh_tab_title()
-
-    def on_note_content_changed_event(self, event_data: dict):
-        if event_data.get('note_id') == self.note.id:
-            self.refresh_tab_title()
-
-    def refresh_tab_title(self):
-        """Helper to update the tab title via parent tab widget."""
-        parent_container = self.parent()
-        # Climb up if needed
-        while parent_container is not None and not hasattr(parent_container, 'update_tab_title'):
-            parent_container = parent_container.parent()
-        if parent_container:
-            update_fn = getattr(parent_container, 'update_tab_title', None)
-            if callable(update_fn):
-                new_title = self.get_tab_title()
-                try:
-                    update_fn(self, new_title)
-                except Exception:
-                    pass
-
-    def get_tab_title(self) -> str:
-        """Get the title for this tab."""
-        modified_indicator = " *" if self.note_editor.has_unsaved_changes() else ""
-        return f"📝 {self.note.name}{modified_indicator}"
-
-    def can_close(self) -> bool:
-        """Check if the tab can be closed."""
-        if self.note_editor.has_unsaved_changes():
-            # TODO: Show save dialog
-            return True  # For now, allow closing
-        return True
-
-    def save(self) -> bool:
-        """Save the note."""
-        try:
-            self.note_editor.save_content()
-            return True
-        except Exception:
-            return False
-
-    def get_note(self) -> Note:
-        """Get the note associated with this tab."""
-        return self.note
