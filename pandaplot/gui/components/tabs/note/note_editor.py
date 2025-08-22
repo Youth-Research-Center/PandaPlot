@@ -1,20 +1,22 @@
 """
 Note tab widget for displaying and editing notes in the main tab container.
 """
+import logging
 
-from PySide6.QtCore import QTimer, Signal, Qt
+from markdown import markdown
+from PySide6.QtCore import Qt, QTimer, Signal, QMetaMethod
 from PySide6.QtGui import QAction, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QSplitter,  # Added import for QSplitter
+    QStackedWidget,
+    QTextBrowser,  # Added import for QTextBrowser
     QTextEdit,
     QToolBar,
     QVBoxLayout,
     QWidget,
-    QStackedWidget,
-    QTextBrowser,  # Added import for QTextBrowser
-    QSplitter,     # Added import for QSplitter
 )
 
 from pandaplot.commands.project.note.edit_note_command import EditNoteCommand
@@ -22,8 +24,6 @@ from pandaplot.models.events.event_types import NoteEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
-
-from markdown import markdown
 
 
 class NoteEditorWidget(EventBusComponentMixin, QWidget):
@@ -36,12 +36,16 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
     def __init__(self, app_context: AppContext, note: Note, parent=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
+        self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.note = note
         self.is_modified = False
         self.auto_save_timer = QTimer()
         self.auto_save_timer.timeout.connect(self.auto_save)
         self.auto_save_timer.setSingleShot(True)
+
+        # Since we can't check if the preview is connected, track it with a flag
+        self.preview_connected = False
 
         self.setup_ui()
         self.load_note_content()
@@ -178,22 +182,40 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
     def set_mode(self, mode: str):
         """Switch between edit, preview, and split modes."""
+        if mode not in ["edit", "preview", "split"]:
+            self.logger.warning(f"Unknown mode: {mode}")
+            return
+
         if mode == "edit":
             self.text_edit.setParent(self.edit_container)
             # Reset size and ensure it fills the container
             self.edit_layout.addWidget(self.text_edit)
             self.stack.setCurrentIndex(0)
+            self._changePreviewConnection(False)
+
         elif mode == "preview":
             self.preview.setParent(self.preview_container)
             # Reset size and ensure it fills the container
             self.preview_layout.addWidget(self.preview)
             self.update_preview()
             self.stack.setCurrentIndex(1)
+            self._changePreviewConnection(False)
+
         elif mode == "split":
             # Add widgets to splitter
             self.text_edit.setParent(self.splitter)
             self.preview.setParent(self.splitter)
+            self._changePreviewConnection(True)
             self.stack.setCurrentIndex(2)
+
+    def _changePreviewConnection(self, shouldBeConnected: bool):
+        """Change the connection state of the preview."""
+        if shouldBeConnected and not self.preview_connected:
+            self.text_edit.textChanged.connect(self.update_preview)
+            self.preview_connected = True
+        elif not shouldBeConnected and self.preview_connected:
+            self.text_edit.textChanged.disconnect(self.update_preview)
+            self.preview_connected = False
 
     def update_preview(self):
         """Render Markdown into preview panel."""
