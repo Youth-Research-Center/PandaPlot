@@ -37,7 +37,7 @@ class Project:
             if parent is not None and isinstance(parent, ItemCollection):
                 parent.add_item(item)
             else:
-                self.logger.warning(f"Parent not found or not a collection: {parent_id}")
+                self.logger.warning(f"Parent {parent_id} not found or not a collection, item: {item.id} {item.name} ")
                 # If parent not found or not a collection, add to root
                 # TODO: see if we need to handle this case differently, e.g. recursively search for a collection
                 self.root.add_item(item)

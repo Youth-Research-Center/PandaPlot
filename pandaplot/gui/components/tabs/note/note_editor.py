@@ -2,7 +2,7 @@
 Note tab widget for displaying and editing notes in the main tab container.
 """
 
-from PySide6.QtCore import QTimer, Signal
+from PySide6.QtCore import QTimer, Signal, Qt
 from PySide6.QtGui import QAction, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QFrame,
@@ -12,6 +12,9 @@ from PySide6.QtWidgets import (
     QToolBar,
     QVBoxLayout,
     QWidget,
+    QStackedWidget,
+    QTextBrowser,  # Added import for QTextBrowser
+    QSplitter,     # Added import for QSplitter
 )
 
 from pandaplot.commands.project.note.edit_note_command import EditNoteCommand
@@ -19,6 +22,8 @@ from pandaplot.models.events.event_types import NoteEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
+
+from markdown import markdown
 
 
 class NoteEditorWidget(EventBusComponentMixin, QWidget):
@@ -113,25 +118,64 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         self.create_toolbar_actions(toolbar)
         content_layout.addWidget(toolbar)
 
-        # Text editor
-        self.text_edit = QTextEdit()
-        self.text_edit.setStyleSheet("""
-            QTextEdit {
-                border: none;
-                padding: 12px;
-                font-family: 'Segoe UI', Arial, sans-serif;
-                font-size: 14px;
-                line-height: 1.6;
-            }
-        """)
+        # Add mode switching actions
+        toolbar.addSeparator()
+        self.edit_mode_action = QAction("✍ Edit", self)
+        self.edit_mode_action.triggered.connect(lambda: self.set_mode("edit"))
+        toolbar.addAction(self.edit_mode_action)
 
-        # Set a nice font
+        self.preview_mode_action = QAction("👁 Preview", self)
+        self.preview_mode_action.triggered.connect(lambda: self.set_mode("preview"))
+        toolbar.addAction(self.preview_mode_action)
+
+        self.split_mode_action = QAction("⇔ Split", self)
+        self.split_mode_action.triggered.connect(lambda: self.set_mode("split"))
+        toolbar.addAction(self.split_mode_action)
+
+        content_layout.addWidget(toolbar)
+
+        # Editor widget
+        self.text_edit = QTextEdit()
         font = QFont("Segoe UI", 11)
         self.text_edit.setFont(font)
 
-        content_layout.addWidget(self.text_edit)
+        # Preview widget
+        self.preview = QTextBrowser()
+        self.preview.setOpenExternalLinks(True)
 
+        # Splitter for side-by-side
+        self.splitter = QSplitter(orientation=Qt.Orientation.Horizontal)
+        self.splitter.addWidget(self.text_edit)
+        self.splitter.addWidget(self.preview)
+
+        # Stack for edit/preview/split modes
+        self.stack = QStackedWidget()
+        self.stack.addWidget(self.text_edit)   # index 0
+        self.stack.addWidget(self.preview)     # index 1
+        self.stack.addWidget(self.splitter)    # index 2
+
+        content_layout.addWidget(self.stack)
         layout.addWidget(content_frame)
+
+        # Default mode
+        self.set_mode("edit")
+
+    def set_mode(self, mode: str):
+        """Switch between edit, preview, and split modes."""
+        if mode == "edit":
+            self.stack.setCurrentIndex(0)
+        elif mode == "preview":
+            self.update_preview()
+            self.stack.setCurrentIndex(1)
+        elif mode == "split":
+            self.update_preview()
+            self.stack.setCurrentIndex(2)
+
+    def update_preview(self):
+        """Render Markdown into preview panel."""
+        md_text = self.text_edit.toPlainText()
+        html = markdown(md_text, extensions=["tables", "fenced_code"])
+        self.preview.setHtml(html)
 
     def create_toolbar_actions(self, toolbar):
         """Create toolbar actions for text formatting."""
@@ -206,7 +250,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
     def load_note_content(self):
         """Load the note content into the editor."""
-        self.text_edit.setMarkdown(self.note.content)
+        self.text_edit.setPlainText(self.note.content)
         self.update_statistics()
         self.is_modified = False
         self.update_status("Ready")
@@ -221,12 +265,12 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         self.auto_save_timer.start(2000)
 
         # Emit content changed signal
-        content = self.text_edit.toMarkdown()
+        content = self.text_edit.toPlainText()
         self.content_changed.emit(content)
 
     def update_statistics(self):
         """Update word and character count."""
-        content = self.text_edit.toMarkdown()
+        content = self.text_edit.toPlainText()
         word_count = len(content.split()) if content.strip() else 0
         char_count = len(content)
 
@@ -254,7 +298,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     def save_content(self):
         """Save the note content."""
         try:
-            content = self.text_edit.toMarkdown()
+            content = self.text_edit.toPlainText()
 
             # Execute save command
             command = EditNoteCommand(self.app_context, self.note.id, content)

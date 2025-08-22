@@ -46,7 +46,9 @@ class ProjectDataManager:
                 if curr_item is not None:
                     items[item_id] = curr_item
 
-            project_tree = project_dict.get("root", {}).get("items", [])
+            project_root = project_dict.get("root", {})
+            project.root.id = project_root.get("id", project.root.id)
+            project_tree = project_root.get("items", [])
             self._add_items_to_project(project, items, project_tree)
 
         return project
