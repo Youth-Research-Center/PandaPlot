@@ -152,9 +152,9 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
         # Preview mode container - just the preview
         self.preview_container = QWidget()
-        preview_layout = QVBoxLayout(self.preview_container)
-        preview_layout.setContentsMargins(0, 0, 0, 0)
-        preview_layout.addWidget(self.preview)
+        self.preview_layout = QVBoxLayout(self.preview_container)
+        self.preview_layout.setContentsMargins(0, 0, 0, 0)
+        self.preview_layout.addWidget(self.preview)
 
         # Split mode container - splitter with both widgets
         #self.split_container = QWidget()
@@ -180,13 +180,17 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         """Switch between edit, preview, and split modes."""
         if mode == "edit":
             self.text_edit.setParent(self.edit_container)
+            # Reset size and ensure it fills the container
+            self.edit_layout.addWidget(self.text_edit)
             self.stack.setCurrentIndex(0)
         elif mode == "preview":
             self.preview.setParent(self.preview_container)
+            # Reset size and ensure it fills the container
+            self.preview_layout.addWidget(self.preview)
             self.update_preview()
             self.stack.setCurrentIndex(1)
         elif mode == "split":
-            # Sync content from main editor to split editor
+            # Add widgets to splitter
             self.text_edit.setParent(self.splitter)
             self.preview.setParent(self.splitter)
             self.stack.setCurrentIndex(2)
