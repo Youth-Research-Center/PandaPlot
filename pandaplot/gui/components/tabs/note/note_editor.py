@@ -134,24 +134,40 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
         content_layout.addWidget(toolbar)
 
-        # Editor widget
+        # Create main editor and preview widgets
         self.text_edit = QTextEdit()
         font = QFont("Segoe UI", 11)
         self.text_edit.setFont(font)
 
-        # Preview widget
         self.preview = QTextBrowser()
         self.preview.setOpenExternalLinks(True)
 
-        # Splitter for side-by-side
-        self.splitter = QSplitter(orientation=Qt.Orientation.Horizontal)
-        self.splitter.addWidget(self.text_edit)
-        self.splitter.addWidget(self.preview)
+        # Create container widgets for each mode
+        
+        # Edit mode container - just the text editor
+        self.edit_container = QWidget()
+        self.edit_layout = QVBoxLayout(self.edit_container)
+        self.edit_layout.setContentsMargins(0, 0, 0, 0)
+        self.edit_layout.addWidget(self.text_edit)
 
-        # Stack for edit/preview/split modes
+        # Preview mode container - just the preview
+        self.preview_container = QWidget()
+        preview_layout = QVBoxLayout(self.preview_container)
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        preview_layout.addWidget(self.preview)
+
+        # Split mode container - splitter with both widgets
+        #self.split_container = QWidget()
+        #split_layout = QVBoxLayout(self.split_container)
+        #split_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.splitter = QSplitter(orientation=Qt.Orientation.Horizontal)
+        #split_layout.addWidget(self.splitter)
+
+        # Stack for mode switching
         self.stack = QStackedWidget()
-        self.stack.addWidget(self.text_edit)   # index 0
-        self.stack.addWidget(self.preview)     # index 1
+        self.stack.addWidget(self.edit_container)     # index 0
+        self.stack.addWidget(self.preview_container)  # index 1
         self.stack.addWidget(self.splitter)    # index 2
 
         content_layout.addWidget(self.stack)
@@ -163,12 +179,16 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     def set_mode(self, mode: str):
         """Switch between edit, preview, and split modes."""
         if mode == "edit":
+            self.text_edit.setParent(self.edit_container)
             self.stack.setCurrentIndex(0)
         elif mode == "preview":
+            self.preview.setParent(self.preview_container)
             self.update_preview()
             self.stack.setCurrentIndex(1)
         elif mode == "split":
-            self.update_preview()
+            # Sync content from main editor to split editor
+            self.text_edit.setParent(self.splitter)
+            self.preview.setParent(self.splitter)
             self.stack.setCurrentIndex(2)
 
     def update_preview(self):
@@ -176,6 +196,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         md_text = self.text_edit.toPlainText()
         html = markdown(md_text, extensions=["tables", "fenced_code"])
         self.preview.setHtml(html)
+
 
     def create_toolbar_actions(self, toolbar):
         """Create toolbar actions for text formatting."""
@@ -244,6 +265,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     def setup_connections(self):
         """Set up signal connections and event subscriptions."""
         self.text_edit.textChanged.connect(self.on_content_changed)
+        
         # Subscribe to external rename/content change events for this note
         self.subscribe_to_event(
             NoteEvents.NOTE_CONTENT_CHANGED, self.on_note_content_changed_event)
@@ -267,6 +289,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         # Emit content changed signal
         content = self.text_edit.toPlainText()
         self.content_changed.emit(content)
+
 
     def update_statistics(self):
         """Update word and character count."""
@@ -326,7 +349,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         if event_data.get('note_id') != self.note.id:
             return
         new_content = event_data.get('new_content')
-        if new_content is not None and self.text_edit.toMarkdown() != new_content:
+        if new_content is not None and self.text_edit.toPlainText() != new_content:
             self.text_edit.blockSignals(True)
             self.text_edit.setMarkdown(new_content)
             self.text_edit.blockSignals(False)
