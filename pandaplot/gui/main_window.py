@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QScreen
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
 from pandaplot.gui.components.sidebar import CollapsibleSidebar
-from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
+from pandaplot.gui.components.sidebar.project.item_type_handler import ProjectViewPanel
 from pandaplot.gui.components.sidebar.conditional_panel_manager import ConditionalPanelManager
 from pandaplot.gui.components.sidebar.panel_conditions import is_dataset_tab_active, is_dataset_with_analysis_data, should_show_chart_properties, should_show_fit_panel
 from pandaplot.gui.components.sidebar.transform.transform_panel import TransformPanel
