@@ -1,35 +1,23 @@
 import logging
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QGroupBox,
     QLabel,
     QLayout,
-    QMenu,
-    QMessageBox,
     QTreeWidget,
-    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
-from pandaplot.commands.project.dataset.add_row_command import AddRowCommand
-from pandaplot.commands.project.dataset.create_empty_dataset_command import (
-    CreateEmptyDatasetCommand,
-)
-from pandaplot.commands.project.dataset.import_csv_command import ImportCsvCommand
-from pandaplot.commands.project.folder.create_folder_command import CreateFolderCommand
-from pandaplot.commands.project.item.delete_item_command import DeleteItemCommand
 from pandaplot.commands.project.item.rename_item_command import RenameItemCommand
-from pandaplot.commands.project.note.create_note_command import CreateNoteCommand
 from pandaplot.gui.components.sidebar.project.item_name_delegate import ItemNameDelegate
+from pandaplot.gui.components.sidebar.project.project_command_manager import ProjectPanelCommandManager
+from pandaplot.gui.components.sidebar.project.project_context_manager import ProjectViewPanelContextManager
 from pandaplot.gui.components.sidebar.project.project_tree import ProjectTreeWidget
-from pandaplot.models.project.visitors import ProjectTreeBuilder
+from pandaplot.gui.components.sidebar.project.project_tree_manager import ProjectTreeManager
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
 
 
 class ProjectViewPanel(QWidget):
@@ -38,18 +26,19 @@ class ProjectViewPanel(QWidget):
     This follows the MVC pattern by listening to events from the app state.
     """
 
-    # Signals emitted when items should be opened in tabs (legacy note_open_requested removed; use event bus ui.note.open_requested)
-    # TODO: signals to be migrated to event bus
-    dataset_open_requested = Signal(str, str)  # dataset_id, dataset_name
-    chart_open_requested = Signal(str, str)  # chart_id, chart_name
-    chart_create_requested = Signal(str, str)  # dataset_id, chart_name
-    plot_tab_requested = Signal()  # Request to open a new plot tab
-
     def __init__(self, app_context: AppContext, parent=None, **kwargs):
         super().__init__(parent)
         self.app_context = app_context
         self.app_state = app_context.get_app_state()
         self.logger = logging.getLogger(__name__)
+        self.command_manager = ProjectPanelCommandManager(app_context,
+                                                          lambda: self.project_tree_manager.get_target_folder_id(),
+                                                          lambda: self.tree.currentItem(),
+                                                          lambda: self.project_tree_manager.get_selected_item_info(),
+                                                          lambda item: self.tree.editItem(
+                                                              item)
+                                                          )
+
         self.setStyleSheet("background-color: #ffffff; color: black;")
 
         # Main layout
@@ -63,16 +52,7 @@ class ProjectViewPanel(QWidget):
         layout.addWidget(self.project_label)
 
         self.create_treeview(layout)
-
-        # Subscribe to app state events if app_state is provided
-        if self.app_state:
-            self.subscribe_to_events()
-
-    def set_app_state(self, app_state: AppState):
-        """Set the app state and subscribe to events."""
-        self.app_state = app_state
         self.subscribe_to_events()
-        self.update_project_display()
 
     def subscribe_to_events(self):
         """Subscribe to relevant app state events."""
@@ -183,8 +163,10 @@ class ProjectViewPanel(QWidget):
 
         # Enable context menu and interactions
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.tree.customContextMenuRequested.connect(self.show_context_menu)
-        self.tree.itemDoubleClicked.connect(self.on_item_double_clicked)
+        self.tree.customContextMenuRequested.connect(
+            lambda pos: self.context_menu.show_context_menu(pos))
+        self.tree.itemDoubleClicked.connect(
+            self.command_manager.on_item_double_clicked)
 
         # Enable inline editing for item names
         self.tree.setEditTriggers(
@@ -204,19 +186,14 @@ class ProjectViewPanel(QWidget):
 
         layout.addWidget(self.tree)
 
+        self.project_tree_manager = ProjectTreeManager(
+            self.app_context, self.tree, self.on_item_name_changed)
+
         # Initially show placeholder content
-        self.show_no_project_content()
+        self.project_tree_manager.show_no_project_content()
 
         # Create context menu
         self.create_context_menu()
-
-    def show_no_project_content(self):
-        """Show placeholder content when no project is loaded."""
-        self.tree.clear()
-        placeholder_item = QTreeWidgetItem(["No project loaded"])
-        placeholder_item.setToolTip(
-            0, "Load a project to see its structure here")
-        self.tree.addTopLevelItem(placeholder_item)
 
     def on_project_loaded(self, event_data):
         """Handle project loaded event."""
@@ -233,7 +210,7 @@ class ProjectViewPanel(QWidget):
             self.project_file_label.setText("Unsaved project")
 
         # Update tree view with project contents
-        self.update_project_tree(project)
+        self.project_tree_manager.update_project_tree(project)
 
     def on_project_closed(self, event_data):
         """Handle project closed event."""
@@ -242,231 +219,19 @@ class ProjectViewPanel(QWidget):
         # Reset to no project state
         self.project_title_label.setText("No project loaded")
         self.project_file_label.setText("File label will appear here")
-        self.show_no_project_content()
+        self.project_tree_manager.show_no_project_content()
 
     def on_item_changed(self, event_data):
         """Handle item creation/modification/deletion events by refreshing the tree."""
         if self.app_state.has_project:
             project = self.app_state.current_project
             if project:
-                self.update_project_tree(project)
-
-    def update_project_tree(self, project):
-        """Update the tree view with project contents using hierarchical metadata structure."""
-        # Save expanded state of folders before rebuilding
-        expanded_folders = self._get_expanded_folders()
-
-        # Temporarily disconnect itemChanged signal to prevent spurious rename commands
-        self.tree.itemChanged.disconnect(self.on_item_name_changed)
-
-        try:
-            self.tree.clear()
-
-            # Project root item
-            root_item = QTreeWidgetItem([f"📁 {project.name}"])
-            root_item.setToolTip(0, f"Project: {project.description}")
-            root_item.setData(0, Qt.ItemDataRole.UserRole, {
-                              'type': 'project', 'id': 'root'})
-
-            # Make project root non-editable
-            root_item.setFlags(root_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-
-            self.tree.addTopLevelItem(root_item)
-
-            self._build_tree_from_project(project, root_item)
-        finally:
-            # Reconnect the itemChanged signal
-            self.tree.itemChanged.connect(self.on_item_name_changed)
-
-        # Expand the root item
-        root_item.setExpanded(True)
-
-        # Restore expanded state of folders
-        self._restore_expanded_folders(expanded_folders)
-
-    def _build_tree_from_project(self, project, root_item):
-        """Build tree structure from project using visitor pattern."""
-        # Create a factory for QTreeWidgetItem creation
-        def create_tree_item(display_text: str, item_type: str, item_data: dict) -> QTreeWidgetItem:
-            """Factory function to create QTreeWidgetItem instances."""
-            tree_item = QTreeWidgetItem([display_text])
-            tree_item.setData(0, Qt.ItemDataRole.UserRole, item_data)
-
-            # Set item flags based on type
-            if item_type == 'project':
-                # Project root is not editable
-                tree_item.setFlags(tree_item.flags() & ~
-                                   Qt.ItemFlag.ItemIsEditable)
-            else:
-                # Other items are editable
-                tree_item.setFlags(tree_item.flags() |
-                                   Qt.ItemFlag.ItemIsEditable)
-
-            return tree_item
-
-        # Create the visitor with our tree item factory
-        tree_builder = ProjectTreeBuilder(create_tree_item)
-
-        # Use the visitor to build the tree structure
-        # We pass root_item as the parent context so items are added to it
-        for item in project.root.get_items():
-            tree_item = tree_builder.visit(item, root_item)
-            root_item.addChild(tree_item)
-
-    def _get_expanded_folders(self):
-        """Get a set of IDs for currently expanded folders."""
-        expanded = set()
-
-        def check_item(item):
-            if item.isExpanded():
-                item_data = item.data(0, Qt.ItemDataRole.UserRole)
-                if item_data and item_data.get('type') in ['project', 'folder']:
-                    expanded.add(item_data.get('id', ''))
-
-            # Check children
-            for i in range(item.childCount()):
-                check_item(item.child(i))
-
-        # Start from root items
-        for i in range(self.tree.topLevelItemCount()):
-            check_item(self.tree.topLevelItem(i))
-
-        return expanded
-
-    def _restore_expanded_folders(self, expanded_folders):
-        """Restore the expanded state of folders."""
-        def expand_item(item):
-            item_data = item.data(0, Qt.ItemDataRole.UserRole)
-            if item_data and item_data.get('id') in expanded_folders:
-                item.setExpanded(True)
-
-            # Check children
-            for i in range(item.childCount()):
-                expand_item(item.child(i))
-
-        # Start from root items
-        for i in range(self.tree.topLevelItemCount()):
-            expand_item(self.tree.topLevelItem(i))
+                self.project_tree_manager.update_project_tree(project)
 
     def create_context_menu(self):
         """Create the right-click context menu."""
-        self.context_menu = QMenu(self)
-        self.context_menu.setStyleSheet("""
-            QMenu {
-                background-color: #ffffff;
-                color: black;
-                border: 1px solid #cccccc;
-            }
-            QMenu::item:selected {
-                background-color: #0078d4;
-                color: white;
-            }
-            QMenu::item:hover {
-                background-color: #e5f3ff;
-                color: black;
-            }
-        """)
-        # Open action
-        self.open_action = QAction("Open", self)
-        self.open_action.triggered.connect(self.open_selected_item)
-        self.context_menu.addAction(self.open_action)
-
-        self.context_menu.addSeparator()
-
-        # Rename action
-        self.rename_action = QAction("Rename", self)
-        self.rename_action.triggered.connect(self.rename_selected_item)
-        self.context_menu.addAction(self.rename_action)
-
-        self.context_menu.addSeparator()
-
-        # Add actions
-        self.add_folder_action = QAction("Add Folder", self)
-        self.add_folder_action.triggered.connect(self.add_folder)
-        self.context_menu.addAction(self.add_folder_action)
-
-        self.add_note_action = QAction("Add Note", self)
-        self.add_note_action.triggered.connect(self.add_note)
-        self.context_menu.addAction(self.add_note_action)
-
-        self.import_csv_action = QAction("Import CSV...", self)
-        self.import_csv_action.triggered.connect(self.import_csv)
-        self.context_menu.addAction(self.import_csv_action)
-
-        self.create_empty_dataset_action = QAction(
-            "Create Empty Dataset", self)
-        self.create_empty_dataset_action.triggered.connect(
-            self.create_empty_dataset)
-        self.context_menu.addAction(self.create_empty_dataset_action)
-
-        # Chart creation action (for datasets)
-        self.create_chart_action = QAction("Create Chart", self)
-        self.create_chart_action.triggered.connect(
-            self.create_chart_from_dataset)
-        self.context_menu.addAction(self.create_chart_action)
-
-        self.context_menu.addSeparator()
-
-        # Dataset manipulation actions (for datasets)
-        self.add_column_action = QAction("Add Column", self)
-        self.add_column_action.triggered.connect(self.add_column_to_dataset)
-        self.context_menu.addAction(self.add_column_action)
-
-        self.add_row_action = QAction("Add Row", self)
-        self.add_row_action.triggered.connect(self.add_row_to_dataset)
-        self.context_menu.addAction(self.add_row_action)
-
-        self.context_menu.addSeparator()
-
-        # Delete action
-        self.delete_action = QAction("Delete", self)
-        self.delete_action.triggered.connect(self.delete_selected_item)
-        self.context_menu.addAction(self.delete_action)
-
-    def show_context_menu(self, position):
-        """Show context menu at the given position."""
-        if not self.app_state.has_project:
-            return
-
-        item = self.tree.itemAt(position)
-        if item:
-            # Enable/disable actions based on item type
-            item_data = item.data(0, Qt.ItemDataRole.UserRole)
-            if item_data:
-                item_type = item_data.get('type', '')
-
-                # Disable rename and delete for project root
-                can_rename = item_type != 'project'
-                can_delete = item_type != 'project'
-
-                # Show chart creation only for datasets
-                self.create_chart_action.setVisible(item_type == 'dataset')
-
-                # Show dataset manipulation actions only for datasets
-                self.add_column_action.setVisible(item_type == 'dataset')
-                self.add_row_action.setVisible(item_type == 'dataset')
-
-                self.rename_action.setEnabled(can_rename)
-                self.delete_action.setEnabled(can_delete)
-
-            self.context_menu.exec(self.tree.mapToGlobal(position))
-
-    def on_item_double_clicked(self, item, column):
-        """Handle double-click on tree item."""
-        item_data = item.data(0, Qt.ItemDataRole.UserRole)
-        if item_data:
-            item_type = item_data.get('type', '')
-
-            # For folders, toggle expansion
-            if item_type == 'folder':
-                item.setExpanded(not item.isExpanded())
-            # For other items that can be opened, don't start editing
-            elif item_type in ['note', 'dataset', 'chart']:
-                self.open_selected_item()
-                return
-
-        # For project root or items without actions, do nothing
-        # Inline editing is triggered by single click when item is selected
+        self.context_menu = ProjectViewPanelContextManager(
+            self, self.app_context,  self.command_manager, self.tree.itemAt, self.tree.mapToGlobal)
 
     def on_item_name_changed(self, item, column):
         """Handle when an item name is changed through inline editing."""
@@ -530,172 +295,6 @@ class ProjectViewPanel(QWidget):
             prefix = '📁 ' if item_type == 'folder' else '📝 ' if item_type == 'note' else '📊 ' if item_type == 'dataset' else '📈 '
             item.setText(0, f"{prefix}{current_name}")
 
-    def open_selected_item(self):
-        """Open the selected item."""
-        current_item = self.tree.currentItem()
-        if not current_item:
-            return
-
-        item_data = current_item.data(0, Qt.ItemDataRole.UserRole)
-        if not item_data:
-            return
-
-        item_type = item_data.get('type', '')
-        item_id = item_data.get('id', '')
-
-        # Handle different item types
-        if item_type == 'folder':
-            # Toggle folder expansion
-            current_item.setExpanded(not current_item.isExpanded())
-        elif item_type == 'note':
-            # Publish event bus request to open note (event bus only)
-            note_obj = item_data.get('data')
-            note_name = note_obj.name if note_obj else 'Unnamed Note'
-            if self.app_state:
-                self.app_state.event_bus.emit('ui.note.open_requested', {
-                    'note_id': item_id,
-                    'note_name': note_name
-                })
-        elif item_type == 'dataset':
-            # Open dataset in a tab (could show data table view)
-            dataset_obj = item_data.get('data')
-            dataset_name = dataset_obj.name if dataset_obj else 'Unnamed Dataset'
-            self.dataset_open_requested.emit(item_id, dataset_name)
-        elif item_type == 'chart':
-            # Open chart in a tab (could show chart configuration/preview)
-            chart_obj = item_data.get('data')
-            chart_name = chart_obj.name if chart_obj else 'Unnamed Chart'
-            self.chart_open_requested.emit(item_id, chart_name)
-
-    def get_selected_item_info(self):
-        """Get information about the currently selected item."""
-        current_item = self.tree.currentItem()
-        if not current_item:
-            return None
-
-        item_data = current_item.data(0, Qt.ItemDataRole.UserRole)
-        if not item_data:
-            return None
-
-        return {
-            'item': current_item,
-            'type': item_data.get('type', ''),
-            'id': item_data.get('id', ''),
-            'data': item_data.get('data')
-        }
-
-    def get_target_folder_id(self):
-        """Get the folder ID where new items should be created."""
-        selected_info = self.get_selected_item_info()
-        if not selected_info:
-            return None
-
-        if selected_info['type'] == 'folder':
-            return selected_info['id']
-        elif selected_info['type'] == 'project':
-            return None  # Root level
-        else:
-            # For non-folder items, get their parent folder
-            item_obj = selected_info['data']
-            return item_obj.parent_id if item_obj else None
-
-    def add_folder(self):
-        """Add a new folder."""
-        if not self.app_state.has_project:
-            return
-
-        folder_id = self.get_target_folder_id()
-
-        command = CreateFolderCommand(self.app_context, parent_id=folder_id)
-        self.app_context.get_command_executor().execute_command(command)
-
-    def add_note(self):
-        """Add a new note."""
-        if not self.app_state.has_project:
-            return
-
-        folder_id = self.get_target_folder_id()
-
-        command = CreateNoteCommand(self.app_context, folder_id=folder_id)
-        self.app_context.get_command_executor().execute_command(command)
-
-    def import_csv(self):
-        """Import a CSV file as a dataset."""
-        if not self.app_state.has_project:
-            return
-
-        folder_id = self.get_target_folder_id()
-
-        command = ImportCsvCommand(self.app_context, folder_id=folder_id)
-        self.app_context.get_command_executor().execute_command(command)
-
-    def create_empty_dataset(self):
-        """Create a new empty dataset."""
-        if not self.app_state.has_project:
-            return
-
-        folder_id = self.get_target_folder_id()
-
-        command = CreateEmptyDatasetCommand(
-            self.app_context, folder_id=folder_id)
-        self.app_context.get_command_executor().execute_command(command)
-
-    def create_chart_from_dataset(self):
-        """Create a chart from the selected dataset."""
-        selected_item = self.tree.currentItem()
-        if not selected_item:
-            return
-
-        # Get dataset information
-        item_data = selected_item.data(0, Qt.ItemDataRole.UserRole)
-        if not item_data or item_data.get('type') != 'dataset':
-            return
-
-        dataset_id = item_data.get('id')
-        dataset_obj = item_data.get('data')
-        dataset_name = dataset_obj.name if dataset_obj else 'Dataset'
-
-        if dataset_id:
-            # Signal to create a new chart tab with this dataset
-            self.chart_create_requested.emit(
-                dataset_id, f"Chart from {dataset_name}")
-            self.logger.debug(
-                f"Requesting chart creation for dataset '{dataset_id}'")
-
-    def rename_selected_item(self):
-        """Rename the selected item by starting inline editing."""
-        selected_info = self.get_selected_item_info()
-        if not selected_info or selected_info['type'] == 'project':
-            return
-
-        # Start inline editing on the current item
-        current_item = selected_info['item']
-        if current_item:
-            # Start editing the first column
-            self.tree.editItem(current_item, 0)
-
-    def delete_selected_item(self):
-        """Delete the selected item."""
-        selected_info = self.get_selected_item_info()
-        if not selected_info or selected_info['type'] == 'project':
-            return
-
-        item_id = selected_info['id']
-        item_obj = selected_info['data']
-        item_name = item_obj.name if item_obj else 'Unnamed Item'
-
-        reply = QMessageBox.question(
-            self,
-            "Confirm Delete",
-            f"Are you sure you want to delete '{item_name}' and all its contents?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No
-        )
-
-        if reply == QMessageBox.StandardButton.Yes:
-            command = DeleteItemCommand(self.app_context, item_id)
-            self.app_context.get_command_executor().execute_command(command)
-
     def update_project_display(self):
         """Update the display based on current app state."""
         if self.app_state and self.app_state.has_project:
@@ -709,41 +308,8 @@ class ProjectViewPanel(QWidget):
                 else:
                     self.project_file_label.setText("Unsaved project")
 
-                self.update_project_tree(project)
+                self.project_tree_manager.update_project_tree(project)
         else:
             self.project_title_label.setText("No project loaded")
             self.project_file_label.setText("File label will appear here")
-            self.show_no_project_content()
-
-    def add_column_to_dataset(self):
-        """Add a new column to the selected dataset."""
-        selected_info = self.get_selected_item_info()
-        if not selected_info or selected_info['type'] != 'dataset':
-            return
-
-        dataset_id = selected_info['id']
-
-        command = AddColumnCommand(self.app_context, dataset_id)
-        success = self.app_context.get_command_executor().execute_command(command)
-
-        if success:
-            self.logger.info(f"Added column to dataset {dataset_id}")
-        else:
-            self.logger.warning(
-                f"Failed to add column to dataset {dataset_id}")
-
-    def add_row_to_dataset(self):
-        """Add a new row to the selected dataset."""
-        selected_info = self.get_selected_item_info()
-        if not selected_info or selected_info['type'] != 'dataset':
-            return
-
-        dataset_id = selected_info['id']
-
-        command = AddRowCommand(self.app_context, dataset_id)
-        success = self.app_context.get_command_executor().execute_command(command)
-
-        if success:
-            self.logger.info(f"Added row to dataset {dataset_id}")
-        else:
-            self.logger.warning(f"Failed to add row to dataset {dataset_id}")
+            self.project_tree_manager.show_no_project_content()
