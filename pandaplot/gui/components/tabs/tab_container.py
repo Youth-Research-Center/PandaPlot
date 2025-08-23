@@ -2,10 +2,12 @@ import logging
 
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
+from pandaplot.commands.project.chart.create_chart_command import CreateChartCommand
 from pandaplot.gui.components.tabs.chart.chart_tab import ChartTab
 from pandaplot.gui.components.tabs.note.note_tab import NoteTab
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
+from pandaplot.gui.components.tabs.dataset_tab import DatasetTab
 from pandaplot.models.events.event_types import (
     AnalysisEvents,
     ChartEvents,
@@ -15,6 +17,7 @@ from pandaplot.models.events.event_types import (
 )
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
 
@@ -26,15 +29,13 @@ class TabContainer(EventBusComponentMixin, QWidget):
     Supports drag-and-drop reordering and tab closing.
     """
 
-    def __init__(self, app_context: AppContext, parent=None):
+    def __init__(self, app_context: AppContext, parent: QWidget):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.logger = logging.getLogger(__name__)
 
         self.app_context = app_context
         # TODO: we shouldn't know about these tab types here
-        self.note_tabs = {}  # Track note tabs by note_id
-        self.chart_tabs = {}  # Track chart tabs by chart_id
-        self.dataset_tabs = {}  # Track dataset tabs by dataset_id
+        self.tabs = {}
 
         self.setup_ui()
         self.create_default_tabs()
@@ -85,34 +86,13 @@ class TabContainer(EventBusComponentMixin, QWidget):
             # Get the widget before removing the tab
             widget = self.tab_widget.widget(index)
 
-            # If it's a note tab, clean up the note_tabs dictionary
-            if isinstance(widget, NoteTab):
-                note_id_to_remove = None
-                for note_id, note_tab in self.note_tabs.items():
-                    if note_tab is widget:
-                        note_id_to_remove = note_id
-                        break
-                if note_id_to_remove:
-                    del self.note_tabs[note_id_to_remove]
-
-            # If it's a chart tab, clean up the chart_tabs dictionary
-            elif isinstance(widget, ChartTab):
-                chart_id_to_remove = None
-                for chart_id, chart_tab in self.chart_tabs.items():
-                    if chart_tab is widget:
-                        chart_id_to_remove = chart_id
-                        break
-                if chart_id_to_remove:
-                    del self.chart_tabs[chart_id_to_remove]
-
-            # Clean up dataset_tabs (for QWidget-based dataset tabs)
-            dataset_id_to_remove = None
-            for dataset_id, dataset_tab in self.dataset_tabs.items():
-                if dataset_tab is widget:
-                    dataset_id_to_remove = dataset_id
+            item_id_to_remove = None
+            for curr_item_id, curr_tab in self.tabs.items():
+                if curr_tab is widget:
+                    item_id_to_remove = curr_item_id
                     break
-            if dataset_id_to_remove:
-                del self.dataset_tabs[dataset_id_to_remove]
+            if item_id_to_remove:
+                del self.tabs[item_id_to_remove]
 
             # Remove the tab
             self.tab_widget.removeTab(index)
@@ -241,22 +221,15 @@ class TabContainer(EventBusComponentMixin, QWidget):
         """
         self.tab_widget.setTabVisible(index, visible)
 
-    def open_note_tab(self, note_id: str, note_name: str):
-        """
-        Open a note in a new tab or switch to existing tab.
-
-        Args:
-            note_id (str): The ID of the note to open
-            note_name (str): The name of the note
-        """
+    def open_tab(self, item_id):
         if not self.app_context:
-            self.logger.warning("Cannot open note tab: No app context provided")
+            self.logger.warning("Cannot open tab: No app context provided")
             return
-
-        # Check if note tab is already open
-        if note_id in self.note_tabs:
+        
+         # Check if note tab is already open
+        if item_id in self.tabs:
             # Switch to existing tab
-            existing_tab = self.note_tabs[note_id]
+            existing_tab = self.tabs[item_id]
             try:
                 tab_index = self.tab_widget.indexOf(existing_tab)
                 if tab_index >= 0:
@@ -264,10 +237,10 @@ class TabContainer(EventBusComponentMixin, QWidget):
                     return
                 else:
                     # Tab no longer exists, remove from tracking
-                    del self.note_tabs[note_id]
+                    del self.tabs[item_id]
             except RuntimeError:
                 # Qt object has been deleted, remove from tracking
-                del self.note_tabs[note_id]
+                del self.tabs[item_id]
 
         # Get note data from project
         if not self.app_context.get_app_state().has_project:
@@ -276,31 +249,44 @@ class TabContainer(EventBusComponentMixin, QWidget):
 
         project = self.app_context.get_app_state().current_project
         if not project:
-            self.logger.warning("Cannot open note: No project loaded")
+            self.logger.warning("Cannot open item: No project loaded")
             return
 
         # Find the note item in the project hierarchy
-        note_item = project.find_item(note_id)
-        if not note_item:
-            self.logger.warning("Cannot open note: Note %s not found", note_id)
+        item = project.find_item(item_id)
+        if item is None:
+            self.logger.warning("Cannot open item: Item %s not found", item_id)
             return
 
-        # Verify it's actually a Note object
-        if not isinstance(note_item, Note):
-            self.logger.warning("Cannot open note: Item %s is not a note", note_id)
-            return
 
-        # Create note tab (event bus will drive title updates)
-        note_tab = NoteTab(self.app_context, note_item)
+        try:
+            new_tab = self._create_tab(item)
 
-        # Add tab
-        tab_index = self.add_closable_tab(note_tab, note_tab.get_tab_title())
+            # Add tab
+            tab_index = self.add_closable_tab(new_tab, new_tab.get_tab_title())
 
-        # Track the tab
-        self.note_tabs[note_id] = note_tab
+            # Track the tab
+            self.tabs[item_id] = new_tab
 
-        # Switch to the new tab
-        self.tab_widget.setCurrentIndex(tab_index)
+            # Switch to the new tab
+            self.tab_widget.setCurrentIndex(tab_index)
+        except Exception as e:
+            self.logger.error("Failed to open tab for item %s: %s", item_id, str(e))
+
+
+    def _create_tab(self, item):
+        if item is None:
+            raise ValueError("Item cannot be None")
+        
+        if isinstance(item, Note):
+            return NoteTab(self.app_context, item)
+        elif isinstance(item, Chart):
+            return ChartTab(self.app_context, item)
+        elif isinstance(item, Dataset):
+            return DatasetTab(self.app_context, item)
+        else:
+            raise ValueError("Unsupported item type")
+
 
     def update_tab_title(self, tab_widget, new_title: str):
         """Update the title of a specific tab."""
@@ -308,14 +294,14 @@ class TabContainer(EventBusComponentMixin, QWidget):
         if tab_index >= 0:
             self.tab_widget.setTabText(tab_index, new_title)
 
-    def close_note_tab(self, note_id: str):
-        """Close a specific note tab."""
-        if note_id in self.note_tabs:
-            note_tab = self.note_tabs[note_id]
-            tab_index = self.tab_widget.indexOf(note_tab)
+    def close_item_tab(self, item_id: str):
+        """Close a specific item tab."""
+        if item_id in self.tabs:
+            item_tab = self.tabs[item_id]
+            tab_index = self.tab_widget.indexOf(item_tab)
             if tab_index >= 0:
                 self.close_tab(tab_index)
-            del self.note_tabs[note_id]
+            del self.tabs[item_id]
 
     def handle_new_project(self):
         """Handle new project request from welcome tab."""
@@ -394,114 +380,6 @@ class TabContainer(EventBusComponentMixin, QWidget):
         self.set_current_tab(index)
         return plot_tab
 
-    def open_dataset_tab(self, dataset_id: str, dataset_name: str):
-        """Open a dataset in a new tab or switch to existing tab."""
-        # Check if dataset tab is already open
-        if dataset_id in self.dataset_tabs:
-            # Switch to existing tab
-            existing_tab = self.dataset_tabs[dataset_id]
-            try:
-                tab_index = self.tab_widget.indexOf(existing_tab)
-                if tab_index >= 0:
-                    self.tab_widget.setCurrentIndex(tab_index)
-                    return existing_tab
-                else:
-                    # Tab no longer exists, remove from tracking
-                    del self.dataset_tabs[dataset_id]
-            except RuntimeError:
-                # Qt object has been deleted, remove from tracking
-                del self.dataset_tabs[dataset_id]
-
-        # Get dataset from project
-        if not self.app_context or not self.app_context.get_app_state().has_project:
-            self.logger.warning("Cannot open dataset: No project loaded")
-            return
-
-        project = self.app_context.get_app_state().current_project
-        if not project:
-            self.logger.warning("Cannot open dataset: No project loaded")
-            return
-
-        # Find the dataset item in the project hierarchy
-        dataset_item = project.find_item(dataset_id)
-        if not dataset_item:
-            self.logger.warning("Cannot open dataset: Dataset %s not found", dataset_id)
-            return
-
-        # Verify it's actually a Dataset object
-        from pandaplot.models.project.items.dataset import Dataset
-        if not isinstance(dataset_item, Dataset):
-            self.logger.warning("Cannot open dataset: Item %s is not a dataset", dataset_id)
-            return
-
-        # Create dataset tab using our new DatasetTab
-        from pandaplot.gui.components.tabs.dataset_tab import DatasetTab
-        dataset_tab = DatasetTab(self.app_context, dataset_item)
-
-        # Track the dataset tab
-        self.dataset_tabs[dataset_id] = dataset_tab
-
-        # Add tab
-        index = self.add_closable_tab(dataset_tab, f"📊 {dataset_item.name}")
-        self.set_current_tab(index)
-        return dataset_tab
-
-    def open_chart_tab(self, chart_id: str):
-        if not self.app_context:
-            self.logger.warning("Cannot open chart tab: No app context provided")
-            return
-
-        # Check if chart tab is already open
-        if chart_id in self.chart_tabs:
-            # Switch to existing tab
-            existing_tab = self.chart_tabs[chart_id]
-            try:
-                tab_index = self.tab_widget.indexOf(existing_tab)
-                if tab_index >= 0:
-                    self.tab_widget.setCurrentIndex(tab_index)
-                    return existing_tab
-                else:
-                    # Tab no longer exists, remove from tracking
-                    del self.chart_tabs[chart_id]
-            except RuntimeError:
-                # Qt object has been deleted, remove from tracking
-                del self.chart_tabs[chart_id]
-
-        # Get chart data from project
-        if not self.app_context.get_app_state().has_project:
-            self.logger.warning("Cannot open chart: No project loaded")
-            return
-
-        project = self.app_context.get_app_state().current_project
-        if not project:
-            self.logger.warning("Cannot open chart: No project found")
-            return
-
-        chart_item = project.find_item(chart_id)
-        if not chart_item or not isinstance(chart_item, Chart):
-            self.logger.warning("Cannot open chart: Chart %s not found", chart_id)
-            return
-
-        # Create chart tab
-        chart_tab = ChartTab(self.app_context, chart_item)
-
-        # Track the chart tab
-        self.chart_tabs[chart_id] = chart_tab
-
-        # Add tab
-        tab_index = self.add_closable_tab(chart_tab, chart_tab.get_tab_title())
-
-        # Switch to the new tab
-        self.set_current_tab(tab_index)
-        return chart_tab
-
-    def on_chart_created(self, event_data: dict[str, str]):
-        """Open a chart in a new tab or switch to existing tab."""
-        chart_id: str = event_data.get('chart_id', "")
-
-        # Open or create the chart tab
-        self.open_chart_tab(chart_id)
-
     def create_chart_from_dataset(self, dataset_id: str, chart_name: str):
         """Create a new chart from a dataset and open it in a tab."""
         # TODO: remove, needs update on dataset tab
@@ -525,10 +403,6 @@ class TabContainer(EventBusComponentMixin, QWidget):
             self.logger.warning("Cannot create chart: Dataset %s not found", dataset_id)
             return
 
-        # Use CreateChartCommand to properly add chart to project hierarchy
-        from pandaplot.commands.project.chart.create_chart_command import (
-            CreateChartCommand,
-        )
         command = CreateChartCommand(self.app_context, dataset_id, chart_name, dataset_item.parent_id)
         self.app_context.get_command_executor().execute_command(command)
 
@@ -536,10 +410,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
 
         if chart_id:
             # TODO: this should be handled on tab container level by listening on new item creation
-            return self.on_chart_created(event_data={
-                'chart_id': chart_id,
-                'chart_name': chart_name
-            })
+            return self.open_tab(chart_id)
 
     def on_project_loaded(self):
         """Called when a project is loaded - welcome tab stays open."""
@@ -550,8 +421,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
     def on_project_closed(self):
         """Called when a project is closed - clean up tracking dictionaries and show welcome tab if no tabs are open."""
         # Clear tracking dictionaries since project is closed
-        self.note_tabs.clear()
-        self.chart_tabs.clear()
+        self.tabs.clear()
 
         if self.tab_widget.count() == 0:
             self.create_welcome_tab()
@@ -574,12 +444,12 @@ class TabContainer(EventBusComponentMixin, QWidget):
             # Subscribe to dataset events
             (DatasetEvents.DATASET_DATA_CHANGED, self.on_dataset_updated),
             (AnalysisEvents.ANALYSIS_COMPLETED, self.on_analysis_completed),
-            (ChartEvents.CHART_CREATED, self.on_chart_created),
-            ('ui.chart.open_requested', lambda event_data: self.open_chart_tab(event_data.get('chart_id'))),
-            ('ui.note.open_requested', lambda event_data: self.open_note_tab(
-                event_data.get('note_id'), event_data.get('note_name'))),
-            ('ui.dataset.open_requested', lambda event_data: self.open_dataset_tab(
-                event_data.get('dataset_id'), event_data.get('dataset_name')))
+            (ChartEvents.CHART_CREATED, lambda event_data: self.open_tab(event_data.get('chart_id'))),
+            ('ui.chart.open_requested', lambda event_data: self.open_tab(event_data.get('chart_id'))),
+            ('ui.note.open_requested', lambda event_data: self.open_tab(
+                event_data.get('note_id'))),
+            ('ui.dataset.open_requested', lambda event_data: self.open_tab(
+                event_data.get('dataset_id')))
         ])
 
     def on_tab_changed(self, index: int):
@@ -628,7 +498,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
         """Handle dataset update events."""
         dataset_id = event_data.get('dataset_id')
         # Find and refresh the relevant dataset tab
-        for tab_id, tab_widget in self.dataset_tabs.items():
+        for tab_id, tab_widget in self.tabs.items():
             if hasattr(tab_widget, 'dataset') and tab_widget.dataset.id == dataset_id:
                 if hasattr(tab_widget, 'load_dataset_data'):
                     tab_widget.load_dataset_data()  # Refresh without signal coupling
@@ -637,7 +507,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
         """Handle analysis completion events."""
         dataset_id = event_data.get('dataset_id')
         # Find and refresh the relevant dataset tab
-        for tab_id, tab_widget in self.dataset_tabs.items():
+        for tab_id, tab_widget in self.tabs.items():
             if hasattr(tab_widget, 'dataset') and tab_widget.dataset.id == dataset_id:
                 if hasattr(tab_widget, 'load_dataset_data'):
                     tab_widget.load_dataset_data()  # Refresh to show new analysis column
