@@ -317,37 +317,6 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         # React to theme changes if window-specific adjustments are ever needed
         self.app_context.event_bus.subscribe('theme.changed', lambda _: self.logger.debug(
             "Theme changed event received in main window"))
-        # note open subscription is registered in __init__
-
-        # Subscribe to new event-based note open requests
-        self.app_context.event_bus.subscribe(
-            'ui.note.open_requested', self.on_note_open_requested)
-
-        self.app_context.event_bus.subscribe(
-            'ui.dataset.open_requested', self.on_dataset_open_requested)
-        self.app_context.event_bus.subscribe(
-            'ui.chart.open_requested', self.on_chart_open_requested)
-
-    def on_note_open_requested(self, event_data):
-        """Handle note open request from event bus (dotted UI event)."""
-        note_id = event_data.get('note_id')
-        note_name = event_data.get('note_name')
-        if note_id and note_name:
-            self.tab_container.open_note_tab(note_id, note_name)
-
-    def on_dataset_open_requested(self, event_data):
-        """Handle dataset open request from event bus (dotted UI event)."""
-        dataset_id = event_data.get('dataset_id')
-        dataset_name = event_data.get('dataset_name')
-        if dataset_id and dataset_name:
-            self.tab_container.open_dataset_tab(dataset_id, dataset_name)
-
-    def on_chart_open_requested(self, event_data):
-        """Handle chart open request from event bus (dotted UI event)."""
-        chart_id = event_data.get('chart_id')
-        chart_name = event_data.get('chart_name')
-        if chart_id and chart_name:
-            self.tab_container.open_chart_tab(chart_id)
 
     def on_transform_applied_event(self, event_data):
         """Handle transform applied events from the event system."""

@@ -31,6 +31,9 @@ class ProjectViewPanel(QWidget):
         self.app_context = app_context
         self.app_state = app_context.get_app_state()
         self.logger = logging.getLogger(__name__)
+
+        # TODO: ideally we shouldn't reference the project tree manager before it's initialized
+        # TODO: ideally we shouldn't reference the tree directly
         self.command_manager = ProjectPanelCommandManager(app_context,
                                                           lambda: self.project_tree_manager.get_target_folder_id(),
                                                           lambda: self.tree.currentItem(),

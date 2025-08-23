@@ -13,8 +13,8 @@ class ProjectTreeWidget(QTreeWidget):
 
     def __init__(self, parent_panel):
         super().__init__()
-        self.parent_panel = parent_panel
         self.logger = logging.getLogger(__name__)
+        self.parent_panel = parent_panel
 
         # Enable drag and drop
         self.setDragDropMode(QTreeWidget.DragDropMode.InternalMove)
