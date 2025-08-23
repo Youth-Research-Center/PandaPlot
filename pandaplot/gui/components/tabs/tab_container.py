@@ -1,15 +1,21 @@
 import logging
-from PySide6.QtWidgets import QWidget, QVBoxLayout
 
-from pandaplot.gui.components.tabs.tab import CustomTabWidget
-from pandaplot.gui.components.tabs.note.note_tab import NoteTab
+from PySide6.QtWidgets import QVBoxLayout, QWidget
+
 from pandaplot.gui.components.tabs.chart.chart_tab import ChartTab
+from pandaplot.gui.components.tabs.note.note_tab import NoteTab
+from pandaplot.gui.components.tabs.tab import CustomTabWidget
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
-from pandaplot.models import chart
+from pandaplot.models.events.event_types import (
+    AnalysisEvents,
+    ChartEvents,
+    DatasetEvents,
+    ProjectEvents,
+    UIEvents,
+)
+from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.note import Note
-from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events.event_types import ChartEvents, UIEvents, ProjectEvents, DatasetEvents, AnalysisEvents
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -314,21 +320,27 @@ class TabContainer(EventBusComponentMixin, QWidget):
     def handle_new_project(self):
         """Handle new project request from welcome tab."""
         if self.app_context:
-            from pandaplot.commands.project.project.new_project_command import NewProjectCommand
+            from pandaplot.commands.project.project.new_project_command import (
+                NewProjectCommand,
+            )
             command = NewProjectCommand(self.app_context)
             self.app_context.get_command_executor().execute_command(command)
 
     def handle_open_project(self):
         """Handle open project request from welcome tab."""
         if self.app_context:
-            from pandaplot.commands.project.project.open_project_command import OpenProjectCommand
+            from pandaplot.commands.project.project.open_project_command import (
+                OpenProjectCommand,
+            )
             command = OpenProjectCommand(self.app_context)
             self.app_context.get_command_executor().execute_command(command)
 
     def handle_recent_project(self, project_path: str):
         """Handle recent project selection from welcome tab."""
         if self.app_context:
-            from pandaplot.commands.project.project.load_project_command import LoadProjectCommand
+            from pandaplot.commands.project.project.load_project_command import (
+                LoadProjectCommand,
+            )
             command = LoadProjectCommand(self.app_context, project_path)
             self.app_context.get_command_executor().execute_command(command)
 
@@ -341,7 +353,9 @@ class TabContainer(EventBusComponentMixin, QWidget):
                 self.handle_new_project()
 
             # Show file dialog for CSV import
-            from pandaplot.commands.project.dataset.import_csv_command import ImportCsvCommand
+            from pandaplot.commands.project.dataset.import_csv_command import (
+                ImportCsvCommand,
+            )
             command = ImportCsvCommand(self.app_context)
             self.app_context.get_command_executor().execute_command(command)
 
@@ -512,7 +526,9 @@ class TabContainer(EventBusComponentMixin, QWidget):
             return
 
         # Use CreateChartCommand to properly add chart to project hierarchy
-        from pandaplot.commands.project.chart.create_chart_command import CreateChartCommand
+        from pandaplot.commands.project.chart.create_chart_command import (
+            CreateChartCommand,
+        )
         command = CreateChartCommand(self.app_context, dataset_id, chart_name, dataset_item.parent_id)
         self.app_context.get_command_executor().execute_command(command)
 
