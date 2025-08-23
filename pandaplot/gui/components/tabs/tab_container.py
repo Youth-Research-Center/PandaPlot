@@ -4,10 +4,10 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from pandaplot.commands.project.chart.create_chart_command import CreateChartCommand
 from pandaplot.gui.components.tabs.chart.chart_tab import ChartTab
+from pandaplot.gui.components.tabs.dataset_tab import DatasetTab
 from pandaplot.gui.components.tabs.note.note_tab import NoteTab
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
-from pandaplot.gui.components.tabs.dataset_tab import DatasetTab
 from pandaplot.models.events.event_types import (
     AnalysisEvents,
     ChartEvents,
@@ -76,10 +76,6 @@ class TabContainer(EventBusComponentMixin, QWidget):
             index (int): The index of the tab to close
         """
         if index >= 0 and index < self.tab_widget.count():
-            # Check if tab can be closed
-            if not self.can_close_tab(index):
-                return
-
             # Get tab title before removing
             tab_title = self.tab_widget.tabText(index)
 
@@ -111,115 +107,6 @@ class TabContainer(EventBusComponentMixin, QWidget):
                 'tab_title': tab_title,
                 'tab_id': id(widget) if widget else None
             })
-
-    def add_tab(self, widget, title):
-        """
-        Add a new tab to the tab widget.
-
-        Args:
-            widget (QWidget): The widget to add as tab content
-            title (str): The title for the tab
-
-        Returns:
-            int: The index of the added tab
-        """
-        return self.tab_widget.addTab(widget, title)
-
-    def add_closable_tab(self, widget, title):
-        """
-        Add a new closable tab to the tab widget.
-
-        Args:
-            widget (QWidget): The widget to add as tab content
-            title (str): The title for the tab
-
-        Returns:
-            int: The index of the added tab
-        """
-        index = self.tab_widget.addTab(widget, title)
-        # The close button is enabled by default when tabsClosable is True
-        return index
-
-    def remove_tab(self, index):
-        """
-        Remove a tab at the specified index.
-
-        Args:
-            index (int): The index of the tab to remove
-        """
-        self.close_tab(index)
-
-    def can_close_tab(self, index):
-        """
-        Check if a tab can be closed. Now allows closing all tabs.
-
-        Args:
-            index (int): The index of the tab
-
-        Returns:
-            bool: True if the tab can be closed, False otherwise
-        """
-        # Allow closing all tabs - when no tabs remain, we can add new ones later
-        return True
-
-    def get_current_tab_index(self):
-        """
-        Get the index of the currently selected tab.
-
-        Returns:
-            int: The index of the current tab
-        """
-        return self.tab_widget.currentIndex()
-
-    def set_current_tab(self, index):
-        """
-        Set the current tab by index.
-
-        Args:
-            index (int): The index of the tab to select
-        """
-        self.tab_widget.setCurrentIndex(index)
-
-    def get_tab_widget(self, index):
-        """
-        Get the widget at the specified tab index.
-
-        Args:
-            index (int): The index of the tab
-
-        Returns:
-            QWidget: The widget at the specified tab
-        """
-        return self.tab_widget.widget(index)
-
-    def get_tab_count(self):
-        """
-        Get the total number of tabs.
-
-        Returns:
-            int: The number of tabs
-        """
-        return self.tab_widget.count()
-
-    def set_tab_enabled(self, index, enabled):
-        """
-        Enable or disable a tab.
-
-        Args:
-            index (int): The index of the tab
-            enabled (bool): Whether the tab should be enabled
-        """
-        self.tab_widget.setTabEnabled(index, enabled)
-
-    def set_tab_visible(self, index, visible):
-        """
-        Show or hide a tab.
-
-        Args:
-            index (int): The index of the tab
-            visible (bool): Whether the tab should be visible
-        """
-        self.tab_widget.setTabVisible(index, visible)
 
     def open_tab(self, item_id):
         if not self.app_context:
@@ -263,8 +150,8 @@ class TabContainer(EventBusComponentMixin, QWidget):
             new_tab = self._create_tab(item)
 
             # Add tab
-            tab_index = self.add_closable_tab(new_tab, new_tab.get_tab_title())
-
+            tab_index = self.tab_widget.addTab(new_tab, new_tab.get_tab_title())
+    
             # Track the tab
             self.tabs[item_id] = new_tab
 
@@ -272,7 +159,6 @@ class TabContainer(EventBusComponentMixin, QWidget):
             self.tab_widget.setCurrentIndex(tab_index)
         except Exception as e:
             self.logger.error("Failed to open tab for item %s: %s", item_id, str(e))
-
 
     def _create_tab(self, item):
         if item is None:
@@ -287,21 +173,11 @@ class TabContainer(EventBusComponentMixin, QWidget):
         else:
             raise ValueError("Unsupported item type")
 
-
     def update_tab_title(self, tab_widget, new_title: str):
         """Update the title of a specific tab."""
         tab_index = self.tab_widget.indexOf(tab_widget)
         if tab_index >= 0:
             self.tab_widget.setTabText(tab_index, new_title)
-
-    def close_item_tab(self, item_id: str):
-        """Close a specific item tab."""
-        if item_id in self.tabs:
-            item_tab = self.tabs[item_id]
-            tab_index = self.tab_widget.indexOf(item_tab)
-            if tab_index >= 0:
-                self.close_tab(tab_index)
-            del self.tabs[item_id]
 
     def handle_new_project(self):
         """Handle new project request from welcome tab."""
@@ -345,11 +221,6 @@ class TabContainer(EventBusComponentMixin, QWidget):
             command = ImportCsvCommand(self.app_context)
             self.app_context.get_command_executor().execute_command(command)
 
-    def ensure_welcome_tab_if_empty(self):
-        """Ensure there's a welcome tab if no tabs are open."""
-        if self.tab_widget.count() == 0:
-            self.create_welcome_tab()
-
     def create_welcome_tab(self):
         """Create and add a welcome tab."""
         welcome_tab = WelcomeTab(self.app_context)
@@ -360,25 +231,8 @@ class TabContainer(EventBusComponentMixin, QWidget):
         welcome_tab.recent_project_selected.connect(self.handle_recent_project)
         welcome_tab.import_data_requested.connect(self.handle_import_data)
 
-        self.add_tab(welcome_tab, welcome_tab.get_tab_title())
+        self.tab_widget.addTab(welcome_tab, welcome_tab.get_tab_title())
         return welcome_tab
-
-    def create_plot_tab(self):
-        """Create and add a plot tab."""
-        from PySide6.QtWidgets import QLabel
-
-        plot_tab = QWidget()
-        plot_layout = QVBoxLayout(plot_tab)
-        plot_layout.addWidget(QLabel("Plot Tab - Interactive plotting interface\n\n"
-                                     "Features:\n"
-                                     "• Column selection for X and Y axes\n"
-                                     "• Plot type selection (Line, Scatter, Bar)\n"
-                                     "• Chart properties dialog\n"
-                                     "• Live plot updates"))
-
-        index = self.add_closable_tab(plot_tab, "📊 Plot")
-        self.set_current_tab(index)
-        return plot_tab
 
     def create_chart_from_dataset(self, dataset_id: str, chart_name: str):
         """Create a new chart from a dataset and open it in a tab."""
@@ -412,12 +266,6 @@ class TabContainer(EventBusComponentMixin, QWidget):
             # TODO: this should be handled on tab container level by listening on new item creation
             return self.open_tab(chart_id)
 
-    def on_project_loaded(self):
-        """Called when a project is loaded - welcome tab stays open."""
-        # Welcome tab now stays open until manually closed
-        # No automatic closing when project is loaded
-        pass
-
     def on_project_closed(self):
         """Called when a project is closed - clean up tracking dictionaries and show welcome tab if no tabs are open."""
         # Clear tracking dictionaries since project is closed
@@ -426,20 +274,11 @@ class TabContainer(EventBusComponentMixin, QWidget):
         if self.tab_widget.count() == 0:
             self.create_welcome_tab()
 
-    def on_project_loaded_event(self, event_data):
-        """Event handler for when a project is loaded."""
-        self.on_project_loaded()
-
-    def on_project_closed_event(self, event_data):
-        """Event handler for when a project is closed."""
-        self.on_project_closed()
-
     def setup_event_subscriptions(self):
         """Setup event subscriptions for this component."""
         self.subscribe_to_multiple_events([
             # Keep existing project events
-            (ProjectEvents.PROJECT_LOADED, self.on_project_loaded_event),
-            (ProjectEvents.PROJECT_CLOSED, self.on_project_closed_event),
+            (ProjectEvents.PROJECT_CLOSED, lambda _: self.on_project_closed()),
 
             # Subscribe to dataset events
             (DatasetEvents.DATASET_DATA_CHANGED, self.on_dataset_updated),
@@ -511,3 +350,6 @@ class TabContainer(EventBusComponentMixin, QWidget):
             if hasattr(tab_widget, 'dataset') and tab_widget.dataset.id == dataset_id:
                 if hasattr(tab_widget, 'load_dataset_data'):
                     tab_widget.load_dataset_data()  # Refresh to show new analysis column
+
+
+# TODO: ensure tab name is updated on item name change
