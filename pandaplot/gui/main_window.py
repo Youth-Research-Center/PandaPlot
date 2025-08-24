@@ -62,6 +62,9 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         # Initialize panels
         # TODO: move elsewhere
         self.panel_setup_manager = PanelSetupManager()
+        
+        # Create project view panel and connect it to app state
+        self.panel_setup_manager.register_panel(ProjectViewPanel(self.app_context), "explorer", "📁", lambda _: True)
         self.panel_setup_manager.register_panel(TransformPanel(self.app_context), "transform", "🔧", is_dataset_tab_active)
         self.panel_setup_manager.register_panel(AnalysisPanel(self.app_context), "analysis", "📊", is_dataset_with_analysis_data) # probably should just be dataset tab
         self.panel_setup_manager.register_panel(ChartPropertiesPanel(self.app_context), "chart_properties", "📈", should_show_chart_properties)
@@ -155,12 +158,6 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
 
         # Set initial splitter sizes: [sidebar_width, remaining_width]
         self.main_splitter.setSizes([250, 1000])
-
-        # Create project view panel and connect it to app state
-        self.project_view_panel = ProjectViewPanel(self.app_context)
-
-        self.sidebar.add_panel("explorer", "📁", self.project_view_panel)
-        self.sidebar.show_panel("explorer")
 
         # Initialize conditional panel manager for dynamic sidebar panels
         self.conditional_panel_manager = ConditionalPanelManager(
