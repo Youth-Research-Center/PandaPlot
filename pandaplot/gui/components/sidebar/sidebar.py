@@ -5,13 +5,16 @@ from PySide6.QtWidgets import QHBoxLayout, QWidget
 
 from pandaplot.gui.components.sidebar.icon_bar import IconBar
 from pandaplot.gui.components.sidebar.panel_area import PanelArea
+from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
+from pandaplot.models.state.app_context import AppContext
 
 
 class CollapsibleSidebar(QWidget):
     """A collapsible sidebar that contains an icon bar and panel area."""
 
-    def __init__(self, parent: Optional[QWidget] = None, width: int = 400, collapsed_width: int = 40):
+    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None, width: int = 400, collapsed_width: int = 40):
         super().__init__(parent)
+        self.app_context = app_context
         self.default_width = width
         self.collapsed_width = collapsed_width
         self.is_collapsed: bool = False
@@ -42,6 +45,8 @@ class CollapsibleSidebar(QWidget):
         # Create icon bar
         self.icon_bar = IconBar(width=self.collapsed_width)
         self.icon_bar.panel_requested.connect(self.show_panel)
+        self.icon_bar.settings_requested.connect(
+            self.show_settings_dialog)
         main_layout.addWidget(self.icon_bar, 0)
 
         # Create panel area
@@ -71,6 +76,12 @@ class CollapsibleSidebar(QWidget):
         # Update active panel if it was removed
         if self.active_panel == name:
             self.active_panel = None
+
+    def show_settings_dialog(self):
+        """Show the settings dialog."""
+        # TODO: not sure if we should handle this with a command
+        dialog = SettingsDialog(self.app_context, self)
+        dialog.exec()
 
     def show_panel(self, name):
         """Show a specific panel."""
