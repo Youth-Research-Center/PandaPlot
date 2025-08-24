@@ -38,8 +38,8 @@ class ProjectViewPanel(QWidget):
                                                           lambda: self.project_tree_manager.get_target_folder_id(),
                                                           lambda: self.tree.currentItem(),
                                                           lambda: self.project_tree_manager.get_selected_item_info(),
-                                                          lambda item: self.tree.editItem(
-                                                              item)
+                                                          lambda item, position: self.tree.editItem(
+                                                              item, position)
                                                           )
 
         self.setStyleSheet("background-color: #ffffff; color: black;")

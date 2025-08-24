@@ -86,19 +86,6 @@ class ProjectViewPanelContextManager(QMenu):
 
         self.addSeparator()
 
-        # Dataset manipulation actions (for datasets)
-        self.add_column_action = QAction("Add Column", self)
-        self.add_column_action.triggered.connect(
-            self.command_manager.add_column_to_dataset)
-        self.addAction(self.add_column_action)
-
-        self.add_row_action = QAction("Add Row", self)
-        self.add_row_action.triggered.connect(
-            self.command_manager.add_row_to_dataset)
-        self.addAction(self.add_row_action)
-
-        self.addSeparator()
-
         # Delete action
         self.delete_action = QAction("Delete", self)
         self.delete_action.triggered.connect(
@@ -130,10 +117,6 @@ class ProjectViewPanelContextManager(QMenu):
 
         # Show chart creation only for datasets
         self.create_chart_action.setVisible(item_type == 'dataset')
-
-        # Show dataset manipulation actions only for datasets
-        self.add_column_action.setVisible(item_type == 'dataset')
-        self.add_row_action.setVisible(item_type == 'dataset')
 
         self.rename_action.setEnabled(can_rename)
         self.delete_action.setEnabled(can_delete)

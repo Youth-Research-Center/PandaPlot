@@ -3,8 +3,6 @@ import logging
 from PySide6.QtCore import Qt
 
 from pandaplot.commands.project.chart.create_chart_command import CreateChartCommand
-from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
-from pandaplot.commands.project.dataset.add_row_command import AddRowCommand
 from pandaplot.commands.project.dataset.create_empty_dataset_command import (
     CreateEmptyDatasetCommand,
 )
@@ -111,28 +109,6 @@ class ProjectPanelCommandManager:
 
         item_id = selected_info['id']
         command = DeleteItemCommand(self.app_context, item_id)
-        self.app_context.get_command_executor().execute_command(command)
-
-    def add_column_to_dataset(self):
-        """Add a new column to the selected dataset."""
-        selected_info = self.get_selected_item_info()
-        if not selected_info or selected_info['type'] != 'dataset':
-            return
-
-        dataset_id = selected_info['id']
-
-        command = AddColumnCommand(self.app_context, dataset_id)
-        self.app_context.get_command_executor().execute_command(command)
-
-    def add_row_to_dataset(self):
-        """Add a new row to the selected dataset."""
-        selected_info = self.get_selected_item_info()
-        if not selected_info or selected_info['type'] != 'dataset':
-            return
-
-        dataset_id = selected_info['id']
-
-        command = AddRowCommand(self.app_context, dataset_id)
         self.app_context.get_command_executor().execute_command(command)
 
     def open_selected_item(self):

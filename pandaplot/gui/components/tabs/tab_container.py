@@ -161,6 +161,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
             self.logger.error("Failed to open tab for item %s: %s", item_id, str(e))
 
     def _create_tab(self, item):
+        #TODO: move to a separate factory class
         if item is None:
             raise ValueError("Item cannot be None")
         
@@ -171,7 +172,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
         elif isinstance(item, Dataset):
             return DatasetTab(self.app_context, item)
         else:
-            raise ValueError("Unsupported item type")
+            raise ValueError(f"Unsupported item type, item class {item.__class__.__name__}")
 
     def update_tab_title(self, tab_widget, new_title: str):
         """Update the title of a specific tab."""
