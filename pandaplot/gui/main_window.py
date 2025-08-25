@@ -59,6 +59,7 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
     def create_widgets(self, main_layout):
         # Create menu
         self.main_menu = MainMenu(self, self.app_context)
+        # TODO: move menu styling into menu
         self.main_menu.setStyleSheet("""
             QMenuBar {
                 background-color: #F0F0F0;
@@ -132,70 +133,17 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         # Connect tab changes to conditional panel manager (centralized)
         self.tab_container.tab_widget.currentChanged.connect(
             self.conditional_panel_manager.on_tab_changed)
-        
-    def on_transform_applied(self, dataset_id: str, new_column_name: str):
-        """Handle successful transform application."""
-        # TODO: transform applied callback should be handled differently
-        self.logger.info(
-            "Transform applied to dataset %s: new column '%s'", dataset_id, new_column_name)
-
-        # Find and refresh the dataset tab
-        current_widget = self.tab_container.tab_widget.currentWidget()
-        if current_widget and type(current_widget).__name__ == 'DatasetTab':
-            # Use getattr for safe attribute access
-            dataset = getattr(current_widget, 'dataset', None)
-            if dataset and getattr(dataset, 'id', None) == dataset_id:
-                load_method = getattr(
-                    current_widget, 'load_dataset_data', None)
-                if callable(load_method):
-                    load_method()
-                    self.logger.debug(
-                        "Refreshed dataset tab for dataset %s", dataset_id)
-
-                    # Also update the transform panel to show new columns
-                    if hasattr(self, 'transform_panel'):
-                        self.transform_panel.update_column_list()
-
-    def on_transform_error(self, error_message: str):
-        """Handle transform error."""
-        # TODO: transform error callback should be handled differently
-        self.logger.error("Transform error: %s", error_message)
-        # TODO: Show error dialog or status message
-
+    
     def setup_event_subscriptions(self):
         """Set up event subscriptions for the main window."""
-        # TODO: remove unrelevant subscriptions
-        # Subscribe to dataset operation events to handle transforms
         self.subscribe_to_event(AppEvents.APP_CLOSING,
                                 self.on_app_closing_event)
-        self.subscribe_to_event(
-            DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_transform_applied_event)
 
-        # Subscribe to UI events for tab changes
-        self.subscribe_to_event(UIEvents.TAB_CHANGED,
-                                self.on_tab_changed_event)
-        # React to theme changes if window-specific adjustments are ever needed
+        # React to theme changes if window-specific adjustments are needed
+        # TODO: implement theme changed callback
         self.app_context.event_bus.subscribe('theme.changed', lambda _: self.logger.debug(
             "Theme changed event received in main window"))
 
-    def on_transform_applied_event(self, event_data):
-        """Handle transform applied events from the event system."""
-        # TODO: this shouldn't be in main window
-        dataset_id = event_data.get('dataset_id')
-        column_name = event_data.get('column_name')
-        if dataset_id and column_name:
-            self.on_transform_applied(dataset_id, column_name)
-
-    def on_tab_changed_event(self, event_data):
-        """Handle tab changed events from the event system."""
-        # TODO: this shouldn't be in main window
-        # Update transform panel context when tabs change
-        if hasattr(self, 'transform_panel'):
-            current_widget = self.tab_container.tab_widget.currentWidget()
-            if current_widget and type(current_widget).__name__ == 'DatasetTab':
-                self.transform_panel.set_active_dataset(current_widget)
-            else:
-                self.transform_panel.set_active_dataset(None)
 
     # --- Application Closing Handling -----------------------------------------------------
     # event_data required by event bus signature
@@ -234,3 +182,66 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
             # Cleanup flag
             self._is_closing = False
         self.close()
+
+
+## TODO: Transform related code that needs to be moved out
+
+"""
+
+        
+    def on_transform_error(self, error_message: str):
+        \"""Handle transform error.\"""
+        # TODO: transform error callback should be handled differently
+        self.logger.error("Transform error: %s", error_message)
+        # TODO: Show error dialog or status message
+
+        def on_transform_applied(self, dataset_id: str, new_column_name: str):
+        \"""Handle successful transform application.\"""
+        # TODO: transform applied callback should be handled differently
+        self.logger.info(
+            "Transform applied to dataset %s: new column '%s'", dataset_id, new_column_name)
+
+        # Find and refresh the dataset tab
+        current_widget = self.tab_container.tab_widget.currentWidget()
+        if current_widget and type(current_widget).__name__ == 'DatasetTab':
+            # Use getattr for safe attribute access
+            dataset = getattr(current_widget, 'dataset', None)
+            if dataset and getattr(dataset, 'id', None) == dataset_id:
+                load_method = getattr(
+                    current_widget, 'load_dataset_data', None)
+                if callable(load_method):
+                    load_method()
+                    self.logger.debug(
+                        "Refreshed dataset tab for dataset %s", dataset_id)
+
+                    # Also update the transform panel to show new columns
+                    if hasattr(self, 'transform_panel'):
+                        self.transform_panel.update_column_list()
+
+            self.subscribe_to_event(
+            DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_transform_applied_event)
+
+        # Subscribe to UI events for tab changes
+        self.subscribe_to_event(UIEvents.TAB_CHANGED,
+                                self.on_tab_changed_event)
+
+    def on_transform_applied_event(self, event_data):
+        \"""Handle transform applied events from the event system.\"""
+        # TODO: this shouldn't be in main window
+        dataset_id = event_data.get('dataset_id')
+        column_name = event_data.get('column_name')
+        if dataset_id and column_name:
+            self.on_transform_applied(dataset_id, column_name)
+
+    def on_tab_changed_event(self, event_data):
+        \"""Handle tab changed events from the event system.\"""
+        # TODO: this shouldn't be in main window
+        # Update transform panel context when tabs change
+        if hasattr(self, 'transform_panel'):
+            current_widget = self.tab_container.tab_widget.currentWidget()
+            if current_widget and type(current_widget).__name__ == 'DatasetTab':
+                self.transform_panel.set_active_dataset(current_widget)
+            else:
+                self.transform_panel.set_active_dataset(None)
+
+"""
