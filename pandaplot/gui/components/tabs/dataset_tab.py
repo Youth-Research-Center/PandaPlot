@@ -715,7 +715,3 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         else:
             self.logger.error(
                 "Failed to add row to dataset %s", self.dataset.id)
-
-    def get_dataset_id(self) -> str:
-        """Get the dataset ID."""
-        return self.dataset.id

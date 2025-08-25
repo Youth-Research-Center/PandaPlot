@@ -68,17 +68,6 @@ class ConditionalPanelManager(QObject):
         
         self.logger.debug("Registered panel '%s' priority=%s", panel_name, priority)
     
-    def unregister_conditional_panel(self, panel_name: str):
-        """
-        Unregister a conditional panel.
-        
-        Args:
-            panel_name: Name of the panel to unregister
-        """
-        if panel_name in self.registered_panels:
-            del self.registered_panels[panel_name]
-            self.logger.debug("Unregistered panel '%s'", panel_name)
-    
     def _on_tab_index_changed(self, index: int):
         """
         Handle tab index change event.
@@ -196,90 +185,3 @@ class ConditionalPanelManager(QObject):
                 return panel_name
         
         return None
-    
-    def get_current_tab_context(self) -> dict:
-        """
-        Get current tab context information for condition evaluation.
-        
-        Returns:
-            Dictionary with tab context information
-        """
-        context = {
-            'current_tab_widget': self.current_tab_widget,
-            'tab_type': type(self.current_tab_widget).__name__ if self.current_tab_widget else None,
-            'has_tab': self.current_tab_widget is not None,
-            'tab_count': self.tab_container.tab_widget.count() if hasattr(self.tab_container, 'tab_widget') else 0
-        }
-        
-        # Add dataset-specific context if applicable
-        if hasattr(self.current_tab_widget, 'dataset') and self.current_tab_widget is not None:
-            dataset = getattr(self.current_tab_widget, 'dataset', None)
-            if dataset:
-                context.update({
-                    'has_dataset': True,
-                    'dataset_id': getattr(dataset, 'id', None),
-                    'dataset_name': getattr(dataset, 'name', None),
-                    'dataset_shape': getattr(dataset.data, 'shape', None) if hasattr(dataset, 'data') and dataset.data is not None else None
-                })
-            else:
-                context['has_dataset'] = False
-        else:
-            context['has_dataset'] = False
-        
-        # Add chart-specific context if applicable
-        if hasattr(self.current_tab_widget, 'chart') and self.current_tab_widget is not None:
-            chart = getattr(self.current_tab_widget, 'chart', None)
-            if chart:
-                context.update({
-                    'has_chart': True,
-                    'chart_id': getattr(chart, 'id', None),
-                    'chart_name': getattr(chart, 'name', None)
-                })
-            else:
-                context['has_chart'] = False
-        else:
-            context['has_chart'] = False
-        
-        return context
-    
-    def get_panel_visibility_status(self) -> Dict[str, bool]:
-        """
-        Get current visibility status of all registered panels.
-        
-        Returns:
-            Dictionary mapping panel names to their visibility status
-        """
-        return {panel_name: config['is_visible'] 
-                for panel_name, config in self.registered_panels.items()}
-    
-    def force_evaluate_all_panels(self):
-        """Force re-evaluation of all panel conditions."""
-        self.logger.debug("Force evaluating all panel conditions")
-        
-        # Reset all visibility states
-        for panel_config in self.registered_panels.values():
-            panel_config['is_visible'] = False
-        
-        # Re-evaluate
-        self.evaluate_panel_visibility()
-    
-    def is_panel_should_be_visible(self, panel_name: str) -> bool:
-        """
-        Check if a specific panel should be visible based on current context.
-        
-        Args:
-            panel_name: Name of the panel to check
-            
-        Returns:
-            True if panel should be visible, False otherwise
-        """
-        if panel_name not in self.registered_panels:
-            return False
-        
-        condition_func = self.registered_panels[panel_name]['condition_func']
-        
-        try:
-            return condition_func(self.current_tab_widget)
-        except Exception:
-            self.logger.error("Error checking visibility for panel '%s'", panel_name, exc_info=True)
-            return False
