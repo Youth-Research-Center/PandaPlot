@@ -22,11 +22,6 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         # Initialize MVC components
         self.app_context = app_context
 
-        # Initialize panels
-        # TODO: move elsewhere
-        self.panel_setup_manager = PanelSetupManager(self.app_context)
-        self.panel_setup_manager.register_default_panels()
-        
         # Get screen dimensions and set window to maximized
         screen = QScreen.availableGeometry(self.screen())
         self.setGeometry(screen)
@@ -44,7 +39,6 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
 
         self.create_widgets(main_layout)
         self.setup_event_subscriptions()
-        self.panel_setup_manager.add_panels(self.sidebar, self.conditional_panel_manager)
         self.logger.info("PandaMainWindow initialized.")
 
     def create_widgets(self, main_layout):
@@ -102,6 +96,10 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(self.main_splitter)
 
+        # TODO: move panel setup somewhere else
+        self.panel_setup_manager = PanelSetupManager(self.app_context)
+        self.panel_setup_manager.register_default_panels()
+
         # Create project manager (left pane) with enhanced styling
         self.sidebar = CollapsibleSidebar(self.app_context, self.main_splitter, width=250)
         self.main_splitter.addWidget(self.sidebar)
@@ -118,8 +116,10 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         self.main_splitter.setSizes([250, 1000])
 
         # Initialize conditional panel manager for dynamic sidebar panels
+        # TODO: move this outside of main window
         self.conditional_panel_manager = ConditionalPanelManager(
             self.sidebar, self.tab_container)
+        self.panel_setup_manager.add_panels(self.sidebar, self.conditional_panel_manager)
 
         # Connect tab changes to conditional panel manager (centralized)
         self.tab_container.tab_widget.currentChanged.connect(
