@@ -4,7 +4,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QHBoxLayout, QWidget
 
 from pandaplot.gui.components.sidebar.icon_bar import IconBar
-from pandaplot.gui.components.sidebar.panel_area import PanelArea
+from pandaplot.gui.components.sidebar.panels.panel_area import PanelArea
 from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
 from pandaplot.models.state.app_context import AppContext
 
