@@ -494,12 +494,12 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         """Handle tab change events to update context."""
         current_tab_type = event_data.get('tab_type')
         chart_id = event_data.get('chart_id')
-        dataset_id = event_data.get('dataset_id')
         
         # Check if current tab is a chart tab
         if current_tab_type == 'chart' and chart_id:
             # Get the chart from the project using chart_id
             project = self.app_context.app_state.current_project
+            self.set_project(project)
             if project is not None:
                 chart = project.find_item(chart_id)
                 if chart:
@@ -510,17 +510,6 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
                     self.logger.warning("Chart properties panel: chart id %s not found in project", chart_id)
             else:
                 self.logger.warning("Chart properties panel: no current project available while switching tab")
-
-        elif current_tab_type == 'dataset' and dataset_id:
-            # For dataset tabs, provide context for creating new charts
-            project = self.app_context.app_state.current_project
-            if project is not None:
-                dataset = project.find_item(dataset_id)
-                if dataset:
-                    self.set_project(project)
-                    self.load_chart_object(None)  # Clear chart for new creation
-                    self.logger.debug("Chart properties panel dataset context set for dataset %s", dataset.name)
-
         else:
             # Clear chart properties panel context when no relevant tab is active
             self.load_chart_object(None)

@@ -16,7 +16,7 @@ from pandaplot.models.state.app_context import AppContext
 from pandaplot.gui.components.sidebar.transform.transform_controller import TransformController
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.events.event_types import (
-    DatasetEvents, DatasetOperationEvents, UIEvents
+    DatasetOperationEvents, UIEvents
 )
 import logging
 
@@ -298,12 +298,10 @@ class TransformPanel(EventBusComponentMixin, QWidget):
         """Handle preview data from controller."""
         self.logger.debug("TransformPanel preview ready for dataset %s", dataset_id)
     
-    def set_active_dataset(self, dataset_tab):
+    def set_active_dataset(self, dataset):
         """Update panel context when dataset tab becomes active."""
-        self.current_dataset_tab = dataset_tab
-        
-        if dataset_tab and hasattr(dataset_tab, 'dataset'):
-            self.current_dataset = dataset_tab.dataset
+        if dataset is not None:
+            self.current_dataset = dataset
             self.update_dataset_info()
             self.update_column_list()
             self.enable_controls(True)
@@ -536,9 +534,6 @@ class TransformPanel(EventBusComponentMixin, QWidget):
     def setup_event_subscriptions(self):
         """Setup event subscriptions for this component."""
         self.subscribe_to_multiple_events([
-            # Generic dataset change (for broad awareness)  
-            (DatasetEvents.DATASET_CHANGED, self.on_dataset_changed),
-            
             # Specific dataset operations (for detailed column handling)
             (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_column_added),
             (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_column_removed),
@@ -546,12 +541,6 @@ class TransformPanel(EventBusComponentMixin, QWidget):
             # UI events
             (UIEvents.TAB_CHANGED, self.on_tab_changed),
         ])
-    
-    def on_dataset_changed(self, event_data):
-        """Handle generic dataset changes."""
-        dataset_id = event_data.get('dataset_id')
-        if self.current_dataset and hasattr(self.current_dataset, 'id') and dataset_id == self.current_dataset.id:
-            self.refresh_ui_state()
     
     def on_column_added(self, event_data):
         """Handle specific column additions."""
@@ -569,10 +558,19 @@ class TransformPanel(EventBusComponentMixin, QWidget):
         """Handle tab change events."""
         if event_data.get('tab_type') == 'dataset':
             # Update context for new dataset tab
+            dataset_id = event_data.get('dataset_id')
+            project = self.app_context.app_state.current_project
+            if project:
+                dataset = project.find_item(dataset_id)
+                self.set_active_dataset(dataset)
+            else:
+                self.set_active_dataset(None)
+        
             self.refresh_ui_state()
     
     def refresh_ui_state(self):
         """Refresh the UI state when dataset changes."""
+        self.logger.debug("Refreshing UI state")
         self.refresh_column_list()
         self.clear_panel()
     
