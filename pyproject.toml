@@ -25,3 +25,6 @@ dev = [
     "viztracer>=1.0.4",
     "vulture>=2.14",
 ]
+
+[tool.ruff]
+line-length = 150

@@ -4,20 +4,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QScreen
 from PySide6.QtWidgets import QMainWindow, QSplitter, QVBoxLayout, QWidget
 
-from pandaplot.gui.components.main_menu.main_menu import MainMenu
-from pandaplot.gui.components.sidebar import CollapsibleSidebar
-
+from pandaplot.gui.components import CollapsibleSidebar, MainMenu, TabContainer
 from pandaplot.gui.components.sidebar.panels.conditional_panel_manager import ConditionalPanelManager
-
 from pandaplot.gui.components.sidebar.panels.panel_setup_manager import PanelSetupManager
-from pandaplot.gui.components.tabs.tab_container import TabContainer
-from pandaplot.models.events.event_types import (
-    AppEvents,
-)
+
+from pandaplot.models.events.event_types import AppEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.state.app_context import AppContext
-
-
 
 
 class PandaMainWindow(EventBusComponentMixin, QMainWindow):
@@ -142,9 +135,6 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         self.app_context.event_bus.subscribe('theme.changed', lambda _: self.logger.debug(
             "Theme changed event received in main window"))
 
-
-    # --- Application Closing Handling -----------------------------------------------------
-    # event_data required by event bus signature
     def on_app_closing_event(self, event_data: dict):
         """Handle app closing event from the internal event bus.
 
@@ -165,6 +155,8 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
 
             # TODO: Implement cleanup logic here
             # we need to ask for saving open modified files/projects
+            # this can happen by executing close all tabs command
+            # consider moving the logic inside close command
             # we need to cleanup matplotlib charts to avoid memory leaks
 
             # Log cleanup completion
