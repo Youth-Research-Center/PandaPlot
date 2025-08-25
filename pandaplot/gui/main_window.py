@@ -6,22 +6,10 @@ from PySide6.QtWidgets import QMainWindow, QSplitter, QVBoxLayout, QWidget
 
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
 from pandaplot.gui.components.sidebar import CollapsibleSidebar
-from pandaplot.gui.components.sidebar.analysis.analysis_panel import AnalysisPanel
-from pandaplot.gui.components.sidebar.chart.chart_properties_panel import (
-    ChartPropertiesPanel,
-)
-from pandaplot.gui.components.sidebar.conditional_panel_manager import (
-    ConditionalPanelManager,
-)
-from pandaplot.gui.components.sidebar.fit.fit_panel import FitPanel
-from pandaplot.gui.components.sidebar.panel_conditions import (
-    is_dataset_tab_active,
-    is_dataset_with_analysis_data,
-    should_show_chart_properties,
-    should_show_fit_panel,
-)
-from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
-from pandaplot.gui.components.sidebar.transform.transform_panel import TransformPanel
+
+from pandaplot.gui.components.sidebar.panels.conditional_panel_manager import ConditionalPanelManager
+
+from pandaplot.gui.components.sidebar.panels.panel_setup_manager import PanelSetupManager
 from pandaplot.gui.components.tabs.tab_container import TabContainer
 from pandaplot.models.events.event_types import (
     AppEvents,
@@ -32,23 +20,7 @@ from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.state.app_context import AppContext
 
 
-class PanelSetupManager:
-    def __init__(self):
-        self.panels : list[dict] = []
 
-    def register_panel(self, panel:QWidget, name, icon, visibility_condition):
-        self.panels.append({
-            "panel": panel,
-            "name": name,
-            "icon": icon,
-            "visibility_condition": visibility_condition
-        })
-
-    def add_panels(self, sidebar:CollapsibleSidebar, panel_manager:ConditionalPanelManager):
-        for priority, panel_info in enumerate(self.panels):
-            sidebar.add_panel(panel_info["name"], panel_info["icon"], panel_info["panel"])
-            panel_manager.register_conditional_panel(panel_info["name"], panel_info["visibility_condition"], priority)
-        panel_manager.evaluate_panel_visibility()
 
 class PandaMainWindow(EventBusComponentMixin, QMainWindow):
     def __init__(self, app_context: AppContext):
@@ -61,14 +33,8 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
 
         # Initialize panels
         # TODO: move elsewhere
-        self.panel_setup_manager = PanelSetupManager()
-        
-        # Create project view panel and connect it to app state
-        self.panel_setup_manager.register_panel(ProjectViewPanel(self.app_context), "explorer", "📁", lambda _: True)
-        self.panel_setup_manager.register_panel(TransformPanel(self.app_context), "transform", "🔧", is_dataset_tab_active)
-        self.panel_setup_manager.register_panel(AnalysisPanel(self.app_context), "analysis", "📊", is_dataset_with_analysis_data) # probably should just be dataset tab
-        self.panel_setup_manager.register_panel(ChartPropertiesPanel(self.app_context), "chart_properties", "📈", should_show_chart_properties)
-        self.panel_setup_manager.register_panel(FitPanel(self.app_context), "fit", "📐", should_show_fit_panel)
+        self.panel_setup_manager = PanelSetupManager(self.app_context)
+        self.panel_setup_manager.register_default_panels()
         
         # Get screen dimensions and set window to maximized
         screen = QScreen.availableGeometry(self.screen())
