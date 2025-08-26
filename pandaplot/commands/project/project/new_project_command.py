@@ -2,9 +2,8 @@ from typing import override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.project.project import Project
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.project import Project
+from pandaplot.models.state import (AppState, AppContext)
 
 
 class NewProjectCommand(Command):

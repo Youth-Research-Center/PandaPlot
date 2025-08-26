@@ -4,7 +4,7 @@ Test for the tree visitor pattern implementation.
 
 import unittest
 from unittest.mock import Mock
-from pandaplot.models.project.project import Project
+from pandaplot.models.project import Project
 from pandaplot.models.project.items import Folder, Note, Dataset
 from pandaplot.models.project.visitors.tree_visitor import ProjectTreeBuilder
 

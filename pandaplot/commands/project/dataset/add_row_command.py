@@ -8,8 +8,7 @@ import pandas as pd
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.models.project.items import Dataset
 
 

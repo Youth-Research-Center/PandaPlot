@@ -21,10 +21,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pandaplot.commands.project.note.edit_note_command import EditNoteCommand
+from pandaplot.commands.project.note import EditNoteCommand
 from pandaplot.models.events import NoteEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.project.items.note import Note
+from pandaplot.models.project.items import Note
 from pandaplot.models.state.app_context import AppContext
 
 

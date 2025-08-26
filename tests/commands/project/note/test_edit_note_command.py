@@ -4,8 +4,7 @@ from unittest.mock import Mock
 from pandaplot.commands.project.note import EditNoteCommand
 from pandaplot.models.project.items import Note
 from pandaplot.models.project import Project
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
 
 

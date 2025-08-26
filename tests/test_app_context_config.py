@@ -1,9 +1,8 @@
 """Test integration of ConfigManager into AppContext (Phase 1.3)."""
 from __future__ import annotations
 
-from pandaplot.models.state.app_context import AppContext
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.models.events.event_bus import EventBus
-from pandaplot.models.state.app_state import AppState
 from pandaplot.services.config_manager import ConfigManager
 from pandaplot.services.theme_manager import ThemeManager
 from pandaplot.storage.project_data_manager import ProjectDataManager

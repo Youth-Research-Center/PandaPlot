@@ -1,11 +1,10 @@
 import pytest
 from unittest.mock import Mock
 
-from pandaplot.commands.project.item.delete_item_command import DeleteItemCommand
+from pandaplot.commands.project.item import DeleteItemCommand
 from pandaplot.models.project.items import Note, Folder
-from pandaplot.models.project.project import Project
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.project import Project
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
 
 

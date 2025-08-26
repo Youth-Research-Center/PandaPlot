@@ -9,12 +9,11 @@ import os
 from unittest.mock import Mock, patch
 from pathlib import Path
 
-from pandaplot.commands.project.dataset.import_csv_command import ImportCsvCommand
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.commands.project.dataset import ImportCsvCommand
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.project.project import Project
-from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project import Project
+from pandaplot.models.project.items import Dataset
 
 
 class TestImportCsvCommand:

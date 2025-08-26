@@ -1,6 +1,6 @@
 import logging
-from pandaplot.models.events.event_bus import EventBus
-from pandaplot.models.project.project import Project
+from pandaplot.models.events import EventBus
+from pandaplot.models.project import Project
 from typing import Optional
 
 from pandaplot.storage.project_data_manager import ProjectDataManager

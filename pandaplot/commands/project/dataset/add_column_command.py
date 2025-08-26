@@ -7,9 +7,8 @@ import pandas as pd
 import numpy as np
 from pandaplot.commands.base_command import Command
 from pandaplot.models.project.items import Dataset
-from pandaplot.models.project.project import Project
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.project import Project
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
 
 

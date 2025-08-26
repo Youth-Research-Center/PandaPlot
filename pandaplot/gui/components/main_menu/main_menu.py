@@ -7,11 +7,11 @@ from pandaplot.commands.app.exit_command import ExitCommand
 from pandaplot.commands.project.dataset.create_empty_dataset_command import (
     CreateEmptyDatasetCommand,
 )
-from pandaplot.commands.project.dataset.import_csv_command import ImportCsvCommand
-from pandaplot.commands.project.note.create_note_command import CreateNoteCommand
-from pandaplot.commands.project.project.new_project_command import NewProjectCommand
-from pandaplot.commands.project.project.open_project_command import OpenProjectCommand
-from pandaplot.commands.project.project.save_project_command import (
+from pandaplot.commands.project.dataset import ImportCsvCommand
+from pandaplot.commands.project.note import CreateNoteCommand
+from pandaplot.commands.project.project import (
+    NewProjectCommand,
+    OpenProjectCommand,
     SaveProjectAsCommand,
     SaveProjectCommand,
 )

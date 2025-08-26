@@ -9,8 +9,7 @@ from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.project.items import Chart, Dataset, Folder, Note
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.services.config_manager import ConfigManager
 from pandaplot.services.theme_manager import ThemeManager
 from pandaplot.storage.chart_data_manager import ChartDataManager

@@ -5,11 +5,10 @@ Unit tests for CreateFolderCommand.
 import pytest
 from unittest.mock import Mock, patch
 
-from pandaplot.commands.project.folder.create_folder_command import CreateFolderCommand
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.commands.project.folder import CreateFolderCommand
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.project.project import Project
+from pandaplot.models.project import Project
 from pandaplot.models.project.items.folder import Folder
 
 
