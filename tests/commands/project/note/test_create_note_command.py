@@ -1,9 +1,9 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from pandaplot.commands.project.note.create_note_command import CreateNoteCommand
-from pandaplot.models.project.items.note import Note
-from pandaplot.models.project.project import Project
+from pandaplot.commands.project.note import CreateNoteCommand
+from pandaplot.models.project.items import Note
+from pandaplot.models.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.gui.controllers.ui_controller import UIController

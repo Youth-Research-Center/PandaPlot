@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QTreeWidget,
 )
 
-from pandaplot.commands.project.item.move_item_command import MoveItemCommand
+from pandaplot.commands.project.item import MoveItemCommand
 
 
 class ProjectTreeWidget(QTreeWidget):

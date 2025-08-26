@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pandaplot.commands.project.item.rename_item_command import RenameItemCommand
+from pandaplot.commands.project.item import RenameItemCommand
 from pandaplot.gui.components.sidebar.project.item_name_delegate import ItemNameDelegate
 from pandaplot.gui.components.sidebar.project.project_command_manager import ProjectPanelCommandManager
 from pandaplot.gui.components.sidebar.project.project_context_manager import ProjectViewPanelContextManager

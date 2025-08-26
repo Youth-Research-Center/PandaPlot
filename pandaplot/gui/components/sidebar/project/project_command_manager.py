@@ -6,11 +6,11 @@ from pandaplot.commands.project.chart.create_chart_command import CreateChartCom
 from pandaplot.commands.project.dataset.create_empty_dataset_command import (
     CreateEmptyDatasetCommand,
 )
-from pandaplot.commands.project.dataset.import_csv_command import ImportCsvCommand
-from pandaplot.commands.project.folder.create_folder_command import CreateFolderCommand
-from pandaplot.commands.project.item.delete_item_command import DeleteItemCommand
-from pandaplot.commands.project.note.create_note_command import CreateNoteCommand
-from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.commands.project.dataset import ImportCsvCommand
+from pandaplot.commands.project.folder import CreateFolderCommand
+from pandaplot.commands.project.item import DeleteItemCommand
+from pandaplot.commands.project.note import CreateNoteCommand
+from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 

@@ -3,7 +3,7 @@ import zipfile
 import json
 
 from pandaplot.models.project.items import Item
-from pandaplot.models.project.project import Project
+from pandaplot.models.project import Project
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 
 
