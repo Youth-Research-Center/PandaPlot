@@ -13,9 +13,7 @@ from .event_types import (
     ChartEvents,
     UIEvents,
     ProjectEvents,
-    FolderEvents,
     NoteEvents,
-    DatasetItemEvents,
     EventHierarchy,
     FitEvents
 )
@@ -30,9 +28,7 @@ __all__ = [
     'ChartEvents',
     'UIEvents',
     'ProjectEvents',
-    'FolderEvents',
     'NoteEvents',
-    'DatasetItemEvents',
     'EventHierarchy',
     'EventPublisherMixin',
     'EventSubscriberMixin',

@@ -2,6 +2,7 @@ from typing import override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state import (AppState, AppContext)
 
 
@@ -52,7 +53,7 @@ class RenameItemCommand(Command):
             item.update_name(self.new_name)
 
             # Emit dotted event only
-            self.app_state.event_bus.emit('item.renamed', {
+            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_RENAMED, {
                 'project': project,
                 'item_id': self.item_id,
                 'old_name': self.old_name,
@@ -90,7 +91,7 @@ class RenameItemCommand(Command):
                 item.update_name(self.old_name)
 
                 # Emit event for UI update
-                self.app_state.event_bus.emit('item.renamed', {
+                self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_RENAMED, {
                     'project': project,
                     'item_id': self.item_id,
                     'old_name': self.new_name,

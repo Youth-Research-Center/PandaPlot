@@ -5,7 +5,7 @@ Provides a generic framework for panels that should appear/disappear based on co
 
 from typing import Dict, Callable, Optional, Any
 import logging
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QWidget
 
 from pandaplot.gui.components.sidebar.sidebar import CollapsibleSidebar
@@ -18,9 +18,6 @@ class ConditionalPanelManager(QObject):
     Provides a generic framework for panels that should appear/disappear based on context.
     """
     
-    # Signals
-    panel_visibility_changed = Signal(str, bool)  # panel_name, is_visible
-    
     def __init__(self, sidebar: CollapsibleSidebar, tab_container: TabContainer):
         """
         Initialize with sidebar and tab container references.
@@ -30,11 +27,11 @@ class ConditionalPanelManager(QObject):
             tab_container: The tab container widget
         """
         super().__init__()
+        self.logger = logging.getLogger(__name__)
         self.sidebar = sidebar
         self.tab_container = tab_container
         self.registered_panels: Dict[str, Dict[str, Any]] = {}
         self.current_tab_widget: Optional[QWidget] = None
-        self.logger = logging.getLogger(__name__)
 
         # Connect to tab change events
         self._connect_tab_events()
@@ -127,9 +124,6 @@ class ConditionalPanelManager(QObject):
                 if should_be_visible != previous_visibility:
                     panel_config['is_visible'] = should_be_visible
                     self._update_panel_visibility(panel_name, should_be_visible)
-                    
-                    # Emit signal
-                    self.panel_visibility_changed.emit(panel_name, should_be_visible)
                     
                     self.logger.debug("Panel '%s' visibility changed -> %s", panel_name, should_be_visible)
                     
