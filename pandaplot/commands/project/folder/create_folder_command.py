@@ -3,7 +3,7 @@ from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.project.items.folder import Folder
+from pandaplot.models.project.items import Folder
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 

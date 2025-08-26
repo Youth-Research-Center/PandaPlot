@@ -6,7 +6,7 @@ from typing import Optional, Union, override
 import pandas as pd
 import numpy as np
 from pandaplot.commands.base_command import Command
-from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
@@ -59,8 +59,6 @@ class AddColumnCommand(Command):
                 )
                 return False
             
-            # Import Dataset here to avoid circular imports
-            from pandaplot.models.project.items.dataset import Dataset
             if not isinstance(found_item, Dataset):
                 self.ui_controller.show_error_message(
                     "Add Column", 

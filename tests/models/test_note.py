@@ -13,7 +13,7 @@ Tests cover the Note class, including:
 import pytest
 import uuid
 import time
-from pandaplot.models.project.items.note import Note
+from pandaplot.models.project.items import Note, Item
 
 
 # Fixtures
@@ -372,7 +372,6 @@ class TestInheritance:
     
     def test_is_instance_of_item(self, sample_note):
         """Test that Note is an instance of Item."""
-        from pandaplot.models.project.items.item import Item
         assert isinstance(sample_note, Item)
     
     def test_inherited_methods(self, sample_note):

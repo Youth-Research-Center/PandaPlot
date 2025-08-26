@@ -7,7 +7,7 @@ from typing import Optional, override
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ChartEvents
-from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 
@@ -80,7 +80,6 @@ class CreateChartCommand(Command):
             # Add a default data series using the dataset
             # We'll set up basic defaults for x/y columns that can be configured later
             dataset_obj = project.find_item(self.dataset_id)
-            from pandaplot.models.project.items.dataset import Dataset
             if isinstance(dataset_obj, Dataset) and dataset_obj.data is not None:
                 columns = list(dataset_obj.data.columns)
                 if len(columns) >= 2:

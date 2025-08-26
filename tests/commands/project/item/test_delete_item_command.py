@@ -2,8 +2,7 @@ import pytest
 from unittest.mock import Mock
 
 from pandaplot.commands.project.item.delete_item_command import DeleteItemCommand
-from pandaplot.models.project.items.note import Note
-from pandaplot.models.project.items.folder import Folder
+from pandaplot.models.project.items import Note, Folder
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState

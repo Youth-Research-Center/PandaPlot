@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional, Type, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.project.items.item import Item
+from pandaplot.models.project.items import Item
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 

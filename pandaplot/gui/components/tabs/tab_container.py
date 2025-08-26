@@ -14,9 +14,7 @@ from pandaplot.models.events.event_types import (
     UIEvents,
 )
 from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.project.items.chart import Chart
-from pandaplot.models.project.items.dataset import Dataset
-from pandaplot.models.project.items.note import Note
+from pandaplot.models.project.items import Chart, Dataset, Note
 from pandaplot.models.state.app_context import AppContext
 
 
