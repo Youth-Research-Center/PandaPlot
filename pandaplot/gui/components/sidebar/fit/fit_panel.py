@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events.event_types import UIEvents, FitEvents
+from pandaplot.models.events import UIEvents, FitEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.project.items import Dataset
 

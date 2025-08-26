@@ -6,7 +6,7 @@ from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.events.event_types import ChartEvents
+from pandaplot.models.events import ChartEvents
 from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState

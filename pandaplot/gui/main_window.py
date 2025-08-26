@@ -8,7 +8,7 @@ from pandaplot.gui.components import CollapsibleSidebar, MainMenu, TabContainer
 from pandaplot.gui.components.sidebar.panels.conditional_panel_manager import ConditionalPanelManager
 from pandaplot.gui.components.sidebar.panels.panel_setup_manager import PanelSetupManager
 
-from pandaplot.models.events.event_types import AppEvents
+from pandaplot.models.events import AppEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.state.app_context import AppContext
 

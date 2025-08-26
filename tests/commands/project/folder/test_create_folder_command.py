@@ -125,6 +125,7 @@ class TestCreateFolderCommand:
         result = command.execute()
         
         assert result is True
+        assert command.created_folder is not None
         assert command.created_folder.name == "New Folder 3"  # Should be 3rd folder
 
     def test_execute_with_specified_name(self, mock_app_context, sample_project):
@@ -138,6 +139,7 @@ class TestCreateFolderCommand:
         result = command.execute()
         
         assert result is True
+        assert command.created_folder is not None
         assert command.created_folder.name == folder_name
         
         # Check event emission
@@ -196,7 +198,8 @@ class TestCreateFolderCommand:
         command = CreateFolderCommand(app_context, folder_name)
         result = command.execute()
         
-        assert result is True
+        assert result is True        
+        assert command.created_folder is not None
         assert command.created_folder.name == "Valid Folder Name"  # Stripped
 
     def test_execute_with_exception(self, mock_app_context, sample_project):
@@ -304,6 +307,7 @@ class TestCreateFolderCommand:
         assert result is True
         
         original_folder_id = command.created_folder_id
+        assert command.created_folder is not None
         original_folder_name = command.created_folder.name
         
         command.undo()

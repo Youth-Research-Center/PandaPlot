@@ -6,6 +6,7 @@ This module provides a simplified event bus architecture for decoupling componen
 
 from .event_bus import EventBus
 from .event_types import (
+    AppEvents,
     DatasetEvents,
     DatasetOperationEvents,
     AnalysisEvents,
@@ -15,11 +16,13 @@ from .event_types import (
     FolderEvents,
     NoteEvents,
     DatasetItemEvents,
-    EventHierarchy
+    EventHierarchy,
+    FitEvents
 )
 from .mixins import EventPublisherMixin, EventSubscriberMixin, EventBusComponentMixin
 
 __all__ = [
+    'AppEvents',
     'EventBus',
     'DatasetEvents',
     'DatasetOperationEvents', 
@@ -33,5 +36,6 @@ __all__ = [
     'EventHierarchy',
     'EventPublisherMixin',
     'EventSubscriberMixin',
-    'EventBusComponentMixin'
+    'EventBusComponentMixin',
+    'FitEvents'
 ]

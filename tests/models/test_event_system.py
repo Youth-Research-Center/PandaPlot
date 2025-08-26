@@ -3,7 +3,7 @@ Unit tests for the simplified event bus system.
 """
 
 from pandaplot.models.events.event_bus import EventBus
-from pandaplot.models.events.event_types import EventHierarchy
+from pandaplot.models.events import EventHierarchy
 from pandaplot.models.events.mixins import EventPublisherMixin, EventSubscriberMixin
 
 

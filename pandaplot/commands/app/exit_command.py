@@ -4,7 +4,7 @@
 from typing import override
 
 from pandaplot.commands.base_command import Command
-from pandaplot.models.events.event_types import AppEvents
+from pandaplot.models.events import AppEvents
 from pandaplot.models.state.app_context import AppContext
 
 

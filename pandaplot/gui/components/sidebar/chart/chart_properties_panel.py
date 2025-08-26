@@ -16,8 +16,7 @@ from pandaplot.models.chart.chart_configuration import (
     ScaleType, LegendPosition, LineStyle, MarkerStyle, AxisStyle, LegendStyle
 )
 from pandaplot.models.chart.chart_style_manager import ChartStyleManager
-from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events.event_types import UIEvents, ChartEvents, ProjectEvents
+from pandaplot.models.events import EventBusComponentMixin, UIEvents, ChartEvents, ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.project.items import Dataset
 

@@ -6,7 +6,7 @@ from pandaplot.commands.project.chart.create_chart_command import CreateChartCom
 from pandaplot.gui.components.tabs import DatasetTab, NoteTab, ChartTab
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
-from pandaplot.models.events.event_types import (
+from pandaplot.models.events import (
     AnalysisEvents,
     ChartEvents,
     DatasetEvents,

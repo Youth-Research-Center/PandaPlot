@@ -15,7 +15,7 @@ from PySide6.QtCore import Qt
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.gui.components.sidebar.transform.transform_controller import TransformController
 from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events.event_types import (
+from pandaplot.models.events import (
     DatasetOperationEvents, UIEvents
 )
 import logging

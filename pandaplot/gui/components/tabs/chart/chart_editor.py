@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.tabs.chart.chart_canvas import ChartCanvas
-from pandaplot.models.events.event_types import ChartEvents
+from pandaplot.models.events import ChartEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext

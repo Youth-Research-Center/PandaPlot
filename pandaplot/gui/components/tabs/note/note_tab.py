@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.tabs.note.note_editor import NoteEditorWidget
-from pandaplot.models.events.event_types import NoteEvents, UIEvents
+from pandaplot.models.events import NoteEvents, UIEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext

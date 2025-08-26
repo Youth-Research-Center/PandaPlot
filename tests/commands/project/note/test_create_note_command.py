@@ -104,6 +104,7 @@ class TestCreateNoteCommand:
         
         assert result is True
         assert command.created_note_id == "test-uuid"
+        assert command.created_note is not None
         assert command.created_note.name == "New Note"
         assert command.created_note.content == ""
         sample_project.add_item.assert_called_once()
@@ -130,6 +131,7 @@ class TestCreateNoteCommand:
             result = command.execute()
         
         assert result is True
+        assert command.created_note is not None
         assert command.created_note.name == "Custom Note"
         assert command.created_note.content == "Custom content"
         sample_project.add_item.assert_called_once_with(command.created_note, parent_id="folder-123")
@@ -334,6 +336,7 @@ class TestCreateNoteCommand:
             
             command.execute()
         
+        assert command.created_note is not None
         assert command.created_note.id == "unique-id"
         assert command.created_note.name == "My Note"
         assert command.created_note.content == "My content"
@@ -376,6 +379,8 @@ class TestCreateNoteCommand:
         
         assert command1.created_note_id == "id-1"
         assert command2.created_note_id == "id-2"
+        assert command1.created_note is not None
+        assert command2.created_note is not None
         assert command1.created_note.name == "Note 1"
         assert command2.created_note.name == "Note 2"
         assert command1.created_note is not command2.created_note

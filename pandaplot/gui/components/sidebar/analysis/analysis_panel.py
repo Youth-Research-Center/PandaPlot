@@ -15,7 +15,7 @@ from pandaplot.models.state.app_context import AppContext
 from pandaplot.analysis import AnalysisEngine
 from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
 from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events.event_types import (
+from pandaplot.models.events import (
     AnalysisEvents, UIEvents, DatasetEvents, DatasetOperationEvents
 )
 from pandaplot.models.project.items import Dataset
