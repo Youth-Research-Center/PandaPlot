@@ -6,7 +6,7 @@ from typing import List, Dict, Any
 
 
 from pandaplot.models.events.event_bus import EventBus
-from pandaplot.services.config_manager import ConfigManager
+from pandaplot.services.config import ConfigManager
 from pandaplot.models.state.config import ApplicationConfig, Theme
 
 

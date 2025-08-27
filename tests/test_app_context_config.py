@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.models.events.event_bus import EventBus
-from pandaplot.services.config_manager import ConfigManager
-from pandaplot.services.theme_manager import ThemeManager
+from pandaplot.services.config import ConfigManager
+from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.storage.project_data_manager import ProjectDataManager
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 
