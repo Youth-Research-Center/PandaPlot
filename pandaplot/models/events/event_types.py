@@ -12,6 +12,8 @@ Usage patterns:
 
 from typing import List, Dict
 
+# TODO: make event data classes
+
 class ConfigEvents:
     """Configuration-related events."""
     CONFIG_RESET = "config.reset"
