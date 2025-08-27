@@ -401,20 +401,7 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
             if not self.chart.data_series:
                 # TODO: remove this, we want to know there is no data as it can showcase whether we have an error
                 # instead of showing some data, rather write no data loaded
-                # Use sample data for preview
-                x_data = self.sample_data['x']
-                y_data = self.sample_data['y1']
-
-                if self.chart.chart_type == 'line':
-                    self.chart_canvas.axes.plot(
-                        x_data, y_data, linewidth=2, marker='o', markersize=6)
-                elif self.chart.chart_type == 'scatter':
-                    self.chart_canvas.axes.scatter(x_data, y_data, s=60)
-                elif self.chart.chart_type == 'bar':
-                    self.chart_canvas.axes.bar(
-                        range(len(y_data[:10])), y_data[:10])
-                elif self.chart.chart_type == 'hist':
-                    self.chart_canvas.axes.hist(y_data, bins=20)
+                self.dataset_label.setText("No Data Loaded")
             else:
                 # Plot actual data series from real datasets
                 for i, series in enumerate(self.chart.data_series):

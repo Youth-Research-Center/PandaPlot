@@ -1,7 +1,7 @@
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
-from pandaplot.commands.project.project import LoadProjectCommand
+from pandaplot.commands.project.project.load_project_command import LoadProjectCommand
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.data_managers.project_manager import ProjectManager
 
