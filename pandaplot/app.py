@@ -5,11 +5,11 @@ import sys
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.command_executor import CommandExecutor
-from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.gui.controllers import UIController
 from pandaplot.gui.main_window import PandaMainWindow
-from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.events import EventBus
 from pandaplot.models.project.items import Chart, Dataset, Folder, Note
-from pandaplot.models.state import (AppState, AppContext)
+from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.config import ConfigManager
 from pandaplot.services.theme import ThemeManager
 from pandaplot.storage.chart_data_manager import ChartDataManager
