@@ -3,6 +3,7 @@ from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Note
 from pandaplot.models.state import (AppState, AppContext)
 
@@ -62,7 +63,7 @@ class CreateNoteCommand(Command):
             self.project.add_item(self.created_note, parent_id=self.folder_id)
 
             # Emit dotted event only (legacy underscore events removed)
-            self.app_state.event_bus.emit('note.created', {
+            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
                 'project': self.project,
                 'note_id': self.created_note_id,
                 'note_name': note_name,
@@ -96,7 +97,7 @@ class CreateNoteCommand(Command):
                         project.remove_item(note)
 
                     # Emit dotted delete event
-                    self.app_state.event_bus.emit('note.deleted', {
+                    self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
                         'project': project,
                         'note_id': self.created_note_id,
                         'note': self.created_note
@@ -124,7 +125,7 @@ class CreateNoteCommand(Command):
                 project.add_item(self.created_note, parent_id=self.folder_id)
 
                 # Emit dotted event only
-                self.app_state.event_bus.emit('note.created', {
+                self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
                     'project': project,
                     'note_id': self.created_note_id,
                     'note_name': self.created_note.name,

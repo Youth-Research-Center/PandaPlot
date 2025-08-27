@@ -273,11 +273,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
             (DatasetEvents.DATASET_DATA_CHANGED, self.on_dataset_updated),
             (AnalysisEvents.ANALYSIS_COMPLETED, self.on_analysis_completed),
             (ChartEvents.CHART_CREATED, lambda event_data: self.open_tab(event_data.get('chart_id'))),
-            ('ui.chart.open_requested', lambda event_data: self.open_tab(event_data.get('chart_id'))),
-            ('ui.note.open_requested', lambda event_data: self.open_tab(
-                event_data.get('note_id'))),
-            ('ui.dataset.open_requested', lambda event_data: self.open_tab(
-                event_data.get('dataset_id')))
+            (UIEvents.TAB_OPEN_REQUESTED, lambda event_data: self.open_tab(event_data.get('item_id'))),
         ])
 
     def on_tab_changed(self, index: int):

@@ -4,7 +4,9 @@ Unit tests for the simplified event bus system.
 
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events import EventHierarchy
+from pandaplot.models.events.event_types import NoteEvents, ProjectEvents
 from pandaplot.models.events.mixins import EventPublisherMixin, EventSubscriberMixin
+from pandaplot.models.project.items.note import Note
 
 
 class TestEventBus:
@@ -57,20 +59,18 @@ class TestEventBus:
             received_events.append(event_data)
         
         # Subscribe to different levels of hierarchy
-        bus.subscribe("folder.created", handler)
-        bus.subscribe("project.item_added", handler)
-        bus.subscribe("project.changed", handler)
-        
+        bus.subscribe(ProjectEvents.PROJECT_ITEM_REMOVED, handler)
+        bus.subscribe(ProjectEvents.PROJECT_CHANGED, handler)
+
         # Emit specific event
-        bus.emit("folder.created", {"folder_id": "test_folder"})
+        bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {"folder_id": "test_folder"})
         
         # Should receive all hierarchy levels
-        assert len(received_events) == 3
+        assert len(received_events) == 2
         event_types = [event["event_type"] for event in received_events]
-        assert "folder.created" in event_types
-        assert "project.item_added" in event_types
-        assert "project.changed" in event_types
-    
+        assert ProjectEvents.PROJECT_ITEM_REMOVED in event_types
+        assert ProjectEvents.PROJECT_CHANGED in event_types
+
     def test_unsubscribe(self):
         """Test unsubscribing from events."""
         bus = EventBus()
@@ -93,8 +93,8 @@ class TestEventHierarchy:
     
     def test_get_hierarchy(self):
         """Test getting event hierarchy."""
-        hierarchy = EventHierarchy.get_hierarchy("folder.created")
-        expected = ["folder.created", "project.item_added", "project.changed"]
+        hierarchy = EventHierarchy.get_hierarchy(NoteEvents.NOTE_CONTENT_CHANGED)
+        expected = [NoteEvents.NOTE_CONTENT_CHANGED, ProjectEvents.PROJECT_CHANGED]
         assert hierarchy == expected
     
     def test_unknown_event_hierarchy(self):

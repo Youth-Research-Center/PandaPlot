@@ -2,6 +2,7 @@ from typing import override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state import (AppState, AppContext)
 
 
@@ -68,7 +69,7 @@ class SaveProjectCommand(Command):
                     self.app_state.load_project(project)
 
                 # Emit save event
-                self.app_state.event_bus.emit('project_saved', {
+                self.app_state.event_bus.emit(ProjectEvents.PROJECT_SAVED, {
                     'project': project,
                     'file_path': save_path,
                     'previous_path': current_path

@@ -1,7 +1,9 @@
+from tkinter import EventType
 import pytest
 from unittest.mock import Mock, patch
 
 from pandaplot.commands.project.note import CreateNoteCommand
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Note
 from pandaplot.models.project import Project
 from pandaplot.models.state import (AppState, AppContext)
@@ -107,7 +109,7 @@ class TestCreateNoteCommand:
         assert command.created_note.name == "New Note"
         assert command.created_note.content == ""
         sample_project.add_item.assert_called_once()
-        app_state.event_bus.emit.assert_called_once_with('note.created', {
+        app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
             'project': sample_project,
             'note_id': "test-uuid",
             'note_name': "New Note",
@@ -191,7 +193,7 @@ class TestCreateNoteCommand:
         
         sample_project.find_item.assert_called_once_with("test-id")
         sample_project.remove_item.assert_called_once_with(mock_note)
-        app_state.event_bus.emit.assert_called_once_with('note.deleted', {
+        app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_REMOVED, {
             'project': sample_project,
             'note_id': "test-id",
             'note': mock_note
@@ -269,7 +271,7 @@ class TestCreateNoteCommand:
         
         assert result is True
         sample_project.add_item.assert_called_once_with(mock_note, parent_id="parent-folder")
-        app_state.event_bus.emit.assert_called_once_with('note.created', {
+        app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
             'project': sample_project,
             'note_id': "test-id",
             'note_name': "Test Note",
@@ -402,7 +404,7 @@ class TestCreateNoteCommand:
         app_state.event_bus.emit.assert_called_once()
         event_name, event_data = app_state.event_bus.emit.call_args[0]
         
-        assert event_name == 'note.created'
+        assert event_name == ProjectEvents.PROJECT_ITEM_ADDED
         assert 'project' in event_data
         assert 'note_id' in event_data
         assert 'note_name' in event_data

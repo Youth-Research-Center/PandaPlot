@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.models.events.event_types import ConfigEvents, ThemeEvents
+
 
 class WelcomeTab(QWidget):
     """
@@ -40,9 +42,8 @@ class WelcomeTab(QWidget):
         try:
             if self.app_context and getattr(self.app_context, 'get_event_bus', None):
                 bus = self.app_context.get_event_bus()
-                bus.subscribe("config.updated", self._on_config_event)
-                bus.subscribe("config.loaded", self._on_config_event)
-                bus.subscribe("theme.changed", self._on_theme_changed)
+                bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
+                bus.subscribe(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
                 # If config already loaded before this tab instantiated, trigger one manual refresh
                 self.update_recent_projects()
                 # Apply initial local theme styling

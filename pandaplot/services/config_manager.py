@@ -24,6 +24,9 @@ from typing import Any, Mapping, Optional
 import logging
 import shutil
 
+from pytest import Config
+
+from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.config import ApplicationConfig
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.services.config_validation import validate_config
@@ -85,7 +88,7 @@ class ConfigManager:
             self._config = ApplicationConfig.default()
         warnings = validate_config(self._config)
         self._event_bus.emit(
-            "config.loaded",
+            ConfigEvents.CONFIG_LOADED,
             {"config": self._config, "source": source, "warnings": warnings},
         )
         return self._config
@@ -102,7 +105,7 @@ class ConfigManager:
 
             data = self._config.to_json(indent=2)
             self._config_path.write_text(data, encoding="utf-8")
-            self._event_bus.emit("config.saved", {"config": self._config, "path": str(self._config_path)})
+            self._event_bus.emit(ConfigEvents.CONFIG_SAVED, {"config": self._config, "path": str(self._config_path)})
         except Exception as exc:  # noqa: BLE001
             self._log.error("Failed to save configuration: %s", exc)
 
@@ -120,7 +123,7 @@ class ConfigManager:
 
         changes = _diff_nested(before, after)
         self._event_bus.emit(
-            "config.updated",
+            ConfigEvents.CONFIG_UPDATED,
             {"config": self._config, "changes": changes, "warnings": warnings},
         )
 
@@ -133,10 +136,8 @@ class ConfigManager:
         """Reset configuration to defaults (in-place)."""
         self._config.reset_defaults()
         warnings = validate_config(self._config)
-        self._event_bus.emit("config.reset", {"config": self._config, "warnings": warnings})
-        self._event_bus.emit(
-            "config.updated", {"config": self._config, "changes": {"*": "reset"}, "warnings": warnings}
-        )
+        self._event_bus.emit(ConfigEvents.CONFIG_RESET, {"config": self._config, "changes": {"*": "reset"}, "warnings": warnings})
+
         if (self._auto_save if save is None else save):
             self.save()
         return self._config

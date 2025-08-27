@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 from pathlib import Path
 
 from pandaplot.commands.project.dataset import ImportCsvCommand
+from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
@@ -255,7 +256,7 @@ class TestImportCsvCommand:
         assert dataset.data is not None
         
         # Check event emission
-        event_bus.emit.assert_called_once_with('dataset_imported', {
+        event_bus.emit.assert_called_once_with(DatasetEvents.DATASET_CREATED, {
             'project': sample_project,
             'dataset_id': command.dataset_id,
             'dataset_name': command.dataset_name,
@@ -350,7 +351,7 @@ class TestImportCsvCommand:
         # Check event emission for undo
         assert event_bus.emit.call_count == 2  # One for import, one for removal
         remove_event_call = event_bus.emit.call_args_list[1]
-        assert remove_event_call[0][0] == 'dataset_removed'
+        assert remove_event_call[0][0] == DatasetEvents.DATASET_DELETED
         assert remove_event_call[0][1]['dataset_id'] == command.dataset_id
 
     def test_undo_no_dataset_id(self, mock_app_context, sample_project):

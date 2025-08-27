@@ -1,5 +1,6 @@
 import logging
 from pandaplot.models.events import EventBus
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project import Project
 from typing import Optional
 
@@ -52,14 +53,14 @@ class AppState:
         self._current_project = project
         
         # Emit events
-        self.event_bus.emit('project_loaded', {
+        self.event_bus.emit(ProjectEvents.PROJECT_LOADED, {
             'project': project,
             'previous_project': old_project
         })
         
         if old_project is None:
             # TODO: this should be removed
-            self.event_bus.emit('first_project_loaded', {
+            self.event_bus.emit(ProjectEvents.FIRST_PROJECT_LOADED, {
                 'project': project
             })
 
@@ -79,8 +80,8 @@ class AppState:
             
             self._current_project = None
             self._project_file_path = None
-            
-            self.event_bus.emit('project_closed', {
+
+            self.event_bus.emit(ProjectEvents.PROJECT_CLOSED, {
                 'project': old_project,
                 'file_path': old_file_path
             })
@@ -108,16 +109,17 @@ class AppState:
         # Update the stored path if a new one was provided
         if file_path is not None:
             self._project_file_path = file_path
-        
-        self.event_bus.emit('project_saving', {
+
+        self.event_bus.emit(ProjectEvents.PROJECT_SAVING, {
             'project': self._current_project,
             'file_path': save_path
         })
         
         # TODO: Implement actual saving logic in a service
+        # TODO: make saving async since it's a file operation
         self.project_data_manager.save(self._current_project, save_path)
-        
-        self.event_bus.emit('project_saved', {
+
+        self.event_bus.emit(ProjectEvents.PROJECT_SAVED, {
             'project': self._current_project,
             'file_path': save_path
         })

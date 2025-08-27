@@ -6,6 +6,7 @@ import pandas as pd
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state import (AppState, AppContext)
 
@@ -93,7 +94,7 @@ class ImportCsvCommand(Command):
             self.project.add_item(dataset, parent_id=self.folder_id)
 
             # Emit event
-            self.app_state.event_bus.emit('dataset_imported', {
+            self.app_state.event_bus.emit(DatasetEvents.DATASET_CREATED, {
                 'project': self.project,
                 'dataset_id': self.dataset_id,
                 'dataset_name': self.dataset_name,
@@ -139,7 +140,7 @@ class ImportCsvCommand(Command):
                         project.remove_item(dataset)
 
                     # Emit event
-                    self.app_state.event_bus.emit('dataset_removed', {
+                    self.app_state.event_bus.emit(DatasetEvents.DATASET_DELETED, {
                         'project': project,
                         'dataset_id': self.dataset_id,
                         'dataset_data': self.imported_data

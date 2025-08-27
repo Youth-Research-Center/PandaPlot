@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.tabs.chart.chart_canvas import ChartCanvas
 from pandaplot.models.events import ChartEvents
+from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -175,7 +176,7 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
         # Subscribe to config updates to adjust display settings like DPI
         bus = self.app_context.get_event_bus()
         try:
-            bus.subscribe('config.updated', self._on_config_updated)
+            bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
         except Exception:
             self.logger.debug(
                 "Could not subscribe to config.updated for DPI handling")

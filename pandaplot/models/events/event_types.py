@@ -12,6 +12,17 @@ Usage patterns:
 
 from typing import List, Dict
 
+class ConfigEvents:
+    """Configuration-related events."""
+    CONFIG_RESET = "config.reset"
+    CONFIG_SAVED = "config.saved"
+    CONFIG_UPDATED = "config.updated"
+    CONFIG_LOADED = "config.loaded"
+
+class ThemeEvents:
+    """Theme-related events."""
+    THEME_CHANGED = "theme.changed"
+
 class AppEvents:
     """Application-wide events."""
     APP_CLOSING = "app.closing"
@@ -92,6 +103,7 @@ class UIEvents:
     TAB_CHANGED = "ui.tab_changed"
     TAB_CLOSED = "ui.tab_closed"
     TAB_TITLE_CHANGED = "ui.tab_title_changed"
+    TAB_OPEN_REQUESTED = "ui.tab_open_requested"
 
 
 class FitEvents:
@@ -190,6 +202,13 @@ class EventHierarchy:
         "project.item_renamed": ["project.item_renamed", "project.changed"],
         "project.item_moved": ["project.item_moved", "project.changed"],
         "project.structure_changed": ["project.structure_changed", "project.changed"],
+
+        "config.reset": ["config.reset", "config.updated"],
+        "config.saved": ["config.saved"],
+        "config.updated": ["config.updated"],
+        "config.loaded": ["config.loaded", "config.updated"],
+
+        "theme.changed": ["theme.changed"],
     }
     
     @classmethod

@@ -2,7 +2,9 @@ from typing import Any, Dict, Optional, Type, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Item
+from pandaplot.models.project.project import Project
 from pandaplot.models.state import (AppState, AppContext)
 
 
@@ -74,7 +76,7 @@ class DeleteItemCommand(Command):
             project.remove_item(item)
 
             # Emit event
-            self.app_state.event_bus.emit('item_deleted', {
+            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
                 'project': project,
                 'item_id': self.item_id,
                 'item_type': item_type,
@@ -125,7 +127,7 @@ class DeleteItemCommand(Command):
             item_type = self.deleted_item_class.__name__.lower()
 
             # Emit event
-            self.app_state.event_bus.emit('item_restored', {
+            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
                 'project': project,
                 'item_id': self.item_id,
                 'item_type': item_type,
@@ -171,7 +173,7 @@ class DeleteItemCommand(Command):
             item_type = self.deleted_item_class.__name__.lower()
 
             # Emit event
-            self.app_state.event_bus.emit('item_deleted', {
+            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
                 'project': project,
                 'item_id': self.item_id,
                 'item_type': item_type,
