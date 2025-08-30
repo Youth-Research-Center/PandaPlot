@@ -2,23 +2,20 @@ import logging
 
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
-from pandaplot.commands.project.chart.create_chart_command import CreateChartCommand
-from pandaplot.gui.components.tabs.chart.chart_tab import ChartTab
-from pandaplot.gui.components.tabs.dataset_tab import DatasetTab
-from pandaplot.gui.components.tabs.note.note_tab import NoteTab
+from pandaplot.commands.project.chart import CreateChartCommand
+from pandaplot.commands.project.project import (LoadProjectCommand, NewProjectCommand, OpenProjectCommand)
+from pandaplot.gui.components.tabs import DatasetTab, NoteTab, ChartTab
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
-from pandaplot.models.events.event_types import (
+from pandaplot.models.events import (
+    EventBusComponentMixin,
     AnalysisEvents,
     ChartEvents,
     DatasetEvents,
     ProjectEvents,
     UIEvents,
 )
-from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.project.items.chart import Chart
-from pandaplot.models.project.items.dataset import Dataset
-from pandaplot.models.project.items.note import Note
+from pandaplot.models.project.items import Chart, Dataset, Note
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -183,27 +180,18 @@ class TabContainer(EventBusComponentMixin, QWidget):
     def handle_new_project(self):
         """Handle new project request from welcome tab."""
         if self.app_context:
-            from pandaplot.commands.project.project.new_project_command import (
-                NewProjectCommand,
-            )
             command = NewProjectCommand(self.app_context)
             self.app_context.get_command_executor().execute_command(command)
 
     def handle_open_project(self):
         """Handle open project request from welcome tab."""
         if self.app_context:
-            from pandaplot.commands.project.project.open_project_command import (
-                OpenProjectCommand,
-            )
             command = OpenProjectCommand(self.app_context)
             self.app_context.get_command_executor().execute_command(command)
 
     def handle_recent_project(self, project_path: str):
         """Handle recent project selection from welcome tab."""
         if self.app_context:
-            from pandaplot.commands.project.project.load_project_command import (
-                LoadProjectCommand,
-            )
             command = LoadProjectCommand(self.app_context, project_path)
             self.app_context.get_command_executor().execute_command(command)
 
@@ -285,11 +273,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
             (DatasetEvents.DATASET_DATA_CHANGED, self.on_dataset_updated),
             (AnalysisEvents.ANALYSIS_COMPLETED, self.on_analysis_completed),
             (ChartEvents.CHART_CREATED, lambda event_data: self.open_tab(event_data.get('chart_id'))),
-            ('ui.chart.open_requested', lambda event_data: self.open_tab(event_data.get('chart_id'))),
-            ('ui.note.open_requested', lambda event_data: self.open_tab(
-                event_data.get('note_id'))),
-            ('ui.dataset.open_requested', lambda event_data: self.open_tab(
-                event_data.get('dataset_id')))
+            (UIEvents.TAB_OPEN_REQUESTED, lambda event_data: self.open_tab(event_data.get('item_id'))),
         ])
 
     def on_tab_changed(self, index: int):

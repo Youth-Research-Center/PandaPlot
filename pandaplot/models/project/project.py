@@ -1,7 +1,7 @@
 
 import logging
 from typing import Dict, Any, List, Optional
-from pandaplot.models.project.items.item import Item, ItemCollection
+from pandaplot.models.project.items import Item, ItemCollection
 
 class Project:
     """

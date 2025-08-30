@@ -6,11 +6,13 @@ from pandaplot.commands.project.chart.create_chart_command import CreateChartCom
 from pandaplot.commands.project.dataset.create_empty_dataset_command import (
     CreateEmptyDatasetCommand,
 )
-from pandaplot.commands.project.dataset.import_csv_command import ImportCsvCommand
-from pandaplot.commands.project.folder.create_folder_command import CreateFolderCommand
-from pandaplot.commands.project.item.delete_item_command import DeleteItemCommand
-from pandaplot.commands.project.note.create_note_command import CreateNoteCommand
-from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.commands.project.dataset import ImportCsvCommand
+from pandaplot.commands.project.folder import CreateFolderCommand
+from pandaplot.commands.project.item import DeleteItemCommand
+from pandaplot.commands.project.note import CreateNoteCommand
+from pandaplot.models.events.event_data import TabOpenRequestedData
+from pandaplot.models.events.event_types import UIEvents
+from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -128,33 +130,15 @@ class ProjectPanelCommandManager:
         if item_type == 'folder':
             # Toggle folder expansion
             current_item.setExpanded(not current_item.isExpanded())
-        elif item_type == 'note':
-            # Publish event bus request to open note (event bus only)
-            note_obj = item_data.get('data')
-            note_name = note_obj.name if note_obj else 'Unnamed Note'
+        else:
+            item = item_data.get('data')
+            item_name = item.name if item else 'Unnamed Item'
+
             if self.app_state:
-                self.app_state.event_bus.emit('ui.note.open_requested', {
-                    'note_id': item_id,
-                    'note_name': note_name
-                })
-        elif item_type == 'dataset':
-            # Open dataset in a tab (could show data table view)
-            dataset_obj = item_data.get('data')
-            dataset_name = dataset_obj.name if dataset_obj else 'Unnamed Dataset'
-            if self.app_state:
-                self.app_state.event_bus.emit('ui.dataset.open_requested', {
-                    'dataset_id': item_id,
-                    'dataset_name': dataset_name
-                })
-        elif item_type == 'chart':
-            # Open chart in a tab (could show chart configuration/preview)
-            chart_obj = item_data.get('data')
-            chart_name = chart_obj.name if chart_obj else 'Unnamed Chart'
-            if self.app_state:
-                self.app_state.event_bus.emit('ui.chart.open_requested', {
-                    'chart_id': item_id,
-                    'chart_name': chart_name
-                })
+                self.app_state.event_bus.emit(UIEvents.TAB_OPEN_REQUESTED, TabOpenRequestedData(
+                    item_id=item_id,
+                    item_name=item_name
+                ).to_dict())
 
     def on_item_double_clicked(self, item, column):
         """Handle double-click on tree item."""

@@ -22,6 +22,7 @@ from typing import Optional
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QPalette, QColor
 
+from pandaplot.models.events.event_types import ConfigEvents, ThemeEvents
 from pandaplot.models.state.config import ApplicationConfig, Theme
 from pandaplot.models.events.event_bus import EventBus
 
@@ -48,9 +49,8 @@ class ThemeManager:
         self._provider = config_provider
         self._app: Optional[QApplication] = qt_app
         self._current: Optional[ThemeContext] = None
-        # Subscribe to configuration lifecycle
-        self._bus.subscribe("config.loaded", self._on_config_event)
-        self._bus.subscribe("config.updated", self._on_config_event)
+        # Subscribe to configuration lifecycle events
+        self._bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
 
     def set_qt_app(self, app: QApplication) -> None:
         self._app = app
@@ -70,7 +70,7 @@ class ThemeManager:
         self._current = ctx
         if self._app is not None:
             self._apply_to_qapp(ctx)
-        self._bus.emit("theme.changed", {
+        self._bus.emit(ThemeEvents.THEME_CHANGED, {
             "theme": ctx.theme.value,
             "accent": ctx.accent,
             "font_size": ctx.interface_font_size,

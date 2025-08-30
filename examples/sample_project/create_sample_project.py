@@ -11,11 +11,8 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 
-from pandaplot.models.project.project import Project
-from pandaplot.models.project.items.folder import Folder
-from pandaplot.models.project.items.dataset import Dataset
-from pandaplot.models.project.items.chart import Chart
-from pandaplot.models.project.items.note import Note
+from pandaplot.models.project import Project
+from pandaplot.models.project.items import Folder, Dataset, Chart, Note
 from pandaplot.storage.project_data_manager import ProjectDataManager
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.storage.note_data_manager import NoteDataManager

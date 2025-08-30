@@ -11,8 +11,9 @@ import numpy as np
 import pandas as pd
 
 from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events.event_types import UIEvents, FitEvents
+from pandaplot.models.events import UIEvents, FitEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.models.project.items import Dataset
 
 # Import scipy for curve fitting (will handle gracefully if not available)
 try:
@@ -294,7 +295,6 @@ class FitPanel(EventBusComponentMixin, QWidget):
         self.datasets = []
         
         if self.current_project:
-            from pandaplot.models.project.items.dataset import Dataset
             for item in self.current_project.get_all_items():
                 if isinstance(item, Dataset):
                     self.dataset_combo.addItem(item.name, item.id)
@@ -305,7 +305,6 @@ class FitPanel(EventBusComponentMixin, QWidget):
         dataset_id = self.dataset_combo.currentData()
         if dataset_id and self.current_project:
             dataset = self.current_project.find_item(dataset_id)
-            from pandaplot.models.project.items.dataset import Dataset
             if isinstance(dataset, Dataset) and dataset.data is not None:
                 columns = list(dataset.data.columns)
                 
@@ -354,7 +353,6 @@ class FitPanel(EventBusComponentMixin, QWidget):
         
         if self.current_project:
             dataset = self.current_project.find_item(dataset_id)
-            from pandaplot.models.project.items.dataset import Dataset
             if isinstance(dataset, Dataset) and dataset.data is not None:
                 df = dataset.data
                 if x_column in df.columns and y_column in df.columns:

@@ -1,8 +1,8 @@
 from pathlib import Path
 
 from pandaplot.models.events.event_bus import EventBus
-from pandaplot.services.config_manager import ConfigManager
-from pandaplot.services.theme_manager import ThemeManager
+from pandaplot.services.config import ConfigManager
+from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.models.state.config import ApplicationConfig, Theme
 
 

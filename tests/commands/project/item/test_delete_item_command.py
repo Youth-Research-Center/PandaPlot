@@ -1,12 +1,11 @@
 import pytest
 from unittest.mock import Mock
 
-from pandaplot.commands.project.item.delete_item_command import DeleteItemCommand
-from pandaplot.models.project.items.note import Note
-from pandaplot.models.project.items.folder import Folder
-from pandaplot.models.project.project import Project
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.commands.project.item import DeleteItemCommand
+from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.project.items import Note, Folder
+from pandaplot.models.project import Project
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
 
 
@@ -149,7 +148,7 @@ class TestDeleteItemCommand:
         sample_project.remove_item.assert_called_once_with(sample_note)
         
         # Check event emission
-        app_state.event_bus.emit.assert_called_once_with('item_deleted', {
+        app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_REMOVED, {
             'project': sample_project,
             'item_id': "note-123",
             'item_type': "note",
@@ -243,7 +242,7 @@ class TestDeleteItemCommand:
         assert restored_item.content == "Test content"
         
         # Check event emission
-        app_state.event_bus.emit.assert_called_once_with('item_restored', {
+        app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
             'project': sample_project,
             'item_id': "note-123",
             'item_type': "note",
@@ -332,7 +331,7 @@ class TestDeleteItemCommand:
         sample_project.remove_item.assert_called_once_with(sample_note)
         
         # Check event emission
-        app_state.event_bus.emit.assert_called_once_with('item_deleted', {
+        app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_REMOVED, {
             'project': sample_project,
             'item_id': "note-123",
             'item_type': "note",
@@ -412,7 +411,7 @@ class TestDeleteItemCommand:
             
             # Check event emission
             event_call = app_state.event_bus.emit.call_args
-            assert event_call[0][0] == 'item_deleted'
+            assert event_call[0][0] == ProjectEvents.PROJECT_ITEM_REMOVED
             assert event_call[0][1]['item_type'] == expected_type
 
     def test_serialization_round_trip(self, mock_app_context, sample_project):
@@ -468,7 +467,7 @@ class TestDeleteItemCommand:
         app_state.event_bus.emit.assert_called_once()
         event_name, event_data = app_state.event_bus.emit.call_args[0]
         
-        assert event_name == 'item_deleted'
+        assert event_name == ProjectEvents.PROJECT_ITEM_REMOVED
         assert 'project' in event_data
         assert 'item_id' in event_data
         assert 'item_type' in event_data

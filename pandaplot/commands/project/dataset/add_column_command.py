@@ -6,10 +6,10 @@ from typing import Optional, Union, override
 import pandas as pd
 import numpy as np
 from pandaplot.commands.base_command import Command
-from pandaplot.models.project.items.dataset import Dataset
-from pandaplot.models.project.project import Project
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.events.event_types import DatasetOperationEvents
+from pandaplot.models.project.items import Dataset
+from pandaplot.models.project import Project
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
 
 
@@ -59,8 +59,6 @@ class AddColumnCommand(Command):
                 )
                 return False
             
-            # Import Dataset here to avoid circular imports
-            from pandaplot.models.project.items.dataset import Dataset
             if not isinstance(found_item, Dataset):
                 self.ui_controller.show_error_message(
                     "Add Column", 
@@ -124,7 +122,7 @@ class AddColumnCommand(Command):
             self.dataset.set_data(new_data)
             
             # Emit event
-            self.app_state.event_bus.emit('dataset_column_added', {
+            self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_COLUMN_ADDED, {
                 'project': self.project,
                 'dataset_id': self.dataset_id,
                 'dataset_name': self.dataset.name,
@@ -150,7 +148,7 @@ class AddColumnCommand(Command):
                 self.dataset.set_data(self.original_data)
                 
                 # Emit event
-                self.app_state.event_bus.emit('dataset_column_removed', {
+                self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_COLUMN_REMOVED, {
                     'project': self.project,
                     'dataset_id': self.dataset_id,
                     'dataset_name': self.dataset.name,

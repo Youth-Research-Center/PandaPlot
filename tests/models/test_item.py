@@ -12,7 +12,7 @@ Tests cover the Item and ItemCollection classes, including:
 import pytest
 import uuid
 import time
-from pandaplot.models.project.items.item import Item, ItemCollection
+from pandaplot.models.project.items import Item, ItemCollection
 
 
 # Fixtures

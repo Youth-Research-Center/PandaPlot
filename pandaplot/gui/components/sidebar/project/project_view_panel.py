@@ -11,12 +11,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pandaplot.commands.project.item.rename_item_command import RenameItemCommand
+from pandaplot.commands.project.item import RenameItemCommand
 from pandaplot.gui.components.sidebar.project.item_name_delegate import ItemNameDelegate
 from pandaplot.gui.components.sidebar.project.project_command_manager import ProjectPanelCommandManager
 from pandaplot.gui.components.sidebar.project.project_context_manager import ProjectViewPanelContextManager
 from pandaplot.gui.components.sidebar.project.project_tree import ProjectTreeWidget
 from pandaplot.gui.components.sidebar.project.project_tree_manager import ProjectTreeManager
+from pandaplot.models.events.event_types import DatasetOperationEvents, ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -61,58 +62,14 @@ class ProjectViewPanel(QWidget):
         """Subscribe to relevant app state events."""
         if self.app_state:
             self.app_state.event_bus.subscribe(
-                'project_loaded', self.on_project_loaded)
+                ProjectEvents.PROJECT_LOADED, self.on_project_loaded)
             self.app_state.event_bus.subscribe(
-                'project_closed', self.on_project_closed)
+                ProjectEvents.PROJECT_CLOSED, self.on_project_closed)
+            self.app_state.event_bus.subscribe(
+                ProjectEvents.PROJECT_CHANGED, self.on_item_changed)
+            self.app_state.event_bus.subscribe(
+                ProjectEvents.PROJECT_CREATED, self.on_item_changed)
 
-            # Subscribe to item events for automatic tree updates
-            # TODO: simplify subscriptions, we probably don't need all of them
-            self.app_state.event_bus.subscribe(
-                'folder_created', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'folder_renamed', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'folder_deleted', self.on_item_changed)
-            # Dotted note events (new)
-            # TODO: update this to use item events
-            self.app_state.event_bus.subscribe(
-                'note.created', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'note.renamed', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'note.deleted', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'note.moved', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'note.content_changed', self.on_item_changed)
-            # Legacy underscore note events removed
-            # TODO: remove old events, check if they are in use
-            self.app_state.event_bus.subscribe(
-                'dataset_created', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'dataset_imported', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'dataset_removed', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'dataset_column_added', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'dataset_column_removed', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'dataset_row_added', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'dataset_row_removed', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'item_moved', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'item_deleted', self.on_item_changed)
-
-            # Subscribe to chart events
-            self.app_state.event_bus.subscribe(
-                'chart.created', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'chart.updated', self.on_item_changed)
-            self.app_state.event_bus.subscribe(
-                'chart.deleted', self.on_item_changed)
 
     def create_treeview(self, layout: QLayout):
         """Create the treeview widget."""

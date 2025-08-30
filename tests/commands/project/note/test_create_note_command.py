@@ -1,11 +1,12 @@
+from tkinter import EventType
 import pytest
 from unittest.mock import Mock, patch
 
-from pandaplot.commands.project.note.create_note_command import CreateNoteCommand
-from pandaplot.models.project.items.note import Note
-from pandaplot.models.project.project import Project
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.commands.project.note import CreateNoteCommand
+from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.project.items import Note
+from pandaplot.models.project import Project
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
 
 
@@ -104,10 +105,11 @@ class TestCreateNoteCommand:
         
         assert result is True
         assert command.created_note_id == "test-uuid"
+        assert command.created_note is not None
         assert command.created_note.name == "New Note"
         assert command.created_note.content == ""
         sample_project.add_item.assert_called_once()
-        app_state.event_bus.emit.assert_called_once_with('note.created', {
+        app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
             'project': sample_project,
             'note_id': "test-uuid",
             'note_name': "New Note",
@@ -130,6 +132,7 @@ class TestCreateNoteCommand:
             result = command.execute()
         
         assert result is True
+        assert command.created_note is not None
         assert command.created_note.name == "Custom Note"
         assert command.created_note.content == "Custom content"
         sample_project.add_item.assert_called_once_with(command.created_note, parent_id="folder-123")
@@ -190,7 +193,7 @@ class TestCreateNoteCommand:
         
         sample_project.find_item.assert_called_once_with("test-id")
         sample_project.remove_item.assert_called_once_with(mock_note)
-        app_state.event_bus.emit.assert_called_once_with('note.deleted', {
+        app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_REMOVED, {
             'project': sample_project,
             'note_id': "test-id",
             'note': mock_note
@@ -268,7 +271,7 @@ class TestCreateNoteCommand:
         
         assert result is True
         sample_project.add_item.assert_called_once_with(mock_note, parent_id="parent-folder")
-        app_state.event_bus.emit.assert_called_once_with('note.created', {
+        app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
             'project': sample_project,
             'note_id': "test-id",
             'note_name': "Test Note",
@@ -334,6 +337,7 @@ class TestCreateNoteCommand:
             
             command.execute()
         
+        assert command.created_note is not None
         assert command.created_note.id == "unique-id"
         assert command.created_note.name == "My Note"
         assert command.created_note.content == "My content"
@@ -376,6 +380,8 @@ class TestCreateNoteCommand:
         
         assert command1.created_note_id == "id-1"
         assert command2.created_note_id == "id-2"
+        assert command1.created_note is not None
+        assert command2.created_note is not None
         assert command1.created_note.name == "Note 1"
         assert command2.created_note.name == "Note 2"
         assert command1.created_note is not command2.created_note
@@ -398,7 +404,7 @@ class TestCreateNoteCommand:
         app_state.event_bus.emit.assert_called_once()
         event_name, event_data = app_state.event_bus.emit.call_args[0]
         
-        assert event_name == 'note.created'
+        assert event_name == ProjectEvents.PROJECT_ITEM_ADDED
         assert 'project' in event_data
         assert 'note_id' in event_data
         assert 'note_name' in event_data

@@ -12,6 +12,19 @@ Usage patterns:
 
 from typing import List, Dict
 
+# TODO: make event data classes
+
+class ConfigEvents:
+    """Configuration-related events."""
+    CONFIG_RESET = "config.reset"
+    CONFIG_SAVED = "config.saved"
+    CONFIG_UPDATED = "config.updated"
+    CONFIG_LOADED = "config.loaded"
+
+class ThemeEvents:
+    """Theme-related events."""
+    THEME_CHANGED = "theme.changed"
+
 class AppEvents:
     """Application-wide events."""
     APP_CLOSING = "app.closing"
@@ -90,11 +103,9 @@ class UIEvents:
     Events for user interface state changes and interactions.
     """
     TAB_CHANGED = "ui.tab_changed"
-    TAB_CREATED = "ui.tab_created"
     TAB_CLOSED = "ui.tab_closed"
     TAB_TITLE_CHANGED = "ui.tab_title_changed"
-    PANEL_VISIBILITY_CHANGED = "ui.panel_visibility_changed"
-    SIDEBAR_PANEL_SELECTED = "ui.sidebar_panel_selected"
+    TAB_OPEN_REQUESTED = "ui.tab_open_requested"
 
 
 class FitEvents:
@@ -131,41 +142,12 @@ class ProjectEvents:
     PROJECT_STRUCTURE_CHANGED = "project.structure_changed"  # Structure change - folders/items reorganized
 
 
-class FolderEvents:
-    """Folder-specific events.
-    
-    Use these events when components need specific folder operation details.
-    """
-    FOLDER_CREATED = "folder.created"
-    FOLDER_RENAMED = "folder.renamed"
-    FOLDER_DELETED = "folder.deleted"
-    FOLDER_MOVED = "folder.moved"
-
-
 class NoteEvents:
     """Note-specific events.
     
     Use these events when components need specific note operation details.
     """
-    NOTE_CREATED = "note.created"
-    NOTE_RENAMED = "note.renamed"
-    NOTE_DELETED = "note.deleted"
-    NOTE_MOVED = "note.moved"
     NOTE_CONTENT_CHANGED = "note.content_changed"
-
-
-class DatasetItemEvents:
-    """Dataset item-specific events.
-    
-    Use these events when components need specific dataset item operation details.
-    These are different from DatasetEvents - these are for dataset items in project tree,
-    while DatasetEvents are for dataset data operations.
-    """
-    DATASET_ITEM_CREATED = "dataset_item.created"
-    DATASET_ITEM_IMPORTED = "dataset_item.imported"
-    DATASET_ITEM_REMOVED = "dataset_item.removed"
-    DATASET_ITEM_RENAMED = "dataset_item.renamed"
-    DATASET_ITEM_MOVED = "dataset_item.moved"
 
 
 class EventHierarchy:
@@ -175,25 +157,8 @@ class EventHierarchy:
     HIERARCHY_MAP: Dict[str, List[str]] = {
         "app.closing": ["app.closing"],
 
-        # Folder events
-        "folder.created": ["folder.created", "project.item_added", "project.changed"],
-        "folder.renamed": ["folder.renamed", "project.item_renamed", "project.changed"],
-        "folder.deleted": ["folder.deleted", "project.item_removed", "project.changed"],
-        "folder.moved": ["folder.moved", "project.item_moved", "project.changed"],
-        
         # Note events
-        "note.created": ["note.created", "project.item_added", "project.changed"],
-        "note.renamed": ["note.renamed", "project.item_renamed", "project.changed"],
-        "note.deleted": ["note.deleted", "project.item_removed", "project.changed"],
-        "note.moved": ["note.moved", "project.item_moved", "project.changed"],
         "note.content_changed": ["note.content_changed", "project.changed"],
-        
-        # Dataset item events
-        "dataset_item.created": ["dataset_item.created", "project.item_added", "project.changed"],
-        "dataset_item.imported": ["dataset_item.imported", "project.item_added", "project.changed"],
-        "dataset_item.removed": ["dataset_item.removed", "project.item_removed", "project.changed"],
-        "dataset_item.renamed": ["dataset_item.renamed", "project.item_renamed", "project.changed"],
-        "dataset_item.moved": ["dataset_item.moved", "project.item_moved", "project.changed"],
         
         # Dataset operation events
         "dataset.column_added": ["dataset.column_added", "dataset.structure_changed", "dataset.changed"],
@@ -223,11 +188,8 @@ class EventHierarchy:
         
         # UI events (no hierarchy needed)
         "ui.tab_changed": ["ui.tab_changed"],
-        "ui.tab_created": ["ui.tab_created"],
         "ui.tab_closed": ["ui.tab_closed"],
         "ui.tab_title_changed": ["ui.tab_title_changed"],
-        "ui.panel_visibility_changed": ["ui.panel_visibility_changed"],
-        "ui.sidebar_panel_selected": ["ui.sidebar_panel_selected"],
         
         # Project events (already top-level)
         "project.created": ["project.created"],
@@ -242,6 +204,13 @@ class EventHierarchy:
         "project.item_renamed": ["project.item_renamed", "project.changed"],
         "project.item_moved": ["project.item_moved", "project.changed"],
         "project.structure_changed": ["project.structure_changed", "project.changed"],
+
+        "config.reset": ["config.reset", "config.updated"],
+        "config.saved": ["config.saved"],
+        "config.updated": ["config.updated"],
+        "config.loaded": ["config.loaded", "config.updated"],
+
+        "theme.changed": ["theme.changed"],
     }
     
     @classmethod

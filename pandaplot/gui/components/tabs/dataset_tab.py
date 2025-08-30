@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
-from pandaplot.models.events.event_types import DatasetEvents, DatasetOperationEvents
+from pandaplot.models.events import DatasetEvents, DatasetOperationEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -715,7 +715,3 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         else:
             self.logger.error(
                 "Failed to add row to dataset %s", self.dataset.id)
-
-    def get_dataset_id(self) -> str:
-        """Get the dataset ID."""
-        return self.dataset.id

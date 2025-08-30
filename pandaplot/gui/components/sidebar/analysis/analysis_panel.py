@@ -15,9 +15,10 @@ from pandaplot.models.state.app_context import AppContext
 from pandaplot.analysis import AnalysisEngine
 from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
 from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events.event_types import (
+from pandaplot.models.events import (
     AnalysisEvents, UIEvents, DatasetEvents, DatasetOperationEvents
 )
+from pandaplot.models.project.items import Dataset
 
 
 class AnalysisPanel(EventBusComponentMixin, QWidget):
@@ -653,7 +654,6 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
                     project = self.app_context.get_app_state().current_project
                     if project:
                         dataset = project.find_item(new_dataset_id)
-                        from pandaplot.models.project.items.dataset import Dataset
                         if isinstance(dataset, Dataset):
                             self.current_dataset = dataset
                         else:

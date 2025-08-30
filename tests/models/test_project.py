@@ -12,8 +12,8 @@ Tests cover the Project class, including:
 
 import pytest
 import uuid
-from pandaplot.models.project.project import Project
-from pandaplot.models.project.items.item import Item, ItemCollection
+from pandaplot.models.project import Project
+from pandaplot.models.project.items import Item, ItemCollection
 
 
 # Fixtures

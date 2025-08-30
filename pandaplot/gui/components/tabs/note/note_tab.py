@@ -9,7 +9,8 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.tabs.note.note_editor import NoteEditorWidget
-from pandaplot.models.events.event_types import NoteEvents, UIEvents
+from pandaplot.models.events import NoteEvents, UIEvents
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
@@ -43,7 +44,7 @@ class NoteTab(EventBusComponentMixin, QWidget):
         """Set up event subscriptions instead of Qt rename signal."""
         self.subscribe_to_event(
             UIEvents.TAB_TITLE_CHANGED, self.on_tab_title_changed_event)
-        self.subscribe_to_event(NoteEvents.NOTE_RENAMED,
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_RENAMED,
                                 self.on_note_renamed_event)
         self.subscribe_to_event(
             NoteEvents.NOTE_CONTENT_CHANGED, self.on_note_content_changed_event)

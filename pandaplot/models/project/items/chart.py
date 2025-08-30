@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 import numpy as np
-from pandaplot.models.project.items.item import Item
+from pandaplot.models.project.items import Item
 
 
 @dataclass

@@ -8,9 +8,9 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.tabs.chart.chart_editor import ChartEditorWidget
-from pandaplot.models.events.event_types import ChartEvents, FitEvents, UIEvents
+from pandaplot.models.events import ChartEvents, FitEvents, UIEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items import Chart
 from pandaplot.models.state.app_context import AppContext
 
 

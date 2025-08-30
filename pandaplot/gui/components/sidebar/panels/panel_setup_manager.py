@@ -13,9 +13,7 @@ from pandaplot.gui.components.sidebar.panels.conditional_panel_manager import (
 )
 from pandaplot.gui.components.sidebar.panels.panel_conditions import (
     is_dataset_tab_active,
-    is_dataset_with_analysis_data,
-    should_show_chart_properties,
-    should_show_fit_panel,
+    is_chart_tab_active,
 )
 from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
 from pandaplot.gui.components.sidebar.transform.transform_panel import TransformPanel
@@ -37,9 +35,9 @@ class PanelSetupManager:
 
         # TODO: Currently using 'is_dataset_with_analysis_data' as the visibility condition for the Analysis panel.  
         # Consider whether this should be changed to 'is_dataset_tab_active' to show the panel whenever the dataset tab is active.
-        self.register_panel(AnalysisPanel(self.app_context), "analysis", "📊", is_dataset_with_analysis_data)
-        self.register_panel(ChartPropertiesPanel(self.app_context), "chart_properties", "📈", should_show_chart_properties)
-        self.register_panel(FitPanel(self.app_context), "fit", "📐", should_show_fit_panel)
+        self.register_panel(AnalysisPanel(self.app_context), "analysis", "📊", is_dataset_tab_active)
+        self.register_panel(ChartPropertiesPanel(self.app_context), "chart_properties", "📈", is_chart_tab_active)
+        self.register_panel(FitPanel(self.app_context), "fit", "📐", is_chart_tab_active)
 
     def register_panel(self, panel: QWidget, name: str, icon: str, visibility_condition):
         self.logger.info("Registered panel: %s", name)

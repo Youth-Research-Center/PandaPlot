@@ -134,17 +134,6 @@ class EventSubscriberMixin:
         pattern = scope_patterns.get(scope, scope)
         self.subscribe_to_event(pattern, handler)
     
-    def subscribe_to_specific_dataset(self, dataset_id: str, handler: Callable) -> None:
-        """Subscribe to events for a specific dataset only.
-        
-        This replaces complex filtering with simple data checking.
-        """
-        def filtered_handler(event_data):
-            if event_data.get('dataset_id') == dataset_id:
-                handler(event_data)
-        
-        self.subscribe_to_event("dataset.*", filtered_handler)
-    
     def unsubscribe_all(self) -> None:
         """Unsubscribe from all events.
         

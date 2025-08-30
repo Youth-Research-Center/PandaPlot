@@ -11,6 +11,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor
 from typing import Dict, Any, Optional
 
+from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.config import ApplicationConfig
 
 THEME_DISPLAY = {
@@ -407,8 +408,7 @@ class SettingsDialog(QDialog):
             self.load_current_settings()
         # Subscribe to both updated and reset events
         try:
-            self._event_bus.subscribe('config.updated', _on_config_event)
-            self._event_bus.subscribe('config.reset', _on_config_event)
+            self._event_bus.subscribe(ConfigEvents.CONFIG_UPDATED, _on_config_event)
         except Exception:
             pass
     

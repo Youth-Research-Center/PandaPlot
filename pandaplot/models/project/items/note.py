@@ -4,7 +4,7 @@ Note model for managing text-based note items in the project.
 
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from pandaplot.models.project.items.item import Item
+from pandaplot.models.project.items import Item
 
 
 class Note(Item):

@@ -3,10 +3,10 @@ Facade for accessing application state and services.
 """
 from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.events import EventBus
 from pandaplot.models.state.app_state import AppState
-from pandaplot.services.config_manager import ConfigManager
-from pandaplot.services.theme_manager import ThemeManager
+from pandaplot.services.config import ConfigManager
+from pandaplot.services.theme import ThemeManager
 
 
 class AppContext:

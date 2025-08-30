@@ -5,7 +5,7 @@ Dataset model for managing data table items in the project.
 from datetime import datetime
 from typing import Optional, Dict, Any
 import pandas as pd
-from pandaplot.models.project.items.item import Item
+from pandaplot.models.project.items import Item
 
 
 class Dataset(Item):

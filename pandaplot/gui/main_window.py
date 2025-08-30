@@ -8,7 +8,8 @@ from pandaplot.gui.components import CollapsibleSidebar, MainMenu, TabContainer
 from pandaplot.gui.components.sidebar.panels.conditional_panel_manager import ConditionalPanelManager
 from pandaplot.gui.components.sidebar.panels.panel_setup_manager import PanelSetupManager
 
-from pandaplot.models.events.event_types import AppEvents
+from pandaplot.models.events import AppEvents
+from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.state.app_context import AppContext
 
@@ -132,7 +133,7 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
 
         # React to theme changes if window-specific adjustments are needed
         # TODO: implement theme changed callback
-        self.app_context.event_bus.subscribe('theme.changed', lambda _: self.logger.debug(
+        self.app_context.event_bus.subscribe(ThemeEvents.THEME_CHANGED, lambda _: self.logger.debug(
             "Theme changed event received in main window"))
 
     def on_app_closing_event(self, event_data: dict):

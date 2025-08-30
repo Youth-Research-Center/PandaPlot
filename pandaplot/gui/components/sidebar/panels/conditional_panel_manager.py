@@ -5,7 +5,7 @@ Provides a generic framework for panels that should appear/disappear based on co
 
 from typing import Dict, Callable, Optional, Any
 import logging
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QWidget
 
 from pandaplot.gui.components.sidebar.sidebar import CollapsibleSidebar
@@ -18,9 +18,6 @@ class ConditionalPanelManager(QObject):
     Provides a generic framework for panels that should appear/disappear based on context.
     """
     
-    # Signals
-    panel_visibility_changed = Signal(str, bool)  # panel_name, is_visible
-    
     def __init__(self, sidebar: CollapsibleSidebar, tab_container: TabContainer):
         """
         Initialize with sidebar and tab container references.
@@ -30,11 +27,11 @@ class ConditionalPanelManager(QObject):
             tab_container: The tab container widget
         """
         super().__init__()
+        self.logger = logging.getLogger(__name__)
         self.sidebar = sidebar
         self.tab_container = tab_container
         self.registered_panels: Dict[str, Dict[str, Any]] = {}
         self.current_tab_widget: Optional[QWidget] = None
-        self.logger = logging.getLogger(__name__)
 
         # Connect to tab change events
         self._connect_tab_events()
@@ -67,17 +64,6 @@ class ConditionalPanelManager(QObject):
         )
         
         self.logger.debug("Registered panel '%s' priority=%s", panel_name, priority)
-    
-    def unregister_conditional_panel(self, panel_name: str):
-        """
-        Unregister a conditional panel.
-        
-        Args:
-            panel_name: Name of the panel to unregister
-        """
-        if panel_name in self.registered_panels:
-            del self.registered_panels[panel_name]
-            self.logger.debug("Unregistered panel '%s'", panel_name)
     
     def _on_tab_index_changed(self, index: int):
         """
@@ -139,9 +125,6 @@ class ConditionalPanelManager(QObject):
                     panel_config['is_visible'] = should_be_visible
                     self._update_panel_visibility(panel_name, should_be_visible)
                     
-                    # Emit signal
-                    self.panel_visibility_changed.emit(panel_name, should_be_visible)
-                    
                     self.logger.debug("Panel '%s' visibility changed -> %s", panel_name, should_be_visible)
                     
             except Exception:
@@ -196,90 +179,3 @@ class ConditionalPanelManager(QObject):
                 return panel_name
         
         return None
-    
-    def get_current_tab_context(self) -> dict:
-        """
-        Get current tab context information for condition evaluation.
-        
-        Returns:
-            Dictionary with tab context information
-        """
-        context = {
-            'current_tab_widget': self.current_tab_widget,
-            'tab_type': type(self.current_tab_widget).__name__ if self.current_tab_widget else None,
-            'has_tab': self.current_tab_widget is not None,
-            'tab_count': self.tab_container.tab_widget.count() if hasattr(self.tab_container, 'tab_widget') else 0
-        }
-        
-        # Add dataset-specific context if applicable
-        if hasattr(self.current_tab_widget, 'dataset') and self.current_tab_widget is not None:
-            dataset = getattr(self.current_tab_widget, 'dataset', None)
-            if dataset:
-                context.update({
-                    'has_dataset': True,
-                    'dataset_id': getattr(dataset, 'id', None),
-                    'dataset_name': getattr(dataset, 'name', None),
-                    'dataset_shape': getattr(dataset.data, 'shape', None) if hasattr(dataset, 'data') and dataset.data is not None else None
-                })
-            else:
-                context['has_dataset'] = False
-        else:
-            context['has_dataset'] = False
-        
-        # Add chart-specific context if applicable
-        if hasattr(self.current_tab_widget, 'chart') and self.current_tab_widget is not None:
-            chart = getattr(self.current_tab_widget, 'chart', None)
-            if chart:
-                context.update({
-                    'has_chart': True,
-                    'chart_id': getattr(chart, 'id', None),
-                    'chart_name': getattr(chart, 'name', None)
-                })
-            else:
-                context['has_chart'] = False
-        else:
-            context['has_chart'] = False
-        
-        return context
-    
-    def get_panel_visibility_status(self) -> Dict[str, bool]:
-        """
-        Get current visibility status of all registered panels.
-        
-        Returns:
-            Dictionary mapping panel names to their visibility status
-        """
-        return {panel_name: config['is_visible'] 
-                for panel_name, config in self.registered_panels.items()}
-    
-    def force_evaluate_all_panels(self):
-        """Force re-evaluation of all panel conditions."""
-        self.logger.debug("Force evaluating all panel conditions")
-        
-        # Reset all visibility states
-        for panel_config in self.registered_panels.values():
-            panel_config['is_visible'] = False
-        
-        # Re-evaluate
-        self.evaluate_panel_visibility()
-    
-    def is_panel_should_be_visible(self, panel_name: str) -> bool:
-        """
-        Check if a specific panel should be visible based on current context.
-        
-        Args:
-            panel_name: Name of the panel to check
-            
-        Returns:
-            True if panel should be visible, False otherwise
-        """
-        if panel_name not in self.registered_panels:
-            return False
-        
-        condition_func = self.registered_panels[panel_name]['condition_func']
-        
-        try:
-            return condition_func(self.current_tab_widget)
-        except Exception:
-            self.logger.error("Error checking visibility for panel '%s'", panel_name, exc_info=True)
-            return False

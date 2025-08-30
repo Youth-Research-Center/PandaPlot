@@ -16,9 +16,9 @@ from pandaplot.models.chart.chart_configuration import (
     ScaleType, LegendPosition, LineStyle, MarkerStyle, AxisStyle, LegendStyle
 )
 from pandaplot.models.chart.chart_style_manager import ChartStyleManager
-from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events.event_types import UIEvents, ChartEvents, ProjectEvents
+from pandaplot.models.events import EventBusComponentMixin, UIEvents, ChartEvents, ProjectEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.models.project.items import Dataset
 
 
 class ColorButton(QPushButton):
@@ -898,7 +898,6 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         
         if self.current_project:
             # Iterate through all items in the project to find datasets
-            from pandaplot.models.project.items.dataset import Dataset
             for item in self.current_project.get_all_items():
                 if isinstance(item, Dataset):
                     self.dataset_combo.addItem(item.name, item.id)
@@ -909,7 +908,6 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         dataset_id = self.dataset_combo.currentData()
         if dataset_id and self.current_project:
             dataset = self.current_project.find_item(dataset_id)
-            from pandaplot.models.project.items.dataset import Dataset
             if isinstance(dataset, Dataset) and dataset.data is not None:
                 columns = list(dataset.data.columns)
                 
