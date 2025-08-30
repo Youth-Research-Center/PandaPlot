@@ -17,7 +17,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.models.events import event_bus
 from pandaplot.models.events.event_types import ConfigEvents, ThemeEvents
+from pandaplot.models.state.app_context import AppContext
 
 
 class WelcomeTab(QWidget):
@@ -31,25 +33,21 @@ class WelcomeTab(QWidget):
     recent_project_selected = Signal(str)  # project file path
     import_data_requested = Signal()  # importing data
 
-    def __init__(self, app_context=None, parent=None):
+    def __init__(self, app_context:AppContext, parent:QWidget):
         super().__init__(parent)
         self.app_context = app_context
         self.logger = logging.getLogger(__name__)
         # Object name for scoped styling (border reset)
         self.setObjectName("WelcomeTabRoot")
         self.setup_ui()
-        # Subscribe to config events so recent projects refresh when config changes
-        try:
-            if self.app_context and getattr(self.app_context, 'get_event_bus', None):
-                bus = self.app_context.get_event_bus()
-                bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
-                bus.subscribe(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
-                # If config already loaded before this tab instantiated, trigger one manual refresh
-                self.update_recent_projects()
-                # Apply initial local theme styling
-                self._apply_local_theme()
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning("Failed subscribing WelcomeTab to config events: %s", e)
+        self.setup_event_subscriptions()
+        
+        self.update_recent_projects()
+        self._apply_local_theme()
+
+    def setup_event_subscriptions(self):
+        self.app_context.event_bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
+        self.app_context.event_bus.subscribe(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
 
     # ------------------------------------------------------------------
     # Event handlers
