@@ -30,6 +30,55 @@ class MainMenu(QMenuBar):
         self.app_context = app_context
         self.logger = logging.getLogger(__name__)
         self.create_menu()
+        self._apply_theme()
+
+    def _apply_theme(self):
+        # TODO: Implement theme application logic
+        self.setStyleSheet("""
+            QMenuBar {
+                background-color: #F0F0F0;
+                color: black;
+                border-bottom: 1px solid #D0D0D0;
+            }
+            QMenuBar::item {
+                background-color: transparent;
+                padding: 4px 8px;
+                margin: 2px;
+                border-radius: 3px;
+            }
+            QMenuBar::item:selected {
+                background-color: #4A90E2;
+                color: white;
+            }
+            QMenuBar::item:pressed {
+                background-color: #357ABD;
+                color: white;
+            }
+            QMenu {
+                background-color: white;
+                border: 1px solid #C0C0C0;
+                color: black;
+                margin: 2px;
+            }
+            QMenu::item {
+                background-color: transparent;
+                padding: 6px 20px;
+                margin: 1px;
+            }
+            QMenu::item:selected {
+                background-color: #4A90E2;
+                color: white;
+            }
+            QMenu::item:pressed {
+                background-color: #357ABD;
+                color: white;
+            }
+            QMenu::separator {
+                height: 1px;
+                background-color: #C0C0C0;
+                margin: 2px 10px;
+            }
+        """)
 
     def create_menu(self):
         self.logger.debug("Creating main menu")

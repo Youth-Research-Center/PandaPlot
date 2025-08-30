@@ -18,10 +18,14 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
     def __init__(self, app_context: AppContext):
         super().__init__(event_bus=app_context.event_bus)
         self.logger = logging.getLogger(__name__)
-        self.setWindowTitle("PandaPlot")
-
-        # Initialize MVC components
         self.app_context = app_context
+
+        self._init_ui()
+        self.setup_event_subscriptions()
+        self.logger.info("PandaMainWindow initialized.")
+
+    def _init_ui(self):
+        self.setWindowTitle("PandaPlot")
 
         # Get screen dimensions and set window to maximized
         screen = QScreen.availableGeometry(self.screen())
@@ -39,58 +43,10 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         main_layout.setSpacing(0)  # Remove spacing between widgets
 
         self.create_widgets(main_layout)
-        self.setup_event_subscriptions()
-        self.logger.info("PandaMainWindow initialized.")
 
     def create_widgets(self, main_layout):
         # Create menu
         self.main_menu = MainMenu(self, self.app_context)
-        # TODO: move menu styling into menu
-        self.main_menu.setStyleSheet("""
-            QMenuBar {
-                background-color: #F0F0F0;
-                color: black;
-                border-bottom: 1px solid #D0D0D0;
-            }
-            QMenuBar::item {
-                background-color: transparent;
-                padding: 4px 8px;
-                margin: 2px;
-                border-radius: 3px;
-            }
-            QMenuBar::item:selected {
-                background-color: #4A90E2;
-                color: white;
-            }
-            QMenuBar::item:pressed {
-                background-color: #357ABD;
-                color: white;
-            }
-            QMenu {
-                background-color: white;
-                border: 1px solid #C0C0C0;
-                color: black;
-                margin: 2px;
-            }
-            QMenu::item {
-                background-color: transparent;
-                padding: 6px 20px;
-                margin: 1px;
-            }
-            QMenu::item:selected {
-                background-color: #4A90E2;
-                color: white;
-            }
-            QMenu::item:pressed {
-                background-color: #357ABD;
-                color: white;
-            }
-            QMenu::separator {
-                height: 1px;
-                background-color: #C0C0C0;
-                margin: 2px 10px;
-            }
-        """)
         self.setMenuBar(self.main_menu)
 
         # Create main horizontal splitter
