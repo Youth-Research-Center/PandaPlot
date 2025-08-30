@@ -2,6 +2,7 @@ import pytest
 from unittest.mock import Mock
 
 from pandaplot.commands.project.note import EditNoteCommand
+from pandaplot.models.events.event_types import NoteEvents
 from pandaplot.models.project.items import Note
 from pandaplot.models.project import Project
 from pandaplot.models.state import (AppState, AppContext)
@@ -134,8 +135,7 @@ class TestEditNoteCommand:
         sample_note.update_content.assert_called_once_with("New content")
         
         # Check event emission
-        app_state.event_bus.emit.assert_called_once_with('note.content_changed', {
-            'project': sample_project,
+        app_state.event_bus.emit.assert_called_once_with(NoteEvents.NOTE_CONTENT_CHANGED, {
             'note_id': "note-123",
             'old_content': "Original content",
             'new_content': "New content"
@@ -174,8 +174,7 @@ class TestEditNoteCommand:
         sample_note.update_content.assert_called_once_with("Original content")
         
         # Check event emission
-        app_state.event_bus.emit.assert_called_once_with('note.content_changed', {
-            'project': sample_project,
+        app_state.event_bus.emit.assert_called_once_with(NoteEvents.NOTE_CONTENT_CHANGED, {
             'note_id': "note-123",
             'old_content': "New content",
             'new_content': "Original content"
@@ -296,8 +295,7 @@ class TestEditNoteCommand:
         sample_note.update_content.assert_called_once_with("New content")
         
         # Check event emission
-        app_state.event_bus.emit.assert_called_once_with('note.content_changed', {
-            'project': sample_project,
+        app_state.event_bus.emit.assert_called_once_with(NoteEvents.NOTE_CONTENT_CHANGED, {
             'note_id': "note-123",
             'old_content': "Original content",
             'new_content': "New content"
@@ -448,13 +446,11 @@ class TestEditNoteCommand:
         app_state.event_bus.emit.assert_called_once()
         event_name, event_data = app_state.event_bus.emit.call_args[0]
         
-        assert event_name == 'note.content_changed'
-        assert 'project' in event_data
+        assert event_name == NoteEvents.NOTE_CONTENT_CHANGED
         assert 'note_id' in event_data
         assert 'old_content' in event_data
         assert 'new_content' in event_data
         
-        assert event_data['project'] == sample_project
         assert event_data['note_id'] == "test-note"
         assert event_data['old_content'] == "Old content"
         assert event_data['new_content'] == "New content"
