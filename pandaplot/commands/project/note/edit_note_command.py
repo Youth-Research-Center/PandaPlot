@@ -2,6 +2,7 @@ from typing import override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_data import NoteContentChangedData
 from pandaplot.models.events.event_types import NoteEvents
 from pandaplot.models.project.items import Note
 from pandaplot.models.state import (AppState, AppContext)
@@ -54,12 +55,14 @@ class EditNoteCommand(Command):
             note.update_content(self.new_content)
 
             # Emit dotted content changed event only
-            self.app_state.event_bus.emit(NoteEvents.NOTE_CONTENT_CHANGED, {
-                'project': project,
-                'note_id': self.note_id,
-                'old_content': self.old_content,
-                'new_content': self.new_content
-            })
+            self.app_state.event_bus.emit(
+                    NoteEvents.NOTE_CONTENT_CHANGED,
+                    NoteContentChangedData(
+                        note_id=self.note_id,
+                        old_content=self.old_content,
+                        new_content=self.new_content
+                    ).to_dict()
+            )
 
             self.logger.info(
                 "Edited content of note '%s'", self.note_id
@@ -97,12 +100,14 @@ class EditNoteCommand(Command):
                 note.update_content(self.old_content)
 
                 # Emit dotted content changed event only (reversal)
-                self.app_state.event_bus.emit(NoteEvents.NOTE_CONTENT_CHANGED, {
-                    'project': project,
-                    'note_id': self.note_id,
-                    'old_content': self.new_content,
-                    'new_content': self.old_content
-                })
+                self.app_state.event_bus.emit(
+                    NoteEvents.NOTE_CONTENT_CHANGED,
+                    NoteContentChangedData(
+                        note_id=self.note_id,
+                        old_content=self.new_content,
+                        new_content=self.old_content
+                    ).to_dict()
+                )
 
                 self.logger.info(
                     "Restored note content for '%s'", self.note_id
@@ -131,12 +136,14 @@ class EditNoteCommand(Command):
                 note.update_content(self.new_content)
 
                 # Emit dotted content changed event only (redo)
-                self.app_state.event_bus.emit(NoteEvents.NOTE_CONTENT_CHANGED, {
-                    'project': project,
-                    'note_id': self.note_id,
-                    'old_content': self.old_content,
-                    'new_content': self.new_content
-                })
+                self.app_state.event_bus.emit(
+                    NoteEvents.NOTE_CONTENT_CHANGED,
+                    NoteContentChangedData(
+                        note_id=self.note_id,
+                        old_content=self.old_content,
+                        new_content=self.new_content
+                    ).to_dict()
+                )
 
                 self.logger.info(
                     "Redone edit of note '%s'", self.note_id
