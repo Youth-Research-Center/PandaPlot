@@ -19,7 +19,7 @@ class ChartTab(EventBusComponentMixin, QWidget):
     Main chart tab widget that contains the chart editor.
     """
 
-    def __init__(self, app_context: AppContext, chart: Chart, parent=None):
+    def __init__(self, app_context: AppContext, chart: Chart, parent: QWidget):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context
@@ -33,7 +33,7 @@ class ChartTab(EventBusComponentMixin, QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         # Create chart editor
-        self.chart_editor = ChartEditorWidget(self.app_context, self.chart)
+        self.chart_editor = ChartEditorWidget(app_context=self.app_context, chart=self.chart, parent=self)
 
         layout.addWidget(self.chart_editor)
 

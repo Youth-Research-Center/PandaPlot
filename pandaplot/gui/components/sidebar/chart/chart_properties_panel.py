@@ -75,8 +75,8 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
     chart_created = Signal(str)  # chart_id
     chart_updated = Signal(str)  # chart_id
     preview_requested = Signal(ChartConfiguration)
-    
-    def __init__(self, app_context: AppContext, parent=None):
+
+    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context

@@ -29,7 +29,7 @@ class DatasetTab(EventBusComponentMixin, QWidget):
     Tab widget for displaying dataset contents in an editable table format.
     """
 
-    def __init__(self, app_context: AppContext, dataset: Dataset, parent=None):
+    def __init__(self, app_context: AppContext, dataset: Dataset, parent:QWidget):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context

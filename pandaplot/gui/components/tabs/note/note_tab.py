@@ -23,7 +23,7 @@ class NoteTab(EventBusComponentMixin, QWidget):
 
     tab_close_requested = Signal()
 
-    def __init__(self, app_context: AppContext, note: Note, parent=None):
+    def __init__(self, app_context: AppContext, note: Note, parent: QWidget):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.app_context = app_context
         self.note = note
@@ -37,7 +37,7 @@ class NoteTab(EventBusComponentMixin, QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         # Create note editor
-        self.note_editor = NoteEditorWidget(self.app_context, self.note)
+        self.note_editor = NoteEditorWidget(self.app_context, self.note, self)
         layout.addWidget(self.note_editor)
 
     def setup_connections(self):

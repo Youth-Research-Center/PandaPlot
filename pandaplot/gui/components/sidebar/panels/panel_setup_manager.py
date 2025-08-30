@@ -30,7 +30,7 @@ class PanelSetupManager:
         # TODO: this should happen differently as it ideally should be driven 
         # by app registration and support plugin architecture with 
         # distributed panel registration
-        self.register_panel(ProjectViewPanel(self.app_context), "explorer", "📁", lambda _: True)
+        self.register_panel(ProjectViewPanel(app_context=self.app_context), "explorer", "📁", lambda _: True)
         self.register_panel(TransformPanel(self.app_context), "transform", "🔧", is_dataset_tab_active)
 
         # TODO: Currently using 'is_dataset_with_analysis_data' as the visibility condition for the Analysis panel.  

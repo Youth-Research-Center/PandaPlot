@@ -1,19 +1,31 @@
 """Curve fitting panel for performing regression analysis on chart data."""
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, 
-    QComboBox, QPushButton, QLineEdit, QGroupBox, QScrollArea,
-    QTextEdit, QCheckBox, QSpinBox
-)
-from PySide6.QtCore import Qt, Signal
 import logging
+from typing import Optional
+
 import numpy as np
 import pandas as pd
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
+from pandaplot.models.events import FitEvents, UIEvents
 from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events import UIEvents, FitEvents
-from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.project.items import Dataset
+from pandaplot.models.state.app_context import AppContext
 
 # Import scipy for curve fitting (will handle gracefully if not available)
 try:
@@ -28,8 +40,8 @@ class FitPanel(EventBusComponentMixin, QWidget):
     
     fit_completed = Signal(dict)  # Emitted when fit is completed with results
     fit_applied = Signal(dict)   # Emitted when fit should be applied to chart
-    
-    def __init__(self, app_context: AppContext, parent=None):
+
+    def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context

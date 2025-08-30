@@ -82,10 +82,38 @@ class MainMenu(QMenuBar):
 
     def create_menu(self):
         self.logger.debug("Creating main menu")
+        
         # File menu
-        file_menu = QMenu("Project", self)
+        file_menu = self._create_file_menu()
         self.addMenu(file_menu)
 
+        # Edit menu
+        edit_menu = self._create_edit_menu()
+        self.addMenu(edit_menu)
+
+        # Data menu
+        data_menu = self._create_data_menu()
+        self.addMenu(data_menu)
+
+        # Settings menu
+        settings_menu = QMenu("Settings", self)
+        self.addMenu(settings_menu)
+
+        preferences_action = QAction("⚙️ Preferences...", self)
+        # TODO: consider showing settings dialog by triggering event which invokes a command
+        preferences_action.triggered.connect(self.show_settings_dialog)
+        settings_menu.addAction(preferences_action)
+
+        # Help menu
+        help_menu = QMenu("Help", self)
+        self.addMenu(help_menu)
+
+        about_action = QAction("About", self)
+        about_action.triggered.connect(show_about)
+        help_menu.addAction(about_action)
+
+    def _create_file_menu(self) -> QMenu:
+        file_menu = QMenu("Project", self)
         new_action = QAction("New", self)
         new_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(NewProjectCommand(self.app_context)))
@@ -115,9 +143,10 @@ class MainMenu(QMenuBar):
         ).execute_command(ExitCommand(self.app_context)))
         file_menu.addAction(exit_action)
 
-        # Edit menu
+        return file_menu
+    
+    def _create_edit_menu(self) -> QMenu:
         edit_menu = QMenu("Edit", self)
-        self.addMenu(edit_menu)
 
         # TODO: disable undo/redo when there are no actions to undo/redo
         undo_action = QAction("Undo", self)
@@ -129,10 +158,10 @@ class MainMenu(QMenuBar):
         redo_action.triggered.connect(
             lambda: self.app_context.get_command_executor().redo())
         edit_menu.addAction(redo_action)
+        return edit_menu
 
-        # Data menu
+    def _create_data_menu(self) -> QMenu:
         data_menu = QMenu("Data", self)
-        self.addMenu(data_menu)
 
         import_csv_action = QAction("Import CSV...", self)
         import_csv_action.triggered.connect(lambda: self.app_context.get_command_executor(
@@ -150,22 +179,7 @@ class MainMenu(QMenuBar):
         new_note_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(CreateNoteCommand(self.app_context)))
         data_menu.addAction(new_note_action)
-
-        # Settings menu
-        settings_menu = QMenu("Settings", self)
-        self.addMenu(settings_menu)
-
-        preferences_action = QAction("⚙️ Preferences...", self)
-        preferences_action.triggered.connect(self.show_settings_dialog)
-        settings_menu.addAction(preferences_action)
-
-        # Help menu
-        help_menu = QMenu("Help", self)
-        self.addMenu(help_menu)
-
-        about_action = QAction("About", self)
-        about_action.triggered.connect(show_about)
-        help_menu.addAction(about_action)
+        return data_menu
 
     def show_settings_dialog(self):
         """Show the settings dialog."""

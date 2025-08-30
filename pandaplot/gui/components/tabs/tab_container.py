@@ -163,11 +163,11 @@ class TabContainer(EventBusComponentMixin, QWidget):
             raise ValueError("Item cannot be None")
         
         if isinstance(item, Note):
-            return NoteTab(self.app_context, item)
+            return NoteTab(app_context=self.app_context, note=item, parent=self)
         elif isinstance(item, Chart):
-            return ChartTab(self.app_context, item)
+            return ChartTab(app_context=self.app_context, chart=item, parent=self)
         elif isinstance(item, Dataset):
-            return DatasetTab(self.app_context, item)
+            return DatasetTab(app_context=self.app_context, dataset=item, parent=self)
         else:
             raise ValueError(f"Unsupported item type, item class {item.__class__.__name__}")
 
@@ -212,7 +212,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
 
     def create_welcome_tab(self):
         """Create and add a welcome tab."""
-        welcome_tab = WelcomeTab(self.app_context)
+        welcome_tab = WelcomeTab(self.app_context, self)
 
         # Connect welcome tab signals
         welcome_tab.new_project_requested.connect(self.handle_new_project)

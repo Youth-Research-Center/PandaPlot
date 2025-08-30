@@ -5,6 +5,7 @@ Adapted from transform_tab.py to provide a compact sidebar interface
 for applying transformations to dataset tabs.
 """
 
+from typing import Optional
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
     QComboBox, QTextEdit, QGroupBox, QFormLayout, QScrollArea,
@@ -26,8 +27,8 @@ class TransformPanel(EventBusComponentMixin, QWidget):
     Transform panel for data transformations, adapted from transform_tab.py.
     Designed for sidebar integration with conditional visibility.
     """
-    
-    def __init__(self, app_context: AppContext, parent=None):
+
+    def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context

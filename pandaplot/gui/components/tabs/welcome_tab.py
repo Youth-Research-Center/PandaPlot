@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pandaplot.models.events import event_bus
 from pandaplot.models.events.event_types import ConfigEvents, ThemeEvents
 from pandaplot.models.state.app_context import AppContext
 

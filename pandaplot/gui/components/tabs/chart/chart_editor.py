@@ -27,7 +27,7 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
     A chart editor widget with configuration options and live preview.
     """
 
-    def __init__(self, app_context: AppContext, chart: Chart, parent=None):
+    def __init__(self, app_context: AppContext, chart: Chart, parent: QWidget):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context

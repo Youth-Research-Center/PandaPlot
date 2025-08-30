@@ -2,7 +2,6 @@
 Note tab widget for displaying and editing notes in the main tab container.
 """
 import logging
-from typing import Optional
 
 from markdown import markdown
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -36,7 +35,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     # Local signal for immediate editor reactions
     content_changed = Signal(str)
 
-    def __init__(self, app_context: AppContext, note: Note, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, note: Note, parent: QWidget):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context

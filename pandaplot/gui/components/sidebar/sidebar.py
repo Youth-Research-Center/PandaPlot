@@ -12,7 +12,7 @@ from pandaplot.models.state.app_context import AppContext
 class CollapsibleSidebar(QWidget):
     """A collapsible sidebar that contains an icon bar and panel area."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None, width: int = 400, collapsed_width: int = 40):
+    def __init__(self, app_context: AppContext, parent: QWidget, width: int = 400, collapsed_width: int = 40):
         super().__init__(parent)
         self.app_context = app_context
         self.default_width = width
@@ -43,14 +43,14 @@ class CollapsibleSidebar(QWidget):
         main_layout.setSpacing(0)
 
         # Create icon bar
-        self.icon_bar = IconBar(width=self.collapsed_width)
+        self.icon_bar = IconBar(parent=self, width=self.collapsed_width)
         self.icon_bar.panel_requested.connect(self.show_panel)
         self.icon_bar.settings_requested.connect(
             self.show_settings_dialog)
         main_layout.addWidget(self.icon_bar, 0)
 
         # Create panel area
-        self.panel_area = PanelArea()
+        self.panel_area = PanelArea(parent=self)
         main_layout.addWidget(self.panel_area, 1)
 
     def add_panel(self, name: str, icon, content_widget):

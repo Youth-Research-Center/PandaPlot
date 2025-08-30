@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -17,7 +18,7 @@ from pandaplot.gui.components.sidebar.project.project_command_manager import Pro
 from pandaplot.gui.components.sidebar.project.project_context_manager import ProjectViewPanelContextManager
 from pandaplot.gui.components.sidebar.project.project_tree import ProjectTreeWidget
 from pandaplot.gui.components.sidebar.project.project_tree_manager import ProjectTreeManager
-from pandaplot.models.events.event_types import DatasetOperationEvents, ProjectEvents
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -27,7 +28,7 @@ class ProjectViewPanel(QWidget):
     This follows the MVC pattern by listening to events from the app state.
     """
 
-    def __init__(self, app_context: AppContext, parent=None, **kwargs):
+    def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
         super().__init__(parent)
         self.app_context = app_context
         self.app_state = app_context.get_app_state()

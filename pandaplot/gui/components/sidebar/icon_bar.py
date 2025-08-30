@@ -1,5 +1,3 @@
-from typing import Optional
-
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
@@ -10,7 +8,7 @@ class IconBar(QWidget):
     panel_requested = Signal(str)  # Signal emitted when a panel is requested
     settings_requested = Signal()  # Signal emitted when settings button is clicked
 
-    def __init__(self, width: int = 40, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget, width: int = 40):
         super().__init__(parent)
         self.icon_width = width
         self.panels = {}  # Store panel names and their buttons
