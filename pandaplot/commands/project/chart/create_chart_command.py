@@ -7,6 +7,7 @@ from typing import Optional, override
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import ChartEvents
+from pandaplot.models.events.event_data import ChartCreatedData
 from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.state import (AppState, AppContext)
 
@@ -78,6 +79,7 @@ class CreateChartCommand(Command):
 
             # Add a default data series using the dataset
             # We'll set up basic defaults for x/y columns that can be configured later
+            # TODO: remove this
             dataset_obj = project.find_item(self.dataset_id)
             if isinstance(dataset_obj, Dataset) and dataset_obj.data is not None:
                 columns = list(dataset_obj.data.columns)
@@ -104,12 +106,9 @@ class CreateChartCommand(Command):
 
             # Publish chart creation event
             event_bus = self.app_context.event_bus
-            event_bus.emit(ChartEvents.CHART_CREATED, {
-                'chart_id': chart.id,
-                'chart_name': chart.name,
-                'dataset_id': self.dataset_id,
-                'parent_id': self.parent_id
-            })
+            event_bus.emit(ChartEvents.CHART_CREATED, ChartCreatedData(
+                chart_id=chart.id
+            ).to_dict())
 
             return True
 

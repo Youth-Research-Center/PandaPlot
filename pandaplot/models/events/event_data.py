@@ -28,12 +28,19 @@ class EventData:
 
 
 @dataclass(frozen=True)
-class ProjectChangedData(EventData):
-    project_id: str
-
-
-@dataclass(frozen=True)
 class NoteContentChangedData(EventData):
+    # TODO: we need project id ideally
     note_id: str
     old_content: str
     new_content: str
+
+@dataclass(frozen=True)
+class ChartCreatedData(EventData):
+    # TODO: we need project id ideally
+    chart_id: str
+
+@dataclass(frozen=True)
+class TabOpenRequestedData(EventData):
+    # TODO: we need project id ideally
+    item_id: str
+    item_name: str

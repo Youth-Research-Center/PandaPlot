@@ -27,7 +27,7 @@ import shutil
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.config import ApplicationConfig
 from pandaplot.models.events.event_bus import EventBus
-from pandaplot.services.config import validate_config
+from pandaplot.services.config.config_validation import validate_config
 
 
 class ConfigManager:

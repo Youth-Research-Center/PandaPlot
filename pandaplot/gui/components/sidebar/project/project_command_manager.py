@@ -10,6 +10,7 @@ from pandaplot.commands.project.dataset import ImportCsvCommand
 from pandaplot.commands.project.folder import CreateFolderCommand
 from pandaplot.commands.project.item import DeleteItemCommand
 from pandaplot.commands.project.note import CreateNoteCommand
+from pandaplot.models.events.event_data import TabOpenRequestedData
 from pandaplot.models.events.event_types import UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -134,11 +135,10 @@ class ProjectPanelCommandManager:
             item_name = item.name if item else 'Unnamed Item'
 
             if self.app_state:
-                self.app_state.event_bus.emit(UIEvents.TAB_OPEN_REQUESTED, {
-                    'item_id': item_id,
-                    'item_name': item_name,
-                    'item_type': item_type
-                })
+                self.app_state.event_bus.emit(UIEvents.TAB_OPEN_REQUESTED, TabOpenRequestedData(
+                    item_id=item_id,
+                    item_name=item_name
+                ).to_dict())
 
     def on_item_double_clicked(self, item, column):
         """Handle double-click on tree item."""

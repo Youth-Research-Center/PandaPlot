@@ -133,7 +133,7 @@ class CreateNoteCommand(Command):
                     'note': self.created_note
                 })
                 self.logger.info(
-                    "CreateNoteCommand: Redo creation of note '%s' (id=%s) in folder %s",
+                    "CreateNoteCommand: Redo creation of item '%s' (id=%s) in folder %s",
                     self.created_note.name,
                     self.created_note_id,
                     self.folder_id or "root"
