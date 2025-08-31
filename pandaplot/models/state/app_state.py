@@ -21,9 +21,6 @@ class AppState:
         self.project_data_manager = project_data_manager
 
         self._current_project: Optional[Project] = None
-
-        # TODO: move to the project model or project container model
-        self._project_file_path: Optional[str] = None  
         
     @property
     def current_project(self) -> Optional[Project]:
@@ -33,8 +30,8 @@ class AppState:
     @property
     def project_file_path(self) -> Optional[str]:
         """Get the file path of the currently loaded project."""
-        return self._project_file_path
-    
+        return self._current_project.project_file_path if self._current_project else None
+
     @property
     def has_project(self) -> bool:
         """Check if a project is currently loaded."""
@@ -101,14 +98,14 @@ class AppState:
             # TODO: consider returning false
             raise ValueError("No project loaded to save")
         
-        save_path = file_path or self._project_file_path
+        save_path = file_path or self.project_file_path
         if save_path is None:
             # TODO: consider returning false
             raise ValueError("No file path specified for saving")
         
         # Update the stored path if a new one was provided
         if file_path is not None:
-            self._project_file_path = file_path
+            self._current_project.project_file_path = file_path
 
         self.event_bus.emit(ProjectEvents.PROJECT_SAVING, {
             'project': self._current_project,
