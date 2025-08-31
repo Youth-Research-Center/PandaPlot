@@ -2,8 +2,8 @@ from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.state import (AppState, AppContext)
 
 
 class MoveItemCommand(Command):
@@ -97,7 +97,7 @@ class MoveItemCommand(Command):
             self.move_performed = True
 
             # Emit event
-            self.app_state.event_bus.emit('item_moved', {
+            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_MOVED, {
                 'project': project,
                 'item_id': self.item_id,
                 'item_type': self.item_type,
@@ -135,7 +135,7 @@ class MoveItemCommand(Command):
                         project.add_item(item, parent_id=parent_id_for_add)
 
                         # Emit event
-                        self.app_state.event_bus.emit('item_moved', {
+                        self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_MOVED, {
                             'project': project,
                             'item_id': self.item_id,
                             'item_type': self.item_type,

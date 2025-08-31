@@ -2,8 +2,8 @@ from typing import override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.state import (AppState, AppContext)
 
 
 class RenameItemCommand(Command):
@@ -11,13 +11,13 @@ class RenameItemCommand(Command):
     Command to rename a note in the project.
     """
 
-    def __init__(self, app_context: AppContext, note_id: str, new_name: str):
+    def __init__(self, app_context: AppContext, item_id: str, new_name: str):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
 
-        self.note_id = note_id
+        self.item_id = item_id
         self.new_name = new_name
 
         # Store state for undo
@@ -40,75 +40,73 @@ class RenameItemCommand(Command):
                 return False
 
             # Check in metadata notes
-            note = project.find_item(self.note_id)
+            item = project.find_item(self.item_id)
 
-            if note is None:
+            if item is None:
                 self.ui_controller.show_warning_message(
                     "Rename Item",
-                    f"Item with ID '{self.note_id}' not found."
+                    f"Item with ID '{self.item_id}' not found."
                 )
                 return False
 
-            self.old_name = note.name
-            note.update_name(self.new_name)
+            self.old_name = item.name
+            item.update_name(self.new_name)
 
-            # Emit event
-            self.app_state.event_bus.emit('note_renamed', {
+            # Emit dotted event only
+            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_RENAMED, {
                 'project': project,
-                'note_id': self.note_id,
+                'item_id': self.item_id,
                 'old_name': self.old_name,
                 'new_name': self.new_name
             })
 
             self.logger.info(
-                "Renamed note '%s' -> '%s' (id=%s)", self.old_name, self.new_name, self.note_id
+                "Renamed item '%s' -> '%s' (id=%s)", self.old_name, self.new_name, self.item_id
             )
             return True
         except Exception as e:
-            error_msg = f"Failed to rename note: {e}"
+            error_msg = f"Failed to rename item: {e}"
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message(
-                "Rename Note Error", error_msg)
+                "Rename Item Error", error_msg)
             raise
 
     def undo(self):
-        """Undo the rename note command."""
+        """Undo the rename item command."""
         try:
             if self.old_name and self.app_state.has_project:
                 project = self.app_state.current_project
-                if project:
-                    # Find and restore the old name
-                    note_found = False
+                if not project:
+                    return
 
-                    # Check in metadata notes
-                    note = project.find_item(self.note_id)
-                    if note is None:
-                        self.ui_controller.show_warning_message(
-                            "Undo Rename Note",
-                            f"Note with ID '{self.note_id}' not found."
-                        )
-                        return
+                item = project.find_item(self.item_id)
+                if item is None:
+                    self.ui_controller.show_warning_message(
+                        "Undo Rename Item",
+                        f"Item with ID '{self.item_id}' not found."
+                    )
+                    return
 
-                    note.update_name(self.old_name)
+                # Perform restore
+                item.update_name(self.old_name)
 
-                    if note_found:
-                        # Emit event
-                        self.app_state.event_bus.emit('note_renamed', {
-                            'project': project,
-                            'note_id': self.note_id,
-                            'old_name': self.new_name,
-                            'new_name': self.old_name
-                        })
+                # Emit event for UI update
+                self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_RENAMED, {
+                    'project': project,
+                    'item_id': self.item_id,
+                    'old_name': self.new_name,
+                    'new_name': self.old_name
+                })
 
-                        self.logger.info(
-                            "Restored note name to '%s' (id=%s)", self.old_name, self.note_id
-                        )
+                self.logger.info(
+                    "Restored item name to '%s' (id=%s)", self.old_name, self.item_id
+                )
 
         except Exception as e:
-            error_msg = f"Failed to undo rename note: {e}"
+            error_msg = f"Failed to undo rename item: {e}"
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
 
     def redo(self):
-        """Redo the rename note command."""
+        """Redo the rename item command."""
         self.execute()

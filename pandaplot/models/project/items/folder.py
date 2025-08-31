@@ -3,7 +3,7 @@ Folder model for managing folder items in the project hierarchy.
 """
 
 from typing import Optional
-from pandaplot.models.project.items.item import ItemCollection
+from pandaplot.models.project.items import ItemCollection
 
 
 class Folder(ItemCollection):

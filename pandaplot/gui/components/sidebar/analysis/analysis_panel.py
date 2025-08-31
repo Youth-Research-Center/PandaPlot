@@ -9,23 +9,24 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.analysis import AnalysisEngine
 from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
 from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events.event_types import (
+from pandaplot.models.events import (
     AnalysisEvents, UIEvents, DatasetEvents, DatasetOperationEvents
 )
+from pandaplot.models.project.items import Dataset
 
 
 class AnalysisPanel(EventBusComponentMixin, QWidget):
     """
     Side panel for mathematical analysis operations on dataset columns.
     """
-    
-    def __init__(self, app_context: AppContext, parent=None):
+
+    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context
@@ -653,7 +654,6 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
                     project = self.app_context.get_app_state().current_project
                     if project:
                         dataset = project.find_item(new_dataset_id)
-                        from pandaplot.models.project.items.dataset import Dataset
                         if isinstance(dataset, Dataset):
                             self.current_dataset = dataset
                         else:

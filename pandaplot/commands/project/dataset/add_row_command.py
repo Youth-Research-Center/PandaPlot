@@ -8,8 +8,9 @@ import pandas as pd
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.events.event_types import DatasetOperationEvents
+from pandaplot.models.state import (AppState, AppContext)
+from pandaplot.models.project.items import Dataset
 
 
 class AddRowCommand(Command):
@@ -58,8 +59,6 @@ class AddRowCommand(Command):
                 )
                 return False
             
-            # Import Dataset here to avoid circular imports
-            from pandaplot.models.project.items.dataset import Dataset
             if not isinstance(found_item, Dataset):
                 self.ui_controller.show_error_message(
                     "Add Row", 
@@ -121,7 +120,7 @@ class AddRowCommand(Command):
             self.dataset.set_data(new_data)
             
             # Emit event
-            self.app_state.event_bus.emit('dataset_row_added', {
+            self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_ADDED, {
                 'project': self.project,
                 'dataset_id': self.dataset_id,
                 'dataset_name': self.dataset.name,
@@ -146,7 +145,7 @@ class AddRowCommand(Command):
                 self.dataset.set_data(self.original_data)
                 
                 # Emit event
-                self.app_state.event_bus.emit('dataset_row_removed', {
+                self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_REMOVED, {
                     'project': self.project,
                     'dataset_id': self.dataset_id,
                     'dataset_name': self.dataset.name,

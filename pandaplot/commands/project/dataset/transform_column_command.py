@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional, override
 import pandas as pd
 
 from pandaplot.commands.base_command import Command
-from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 

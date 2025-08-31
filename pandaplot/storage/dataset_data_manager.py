@@ -101,11 +101,3 @@ class DatasetDataManager(ItemDataManager):
         except Exception as e:
             self.logger.error("Failed to load dataset from %s: %s", path_in_zip, str(e), exc_info=True)
             raise
-        
-        # Set inherited attributes
-        dataset.parent_id = metadata.get("parent_id")
-        dataset.created_at = metadata.get("created_at")
-        dataset.modified_at = metadata.get("modified_at")
-        dataset.metadata = metadata.get("metadata", {})
-        
-        return dataset

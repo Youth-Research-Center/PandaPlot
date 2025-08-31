@@ -5,11 +5,11 @@ Unit tests for CreateFolderCommand.
 import pytest
 from unittest.mock import Mock, patch
 
-from pandaplot.commands.project.folder.create_folder_command import CreateFolderCommand
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.commands.project.folder import CreateFolderCommand
+from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.project.project import Project
+from pandaplot.models.project import Project
 from pandaplot.models.project.items.folder import Folder
 
 
@@ -125,6 +125,7 @@ class TestCreateFolderCommand:
         result = command.execute()
         
         assert result is True
+        assert command.created_folder is not None
         assert command.created_folder.name == "New Folder 3"  # Should be 3rd folder
 
     def test_execute_with_specified_name(self, mock_app_context, sample_project):
@@ -138,11 +139,12 @@ class TestCreateFolderCommand:
         result = command.execute()
         
         assert result is True
+        assert command.created_folder is not None
         assert command.created_folder.name == folder_name
         
         # Check event emission
         event_bus = app_state.event_bus
-        event_bus.emit.assert_called_once_with('folder_created', {
+        event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
             'project': sample_project,
             'folder_id': command.created_folder_id,
             'folder_name': folder_name,
@@ -196,7 +198,8 @@ class TestCreateFolderCommand:
         command = CreateFolderCommand(app_context, folder_name)
         result = command.execute()
         
-        assert result is True
+        assert result is True        
+        assert command.created_folder is not None
         assert command.created_folder.name == "Valid Folder Name"  # Stripped
 
     def test_execute_with_exception(self, mock_app_context, sample_project):
@@ -243,7 +246,7 @@ class TestCreateFolderCommand:
         event_bus = app_state.event_bus
         assert event_bus.emit.call_count == 2  # One for create, one for delete
         delete_event_call = event_bus.emit.call_args_list[1]
-        assert delete_event_call[0][0] == 'folder_deleted'
+        assert delete_event_call[0][0] == ProjectEvents.PROJECT_ITEM_REMOVED
         assert delete_event_call[0][1]['folder_id'] == command.created_folder_id
 
     def test_undo_no_folder_id(self, mock_app_context, sample_project):
@@ -304,6 +307,7 @@ class TestCreateFolderCommand:
         assert result is True
         
         original_folder_id = command.created_folder_id
+        assert command.created_folder is not None
         original_folder_name = command.created_folder.name
         
         command.undo()
@@ -444,7 +448,7 @@ class TestCreateFolderCommand:
         event_bus = app_state.event_bus
         event_call = event_bus.emit.call_args
         
-        assert event_call[0][0] == 'folder_created'
+        assert event_call[0][0] == ProjectEvents.PROJECT_ITEM_ADDED
         event_data = event_call[0][1]
         
         expected_keys = {'project', 'folder_id', 'folder_name', 'parent_id', 'folder'}

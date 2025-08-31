@@ -3,11 +3,7 @@ Visitor pattern implementation for traversing project item hierarchies.
 """
 
 from typing import Protocol, Any
-from pandaplot.models.project.items.item import Item, ItemCollection
-from pandaplot.models.project.items.folder import Folder
-from pandaplot.models.project.items.note import Note
-from pandaplot.models.project.items.dataset import Dataset
-from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items import Item, ItemCollection, Folder, Note, Dataset, Chart
 
 
 class ItemVisitor(Protocol):

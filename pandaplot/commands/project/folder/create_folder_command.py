@@ -3,9 +3,9 @@ from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.project.items.folder import Folder
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.project.items import Folder
+from pandaplot.models.state import (AppState, AppContext)
 
 
 class CreateFolderCommand(Command):
@@ -74,7 +74,7 @@ class CreateFolderCommand(Command):
                                   parent_id=self.parent_id)
 
             # Emit event
-            self.app_state.event_bus.emit('folder_created', {
+            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
                 'project': self.project,
                 'folder_id': self.created_folder_id,
                 'folder_name': folder_name,
@@ -109,7 +109,7 @@ class CreateFolderCommand(Command):
                         project.remove_item(folder)
 
                     # Emit event
-                    self.app_state.event_bus.emit('folder_deleted', {
+                    self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
                         'project': project,
                         'folder_id': self.created_folder_id,
                         'folder': self.created_folder
@@ -138,7 +138,7 @@ class CreateFolderCommand(Command):
                 project.add_item(self.created_folder, parent_id=self.parent_id)
 
                 # Emit event
-                self.app_state.event_bus.emit('folder_created', {
+                self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
                     'project': project,
                     'folder_id': self.created_folder_id,
                     'folder_name': self.created_folder.name,

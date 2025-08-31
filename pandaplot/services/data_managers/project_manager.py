@@ -2,7 +2,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from pandaplot.models.project.project import Project
+from pandaplot.models.project import Project
 
 
 class ProjectManager:

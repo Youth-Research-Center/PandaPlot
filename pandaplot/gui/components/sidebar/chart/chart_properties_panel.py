@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QTabWidget, QListWidget
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QPainter
 from typing import Optional, List
 
 from pandaplot.models.chart.chart_configuration import (
@@ -16,9 +16,9 @@ from pandaplot.models.chart.chart_configuration import (
     ScaleType, LegendPosition, LineStyle, MarkerStyle, AxisStyle, LegendStyle
 )
 from pandaplot.models.chart.chart_style_manager import ChartStyleManager
-from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events.event_types import UIEvents, ChartEvents
+from pandaplot.models.events import EventBusComponentMixin, UIEvents, ChartEvents, ProjectEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.models.project.items import Dataset
 
 
 class ColorButton(QPushButton):
@@ -50,8 +50,23 @@ class ColorButton(QPushButton):
             self.set_color(color.name())
     
     def _update_appearance(self):
-        """Update button appearance to show current color."""
-        self.setStyleSheet(f"QPushButton {{ background-color: {self._color}; border: 1px solid #ccc; }}")
+        """Trigger a repaint with stable button styling."""
+        # Stable neutral background; colored swatch drawn in paintEvent
+        self.setStyleSheet(
+            "QPushButton { background: #f5f5f5; border:1px solid #888; border-radius:4px; }"
+            "QPushButton:hover { background:#eaeaea; }"
+            "QPushButton:pressed { background:#e0e0e0; }"
+        )
+        self.update()
+
+    def paintEvent(self, event):  # noqa: D401 (Qt override)
+        super().paintEvent(event)
+        # Draw inner color swatch
+        painter = QPainter(self)
+        swatch_rect = self.rect().adjusted(6, 6, -6, -6)
+        painter.setPen(QColor('#555555'))
+        painter.setBrush(QColor(self._color))
+        painter.drawRect(swatch_rect)
 
 
 class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
@@ -71,6 +86,9 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self.current_chart_id: Optional[str] = None
         self.current_chart = None  # Current Chart object being edited
         self.datasets: List = []
+        # Internal flags/state for safe UI updates
+        self._updating_controls: bool = False  # Guard to prevent feedback loops
+        self._pending_label: str = ""        # Buffer while user types label
 
         self._setup_ui()
         self._connect_signals()
@@ -103,6 +121,15 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         
         # Tab widget for organizing other properties
         self.tab_widget = QTabWidget()
+        # Add visual borders so tabs look like traditional tabs
+        self.tab_widget.setStyleSheet(
+            """
+            QTabWidget::pane { border: 1px solid #888; top: 1px; background: #ffffff; }
+            QTabBar::tab { background: #e0e0e0; border: 1px solid #888; border-bottom: none; padding: 4px 8px; margin-right: 2px; border-top-left-radius:4px; border-top-right-radius:4px; }
+            QTabBar::tab:selected { background: #ffffff; font-weight: bold; }
+            QTabBar::tab:hover { background: #f5f5f5; }
+            """
+        )
         
         # Style tab (simplified, no data source controls)
         self.style_tab = self._create_style_tab()
@@ -115,24 +142,52 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         # Legend tab
         self.legend_tab = self._create_legend_tab()
         self.tab_widget.addTab(self.legend_tab, "Legend")
-        
+
         content_layout.addWidget(self.tab_widget)
-        
-        # Buttons
+        # Add stretch so tab area uses available space and buttons (outside scroll) stay fixed
+        content_layout.addStretch(1)
+
+        scroll.setWidget(content_widget)
+        layout.addWidget(scroll)
+
+        # Buttons (outside scroll so they're always visible)
         button_layout = QHBoxLayout()
-        
+        button_layout.setContentsMargins(0, 6, 0, 0)
+        button_layout.setSpacing(8)
         self.preview_button = QPushButton("Preview")
         self.apply_button = QPushButton("Apply")
-        self.reset_button = QPushButton("Reset")
-        
+        self.reset_button = QPushButton("Cancel")
+
+        primary_style = (
+            "QPushButton { background-color:#007bff; color:#fff; padding:6px 14px; border:none; border-radius:4px; font-weight:600; }"
+            "QPushButton:hover { background-color:#005ec2; }"
+            "QPushButton:pressed { background-color:#004f9f; }"
+            "QPushButton:disabled { background-color:#6c757d; }"
+        )
+        secondary_style = (
+            "QPushButton { background-color:#e0e0e0; color:#000; padding:6px 14px; border:1px solid #888; border-radius:4px; }"
+            "QPushButton:hover { background-color:#d5d5d5; }"
+            "QPushButton:pressed { background-color:#c8c8c8; }"
+            "QPushButton:disabled { background-color:#f3f3f3; color:#888; }"
+        )
+
+        self.preview_button.setObjectName("chartPreviewButton")
+        self.apply_button.setObjectName("chartApplyButton")
+        self.reset_button.setObjectName("chartCancelButton")
+
+        self.apply_button.setStyleSheet(primary_style)
+        self.preview_button.setStyleSheet(secondary_style)
+        self.reset_button.setStyleSheet(secondary_style)
+
+        for btn in (self.preview_button, self.apply_button, self.reset_button):
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setMinimumHeight(30)
+
         button_layout.addWidget(self.preview_button)
         button_layout.addWidget(self.apply_button)
         button_layout.addWidget(self.reset_button)
-        
-        content_layout.addLayout(button_layout)
-        
-        scroll.setWidget(content_widget)
-        layout.addWidget(scroll)
+        button_layout.addStretch(1)
+        layout.addLayout(button_layout)
     
     def _create_chart_info_section(self, layout):
         """Create the basic chart information section."""
@@ -157,55 +212,64 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         # Data Series group
         series_group = QGroupBox("Data Series")
         series_layout = QVBoxLayout(series_group)
-        
-        # Series list and controls
-        series_controls_layout = QHBoxLayout()
-        
+
+        # Series list and buttons row
+        list_row = QHBoxLayout()
         self.series_list = QListWidget()
-        self.series_list.setMaximumHeight(120)
+        self.series_list.setMaximumHeight(140)
         self.series_list.currentRowChanged.connect(self._on_series_selection_changed)
-        series_controls_layout.addWidget(self.series_list)
-        
-        # Series control buttons
-        series_buttons_layout = QVBoxLayout()
+        list_row.addWidget(self.series_list, 1)
+
+        buttons_col = QVBoxLayout()
         self.add_series_button = QPushButton("Add Series")
+        self.add_series_button.setMinimumHeight(28)
+        self.add_series_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_series_button.clicked.connect(self._add_series)
-        series_buttons_layout.addWidget(self.add_series_button)
-        
-        self.remove_series_button = QPushButton("Remove Series")
+        self.add_series_button.setStyleSheet(
+            "QPushButton { background:#007bff; color:#fff; border:none; border-radius:4px; padding:4px 10px;}"
+            "QPushButton:hover { background:#0069d9; }"
+            "QPushButton:disabled { background:#6c757d; }"
+        )
+        buttons_col.addWidget(self.add_series_button)
+
+        self.remove_series_button = QPushButton("Remove")
+        self.remove_series_button.setMinimumHeight(28)
+        self.remove_series_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.remove_series_button.clicked.connect(self._remove_series)
         self.remove_series_button.setEnabled(False)
-        series_buttons_layout.addWidget(self.remove_series_button)
-        
-        series_buttons_layout.addStretch()
-        series_controls_layout.addLayout(series_buttons_layout)
-        
-        series_layout.addLayout(series_controls_layout)
-        
-        # Series configuration
+        self.remove_series_button.setStyleSheet(
+            "QPushButton { background:#e0e0e0; color:#000; border:1px solid #888; border-radius:4px; padding:4px 10px;}"
+            "QPushButton:hover { background:#d5d5d5; }"
+            "QPushButton:disabled { background:#f0f0f0; color:#888; }"
+        )
+        buttons_col.addWidget(self.remove_series_button)
+        buttons_col.addStretch(1)
+        list_row.addLayout(buttons_col)
+        series_layout.addLayout(list_row)
+
+        # Series configuration group
         series_config_group = QGroupBox("Series Configuration")
         series_config_layout = QGridLayout(series_config_group)
-        
+
         series_config_layout.addWidget(QLabel("Dataset:"), 0, 0)
         self.dataset_combo = QComboBox()
         series_config_layout.addWidget(self.dataset_combo, 0, 1)
-        
+
         series_config_layout.addWidget(QLabel("X Column:"), 1, 0)
         self.x_column_combo = QComboBox()
         series_config_layout.addWidget(self.x_column_combo, 1, 1)
-        
+
         series_config_layout.addWidget(QLabel("Y Column:"), 2, 0)
         self.y_column_combo = QComboBox()
         series_config_layout.addWidget(self.y_column_combo, 2, 1)
-        
+
         series_config_layout.addWidget(QLabel("Label:"), 3, 0)
         self.series_label_edit = QLineEdit()
         series_config_layout.addWidget(self.series_label_edit, 3, 1)
-        
+
         # Disable series configuration initially
         series_config_group.setEnabled(False)
         self.series_config_group = series_config_group
-        
         series_layout.addWidget(series_config_group)
         layout.addWidget(series_group)
     
@@ -374,31 +438,68 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self.apply_button.clicked.connect(self._on_apply)
         self.reset_button.clicked.connect(self._on_reset)
         
+        # Connect chart-level configuration changes
+        self.chart_type_combo.currentIndexChanged.connect(self._on_chart_config_changed)
+        self.title_edit.textChanged.connect(self._on_chart_config_changed)
+        self.x_label_edit.textChanged.connect(self._on_chart_config_changed)
+        self.y_label_edit.textChanged.connect(self._on_chart_config_changed)
+        self.x_grid_check.toggled.connect(self._on_chart_config_changed)
+        self.y_grid_check.toggled.connect(self._on_chart_config_changed)
+        self.legend_show_check.toggled.connect(self._on_chart_config_changed)
+        
         # Connect series configuration change signals
         self.x_column_combo.currentTextChanged.connect(self._on_series_config_changed)
         self.y_column_combo.currentTextChanged.connect(self._on_series_config_changed)
-        self.series_label_edit.textChanged.connect(self._on_series_config_changed)
+        # Defer label persistence to editingFinished to avoid disruptive refresh while typing
+        self.series_label_edit.textChanged.connect(self._on_label_typing)
+        self.series_label_edit.editingFinished.connect(self._on_label_committed)
         
         # Connect style change signals
         self.line_color_button.colorChanged.connect(self._on_style_changed)
         self.line_width_spin.valueChanged.connect(self._on_style_changed)
+        self.line_transparency_spin.valueChanged.connect(self._on_style_changed)
+        self.line_style_combo.currentIndexChanged.connect(self._on_style_changed)
+        
+        self.marker_color_button.colorChanged.connect(self._on_style_changed)
+        self.marker_edge_color_button.colorChanged.connect(self._on_style_changed)
         self.marker_size_spin.valueChanged.connect(self._on_style_changed)
+        self.marker_type_combo.currentIndexChanged.connect(self._on_style_changed)
     
     def _setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
+        # Ensure datasets populate after a project is loaded from file. AppState emits
+        # 'project_loaded' (underscore) and 'first_project_loaded'. Also subscribe to the
+        # canonical constant for forward compatibility.
+        self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, self._on_project_loaded)  # may not fire yet
+        self.subscribe_to_event('project_loaded', self._on_project_loaded)
+        self.subscribe_to_event('first_project_loaded', self._on_project_loaded)
+
+    def _ensure_datasets_loaded(self):
+        """Populate datasets if empty (idempotent)."""
+        if not self.datasets and self.app_context.app_state.current_project:
+            self.set_project(self.app_context.app_state.current_project)
+
+    def _on_project_loaded(self, event_data):
+        """Handle project loaded to refresh dataset list and any active chart context."""
+        project = event_data.get('project') or self.app_context.app_state.current_project
+        if project:
+            self.set_project(project)
+            # If a chart tab already active, re-load to bind series list correctly
+            if self.current_chart:
+                self.load_chart_object(self.current_chart)
     
     def _on_tab_changed(self, event_data):
         """Handle tab change events to update context."""
         current_tab_type = event_data.get('tab_type')
         chart_id = event_data.get('chart_id')
-        dataset_id = event_data.get('dataset_id')
         
         # Check if current tab is a chart tab
         if current_tab_type == 'chart' and chart_id:
             # Get the chart from the project using chart_id
             project = self.app_context.app_state.current_project
+            self.set_project(project)
             if project is not None:
                 chart = project.find_item(chart_id)
                 if chart:
@@ -409,17 +510,6 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
                     self.logger.warning("Chart properties panel: chart id %s not found in project", chart_id)
             else:
                 self.logger.warning("Chart properties panel: no current project available while switching tab")
-
-        elif current_tab_type == 'dataset' and dataset_id:
-            # For dataset tabs, provide context for creating new charts
-            project = self.app_context.app_state.current_project
-            if project is not None:
-                dataset = project.find_item(dataset_id)
-                if dataset:
-                    self.set_project(project)
-                    self.load_chart_object(None)  # Clear chart for new creation
-                    self.logger.debug("Chart properties panel dataset context set for dataset %s", dataset.name)
-
         else:
             # Clear chart properties panel context when no relevant tab is active
             self.load_chart_object(None)
@@ -514,41 +604,33 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self.remove_series_button.setEnabled(total_items > 0)
     
     def _on_series_config_changed(self):
-        """Handle series configuration changes."""
-        if not self.current_chart:
+        """Handle dataset / column configuration changes for the selected series.
+
+        Label changes are intentionally deferred to editingFinished handled by
+        _on_label_committed to avoid disruptive list refresh while typing.
+        """
+        if self._updating_controls or not self.current_chart:
             return
-        
+
         current_row = self.series_list.currentRow()
         if current_row < 0:
             return
-        
+
         total_series = len(self.current_chart.data_series)
-        
         if current_row < total_series:
-            # Updating a data series
+            # Update data series (guard for safety)
             if current_row >= len(self.current_chart.data_series):
                 return
-            
             series = self.current_chart.data_series[current_row]
-            
-            # Update series properties
             if self.dataset_combo.currentData():
                 series.dataset_id = self.dataset_combo.currentData()
             series.x_column = self.x_column_combo.currentText()
             series.y_column = self.y_column_combo.currentText()
-            series.label = self.series_label_edit.text()
         else:
-            # Updating fit data (only label is editable)
-            fit_index = current_row - total_series
-            if fit_index >= len(self.current_chart.fit_data):
-                return
-            
-            fit = self.current_chart.fit_data[fit_index]
-            fit.label = self.series_label_edit.text()
-        
-        # Update the series list display
-        self._update_series_list()
-        self.series_list.setCurrentRow(current_row)  # Maintain selection
+            # Fit data: columns/dataset not editable, ignore
+            return
+
+        # We don't rebuild the list here to preserve edit focus; apply button can trigger full refresh if needed.
     
     def _on_style_changed(self):
         """Handle style changes."""
@@ -565,11 +647,27 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
             # Updating a data series
             if current_row >= len(self.current_chart.data_series):
                 return
-            
             series = self.current_chart.data_series[current_row]
+            
+            # Update basic style properties that exist in DataSeries model
             series.color = self.line_color_button.get_color()
             series.line_width = self.line_width_spin.value()
             series.marker_size = self.marker_size_spin.value()
+                
+            # Line style & marker style (store enum values as strings)
+            if hasattr(self, 'line_style_combo') and self.line_style_combo.currentData():
+                series.line_style = self.line_style_combo.currentData().value
+            if hasattr(self, 'marker_type_combo') and self.marker_type_combo.currentData():
+                series.marker_style = self.marker_type_combo.currentData().value
+                
+            # If marker color is set differently, use that instead of line color
+            # (For now, DataSeries only has one color field, so we prioritize marker color if it's different)
+            if hasattr(self, 'marker_color_button'):
+                marker_color = self.marker_color_button.get_color()
+                # If user specifically changed marker color and it's different from line color, use marker color
+                if marker_color != self.line_color_button.get_color():
+                    series.color = marker_color
+                
         else:
             # Updating fit data
             fit_index = current_row - total_series
@@ -579,7 +677,52 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
             fit = self.current_chart.fit_data[fit_index]
             fit.color = self.line_color_button.get_color()
             fit.line_width = self.line_width_spin.value()
-            # Note: fit data doesn't use marker_size
+            # Note: fit data doesn't use marker_size or marker colors
+
+        # Emit update event so any open chart tab refreshes immediately
+        if self.current_chart:
+            self.publish_event(ChartEvents.CHART_UPDATED, {
+                'chart_id': self.current_chart.id,
+                'update_type': 'series_updated'
+            })
+    
+    def _on_chart_config_changed(self):
+        """Handle chart-level configuration changes."""
+        if not self.current_chart or self._updating_controls:
+            return
+        
+        # Update chart configuration from UI controls
+        if hasattr(self, 'title_edit'):
+            self.current_chart.name = self.title_edit.text()
+        
+        config = self.current_chart.config
+        if hasattr(self, 'x_label_edit'):
+            config['x_label'] = self.x_label_edit.text()
+        if hasattr(self, 'y_label_edit'):
+            config['y_label'] = self.y_label_edit.text()
+        if hasattr(self, 'x_grid_check') and hasattr(self, 'y_grid_check'):
+            config['show_grid'] = self.x_grid_check.isChecked() and self.y_grid_check.isChecked()
+        if hasattr(self, 'legend_show_check'):
+            config['show_legend'] = self.legend_show_check.isChecked()
+        if hasattr(self, 'chart_type_combo') and self.chart_type_combo.currentData():
+            chart_type_map = {
+                ChartType.LINE: 'line',
+                ChartType.SCATTER: 'scatter',
+                ChartType.BAR: 'bar',
+                ChartType.HISTOGRAM: 'hist',
+                ChartType.BOX: 'box',
+                ChartType.VIOLIN: 'violin'
+            }
+            chart_type = self.chart_type_combo.currentData()
+            if chart_type in chart_type_map:
+                self.current_chart.chart_type = chart_type_map[chart_type]
+        
+        # Emit update event so any open chart tab refreshes immediately
+        if self.current_chart:
+            self.publish_event(ChartEvents.CHART_UPDATED, {
+                'chart_id': self.current_chart.id,
+                'update_type': 'config_updated'
+            })
     
     def _update_series_list(self):
         """Update the series list widget."""
@@ -605,45 +748,127 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
     def _load_series_into_controls(self, series):
         """Load a data series into the configuration controls."""
         # Enable all controls for series editing
-        self._reset_controls_for_series()
-        
-        # Set dataset
-        for i in range(self.dataset_combo.count()):
-            if self.dataset_combo.itemData(i) == series.dataset_id:
-                self.dataset_combo.setCurrentIndex(i)
-                break
-        
-        # Set columns
-        x_index = self.x_column_combo.findText(series.x_column)
-        if x_index >= 0:
-            self.x_column_combo.setCurrentIndex(x_index)
-        
-        y_index = self.y_column_combo.findText(series.y_column)
-        if y_index >= 0:
-            self.y_column_combo.setCurrentIndex(y_index)
-        
-        # Set label
-        self.series_label_edit.setText(series.label)
-        
-        # Update style controls to reflect this series
-        self.line_color_button.set_color(series.color)
-        self.line_width_spin.setValue(series.line_width)
-        self.marker_size_spin.setValue(series.marker_size)
+        self._updating_controls = True
+        try:
+            self._reset_controls_for_series()
+
+            # Set dataset
+            for i in range(self.dataset_combo.count()):
+                if self.dataset_combo.itemData(i) == series.dataset_id:
+                    self.dataset_combo.setCurrentIndex(i)
+                    break
+
+            # Set columns
+            x_index = self.x_column_combo.findText(series.x_column)
+            if x_index >= 0:
+                self.x_column_combo.setCurrentIndex(x_index)
+
+            y_index = self.y_column_combo.findText(series.y_column)
+            if y_index >= 0:
+                self.y_column_combo.setCurrentIndex(y_index)
+
+            # Set label (block signals while populating)
+            self.series_label_edit.blockSignals(True)
+            self.series_label_edit.setText(series.label)
+            self.series_label_edit.blockSignals(False)
+            self._pending_label = series.label
+
+            # Update style controls to reflect this series
+            self.line_color_button.blockSignals(True)
+            self.line_color_button.set_color(series.color)
+            self.line_color_button.blockSignals(False)
+            
+            self.line_width_spin.blockSignals(True)
+            self.line_width_spin.setValue(series.line_width)
+            self.line_width_spin.blockSignals(False)
+            
+            self.marker_size_spin.blockSignals(True)
+            self.marker_size_spin.setValue(series.marker_size)
+            self.marker_size_spin.blockSignals(False)
+            
+            # Update other style controls if they exist
+            if hasattr(self, 'marker_color_button'):
+                self.marker_color_button.blockSignals(True)
+                self.marker_color_button.set_color(series.color)  # Use same color for marker
+                self.marker_color_button.blockSignals(False)
+                
+            if hasattr(self, 'line_style_combo'):
+                self.line_style_combo.blockSignals(True)
+                for i in range(self.line_style_combo.count()):
+                    if self.line_style_combo.itemData(i) and self.line_style_combo.itemData(i).value == series.line_style:
+                        self.line_style_combo.setCurrentIndex(i)
+                        break
+                self.line_style_combo.blockSignals(False)
+                
+            if hasattr(self, 'marker_type_combo'):
+                self.marker_type_combo.blockSignals(True)
+                for i in range(self.marker_type_combo.count()):
+                    if self.marker_type_combo.itemData(i) and self.marker_type_combo.itemData(i).value == series.marker_style:
+                        self.marker_type_combo.setCurrentIndex(i)
+                        break
+                self.marker_type_combo.blockSignals(False)
+        finally:
+            self._updating_controls = False
     
     def _load_fit_into_controls(self, fit):
         """Load fit data into the configuration controls."""
-        # For fit data, disable dataset/column controls since they're not editable
-        self.dataset_combo.setEnabled(False)
-        self.x_column_combo.setEnabled(False)
-        self.y_column_combo.setEnabled(False)
-        
-        # Show fit info in the label
-        self.series_label_edit.setText(fit.label)
-        
-        # Update style controls to reflect this fit
-        self.line_color_button.set_color(fit.color)
-        self.line_width_spin.setValue(fit.line_width)
-        self.marker_size_spin.setValue(0.0)  # Fit lines typically don't have markers
+        self._updating_controls = True
+        try:
+            # For fit data, disable dataset/column controls since they're not editable
+            self.dataset_combo.setEnabled(False)
+            self.x_column_combo.setEnabled(False)
+            self.y_column_combo.setEnabled(False)
+
+            # Show fit info in the label (block signals)
+            self.series_label_edit.blockSignals(True)
+            self.series_label_edit.setText(fit.label)
+            self.series_label_edit.blockSignals(False)
+            self._pending_label = fit.label
+
+            # Update style controls to reflect this fit
+            self.line_color_button.blockSignals(True)
+            self.line_color_button.set_color(fit.color)
+            self.line_color_button.blockSignals(False)
+            
+            self.line_width_spin.blockSignals(True)
+            self.line_width_spin.setValue(fit.line_width)
+            self.line_width_spin.blockSignals(False)
+            
+            self.marker_size_spin.blockSignals(True)
+            self.marker_size_spin.setValue(0.0)  # Fit lines typically don't have markers
+            self.marker_size_spin.blockSignals(False)
+        finally:
+            self._updating_controls = False
+
+    def _on_label_typing(self, text: str):
+        """Buffer label text while user is typing without mutating the model."""
+        self._pending_label = text
+
+    def _on_label_committed(self):
+        """Persist buffered label to model after editing finishes."""
+        if self._updating_controls or not self.current_chart:
+            return
+        current_row = self.series_list.currentRow()
+        if current_row < 0:
+            return
+        total_series = len(self.current_chart.data_series)
+        new_label = self._pending_label or self.series_label_edit.text()
+        if current_row < total_series:
+            if current_row < len(self.current_chart.data_series):
+                self.current_chart.data_series[current_row].label = new_label
+        else:
+            fit_index = current_row - total_series
+            if 0 <= fit_index < len(self.current_chart.fit_data):
+                self.current_chart.fit_data[fit_index].label = new_label
+
+        # Update just the current QListWidgetItem text to avoid focus loss
+        item = self.series_list.item(current_row)
+        if item:
+            if current_row < total_series:
+                item.setText(new_label or f"Series {current_row+1}")
+            else:
+                item.setText(f"🔧 {new_label}")
+        self._pending_label = new_label
     
     def _reset_controls_for_series(self):
         """Reset controls for editing regular data series."""
@@ -673,7 +898,6 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         
         if self.current_project:
             # Iterate through all items in the project to find datasets
-            from pandaplot.models.project.items.dataset import Dataset
             for item in self.current_project.get_all_items():
                 if isinstance(item, Dataset):
                     self.dataset_combo.addItem(item.name, item.id)
@@ -684,7 +908,6 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         dataset_id = self.dataset_combo.currentData()
         if dataset_id and self.current_project:
             dataset = self.current_project.find_item(dataset_id)
-            from pandaplot.models.project.items.dataset import Dataset
             if isinstance(dataset, Dataset) and dataset.data is not None:
                 columns = list(dataset.data.columns)
                 
@@ -807,6 +1030,8 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self.current_chart = chart
         
         if chart:
+            # Ensure datasets are available (important after opening a project file)
+            self._ensure_datasets_loaded()
             # Load basic info
             self.title_edit.setText(chart.config.get('title', chart.name))
             
@@ -839,8 +1064,12 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
                 self.line_color_button.set_color(first_series.color)
                 self.line_width_spin.setValue(first_series.line_width)
                 self.marker_size_spin.setValue(first_series.marker_size)
+                self.add_series_button.show()
+                self.remove_series_button.show()
             else:
                 self.series_config_group.setEnabled(False)
+                self.add_series_button.show()
+                self.remove_series_button.hide()
             
             # Load configuration
             config = chart.config
@@ -855,6 +1084,10 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
             self._load_default_configuration()
             self.series_list.clear()
             self.series_config_group.setEnabled(False)
+            if hasattr(self, 'add_series_button'):
+                self.add_series_button.show()
+            if hasattr(self, 'remove_series_button'):
+                self.remove_series_button.hide()
     
     def apply_to_chart(self, chart):
         """Apply current panel settings to a Chart object.

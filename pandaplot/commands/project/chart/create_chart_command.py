@@ -6,10 +6,10 @@ from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.events.event_types import ChartEvents
-from pandaplot.models.project.items.chart import Chart
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
+from pandaplot.models.events import ChartEvents
+from pandaplot.models.events.event_data import ChartCreatedData
+from pandaplot.models.project.items import Chart, Dataset
+from pandaplot.models.state import (AppState, AppContext)
 
 
 class CreateChartCommand(Command):
@@ -23,10 +23,10 @@ class CreateChartCommand(Command):
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
 
-        self.created_chart_id = None
-        self.dataset_id = dataset_id
-        self.chart_name = chart_name
-        self.parent_id = parent_id
+        self.created_chart_id: Optional[str] = None
+        self.dataset_id: str = dataset_id
+        self.chart_name: Optional[str] = chart_name
+        self.parent_id: Optional[str] = parent_id
 
     @override
     def execute(self) -> bool:
@@ -79,8 +79,8 @@ class CreateChartCommand(Command):
 
             # Add a default data series using the dataset
             # We'll set up basic defaults for x/y columns that can be configured later
+            # TODO: remove this
             dataset_obj = project.find_item(self.dataset_id)
-            from pandaplot.models.project.items.dataset import Dataset
             if isinstance(dataset_obj, Dataset) and dataset_obj.data is not None:
                 columns = list(dataset_obj.data.columns)
                 if len(columns) >= 2:
@@ -106,12 +106,9 @@ class CreateChartCommand(Command):
 
             # Publish chart creation event
             event_bus = self.app_context.event_bus
-            event_bus.emit(ChartEvents.CHART_CREATED, {
-                'chart_id': chart.id,
-                'chart_name': chart.name,
-                'dataset_id': self.dataset_id,
-                'parent_id': self.parent_id
-            })
+            event_bus.emit(ChartEvents.CHART_CREATED, ChartCreatedData(
+                chart_id=chart.id
+            ).to_dict())
 
             return True
 

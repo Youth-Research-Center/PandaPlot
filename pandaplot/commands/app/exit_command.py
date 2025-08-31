@@ -4,7 +4,7 @@
 from typing import override
 
 from pandaplot.commands.base_command import Command
-from pandaplot.models.events.event_types import AppEvents
+from pandaplot.models.events import AppEvents
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -30,6 +30,7 @@ class ExitCommand(Command):
         """
         This is not applicable for exit command.
         """
+        self.logger.error("ExitCommand cannot be undone.")
         raise NotImplementedError("Exit command cannot be undone.")
 
     @override
@@ -37,4 +38,5 @@ class ExitCommand(Command):
         """
         This is not applicable for exit command.
         """
+        self.logger.error("ExitCommand cannot be redone.")
         raise NotImplementedError("Exit command cannot be redone.")

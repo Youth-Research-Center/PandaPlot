@@ -2,4 +2,17 @@
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python",
   "python.analysis.diagnosticMode": "workspace",
   "python.analysis.autoImportCompletions": true,
+  "python.testing.pytestArgs": [
+    "tests"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "ms-python.autopep8"
+  },
+  "autopep8.args": [
+    "--max-line-length=150",
+    "--line-length=150"
+  ]
 }

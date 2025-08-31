@@ -13,7 +13,7 @@ class CustomTabWidget(QTabWidget):
         super().__init__(parent)
         
         # Set custom tab bar
-        self.custom_tab_bar = CustomTabBar()
+        self.custom_tab_bar = CustomTabBar(self)
         self.setTabBar(self.custom_tab_bar)
         
         # Connect signals

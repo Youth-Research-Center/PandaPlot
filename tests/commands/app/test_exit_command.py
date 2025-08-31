@@ -14,7 +14,7 @@ import pytest
 from unittest.mock import Mock, MagicMock, call
 from pandaplot.commands.app.exit_command import ExitCommand
 from pandaplot.commands.base_command import Command
-from pandaplot.models.events.event_types import AppEvents
+from pandaplot.models.events import AppEvents
 from pandaplot.models.state.app_context import AppContext
 
 
