@@ -12,9 +12,6 @@ class PanelArea(QStackedWidget):
         # Store panel names and their widgets
         self.panels: dict[str, QWidget] = {}
 
-        # TODO: styling should be managed by theme
-        self.setStyleSheet("background-color: #ffffff;")
-
     def add_panel(self, name: str, content_widget: QWidget):
         """Add a new panel to the area."""
         self.logger.debug("Adding panel: %s", name)

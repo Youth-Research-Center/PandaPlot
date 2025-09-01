@@ -16,6 +16,7 @@ from pandaplot.commands.project.project import (
     SaveProjectCommand,
 )
 from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
+from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -31,54 +32,77 @@ class MainMenu(QMenuBar):
         self.logger = logging.getLogger(__name__)
         self.create_menu()
         self._apply_theme()
+        
+        # Subscribe to theme changes
+        self.app_context.event_bus.subscribe(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
 
     def _apply_theme(self):
-        # TODO: Implement theme application logic
-        self.setStyleSheet("""
-            QMenuBar {
-                background-color: #F0F0F0;
-                color: black;
-                border-bottom: 1px solid #D0D0D0;
-            }
-            QMenuBar::item {
+        """Apply theme-specific styling to the main menu based on current theme."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        # Get theme-appropriate colors
+        card_bg = palette.get('card_bg', '#F0F0F0')
+        base_fg = palette.get('base_fg', '#000000')
+        card_border = palette.get('card_border', '#D0D0D0')
+        accent = palette.get('accent', '#4A90E2')
+        card_pressed = palette.get('card_pressed', '#dee2e6')
+        
+        # Apply dynamic theme-based styling
+        self.setStyleSheet(f"""
+            QMenuBar {{
+                background-color: {card_bg};
+                color: {base_fg};
+                border-bottom: 1px solid {card_border};
+            }}
+            QMenuBar::item {{
                 background-color: transparent;
                 padding: 4px 8px;
                 margin: 2px;
                 border-radius: 3px;
-            }
-            QMenuBar::item:selected {
-                background-color: #4A90E2;
+            }}
+            QMenuBar::item:selected {{
+                background-color: {accent};
                 color: white;
-            }
-            QMenuBar::item:pressed {
-                background-color: #357ABD;
+            }}
+            QMenuBar::item:pressed {{
+                background-color: {card_pressed};
                 color: white;
-            }
-            QMenu {
-                background-color: white;
-                border: 1px solid #C0C0C0;
-                color: black;
+            }}
+            QMenu {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                color: {base_fg};
                 margin: 2px;
-            }
-            QMenu::item {
+            }}
+            QMenu::item {{
                 background-color: transparent;
                 padding: 6px 20px;
                 margin: 1px;
-            }
-            QMenu::item:selected {
-                background-color: #4A90E2;
+            }}
+            QMenu::item:selected {{
+                background-color: {accent};
                 color: white;
-            }
-            QMenu::item:pressed {
-                background-color: #357ABD;
+            }}
+            QMenu::item:pressed {{
+                background-color: {card_pressed};
                 color: white;
-            }
-            QMenu::separator {
+            }}
+            QMenu::separator {{
                 height: 1px;
-                background-color: #C0C0C0;
+                background-color: {card_border};
                 margin: 2px 10px;
-            }
+            }}
         """)
+        
+        self.logger.debug("Applied theme.")
+    
+    def _on_theme_changed(self, _data: dict):
+        """Handle theme changes by reapplying menu styling."""
+        try:
+            self._apply_theme()
+        except Exception as e:
+            self.logger.warning("Failed applying theme change to main menu: %s", e)
 
     def create_menu(self):
         self.logger.debug("Creating main menu")
