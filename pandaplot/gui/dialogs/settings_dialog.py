@@ -506,8 +506,6 @@ class SettingsDialog(QDialog):
             self.settings_changed.emit(self.current_settings)
         finally:
             self._applying = False
-        # Confirmation message
-        QMessageBox.information(self, "Settings Applied", "Settings have been applied successfully.")
     
     def accept_settings(self):
         """Apply settings and close the dialog."""

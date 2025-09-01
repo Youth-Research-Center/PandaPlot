@@ -34,7 +34,6 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
 
         # Create central widget
         central_widget = QWidget()
-        central_widget.setStyleSheet("QWidget { background-color: #F5F5F5; }")
         self.setCentralWidget(central_widget)
 
         # Main layout
@@ -43,6 +42,9 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         main_layout.setSpacing(0)  # Remove spacing between widgets
 
         self.create_widgets(main_layout)
+        
+        # Apply initial theme
+        self._apply_theme_to_main_window()
 
     def create_widgets(self, main_layout):
         # Create menu
@@ -88,9 +90,7 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
                                 self.on_app_closing_event)
 
         # React to theme changes if window-specific adjustments are needed
-        # TODO: implement theme changed callback
-        self.app_context.event_bus.subscribe(ThemeEvents.THEME_CHANGED, lambda _: self.logger.debug(
-            "Theme changed event received in main window"))
+        self.app_context.event_bus.subscribe(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
 
     def on_app_closing_event(self, event_data: dict):
         """Handle app closing event from the internal event bus.
@@ -129,4 +129,26 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
             # Cleanup flag
             self._is_closing = False
         self.close()
+
+    def _on_theme_changed(self, _data: dict):
+        """Handle theme changes by applying appropriate background and font settings."""
+        try:
+            self._apply_theme_to_main_window()
+        except Exception as e:
+            self.logger.warning("Failed applying theme to main window: %s", e)
+
+    def _apply_theme_to_main_window(self):
+        """Apply theme-specific styling to the main window based on current theme."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        # Get theme-appropriate background color
+        background_color = palette.get('card_bg', '#F5F5F5')
+        
+        # Apply background to central widget
+        central_widget = self.centralWidget()
+        central_widget.setStyleSheet(f"QWidget {{ background-color: {background_color}; }}")
+            
+        self.logger.debug("Applied theme")
+            
 
