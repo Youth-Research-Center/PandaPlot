@@ -35,12 +35,10 @@ class TabHeaderContextMenu(QMenu):
         for i in reversed(range(self.tab_count)):
             if i != self.tab_index:
                 self.tab_close_requested.emit(i)
-
     def _close_all(self):
         # Close all tabs (reverse order for safety)
         for i in reversed(range(self.tab_count)):
             self.tab_close_requested.emit(i)
-
 
 class CustomTabBar(QTabBar):
     """Custom tab bar that supports drag and drop reordering and close buttons."""
