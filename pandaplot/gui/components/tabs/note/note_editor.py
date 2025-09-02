@@ -2,6 +2,7 @@
 Note tab widget for displaying and editing notes in the main tab container.
 """
 import logging
+from typing import override
 
 from markdown import markdown
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -21,13 +22,13 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.commands.project.note import EditNoteCommand
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import NoteEvents
-from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items import Note
 from pandaplot.models.state.app_context import AppContext
+    
 
-
-class NoteEditorWidget(EventBusComponentMixin, QWidget):
+class NoteEditorWidget(PWidget):
     """
     A modern note editor widget with text editing capabilities.
     """
@@ -36,9 +37,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     content_changed = Signal(str)
 
     def __init__(self, app_context: AppContext, note: Note, parent: QWidget):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+        super().__init__(app_context=app_context, parent=parent)
         self.note = note
         self.is_modified = False
         self.auto_save_timer = QTimer()
@@ -48,11 +47,12 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         # Since we can't check if the preview is connected, track it with a flag
         self.preview_connected = False
 
-        self.setup_ui()
+        self._init_ui()
         self.load_note_content()
         self.setup_connections()
 
-    def setup_ui(self):
+    @override
+    def _init_ui(self):
         """Set up the user interface."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -63,6 +63,10 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
         # Status bar
         self.create_status_section(layout)
+
+    @override
+    def _apply_theme(self):
+        pass
 
     def create_content_section(self, layout: QLayout):
         """Create the main content editing section."""

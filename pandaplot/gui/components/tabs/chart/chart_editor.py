@@ -1,4 +1,4 @@
-import logging
+from typing import override
 
 import pandas as pd
 from PySide6.QtCore import QTimer
@@ -15,22 +15,20 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.tabs.chart.chart_canvas import ChartCanvas
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import ChartEvents
 from pandaplot.models.events.event_types import ConfigEvents
-from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 
 
-class ChartEditorWidget(EventBusComponentMixin, QWidget):
+class ChartEditorWidget(PWidget):
     """
     A chart editor widget with configuration options and live preview.
     """
 
     def __init__(self, app_context: AppContext, chart: Chart, parent: QWidget):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+        super().__init__(app_context=app_context, parent=parent)
         self.chart = chart
         self.is_modified = False
         self.auto_save_timer = QTimer()
@@ -41,13 +39,17 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
         # TODO: do we need this?
         self.sample_data = self.generate_sample_data()
 
-        self.setup_ui()
+        self._init_ui()
         self.load_chart_config()
         self.update_chart()
 
         # Apply theme-aware colors after everything is set up
         # Delay to ensure UI is fully constructed
         QTimer.singleShot(100, self.apply_theme_aware_colors)
+
+    @override
+    def _apply_theme(self):
+        pass
 
     def apply_theme_aware_colors(self):
         """Apply theme-aware colors to controls that need proper text visibility."""
@@ -160,7 +162,8 @@ class ChartEditorWidget(EventBusComponentMixin, QWidget):
                 self.chart_canvas.apply_navigation_theme(
                     base_fg, surface_bg, border_color)
 
-    def setup_ui(self):
+    @override
+    def _init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(4)

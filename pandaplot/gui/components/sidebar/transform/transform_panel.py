@@ -5,33 +5,40 @@ Adapted from transform_tab.py to provide a compact sidebar interface
 for applying transformations to dataset tabs.
 """
 
-from typing import Optional
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
-    QComboBox, QTextEdit, QGroupBox, QFormLayout, QScrollArea,
-    QLineEdit, QCheckBox, QListWidget, QAbstractItemView
-)
+from typing import Optional, override
+
 from PySide6.QtCore import Qt
-
-from pandaplot.models.state.app_context import AppContext
-from pandaplot.gui.components.sidebar.transform.transform_controller import TransformController
-from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events import (
-    DatasetOperationEvents, UIEvents
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QPushButton,
+    QScrollArea,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
-import logging
+
+from pandaplot.gui.components.sidebar.transform.transform_controller import TransformController
+from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.models.events import DatasetOperationEvents, UIEvents
+from pandaplot.models.state.app_context import AppContext
 
 
-class TransformPanel(EventBusComponentMixin, QWidget):
+class TransformPanel(PWidget):
     """
     Transform panel for data transformations, adapted from transform_tab.py.
     Designed for sidebar integration with conditional visibility.
     """
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+        super().__init__(app_context=app_context, parent=parent)
         self.current_dataset_tab = None
         self.current_dataset = None
         
@@ -48,16 +55,12 @@ class TransformPanel(EventBusComponentMixin, QWidget):
             "Statistical Operations"
         ]
 
-        self.setup_ui()
+        self._init_ui()
         self.setup_connections()
         self.setup_event_subscriptions()
-    
-    def subscribe_to_multiple_events(self, event_subscriptions: list):
-        """Subscribe to multiple events."""
-        for event_type, handler in event_subscriptions:
-            self.subscribe_to_event(event_type, handler)
-    
-    def setup_ui(self):
+
+    @override
+    def _init_ui(self):
         """Create the UI layout optimized for sidebar width constraints."""
         # Main layout with scroll area for long content
         main_layout = QVBoxLayout(self)
@@ -101,6 +104,10 @@ class TransformPanel(EventBusComponentMixin, QWidget):
         scroll_area.setWidget(content_widget)
         main_layout.addWidget(scroll_area)
     
+    @override
+    def _apply_theme(self):
+        pass
+
     def create_header_section(self, layout):
         """Create header section showing current dataset info."""
         header_group = QGroupBox("Active Dataset")
@@ -534,6 +541,7 @@ class TransformPanel(EventBusComponentMixin, QWidget):
     
     def setup_event_subscriptions(self):
         """Setup event subscriptions for this component."""
+        super().setup_event_subscriptions()
         self.subscribe_to_multiple_events([
             # Specific dataset operations (for detailed column handling)
             (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_column_added),

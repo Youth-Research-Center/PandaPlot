@@ -1,6 +1,4 @@
 """Chart properties side panel for configuring chart appearance and data."""
-
-import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, 
     QComboBox, QPushButton, QSpinBox, QDoubleSpinBox, QLineEdit, 
@@ -9,14 +7,15 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPainter
-from typing import Optional, List
+from typing import Optional, List, override
 
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_configuration import (
     ChartConfiguration, ChartType, LineStyleType, MarkerType, 
     ScaleType, LegendPosition, LineStyle, MarkerStyle, AxisStyle, LegendStyle
 )
 from pandaplot.models.chart.chart_style_manager import ChartStyleManager
-from pandaplot.models.events import EventBusComponentMixin, UIEvents, ChartEvents, ProjectEvents
+from pandaplot.models.events import UIEvents, ChartEvents, ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.project.items import Dataset
 
@@ -69,7 +68,7 @@ class ColorButton(QPushButton):
         painter.drawRect(swatch_rect)
 
 
-class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
+class ChartPropertiesPanel(PWidget):
     """Side panel for configuring chart properties."""
     
     chart_created = Signal(str)  # chart_id
@@ -77,9 +76,7 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
     preview_requested = Signal(ChartConfiguration)
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+        super().__init__(app_context=app_context, parent=parent)
         self.command_executor = app_context.command_executor
         self.style_manager = ChartStyleManager()
         self.current_project = None
@@ -90,11 +87,12 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self._updating_controls: bool = False  # Guard to prevent feedback loops
         self._pending_label: str = ""        # Buffer while user types label
 
-        self._setup_ui()
+        self._init_ui()
         self._connect_signals()
-        self._setup_event_subscriptions()
+        self.setup_event_subscriptions()
     
-    def _setup_ui(self):
+    @override
+    def _init_ui(self):
         """Set up the user interface."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -189,6 +187,10 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         button_layout.addStretch(1)
         layout.addLayout(button_layout)
     
+    @override
+    def _apply_theme(self):
+        pass
+
     def _create_chart_info_section(self, layout):
         """Create the basic chart information section."""
         # Chart info group
@@ -465,8 +467,9 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self.marker_size_spin.valueChanged.connect(self._on_style_changed)
         self.marker_type_combo.currentIndexChanged.connect(self._on_style_changed)
     
-    def _setup_event_subscriptions(self):
+    def setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
+        super().setup_event_subscriptions()
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
         # Ensure datasets populate after a project is loaded from file. AppState emits

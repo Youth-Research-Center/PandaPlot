@@ -1,4 +1,4 @@
-import logging
+from typing import override
 
 import numpy as np
 import pandas as pd
@@ -18,21 +18,19 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents
-from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 
-class DatasetTab(EventBusComponentMixin, QWidget):
+class DatasetTab(PWidget):
     """
     Tab widget for displaying dataset contents in an editable table format.
     """
 
-    def __init__(self, app_context: AppContext, dataset: Dataset, parent:QWidget):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+    def __init__(self, app_context: AppContext, dataset: Dataset, parent: QWidget):
+        super().__init__(app_context=app_context, parent=parent)
         self.dataset = dataset
         self.original_data = None  # Store original data for comparison
         self.is_editing_enabled = False  # Track editing state
@@ -41,17 +39,13 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         self.logger.debug("Initializing DatasetTab for dataset: %s (ID: %s)",
                           dataset.name, dataset.id)
 
-        self.setup_ui()
+        self._init_ui()
         self.load_dataset_data()
         self.setup_event_subscriptions()
 
-    def subscribe_to_event(self, event_type: str, handler):
-        """Subscribe to an event - delegate to the event bus component."""
-        # Use the inherited method from EventBusComponentMixin
-        super().subscribe_to_event(event_type, handler)
-
     def setup_event_subscriptions(self):
         """Set up event subscriptions for dataset updates."""
+        super().setup_event_subscriptions()
         # Subscribe to dataset operation events
         self.subscribe_to_event(
             DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_dataset_column_added)
@@ -61,6 +55,10 @@ class DatasetTab(EventBusComponentMixin, QWidget):
             DatasetOperationEvents.DATASET_BULK_UPDATE, self.on_dataset_bulk_update)
         self.subscribe_to_event(
             DatasetEvents.DATASET_DATA_CHANGED, self.on_dataset_data_changed)
+
+    @override
+    def _apply_theme(self):
+        pass
 
     def on_dataset_column_added(self, event_data):
         """Handle when a column is added to any dataset."""
@@ -101,7 +99,8 @@ class DatasetTab(EventBusComponentMixin, QWidget):
                 "Dataset data changed event received for dataset %s", dataset_id)
             self.load_dataset_data()  # Refresh the table
 
-    def setup_ui(self):
+    @override
+    def _init_ui(self):
         """Initialize the UI layout and components."""
         # Main layout
         main_layout = QVBoxLayout(self)

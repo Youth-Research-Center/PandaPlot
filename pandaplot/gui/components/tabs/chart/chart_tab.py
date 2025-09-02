@@ -1,6 +1,6 @@
 """Chart tab widget for displaying and editing charts."""
 
-import logging
+from typing import override
 
 from PySide6.QtWidgets import (
     QVBoxLayout,
@@ -8,26 +8,25 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.tabs.chart.chart_editor import ChartEditorWidget
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import ChartEvents, FitEvents, UIEvents
-from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items import Chart
 from pandaplot.models.state.app_context import AppContext
 
 
-class ChartTab(EventBusComponentMixin, QWidget):
+class ChartTab(PWidget):
     """
     Main chart tab widget that contains the chart editor.
     """
 
     def __init__(self, app_context: AppContext, chart: Chart, parent: QWidget):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+        super().__init__(app_context=app_context, parent=parent)
         self.chart = chart
-        self.setup_ui()
+        self._init_ui()
         self.setup_event_subscriptions()
 
-    def setup_ui(self):
+    @override
+    def _init_ui(self):
         """Set up the chart tab UI."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -37,8 +36,13 @@ class ChartTab(EventBusComponentMixin, QWidget):
 
         layout.addWidget(self.chart_editor)
 
+    @override
+    def _apply_theme(self):
+        pass
+
     def setup_event_subscriptions(self):
         """Set up event subscriptions for tab title changes and chart updates."""
+        super().setup_event_subscriptions()
         self.subscribe_to_event(
             UIEvents.TAB_TITLE_CHANGED, self.on_tab_title_changed)
         self.subscribe_to_event(

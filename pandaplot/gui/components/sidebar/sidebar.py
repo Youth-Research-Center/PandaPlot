@@ -1,4 +1,3 @@
-from asyncio.log import logger
 import logging
 from typing import Optional
 
@@ -10,6 +9,7 @@ from pandaplot.gui.components.sidebar.panels.panel_area import PanelArea
 from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
 from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.state.app_context import AppContext
+
 
 class CollapsibleSidebar(QWidget):
     """A collapsible sidebar that contains an icon bar and panel area."""

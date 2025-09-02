@@ -8,41 +8,34 @@ from PySide6.QtWidgets import (
     QTextEdit, QScrollArea
 )
 from PySide6.QtCore import Qt
-import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, override
 
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.analysis import AnalysisEngine
 from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
-from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.events import (
     AnalysisEvents, UIEvents, DatasetEvents, DatasetOperationEvents
 )
 from pandaplot.models.project.items import Dataset
 
 
-class AnalysisPanel(EventBusComponentMixin, QWidget):
+class AnalysisPanel(PWidget):
     """
     Side panel for mathematical analysis operations on dataset columns.
     """
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+        super().__init__(app_context=app_context, parent=parent)
         self.current_dataset = None
         self.current_dataset_id = None
 
-        self.setup_ui()
+        self._init_ui()
         self.setup_connections()
         self.setup_event_subscriptions()
-    
-    def subscribe_to_multiple_events(self, event_subscriptions: list):
-        """Subscribe to multiple events."""
-        for event_type, handler in event_subscriptions:
-            self.subscribe_to_event(event_type, handler)
-    
-    def setup_ui(self):
+
+    @override
+    def _init_ui(self):
         """Setup the user interface."""
         # Main layout with scroll area
         main_layout = QVBoxLayout(self)
@@ -102,6 +95,10 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
         scroll_area.setWidget(content_widget)
         main_layout.addWidget(scroll_area)
     
+    @override
+    def _apply_theme(self):
+        pass
+
     def create_analysis_type_section(self, layout):
         """Create analysis type selection section."""
         group = QGroupBox("Analysis Type")
@@ -606,8 +603,11 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
         # Reset to defaults
         self.analysis_type_combo.setCurrentIndex(0)
     
+    @override
     def setup_event_subscriptions(self):
         """Setup event subscriptions for this component."""
+        super().setup_event_subscriptions()
+
         self.subscribe_to_multiple_events([
             # Generic dataset change (for broad awareness)
             (DatasetEvents.DATASET_CHANGED, self.on_dataset_changed),

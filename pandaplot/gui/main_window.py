@@ -1,29 +1,26 @@
-import logging
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QScreen
-from PySide6.QtWidgets import QMainWindow, QSplitter, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
 from pandaplot.gui.components import CollapsibleSidebar, MainMenu, TabContainer
 from pandaplot.gui.components.sidebar.panels.conditional_panel_manager import ConditionalPanelManager
 from pandaplot.gui.components.sidebar.panels.panel_setup_manager import PanelSetupManager
-
+from pandaplot.gui.core.widget_extension import PMainWindow
 from pandaplot.models.events import AppEvents
-from pandaplot.models.events.event_types import ThemeEvents
-from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.state.app_context import AppContext
 
 
-class PandaMainWindow(EventBusComponentMixin, QMainWindow):
+class PandaMainWindow(PMainWindow):
     def __init__(self, app_context: AppContext):
-        super().__init__(event_bus=app_context.event_bus)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+        super().__init__(app_context=app_context)
 
         self._init_ui()
         self.setup_event_subscriptions()
         self.logger.info("PandaMainWindow initialized.")
 
+    @override
     def _init_ui(self):
         self.setWindowTitle("PandaPlot")
 
@@ -44,8 +41,23 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         self.create_widgets(main_layout)
         
         # Apply initial theme
-        self._apply_theme_to_main_window()
+        self._apply_theme()
 
+    @override
+    def _apply_theme(self):
+        """Apply theme-specific styling to the main window based on current theme."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        # Get theme-appropriate background color
+        background_color = palette.get('card_bg', '#F5F5F5')
+        
+        # Apply background to central widget
+        central_widget = self.centralWidget()
+        central_widget.setStyleSheet(f"QWidget {{ background-color: {background_color}; }}")
+            
+        self.logger.debug("Applied theme")
+            
     def create_widgets(self, main_layout):
         # Create menu
         self.main_menu = MainMenu(self, self.app_context)
@@ -66,8 +78,9 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         # Create main content area (right pane) with tab container
         self.tab_container = TabContainer(
             app_context=self.app_context, parent=self.main_splitter)
-        self.tab_container.setStyleSheet(
-            "background-color: white; border: 1px solid #ccc;")
+        # TODO: remove this styling
+        #self.tab_container.setStyleSheet(
+        #    "background-color: white; border: 1px solid #ccc;")
 
         self.main_splitter.addWidget(self.tab_container)
 
@@ -86,11 +99,9 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
     
     def setup_event_subscriptions(self):
         """Set up event subscriptions for the main window."""
+        super().setup_event_subscriptions()
         self.subscribe_to_event(AppEvents.APP_CLOSING,
                                 self.on_app_closing_event)
-
-        # React to theme changes if window-specific adjustments are needed
-        self.app_context.event_bus.subscribe(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
 
     def on_app_closing_event(self, event_data: dict):
         """Handle app closing event from the internal event bus.
@@ -120,6 +131,7 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
             self.logger.info("Application cleanup completed successfully")
 
         except Exception as e:
+    
             self.logger.error("Error during cleanup: %s",
                               str(e), exc_info=True)
             # Force exit even if cleanup fails
@@ -130,25 +142,5 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
             self._is_closing = False
         self.close()
 
-    def _on_theme_changed(self, _data: dict):
-        """Handle theme changes by applying appropriate background and font settings."""
-        try:
-            self._apply_theme_to_main_window()
-        except Exception as e:
-            self.logger.warning("Failed applying theme to main window: %s", e)
 
-    def _apply_theme_to_main_window(self):
-        """Apply theme-specific styling to the main window based on current theme."""
-        theme_manager = self.app_context.get_theme_manager()
-        palette = theme_manager.get_surface_palette()
-        
-        # Get theme-appropriate background color
-        background_color = palette.get('card_bg', '#F5F5F5')
-        
-        # Apply background to central widget
-        central_widget = self.centralWidget()
-        central_widget.setStyleSheet(f"QWidget {{ background-color: {background_color}; }}")
-            
-        self.logger.debug("Applied theme")
-            
 

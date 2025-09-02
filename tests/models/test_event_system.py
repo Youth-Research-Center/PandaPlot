@@ -5,9 +5,6 @@ Unit tests for the simplified event bus system.
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events import EventHierarchy
 from pandaplot.models.events.event_types import NoteEvents, ProjectEvents
-from pandaplot.models.events.mixins import EventPublisherMixin, EventSubscriberMixin
-from pandaplot.models.project.items.note import Note
-
 
 class TestEventBus:
     
@@ -107,71 +104,3 @@ class TestEventHierarchy:
         EventHierarchy.add_mapping("custom.event", ["custom.event", "custom.changed"])
         hierarchy = EventHierarchy.get_hierarchy("custom.event")
         assert hierarchy == ["custom.event", "custom.changed"]
-
-
-class MockComponent(EventPublisherMixin, EventSubscriberMixin):
-    """Mock component for testing mixins."""
-    
-    def __init__(self, event_bus=None):
-        EventPublisherMixin.__init__(self, event_bus)
-        EventSubscriberMixin.__init__(self, event_bus)
-        self.handled_events = []
-    
-    def handle_event(self, event_data):
-        self.handled_events.append(event_data)
-
-
-class TestEventMixins:
-    
-    def test_event_publisher_mixin(self):
-        """Test EventPublisherMixin functionality."""
-        bus = EventBus()
-        component = MockComponent(bus)
-        
-        received_events = []
-        bus.subscribe("test.event", lambda data: received_events.append(data))
-        
-        component.publish_event("test.event", {"test": "data"})
-        
-        assert len(received_events) == 1
-        assert received_events[0]["test"] == "data"
-        assert received_events[0]["source_component"] == "MockComponent"
-    
-    def test_event_subscriber_mixin(self):
-        """Test EventSubscriberMixin functionality."""
-        bus = EventBus()
-        component = MockComponent(bus)
-        
-        component.subscribe_to_event("test.event", component.handle_event)
-        bus.emit("test.event", {"test": "data"})
-        
-        assert len(component.handled_events) == 1
-        assert component.handled_events[0]["test"] == "data"
-    
-    def test_subscribe_to_changes(self):
-        """Test scope-based subscription patterns."""
-        bus = EventBus()
-        component = MockComponent(bus)
-        
-        component.subscribe_to_changes("dataset", component.handle_event)
-        
-        # Should only receive dataset.changed events
-        bus.emit("dataset.changed", {"dataset_id": "test1"})
-        bus.emit("dataset.column_added", {"dataset_id": "test2"})  # Hierarchy includes dataset.changed
-        
-        # Should have received 2 events (both emit dataset.changed through hierarchy)
-        assert len(component.handled_events) >= 1
-    
-    def test_unsubscribe_all(self):
-        """Test unsubscribing from all events."""
-        bus = EventBus()
-        component = MockComponent(bus)
-        
-        component.subscribe_to_event("test.event", component.handle_event)
-        bus.emit("test.event", {"test": "data1"})
-        
-        component.unsubscribe_all()
-        bus.emit("test.event", {"test": "data2"})
-        
-        assert len(component.handled_events) == 1
-        assert component.handled_events[0]["test"] == "data1"
