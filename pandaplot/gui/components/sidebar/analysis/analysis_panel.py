@@ -31,6 +31,7 @@ class AnalysisPanel(PWidget):
         self.current_dataset_id = None
 
         self._init_ui()
+        self._apply_theme()
         self.setup_connections()
         self.setup_event_subscriptions()
 
@@ -39,22 +40,12 @@ class AnalysisPanel(PWidget):
         """Setup the user interface."""
         # Main layout with scroll area
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(5, 5, 5, 5)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setSpacing(8)
         
         # Panel title
-        title_label = QLabel("📊 Analysis Operations")
-        title_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                font-weight: bold;
-                color: #2c3e50;
-                padding: 5px;
-                background-color: #ecf0f1;
-                border-radius: 3px;
-            }
-        """)
-        main_layout.addWidget(title_label)
+        self.title_label = QLabel("📊 Analysis Operations")
+        main_layout.addWidget(self.title_label)
         
         # Scroll area for content
         scroll_area = QScrollArea()
@@ -65,8 +56,8 @@ class AnalysisPanel(PWidget):
         # Content widget
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(5, 5, 5, 5)
-        content_layout.setSpacing(10)
+        content_layout.setContentsMargins(4, 4, 4, 4)
+        content_layout.setSpacing(6)
         
         # Analysis type selection
         self.create_analysis_type_section(content_layout)
@@ -97,7 +88,121 @@ class AnalysisPanel(PWidget):
     
     @override
     def _apply_theme(self):
-        pass
+        """Apply current theme to analysis panel components."""
+        # Get theme colors
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        card_bg = palette.get('card_bg', '#ffffff')
+        card_border = palette.get('card_border', '#dee2e6')
+        base_fg = palette.get('base_fg', '#333333')
+        secondary_fg = palette.get('secondary_fg', '#666666')
+        accent = palette.get('accent', '#4CAF50')
+        card_hover = palette.get('card_hover', '#e5f3ff')
+        
+        # Apply theme to main widget
+        self.setStyleSheet(f"""
+            AnalysisPanel {{
+                background-color: {card_bg};
+                color: {base_fg};
+            }}
+            QGroupBox {{
+                font-weight: bold;
+                font-size: 9pt;
+                color: {base_fg};
+                margin-top: 5px;
+                padding-top: 10px;
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 4px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                background-color: {card_bg};
+            }}
+        """)
+        
+        # Style title label
+        if hasattr(self, 'title_label'):
+            self.title_label.setStyleSheet(f"""
+                QLabel {{
+                    font-size: 14px;
+                    font-weight: bold;
+                    color: {base_fg};
+                    padding: 5px;
+                    background-color: {card_border};
+                    border-radius: 3px;
+                }}
+            """)
+        
+        # Style preview button
+        if hasattr(self, 'preview_btn'):
+            self.preview_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #3498db;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 8px 16px;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #2980b9;
+                }
+            """)
+        
+        # Style apply button
+        if hasattr(self, 'apply_btn'):
+            self.apply_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {accent};
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 10px 16px;
+                    font-weight: bold;
+                }}
+                QPushButton:hover {{
+                    background-color: {card_hover};
+                    color: {base_fg};
+                }}
+                QPushButton:disabled {{
+                    background-color: {secondary_fg};
+                    color: #999999;
+                }}
+            """)
+        
+        # Style clear button
+        if hasattr(self, 'clear_btn'):
+            self.clear_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {secondary_fg};
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 10px 16px;
+                    font-weight: bold;
+                }}
+                QPushButton:hover {{
+                    background-color: #7f8c8d;
+                }}
+            """)
+    
+    def apply_info_label_theme(self, label):
+        """Apply theme styling to info labels."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        secondary_fg = palette.get('secondary_fg', '#666666')
+        
+        label.setStyleSheet(f"""
+            QLabel {{
+                color: {secondary_fg};
+                font-style: italic;
+                background-color: transparent;
+            }}
+        """)
 
     def create_analysis_type_section(self, layout):
         """Create analysis type selection section."""
@@ -185,19 +290,6 @@ class AnalysisPanel(PWidget):
         
         self.preview_btn = QPushButton("🔍 Preview Analysis")
         self.preview_btn.clicked.connect(self.preview_analysis)
-        self.preview_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
         
         self.preview_text = QTextEdit()
         self.preview_text.setMaximumHeight(120)
@@ -216,38 +308,9 @@ class AnalysisPanel(PWidget):
         
         self.apply_btn = QPushButton("✅ Apply Analysis")
         self.apply_btn.clicked.connect(self.apply_analysis)
-        self.apply_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-            QPushButton:disabled {
-                background-color: #95a5a6;
-            }
-        """)
         
         self.clear_btn = QPushButton("🔄 Clear")
         self.clear_btn.clicked.connect(self.clear_inputs)
-        self.clear_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-        """)
         
         button_layout.addWidget(self.apply_btn)
         button_layout.addWidget(self.clear_btn)
@@ -332,12 +395,12 @@ class AnalysisPanel(PWidget):
             
         elif analysis_type == "Integral":
             info_label = QLabel("Method: Trapezoidal Rule")
-            info_label.setStyleSheet("color: #666666; font-style: italic;")
+            self.apply_info_label_theme(info_label)
             self.parameters_layout.addRow("", info_label)
             
         elif analysis_type == "Arc Length":
             info_label = QLabel("Method: Euclidean Distance")
-            info_label.setStyleSheet("color: #666666; font-style: italic;")
+            self.apply_info_label_theme(info_label)
             self.parameters_layout.addRow("", info_label)
             
         elif analysis_type == "Smoothing":
