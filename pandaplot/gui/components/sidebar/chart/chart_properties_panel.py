@@ -16,7 +16,6 @@ from pandaplot.models.chart.chart_configuration import (
 )
 from pandaplot.models.chart.chart_style_manager import ChartStyleManager
 from pandaplot.models.events import UIEvents, ChartEvents, ProjectEvents
-from pandaplot.models.state import app_context
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.project.items import Dataset
 

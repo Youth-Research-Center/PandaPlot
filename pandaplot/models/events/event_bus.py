@@ -1,7 +1,7 @@
 from collections import defaultdict
 import logging
 import re
-from typing import Callable, Dict, Any, List, Tuple
+from typing import Callable, Dict, Any
 from .event_types import EventHierarchy
 
 
