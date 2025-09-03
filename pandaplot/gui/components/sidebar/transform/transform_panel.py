@@ -56,6 +56,7 @@ class TransformPanel(PWidget):
         ]
 
         self._init_ui()
+        self._apply_theme()
         self.setup_connections()
         self.setup_event_subscriptions()
 
@@ -66,6 +67,11 @@ class TransformPanel(PWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(8, 8, 8, 8)
         main_layout.setSpacing(8)
+        
+        # Panel title
+        self.title_label = QLabel("🔧 Transform Operations")
+        # Remove hardcoded styling - will be applied in _apply_theme
+        main_layout.addWidget(self.title_label)
         
         # Create scroll area for panel content
         scroll_area = QScrollArea()
@@ -106,7 +112,121 @@ class TransformPanel(PWidget):
     
     @override
     def _apply_theme(self):
-        pass
+        """Apply current theme to transform panel components."""
+        # Get theme colors
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        card_bg = palette.get('card_bg', '#ffffff')
+        card_border = palette.get('card_border', '#dee2e6')
+        base_fg = palette.get('base_fg', '#333333')
+        secondary_fg = palette.get('secondary_fg', '#666666')
+        accent = palette.get('accent', '#4CAF50')
+        card_hover = palette.get('card_hover', '#e5f3ff')
+        
+        # Apply theme to main widget (like project view panel)
+        self.setStyleSheet(f"""
+            TransformPanel {{
+                background-color: {card_bg};
+                color: {base_fg};
+            }}
+            QGroupBox {{
+                font-weight: bold;
+                font-size: 9pt;
+                color: {base_fg};
+                margin-top: 5px;
+                padding-top: 10px;
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 4px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                background-color: {card_bg};
+            }}
+        """)
+        
+        # Style panel title
+        if hasattr(self, 'title_label'):
+            self.title_label.setStyleSheet(f"""
+                QLabel {{
+                    font-size: 14px;
+                    font-weight: bold;
+                    color: {base_fg};
+                    padding: 5px;
+                    background-color: {card_border};
+                    border-radius: 3px;
+                }}
+            """)
+        
+        # Style dataset labels in header
+        if hasattr(self, 'dataset_label'):
+            self.dataset_label.setStyleSheet(f"""
+                QLabel {{
+                    font-weight: bold;
+                    color: {base_fg};
+                    background-color: transparent;
+                }}
+            """)
+        
+        if hasattr(self, 'row_count_label'):
+            self.row_count_label.setStyleSheet(f"""
+                QLabel {{
+                    color: {secondary_fg};
+                    font-size: 10px;
+                    background-color: transparent;
+                }}
+            """)
+        
+        # Style preview text area
+        if hasattr(self, 'preview_text'):
+            self.preview_text.setStyleSheet(f"""
+                QTextEdit {{
+                    background-color: {card_bg};
+                    border: 1px solid {card_border};
+                    border-radius: 4px;
+                    font-family: monospace;
+                    color: {base_fg};
+                    padding: 4px;
+                }}
+            """)
+        
+        # Style action buttons
+        if hasattr(self, 'apply_btn'):
+            self.apply_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {accent};
+                    color: white;
+                    border: none;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    font-weight: bold;
+                }}
+                QPushButton:hover {{
+                    background-color: {card_hover};
+                    color: {base_fg};
+                }}
+                QPushButton:disabled {{
+                    background-color: {secondary_fg};
+                    color: #999999;
+                }}
+            """)
+        
+        if hasattr(self, 'clear_btn'):
+            self.clear_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #f44336;
+                    color: white;
+                    border: none;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #da190b;
+                }
+            """)
 
     def create_header_section(self, layout):
         """Create header section showing current dataset info."""
@@ -115,10 +235,10 @@ class TransformPanel(PWidget):
         
         self.dataset_label = QLabel("No dataset selected")
         self.dataset_label.setWordWrap(True)
-        self.dataset_label.setStyleSheet("font-weight: bold; color: #333;")
+        # Remove hardcoded styling - will be applied in _apply_theme
         
         self.row_count_label = QLabel("")
-        self.row_count_label.setStyleSheet("color: #666; font-size: 10px;")
+        # Remove hardcoded styling - will be applied in _apply_theme
         
         header_layout.addWidget(self.dataset_label)
         header_layout.addWidget(self.row_count_label)
@@ -207,7 +327,7 @@ class TransformPanel(PWidget):
         self.preview_text = QTextEdit()
         self.preview_text.setMaximumHeight(80)
         self.preview_text.setReadOnly(True)
-        self.preview_text.setStyleSheet("background-color: #f8f8f8; font-family: monospace;")
+        # Remove hardcoded styling - will be applied in _apply_theme
         
         # Preview controls
         preview_controls = QHBoxLayout()
@@ -234,37 +354,10 @@ class TransformPanel(PWidget):
         button_layout = QHBoxLayout()
         
         self.apply_btn = QPushButton("Apply")
-        self.apply_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                border: none;
-                padding: 6px 12px;
-                border-radius: 3px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-            QPushButton:disabled {
-                background-color: #cccccc;
-                color: #666666;
-            }
-        """)
+        # Remove hardcoded styling - will be applied in _apply_theme
         
         self.clear_btn = QPushButton("Clear")
-        self.clear_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f44336;
-                color: white;
-                border: none;
-                padding: 6px 12px;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #da190b;
-            }
-        """)
+        # Remove hardcoded styling - will be applied in _apply_theme
         
         button_layout.addWidget(self.apply_btn)
         button_layout.addWidget(self.clear_btn)
