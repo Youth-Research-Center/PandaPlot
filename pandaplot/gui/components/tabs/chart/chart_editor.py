@@ -39,11 +39,9 @@ class ChartEditorWidget(PWidget):
         # TODO: do we need this?
         self.sample_data = self.generate_sample_data()
 
-        self._init_ui()
+        self._initialize()
         self.load_chart_config()
         self.update_chart()
-        self.setup_event_subscriptions()
-        self._apply_theme()
 
         # Apply theme after UI is fully constructed
         QTimer.singleShot(100, self._apply_theme)
@@ -232,7 +230,6 @@ class ChartEditorWidget(PWidget):
     def setup_event_subscriptions(self):
         """Set up event subscriptions for the chart editor."""
         # Subscribe to config updates to adjust display settings like DPI
-        super().setup_event_subscriptions()
         try:
             self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
         except Exception:

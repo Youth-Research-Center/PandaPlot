@@ -46,11 +46,9 @@ class NoteEditorWidget(PWidget):
         # Since we can't check if the preview is connected, track it with a flag
         self.preview_connected = False
 
-        self._init_ui()
-        self.load_note_content()
-        self._apply_theme()
+        self._initialize()
         self.setup_connections()
-        self.setup_event_subscriptions()
+        self.load_note_content()
 
     @override
     def _init_ui(self):

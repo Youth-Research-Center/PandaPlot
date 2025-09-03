@@ -32,9 +32,7 @@ class CollapsibleSidebar(PWidget):
         self.resize_timer.setSingleShot(True)
         self.resize_timer.timeout.connect(self.check_auto_collapse)
 
-        self._init_ui()
-        self._apply_theme()
-        self.setup_event_subscriptions()
+        self._initialize()
 
     @override
     def _init_ui(self):

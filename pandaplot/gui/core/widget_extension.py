@@ -24,6 +24,13 @@ class WidgetExtension:
     def _apply_theme(self):
         pass
 
+    def _initialize(self):
+        self._init_ui()
+        self._apply_theme()
+        self._setup_base_event_subscriptions()
+        self.setup_event_subscriptions()
+        self.logger.info(f"{self.__class__.__name__} initialized.")
+
     def _on_theme_changed(self, event_data: dict):
         """Handle theme changes by applying appropriate background and font settings."""
         try:
@@ -33,6 +40,9 @@ class WidgetExtension:
     
     def setup_event_subscriptions(self):    
         """Set up event subscriptions for the main window."""
+        pass
+
+    def _setup_base_event_subscriptions(self):
         self.subscribe_to_event(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
 
     def publish_event(self, event_type: str, data: Dict[str, Any] | None = None) -> None:

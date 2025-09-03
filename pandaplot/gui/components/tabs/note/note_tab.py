@@ -29,7 +29,7 @@ class NoteTab(PWidget):
         self.app_context = app_context
         self.note = note
 
-        self._init_ui()
+        self._initialize()
         self.setup_connections()
         
     @override

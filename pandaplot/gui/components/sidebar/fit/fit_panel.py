@@ -47,10 +47,8 @@ class FitPanel(PWidget):
         self.fit_results = None
         self.datasets = []
 
-        self._init_ui()
-        self._apply_theme()
+        self._initialize()
         self._connect_signals()
-        self._setup_event_subscriptions()
 
         if not SCIPY_AVAILABLE:
             self._show_scipy_warning()

@@ -36,10 +36,8 @@ class SettingsDialog(PDialog):
         self._config_manager = self.app_context.get_config_manager()
         self._applying = False  # guard to prevent feedback loops
 
-        self._init_ui()
-        self._apply_theme()
+        self._initialize()
         self.load_current_settings()
-        self.setup_event_subscriptions()
     
     @override
     def _init_ui(self):
@@ -445,8 +443,6 @@ class SettingsDialog(PDialog):
 
     def setup_event_subscriptions(self):
         """Subscribe to config update events to reflect external changes while dialog open."""
-        super().setup_event_subscriptions()
-
         # Subscribe to both updated and reset events
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
     

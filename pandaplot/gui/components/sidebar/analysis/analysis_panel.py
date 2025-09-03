@@ -30,10 +30,8 @@ class AnalysisPanel(PWidget):
         self.current_dataset = None
         self.current_dataset_id = None
 
-        self._init_ui()
-        self._apply_theme()
+        self._initialize()
         self.setup_connections()
-        self.setup_event_subscriptions()
 
     @override
     def _init_ui(self):
@@ -665,8 +663,6 @@ class AnalysisPanel(PWidget):
     @override
     def setup_event_subscriptions(self):
         """Setup event subscriptions for this component."""
-        super().setup_event_subscriptions()
-
         self.subscribe_to_multiple_events([
             # Generic dataset change (for broad awareness)
             (DatasetEvents.DATASET_CHANGED, self.on_dataset_changed),

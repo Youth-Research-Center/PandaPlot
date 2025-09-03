@@ -39,15 +39,11 @@ class DatasetTab(PWidget):
         self.logger.debug("Initializing DatasetTab for dataset: %s (ID: %s)",
                           dataset.name, dataset.id)
 
-        self._init_ui()
+        self._initialize()
         self.load_dataset_data()
-        self._apply_theme()
-        self.setup_event_subscriptions()
-        self.logger.info("PandaMainWindow initialized.")
 
     def setup_event_subscriptions(self):
         """Set up event subscriptions for dataset updates."""
-        super().setup_event_subscriptions()
         # Subscribe to dataset operation events
         self.subscribe_to_event(
             DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_dataset_column_added)

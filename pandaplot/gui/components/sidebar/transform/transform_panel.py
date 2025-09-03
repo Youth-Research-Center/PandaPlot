@@ -55,10 +55,8 @@ class TransformPanel(PWidget):
             "Statistical Operations"
         ]
 
-        self._init_ui()
-        self._apply_theme()
+        self._initialize()
         self.setup_connections()
-        self.setup_event_subscriptions()
 
     @override
     def _init_ui(self):
@@ -634,7 +632,6 @@ class TransformPanel(PWidget):
     
     def setup_event_subscriptions(self):
         """Setup event subscriptions for this component."""
-        super().setup_event_subscriptions()
         self.subscribe_to_multiple_events([
             # Specific dataset operations (for detailed column handling)
             (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_column_added),

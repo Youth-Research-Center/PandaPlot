@@ -22,8 +22,7 @@ class ChartTab(PWidget):
     def __init__(self, app_context: AppContext, chart: Chart, parent: QWidget):
         super().__init__(app_context=app_context, parent=parent)
         self.chart = chart
-        self._init_ui()
-        self.setup_event_subscriptions()
+        self._initialize()
 
     @override
     def _init_ui(self):
@@ -42,7 +41,6 @@ class ChartTab(PWidget):
 
     def setup_event_subscriptions(self):
         """Set up event subscriptions for tab title changes and chart updates."""
-        super().setup_event_subscriptions()
         self.subscribe_to_event(
             UIEvents.TAB_TITLE_CHANGED, self.on_tab_title_changed)
         self.subscribe_to_event(

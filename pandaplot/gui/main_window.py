@@ -15,11 +15,7 @@ from pandaplot.models.state.app_context import AppContext
 class PandaMainWindow(PMainWindow):
     def __init__(self, app_context: AppContext):
         super().__init__(app_context=app_context)
-
-        self._init_ui()
-        self._apply_theme()
-        self.setup_event_subscriptions()
-        self.logger.info("PandaMainWindow initialized.")
+        self._initialize()
 
     @override
     def _init_ui(self):
@@ -98,7 +94,6 @@ class PandaMainWindow(PMainWindow):
     
     def setup_event_subscriptions(self):
         """Set up event subscriptions for the main window."""
-        super().setup_event_subscriptions()
         self.subscribe_to_event(AppEvents.APP_CLOSING,
                                 self.on_app_closing_event)
 

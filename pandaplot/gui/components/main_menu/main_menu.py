@@ -29,11 +29,7 @@ def show_about():
 class MainMenu(PMenuBar):
     def __init__(self, parent: QWidget, app_context: AppContext):
         super().__init__(app_context=app_context, parent=parent)
-        self._init_ui()
-        self._apply_theme()
-        
-        self.setup_event_subscriptions()
-        self.logger.info("PandaMainWindow initialized.")
+        self._initialize()
 
     @override
     def _apply_theme(self):

@@ -15,10 +15,7 @@ class CustomTabWidget(PTabWidget):
 
     def __init__(self, app_context: AppContext, parent: QWidget):
         super().__init__(app_context=app_context, parent=parent)
-        self._init_ui()
-        self._apply_theme()
-        self.setup_event_subscriptions()
-        self.logger.info("PandaMainWindow initialized.")
+        self._initialize()
 
     @override
     def _init_ui(self):
@@ -29,7 +26,6 @@ class CustomTabWidget(PTabWidget):
 
     def setup_event_subscriptions(self):    
         """Set up event subscriptions for the main window."""
-        super().setup_event_subscriptions()
         self.custom_tab_bar.tab_close_requested.connect(self.tab_close_requested.emit)
 
     @override

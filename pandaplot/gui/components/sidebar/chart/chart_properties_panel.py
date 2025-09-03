@@ -109,10 +109,8 @@ class ChartPropertiesPanel(PWidget):
         self._updating_controls: bool = False  # Guard to prevent feedback loops
         self._pending_label: str = ""        # Buffer while user types label
 
-        self._init_ui()
-        self._apply_theme()
+        self._initialize()
         self._connect_signals()
-        self.setup_event_subscriptions()
     
     @override
     def _init_ui(self):
@@ -662,7 +660,6 @@ class ChartPropertiesPanel(PWidget):
     
     def setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
-        super().setup_event_subscriptions()
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
         # Ensure datasets populate after a project is loaded from file. AppState emits

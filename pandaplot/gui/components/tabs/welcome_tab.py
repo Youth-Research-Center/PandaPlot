@@ -37,14 +37,10 @@ class WelcomeTab(PWidget):
         super().__init__(app_context=app_context, parent=parent)
         # Object name for scoped styling (border reset)
         self.setObjectName("WelcomeTabRoot")
-        self._init_ui()
-        self.setup_event_subscriptions()
-        
+        self._initialize()
         self.update_recent_projects()
-        self._apply_theme()
 
     def setup_event_subscriptions(self):
-        super().setup_event_subscriptions()
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
 
     def _on_config_event(self, _evt: dict):  # event data unused currently

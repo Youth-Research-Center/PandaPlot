@@ -41,15 +41,11 @@ class ProjectViewPanel(PWidget):
                                                               item, position)
                                                           )
 
-        self._init_ui()
-        self._apply_theme()
-        self.setup_event_subscriptions()
+        self._initialize()
     
     @override
     def setup_event_subscriptions(self):
         """Subscribe to relevant app state events."""
-        super().setup_event_subscriptions()
-
         self.app_state.event_bus.subscribe(
             ProjectEvents.PROJECT_LOADED, self.on_project_loaded)
         self.app_state.event_bus.subscribe(

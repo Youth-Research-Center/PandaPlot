@@ -17,10 +17,7 @@ class IconBar(PWidget):
         self.icon_width = width
         self.panels = {}  # Store panel names and their buttons
 
-        # Add settings button at the bottom
-        self._init_ui()
-        self._apply_theme()
-        self.setup_event_subscriptions()
+        self._initialize()
 
     @override
     def _init_ui(self):

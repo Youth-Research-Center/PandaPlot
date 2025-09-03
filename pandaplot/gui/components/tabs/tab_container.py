@@ -31,14 +31,8 @@ class TabContainer(PWidget):
         # TODO: we shouldn't know about these tab types here
         self.tabs = {}
 
-        self._init_ui()
+        self._initialize()
         self.create_default_tabs()
-        self.setup_event_subscriptions()
-
-    def subscribe_to_multiple_events(self, event_subscriptions: list):
-        """Subscribe to multiple events."""
-        for event_type, handler in event_subscriptions:
-            self.subscribe_to_event(event_type, handler)
 
     @override
     def _init_ui(self):
