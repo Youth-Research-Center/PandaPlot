@@ -1,5 +1,4 @@
-import logging
-from typing import Optional
+from typing import Optional, override
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QHBoxLayout, QWidget
@@ -7,17 +6,15 @@ from PySide6.QtWidgets import QHBoxLayout, QWidget
 from pandaplot.gui.components.sidebar.icon_bar import IconBar
 from pandaplot.gui.components.sidebar.panels.panel_area import PanelArea
 from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
-from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.gui.core.widget_extension import PWidget
 
 
-class CollapsibleSidebar(QWidget):
+class CollapsibleSidebar(PWidget):
     """A collapsible sidebar that contains an icon bar and panel area."""
 
     def __init__(self, app_context: AppContext, parent: QWidget, width: int = 400, collapsed_width: int = 40):
-        super().__init__(parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+        super().__init__(app_context=app_context, parent=parent)
         self.default_width = width
         self.collapsed_width = collapsed_width
         self.is_collapsed: bool = False
@@ -35,13 +32,12 @@ class CollapsibleSidebar(QWidget):
         self.resize_timer.setSingleShot(True)
         self.resize_timer.timeout.connect(self.check_auto_collapse)
 
-        self.setup_ui()
-        
-        # Apply initial theme and subscribe to theme changes
+        self._init_ui()
         self._apply_theme()
-        self.app_context.event_bus.subscribe(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
+        self.setup_event_subscriptions()
 
-    def setup_ui(self):
+    @override
+    def _init_ui(self):
         """Initialize the UI components."""
         # Main horizontal layout
         main_layout = QHBoxLayout(self)
@@ -49,7 +45,7 @@ class CollapsibleSidebar(QWidget):
         main_layout.setSpacing(0)
 
         # Create icon bar
-        self.icon_bar = IconBar(parent=self, width=self.collapsed_width)
+        self.icon_bar = IconBar(app_context=self.app_context, parent=self, width=self.collapsed_width)
         self.icon_bar.panel_requested.connect(self.show_panel)
         self.icon_bar.settings_requested.connect(
             self.show_settings_dialog)
@@ -162,6 +158,7 @@ class CollapsibleSidebar(QWidget):
         except Exception as e:
             self.logger.warning("Failed applying theme change to sidebar: %s", e)
 
+    @override
     def _apply_theme(self):
         """Apply theme-specific styling to the sidebar based on current theme."""
         theme_manager = self.app_context.get_theme_manager()
