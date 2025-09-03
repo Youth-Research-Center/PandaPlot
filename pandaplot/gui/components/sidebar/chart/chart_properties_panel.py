@@ -233,31 +233,30 @@ class ChartPropertiesPanel(PWidget):
             """)
         
         # Tab widget with theme-aware colors
-        if hasattr(self, 'tab_widget'):
-            self.tab_widget.setStyleSheet(f"""
-                QTabWidget::pane {{ 
-                    border: 1px solid {card_border}; 
-                    top: 1px; 
-                    background: {card_bg}; 
-                }}
-                QTabBar::tab {{ 
-                    background: {card_hover}; 
-                    border: 1px solid {card_border}; 
-                    border-bottom: none; 
-                    padding: 4px 8px; 
-                    margin-right: 2px; 
-                    border-top-left-radius: 4px; 
-                    border-top-right-radius: 4px;
-                    color: {base_fg};
-                }}
-                QTabBar::tab:selected {{ 
-                    background: {card_bg}; 
-                    font-weight: bold; 
-                }}
-                QTabBar::tab:hover {{ 
-                    background: {card_hover}; 
-                }}
-            """)
+        self.tab_widget.setStyleSheet(f"""
+            QTabWidget::pane {{ 
+                border: 1px solid {card_border}; 
+                top: 1px; 
+                background: {card_bg}; 
+            }}
+            QTabBar::tab {{ 
+                background: {card_hover}; 
+                border: 1px solid {card_border}; 
+                border-bottom: none; 
+                padding: 4px 8px; 
+                margin-right: 2px; 
+                border-top-left-radius: 4px; 
+                border-top-right-radius: 4px;
+                color: {base_fg};
+            }}
+            QTabBar::tab:selected {{ 
+                background: {card_bg}; 
+                font-weight: bold; 
+            }}
+            QTabBar::tab:hover {{ 
+                background: {card_hover}; 
+            }}
+        """)
         
         # Main action buttons
         self._apply_button_styling()
@@ -358,44 +357,42 @@ class ChartPropertiesPanel(PWidget):
         card_bg = palette.get('card_bg', '#ffffff')
         
         # Add series button (primary style)
-        if hasattr(self, 'add_series_button'):
-            add_style = f"""
-                QPushButton {{ 
-                    background: {accent}; 
-                    color: white; 
-                    border: none; 
-                    border-radius: 4px; 
-                    padding: 4px 10px;
-                }}
-                QPushButton:hover {{ 
-                    background: {card_hover}; 
-                    color: {base_fg}; 
-                }}
-                QPushButton:disabled {{ 
-                    background: {secondary_fg}; 
-                }}
-            """
-            self.add_series_button.setStyleSheet(add_style)
+        add_style = f"""
+            QPushButton {{ 
+                background: {accent}; 
+                color: white; 
+                border: none; 
+                border-radius: 4px; 
+                padding: 4px 10px;
+            }}
+            QPushButton:hover {{ 
+                background: {card_hover}; 
+                color: {base_fg}; 
+            }}
+            QPushButton:disabled {{ 
+                background: {secondary_fg}; 
+            }}
+        """
+        self.add_series_button.setStyleSheet(add_style)
         
         # Remove series button (secondary style)
-        if hasattr(self, 'remove_series_button'):
-            remove_style = f"""
-                QPushButton {{ 
-                    background: {card_hover}; 
-                    color: {base_fg}; 
-                    border: 1px solid {card_border}; 
-                    border-radius: 4px; 
-                    padding: 4px 10px;
-                }}
-                QPushButton:hover {{ 
-                    background: {card_bg}; 
-                }}
-                QPushButton:disabled {{ 
-                    background: {card_hover}; 
-                    color: {secondary_fg}; 
-                }}
-            """
-            self.remove_series_button.setStyleSheet(remove_style)
+        remove_style = f"""
+            QPushButton {{ 
+                background: {card_hover}; 
+                color: {base_fg}; 
+                border: 1px solid {card_border}; 
+                border-radius: 4px; 
+                padding: 4px 10px;
+            }}
+            QPushButton:hover {{ 
+                background: {card_bg}; 
+            }}
+            QPushButton:disabled {{ 
+                background: {card_hover}; 
+                color: {secondary_fg}; 
+            }}
+        """
+        self.remove_series_button.setStyleSheet(remove_style)
 
     def _create_chart_info_section(self, layout):
         """Create the basic chart information section."""

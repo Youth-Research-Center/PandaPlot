@@ -48,6 +48,7 @@ class FitPanel(PWidget):
         self.datasets = []
 
         self._init_ui()
+        self._apply_theme()
         self._connect_signals()
         self._setup_event_subscriptions()
 

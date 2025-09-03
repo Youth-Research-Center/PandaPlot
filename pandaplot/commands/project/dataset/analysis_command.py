@@ -149,13 +149,12 @@ class AnalysisCommand(Command):
     def _get_dataset(self) -> Dataset | None:
         """Get dataset from app context."""
         try:
-            if self.app_context and hasattr(self.app_context, 'app_state'):
-                app_state = self.app_context.get_app_state()
-                if app_state and app_state.has_project and app_state.current_project:
-                    project = app_state.current_project
-                    dataset_item = project.find_item(self.dataset_id)
-                    if dataset_item and hasattr(dataset_item, 'data') and isinstance(dataset_item, Dataset):
-                        return dataset_item  # Return the dataset object, not the data
+            app_state = self.app_context.get_app_state()
+            if app_state and app_state.has_project and app_state.current_project:
+                project = app_state.current_project
+                dataset_item = project.find_item(self.dataset_id)
+                if dataset_item and hasattr(dataset_item, 'data') and isinstance(dataset_item, Dataset):
+                    return dataset_item  # Return the dataset object, not the data
             return None
         except Exception as e:
             self.logger.error(f"Error getting dataset: {e}")

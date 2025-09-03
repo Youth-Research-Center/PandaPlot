@@ -125,70 +125,66 @@ class AnalysisPanel(PWidget):
         """)
         
         # Style title label
-        if hasattr(self, 'title_label'):
-            self.title_label.setStyleSheet(f"""
-                QLabel {{
-                    font-size: 14px;
-                    font-weight: bold;
-                    color: {base_fg};
-                    padding: 5px;
-                    background-color: {card_border};
-                    border-radius: 3px;
-                }}
-            """)
+        self.title_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                font-weight: bold;
+                color: {base_fg};
+                padding: 5px;
+                background-color: {card_border};
+                border-radius: 3px;
+            }}
+        """)
         
         # Style preview button
-        if hasattr(self, 'preview_btn'):
-            self.preview_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #3498db;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 8px 16px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #2980b9;
-                }
-            """)
+        self.preview_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
         
         # Style apply button
-        if hasattr(self, 'apply_btn'):
-            self.apply_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {accent};
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 10px 16px;
-                    font-weight: bold;
-                }}
-                QPushButton:hover {{
-                    background-color: {card_hover};
-                    color: {base_fg};
-                }}
-                QPushButton:disabled {{
-                    background-color: {secondary_fg};
-                    color: #999999;
-                }}
-            """)
+        self.apply_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {accent};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 10px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {card_hover};
+                color: {base_fg};
+            }}
+            QPushButton:disabled {{
+                background-color: {secondary_fg};
+                color: #999999;
+            }}
+        """)
         
         # Style clear button
-        if hasattr(self, 'clear_btn'):
-            self.clear_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {secondary_fg};
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 10px 16px;
-                    font-weight: bold;
-                }}
-                QPushButton:hover {{
-                    background-color: #7f8c8d;
-                }}
-            """)
+        self.clear_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {secondary_fg};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 10px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #7f8c8d;
+            }}
+        """)
     
     def apply_info_label_theme(self, label):
         """Apply theme styling to info labels."""
