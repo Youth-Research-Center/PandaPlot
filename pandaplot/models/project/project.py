@@ -25,7 +25,8 @@ class Project:
         # Project metadata
         self.metadata: Dict[str, Any] = {}
         self.version = "1.0"
-    
+        self.project_file_path: Optional[str] = None
+
     def add_item(self, item: Item, parent_id: Optional[str] = None):
         """Add an item to the project hierarchy."""
         if parent_id is None:
@@ -118,7 +119,8 @@ class Project:
             'description': self.description,
             'root': self.root.to_dict(),
             'metadata': self.metadata,
-            'version': self.version
+            'version': self.version,
+            'path': self.project_file_path
         }
         
     @classmethod
@@ -130,7 +132,8 @@ class Project:
         )
         project.metadata = data.get('metadata', {})
         project.version = data.get('version', '1.0')
-        
+        project.project_file_path = data.get('path', None)
+
         # TODO: Parse root hierarchy when item types are fully implemented
         return project
         

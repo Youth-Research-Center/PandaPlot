@@ -1,4 +1,4 @@
-import logging
+from typing import override
 
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
@@ -7,8 +7,8 @@ from pandaplot.commands.project.project import (LoadProjectCommand, NewProjectCo
 from pandaplot.gui.components.tabs import DatasetTab, NoteTab, ChartTab
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import (
-    EventBusComponentMixin,
     AnalysisEvents,
     ChartEvents,
     DatasetEvents,
@@ -19,7 +19,7 @@ from pandaplot.models.project.items import Chart, Dataset, Note
 from pandaplot.models.state.app_context import AppContext
 
 
-class TabContainer(EventBusComponentMixin, QWidget):
+class TabContainer(PWidget):
     """
     A container widget that manages tabbed content for the main application workspace.
     This component provides a centralized way to manage different tabs like Plot, Data, Transform, and Analysis.
@@ -27,23 +27,15 @@ class TabContainer(EventBusComponentMixin, QWidget):
     """
 
     def __init__(self, app_context: AppContext, parent: QWidget):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-
-        self.app_context = app_context
+        super().__init__(app_context=app_context, parent=parent)
         # TODO: we shouldn't know about these tab types here
         self.tabs = {}
 
-        self.setup_ui()
+        self._initialize()
         self.create_default_tabs()
-        self.setup_event_subscriptions()
 
-    def subscribe_to_multiple_events(self, event_subscriptions: list):
-        """Subscribe to multiple events."""
-        for event_type, handler in event_subscriptions:
-            self.subscribe_to_event(event_type, handler)
-
-    def setup_ui(self):
+    @override
+    def _init_ui(self):
         """Initialize the UI layout and components."""
         # Main layout
         layout = QVBoxLayout(self)
@@ -51,13 +43,17 @@ class TabContainer(EventBusComponentMixin, QWidget):
         layout.setSpacing(0)
 
         # Create custom tab widget
-        self.tab_widget = CustomTabWidget()
+        self.tab_widget = CustomTabWidget(app_context=self.app_context, parent=self)
 
         # Connect close signal and tab change signal
         self.tab_widget.tab_close_requested.connect(self.close_tab)
         self.tab_widget.currentChanged.connect(self.on_tab_changed)
 
         layout.addWidget(self.tab_widget)
+
+    @override
+    def _apply_theme(self):
+        pass
 
     def create_default_tabs(self):
         """Create the default tabs for the application."""
@@ -163,11 +159,11 @@ class TabContainer(EventBusComponentMixin, QWidget):
             raise ValueError("Item cannot be None")
         
         if isinstance(item, Note):
-            return NoteTab(self.app_context, item)
+            return NoteTab(app_context=self.app_context, note=item, parent=self)
         elif isinstance(item, Chart):
-            return ChartTab(self.app_context, item)
+            return ChartTab(app_context=self.app_context, chart=item, parent=self)
         elif isinstance(item, Dataset):
-            return DatasetTab(self.app_context, item)
+            return DatasetTab(app_context=self.app_context, dataset=item, parent=self)
         else:
             raise ValueError(f"Unsupported item type, item class {item.__class__.__name__}")
 
@@ -212,7 +208,7 @@ class TabContainer(EventBusComponentMixin, QWidget):
 
     def create_welcome_tab(self):
         """Create and add a welcome tab."""
-        welcome_tab = WelcomeTab(self.app_context)
+        welcome_tab = WelcomeTab(self.app_context, self)
 
         # Connect welcome tab signals
         welcome_tab.new_project_requested.connect(self.handle_new_project)

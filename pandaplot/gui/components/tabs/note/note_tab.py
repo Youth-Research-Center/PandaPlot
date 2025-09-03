@@ -2,6 +2,7 @@
 Note tab widget for displaying and editing notes in the main tab container.
 """
 
+from typing import override
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QVBoxLayout,
@@ -9,36 +10,41 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.tabs.note.note_editor import NoteEditorWidget
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import NoteEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
 
 
-class NoteTab(EventBusComponentMixin, QWidget):
+class NoteTab(PWidget):
     """
     A tab widget for displaying and editing notes.
     """
 
     tab_close_requested = Signal()
 
-    def __init__(self, app_context: AppContext, note: Note, parent=None):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
+    def __init__(self, app_context: AppContext, note: Note, parent: QWidget):
+        super().__init__(app_context=app_context, parent=parent)
         self.app_context = app_context
         self.note = note
 
-        self.setup_ui()
+        self._initialize()
         self.setup_connections()
-
-    def setup_ui(self):
+        
+    @override
+    def _init_ui(self):
         """Set up the user interface."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
         # Create note editor
-        self.note_editor = NoteEditorWidget(self.app_context, self.note)
+        self.note_editor = NoteEditorWidget(self.app_context, self.note, self)
         layout.addWidget(self.note_editor)
+
+    @override
+    def _apply_theme(self):
+        pass
 
     def setup_connections(self):
         """Set up event subscriptions instead of Qt rename signal."""

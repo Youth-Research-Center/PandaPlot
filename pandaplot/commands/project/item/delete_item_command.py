@@ -4,7 +4,6 @@ from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Item
-from pandaplot.models.project.project import Project
 from pandaplot.models.state import (AppState, AppContext)
 
 

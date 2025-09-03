@@ -1,27 +1,25 @@
-import logging
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QScreen
-from PySide6.QtWidgets import QMainWindow, QSplitter, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
 from pandaplot.gui.components import CollapsibleSidebar, MainMenu, TabContainer
 from pandaplot.gui.components.sidebar.panels.conditional_panel_manager import ConditionalPanelManager
 from pandaplot.gui.components.sidebar.panels.panel_setup_manager import PanelSetupManager
-
+from pandaplot.gui.core.widget_extension import PMainWindow
 from pandaplot.models.events import AppEvents
-from pandaplot.models.events.event_types import ThemeEvents
-from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.state.app_context import AppContext
 
 
-class PandaMainWindow(EventBusComponentMixin, QMainWindow):
+class PandaMainWindow(PMainWindow):
     def __init__(self, app_context: AppContext):
-        super().__init__(event_bus=app_context.event_bus)
-        self.logger = logging.getLogger(__name__)
-        self.setWindowTitle("PandaPlot")
+        super().__init__(app_context=app_context)
+        self._initialize()
 
-        # Initialize MVC components
-        self.app_context = app_context
+    @override
+    def _init_ui(self):
+        self.setWindowTitle("PandaPlot")
 
         # Get screen dimensions and set window to maximized
         screen = QScreen.availableGeometry(self.screen())
@@ -30,7 +28,6 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
 
         # Create central widget
         central_widget = QWidget()
-        central_widget.setStyleSheet("QWidget { background-color: #F5F5F5; }")
         self.setCentralWidget(central_widget)
 
         # Main layout
@@ -39,58 +36,26 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         main_layout.setSpacing(0)  # Remove spacing between widgets
 
         self.create_widgets(main_layout)
-        self.setup_event_subscriptions()
-        self.logger.info("PandaMainWindow initialized.")
 
+
+    @override
+    def _apply_theme(self):
+        """Apply theme-specific styling to the main window based on current theme."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        # Get theme-appropriate background color
+        background_color = palette.get('card_bg', '#F5F5F5')
+        
+        # Apply background to central widget
+        central_widget = self.centralWidget()
+        central_widget.setStyleSheet(f"QWidget {{ background-color: {background_color}; }}")
+            
+        self.logger.debug("Applied theme")
+            
     def create_widgets(self, main_layout):
         # Create menu
         self.main_menu = MainMenu(self, self.app_context)
-        # TODO: move menu styling into menu
-        self.main_menu.setStyleSheet("""
-            QMenuBar {
-                background-color: #F0F0F0;
-                color: black;
-                border-bottom: 1px solid #D0D0D0;
-            }
-            QMenuBar::item {
-                background-color: transparent;
-                padding: 4px 8px;
-                margin: 2px;
-                border-radius: 3px;
-            }
-            QMenuBar::item:selected {
-                background-color: #4A90E2;
-                color: white;
-            }
-            QMenuBar::item:pressed {
-                background-color: #357ABD;
-                color: white;
-            }
-            QMenu {
-                background-color: white;
-                border: 1px solid #C0C0C0;
-                color: black;
-                margin: 2px;
-            }
-            QMenu::item {
-                background-color: transparent;
-                padding: 6px 20px;
-                margin: 1px;
-            }
-            QMenu::item:selected {
-                background-color: #4A90E2;
-                color: white;
-            }
-            QMenu::item:pressed {
-                background-color: #357ABD;
-                color: white;
-            }
-            QMenu::separator {
-                height: 1px;
-                background-color: #C0C0C0;
-                margin: 2px 10px;
-            }
-        """)
         self.setMenuBar(self.main_menu)
 
         # Create main horizontal splitter
@@ -108,8 +73,6 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         # Create main content area (right pane) with tab container
         self.tab_container = TabContainer(
             app_context=self.app_context, parent=self.main_splitter)
-        self.tab_container.setStyleSheet(
-            "background-color: white; border: 1px solid #ccc;")
 
         self.main_splitter.addWidget(self.tab_container)
 
@@ -130,11 +93,6 @@ class PandaMainWindow(EventBusComponentMixin, QMainWindow):
         """Set up event subscriptions for the main window."""
         self.subscribe_to_event(AppEvents.APP_CLOSING,
                                 self.on_app_closing_event)
-
-        # React to theme changes if window-specific adjustments are needed
-        # TODO: implement theme changed callback
-        self.app_context.event_bus.subscribe(ThemeEvents.THEME_CHANGED, lambda _: self.logger.debug(
-            "Theme changed event received in main window"))
 
     def on_app_closing_event(self, event_data: dict):
         """Handle app closing event from the internal event bus.

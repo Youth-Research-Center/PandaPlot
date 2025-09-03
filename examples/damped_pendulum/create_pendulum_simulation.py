@@ -512,11 +512,8 @@ def print_project_structure(project, item_id, indent_level):
         
         indent = "  " * indent_level
         # Determine item type icon based on the class type
-        if hasattr(item, '__class__'):
-            class_name = item.__class__.__name__.lower()
-            icon = {"folder": "📁", "dataset": "📊", "chart": "📈", "note": "📝"}.get(class_name, "📄")
-        else:
-            icon = "📄"
+        class_name = item.__class__.__name__.lower()
+        icon = {"folder": "📁", "dataset": "📊", "chart": "📈", "note": "📝"}.get(class_name, "📄")
         
         print(f"{indent}{icon} {item.name}")
         

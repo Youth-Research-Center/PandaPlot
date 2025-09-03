@@ -8,60 +8,42 @@ from PySide6.QtWidgets import (
     QTextEdit, QScrollArea
 )
 from PySide6.QtCore import Qt
-import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, override
 
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.analysis import AnalysisEngine
 from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
-from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.events import (
     AnalysisEvents, UIEvents, DatasetEvents, DatasetOperationEvents
 )
 from pandaplot.models.project.items import Dataset
 
 
-class AnalysisPanel(EventBusComponentMixin, QWidget):
+class AnalysisPanel(PWidget):
     """
     Side panel for mathematical analysis operations on dataset columns.
     """
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+        super().__init__(app_context=app_context, parent=parent)
         self.current_dataset = None
         self.current_dataset_id = None
 
-        self.setup_ui()
+        self._initialize()
         self.setup_connections()
-        self.setup_event_subscriptions()
-    
-    def subscribe_to_multiple_events(self, event_subscriptions: list):
-        """Subscribe to multiple events."""
-        for event_type, handler in event_subscriptions:
-            self.subscribe_to_event(event_type, handler)
-    
-    def setup_ui(self):
+
+    @override
+    def _init_ui(self):
         """Setup the user interface."""
         # Main layout with scroll area
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(5, 5, 5, 5)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setSpacing(8)
         
         # Panel title
-        title_label = QLabel("📊 Analysis Operations")
-        title_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                font-weight: bold;
-                color: #2c3e50;
-                padding: 5px;
-                background-color: #ecf0f1;
-                border-radius: 3px;
-            }
-        """)
-        main_layout.addWidget(title_label)
+        self.title_label = QLabel("📊 Analysis Operations")
+        main_layout.addWidget(self.title_label)
         
         # Scroll area for content
         scroll_area = QScrollArea()
@@ -72,8 +54,8 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
         # Content widget
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(5, 5, 5, 5)
-        content_layout.setSpacing(10)
+        content_layout.setContentsMargins(4, 4, 4, 4)
+        content_layout.setSpacing(6)
         
         # Analysis type selection
         self.create_analysis_type_section(content_layout)
@@ -102,6 +84,120 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
         scroll_area.setWidget(content_widget)
         main_layout.addWidget(scroll_area)
     
+    @override
+    def _apply_theme(self):
+        """Apply current theme to analysis panel components."""
+        # Get theme colors
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        card_bg = palette.get('card_bg', '#ffffff')
+        card_border = palette.get('card_border', '#dee2e6')
+        base_fg = palette.get('base_fg', '#333333')
+        secondary_fg = palette.get('secondary_fg', '#666666')
+        accent = palette.get('accent', '#4CAF50')
+        card_hover = palette.get('card_hover', '#e5f3ff')
+        
+        # Apply theme to main widget
+        self.setStyleSheet(f"""
+            AnalysisPanel {{
+                background-color: {card_bg};
+                color: {base_fg};
+            }}
+            QGroupBox {{
+                font-weight: bold;
+                font-size: 9pt;
+                color: {base_fg};
+                margin-top: 5px;
+                padding-top: 10px;
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 4px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                background-color: {card_bg};
+            }}
+        """)
+        
+        # Style title label
+        self.title_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                font-weight: bold;
+                color: {base_fg};
+                padding: 5px;
+                background-color: {card_border};
+                border-radius: 3px;
+            }}
+        """)
+        
+        # Style preview button
+        self.preview_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+        
+        # Style apply button
+        self.apply_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {accent};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 10px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {card_hover};
+                color: {base_fg};
+            }}
+            QPushButton:disabled {{
+                background-color: {secondary_fg};
+                color: #999999;
+            }}
+        """)
+        
+        # Style clear button
+        self.clear_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {secondary_fg};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 10px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #7f8c8d;
+            }}
+        """)
+    
+    def apply_info_label_theme(self, label):
+        """Apply theme styling to info labels."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        secondary_fg = palette.get('secondary_fg', '#666666')
+        
+        label.setStyleSheet(f"""
+            QLabel {{
+                color: {secondary_fg};
+                font-style: italic;
+                background-color: transparent;
+            }}
+        """)
+
     def create_analysis_type_section(self, layout):
         """Create analysis type selection section."""
         group = QGroupBox("Analysis Type")
@@ -188,19 +284,6 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
         
         self.preview_btn = QPushButton("🔍 Preview Analysis")
         self.preview_btn.clicked.connect(self.preview_analysis)
-        self.preview_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #2980b9;
-            }
-        """)
         
         self.preview_text = QTextEdit()
         self.preview_text.setMaximumHeight(120)
@@ -219,38 +302,9 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
         
         self.apply_btn = QPushButton("✅ Apply Analysis")
         self.apply_btn.clicked.connect(self.apply_analysis)
-        self.apply_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-            QPushButton:disabled {
-                background-color: #95a5a6;
-            }
-        """)
         
         self.clear_btn = QPushButton("🔄 Clear")
         self.clear_btn.clicked.connect(self.clear_inputs)
-        self.clear_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-        """)
         
         button_layout.addWidget(self.apply_btn)
         button_layout.addWidget(self.clear_btn)
@@ -335,12 +389,12 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
             
         elif analysis_type == "Integral":
             info_label = QLabel("Method: Trapezoidal Rule")
-            info_label.setStyleSheet("color: #666666; font-style: italic;")
+            self.apply_info_label_theme(info_label)
             self.parameters_layout.addRow("", info_label)
             
         elif analysis_type == "Arc Length":
             info_label = QLabel("Method: Euclidean Distance")
-            info_label.setStyleSheet("color: #666666; font-style: italic;")
+            self.apply_info_label_theme(info_label)
             self.parameters_layout.addRow("", info_label)
             
         elif analysis_type == "Smoothing":
@@ -606,6 +660,7 @@ class AnalysisPanel(EventBusComponentMixin, QWidget):
         # Reset to defaults
         self.analysis_type_combo.setCurrentIndex(0)
     
+    @override
     def setup_event_subscriptions(self):
         """Setup event subscriptions for this component."""
         self.subscribe_to_multiple_events([

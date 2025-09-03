@@ -1,8 +1,7 @@
 """
 Note tab widget for displaying and editing notes in the main tab container.
 """
-import logging
-from typing import Optional
+from typing import override
 
 from markdown import markdown
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -22,13 +21,13 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.commands.project.note import EditNoteCommand
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import NoteEvents
-from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items import Note
 from pandaplot.models.state.app_context import AppContext
+    
 
-
-class NoteEditorWidget(EventBusComponentMixin, QWidget):
+class NoteEditorWidget(PWidget):
     """
     A modern note editor widget with text editing capabilities.
     """
@@ -36,10 +35,8 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
     # Local signal for immediate editor reactions
     content_changed = Signal(str)
 
-    def __init__(self, app_context: AppContext, note: Note, parent: Optional[QWidget] = None):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+    def __init__(self, app_context: AppContext, note: Note, parent: QWidget):
+        super().__init__(app_context=app_context, parent=parent)
         self.note = note
         self.is_modified = False
         self.auto_save_timer = QTimer()
@@ -49,11 +46,12 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         # Since we can't check if the preview is connected, track it with a flag
         self.preview_connected = False
 
-        self.setup_ui()
-        self.load_note_content()
+        self._initialize()
         self.setup_connections()
+        self.load_note_content()
 
-    def setup_ui(self):
+    @override
+    def _init_ui(self):
         """Set up the user interface."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -65,64 +63,90 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         # Status bar
         self.create_status_section(layout)
 
+    @override
+    def _apply_theme(self):
+        """Apply theme-specific styling to all components."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        # Get theme-appropriate colors
+        card_bg = palette.get('card_bg', '#f8f9fa')
+        card_hover = palette.get('card_hover', '#e9ecef')
+        card_border = palette.get('card_border', '#dee2e6')
+        base_fg = palette.get('base_fg', '#000000')
+        secondary_fg = palette.get('secondary_fg', '#555555')
+        
+        # Apply styling to content frame
+        self.content_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 6px;
+            }}
+        """)
+        
+        # Apply styling to toolbar
+        self.toolbar.setStyleSheet(f"""
+            QToolBar {{
+                    background-color: {card_bg};
+                    border-bottom: 1px solid {card_border};
+                    padding: 4px;
+                    color: {base_fg};
+                }}
+                QToolBar QToolButton {{
+                    color: {base_fg};
+                    background-color: transparent;
+                    border: none;
+                    padding: 6px 10px;
+                    margin: 1px;
+                    border-radius: 3px;
+                    font-weight: 500;
+                }}
+                QToolBar QToolButton:hover {{
+                    background-color: {card_hover};
+                    color: {base_fg};
+                }}
+                QToolBar QToolButton:pressed {{
+                    background-color: {card_hover};
+                    color: {base_fg};
+                }}
+                QToolBar::separator {{
+                    background-color: {card_border};
+                    width: 1px;
+                    margin: 4px 2px;
+                }}
+            """)
+        
+        # Apply styling to status frame
+        self.status_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 6px;
+                padding: 4px;
+                }}
+            """)
+        
+        # Apply styling to status labels
+        self.word_count_label.setStyleSheet(f"color: {secondary_fg}; font-size: 12px;")
+        self.char_count_label.setStyleSheet(f"color: {secondary_fg}; font-size: 12px;")
+
+        # Update status label with current status
+        self._update_status_label_style()
+
     def create_content_section(self, layout: QLayout):
         """Create the main content editing section."""
         # Content frame
-        content_frame = QFrame()
-        content_frame.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border: 1px solid #e9ecef;
-                border-radius: 6px;
-            }
-        """)
-        content_layout = QVBoxLayout(content_frame)
+        self.content_frame = QFrame()
+        content_layout = QVBoxLayout(self.content_frame)
         content_layout.setContentsMargins(0, 0, 0, 0)
 
         # Toolbar
-        toolbar = QToolBar()
-
-        # Apply theme-aware styling to the toolbar
-        theme_manager = self.app_context.theme_manager
-        palette = theme_manager.get_surface_palette()
-        base_fg = palette.get('base_fg', '#495057')
-        surface_bg = palette.get('surface', '#f8f9fa')
-        border_color = palette.get('border', '#e9ecef')
-
-        toolbar.setStyleSheet(f"""
-            QToolBar {{
-                background-color: {surface_bg};
-                border-bottom: 1px solid {border_color};
-                padding: 4px;
-                color: {base_fg};
-            }}
-            QToolBar QToolButton {{
-                color: {base_fg};
-                background-color: transparent;
-                border: none;
-                padding: 6px 10px;
-                margin: 1px;
-                border-radius: 3px;
-                font-weight: 500;
-            }}
-            QToolBar QToolButton:hover {{
-                background-color: {border_color};
-                color: {base_fg};
-            }}
-            QToolBar QToolButton:pressed {{
-                background-color: {border_color};
-                color: {base_fg};
-            }}
-            QToolBar::separator {{
-                background-color: {border_color};
-                width: 1px;
-                margin: 4px 2px;
-            }}
-        """)
+        self.toolbar = QToolBar()
 
         # Add formatting actions
-        self.create_toolbar_actions(toolbar)
-        content_layout.addWidget(toolbar)
+        self.create_toolbar_actions(self.toolbar)
+        content_layout.addWidget(self.toolbar)
 
         # Create main editor and preview widgets
         self.text_edit = QTextEdit()
@@ -156,7 +180,7 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         self.stack.addWidget(self.splitter)    # index 2
 
         content_layout.addWidget(self.stack)
-        layout.addWidget(content_frame)
+        layout.addWidget(self.content_frame)
 
         # Default mode
         self.set_mode("edit")
@@ -235,34 +259,22 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
 
     def create_status_section(self, layout: QLayout):
         """Create the status section with statistics."""
-        status_frame = QFrame()
-        status_frame.setStyleSheet("""
-            QFrame {
-                background-color: #f8f9fa;
-                border: 1px solid #e9ecef;
-                border-radius: 6px;
-                padding: 4px;
-            }
-        """)
-        status_layout = QHBoxLayout(status_frame)
+        self.status_frame = QFrame()
+        status_layout = QHBoxLayout(self.status_frame)
         status_layout.setContentsMargins(12, 4, 12, 4)
 
         self.word_count_label = QLabel("Words: 0")
-        self.word_count_label.setStyleSheet("color: #6c757d; font-size: 12px;")
         status_layout.addWidget(self.word_count_label)
 
         self.char_count_label = QLabel("Characters: 0")
-        self.char_count_label.setStyleSheet("color: #6c757d; font-size: 12px;")
         status_layout.addWidget(self.char_count_label)
 
         status_layout.addStretch()
 
         self.status_label = QLabel("Ready")
-        self.status_label.setStyleSheet(
-            "color: #28a745; font-size: 12px; font-weight: bold;")
         status_layout.addWidget(self.status_label)
 
-        layout.addWidget(status_frame)
+        layout.addWidget(self.status_frame)
 
     def setup_connections(self):
         """Set up signal connections and event subscriptions."""
@@ -301,23 +313,30 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         self.word_count_label.setText(f"Words: {word_count}")
         self.char_count_label.setText(f"Characters: {char_count}")
 
+    def _update_status_label_style(self):
+        """Update status label styling based on current status and theme."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        secondary_fg = palette.get('secondary_fg', '#555555')
+        
+        status_text = self.status_label.text()
+        
+        # Determine color based on status
+        if "Modified" in status_text:
+            color = "#ffc107"  # Warning yellow
+        elif "Saved" in status_text or "Synced" in status_text:
+            color = "#28a745"  # Success green
+        elif "Error" in status_text:
+            color = "#dc3545"  # Error red
+        else:
+            color = secondary_fg  # Default theme color
+            
+        self.status_label.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: bold;")
+
     def update_status(self, status: str):
         """Update the status label."""
         self.status_label.setText(status)
-
-        # Update color based on status
-        if "Modified" in status:
-            self.status_label.setStyleSheet(
-                "color: #ffc107; font-size: 12px; font-weight: bold;")
-        elif "Saved" in status:
-            self.status_label.setStyleSheet(
-                "color: #28a745; font-size: 12px; font-weight: bold;")
-        elif "Error" in status:
-            self.status_label.setStyleSheet(
-                "color: #dc3545; font-size: 12px; font-weight: bold;")
-        else:
-            self.status_label.setStyleSheet(
-                "color: #6c757d; font-size: 12px; font-weight: bold;")
+        self._update_status_label_style()
 
     def save_content(self):
         """Save the note content."""
@@ -352,53 +371,12 @@ class NoteEditorWidget(EventBusComponentMixin, QWidget):
         new_content = event_data.get('new_content')
         if new_content is not None and self.text_edit.toPlainText() != new_content:
             self.text_edit.blockSignals(True)
-            self.text_edit.setMarkdown(new_content)
+            self.text_edit.setPlainText(new_content)
+            self.update_preview()
             self.text_edit.blockSignals(False)
             self.update_statistics()
             self.is_modified = False
             self.update_status("Synced ✓")
-
-    def refresh_theme_styling(self):
-        """Refresh all theme-dependent styling. Call this when theme changes."""
-        theme_manager = self.app_context.theme_manager
-        palette = theme_manager.get_surface_palette()
-        base_fg = palette.get('base_fg', '#495057')
-        surface_bg = palette.get('surface', '#f8f9fa')
-        border_color = palette.get('border', '#e9ecef')
-
-        # Find and update the toolbar styling
-        for child in self.findChildren(QToolBar):
-            child.setStyleSheet(f"""
-                QToolBar {{
-                    background-color: {surface_bg};
-                    border-bottom: 1px solid {border_color};
-                    padding: 4px;
-                    color: {base_fg};
-                }}
-                QToolBar QToolButton {{
-                    color: {base_fg};
-                    background-color: transparent;
-                    border: none;
-                    padding: 6px 10px;
-                    margin: 1px;
-                    border-radius: 3px;
-                    font-weight: 500;
-                }}
-                QToolBar QToolButton:hover {{
-                    background-color: {border_color};
-                    color: {base_fg};
-                }}
-                QToolBar QToolButton:pressed {{
-                    background-color: {border_color};
-                    color: {base_fg};
-                }}
-                QToolBar::separator {{
-                    background-color: {border_color};
-                    width: 1px;
-                    margin: 4px 2px;
-                }}
-            """)
-            break  # TODO: not sure why we break here
 
     def clear_content(self):
         """Clear all content."""

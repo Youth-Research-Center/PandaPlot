@@ -1,19 +1,30 @@
 """Curve fitting panel for performing regression analysis on chart data."""
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, 
-    QComboBox, QPushButton, QLineEdit, QGroupBox, QScrollArea,
-    QTextEdit, QCheckBox, QSpinBox
-)
-from PySide6.QtCore import Qt, Signal
-import logging
+from typing import Optional, override
+
 import numpy as np
 import pandas as pd
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
-from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events import UIEvents, FitEvents
-from pandaplot.models.state.app_context import AppContext
+from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.models.events import FitEvents, UIEvents
 from pandaplot.models.project.items import Dataset
+from pandaplot.models.state.app_context import AppContext
 
 # Import scipy for curve fitting (will handle gracefully if not available)
 try:
@@ -23,29 +34,27 @@ except ImportError:
     SCIPY_AVAILABLE = False
 
 
-class FitPanel(EventBusComponentMixin, QWidget):
+class FitPanel(PWidget):
     """Side panel for performing curve fitting on chart data."""
     
     fit_completed = Signal(dict)  # Emitted when fit is completed with results
     fit_applied = Signal(dict)   # Emitted when fit should be applied to chart
-    
-    def __init__(self, app_context: AppContext, parent=None):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+
+    def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
+        super().__init__(app_context=app_context, parent=parent)
         self.current_project = None
         self.current_chart = None
         self.fit_results = None
         self.datasets = []
 
-        self._setup_ui()
+        self._initialize()
         self._connect_signals()
-        self._setup_event_subscriptions()
 
         if not SCIPY_AVAILABLE:
             self._show_scipy_warning()
     
-    def _setup_ui(self):
+    @override
+    def _init_ui(self):
         """Set up the user interface."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -78,6 +87,10 @@ class FitPanel(EventBusComponentMixin, QWidget):
         
         scroll.setWidget(content_widget)
         layout.addWidget(scroll)
+
+    @override
+    def _apply_theme(self):
+        pass
     
     def _create_data_source_section(self, layout):
         """Create the data source selection section."""
