@@ -59,53 +59,43 @@ class ChartEditorWidget(PWidget):
         secondary_fg = palette.get('secondary_fg', '#555555')
         
         # Apply styling to preview frame
-        if hasattr(self, 'preview_frame'):
-            self.preview_frame.setStyleSheet(f"""
-                QFrame {{
-                    background-color: {card_bg};
-                    border: 1px solid {card_border};
-                    border-radius: 6px;
-                }}
-            """)
+        self.preview_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 6px;
+            }}
+        """)
         
         # Apply styling to status frame
-        if hasattr(self, 'status_frame'):
-            self.status_frame.setStyleSheet(f"""
-                QFrame {{
-                    background-color: {card_bg};
-                    border: 1px solid {card_border};
-                    border-radius: 6px;
-                    padding: 1px;
-                }}
-            """)
+        self.status_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 6px;
+                padding: 1px;
+            }}
+        """)
         
         # Apply styling to dataset label
-        if hasattr(self, 'dataset_label'):
-            self.dataset_label.setStyleSheet(f"color: {secondary_fg}; font-size: 12px;")
+        self.dataset_label.setStyleSheet(f"color: {secondary_fg}; font-size: 12px;")
         
         # Apply styling to status label (preserve color logic based on current text)
-        if hasattr(self, 'status_label'):
-            self._update_status_label_style()
+        self._update_status_label_style()
         
         # Apply theme to toolbar if it exists
-        if hasattr(self, 'preview_toolbar'):
-            self._apply_toolbar_theme()
+        self._apply_toolbar_theme()
         
         # Apply theme to spinboxes
-        if hasattr(self, 'width_spin'):
-            self._apply_spinbox_style(self.width_spin)
-        if hasattr(self, 'height_spin'):
-            self._apply_spinbox_style(self.height_spin)
+        self._apply_spinbox_style(self.width_spin)
+        self._apply_spinbox_style(self.height_spin)
         
         # Apply theme to size label
-        if hasattr(self, 'size_label'):
-            self._apply_label_style(self.size_label)
-        if hasattr(self, 'multiply_label'):
-            self._apply_label_style(self.multiply_label)
+        self._apply_label_style(self.size_label)
+        self._apply_label_style(self.multiply_label)
         
         # Apply theme to chart canvas navigation if it exists
-        if hasattr(self, 'chart_canvas'):
-            self.chart_canvas.apply_navigation_theme(base_fg, card_bg, card_border)
+        self.chart_canvas.apply_navigation_theme(base_fg, card_bg, card_border)
 
     def _apply_spinbox_style(self, spinbox):
         """Apply theme-aware styling to a QSpinBox"""
@@ -153,9 +143,6 @@ class ChartEditorWidget(PWidget):
 
     def _apply_toolbar_theme(self):
         """Apply theme-aware styling to the preview toolbar."""
-        if not hasattr(self, 'preview_toolbar'):
-            return
-            
         theme_manager = self.app_context.get_theme_manager()
         palette = theme_manager.get_surface_palette()
         base_fg = palette.get('base_fg', '#000000')
@@ -190,9 +177,6 @@ class ChartEditorWidget(PWidget):
 
     def _update_status_label_style(self):
         """Update status label styling based on current status and theme."""
-        if not hasattr(self, 'status_label'):
-            return
-            
         theme_manager = self.app_context.get_theme_manager()
         palette = theme_manager.get_surface_palette()
         secondary_fg = palette.get('secondary_fg', '#555555')
@@ -210,10 +194,6 @@ class ChartEditorWidget(PWidget):
             color = secondary_fg  # Default theme color
             
         self.status_label.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: bold;")
-
-    def refresh_theme_styling(self):
-        """Refresh all theme-dependent styling. Call this when theme changes."""
-        self._apply_theme()
 
     @override
     def _init_ui(self):
@@ -262,7 +242,6 @@ class ChartEditorWidget(PWidget):
     def create_chart_preview_section(self, layout):
         """Create the chart preview section."""
         self.preview_frame = QFrame()
-        # Remove hardcoded styling - will be applied in _apply_theme
         # Set size policy to expand and take all available space
         self.preview_frame.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -272,7 +251,6 @@ class ChartEditorWidget(PWidget):
 
         # Preview toolbar with chart actions and size controls
         self.preview_toolbar = QToolBar()
-        # Remove hardcoded styling - will be applied in _apply_theme
 
         # Add chart actions
         self.create_chart_toolbar_actions(self.preview_toolbar)
@@ -282,7 +260,6 @@ class ChartEditorWidget(PWidget):
 
         # Add size controls
         self.size_label = QLabel("Size:")
-        # Remove hardcoded styling - will be applied in _apply_theme
         self.preview_toolbar.addWidget(self.size_label)
 
         # Width control
@@ -291,12 +268,10 @@ class ChartEditorWidget(PWidget):
         self.width_spin.setValue(8)
         self.width_spin.setSuffix(" in")
         self.width_spin.setToolTip("Chart width in inches")
-        # Theme-aware styling will be applied in _apply_theme
         self.width_spin.valueChanged.connect(self._on_size_changed)
         self.preview_toolbar.addWidget(self.width_spin)
 
         self.multiply_label = QLabel("×")
-        # Theme-aware styling will be applied in _apply_theme
         self.preview_toolbar.addWidget(self.multiply_label)
 
         # Height control
@@ -305,7 +280,6 @@ class ChartEditorWidget(PWidget):
         self.height_spin.setValue(6)
         self.height_spin.setSuffix(" in")
         self.height_spin.setToolTip("Chart height in inches")
-        # Theme-aware styling will be applied in _apply_theme
         self.height_spin.valueChanged.connect(self._on_size_changed)
         self.preview_toolbar.addWidget(self.height_spin)
 
@@ -334,7 +308,6 @@ class ChartEditorWidget(PWidget):
         # Add navigation toolbar for zoom/pan
         if hasattr(self.chart_canvas, 'navigation_toolbar'):
             nav_toolbar = self.chart_canvas.navigation_toolbar
-            # Theme-aware styling will be applied in apply_theme_aware_colors()
             preview_layout.addWidget(nav_toolbar)
 
         preview_layout.addWidget(self.chart_canvas)
@@ -344,7 +317,6 @@ class ChartEditorWidget(PWidget):
     def create_status_section(self, layout):
         """Create the status section."""
         self.status_frame = QFrame()
-        # Remove hardcoded styling - will be applied in _apply_theme
         # Set fixed height to prevent expansion
         self.status_frame.setFixedHeight(30)
         self.status_frame.setSizePolicy(
@@ -357,13 +329,11 @@ class ChartEditorWidget(PWidget):
         datasets = self.chart.get_all_datasets()
         dataset_text = f"Datasets: {', '.join(datasets)}" if datasets else "Sample Data"
         self.dataset_label = QLabel(dataset_text)
-        # Remove hardcoded styling - will be applied in _apply_theme
         status_layout.addWidget(self.dataset_label)
 
         status_layout.addStretch()
 
         self.status_label = QLabel("Ready")
-        # Initial styling will be applied in _apply_theme
         status_layout.addWidget(self.status_label)
 
         layout.addWidget(self.status_frame)

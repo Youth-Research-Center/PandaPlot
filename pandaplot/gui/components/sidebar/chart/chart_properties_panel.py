@@ -212,17 +212,16 @@ class ChartPropertiesPanel(PWidget):
         """)
         
         # Title label with improved styling
-        if hasattr(self, 'title_label'):
-            self.title_label.setStyleSheet(f"""
-                QLabel {{
-                    font-size: 14px;
-                    font-weight: bold;
-                    color: {base_fg};
-                    padding: 5px;
-                    background-color: {card_border};
-                    border-radius: 3px;
-                }}
-            """)
+        self.title_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                font-weight: bold;
+                color: {base_fg};
+                padding: 5px;
+                background-color: {card_border};
+                border-radius: 3px;
+            }}
+        """)
         
         # Tab widget with theme-aware colors
         self.tab_widget.setStyleSheet(f"""
@@ -286,29 +285,28 @@ class ChartPropertiesPanel(PWidget):
         card_bg = palette.get('card_bg', '#ffffff')
         
         # Primary button (Apply)
-        if hasattr(self, 'apply_button'):
-            primary_style = f"""
-                QPushButton {{ 
-                    background-color: {accent}; 
-                    color: white; 
-                    padding: 6px 14px; 
-                    border: none; 
-                    border-radius: 4px; 
-                    font-weight: 600; 
-                }}
-                QPushButton:hover {{ 
-                    background-color: {card_hover}; 
-                    color: {base_fg}; 
-                }}
-                QPushButton:pressed {{ 
-                    background-color: {card_border}; 
-                }}
-                QPushButton:disabled {{ 
-                    background-color: {secondary_fg}; 
-                    color: #999999; 
-                }}
-            """
-            self.apply_button.setStyleSheet(primary_style)
+        primary_style = f"""
+            QPushButton {{ 
+                background-color: {accent}; 
+                color: white; 
+                padding: 6px 14px; 
+                border: none; 
+                border-radius: 4px; 
+                font-weight: 600; 
+            }}
+            QPushButton:hover {{ 
+                background-color: {card_hover}; 
+                color: {base_fg}; 
+            }}
+            QPushButton:pressed {{ 
+                background-color: {card_border}; 
+            }}
+            QPushButton:disabled {{ 
+                background-color: {secondary_fg}; 
+                color: #999999; 
+            }}
+        """
+        self.apply_button.setStyleSheet(primary_style)
         
         # Secondary buttons (Preview, Cancel)
         secondary_style = f"""

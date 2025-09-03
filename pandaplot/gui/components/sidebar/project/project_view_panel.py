@@ -46,13 +46,13 @@ class ProjectViewPanel(PWidget):
     @override
     def setup_event_subscriptions(self):
         """Subscribe to relevant app state events."""
-        self.app_state.event_bus.subscribe(
+        self.subscribe_to_event(
             ProjectEvents.PROJECT_LOADED, self.on_project_loaded)
-        self.app_state.event_bus.subscribe(
+        self.subscribe_to_event(
             ProjectEvents.PROJECT_CLOSED, self.on_project_closed)
-        self.app_state.event_bus.subscribe(
+        self.subscribe_to_event(
             ProjectEvents.PROJECT_CHANGED, self.on_item_changed)
-        self.app_state.event_bus.subscribe(
+        self.subscribe_to_event(
             ProjectEvents.PROJECT_CREATED, self.on_item_changed)
 
     @override
@@ -259,17 +259,16 @@ class ProjectViewPanel(PWidget):
         """)
         
         # Style panel title (like other panels)
-        if hasattr(self, 'title_label'):
-            self.title_label.setStyleSheet(f"""
-                QLabel {{
-                    font-size: 14px;
-                    font-weight: bold;
-                    color: {base_fg};
-                    padding: 5px;
-                    background-color: {card_border};
-                    border-radius: 3px;
-                }}
-            """)
+        self.title_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                font-weight: bold;
+                color: {base_fg};
+                padding: 5px;
+                background-color: {card_border};
+                border-radius: 3px;
+            }}
+        """)
         
         # Apply theme to project title and file labels
         self.project_title_label.setStyleSheet(f"""

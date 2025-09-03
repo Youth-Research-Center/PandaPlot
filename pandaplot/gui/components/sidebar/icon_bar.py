@@ -64,8 +64,7 @@ class IconBar(PWidget):
         """)
         
         # Apply theme to settings button
-        if hasattr(self, 'settings_button'):
-            self._apply_settings_button_theme()
+        self._apply_settings_button_theme()
         
         # Apply theme to all panel buttons
         self._apply_panel_buttons_theme()

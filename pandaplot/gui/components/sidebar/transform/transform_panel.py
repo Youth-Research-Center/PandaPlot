@@ -147,84 +147,78 @@ class TransformPanel(PWidget):
         """)
         
         # Style panel title
-        if hasattr(self, 'title_label'):
-            self.title_label.setStyleSheet(f"""
-                QLabel {{
-                    font-size: 14px;
-                    font-weight: bold;
-                    color: {base_fg};
-                    padding: 5px;
-                    background-color: {card_border};
-                    border-radius: 3px;
-                }}
-            """)
+        self.title_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                font-weight: bold;
+                color: {base_fg};
+                padding: 5px;
+                background-color: {card_border};
+                border-radius: 3px;
+            }}
+        """)
         
         # Style dataset labels in header
-        if hasattr(self, 'dataset_label'):
-            self.dataset_label.setStyleSheet(f"""
-                QLabel {{
-                    font-weight: bold;
-                    color: {base_fg};
-                    background-color: transparent;
-                }}
-            """)
+        self.dataset_label.setStyleSheet(f"""
+            QLabel {{
+                font-weight: bold;
+                color: {base_fg};
+                background-color: transparent;
+            }}
+        """)
         
-        if hasattr(self, 'row_count_label'):
-            self.row_count_label.setStyleSheet(f"""
-                QLabel {{
-                    color: {secondary_fg};
-                    font-size: 10px;
-                    background-color: transparent;
-                }}
-            """)
+        self.row_count_label.setStyleSheet(f"""
+            QLabel {{
+                color: {secondary_fg};
+                font-size: 10px;
+                background-color: transparent;
+            }}
+        """)
         
         # Style preview text area
-        if hasattr(self, 'preview_text'):
-            self.preview_text.setStyleSheet(f"""
-                QTextEdit {{
-                    background-color: {card_bg};
-                    border: 1px solid {card_border};
-                    border-radius: 4px;
-                    font-family: monospace;
-                    color: {base_fg};
-                    padding: 4px;
-                }}
-            """)
+        self.preview_text.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 4px;
+                font-family: monospace;
+                color: {base_fg};
+                padding: 4px;
+            }}
+        """)
         
         # Style action buttons
-        if hasattr(self, 'apply_btn'):
-            self.apply_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {accent};
-                    color: white;
-                    border: none;
-                    padding: 6px 12px;
-                    border-radius: 4px;
-                    font-weight: bold;
-                }}
-                QPushButton:hover {{
-                    background-color: {card_hover};
-                    color: {base_fg};
-                }}
-                QPushButton:disabled {{
-                    background-color: {secondary_fg};
-                    color: #999999;
-                }}
-            """)
+        self.apply_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {accent};
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {card_hover};
+                color: {base_fg};
+            }}
+            QPushButton:disabled {{
+                background-color: {secondary_fg};
+                color: #999999;
+            }}
+        """)
         
-        if hasattr(self, 'clear_btn'):
-            self.clear_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #f44336;
-                    color: white;
-                    border: none;
-                    padding: 6px 12px;
-                    border-radius: 4px;
-                }
-                QPushButton:hover {
-                    background-color: #da190b;
-                }
-            """)
+        self.clear_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #da190b;
+            }
+        """)
 
     def create_header_section(self, layout):
         """Create header section showing current dataset info."""
