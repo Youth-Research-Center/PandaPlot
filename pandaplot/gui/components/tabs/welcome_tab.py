@@ -1,5 +1,4 @@
 import datetime
-import logging
 import os
 from pathlib import Path
 from typing import override
@@ -19,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.core.widget_extension import PWidget
-from pandaplot.models.events.event_types import ConfigEvents, ThemeEvents
+from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.app_context import AppContext
 
     

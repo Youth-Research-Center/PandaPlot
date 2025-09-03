@@ -49,7 +49,9 @@ class NoteEditorWidget(PWidget):
 
         self._init_ui()
         self.load_note_content()
+        self._apply_theme()
         self.setup_connections()
+        self.setup_event_subscriptions()
 
     @override
     def _init_ui(self):
