@@ -125,7 +125,6 @@ class PandaMainWindow(PMainWindow):
             self.logger.info("Application cleanup completed successfully")
 
         except Exception as e:
-    
             self.logger.error("Error during cleanup: %s",
                               str(e), exc_info=True)
             # Force exit even if cleanup fails

@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QMainWindow, QWidget, QMenuBar, QTabWidget, QDialo
 
 class WidgetExtension:
     def __init__(self, app_context: AppContext):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.app_context = app_context
         self._subscriptions : List[Tuple[str, Callable]] = []
     
@@ -95,6 +95,8 @@ class WidgetExtension:
     def __del__(self):
         """Clean up subscriptions when object is destroyed."""
         try:
+            # we are unsubscribing from all events ideally when destroyed is called
+            # leaving this in case we don't use QWidget/QObject
             self.unsubscribe_all()
         except Exception:
             pass  # Ignore errors during cleanup

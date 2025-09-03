@@ -21,7 +21,7 @@ class TransformController(QObject):
     Business logic for data transformations, extracted from transform_tab.py.
     Handles safe execution environment and transformation logic.
     """
-    # TODO: check whether this needs to be QObject
+    # QObject inheritance is required for Qt signals to function properly. 
     
     # Signals
     transform_completed = Signal(str, str, object)  # dataset_id, column_name, result_data

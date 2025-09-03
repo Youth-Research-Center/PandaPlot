@@ -25,7 +25,7 @@ class ColorButton(QPushButton):
     
     colorChanged = Signal(str)
 
-    def __init__(self, app_context: AppContext, color: str = "#1f77b4", parent=None):
+    def __init__(self, app_context: AppContext, parent=None, color: str = "#1f77b4"):
         super().__init__(parent)
         self.app_context = app_context
         self._color = color
@@ -516,7 +516,7 @@ class ChartPropertiesPanel(PWidget):
         marker_layout.addWidget(self.marker_color_button, 2, 1)
         
         marker_layout.addWidget(QLabel("Edge Color:"), 3, 0)
-        self.marker_edge_color_button = ColorButton(self.app_context, "#000000")
+        self.marker_edge_color_button = ColorButton(self.app_context, None, "#000000")
         marker_layout.addWidget(self.marker_edge_color_button, 3, 1)
         
         layout.addWidget(marker_group)
@@ -610,7 +610,7 @@ class ChartPropertiesPanel(PWidget):
         legend_layout.addWidget(self.legend_font_size_spin, 2, 1)
         
         legend_layout.addWidget(QLabel("Background:"), 3, 0)
-        self.legend_bg_color_button = ColorButton(self.app_context, "#ffffff")
+        self.legend_bg_color_button = ColorButton(self.app_context, None, "#ffffff")
         legend_layout.addWidget(self.legend_bg_color_button, 3, 1)
         
         layout.addWidget(legend_group)
