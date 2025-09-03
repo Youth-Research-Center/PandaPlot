@@ -1,7 +1,8 @@
 import logging
+from typing import override
 
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMenu, QMenuBar, QMessageBox, QWidget
+from PySide6.QtWidgets import QMenu, QMessageBox, QWidget
 
 from pandaplot.commands.app.exit_command import ExitCommand
 from pandaplot.commands.project.dataset.create_empty_dataset_command import (
@@ -15,8 +16,8 @@ from pandaplot.commands.project.project import (
     SaveProjectAsCommand,
     SaveProjectCommand,
 )
+from pandaplot.gui.core.widget_extension import PMenuBar
 from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
-from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -25,17 +26,16 @@ def show_about():
     QMessageBox.about(None, "About", "This is a sample app")
 
 
-class MainMenu(QMenuBar):
+class MainMenu(PMenuBar):
     def __init__(self, parent: QWidget, app_context: AppContext):
-        super().__init__(parent)
-        self.app_context = app_context
-        self.logger = logging.getLogger(__name__)
-        self.create_menu()
+        super().__init__(app_context=app_context, parent=parent)
+        self._init_ui()
         self._apply_theme()
         
-        # Subscribe to theme changes
-        self.app_context.event_bus.subscribe(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
+        self.setup_event_subscriptions()
+        self.logger.info("PandaMainWindow initialized.")
 
+    @override
     def _apply_theme(self):
         """Apply theme-specific styling to the main menu based on current theme."""
         theme_manager = self.app_context.get_theme_manager()
@@ -97,14 +97,8 @@ class MainMenu(QMenuBar):
         
         self.logger.debug("Applied theme.")
     
-    def _on_theme_changed(self, _data: dict):
-        """Handle theme changes by reapplying menu styling."""
-        try:
-            self._apply_theme()
-        except Exception as e:
-            self.logger.warning("Failed applying theme change to main menu: %s", e)
-
-    def create_menu(self):
+    @override
+    def _init_ui(self):
         self.logger.debug("Creating main menu")
         
         # File menu

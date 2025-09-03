@@ -49,7 +49,7 @@ class TabContainer(PWidget):
         layout.setSpacing(0)
 
         # Create custom tab widget
-        self.tab_widget = CustomTabWidget()
+        self.tab_widget = CustomTabWidget(app_context=self.app_context, parent=self)
 
         # Connect close signal and tab change signal
         self.tab_widget.tab_close_requested.connect(self.close_tab)

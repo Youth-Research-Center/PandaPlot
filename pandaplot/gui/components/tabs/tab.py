@@ -1,25 +1,39 @@
-from PySide6.QtWidgets import (QTabWidget)
+from typing import override
+
 from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QWidget
 
 from pandaplot.gui.components.tabs.tab_bar import CustomTabBar
+from pandaplot.gui.core.widget_extension import PTabWidget
+from pandaplot.models.state.app_context import AppContext
 
 
-class CustomTabWidget(QTabWidget):
+class CustomTabWidget(PTabWidget):
     """Custom tab widget with enhanced features."""
     
     tab_close_requested = Signal(int)
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        
+
+    def __init__(self, app_context: AppContext, parent: QWidget):
+        super().__init__(app_context=app_context, parent=parent)
+        self._init_ui()
+        self._apply_theme()
+        self.setup_event_subscriptions()
+        self.logger.info("PandaMainWindow initialized.")
+
+    @override
+    def _init_ui(self):
+        """Set up the user interface components."""
         # Set custom tab bar
         self.custom_tab_bar = CustomTabBar(self)
         self.setTabBar(self.custom_tab_bar)
-        
-        # Connect signals
+
+    def setup_event_subscriptions(self):    
+        """Set up event subscriptions for the main window."""
+        super().setup_event_subscriptions()
         self.custom_tab_bar.tab_close_requested.connect(self.tab_close_requested.emit)
-        
-        # Apply styling
+
+    @override
+    def _apply_theme(self):
         self.setStyleSheet("""
             QTabWidget::pane {
                 border: 1px solid #C0C0C0;

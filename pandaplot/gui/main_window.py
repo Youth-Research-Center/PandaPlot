@@ -17,6 +17,7 @@ class PandaMainWindow(PMainWindow):
         super().__init__(app_context=app_context)
 
         self._init_ui()
+        self._apply_theme()
         self.setup_event_subscriptions()
         self.logger.info("PandaMainWindow initialized.")
 
@@ -39,9 +40,7 @@ class PandaMainWindow(PMainWindow):
         main_layout.setSpacing(0)  # Remove spacing between widgets
 
         self.create_widgets(main_layout)
-        
-        # Apply initial theme
-        self._apply_theme()
+
 
     @override
     def _apply_theme(self):

@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 from pathlib import Path
+from typing import override
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
@@ -17,11 +18,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events.event_types import ConfigEvents, ThemeEvents
 from pandaplot.models.state.app_context import AppContext
 
-
-class WelcomeTab(QWidget):
+    
+class WelcomeTab(PWidget):
     """
     Welcome tab widget similar to VS Code's welcome screen.
     Shows recent projects, quick actions, and getting started information.
@@ -33,24 +35,19 @@ class WelcomeTab(QWidget):
     import_data_requested = Signal()  # importing data
 
     def __init__(self, app_context:AppContext, parent:QWidget):
-        super().__init__(parent)
-        self.app_context = app_context
-        self.logger = logging.getLogger(__name__)
+        super().__init__(app_context=app_context, parent=parent)
         # Object name for scoped styling (border reset)
         self.setObjectName("WelcomeTabRoot")
-        self.setup_ui()
+        self._init_ui()
         self.setup_event_subscriptions()
         
         self.update_recent_projects()
-        self._apply_local_theme()
+        self._apply_theme()
 
     def setup_event_subscriptions(self):
-        self.app_context.event_bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
-        self.app_context.event_bus.subscribe(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
+        super().setup_event_subscriptions()
+        self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
 
-    # ------------------------------------------------------------------
-    # Event handlers
-    # ------------------------------------------------------------------
     def _on_config_event(self, _evt: dict):  # event data unused currently
         """Handle config lifecycle events by refreshing recent projects list."""
         try:
@@ -58,10 +55,9 @@ class WelcomeTab(QWidget):
         except Exception as e:  # noqa: BLE001
             self.logger.warning("Failed updating recent projects on config event: %s", e)
 
-    def setup_ui(self):
+    @override
+    def _init_ui(self):
         """Initialize the welcome tab UI."""
-        self._apply_local_theme()
-
         # Main layout
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 20, 20, 20)
@@ -102,17 +98,8 @@ class WelcomeTab(QWidget):
         scroll_area.setWidget(content_widget)
         main_layout.addWidget(scroll_area)
 
-    # ------------------------------------------------------------------
-    # Theming helpers
-    # ------------------------------------------------------------------
-    def _on_theme_changed(self, _data: dict):  # noqa: D401 - internal
-        """React to global theme changes by rebuilding local stylesheet."""
-        try:
-            self._apply_local_theme()
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning("Failed applying local theme for WelcomeTab: %s", e)
-
-    def _apply_local_theme(self):
+    @override
+    def _apply_theme(self):
         """Build and apply a local (scoped) stylesheet using ThemeManager palette.
 
         This keeps WelcomeTab styling self-contained while sourcing colors from
