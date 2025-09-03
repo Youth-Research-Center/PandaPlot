@@ -37,6 +37,7 @@ class SettingsDialog(PDialog):
         self._applying = False  # guard to prevent feedback loops
 
         self._init_ui()
+        self._apply_theme()
         self.load_current_settings()
         self.setup_event_subscriptions()
     
@@ -163,43 +164,38 @@ class SettingsDialog(PDialog):
         """)
         
         # Apply specific button styling
-        if hasattr(self, 'reset_btn'):
-            self.reset_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {secondary_fg};
-                    color: white;
-                }}
-                QPushButton:hover {{
-                    background-color: #545b62;
-                }}
-            """)
+        self.reset_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {secondary_fg};
+                color: white;
+            }}
+            QPushButton:hover {{
+                background-color: #545b62;
+            }}
+        """)
         
-        if hasattr(self, 'cancel_btn'):
-            self.cancel_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {secondary_fg};
-                    color: white;
-                }}
-                QPushButton:hover {{
-                    background-color: #545b62;
-                }}
-            """)
+        self.cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {secondary_fg};
+                color: white;
+            }}
+            QPushButton:hover {{
+                background-color: #545b62;
+            }}
+        """)
         
         # Apply styling to button frame
-        if hasattr(self, 'button_frame'):
-            self.button_frame.setStyleSheet(f"""
-                QFrame {{
-                    background-color: {card_bg};
-                    border: 1px solid {card_border};
-                    border-radius: 6px;
-                }}
-            """)
+        self.button_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 6px;
+            }}
+        """)
         
         # Apply styling to header labels
-        if hasattr(self, 'title_label'):
-            self.title_label.setStyleSheet(f"font-size:18px; font-weight:600; color: {base_fg};")
-        if hasattr(self, 'subtitle_label'):
-            self.subtitle_label.setStyleSheet(f"color: {secondary_fg};")
+        self.title_label.setStyleSheet(f"font-size:18px; font-weight:600; color: {base_fg};")
+        self.subtitle_label.setStyleSheet(f"color: {secondary_fg};")
 
     def create_header(self, parent_layout: QVBoxLayout):
         """Create dialog header area."""

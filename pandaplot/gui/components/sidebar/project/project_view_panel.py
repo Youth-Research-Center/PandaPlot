@@ -1,12 +1,10 @@
-import logging
-from typing import Optional
+from typing import Optional, override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QGroupBox,
     QLabel,
-    QLayout,
     QTreeWidget,
     QVBoxLayout,
     QWidget,
@@ -18,21 +16,20 @@ from pandaplot.gui.components.sidebar.project.project_command_manager import Pro
 from pandaplot.gui.components.sidebar.project.project_context_manager import ProjectViewPanelContextManager
 from pandaplot.gui.components.sidebar.project.project_tree import ProjectTreeWidget
 from pandaplot.gui.components.sidebar.project.project_tree_manager import ProjectTreeManager
-from pandaplot.models.events.event_types import ProjectEvents, ThemeEvents
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.gui.core.widget_extension import PWidget
 
 
-class ProjectViewPanel(QWidget):
+class ProjectViewPanel(PWidget):
     """
     UI component that displays project information and listens to app state changes.
     This follows the MVC pattern by listening to events from the app state.
     """
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
-        super().__init__(parent)
-        self.app_context = app_context
+        super().__init__(app_context=app_context, parent=parent)
         self.app_state = app_context.get_app_state()
-        self.logger = logging.getLogger(__name__)
 
         # TODO: ideally we shouldn't reference the project tree manager before it's initialized
         # TODO: ideally we shouldn't reference the tree directly
@@ -44,22 +41,15 @@ class ProjectViewPanel(QWidget):
                                                               item, position)
                                                           )
 
-        # Main layout
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(5, 5, 5, 5)
-
-        # Create a label to display the project name
-        self.project_label = QLabel("Project View")
-        layout.addWidget(self.project_label)
-
-        self.create_treeview(layout)
-        self.subscribe_to_events()
-        
-        # Apply initial theme and subscribe to theme changes
+        self._init_ui()
         self._apply_theme()
-
-    def subscribe_to_events(self):
+        self.setup_event_subscriptions()
+    
+    @override
+    def setup_event_subscriptions(self):
         """Subscribe to relevant app state events."""
+        super().setup_event_subscriptions()
+
         self.app_state.event_bus.subscribe(
             ProjectEvents.PROJECT_LOADED, self.on_project_loaded)
         self.app_state.event_bus.subscribe(
@@ -68,18 +58,26 @@ class ProjectViewPanel(QWidget):
             ProjectEvents.PROJECT_CHANGED, self.on_item_changed)
         self.app_state.event_bus.subscribe(
             ProjectEvents.PROJECT_CREATED, self.on_item_changed)
-            
-        self.app_context.event_bus.subscribe(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
 
-
-    def create_treeview(self, layout: QLayout):
+    @override
+    def _init_ui(self):
         """Create the treeview widget."""
+        # Main layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
+
+        # Panel title  
+        self.title_label = QLabel("📁 Project Explorer")
+        layout.addWidget(self.title_label)
+
         # Create project title display
         self.title_frame = QGroupBox("Project Info")
         layout.addWidget(self.title_frame)
 
         title_layout = QVBoxLayout(self.title_frame)
-        title_layout.setContentsMargins(10, 15, 10, 10)
+        title_layout.setContentsMargins(4, 4, 4, 4)
+        title_layout.setSpacing(6)
 
         self.project_title_label = QLabel("No project loaded")
         title_layout.addWidget(self.project_title_label)
@@ -225,13 +223,7 @@ class ProjectViewPanel(QWidget):
             prefix = '📁 ' if item_type == 'folder' else '📝 ' if item_type == 'note' else '📊 ' if item_type == 'dataset' else '📈 '
             item.setText(0, f"{prefix}{current_name}")
 
-    def _on_theme_changed(self, _data: dict):
-        """Handle theme changes by reapplying styling."""
-        try:
-            self._apply_theme()
-        except Exception as e:
-            self.logger.warning("Failed applying theme change to project view panel: %s", e)
-
+    @override
     def _apply_theme(self):
         """Apply theme-specific styling to the project view panel based on current theme."""
 
@@ -246,25 +238,17 @@ class ProjectViewPanel(QWidget):
         accent = palette.get('accent', '#0078d4')
         card_hover = palette.get('card_hover', '#e5f3ff')
         
-        # Apply theme to main widget
-        self.setStyleSheet(f"QWidget {{ background-color: {card_bg}; color: {base_fg}; }}")
-        
-        # Apply theme to project label
-        self.project_label.setStyleSheet(f"""
-            QLabel {{
-                background-color: {card_border};
+        # Apply theme to main widget (like other panels)
+        self.setStyleSheet(f"""
+            ProjectViewPanel {{
+                background-color: {card_bg};
                 color: {base_fg};
-                padding: 10px;
             }}
-        """)
-        
-        # Apply theme to title frame
-        self.title_frame.setStyleSheet(f"""
             QGroupBox {{
                 font-weight: bold;
                 font-size: 9pt;
                 color: {base_fg};
-                margin-top: 10px;
+                margin-top: 5px;
                 padding-top: 10px;
                 background-color: {card_bg};
                 border: 1px solid {card_border};
@@ -277,6 +261,19 @@ class ProjectViewPanel(QWidget):
                 background-color: {card_bg};
             }}
         """)
+        
+        # Style panel title (like other panels)
+        if hasattr(self, 'title_label'):
+            self.title_label.setStyleSheet(f"""
+                QLabel {{
+                    font-size: 14px;
+                    font-weight: bold;
+                    color: {base_fg};
+                    padding: 5px;
+                    background-color: {card_border};
+                    border-radius: 3px;
+                }}
+            """)
         
         # Apply theme to project title and file labels
         self.project_title_label.setStyleSheet(f"""
