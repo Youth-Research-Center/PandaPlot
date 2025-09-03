@@ -30,6 +30,10 @@ class WidgetExtension:
             self._apply_theme()
         except Exception as e:
             self.logger.warning("Failed applying theme to main window: %s", e)
+    
+    def setup_event_subscriptions(self):    
+        """Set up event subscriptions for the main window."""
+        self.subscribe_to_event(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
 
     def publish_event(self, event_type: str, data: Dict[str, Any] | None = None) -> None:
         """Publish an event through the event bus."""
@@ -68,10 +72,6 @@ class WidgetExtension:
         """
         for event_type, handler in event_subscriptions:
             self.subscribe_to_event(event_type, handler)
-
-    def setup_event_subscriptions(self):    
-        """Set up event subscriptions for the main window."""
-        self.subscribe_to_event(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
     
     def unsubscribe_all(self) -> None:
         """Unsubscribe from all events.
