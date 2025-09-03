@@ -138,13 +138,11 @@ class NoteEditorWidget(PWidget):
         """Create the main content editing section."""
         # Content frame
         self.content_frame = QFrame()
-        # Remove hardcoded styling - will be applied in _apply_theme
         content_layout = QVBoxLayout(self.content_frame)
         content_layout.setContentsMargins(0, 0, 0, 0)
 
         # Toolbar
         self.toolbar = QToolBar()
-        # Remove hardcoded styling - will be applied in _apply_theme
 
         # Add formatting actions
         self.create_toolbar_actions(self.toolbar)
@@ -262,22 +260,18 @@ class NoteEditorWidget(PWidget):
     def create_status_section(self, layout: QLayout):
         """Create the status section with statistics."""
         self.status_frame = QFrame()
-        # Remove hardcoded styling - will be applied in _apply_theme
         status_layout = QHBoxLayout(self.status_frame)
         status_layout.setContentsMargins(12, 4, 12, 4)
 
         self.word_count_label = QLabel("Words: 0")
-        # Remove hardcoded styling - will be applied in _apply_theme
         status_layout.addWidget(self.word_count_label)
 
         self.char_count_label = QLabel("Characters: 0")
-        # Remove hardcoded styling - will be applied in _apply_theme
         status_layout.addWidget(self.char_count_label)
 
         status_layout.addStretch()
 
         self.status_label = QLabel("Ready")
-        # Initial styling will be applied in _apply_theme
         status_layout.addWidget(self.status_label)
 
         layout.addWidget(self.status_frame)
@@ -321,9 +315,6 @@ class NoteEditorWidget(PWidget):
 
     def _update_status_label_style(self):
         """Update status label styling based on current status and theme."""
-        if not hasattr(self, 'status_label'):
-            return
-            
         theme_manager = self.app_context.get_theme_manager()
         palette = theme_manager.get_surface_palette()
         secondary_fg = palette.get('secondary_fg', '#555555')

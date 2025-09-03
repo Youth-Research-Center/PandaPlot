@@ -73,9 +73,6 @@ class PandaMainWindow(PMainWindow):
         # Create main content area (right pane) with tab container
         self.tab_container = TabContainer(
             app_context=self.app_context, parent=self.main_splitter)
-        # TODO: remove this styling
-        #self.tab_container.setStyleSheet(
-        #    "background-color: white; border: 1px solid #ccc;")
 
         self.main_splitter.addWidget(self.tab_container)
 
@@ -134,6 +131,4 @@ class PandaMainWindow(PMainWindow):
             # Cleanup flag
             self._is_closing = False
         self.close()
-
-
 

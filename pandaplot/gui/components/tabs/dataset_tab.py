@@ -79,153 +79,145 @@ class DatasetTab(PWidget):
             accent_pressed = accent
         
         # Apply styling to save changes button
-        if hasattr(self, 'save_changes_btn'):
-            self.save_changes_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: #28a745;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 6px 12px;
-                    font-weight: bold;
-                }}
-                QPushButton:hover {{
-                    background-color: #218838;
-                }}
-                QPushButton:pressed {{
-                    background-color: #1e7e34;
-                }}
-                QPushButton:disabled {{
-                    background-color: {secondary_fg};
-                }}
-            """)
+        self.save_changes_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #218838;
+            }}
+            QPushButton:pressed {{
+                background-color: #1e7e34;
+            }}
+            QPushButton:disabled {{
+                background-color: {secondary_fg};
+            }}
+        """)
         
         # Apply styling to discard changes button
-        if hasattr(self, 'discard_changes_btn'):
-            self.discard_changes_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #dc3545;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 6px 12px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #c82333;
-                }
-                QPushButton:pressed {
-                    background-color: #bd2130;
-                }
-            """)
+        self.discard_changes_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+            QPushButton:pressed {
+                background-color: #bd2130;
+            }
+        """)
         
         # Apply styling to table widget
-        if hasattr(self, 'table_widget'):
-            self.table_widget.setStyleSheet(f"""
-                QTableWidget {{
-                    background-color: {card_bg};
-                    border: 1px solid {card_border};
-                    selection-background-color: {card_hover};
-                    gridline-color: {card_border};
-                    color: {base_fg};
-                }}
-                QTableWidget::item {{
-                    padding: 5px;
-                    border-bottom: 1px solid {card_border};
-                }}
-                QTableWidget::item:selected {{
-                    background-color: {card_hover};
-                    color: {accent};
-                }}
-                QTableWidget::item:focus {{
-                    border: 2px solid {accent};
-                    background-color: {card_hover};
-                }}
-                QHeaderView::section {{
-                    background-color: {card_hover};
-                    padding: 8px;
-                    border: 1px solid {card_border};
-                    font-weight: bold;
-                    color: {base_fg};
-                }}
-            """)
+        self.table_widget.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                selection-background-color: {card_hover};
+                gridline-color: {card_border};
+                color: {base_fg};
+            }}
+            QTableWidget::item {{
+                padding: 5px;
+                border-bottom: 1px solid {card_border};
+            }}
+            QTableWidget::item:selected {{
+                background-color: {card_hover};
+                color: {accent};
+            }}
+            QTableWidget::item:focus {{
+                border: 2px solid {accent};
+                background-color: {card_hover};
+            }}
+            QHeaderView::section {{
+                background-color: {card_hover};
+                padding: 8px;
+                border: 1px solid {card_border};
+                font-weight: bold;
+                color: {base_fg};
+            }}
+        """)
         
         # Apply styling to action buttons
-        if hasattr(self, 'create_chart_btn'):
-            self.create_chart_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {accent};
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 8px 16px;
-                    font-weight: bold;
-                }}
-                QPushButton:hover {{
-                    background-color: {accent_hover};
-                }}
-                QPushButton:pressed {{
-                    background-color: {accent_pressed};
-                }}
-            """)
+        self.create_chart_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {accent};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {accent_hover};
+            }}
+            QPushButton:pressed {{
+                background-color: {accent_pressed};
+            }}
+        """)
         
-        if hasattr(self, 'export_btn'):
-            self.export_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #28a745;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 8px 16px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #1e7e34;
-                }
-                QPushButton:pressed {
-                    background-color: #155724;
-                }
-            """)
+        self.export_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1e7e34;
+            }
+            QPushButton:pressed {
+                background-color: #155724;
+            }
+        """)
         
-        if hasattr(self, 'add_column_btn'):
-            self.add_column_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #17a2b8;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 8px 16px;
-                    font-weight: bold;
-                }
-                QPushButton:hover {
-                    background-color: #138496;
-                }
-                QPushButton:pressed {
-                    background-color: #117a8b;
-                }
-            """)
-        
-        if hasattr(self, 'add_row_btn'):
-            self.add_row_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {secondary_fg};
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    padding: 8px 16px;
-                    font-weight: bold;
-                }}
-                QPushButton:hover {{
-                    background-color: #5a6268;
-                }}
-                QPushButton:pressed {{
-                    background-color: #545b62;
-                }}
-            """)
+        self.add_column_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+            QPushButton:pressed {
+                background-color: #117a8b;
+            }
+        """)
+    
+        self.add_row_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {secondary_fg};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #5a6268;
+            }}
+            QPushButton:pressed {{
+                background-color: #545b62;
+            }}
+        """)
         
         # Update edit status label styling based on current state
-        if hasattr(self, 'edit_status_label'):
-            self._update_edit_status_label_style()
+        self._update_edit_status_label_style()
 
     def on_dataset_column_added(self, event_data):
         """Handle when a column is added to any dataset."""
@@ -294,7 +286,6 @@ class DatasetTab(PWidget):
 
         # Status label
         self.edit_status_label = QLabel("Read-only mode")
-        # Remove hardcoded styling - will be applied in _apply_theme
         control_layout.addWidget(self.edit_status_label)
 
         # Spacer
@@ -302,14 +293,12 @@ class DatasetTab(PWidget):
 
         # Save changes button (initially hidden)
         self.save_changes_btn = QPushButton("💾 Save Changes")
-        # Remove hardcoded styling - will be applied in _apply_theme
         self.save_changes_btn.clicked.connect(self.save_changes)
         self.save_changes_btn.setVisible(False)
         control_layout.addWidget(self.save_changes_btn)
 
         # Discard changes button (initially hidden)
         self.discard_changes_btn = QPushButton("↶ Discard Changes")
-        # Remove hardcoded styling - will be applied in _apply_theme
         self.discard_changes_btn.clicked.connect(self.discard_changes)
         self.discard_changes_btn.setVisible(False)
         control_layout.addWidget(self.discard_changes_btn)
@@ -319,7 +308,6 @@ class DatasetTab(PWidget):
         # Table widget
         self.table_widget = QTableWidget()
         self.table_widget.setAlternatingRowColors(True)
-        # Remove hardcoded styling - will be applied in _apply_theme
 
         # Configure table properties
         self.table_widget.setSortingEnabled(True)
@@ -347,25 +335,21 @@ class DatasetTab(PWidget):
 
         # Create chart button
         self.create_chart_btn = QPushButton("📈 Create Chart from Data")
-        # Remove hardcoded styling - will be applied in _apply_theme
         self.create_chart_btn.clicked.connect(self.create_chart_from_data)
         actions_layout.addWidget(self.create_chart_btn)
 
         # Export data button
         self.export_btn = QPushButton("💾 Export Data")
-        # Remove hardcoded styling - will be applied in _apply_theme
         self.export_btn.clicked.connect(self.export_data)
         actions_layout.addWidget(self.export_btn)
 
         # Add column button
         self.add_column_btn = QPushButton("➕ Add Column")
-        # Remove hardcoded styling - will be applied in _apply_theme
         self.add_column_btn.clicked.connect(self.add_column_to_dataset)
         actions_layout.addWidget(self.add_column_btn)
 
         # Add row button
         self.add_row_btn = QPushButton("➕ Add Row")
-        # Remove hardcoded styling - will be applied in _apply_theme
         self.add_row_btn.clicked.connect(self.add_row_to_dataset)
         actions_layout.addWidget(self.add_row_btn)
 
@@ -376,9 +360,6 @@ class DatasetTab(PWidget):
 
     def _update_edit_status_label_style(self):
         """Update edit status label styling based on current status and theme."""
-        if not hasattr(self, 'edit_status_label'):
-            return
-            
         theme_manager = self.app_context.get_theme_manager()
         palette = theme_manager.get_surface_palette()
         secondary_fg = palette.get('secondary_fg', '#555555')
@@ -530,7 +511,6 @@ class DatasetTab(PWidget):
         else:
             self.edit_status_label.setText("Read-only mode")
         
-        # Apply theme-aware styling
         self._update_edit_status_label_style()
 
         # Hide save/discard buttons if switching to read-only and no changes

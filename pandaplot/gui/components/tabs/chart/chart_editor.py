@@ -210,11 +210,7 @@ class ChartEditorWidget(PWidget):
     def setup_event_subscriptions(self):
         """Set up event subscriptions for the chart editor."""
         # Subscribe to config updates to adjust display settings like DPI
-        try:
-            self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
-        except Exception:
-            self.logger.debug(
-                "Could not subscribe to config.updated for DPI handling")
+        self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
 
     def _on_config_updated(self, data):
         """Handle config.updated events to apply display changes (e.g., DPI)."""

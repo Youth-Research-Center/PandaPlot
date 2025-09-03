@@ -2,6 +2,7 @@ from typing import override
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QColor
 
 from pandaplot.gui.components.tabs.tab_bar import CustomTabBar
 from pandaplot.gui.core.widget_extension import PTabWidget
@@ -44,7 +45,6 @@ class CustomTabWidget(PTabWidget):
         accent = palette.get('accent', '#4A90E2')
         
         # Derive accent color variant for pressed state
-        from PySide6.QtGui import QColor
         accent_color = QColor(accent)
         if accent_color.isValid():
             accent_pressed = accent_color.darker(115).name()

@@ -47,7 +47,6 @@ class SettingsDialog(PDialog):
         self.resize(700, 500)
         self.setMinimumSize(650, 450)
         
-        # Remove hardcoded styling - will be applied in _apply_theme
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -200,9 +199,7 @@ class SettingsDialog(PDialog):
         header_box = QFrame()
         hb_layout = QVBoxLayout(header_box)
         self.title_label = QLabel("Application Settings")
-        # Remove hardcoded styling - will be applied in _apply_theme
         self.subtitle_label = QLabel("Adjust preferences for appearance, editing and behavior")
-        # Remove hardcoded styling - will be applied in _apply_theme
         hb_layout.addWidget(self.title_label)
         hb_layout.addWidget(self.subtitle_label)
         parent_layout.addWidget(header_box)
@@ -385,13 +382,11 @@ class SettingsDialog(PDialog):
     def create_buttons(self, layout):
         """Create the button frame."""
         self.button_frame = QFrame()
-        # Remove hardcoded styling - will be applied in _apply_theme
         button_layout = QHBoxLayout(self.button_frame)
         button_layout.setContentsMargins(16, 12, 16, 12)
         
         # Reset button
         self.reset_btn = QPushButton("🔄 Reset to Defaults")
-        # Remove hardcoded styling - will be applied in _apply_theme
         self.reset_btn.clicked.connect(self.reset_to_defaults)
         button_layout.addWidget(self.reset_btn)
         
