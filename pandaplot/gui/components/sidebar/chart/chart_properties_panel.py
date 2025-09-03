@@ -24,9 +24,10 @@ class ColorButton(QPushButton):
     """A button that displays and allows selection of colors."""
     
     colorChanged = Signal(str)
-    
-    def __init__(self, color: str = "#1f77b4", parent=None):
+
+    def __init__(self, app_context: AppContext, color: str = "#1f77b4", parent=None):
         super().__init__(parent)
+        self.app_context = app_context
         self._color = color
         self.setFixedSize(30, 25)
         self.clicked.connect(self._select_color)
@@ -51,19 +52,12 @@ class ColorButton(QPushButton):
     def _update_appearance(self):
         """Trigger a repaint with theme-aware button styling."""
         # Get theme colors if parent has app_context
-        if hasattr(self.parent(), 'app_context') and self.parent().app_context:
-            theme_manager = self.parent().app_context.get_theme_manager()
-            palette = theme_manager.get_surface_palette()
-            bg_color = palette.get('card_hover', '#f5f5f5')
-            border_color = palette.get('card_border', '#888')
-            hover_color = palette.get('card_bg', '#eaeaea')
-            pressed_color = palette.get('card_border', '#e0e0e0')
-        else:
-            # Fallback to neutral colors if no theme available
-            bg_color = "#f5f5f5"
-            border_color = "#888"
-            hover_color = "#eaeaea"
-            pressed_color = "#e0e0e0"
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        bg_color = palette.get('card_hover', '#f5f5f5')
+        border_color = palette.get('card_border', '#888')
+        hover_color = palette.get('card_bg', '#eaeaea')
+        pressed_color = palette.get('card_border', '#e0e0e0')
         
         self.setStyleSheet(f"""
             QPushButton {{ 
@@ -476,7 +470,7 @@ class ChartPropertiesPanel(PWidget):
         line_layout = QGridLayout(line_group)
         
         line_layout.addWidget(QLabel("Color:"), 0, 0)
-        self.line_color_button = ColorButton()
+        self.line_color_button = ColorButton(self.app_context)
         line_layout.addWidget(self.line_color_button, 0, 1)
         
         line_layout.addWidget(QLabel("Width:"), 1, 0)
@@ -518,11 +512,11 @@ class ChartPropertiesPanel(PWidget):
         marker_layout.addWidget(self.marker_size_spin, 1, 1)
         
         marker_layout.addWidget(QLabel("Color:"), 2, 0)
-        self.marker_color_button = ColorButton()
+        self.marker_color_button = ColorButton(self.app_context)
         marker_layout.addWidget(self.marker_color_button, 2, 1)
         
         marker_layout.addWidget(QLabel("Edge Color:"), 3, 0)
-        self.marker_edge_color_button = ColorButton("#000000")
+        self.marker_edge_color_button = ColorButton(self.app_context, "#000000")
         marker_layout.addWidget(self.marker_edge_color_button, 3, 1)
         
         layout.addWidget(marker_group)

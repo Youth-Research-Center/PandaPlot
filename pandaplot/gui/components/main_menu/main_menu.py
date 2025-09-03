@@ -1,4 +1,3 @@
-import logging
 from typing import override
 
 from PySide6.QtGui import QAction
