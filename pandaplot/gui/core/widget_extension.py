@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.state.app_context import AppContext
-from PySide6.QtWidgets import QMainWindow, QWidget, QMenuBar, QTabWidget
+from PySide6.QtWidgets import QMainWindow, QWidget, QMenuBar, QTabWidget, QDialog
 
 class WidgetExtension:
     def __init__(self, app_context: AppContext):
@@ -111,5 +111,11 @@ class PMenuBar(WidgetExtension, QMenuBar):
 class PTabWidget(WidgetExtension, QTabWidget):
     def __init__(self, app_context:AppContext, parent: Optional[QWidget] = None, **kwargs):
         QTabWidget.__init__(self, parent, **kwargs)
+        WidgetExtension.__init__(self, app_context=app_context)
+        self.destroyed.connect(self.unsubscribe_all)
+
+class PDialog(WidgetExtension, QDialog):
+    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None, **kwargs):
+        QDialog.__init__(self, parent, **kwargs)
         WidgetExtension.__init__(self, app_context=app_context)
         self.destroyed.connect(self.unsubscribe_all)

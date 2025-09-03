@@ -42,125 +42,180 @@ class ChartEditorWidget(PWidget):
         self._init_ui()
         self.load_chart_config()
         self.update_chart()
+        self.setup_event_subscriptions()
+        self._apply_theme()
 
-        # Apply theme-aware colors after everything is set up
-        # Delay to ensure UI is fully constructed
-        QTimer.singleShot(100, self.apply_theme_aware_colors)
+        # Apply theme after UI is fully constructed
+        QTimer.singleShot(100, self._apply_theme)
 
     @override
     def _apply_theme(self):
-        pass
-
-    def apply_theme_aware_colors(self):
-        """Apply theme-aware colors to controls that need proper text visibility."""
-        try:
-            # Get theme manager and surface palette
-            theme_manager = getattr(self.app_context, 'theme_manager', None)
-            if theme_manager:
-                palette = theme_manager.get_surface_palette()
-                base_fg = palette.get('base_fg', '#495057')
-                surface_bg = palette.get('surface', '#f8f9fa')
-                border_color = palette.get('border', '#e9ecef')
-
-                # Apply theme-aware styling to the chart canvas navigation toolbar
-                if hasattr(self, 'chart_canvas'):
-                    self.chart_canvas.apply_navigation_theme(
-                        base_fg, surface_bg, border_color)
-
-                # Apply colors to size control labels if they exist
-                if hasattr(self, 'width_spin') and hasattr(self, 'height_spin'):
-                    # Find the preview toolbar and update its styling
-                    for child in self.findChildren(QToolBar):
-                        if child.actions():  # Find toolbar with actions
-                            child.setStyleSheet(f"""
-                                QToolBar {{
-                                    background-color: {surface_bg};
-                                    border-bottom: 1px solid {border_color};
-                                    padding: 4px;
-                                    color: {base_fg};
-                                }}
-                                QToolBar QToolButton {{
-                                    color: {base_fg};
-                                    background-color: transparent;
-                                    border: none;
-                                    padding: 6px 10px;
-                                    margin: 1px;
-                                    border-radius: 3px;
-                                    font-weight: 500;
-                                }}
-                                QToolBar QToolButton:hover {{
-                                    background-color: {border_color};
-                                    color: {base_fg};
-                                }}
-                                QToolBar QToolButton:pressed {{
-                                    background-color: {border_color};
-                                    color: {base_fg};
-                                }}
-                            """)
-                            break
-
-        except Exception as e:
-            self.logger.debug(f"Could not apply theme-aware colors: {e}")
+        """Apply theme-specific styling to all components."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        # Get theme-appropriate colors
+        card_bg = palette.get('card_bg', '#f8f9fa')
+        card_border = palette.get('card_border', '#dee2e6')
+        base_fg = palette.get('base_fg', '#000000')
+        secondary_fg = palette.get('secondary_fg', '#555555')
+        
+        # Apply styling to preview frame
+        if hasattr(self, 'preview_frame'):
+            self.preview_frame.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {card_bg};
+                    border: 1px solid {card_border};
+                    border-radius: 6px;
+                }}
+            """)
+        
+        # Apply styling to status frame
+        if hasattr(self, 'status_frame'):
+            self.status_frame.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {card_bg};
+                    border: 1px solid {card_border};
+                    border-radius: 6px;
+                    padding: 1px;
+                }}
+            """)
+        
+        # Apply styling to dataset label
+        if hasattr(self, 'dataset_label'):
+            self.dataset_label.setStyleSheet(f"color: {secondary_fg}; font-size: 12px;")
+        
+        # Apply styling to status label (preserve color logic based on current text)
+        if hasattr(self, 'status_label'):
+            self._update_status_label_style()
+        
+        # Apply theme to toolbar if it exists
+        if hasattr(self, 'preview_toolbar'):
+            self._apply_toolbar_theme()
+        
+        # Apply theme to spinboxes
+        if hasattr(self, 'width_spin'):
+            self._apply_spinbox_style(self.width_spin)
+        if hasattr(self, 'height_spin'):
+            self._apply_spinbox_style(self.height_spin)
+        
+        # Apply theme to size label
+        if hasattr(self, 'size_label'):
+            self._apply_label_style(self.size_label)
+        if hasattr(self, 'multiply_label'):
+            self._apply_label_style(self.multiply_label)
+        
+        # Apply theme to chart canvas navigation if it exists
+        if hasattr(self, 'chart_canvas'):
+            self.chart_canvas.apply_navigation_theme(base_fg, card_bg, card_border)
 
     def _apply_spinbox_style(self, spinbox):
         """Apply theme-aware styling to a QSpinBox"""
         try:
-            theme_manager = getattr(self.app_context, 'theme_manager', None)
-            if theme_manager:
-                palette = theme_manager.get_surface_palette()
-                base_fg = palette.get('base_fg', '#495057')
-                border_color = palette.get('border', '#dee2e6')
-                bg_color = palette.get('surface', 'white')
+            theme_manager = self.app_context.get_theme_manager()
+            palette = theme_manager.get_surface_palette()
+            
+            base_fg = palette.get('base_fg', '#000000')
+            card_border = palette.get('card_border', '#dee2e6')
+            card_bg = palette.get('card_bg', '#f8f9fa')
 
-                spinbox.setStyleSheet(f"""
-                    QSpinBox {{
-                        background-color: {bg_color};
-                        border: 1px solid {border_color};
-                        border-radius: 3px;
-                        padding: 2px 5px;
-                        color: {base_fg};
-                        font-size: 12px;
-                    }}
-                    QSpinBox:focus {{
-                        border-color: #007bff;
-                        background-color: {bg_color};
-                    }}
-                """)
+            spinbox.setStyleSheet(f"""
+                QSpinBox {{
+                    background-color: {card_bg};
+                    border: 1px solid {card_border};
+                    border-radius: 3px;
+                    padding: 2px 5px;
+                    color: {base_fg};
+                    font-size: 12px;
+                }}
+                QSpinBox:focus {{
+                    border-color: #007bff;
+                    background-color: {card_bg};
+                }}
+            """)
         except Exception as e:
             self.logger.debug(f"Could not apply spinbox style: {e}")
 
     def _apply_label_style(self, label):
         """Apply theme-aware styling to a QLabel"""
         try:
-            theme_manager = getattr(self.app_context, 'theme_manager', None)
-            if theme_manager:
-                palette = theme_manager.get_surface_palette()
-                base_fg = palette.get('base_fg', '#495057')
+            theme_manager = self.app_context.get_theme_manager()
+            palette = theme_manager.get_surface_palette()
+            base_fg = palette.get('base_fg', '#000000')
 
-                label.setStyleSheet(f"""
-                    QLabel {{
-                        color: {base_fg};
-                        font-weight: 500;
-                        margin: 0 5px;
-                    }}
-                """)
+            label.setStyleSheet(f"""
+                QLabel {{
+                    color: {base_fg};
+                    font-weight: 500;
+                    margin: 0 5px;
+                }}
+            """)
         except Exception as e:
             self.logger.debug(f"Could not apply label style: {e}")
 
+    def _apply_toolbar_theme(self):
+        """Apply theme-aware styling to the preview toolbar."""
+        if not hasattr(self, 'preview_toolbar'):
+            return
+            
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        base_fg = palette.get('base_fg', '#000000')
+        card_bg = palette.get('card_bg', '#f8f9fa')
+        card_border = palette.get('card_border', '#dee2e6')
+        
+        self.preview_toolbar.setStyleSheet(f"""
+            QToolBar {{
+                background-color: {card_bg};
+                border-bottom: 1px solid {card_border};
+                padding: 4px;
+                color: {base_fg};
+            }}
+            QToolBar QToolButton {{
+                color: {base_fg};
+                background-color: transparent;
+                border: none;
+                padding: 6px 10px;
+                margin: 1px;
+                border-radius: 3px;
+                font-weight: 500;
+            }}
+            QToolBar QToolButton:hover {{
+                background-color: {card_border};
+                color: {base_fg};
+            }}
+            QToolBar QToolButton:pressed {{
+                background-color: {card_border};
+                color: {base_fg};
+            }}
+        """)
+
+    def _update_status_label_style(self):
+        """Update status label styling based on current status and theme."""
+        if not hasattr(self, 'status_label'):
+            return
+            
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        secondary_fg = palette.get('secondary_fg', '#555555')
+        
+        status_text = self.status_label.text()
+        
+        # Determine color based on status
+        if "Modified" in status_text:
+            color = "#ffc107"  # Warning yellow
+        elif "Saved" in status_text or "Exported" in status_text:
+            color = "#28a745"  # Success green
+        elif "Error" in status_text:
+            color = "#dc3545"  # Error red
+        else:
+            color = secondary_fg  # Default theme color
+            
+        self.status_label.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: bold;")
+
     def refresh_theme_styling(self):
         """Refresh all theme-dependent styling. Call this when theme changes."""
-        self.apply_theme_aware_colors()
-
-        # Force refresh chart canvas navigation toolbar styling
-        if hasattr(self, 'chart_canvas'):
-            theme_manager = getattr(self.app_context, 'theme_manager', None)
-            if theme_manager:
-                palette = theme_manager.get_surface_palette()
-                base_fg = palette.get('base_fg', '#495057')
-                surface_bg = palette.get('surface', '#f8f9fa')
-                border_color = palette.get('border', '#e9ecef')
-                self.chart_canvas.apply_navigation_theme(
-                    base_fg, surface_bg, border_color)
+        self._apply_theme()
 
     @override
     def _init_ui(self):
@@ -177,9 +232,9 @@ class ChartEditorWidget(PWidget):
     def setup_event_subscriptions(self):
         """Set up event subscriptions for the chart editor."""
         # Subscribe to config updates to adjust display settings like DPI
-        bus = self.app_context.get_event_bus()
+        super().setup_event_subscriptions()
         try:
-            bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
+            self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
         except Exception:
             self.logger.debug(
                 "Could not subscribe to config.updated for DPI handling")
@@ -209,67 +264,29 @@ class ChartEditorWidget(PWidget):
 
     def create_chart_preview_section(self, layout):
         """Create the chart preview section."""
-        preview_frame = QFrame()
-        preview_frame.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border: 1px solid #e9ecef;
-                border-radius: 6px;
-            }
-        """)
+        self.preview_frame = QFrame()
+        # Remove hardcoded styling - will be applied in _apply_theme
         # Set size policy to expand and take all available space
-        preview_frame.setSizePolicy(
+        self.preview_frame.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        preview_layout = QVBoxLayout(preview_frame)
+        preview_layout = QVBoxLayout(self.preview_frame)
         preview_layout.setContentsMargins(10, 10, 10, 10)
 
         # Preview toolbar with chart actions and size controls
-        preview_toolbar = QToolBar()
-
-        # Apply theme-aware styling to the preview toolbar
-        theme_manager = self.app_context.theme_manager
-        palette = theme_manager.get_surface_palette()
-        base_fg = palette.get('base_fg', '#495057')
-        surface_bg = palette.get('surface', '#f8f9fa')
-        border_color = palette.get('border', '#e9ecef')
-
-        preview_toolbar.setStyleSheet(f"""
-            QToolBar {{
-                background-color: {surface_bg};
-                border-bottom: 1px solid {border_color};
-                padding: 4px;
-                color: {base_fg};
-            }}
-            QToolBar QToolButton {{
-                color: {base_fg};
-                background-color: transparent;
-                border: none;
-                padding: 6px 10px;
-                margin: 1px;
-                border-radius: 3px;
-                font-weight: 500;
-            }}
-            QToolBar QToolButton:hover {{
-                background-color: {border_color};
-                color: {base_fg};
-            }}
-            QToolBar QToolButton:pressed {{
-                background-color: {border_color};
-                color: {base_fg};
-            }}
-        """)
+        self.preview_toolbar = QToolBar()
+        # Remove hardcoded styling - will be applied in _apply_theme
 
         # Add chart actions
-        self.create_chart_toolbar_actions(preview_toolbar)
+        self.create_chart_toolbar_actions(self.preview_toolbar)
 
         # Add separator
-        preview_toolbar.addSeparator()
+        self.preview_toolbar.addSeparator()
 
         # Add size controls
-        size_label = QLabel("Size:")
-        size_label.setStyleSheet("color: #495057; font-weight: 500;")
-        preview_toolbar.addWidget(size_label)
+        self.size_label = QLabel("Size:")
+        # Remove hardcoded styling - will be applied in _apply_theme
+        self.preview_toolbar.addWidget(self.size_label)
 
         # Width control
         self.width_spin = QSpinBox()
@@ -277,14 +294,13 @@ class ChartEditorWidget(PWidget):
         self.width_spin.setValue(8)
         self.width_spin.setSuffix(" in")
         self.width_spin.setToolTip("Chart width in inches")
-        # Apply theme-aware styling
-        self._apply_spinbox_style(self.width_spin)
+        # Theme-aware styling will be applied in _apply_theme
         self.width_spin.valueChanged.connect(self._on_size_changed)
-        preview_toolbar.addWidget(self.width_spin)
+        self.preview_toolbar.addWidget(self.width_spin)
 
-        multiply_label = QLabel("×")
-        self._apply_label_style(multiply_label)
-        preview_toolbar.addWidget(multiply_label)
+        self.multiply_label = QLabel("×")
+        # Theme-aware styling will be applied in _apply_theme
+        self.preview_toolbar.addWidget(self.multiply_label)
 
         # Height control
         self.height_spin = QSpinBox()
@@ -292,18 +308,17 @@ class ChartEditorWidget(PWidget):
         self.height_spin.setValue(6)
         self.height_spin.setSuffix(" in")
         self.height_spin.setToolTip("Chart height in inches")
-        # Apply theme-aware styling
-        self._apply_spinbox_style(self.height_spin)
+        # Theme-aware styling will be applied in _apply_theme
         self.height_spin.valueChanged.connect(self._on_size_changed)
-        preview_toolbar.addWidget(self.height_spin)
+        self.preview_toolbar.addWidget(self.height_spin)
 
         # Reset zoom button
         reset_zoom_action = QAction("🔍 Reset Zoom", self)
         reset_zoom_action.setToolTip("Reset chart zoom to fit all data")
         reset_zoom_action.triggered.connect(self._on_reset_zoom)
-        preview_toolbar.addAction(reset_zoom_action)
+        self.preview_toolbar.addAction(reset_zoom_action)
 
-        preview_layout.addWidget(preview_toolbar)
+        preview_layout.addWidget(self.preview_toolbar)
 
         # Chart canvas
         # Fetch preferred DPI from config manager
@@ -327,42 +342,34 @@ class ChartEditorWidget(PWidget):
 
         preview_layout.addWidget(self.chart_canvas)
 
-        layout.addWidget(preview_frame)
+        layout.addWidget(self.preview_frame)
 
     def create_status_section(self, layout):
         """Create the status section."""
-        status_frame = QFrame()
-        status_frame.setStyleSheet("""
-            QFrame {
-                background-color: #f8f9fa;
-                border: 1px solid #e9ecef;
-                border-radius: 6px;
-                padding: 1px;
-            }
-        """)
+        self.status_frame = QFrame()
+        # Remove hardcoded styling - will be applied in _apply_theme
         # Set fixed height to prevent expansion
-        status_frame.setFixedHeight(30)
-        status_frame.setSizePolicy(
+        self.status_frame.setFixedHeight(30)
+        self.status_frame.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        status_layout = QHBoxLayout(status_frame)
+        status_layout = QHBoxLayout(self.status_frame)
         status_layout.setContentsMargins(8, 1, 8, 1)
         status_layout.setSpacing(4)
 
         datasets = self.chart.get_all_datasets()
         dataset_text = f"Datasets: {', '.join(datasets)}" if datasets else "Sample Data"
         self.dataset_label = QLabel(dataset_text)
-        self.dataset_label.setStyleSheet("color: #6c757d; font-size: 12px;")
+        # Remove hardcoded styling - will be applied in _apply_theme
         status_layout.addWidget(self.dataset_label)
 
         status_layout.addStretch()
 
         self.status_label = QLabel("Ready")
-        self.status_label.setStyleSheet(
-            "color: #28a745; font-size: 12px; font-weight: bold;")
+        # Initial styling will be applied in _apply_theme
         status_layout.addWidget(self.status_label)
 
-        layout.addWidget(status_frame)
+        layout.addWidget(self.status_frame)
 
     def create_chart_toolbar_actions(self, toolbar):
         """Create toolbar actions for chart operations."""
@@ -568,20 +575,7 @@ class ChartEditorWidget(PWidget):
     def update_status(self, status: str):
         """Update the status label."""
         self.status_label.setText(status)
-
-        # Update color based on status
-        if "Modified" in status:
-            self.status_label.setStyleSheet(
-                "color: #ffc107; font-size: 12px; font-weight: bold;")
-        elif "Saved" in status or "Exported" in status:
-            self.status_label.setStyleSheet(
-                "color: #28a745; font-size: 12px; font-weight: bold;")
-        elif "Error" in status:
-            self.status_label.setStyleSheet(
-                "color: #dc3545; font-size: 12px; font-weight: bold;")
-        else:
-            self.status_label.setStyleSheet(
-                "color: #6c757d; font-size: 12px; font-weight: bold;")
+        self._update_status_label_style()
 
     def _on_size_changed(self):
         """Handle chart size changes."""
