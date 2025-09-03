@@ -150,7 +150,7 @@ class AnalysisCommand(Command):
         """Get dataset from app context."""
         try:
             app_state = self.app_context.get_app_state()
-            if app_state and app_state.has_project and app_state.current_project:
+            if app_state.has_project and app_state.current_project:
                 project = app_state.current_project
                 dataset_item = project.find_item(self.dataset_id)
                 if dataset_item and hasattr(dataset_item, 'data') and isinstance(dataset_item, Dataset):
