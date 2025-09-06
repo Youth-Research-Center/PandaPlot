@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from PySide6.QtWidgets import QStackedWidget, QWidget
 
@@ -7,14 +6,11 @@ from PySide6.QtWidgets import QStackedWidget, QWidget
 class PanelArea(QStackedWidget):
     """Panel area component that holds and manages panel content."""
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget):
         super().__init__(parent)
         self.logger = logging.getLogger(__name__)
         # Store panel names and their widgets
         self.panels: dict[str, QWidget] = {}
-
-        # TODO: styling should be managed by theme
-        self.setStyleSheet("background-color: #ffffff;")
 
     def add_panel(self, name: str, content_widget: QWidget):
         """Add a new panel to the area."""

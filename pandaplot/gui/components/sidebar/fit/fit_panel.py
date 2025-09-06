@@ -8,9 +8,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal
 import logging
 
-from pandaplot.models.events.mixins import EventBusComponentMixin
-from pandaplot.models.events import UIEvents, FitEvents
-from pandaplot.models.state.app_context import AppContext
+from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.models.events import FitEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 
@@ -22,7 +21,7 @@ except ImportError:
     SCIPY_AVAILABLE = False
 
 
-class FitPanel(EventBusComponentMixin, QWidget):
+class FitPanel(PWidget):
     """Side panel for performing curve fitting on chart data."""
     
     fit_completed = Signal(dict)  # Emitted when fit is completed with results
@@ -38,14 +37,14 @@ class FitPanel(EventBusComponentMixin, QWidget):
         self.fit_command.fit_results = None
         self.datasets = []
 
-        self._setup_ui()
+        self._initialize()
         self._connect_signals()
-        self._setup_event_subscriptions()
 
         if not SCIPY_AVAILABLE:
             self._show_scipy_warning()
     
-    def _setup_ui(self):
+    @override
+    def _init_ui(self):
         """Set up the user interface."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
@@ -78,6 +77,10 @@ class FitPanel(EventBusComponentMixin, QWidget):
         
         scroll.setWidget(content_widget)
         layout.addWidget(scroll)
+
+    @override
+    def _apply_theme(self):
+        pass
     
     def _create_data_source_section(self, layout):
         """Create the data source selection section."""

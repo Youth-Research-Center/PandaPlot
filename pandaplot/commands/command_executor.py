@@ -7,7 +7,7 @@ from pandaplot.commands.base_command import Command
 class CommandExecutor:
     """
     Command executor that manages command execution, undo/redo functionality.
-    This is the central point for executing commands in the MVC architecture.
+    This is the central point for executing commands.
     """
     
     def __init__(self):

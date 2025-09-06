@@ -1,4 +1,4 @@
-import logging
+from typing import override
 
 import numpy as np
 import pandas as pd
@@ -18,21 +18,19 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents
-from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 
-class DatasetTab(EventBusComponentMixin, QWidget):
+class DatasetTab(PWidget):
     """
     Tab widget for displaying dataset contents in an editable table format.
     """
 
-    def __init__(self, app_context: AppContext, dataset: Dataset, parent=None):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+    def __init__(self, app_context: AppContext, dataset: Dataset, parent: QWidget):
+        super().__init__(app_context=app_context, parent=parent)
         self.dataset = dataset
         self.original_data = None  # Store original data for comparison
         self.is_editing_enabled = False  # Track editing state
@@ -41,14 +39,8 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         self.logger.debug("Initializing DatasetTab for dataset: %s (ID: %s)",
                           dataset.name, dataset.id)
 
-        self.setup_ui()
+        self._initialize()
         self.load_dataset_data()
-        self.setup_event_subscriptions()
-
-    def subscribe_to_event(self, event_type: str, handler):
-        """Subscribe to an event - delegate to the event bus component."""
-        # Use the inherited method from EventBusComponentMixin
-        super().subscribe_to_event(event_type, handler)
 
     def setup_event_subscriptions(self):
         """Set up event subscriptions for dataset updates."""
@@ -61,6 +53,171 @@ class DatasetTab(EventBusComponentMixin, QWidget):
             DatasetOperationEvents.DATASET_BULK_UPDATE, self.on_dataset_bulk_update)
         self.subscribe_to_event(
             DatasetEvents.DATASET_DATA_CHANGED, self.on_dataset_data_changed)
+
+    @override
+    def _apply_theme(self):
+        """Apply theme-specific styling to all components."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        # Get theme-appropriate colors
+        card_bg = palette.get('card_bg', '#f8f9fa')
+        card_hover = palette.get('card_hover', '#e9ecef')
+        card_border = palette.get('card_border', '#dee2e6')
+        base_fg = palette.get('base_fg', '#000000')
+        secondary_fg = palette.get('secondary_fg', '#555555')
+        accent = palette.get('accent', '#4A90E2')
+        
+        # Derive accent color variants for interaction states
+        from PySide6.QtGui import QColor
+        accent_color = QColor(accent)
+        if accent_color.isValid():
+            accent_hover = accent_color.darker(110).name()
+            accent_pressed = accent_color.darker(125).name()
+        else:
+            accent_hover = accent
+            accent_pressed = accent
+        
+        # Apply styling to save changes button
+        self.save_changes_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #218838;
+            }}
+            QPushButton:pressed {{
+                background-color: #1e7e34;
+            }}
+            QPushButton:disabled {{
+                background-color: {secondary_fg};
+            }}
+        """)
+        
+        # Apply styling to discard changes button
+        self.discard_changes_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #dc3545;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c82333;
+            }
+            QPushButton:pressed {
+                background-color: #bd2130;
+            }
+        """)
+        
+        # Apply styling to table widget
+        self.table_widget.setStyleSheet(f"""
+            QTableWidget {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                selection-background-color: {card_hover};
+                gridline-color: {card_border};
+                color: {base_fg};
+            }}
+            QTableWidget::item {{
+                padding: 5px;
+                border-bottom: 1px solid {card_border};
+            }}
+            QTableWidget::item:selected {{
+                background-color: {card_hover};
+                color: {accent};
+            }}
+            QTableWidget::item:focus {{
+                border: 2px solid {accent};
+                background-color: {card_hover};
+            }}
+            QHeaderView::section {{
+                background-color: {card_hover};
+                padding: 8px;
+                border: 1px solid {card_border};
+                font-weight: bold;
+                color: {base_fg};
+            }}
+        """)
+        
+        # Apply styling to action buttons
+        self.create_chart_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {accent};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {accent_hover};
+            }}
+            QPushButton:pressed {{
+                background-color: {accent_pressed};
+            }}
+        """)
+        
+        self.export_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #28a745;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #1e7e34;
+            }
+            QPushButton:pressed {
+                background-color: #155724;
+            }
+        """)
+        
+        self.add_column_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #17a2b8;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #138496;
+            }
+            QPushButton:pressed {
+                background-color: #117a8b;
+            }
+        """)
+    
+        self.add_row_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {secondary_fg};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: #5a6268;
+            }}
+            QPushButton:pressed {{
+                background-color: #545b62;
+            }}
+        """)
+        
+        # Update edit status label styling based on current state
+        self._update_edit_status_label_style()
 
     def on_dataset_column_added(self, event_data):
         """Handle when a column is added to any dataset."""
@@ -101,7 +258,8 @@ class DatasetTab(EventBusComponentMixin, QWidget):
                 "Dataset data changed event received for dataset %s", dataset_id)
             self.load_dataset_data()  # Refresh the table
 
-    def setup_ui(self):
+    @override
+    def _init_ui(self):
         """Initialize the UI layout and components."""
         # Main layout
         main_layout = QVBoxLayout(self)
@@ -128,8 +286,6 @@ class DatasetTab(EventBusComponentMixin, QWidget):
 
         # Status label
         self.edit_status_label = QLabel("Read-only mode")
-        self.edit_status_label.setStyleSheet(
-            "color: #666666; font-style: italic;")
         control_layout.addWidget(self.edit_status_label)
 
         # Spacer
@@ -137,47 +293,12 @@ class DatasetTab(EventBusComponentMixin, QWidget):
 
         # Save changes button (initially hidden)
         self.save_changes_btn = QPushButton("💾 Save Changes")
-        self.save_changes_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #28a745;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 6px 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #218838;
-            }
-            QPushButton:pressed {
-                background-color: #1e7e34;
-            }
-            QPushButton:disabled {
-                background-color: #6c757d;
-            }
-        """)
         self.save_changes_btn.clicked.connect(self.save_changes)
         self.save_changes_btn.setVisible(False)
         control_layout.addWidget(self.save_changes_btn)
 
         # Discard changes button (initially hidden)
         self.discard_changes_btn = QPushButton("↶ Discard Changes")
-        self.discard_changes_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #dc3545;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 6px 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c82333;
-            }
-            QPushButton:pressed {
-                background-color: #bd2130;
-            }
-        """)
         self.discard_changes_btn.clicked.connect(self.discard_changes)
         self.discard_changes_btn.setVisible(False)
         control_layout.addWidget(self.discard_changes_btn)
@@ -187,33 +308,6 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         # Table widget
         self.table_widget = QTableWidget()
         self.table_widget.setAlternatingRowColors(True)
-        self.table_widget.setStyleSheet("""
-            QTableWidget {
-                background-color: white;
-                border: 1px solid #dee2e6;
-                selection-background-color: #e3f2fd;
-                gridline-color: #e0e0e0;
-            }
-            QTableWidget::item {
-                padding: 5px;
-                border-bottom: 1px solid #f0f0f0;
-            }
-            QTableWidget::item:selected {
-                background-color: #e3f2fd;
-                color: #1976d2;
-            }
-            QTableWidget::item:focus {
-                border: 2px solid #007bff;
-                background-color: #fff3cd;
-            }
-            QHeaderView::section {
-                background-color: #f5f5f5;
-                padding: 8px;
-                border: 1px solid #dee2e6;
-                font-weight: bold;
-                color: #333333;
-            }
-        """)
 
         # Configure table properties
         self.table_widget.setSortingEnabled(True)
@@ -240,93 +334,53 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         actions_layout.setContentsMargins(0, 5, 0, 0)
 
         # Create chart button
-        create_chart_btn = QPushButton("📈 Create Chart from Data")
-        create_chart_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #007bff;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #0056b3;
-            }
-            QPushButton:pressed {
-                background-color: #004085;
-            }
-        """)
-        create_chart_btn.clicked.connect(self.create_chart_from_data)
-        actions_layout.addWidget(create_chart_btn)
+        self.create_chart_btn = QPushButton("📈 Create Chart from Data")
+        self.create_chart_btn.clicked.connect(self.create_chart_from_data)
+        actions_layout.addWidget(self.create_chart_btn)
 
         # Export data button
-        export_btn = QPushButton("💾 Export Data")
-        export_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #28a745;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1e7e34;
-            }
-            QPushButton:pressed {
-                background-color: #155724;
-            }
-        """)
-        export_btn.clicked.connect(self.export_data)
-        actions_layout.addWidget(export_btn)
+        self.export_btn = QPushButton("💾 Export Data")
+        self.export_btn.clicked.connect(self.export_data)
+        actions_layout.addWidget(self.export_btn)
 
         # Add column button
-        add_column_btn = QPushButton("➕ Add Column")
-        add_column_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #17a2b8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #138496;
-            }
-            QPushButton:pressed {
-                background-color: #117a8b;
-            }
-        """)
-        add_column_btn.clicked.connect(self.add_column_to_dataset)
-        actions_layout.addWidget(add_column_btn)
+        self.add_column_btn = QPushButton("➕ Add Column")
+        self.add_column_btn.clicked.connect(self.add_column_to_dataset)
+        actions_layout.addWidget(self.add_column_btn)
 
         # Add row button
-        add_row_btn = QPushButton("➕ Add Row")
-        add_row_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #6c757d;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #5a6268;
-            }
-            QPushButton:pressed {
-                background-color: #545b62;
-            }
-        """)
-        add_row_btn.clicked.connect(self.add_row_to_dataset)
-        actions_layout.addWidget(add_row_btn)
+        self.add_row_btn = QPushButton("➕ Add Row")
+        self.add_row_btn.clicked.connect(self.add_row_to_dataset)
+        actions_layout.addWidget(self.add_row_btn)
 
         # Add stretch to push buttons to the left
         actions_layout.addStretch()
 
         layout.addWidget(actions_frame)
+
+    def _update_edit_status_label_style(self):
+        """Update edit status label styling based on current status and theme."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        secondary_fg = palette.get('secondary_fg', '#555555')
+        
+        status_text = self.edit_status_label.text()
+        
+        # Determine color and style based on status
+        if "Unsaved changes" in status_text or "⚠️" in status_text:
+            color = "#dc3545"  # Error red
+            style = "font-weight: bold;"
+        elif "Changes saved" in status_text or "✅" in status_text or "Changes discarded" in status_text:
+            color = "#28a745"  # Success green
+            style = "font-weight: bold;"
+        elif "Edit mode" in status_text:
+            color = "#28a745"  # Success green
+            style = "font-weight: bold;"
+        else:  # Read-only mode and other default states
+            color = secondary_fg
+            style = "font-style: italic;"
+            
+        self.edit_status_label.setStyleSheet(f"color: {color}; font-size: 12px; {style}")
 
     def load_dataset_data(self):
         """Load and display the dataset data."""
@@ -454,12 +508,10 @@ class DatasetTab(EventBusComponentMixin, QWidget):
         if self.is_editing_enabled:
             self.edit_status_label.setText(
                 "Edit mode - Click any cell to modify")
-            self.edit_status_label.setStyleSheet(
-                "color: #28a745; font-weight: bold;")
         else:
             self.edit_status_label.setText("Read-only mode")
-            self.edit_status_label.setStyleSheet(
-                "color: #666666; font-style: italic;")
+        
+        self._update_edit_status_label_style()
 
         # Hide save/discard buttons if switching to read-only and no changes
         if not self.is_editing_enabled and not self.has_unsaved_changes:
@@ -481,8 +533,7 @@ class DatasetTab(EventBusComponentMixin, QWidget):
             self.save_changes_btn.setVisible(True)
             self.discard_changes_btn.setVisible(True)
             self.edit_status_label.setText("⚠️ Unsaved changes")
-            self.edit_status_label.setStyleSheet(
-                "color: #dc3545; font-weight: bold;")
+            self._update_edit_status_label_style()
 
             # Mark changed item with different background
             item.setBackground(Qt.GlobalColor.yellow)
@@ -576,8 +627,7 @@ class DatasetTab(EventBusComponentMixin, QWidget):
             self.save_changes_btn.setVisible(False)
             self.discard_changes_btn.setVisible(False)
             self.edit_status_label.setText("✅ Changes saved")
-            self.edit_status_label.setStyleSheet(
-                "color: #28a745; font-weight: bold;")
+            self._update_edit_status_label_style()
 
             # Reset item backgrounds and update user data
             for row in range(rows):
@@ -626,8 +676,7 @@ class DatasetTab(EventBusComponentMixin, QWidget):
                 self.discard_changes_btn.setVisible(False)
                 self.edit_status_label.setText(
                     "Changes discarded" if self.is_editing_enabled else "Read-only mode")
-                self.edit_status_label.setStyleSheet(
-                    "color: #28a745; font-weight: bold;" if self.is_editing_enabled else "color: #666666; font-style: italic;")
+                self._update_edit_status_label_style()
 
         except Exception as e:
             self.logger.error(

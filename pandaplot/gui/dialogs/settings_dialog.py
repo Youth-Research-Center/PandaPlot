@@ -3,14 +3,16 @@ Modern Settings dialog for the pandaplot application.
 Provides a user interface for changing application preferences with modern PySide6 styling.
 """
 
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, 
+from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton, 
                              QTabWidget, QWidget, QLabel, QGroupBox, QComboBox,
                              QSpinBox, QCheckBox, QFrame, QColorDialog,
                              QMessageBox, QScrollArea)
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, override
 
+
+from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.config import ApplicationConfig
 
@@ -22,89 +24,29 @@ THEME_DISPLAY = {
 THEME_REVERSE = {v: k for k, v in THEME_DISPLAY.items()}
 
 
-class SettingsDialog(QDialog):
+class SettingsDialog(PDialog):
     """Modern settings dialog for configuring application preferences."""
     
     settings_changed = Signal(dict)  # Emitted when settings are applied
     
     def __init__(self, app_context, parent=None):
-        super().__init__(parent)
-        self.app_context = app_context
+        super().__init__(app_context=app_context, parent=parent)
         self.original_settings: Dict[str, Any] = {}
         self.current_settings: Dict[str, Any] = {}
-        self._config_manager = getattr(app_context, 'get_config_manager', lambda: None)()
-        self._event_bus = getattr(app_context, 'get_event_bus', lambda: None)()
+        self._config_manager = self.app_context.get_config_manager()
         self._applying = False  # guard to prevent feedback loops
 
-        self.setup_ui()
+        self._initialize()
         self.load_current_settings()
-        self.setup_event_subscriptions()
     
-    def setup_ui(self):
+    @override
+    def _init_ui(self):
         """Set up the user interface."""
         self.setWindowTitle("⚙️ Application Settings")
         self.setModal(True)
         self.resize(700, 500)
         self.setMinimumSize(650, 450)
         
-        # Apply modern styling
-        self.setStyleSheet("""
-            QDialog {
-                background-color: #f8f9fa;
-                color: #212529;
-            }
-            QTabWidget::pane {
-                border: 1px solid #dee2e6;
-                border-radius: 6px;
-                background-color: white;
-                margin-top: -1px;
-            }
-            QTabBar::tab {
-                background-color: #e9ecef;
-                border: 1px solid #dee2e6;
-                border-bottom: none;
-                border-radius: 6px 6px 0 0;
-                padding: 8px 16px;
-                margin-right: 2px;
-                font-weight: bold;
-            }
-            QTabBar::tab:selected {
-                background-color: white;
-                border-bottom: 1px solid white;
-            }
-            QTabBar::tab:hover:!selected {
-                background-color: #f8f9fa;
-            }
-            QGroupBox {
-                font-weight: bold;
-                border: 1px solid #dee2e6;
-                border-radius: 6px;
-                margin-top: 10px;
-                padding-top: 10px;
-                background-color: white;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                subcontrol-position: top left;
-                padding: 0 8px;
-                background-color: white;
-                color: #495057;
-            }
-            QPushButton {
-                background-color: #007bff;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #0056b3;
-            }
-            QPushButton:pressed {
-                background-color: #004085;
-            }
-        """)
         
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
@@ -125,16 +67,141 @@ class SettingsDialog(QDialog):
         # Buttons
         self.create_buttons(layout)
 
+    @override
+    def _apply_theme(self):
+        """Apply theme-specific styling to all components."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        # Get theme-appropriate colors
+        card_bg = palette.get('card_bg', '#f8f9fa')
+        card_hover = palette.get('card_hover', '#e9ecef')
+        card_border = palette.get('card_border', '#dee2e6')
+        base_fg = palette.get('base_fg', '#000000')
+        secondary_fg = palette.get('secondary_fg', '#555555')
+        accent = palette.get('accent', '#4A90E2')
+        
+        # Apply main dialog styling
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {card_bg};
+                color: {base_fg};
+            }}
+            QTabWidget::pane {{
+                border: 1px solid {card_border};
+                border-radius: 6px;
+                background-color: {card_bg};
+                margin-top: -1px;
+            }}
+            QTabBar::tab {{
+                background-color: {card_hover};
+                border: 1px solid {card_border};
+                border-bottom: none;
+                border-radius: 6px 6px 0 0;
+                padding: 8px 16px;
+                margin-right: 2px;
+                font-weight: bold;
+                color: {base_fg};
+            }}
+            QTabBar::tab:selected {{
+                background-color: {card_bg};
+                border-bottom: 1px solid {card_bg};
+            }}
+            QTabBar::tab:hover:!selected {{
+                background-color: {card_bg};
+            }}
+            QGroupBox {{
+                font-weight: bold;
+                border: 1px solid {card_border};
+                border-radius: 6px;
+                margin-top: 10px;
+                padding-top: 10px;
+                background-color: {card_bg};
+                color: {base_fg};
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                padding: 0 8px;
+                background-color: {card_bg};
+                color: {secondary_fg};
+            }}
+            QPushButton {{
+                background-color: {accent};
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {accent};
+                opacity: 0.8;
+            }}
+            QPushButton:pressed {{
+                background-color: {accent};
+                opacity: 0.6;
+            }}
+            QLabel {{
+                color: {base_fg};
+            }}
+            QSpinBox, QComboBox {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 3px;
+                padding: 2px 5px;
+                color: {base_fg};
+            }}
+            QSpinBox:focus, QComboBox:focus {{
+                border-color: {accent};
+            }}
+            QCheckBox {{
+                color: {base_fg};
+            }}
+        """)
+        
+        # Apply specific button styling
+        self.reset_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {secondary_fg};
+                color: white;
+            }}
+            QPushButton:hover {{
+                background-color: #545b62;
+            }}
+        """)
+        
+        self.cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {secondary_fg};
+                color: white;
+            }}
+            QPushButton:hover {{
+                background-color: #545b62;
+            }}
+        """)
+        
+        # Apply styling to button frame
+        self.button_frame.setStyleSheet(f"""
+            QFrame {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 6px;
+            }}
+        """)
+        
+        # Apply styling to header labels
+        self.title_label.setStyleSheet(f"font-size:18px; font-weight:600; color: {base_fg};")
+        self.subtitle_label.setStyleSheet(f"color: {secondary_fg};")
+
     def create_header(self, parent_layout: QVBoxLayout):
         """Create dialog header area."""
         header_box = QFrame()
         hb_layout = QVBoxLayout(header_box)
-        title = QLabel("Application Settings")
-        title.setStyleSheet("font-size:18px; font-weight:600;")
-        subtitle = QLabel("Adjust preferences for appearance, editing and behavior")
-        subtitle.setStyleSheet("color:#6c757d;")
-        hb_layout.addWidget(title)
-        hb_layout.addWidget(subtitle)
+        self.title_label = QLabel("Application Settings")
+        self.subtitle_label = QLabel("Adjust preferences for appearance, editing and behavior")
+        hb_layout.addWidget(self.title_label)
+        hb_layout.addWidget(self.subtitle_label)
         parent_layout.addWidget(header_box)
 
     def create_general_tab(self):
@@ -314,28 +381,12 @@ class SettingsDialog(QDialog):
     
     def create_buttons(self, layout):
         """Create the button frame."""
-        button_frame = QFrame()
-        button_frame.setStyleSheet("""
-            QFrame {
-                background-color: white;
-                border: 1px solid #dee2e6;
-                border-radius: 6px;
-            }
-        """)
-        button_layout = QHBoxLayout(button_frame)
+        self.button_frame = QFrame()
+        button_layout = QHBoxLayout(self.button_frame)
         button_layout.setContentsMargins(16, 12, 16, 12)
         
         # Reset button
         self.reset_btn = QPushButton("🔄 Reset to Defaults")
-        self.reset_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #6c757d;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #545b62;
-            }
-        """)
         self.reset_btn.clicked.connect(self.reset_to_defaults)
         button_layout.addWidget(self.reset_btn)
         
@@ -343,15 +394,7 @@ class SettingsDialog(QDialog):
         
         # Cancel button
         self.cancel_btn = QPushButton("❌ Cancel")
-        self.cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #6c757d;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #545b62;
-            }
-        """)
+        # Remove hardcoded styling - will be applied in _apply_theme
         self.cancel_btn.clicked.connect(self.reject)
         button_layout.addWidget(self.cancel_btn)
         
@@ -366,7 +409,7 @@ class SettingsDialog(QDialog):
         self.ok_btn.setDefault(True)
         button_layout.addWidget(self.ok_btn)
         
-        layout.addWidget(button_frame)
+        layout.addWidget(self.button_frame)
     
     def load_current_settings(self):
         """Load current settings from the configuration manager (or defaults)."""
@@ -395,23 +438,18 @@ class SettingsDialog(QDialog):
 
     def setup_event_subscriptions(self):
         """Subscribe to config update events to reflect external changes while dialog open."""
-        if not self._event_bus:
-            return
-
-        def _on_config_event(data: Dict[str, Any]):
-            if self._applying:
-                return
-            config = data.get('config')
-            if not config:
-                return
-            # Re-load from live config
-            self.load_current_settings()
         # Subscribe to both updated and reset events
-        try:
-            self._event_bus.subscribe(ConfigEvents.CONFIG_UPDATED, _on_config_event)
-        except Exception:
-            pass
+        self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
     
+    def _on_config_event(self, data: Dict[str, Any]):
+        if self._applying:
+            return
+        config = data.get('config')
+        if not config:
+            return
+        # Re-load from live config
+        self.load_current_settings()
+
     def apply_settings_to_ui(self):
         """Apply current settings to UI controls."""
         self.auto_save_check.setChecked(self.current_settings['auto_save'])
@@ -506,8 +544,6 @@ class SettingsDialog(QDialog):
             self.settings_changed.emit(self.current_settings)
         finally:
             self._applying = False
-        # Confirmation message
-        QMessageBox.information(self, "Settings Applied", "Settings have been applied successfully.")
     
     def accept_settings(self):
         """Apply settings and close the dialog."""

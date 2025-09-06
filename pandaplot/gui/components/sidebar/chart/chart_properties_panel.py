@@ -1,6 +1,4 @@
 """Chart properties side panel for configuring chart appearance and data."""
-
-import logging
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, 
     QComboBox, QPushButton, QSpinBox, QDoubleSpinBox, QLineEdit, 
@@ -9,14 +7,15 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPainter
-from typing import Optional, List
+from typing import Optional, List, override
 
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_configuration import (
     ChartConfiguration, ChartType, LineStyleType, MarkerType, 
     ScaleType, LegendPosition, LineStyle, MarkerStyle, AxisStyle, LegendStyle
 )
 from pandaplot.models.chart.chart_style_manager import ChartStyleManager
-from pandaplot.models.events import EventBusComponentMixin, UIEvents, ChartEvents, ProjectEvents
+from pandaplot.models.events import UIEvents, ChartEvents, ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.project.items import Dataset
 
@@ -25,9 +24,10 @@ class ColorButton(QPushButton):
     """A button that displays and allows selection of colors."""
     
     colorChanged = Signal(str)
-    
-    def __init__(self, color: str = "#1f77b4", parent=None):
+
+    def __init__(self, app_context: AppContext, parent=None, color: str = "#1f77b4"):
         super().__init__(parent)
+        self.app_context = app_context
         self._color = color
         self.setFixedSize(30, 25)
         self.clicked.connect(self._select_color)
@@ -50,13 +50,28 @@ class ColorButton(QPushButton):
             self.set_color(color.name())
     
     def _update_appearance(self):
-        """Trigger a repaint with stable button styling."""
-        # Stable neutral background; colored swatch drawn in paintEvent
-        self.setStyleSheet(
-            "QPushButton { background: #f5f5f5; border:1px solid #888; border-radius:4px; }"
-            "QPushButton:hover { background:#eaeaea; }"
-            "QPushButton:pressed { background:#e0e0e0; }"
-        )
+        """Trigger a repaint with theme-aware button styling."""
+        # Get theme colors if parent has app_context
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        bg_color = palette.get('card_hover', '#f5f5f5')
+        border_color = palette.get('card_border', '#888')
+        hover_color = palette.get('card_bg', '#eaeaea')
+        pressed_color = palette.get('card_border', '#e0e0e0')
+        
+        self.setStyleSheet(f"""
+            QPushButton {{ 
+                background: {bg_color}; 
+                border: 1px solid {border_color}; 
+                border-radius: 4px; 
+            }}
+            QPushButton:hover {{ 
+                background: {hover_color}; 
+            }}
+            QPushButton:pressed {{ 
+                background: {pressed_color}; 
+            }}
+        """)
         self.update()
 
     def paintEvent(self, event):  # noqa: D401 (Qt override)
@@ -69,17 +84,15 @@ class ColorButton(QPushButton):
         painter.drawRect(swatch_rect)
 
 
-class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
+class ChartPropertiesPanel(PWidget):
     """Side panel for configuring chart properties."""
     
     chart_created = Signal(str)  # chart_id
     chart_updated = Signal(str)  # chart_id
     preview_requested = Signal(ChartConfiguration)
-    
-    def __init__(self, app_context: AppContext, parent=None):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
-        self.logger = logging.getLogger(__name__)
-        self.app_context = app_context
+
+    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+        super().__init__(app_context=app_context, parent=parent)
         self.command_executor = app_context.command_executor
         self.style_manager = ChartStyleManager()
         self.current_project = None
@@ -90,19 +103,18 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self._updating_controls: bool = False  # Guard to prevent feedback loops
         self._pending_label: str = ""        # Buffer while user types label
 
-        self._setup_ui()
+        self._initialize()
         self._connect_signals()
-        self._setup_event_subscriptions()
     
-    def _setup_ui(self):
+    @override
+    def _init_ui(self):
         """Set up the user interface."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         
         # Title
-        title_label = QLabel("Chart Properties")
-        title_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
-        layout.addWidget(title_label)
+        self.title_label = QLabel("📊 Chart Properties")
+        layout.addWidget(self.title_label)
         
         # Scroll area for content
         scroll = QScrollArea()
@@ -121,15 +133,6 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         
         # Tab widget for organizing other properties
         self.tab_widget = QTabWidget()
-        # Add visual borders so tabs look like traditional tabs
-        self.tab_widget.setStyleSheet(
-            """
-            QTabWidget::pane { border: 1px solid #888; top: 1px; background: #ffffff; }
-            QTabBar::tab { background: #e0e0e0; border: 1px solid #888; border-bottom: none; padding: 4px 8px; margin-right: 2px; border-top-left-radius:4px; border-top-right-radius:4px; }
-            QTabBar::tab:selected { background: #ffffff; font-weight: bold; }
-            QTabBar::tab:hover { background: #f5f5f5; }
-            """
-        )
         
         # Style tab (simplified, no data source controls)
         self.style_tab = self._create_style_tab()
@@ -158,26 +161,9 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self.apply_button = QPushButton("Apply")
         self.reset_button = QPushButton("Cancel")
 
-        primary_style = (
-            "QPushButton { background-color:#007bff; color:#fff; padding:6px 14px; border:none; border-radius:4px; font-weight:600; }"
-            "QPushButton:hover { background-color:#005ec2; }"
-            "QPushButton:pressed { background-color:#004f9f; }"
-            "QPushButton:disabled { background-color:#6c757d; }"
-        )
-        secondary_style = (
-            "QPushButton { background-color:#e0e0e0; color:#000; padding:6px 14px; border:1px solid #888; border-radius:4px; }"
-            "QPushButton:hover { background-color:#d5d5d5; }"
-            "QPushButton:pressed { background-color:#c8c8c8; }"
-            "QPushButton:disabled { background-color:#f3f3f3; color:#888; }"
-        )
-
         self.preview_button.setObjectName("chartPreviewButton")
         self.apply_button.setObjectName("chartApplyButton")
         self.reset_button.setObjectName("chartCancelButton")
-
-        self.apply_button.setStyleSheet(primary_style)
-        self.preview_button.setStyleSheet(secondary_style)
-        self.reset_button.setStyleSheet(secondary_style)
 
         for btn in (self.preview_button, self.apply_button, self.reset_button):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -189,6 +175,215 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         button_layout.addStretch(1)
         layout.addLayout(button_layout)
     
+    @override
+    def _apply_theme(self):
+        """Apply theme styling to all components."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        # Get theme colors with fallbacks
+        card_bg = palette.get('card_bg', '#ffffff')
+        card_border = palette.get('card_border', '#dee2e6')
+        base_fg = palette.get('base_fg', '#333333')
+        card_hover = palette.get('card_hover', '#e5f3ff')
+        
+        # Apply theme to main widget
+        self.setStyleSheet(f"""
+            ChartPropertiesPanel {{
+                background-color: {card_bg};
+                color: {base_fg};
+            }}
+            QGroupBox {{
+                font-weight: bold;
+                font-size: 9pt;
+                color: {base_fg};
+                margin-top: 5px;
+                padding-top: 10px;
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 4px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                background-color: {card_bg};
+            }}
+        """)
+        
+        # Title label with improved styling
+        self.title_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                font-weight: bold;
+                color: {base_fg};
+                padding: 5px;
+                background-color: {card_border};
+                border-radius: 3px;
+            }}
+        """)
+        
+        # Tab widget with theme-aware colors
+        self.tab_widget.setStyleSheet(f"""
+            QTabWidget::pane {{ 
+                border: 1px solid {card_border}; 
+                top: 1px; 
+                background: {card_bg}; 
+            }}
+            QTabBar::tab {{ 
+                background: {card_hover}; 
+                border: 1px solid {card_border}; 
+                border-bottom: none; 
+                padding: 4px 8px; 
+                margin-right: 2px; 
+                border-top-left-radius: 4px; 
+                border-top-right-radius: 4px;
+                color: {base_fg};
+            }}
+            QTabBar::tab:selected {{ 
+                background: {card_bg}; 
+                font-weight: bold; 
+            }}
+            QTabBar::tab:hover {{ 
+                background: {card_hover}; 
+            }}
+        """)
+        
+        # Main action buttons
+        self._apply_button_styling()
+        
+        # Series management buttons
+        self._apply_series_button_styling()
+        
+        # Update all color buttons
+        self._update_color_buttons()
+    
+    def _update_color_buttons(self):
+        """Update all ColorButton instances with current theme."""
+        color_buttons = [
+            getattr(self, 'line_color_button', None),
+            getattr(self, 'marker_color_button', None),
+            getattr(self, 'marker_edge_color_button', None),
+            getattr(self, 'legend_bg_color_button', None)
+        ]
+        
+        for button in color_buttons:
+            if button and isinstance(button, ColorButton):
+                button._update_appearance()
+    
+    def _apply_button_styling(self):
+        """Apply theme styling to main action buttons."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        # Get colors with fallbacks
+        accent = palette.get('accent', '#4CAF50')
+        secondary_fg = palette.get('secondary_fg', '#666666')
+        card_hover = palette.get('card_hover', '#e5f3ff')
+        base_fg = palette.get('base_fg', '#333333')
+        card_border = palette.get('card_border', '#dee2e6')
+        card_bg = palette.get('card_bg', '#ffffff')
+        
+        # Primary button (Apply)
+        primary_style = f"""
+            QPushButton {{ 
+                background-color: {accent}; 
+                color: white; 
+                padding: 6px 14px; 
+                border: none; 
+                border-radius: 4px; 
+                font-weight: 600; 
+            }}
+            QPushButton:hover {{ 
+                background-color: {card_hover}; 
+                color: {base_fg}; 
+            }}
+            QPushButton:pressed {{ 
+                background-color: {card_border}; 
+            }}
+            QPushButton:disabled {{ 
+                background-color: {secondary_fg}; 
+                color: #999999; 
+            }}
+        """
+        self.apply_button.setStyleSheet(primary_style)
+        
+        # Secondary buttons (Preview, Cancel)
+        secondary_style = f"""
+            QPushButton {{ 
+                background-color: {card_hover}; 
+                color: {base_fg}; 
+                padding: 6px 14px; 
+                border: 1px solid {card_border}; 
+                border-radius: 4px; 
+            }}
+            QPushButton:hover {{ 
+                background-color: {card_bg}; 
+            }}
+            QPushButton:pressed {{ 
+                background-color: {card_border}; 
+            }}
+            QPushButton:disabled {{ 
+                background-color: {card_hover}; 
+                color: {secondary_fg}; 
+            }}
+        """
+        
+        for button in [getattr(self, 'preview_button', None), getattr(self, 'reset_button', None)]:
+            if button:
+                button.setStyleSheet(secondary_style)
+    
+    def _apply_series_button_styling(self):
+        """Apply theme styling to series management buttons."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+        
+        # Get colors with fallbacks
+        accent = palette.get('accent', '#4CAF50')
+        secondary_fg = palette.get('secondary_fg', '#666666')
+        card_hover = palette.get('card_hover', '#e5f3ff')
+        base_fg = palette.get('base_fg', '#333333')
+        card_border = palette.get('card_border', '#dee2e6')
+        card_bg = palette.get('card_bg', '#ffffff')
+        
+        # Add series button (primary style)
+        add_style = f"""
+            QPushButton {{ 
+                background: {accent}; 
+                color: white; 
+                border: none; 
+                border-radius: 4px; 
+                padding: 4px 10px;
+            }}
+            QPushButton:hover {{ 
+                background: {card_hover}; 
+                color: {base_fg}; 
+            }}
+            QPushButton:disabled {{ 
+                background: {secondary_fg}; 
+            }}
+        """
+        self.add_series_button.setStyleSheet(add_style)
+        
+        # Remove series button (secondary style)
+        remove_style = f"""
+            QPushButton {{ 
+                background: {card_hover}; 
+                color: {base_fg}; 
+                border: 1px solid {card_border}; 
+                border-radius: 4px; 
+                padding: 4px 10px;
+            }}
+            QPushButton:hover {{ 
+                background: {card_bg}; 
+            }}
+            QPushButton:disabled {{ 
+                background: {card_hover}; 
+                color: {secondary_fg}; 
+            }}
+        """
+        self.remove_series_button.setStyleSheet(remove_style)
+
     def _create_chart_info_section(self, layout):
         """Create the basic chart information section."""
         # Chart info group
@@ -225,11 +420,6 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self.add_series_button.setMinimumHeight(28)
         self.add_series_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.add_series_button.clicked.connect(self._add_series)
-        self.add_series_button.setStyleSheet(
-            "QPushButton { background:#007bff; color:#fff; border:none; border-radius:4px; padding:4px 10px;}"
-            "QPushButton:hover { background:#0069d9; }"
-            "QPushButton:disabled { background:#6c757d; }"
-        )
         buttons_col.addWidget(self.add_series_button)
 
         self.remove_series_button = QPushButton("Remove")
@@ -237,11 +427,6 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self.remove_series_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.remove_series_button.clicked.connect(self._remove_series)
         self.remove_series_button.setEnabled(False)
-        self.remove_series_button.setStyleSheet(
-            "QPushButton { background:#e0e0e0; color:#000; border:1px solid #888; border-radius:4px; padding:4px 10px;}"
-            "QPushButton:hover { background:#d5d5d5; }"
-            "QPushButton:disabled { background:#f0f0f0; color:#888; }"
-        )
         buttons_col.addWidget(self.remove_series_button)
         buttons_col.addStretch(1)
         list_row.addLayout(buttons_col)
@@ -283,7 +468,7 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         line_layout = QGridLayout(line_group)
         
         line_layout.addWidget(QLabel("Color:"), 0, 0)
-        self.line_color_button = ColorButton()
+        self.line_color_button = ColorButton(self.app_context)
         line_layout.addWidget(self.line_color_button, 0, 1)
         
         line_layout.addWidget(QLabel("Width:"), 1, 0)
@@ -325,11 +510,11 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         marker_layout.addWidget(self.marker_size_spin, 1, 1)
         
         marker_layout.addWidget(QLabel("Color:"), 2, 0)
-        self.marker_color_button = ColorButton()
+        self.marker_color_button = ColorButton(self.app_context)
         marker_layout.addWidget(self.marker_color_button, 2, 1)
         
         marker_layout.addWidget(QLabel("Edge Color:"), 3, 0)
-        self.marker_edge_color_button = ColorButton("#000000")
+        self.marker_edge_color_button = ColorButton(self.app_context, None, "#000000")
         marker_layout.addWidget(self.marker_edge_color_button, 3, 1)
         
         layout.addWidget(marker_group)
@@ -423,7 +608,7 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         legend_layout.addWidget(self.legend_font_size_spin, 2, 1)
         
         legend_layout.addWidget(QLabel("Background:"), 3, 0)
-        self.legend_bg_color_button = ColorButton("#ffffff")
+        self.legend_bg_color_button = ColorButton(self.app_context, None, "#ffffff")
         legend_layout.addWidget(self.legend_bg_color_button, 3, 1)
         
         layout.addWidget(legend_group)
@@ -465,7 +650,7 @@ class ChartPropertiesPanel(EventBusComponentMixin, QWidget):
         self.marker_size_spin.valueChanged.connect(self._on_style_changed)
         self.marker_type_combo.currentIndexChanged.connect(self._on_style_changed)
     
-    def _setup_event_subscriptions(self):
+    def setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)

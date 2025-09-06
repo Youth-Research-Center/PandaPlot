@@ -32,7 +32,7 @@ def create_project_data_manager() -> ProjectDataManager:
     return ProjectDataManager(factory)
 
 
-def build_app_context(logger: logging.Logger) -> AppContext:
+def build_app_context() -> AppContext:
     """Create and return a fully initialized AppContext (no Qt widgets yet)."""
     event_bus = EventBus()
     project_data_manager = create_project_data_manager()
@@ -60,31 +60,26 @@ def create_qt_application(app_context: AppContext, argv: list[str] | None = None
     if argv is None:
         argv = sys.argv
     app = QApplication(argv)
-    # Global simple baseline stylesheet (theme manager can override specifics)
-    app.setStyleSheet("""* { color: black; background-color: white; }""")
 
     main_window = PandaMainWindow(app_context)
     theme_mgr = app_context.get_theme_manager()
     theme_mgr.set_qt_app(app)
     try:
         theme_mgr.apply_current()
-    except Exception:  # noqa: BLE001
+    except Exception:
         logging.getLogger(__name__).exception("Failed applying initial theme")
     app_context.ui_controller.set_parent_widget(main_window)
     return app, main_window
 
 
-def launch(app_context: AppContext | None = None) -> int:
+def launch(app_context: AppContext) -> int:
     """Launch the GUI event loop.
 
     Returns the Qt application's exit code.
     """
-    logger = logging.getLogger(__name__)
     if app_context is None:
-        if not logging.getLogger().handlers:
-            setup_logging(level=logging.DEBUG)
-        logger.info("Building default AppContext inside launch()")
-        app_context = build_app_context(logger)
+        raise RuntimeError("AppContext must be provided to launch the application")
+    
     app, main_window = create_qt_application(app_context)
     main_window.show()
     return app.exec()
@@ -94,7 +89,7 @@ def main() -> None:
     """CLI entry point for `python -m pandaplot.app`."""
     logger = setup_logging(level=logging.DEBUG)
     logger.info("--------------Starting PandaPlot application--------------")
-    app_context = build_app_context(logger)
+    app_context = build_app_context()
     sys.exit(launch(app_context))
 
 
