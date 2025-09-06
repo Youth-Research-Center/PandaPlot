@@ -7,13 +7,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 import logging
-import numpy as np
-import pandas as pd
 
 from pandaplot.models.events.mixins import EventBusComponentMixin
 from pandaplot.models.events import UIEvents, FitEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.project.items import Dataset
+from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 
 # Import scipy for curve fitting (will handle gracefully if not available)
 try:
@@ -31,11 +30,12 @@ class FitPanel(EventBusComponentMixin, QWidget):
     
     def __init__(self, app_context: AppContext, parent=None):
         super().__init__(event_bus=app_context.event_bus, parent=parent)
+        self.fit_command=PerformFitCommand(self)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context
         self.current_project = None
         self.current_chart = None
-        self.fit_results = None
+        self.fit_command.fit_results = None
         self.datasets = []
 
         self._setup_ui()
@@ -154,7 +154,7 @@ class FitPanel(EventBusComponentMixin, QWidget):
         # Number of fit points
         options_layout.addWidget(QLabel("Fit Points:"), 0, 0)
         self.fit_points_spin = QSpinBox()
-        self.fit_points_spin.setRange(50, 1000)
+        self.fit_points_spin.setRange(50, 5000)
         self.fit_points_spin.setValue(500)
         options_layout.addWidget(self.fit_points_spin, 0, 1)
         
@@ -228,53 +228,16 @@ class FitPanel(EventBusComponentMixin, QWidget):
     
     def _connect_signals(self):
         """Connect widget signals."""
-        self.dataset_combo.currentTextChanged.connect(self._on_dataset_changed)
+        self.dataset_combo.currentTextChanged.connect(self.fit_command._on_dataset_changed)
         self.fit_type_combo.currentTextChanged.connect(self._on_fit_type_changed)
-        self.fit_button.clicked.connect(self._perform_fit)
+        self.fit_button.clicked.connect(self.fit_command._perform_fit)
         self.apply_button.clicked.connect(self._apply_fit)
         self.clear_button.clicked.connect(self._clear_results)
     
     def _setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
-        self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
-    
-    def _on_tab_changed(self, event_data):
-        """Handle tab change events to update context."""
-        current_tab_type = event_data.get('tab_type')
-        chart_id = event_data.get('chart_id')
-        dataset_id = event_data.get('dataset_id')
-        
-        # Check if current tab is a chart tab
-        if current_tab_type == 'chart' and chart_id:
-            # Get the chart from the project using chart_id
-            project = self.app_context.app_state.current_project
-            if project is not None:
-                chart = project.find_item(chart_id)
-                if chart:
-                    # Load the chart into the fit panel for data analysis
-                    self.load_chart_object(chart)
-                    self.set_project(project)
-                    self.logger.info("Fit panel context set to chart %s", chart.name)
-                else:
-                    self.logger.warning("Fit panel: chart id %s not found in project", chart_id)
-            else:
-                self.logger.warning("No current project available while switching tab")
-                    
-        elif current_tab_type == 'dataset' and dataset_id:
-            # For dataset tabs, provide context for data fitting
-            project = self.app_context.app_state.current_project
-            if project is not None:
-                dataset = project.find_item(dataset_id)
-                if dataset:
-                    # Set project context for dataset access
-                    self.set_project(project)
-                    self.load_chart_object(None)  # Clear chart context
-                    self.logger.debug("Fit panel dataset context set for dataset %s", dataset.name)
-        else:
-            # Clear fit panel context when no relevant tab is active
-            self.load_chart_object(None)
-            self.logger.debug("Fit panel context cleared")
-        
+        self.subscribe_to_event(UIEvents.TAB_CHANGED, self.fit_command._on_tab_changed)
+
     def _show_scipy_warning(self):
         """Show warning if scipy is not available."""
         warning_text = (
@@ -300,35 +263,11 @@ class FitPanel(EventBusComponentMixin, QWidget):
                     self.dataset_combo.addItem(item.name, item.id)
                     self.datasets.append(item)
     
-    def _on_dataset_changed(self):
-        """Handle dataset selection change."""
-        dataset_id = self.dataset_combo.currentData()
-        if dataset_id and self.current_project:
-            dataset = self.current_project.find_item(dataset_id)
-            if isinstance(dataset, Dataset) and dataset.data is not None:
-                columns = list(dataset.data.columns)
-                
-                # Update column combos
-                self.x_column_combo.clear()
-                self.y_column_combo.clear()
-                
-                for column in columns:
-                    self.x_column_combo.addItem(column)
-                    self.y_column_combo.addItem(column)
-                
-                # Set defaults if possible
-                if len(columns) >= 2:
-                    self.x_column_combo.setCurrentIndex(0)
-                    self.y_column_combo.setCurrentIndex(1)
-                elif len(columns) == 1:
-                    self.x_column_combo.setCurrentIndex(0)
-                
-                # Update data points display
-                self._update_data_points_display()
+
     
     def _update_data_points_display(self):
         """Update the data points display."""
-        current_data = self._get_current_data()
+        current_data = self.fit_command._get_current_data()
         if current_data is not None:
             x_data, y_data = current_data
             self.data_points_label.setText(f"{len(x_data)} points")
@@ -342,161 +281,14 @@ class FitPanel(EventBusComponentMixin, QWidget):
         fit_type = self.fit_type_combo.currentText()
         self.custom_group.setVisible("Custom" in fit_type)
     
-    def _get_current_data(self):
-        """Get the currently selected data."""
-        dataset_id = self.dataset_combo.currentData()
-        x_column = self.x_column_combo.currentText()
-        y_column = self.y_column_combo.currentText()
-        
-        if not all([dataset_id, x_column, y_column]):
-            return None
-        
-        if self.current_project:
-            dataset = self.current_project.find_item(dataset_id)
-            if isinstance(dataset, Dataset) and dataset.data is not None:
-                df = dataset.data
-                if x_column in df.columns and y_column in df.columns:
-                    # Remove any NaN values
-                    mask = ~(pd.isna(df[x_column]) | pd.isna(df[y_column]))
-                    x_data = df[x_column][mask].values
-                    y_data = df[y_column][mask].values
-                    return x_data, y_data
-        
-        return None
-    
-    def _get_fit_function(self, fit_type: str):
-        """Get the fitting function based on the selected type."""
-        if "Linear" in fit_type:
-            return lambda x, a, b: a * x + b, ["a", "b"]
-        elif "Quadratic" in fit_type:
-            return lambda x, a, b, c: a * x**2 + b * x + c, ["a", "b", "c"]
-        elif "Exponential" in fit_type:
-            return lambda x, a, b, c: a * np.exp(b * x) + c, ["a", "b", "c"]
-        elif "Power" in fit_type:
-            return lambda x, a, b, c: a * (x**b) + c, ["a", "b", "c"]
-        elif "Logarithmic" in fit_type:
-            return lambda x, a, b: a * np.log(x) + b, ["a", "b"]
-        elif "Custom" in fit_type:
-            return self._create_custom_function()
-        else:
-            raise ValueError(f"Unknown fit type: {fit_type}")
-    
-    def _create_custom_function(self):
-        """Create a custom fitting function from user input."""
-        function_str = self.custom_function_edit.text().strip()
-        params_str = self.custom_params_edit.text().strip()
-        initial_str = self.initial_guess_edit.text().strip() #use as predefined values, not initial guess
 
-        if not function_str or not params_str:
-            raise ValueError("Custom function and parameters must be specified")
-
-        # Parse parameters
-        params = [p.strip() for p in params_str.split(",")]
-
-        # Parse initial values (fixed params)
-        fixed_params = {}
-        if initial_str:
-            for item in initial_str.split(","):
-                if "=" in item:
-                    key, val = item.split("=")
-                    fixed_params[key.strip()] = float(val)
-
-        # free parameters for fit
-        free_params = [p for p in params if p not in fixed_params]
-        
-        # Create function dynamically
-        def custom_func(x, *free_args):
-            local_vars = {"x": x, "np": np}
-            # Fill in predifined fixed values
-            for k, v in fixed_params.items():
-                local_vars[k] = v
-            # Fill in free values
-            for i, p in enumerate(free_params):
-                local_vars[p] = free_args[i]
-            return eval(function_str, {"__builtins__": {}}, local_vars)
-
-        return custom_func, free_params
-
-    def _perform_fit(self):
-        """Perform the curve fitting."""
-        if not SCIPY_AVAILABLE:
-            self.results_text.setPlainText("SciPy is required for curve fitting.")
-            return
-        
-        # Get data
-        data = self._get_current_data()
-        if data is None:
-            self.results_text.setPlainText("Please select valid data columns.")
-            return
-        
-        x_data, y_data = data
-        
-        if len(x_data) < 2:
-            self.results_text.setPlainText("At least 2 data points are required for fitting.")
-            return
-        
-        try:
-            # Get fit function
-            fit_type = self.fit_type_combo.currentText()
-            fit_func, param_names = self._get_fit_function(fit_type)
-
-            # Perform fit
-            popt, pcov = curve_fit(fit_func, x_data, y_data, p0=[1] * len(param_names))
-            
-            # Calculate errors
-            perr = np.sqrt(np.diag(pcov))
-            
-            # Calculate R-squared if requested
-            r_squared = None
-            if self.r_squared_check.isChecked():
-                y_pred = fit_func(x_data, *popt)
-                ss_res = np.sum((y_data - y_pred) ** 2)
-                y_data_np = np.asarray(y_data)
-                ss_tot = np.sum((y_data_np - np.mean(y_data_np)) ** 2)
-                r_squared = 1 - (ss_res / ss_tot)
-            
-            # Generate fit data for plotting
-            x_fit = np.linspace(x_data.min(), x_data.max(), self.fit_points_spin.value())
-            y_fit = fit_func(x_fit, *popt)
-            
-            # Store results
-            self.fit_results = {
-                'fit_type': fit_type,
-                'parameters': popt,
-                'errors': perr,
-                'param_names': param_names,
-                'r_squared': r_squared,
-                'x_fit': x_fit,
-                'y_fit': y_fit,
-                'x_data': x_data,
-                'y_data': y_data,
-                'covariance': pcov
-            }
-            
-            # Display results
-            self._display_results()
-            
-            # Enable apply button
-            self.apply_button.setEnabled(True)
-            
-            # Publish fit completed event
-            self.publish_event(FitEvents.FIT_COMPLETED, {
-                'fit_results': self.fit_results,
-                'chart_id': self.current_chart.id if self.current_chart else None,
-                'fit_type': self.fit_results.get('fit_type', 'Unknown')
-            })
-            
-        except Exception as e:
-            self.results_text.setPlainText(f"Fit failed: {str(e)}")
-            self.equation_label.setText("Fit failed")
-            self.apply_button.setEnabled(False)
     
     def _display_results(self):
         """Display the fitting results."""
-        if not self.fit_results:
+        if not self.fit_command.fit_results:
             return
         
-        results = self.fit_results
+        results = self.fit_command.fit_results
         fit_type = results['fit_type']
         popt = results['parameters']
         perr = results['errors']
@@ -504,7 +296,7 @@ class FitPanel(EventBusComponentMixin, QWidget):
         r_squared = results['r_squared']
         
         # Format equation
-        equation = self._format_equation(fit_type, popt)
+        equation = self.fit_command._format_equation(fit_type, popt)
         self.equation_label.setText(equation)
         
         # Format results text
@@ -522,39 +314,11 @@ class FitPanel(EventBusComponentMixin, QWidget):
         
         self.results_text.setPlainText(results_text)
     
-    def _format_equation(self, fit_type: str, params):
-        """Format the equation string."""
-        if "Linear" in fit_type:
-            a, b = params
-            return f"y = {a:.6g}x + {b:.6g}"
-        elif "Quadratic" in fit_type:
-            a, b, c = params
-            return f"y = {a:.6g}x² + {b:.6g}x + {c:.6g}"
-        elif "Exponential" in fit_type:
-            a, b, c = params
-            return f"y = {a:.6g}e^({b:.6g}x) + {c:.6g}"
-        elif "Power" in fit_type:
-            a, b, c = params
-            return f"y = {a:.6g}x^{b:.6g} + {c:.6g}"
-        elif "Logarithmic" in fit_type:
-            a, b = params
-            return f"y = {a:.6g}ln(x) + {b:.6g}"
-        elif "Custom" in fit_type:
-            function_str = self.custom_function_edit.text().strip()
-            params_str = self.custom_params_edit.text().strip()
-            param_names = [p.strip() for p in params_str.split(",")]
-            
-            # Substitute parameter values
-            equation = function_str
-            for name, value in zip(param_names, params):
-                equation = equation.replace(name, f"{value:.6g}")
-            return f"y = {equation}"
-        else:
-            return "Unknown equation"
+    
     
     def _apply_fit(self):
         """Apply the fit to the current chart."""
-        if self.fit_results:
+        if self.fit_command.fit_results:
             # Get the current dataset name and info
             dataset_name = self.dataset_combo.currentText()
             dataset_id = self.dataset_combo.currentData()
@@ -562,7 +326,7 @@ class FitPanel(EventBusComponentMixin, QWidget):
             y_column = self.y_column_combo.currentText()
             
             # Add source dataset info to fit results
-            enhanced_fit_results = self.fit_results.copy()
+            enhanced_fit_results = self.fit_command.fit_results.copy()
             enhanced_fit_results.update({
                 'source_dataset_id': dataset_id,
                 'source_x_column': x_column,
@@ -574,13 +338,13 @@ class FitPanel(EventBusComponentMixin, QWidget):
                 'fit_results': enhanced_fit_results,
                 'chart_id': self.current_chart.id if self.current_chart else None,
                 'chart': self.current_chart,
-                'fit_type': self.fit_results.get('fit_type', 'Unknown'),
+                'fit_type': self.fit_command.fit_results.get('fit_type', 'Unknown'),
                 'dataset_name': dataset_name
             })
     
     def _clear_results(self):
         """Clear the fit results."""
-        self.fit_results = None
+        self.fit_command.fit_results = None
         self.results_text.clear()
         self.equation_label.setText("No fit performed")
         self.apply_button.setEnabled(False)
