@@ -9,16 +9,18 @@ from pandaplot.models.project.items import Dataset
 
 class PerformFitCommand:
     def __init__(self, fit_panel):
+        self.fit_results = None
         self.fit_panel = fit_panel
         self.logger = logging.getLogger(__name__)
 
-    def _get_current_data(self):
+    def get_current_data(self):
         """Get the currently selected data."""
         dataset_id = self.fit_panel.dataset_combo.currentData()
         x_column = self.fit_panel.x_column_combo.currentText()
         y_column = self.fit_panel.y_column_combo.currentText()
 
         if not all([dataset_id, x_column, y_column]):
+            self.logger.warning("Missing dataset or columns")
             return None
 
         if self.fit_panel.current_project:
@@ -34,7 +36,7 @@ class PerformFitCommand:
 
         return None
 
-    def _on_tab_changed(self, event_data):
+    def on_tab_changed(self, event_data):
         """Handle tab change events to update context."""
         current_tab_type = event_data.get('tab_type')
         chart_id = event_data.get('chart_id')
@@ -71,7 +73,7 @@ class PerformFitCommand:
             self.fit_panel.load_chart_object(None)
             self.logger.debug("Fit panel context cleared")
 
-    def _on_dataset_changed(self):
+    def on_dataset_changed(self):
         """Handle dataset selection change."""
         dataset_id = self.fit_panel.dataset_combo.currentData()
         if dataset_id and self.fit_panel.current_project:
@@ -95,7 +97,7 @@ class PerformFitCommand:
                     self.fit_panel.x_column_combo.setCurrentIndex(0)
 
                 # Update data points display
-                self.fit_panel._update_data_points_display()
+                self.fit_panel.update_data_points_display()
 
 
 
@@ -115,6 +117,7 @@ class PerformFitCommand:
         elif "Custom" in fit_type:
             return self._create_custom_function()
         else:
+            self.logger.error("Unknown fit type: %s", fit_type)
             raise ValueError(f"Unknown fit type: {fit_type}")
 
     def _create_custom_function(self):
@@ -124,6 +127,7 @@ class PerformFitCommand:
         initial_str = self.fit_panel.initial_guess_edit.text().strip()  # use as predefined values, not initial guess
 
         if not function_str or not params_str:
+            self.logger.warning("Custom function or parameters not specified")
             raise ValueError("Custom function and parameters must be specified")
 
         # Parse parameters
@@ -153,14 +157,11 @@ class PerformFitCommand:
 
         return custom_func, free_params
 
-    def _perform_fit(self):
+    def perform_fit(self):
         """Perform the curve fitting."""
-        """if not SCIPY_AVAILABLE:
-            self.results_text.setPlainText("SciPy is required for curve fitting.")
-            return"""
 
         # Get data
-        data = self._get_current_data()
+        data = self.get_current_data()
         if data is None:
             self.fit_panel.results_text.setPlainText("Please select valid data columns.")
             return
@@ -210,7 +211,7 @@ class PerformFitCommand:
             }
 
             # Display results
-            self.fit_panel._display_results()
+            self.fit_panel.display_results()
 
             # Enable apply button
             self.fit_panel.apply_button.setEnabled(True)
@@ -223,11 +224,12 @@ class PerformFitCommand:
             })
 
         except Exception as e:
+            self.logger.error("Fit failed: %s", str(e), exc_info=True)
             self.fit_panel.results_text.setPlainText(f"Fit failed: {str(e)}")
             self.fit_panel.equation_label.setText("Fit failed")
             self.fit_panel.apply_button.setEnabled(False)
 
-    def _format_equation(self, fit_type: str, params):
+    def format_equation(self, fit_type: str, params):
         """Format the equation string."""
         if "Linear" in fit_type:
             a, b = params

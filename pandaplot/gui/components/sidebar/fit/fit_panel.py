@@ -12,6 +12,8 @@ from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import FitEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
+from pandaplot.models.state import AppContext
+from typing import Optional, override
 
 # Import scipy for curve fitting (will handle gracefully if not available)
 try:
@@ -27,8 +29,8 @@ class FitPanel(PWidget):
     fit_completed = Signal(dict)  # Emitted when fit is completed with results
     fit_applied = Signal(dict)   # Emitted when fit should be applied to chart
     
-    def __init__(self, app_context: AppContext, parent=None):
-        super().__init__(event_bus=app_context.event_bus, parent=parent)
+    def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
+        super().__init__(app_context=app_context, parent=parent)
         self.fit_command=PerformFitCommand(self)
         self.logger = logging.getLogger(__name__)
         self.app_context = app_context
@@ -231,15 +233,15 @@ class FitPanel(PWidget):
     
     def _connect_signals(self):
         """Connect widget signals."""
-        self.dataset_combo.currentTextChanged.connect(self.fit_command._on_dataset_changed)
+        self.dataset_combo.currentTextChanged.connect(self.fit_command.on_dataset_changed)
         self.fit_type_combo.currentTextChanged.connect(self._on_fit_type_changed)
-        self.fit_button.clicked.connect(self.fit_command._perform_fit)
+        self.fit_button.clicked.connect(self.fit_command.perform_fit)
         self.apply_button.clicked.connect(self._apply_fit)
         self.clear_button.clicked.connect(self._clear_results)
     
     def _setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
-        self.subscribe_to_event(UIEvents.TAB_CHANGED, self.fit_command._on_tab_changed)
+        self.subscribe_to_event(UIEvents.TAB_CHANGED, self.fit_command.on_tab_changed)
 
     def _show_scipy_warning(self):
         """Show warning if scipy is not available."""
@@ -270,7 +272,7 @@ class FitPanel(PWidget):
     
     def _update_data_points_display(self):
         """Update the data points display."""
-        current_data = self.fit_command._get_current_data()
+        current_data = self.fit_command.get_current_data()
         if current_data is not None:
             x_data, y_data = current_data
             self.data_points_label.setText(f"{len(x_data)} points")
@@ -286,7 +288,7 @@ class FitPanel(PWidget):
     
 
     
-    def _display_results(self):
+    def display_results(self):
         """Display the fitting results."""
         if not self.fit_command.fit_results:
             return
@@ -299,7 +301,7 @@ class FitPanel(PWidget):
         r_squared = results['r_squared']
         
         # Format equation
-        equation = self.fit_command._format_equation(fit_type, popt)
+        equation = self.fit_command.format_equation(fit_type, popt)
         self.equation_label.setText(equation)
         
         # Format results text
