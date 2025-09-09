@@ -6,3 +6,171 @@
   title: Create new project
   description: User can create a new project from the File menu
   status: pending
+
+- id: S002
+  title: Open existing project
+  description: User can open an existing project from the File menu
+  status: pending
+
+- id: S003
+  title: Save current project
+  description: User can save the current project to a file
+  status: pending
+
+- id: S004
+  title: Close project
+  description: User can close the current project and return to the welcome screen
+  status: pending 
+
+## Data Import and Export Scenarios
+
+- id: S005
+  title: Import data from CSV
+  description: User can import data from a CSV file
+  status: pending
+
+- id: S006
+  title: Export data to CSV
+  description: User can export data to a CSV file
+  status: pending
+
+- id: S009
+  title: Import data from JSON
+  description: User can import data from a JSON file
+  status: pending
+
+- id: S010
+  title: Export data to JSON
+  description: User can export data to a JSON file
+  status: pending
+
+## Data Visualization Scenarios
+
+- id: S011
+  title: Create scatter plot
+  description: User can create a scatter plot of two variables
+  status: pending
+
+- id: S012
+  title: Create line plot
+  description: User can create a line plot of a time series
+  status: pending
+
+- id: S013
+  title: Create bar chart
+  description: User can create a bar chart of categorical data
+  status: pending
+
+- id: S014
+  title: Create histogram
+  description: User can create a histogram of a numerical variable
+  status: pending 
+
+- id: S015
+  title: Create pie chart
+  description: User can create a pie chart of categorical data
+  status: pending
+
+- id: S016
+  title: Customize plot appearance
+  description: User can customize the appearance of plots (colors, labels, titles)  
+  status: pending
+
+- id: S017
+  title: Save plot as image
+  description: User can save the current plot as an image file (PNG, JPEG)
+  status: pending
+
+- id: S018
+  title: Export plot to PDF
+  description: User can export the current plot to a PDF file
+  status: pending 
+
+## Data Analysis Scenarios
+
+- id: S019
+  title: Perform linear regression
+  description: User can perform linear regression analysis on a dataset
+  status: pending
+
+- id: S020
+  title: Perform logistic regression
+  description: User can perform logistic regression analysis on a dataset
+  status: pending
+
+- id: S021
+  title: Perform clustering
+  description: User can perform clustering analysis on a dataset
+  status: pending
+
+- id: S022
+  title: Perform PCA
+  description: User can perform principal component analysis (PCA) on a dataset
+  status: pending 
+
+- id: S023
+  title: View analysis results
+  description: User can view the results of data analysis in a tabular format
+  status: pending
+
+- id: S024
+  title: Export analysis results
+  description: User can export the results of data analysis to a file (CSV, Excel)
+  status: pending 
+
+## User Interface Scenarios 
+- id: S025
+  title: Navigate application menus
+  description: User can navigate through the application menus to access different features
+  status: pending
+
+- id: S026
+  title: Use toolbar shortcuts
+  description: User can use toolbar shortcuts to quickly access common functions
+  status: pending
+
+- id: S027
+  title: Access help documentation
+  description: User can access help documentation from the Help menu
+  status: pending
+
+- id: S028
+  title: Change application settings
+  description: User can change application settings (theme, default file paths)
+  status: pending
+
+- id: S029
+  title: View application version
+  description: User can view the current version of the application from the About menu
+  status: pending 
+  
+  ## Performance and Reliability Scenarios
+- id: S030
+  title: Load large datasets
+  description: Application can load and handle large datasets without crashing
+  status: pending
+
+- id: S031
+  title: Save large projects    
+  description: Application can save large projects without crashing
+  status: pending
+
+- id: S032
+  title: Recover from errors
+  description: Application can recover gracefully from errors (e.g., file not found, invalid data format)
+  status: pending
+
+- id: S033
+  title: Auto-save project
+  description: Application can auto-save the current project at regular intervals
+  status: pending
+
+- id: S034
+  title: Backup project
+  description: Application can create backup copies of the current project
+  status: pending
+
+- id: S035
+  title: Restore from backup
+  description: User can restore the project from a backup copy
+  status: pending   
