@@ -177,6 +177,8 @@ class EditBatchCommand(Command):
                 self.start_row:self.end_row + 1, 
                 self.start_column:self.end_column + 1
             ] = self.old_data
+
+            #TODO: we should remove any added rows/columns if they are now extraneous
             
             self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, {
                 "start_index": (self.start_row, self.start_column),
