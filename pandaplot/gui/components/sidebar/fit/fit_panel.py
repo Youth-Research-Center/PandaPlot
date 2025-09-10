@@ -239,7 +239,7 @@ class FitPanel(PWidget):
         self.apply_button.clicked.connect(self._apply_fit)
         self.clear_button.clicked.connect(self._clear_results)
     
-    def _setup_event_subscriptions(self):
+    def setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self.fit_command.on_tab_changed)
 
@@ -270,7 +270,7 @@ class FitPanel(PWidget):
     
 
     
-    def _update_data_points_display(self):
+    def update_data_points_display(self):
         """Update the data points display."""
         current_data = self.fit_command.get_current_data()
         if current_data is not None:
@@ -379,3 +379,4 @@ class FitPanel(PWidget):
             
             # Update data points display
             self._update_data_points_display()
+
