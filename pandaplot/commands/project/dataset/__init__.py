@@ -9,5 +9,7 @@ from .add_row_command import AddRowCommand
 from .analysis_command import AnalysisCommand
 from .edit_command import EditCommand
 from .edit_batch_command import EditBatchCommand
+from .add_rows_batch_command import AddRowsBatchCommand
+from .add_columns_batch_command import AddColumnsBatchCommand
 
-__all__ = ['ImportCsvCommand', 'CreateEmptyDatasetCommand', 'AddColumnCommand', 'AddRowCommand', 'AnalysisCommand', 'EditCommand', 'EditBatchCommand']
+__all__ = ['ImportCsvCommand', 'CreateEmptyDatasetCommand', 'AddColumnCommand', 'AddRowCommand', 'AnalysisCommand', 'EditCommand', 'EditBatchCommand', 'AddRowsBatchCommand', 'AddColumnsBatchCommand']

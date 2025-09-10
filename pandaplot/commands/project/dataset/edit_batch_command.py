@@ -1,11 +1,12 @@
 from typing import List, Any, override
 from pandaplot.commands.base_command import Command
+from pandaplot.commands.project.dataset.add_rows_batch_command import AddRowsBatchCommand
+from pandaplot.commands.project.dataset.add_columns_batch_command import AddColumnsBatchCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
-from tests.commands.project import dataset
 
 
 class EditBatchCommand(Command):
@@ -88,23 +89,56 @@ class EditBatchCommand(Command):
             if self.end_row >= current_rows:
                 rows_to_add = self.end_row - current_rows + 1
                 self.logger.info(f"Need to add {rows_to_add} rows")
-                # TODO: Implement adding rows to accommodate new data
-                self.ui_controller.show_warning_message(
-                    "Batch Edit", 
-                    f"Data extends beyond current rows. Adding {rows_to_add} rows is not yet implemented."
+                
+                # Use AddRowsBatchCommand to add the required rows
+                add_rows_command = AddRowsBatchCommand(
+                    app_context=self.app_context,
+                    dataset_id=self.dataset_id,
+                    num_rows=rows_to_add,
+                    row_position=None  # Append at end
                 )
-                return False
+                
+                if not add_rows_command.execute():
+                    self.ui_controller.show_error_message(
+                        "Batch Edit", 
+                        f"Failed to add {rows_to_add} rows to accommodate new data."
+                    )
+                    return False
+                
+                self.logger.info(f"Successfully added {rows_to_add} rows")
+                # Refresh the dataset reference after adding rows
+                current_rows = len(self.dataset.data)
 
             # Check if we need to add columns
             if self.end_column >= current_cols:
                 cols_to_add = self.end_column - current_cols + 1
                 self.logger.info(f"Need to add {cols_to_add} columns")
-                # TODO: Implement adding columns to accommodate new data
-                self.ui_controller.show_warning_message(
-                    "Batch Edit", 
-                    f"Data extends beyond current columns. Adding {cols_to_add} columns is not yet implemented."
+                
+                # Generate column names for new columns
+                new_column_names = []
+                for i in range(cols_to_add):
+                    new_col_index = current_cols + i
+                    new_column_names.append(f"Column_{new_col_index}")
+                
+                # Use AddColumnsBatchCommand to add the required columns
+                add_columns_command = AddColumnsBatchCommand(
+                    app_context=self.app_context,
+                    dataset_id=self.dataset_id,
+                    column_names=new_column_names,
+                    default_values=[0] * cols_to_add,  # Default to 0 for new columns
+                    column_position=None  # Append at end
                 )
-                return False
+                
+                if not add_columns_command.execute():
+                    self.ui_controller.show_error_message(
+                        "Batch Edit", 
+                        f"Failed to add {cols_to_add} columns to accommodate new data."
+                    )
+                    return False
+                
+                self.logger.info(f"Successfully added {cols_to_add} columns")
+                # Refresh the dataset reference after adding columns
+                current_cols = len(self.dataset.data.columns)
 
             # Store original data for undo
             self.old_data = self.dataset.data.iloc[
