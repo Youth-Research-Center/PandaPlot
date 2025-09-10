@@ -1,6 +1,6 @@
 from typing import override
 
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QMessageBox, QWidget
 
 from pandaplot.commands.app.exit_command import ExitCommand
@@ -162,14 +162,20 @@ class MainMenu(PMenuBar):
         edit_menu = QMenu("Edit", self)
 
         # TODO: disable undo/redo when there are no actions to undo/redo
+        # self.undo_button.setEnabled(False)  # start disabled
+        # we need to listen to app event based on command executor
         undo_action = QAction("Undo", self)
+        undo_action.setShortcut(QKeySequence.StandardKey.Undo)
         undo_action.triggered.connect(
             lambda: self.app_context.get_command_executor().undo())
         edit_menu.addAction(undo_action)
 
+        
+
         redo_action = QAction("Redo", self)
         redo_action.triggered.connect(
             lambda: self.app_context.get_command_executor().redo())
+        redo_action.setShortcut(QKeySequence.StandardKey.Redo)
         edit_menu.addAction(redo_action)
         return edit_menu
 

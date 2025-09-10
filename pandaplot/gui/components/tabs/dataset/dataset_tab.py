@@ -1,24 +1,18 @@
 from typing import override
 
-import numpy as np
-import pandas as pd
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QModelIndex
 from PySide6.QtWidgets import (
-    QCheckBox,
     QFrame,
     QHBoxLayout,
-    QHeaderView,
-    QLabel,
-    QMessageBox,
     QPushButton,
-    QTableWidget,
-    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.gui.components.tabs.dataset.pandas_table_model import PandasTableModel
+from pandaplot.gui.components.tabs.dataset.dataset_table_view import DatasetTableView
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -32,10 +26,11 @@ class DatasetTab(PWidget):
     def __init__(self, app_context: AppContext, dataset: Dataset, parent: QWidget):
         super().__init__(app_context=app_context, parent=parent)
         self.dataset = dataset
-        self.original_data = None  # Store original data for comparison
-        self.is_editing_enabled = False  # Track editing state
-        self.has_unsaved_changes = False  # Track if data has been modified
-
+        
+        # Initialize the pandas table model and view
+        self.table_model = PandasTableModel(app_context, dataset, self)
+        self.table_view = DatasetTableView(app_context, self.table_model, self)
+        
         self.logger.debug("Initializing DatasetTab for dataset: %s (ID: %s)",
                           dataset.name, dataset.id)
 
@@ -78,63 +73,46 @@ class DatasetTab(PWidget):
             accent_hover = accent
             accent_pressed = accent
         
-        # Apply styling to save changes button
-        self.save_changes_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: #28a745;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 6px 12px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: #218838;
-            }}
-            QPushButton:pressed {{
-                background-color: #1e7e34;
-            }}
-            QPushButton:disabled {{
-                background-color: {secondary_fg};
-            }}
-        """)
+        # Apply styling to action buttons
+        for btn in [self.create_chart_btn, self.export_btn, self.add_column_btn, self.add_row_btn]:
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {accent};
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 6px 12px;
+                    font-weight: bold;
+                }}
+                QPushButton:hover {{
+                    background-color: {accent_hover};
+                }}
+                QPushButton:pressed {{
+                    background-color: {accent_pressed};
+                }}
+                QPushButton:disabled {{
+                    background-color: {secondary_fg};
+                }}
+            """)
         
-        # Apply styling to discard changes button
-        self.discard_changes_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #dc3545;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 6px 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #c82333;
-            }
-            QPushButton:pressed {
-                background-color: #bd2130;
-            }
-        """)
-        
-        # Apply styling to table widget
-        self.table_widget.setStyleSheet(f"""
-            QTableWidget {{
+        # Apply styling to table view
+        self.table_view.setStyleSheet(f"""
+            QTableView {{
                 background-color: {card_bg};
                 border: 1px solid {card_border};
                 selection-background-color: {card_hover};
                 gridline-color: {card_border};
                 color: {base_fg};
             }}
-            QTableWidget::item {{
+            QTableView::item {{
                 padding: 5px;
                 border-bottom: 1px solid {card_border};
             }}
-            QTableWidget::item:selected {{
+            QTableView::item:selected {{
                 background-color: {card_hover};
                 color: {accent};
             }}
-            QTableWidget::item:focus {{
+            QTableView::item:focus {{
                 border: 2px solid {accent};
                 background-color: {card_hover};
             }}
@@ -215,9 +193,6 @@ class DatasetTab(PWidget):
                 background-color: #545b62;
             }}
         """)
-        
-        # Update edit status label styling based on current state
-        self._update_edit_status_label_style()
 
     def on_dataset_column_added(self, event_data):
         """Handle when a column is added to any dataset."""
@@ -266,66 +241,11 @@ class DatasetTab(PWidget):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
 
-        # Data table section
-        self.create_data_table_section(main_layout)
+        # Add the table view directly - no edit mode toggle needed
+        main_layout.addWidget(self.table_view)
 
         # Actions section
         self.create_actions_section(main_layout)
-
-    def create_data_table_section(self, layout):
-        """Create the data table section with editing controls."""
-        # Control bar for table options
-        control_frame = QFrame()
-        control_layout = QHBoxLayout(control_frame)
-        control_layout.setContentsMargins(0, 0, 0, 5)
-
-        # Edit mode toggle
-        self.edit_mode_checkbox = QCheckBox("Enable Editing")
-        self.edit_mode_checkbox.stateChanged.connect(self.toggle_edit_mode)
-        control_layout.addWidget(self.edit_mode_checkbox)
-
-        # Status label
-        self.edit_status_label = QLabel("Read-only mode")
-        control_layout.addWidget(self.edit_status_label)
-
-        # Spacer
-        control_layout.addStretch()
-
-        # Save changes button (initially hidden)
-        self.save_changes_btn = QPushButton("💾 Save Changes")
-        self.save_changes_btn.clicked.connect(self.save_changes)
-        self.save_changes_btn.setVisible(False)
-        control_layout.addWidget(self.save_changes_btn)
-
-        # Discard changes button (initially hidden)
-        self.discard_changes_btn = QPushButton("↶ Discard Changes")
-        self.discard_changes_btn.clicked.connect(self.discard_changes)
-        self.discard_changes_btn.setVisible(False)
-        control_layout.addWidget(self.discard_changes_btn)
-
-        layout.addWidget(control_frame)
-
-        # Table widget
-        self.table_widget = QTableWidget()
-        self.table_widget.setAlternatingRowColors(True)
-
-        # Configure table properties
-        self.table_widget.setSortingEnabled(True)
-        self.table_widget.setSelectionBehavior(
-            QTableWidget.SelectionBehavior.SelectItems)
-        self.table_widget.itemChanged.connect(self.on_item_changed)
-
-        # Configure headers to resize
-        horizontal_header = self.table_widget.horizontalHeader()
-        horizontal_header.setSectionResizeMode(
-            QHeaderView.ResizeMode.Interactive)
-        horizontal_header.setStretchLastSection(True)
-
-        vertical_header = self.table_widget.verticalHeader()
-        vertical_header.setSectionResizeMode(
-            QHeaderView.ResizeMode.ResizeToContents)
-
-        layout.addWidget(self.table_widget)
 
     def create_actions_section(self, layout):
         """Create action buttons section."""
@@ -358,336 +278,54 @@ class DatasetTab(PWidget):
 
         layout.addWidget(actions_frame)
 
-    def _update_edit_status_label_style(self):
-        """Update edit status label styling based on current status and theme."""
-        theme_manager = self.app_context.get_theme_manager()
-        palette = theme_manager.get_surface_palette()
-        secondary_fg = palette.get('secondary_fg', '#555555')
-        
-        status_text = self.edit_status_label.text()
-        
-        # Determine color and style based on status
-        if "Unsaved changes" in status_text or "⚠️" in status_text:
-            color = "#dc3545"  # Error red
-            style = "font-weight: bold;"
-        elif "Changes saved" in status_text or "✅" in status_text or "Changes discarded" in status_text:
-            color = "#28a745"  # Success green
-            style = "font-weight: bold;"
-        elif "Edit mode" in status_text:
-            color = "#28a745"  # Success green
-            style = "font-weight: bold;"
-        else:  # Read-only mode and other default states
-            color = secondary_fg
-            style = "font-style: italic;"
-            
-        self.edit_status_label.setStyleSheet(f"color: {color}; font-size: 12px; {style}")
+    # Signal handlers for the new table view
+    def _on_table_data_changed(self):
+        """Handle when table data changes."""
+        self.logger.debug("Table data changed in dataset: %s", self.dataset.name)
+        # Data is automatically saved in the model, so we just need to publish events
+        self.publish_event(DatasetEvents.DATASET_DATA_CHANGED, {
+            'dataset_id': self.dataset.id,
+            'dataset_name': self.dataset.name,
+            'operation': 'data_changed'
+        })
+
+    def _on_editing_started(self, index: "QModelIndex"):
+        """Handle when cell editing starts."""
+        self.logger.debug("Editing started at row %d, col %d", index.row(), index.column())
+
+    def _on_editing_finished(self, index: "QModelIndex"):
+        """Handle when cell editing finishes."""
+        self.logger.debug("Editing finished at row %d, col %d", index.row(), index.column())
+
+
 
     def load_dataset_data(self):
-        """Load and display the dataset data."""
+        """Load and display the dataset data in the table view."""
         self.logger.debug("Loading dataset data for: %s",
                           self.dataset.name if self.dataset else 'None')
-        try:
-            # Get the pandas DataFrame from the dataset
-            df = self.dataset.data
-            self.logger.debug("Dataset data shape: %s",
-                              df.shape if df is not None else 'None')
-
-            if df is None or df.empty:
-                self.logger.info(
-                    "Dataset '%s' has no data to display", self.dataset.name)
-                return
-
-            # Store original data for comparison and reset functionality
-            self.original_data = df.copy()
-
-            # Update info label
+        
+        # The PandasTableModel automatically handles data loading when dataset is set
+        # Log the data shape for debugging
+        df = self.dataset.data
+        if df is not None:
             rows, cols = df.shape
-            self.logger.debug("Updated info label for dataset '%s': %d rows × %d columns",
-                              self.dataset.name, rows, cols)
-
-            # Configure table dimensions
-            # Limit to first 1000 rows for performance
-            max_rows = min(rows, 1000)
-            self.table_widget.setRowCount(max_rows)
-            self.table_widget.setColumnCount(cols)
-
-            # Set column headers
-            column_names = list(df.columns)
-            self.logger.debug("Setting column headers for dataset '%s': %s",
-                              self.dataset.name, column_names)
-            self.table_widget.setHorizontalHeaderLabels(column_names)
-
-            # Temporarily disconnect itemChanged signal to avoid triggering during loading
-            self.table_widget.itemChanged.disconnect()
-
-            # Populate table data
-            data_errors = 0
-            for row in range(max_rows):
-                for col in range(cols):
-                    try:
-                        value = df.iloc[row, col]
-                        # Handle different data types
-                        if pd.isna(value):
-                            display_value = ""
-                        elif isinstance(value, (int, float)):
-                            display_value = str(value)
-                        else:
-                            display_value = str(value)
-
-                        item = QTableWidgetItem(display_value)
-                        # Set editable based on current edit mode
-                        if self.is_editing_enabled:
-                            item.setFlags(
-                                item.flags() | Qt.ItemFlag.ItemIsEditable)
-                        else:
-                            item.setFlags(item.flags() & ~
-                                          Qt.ItemFlag.ItemIsEditable)
-
-                        # Store original value as user data for change detection
-                        item.setData(Qt.ItemDataRole.UserRole, display_value)
-
-                        self.table_widget.setItem(row, col, item)
-                    except Exception as e:
-                        # Handle any data conversion issues
-                        data_errors += 1
-                        self.logger.warning("Data conversion error at row %d, col %d in dataset '%s': %s",
-                                            row, col, self.dataset.name, str(e))
-                        item = QTableWidgetItem(f"Error: {str(e)}")
-                        item.setFlags(item.flags() & ~
-                                      Qt.ItemFlag.ItemIsEditable)
-                        self.table_widget.setItem(row, col, item)
-
-            if data_errors > 0:
-                self.logger.warning("Dataset '%s' had %d data conversion errors during loading",
-                                    self.dataset.name, data_errors)
-
-            # Reconnect itemChanged signal
-            self.table_widget.itemChanged.connect(self.on_item_changed)
-
-            # Update info if we're showing limited rows
-            if rows > 1000:
-                self.logger.info("Dataset '%s': Displaying first 1,000 of %d rows for performance",
-                                 self.dataset.name, rows)
-
             self.logger.info("Successfully loaded dataset '%s' with %d rows and %d columns",
                              self.dataset.name, rows, cols)
-
-        except Exception as e:
-            error_msg = f"Failed to load dataset data: {str(e)}"
-            self.logger.error("Error loading dataset '%s': %s",
-                              self.dataset.name if self.dataset else 'Unknown', error_msg, exc_info=True)
-            # Show error to user
-            QMessageBox.critical(self, "Dataset Load Error", error_msg)
-
-            # Resize columns to content
-            self.table_widget.resizeColumnsToContents()
-
-    def toggle_edit_mode(self, state):
-        """Toggle between read-only and editable modes."""
-        self.is_editing_enabled = state == Qt.CheckState.Checked.value
-        self.logger.info(
-            "Toggling edit mode for dataset %s to %s",
-            self.dataset.id, 'ENABLED' if self.is_editing_enabled else 'DISABLED'
-        )
-
-        # Update all table items
-        for row in range(self.table_widget.rowCount()):
-            for col in range(self.table_widget.columnCount()):
-                item = self.table_widget.item(row, col)
-                if item:
-                    if self.is_editing_enabled:
-                        item.setFlags(
-                            item.flags() | Qt.ItemFlag.ItemIsEditable)
-                        item.setBackground(Qt.GlobalColor.white)
-                    else:
-                        item.setFlags(item.flags() & ~
-                                      Qt.ItemFlag.ItemIsEditable)
-                        item.setBackground(Qt.GlobalColor.transparent)
-
-        # Update status label
-        if self.is_editing_enabled:
-            self.edit_status_label.setText(
-                "Edit mode - Click any cell to modify")
         else:
-            self.edit_status_label.setText("Read-only mode")
-        
-        self._update_edit_status_label_style()
+            self.logger.info("Dataset '%s' has no data to display", self.dataset.name)
 
-        # Hide save/discard buttons if switching to read-only and no changes
-        if not self.is_editing_enabled and not self.has_unsaved_changes:
-            self.save_changes_btn.setVisible(False)
-            self.discard_changes_btn.setVisible(False)
 
-    def on_item_changed(self, item):
-        """Handle when a table item is changed."""
-        if not self.is_editing_enabled:
-            return
 
-        # Get original value
-        original_value = item.data(Qt.ItemDataRole.UserRole)
-        current_value = item.text()
 
-        # Check if the value actually changed
-        if current_value != original_value:
-            self.has_unsaved_changes = True
-            self.save_changes_btn.setVisible(True)
-            self.discard_changes_btn.setVisible(True)
-            self.edit_status_label.setText("⚠️ Unsaved changes")
-            self._update_edit_status_label_style()
 
-            # Mark changed item with different background
-            item.setBackground(Qt.GlobalColor.yellow)
 
-            # Publish data changed event
-            self.publish_event(DatasetOperationEvents.DATASET_ROW_UPDATED, {
-                'dataset_id': self.dataset.id,
-                'dataset_name': self.dataset.name,
-                'row_index': item.row(),
-                'column_index': item.column(),
-                'old_value': original_value,
-                'new_value': current_value
-            })
 
-    def save_changes(self):
-        """Save the current table data back to the dataset."""
-        try:
-            # Get current data from table
-            rows = self.table_widget.rowCount()
-            cols = self.table_widget.columnCount()
-
-            # Get column names
-            column_names = []
-            for col in range(cols):
-                header_item = self.table_widget.horizontalHeaderItem(col)
-                column_names.append(header_item.text()
-                                    if header_item else f"Column_{col}")
-
-            # Create new DataFrame with modified data
-            data_dict = {}
-            for col in range(cols):
-                column_data = []
-                column_name = column_names[col]
-
-                # Determine original column dtype
-                if self.original_data is not None and column_name in self.original_data.columns:
-                    original_dtype = self.original_data[column_name].dtype
-                else:
-                    original_dtype = 'object'  # Default to object type
-
-                for row in range(rows):
-                    item = self.table_widget.item(row, col)
-                    if item:
-                        cell_value = item.text()
-
-                        # Handle empty cells
-                        if cell_value == "":
-                            if pd.api.types.is_numeric_dtype(original_dtype):
-                                column_data.append(np.nan)
-                            else:
-                                column_data.append("")
-                        else:
-                            # Try to convert to original dtype
-                            try:
-                                if pd.api.types.is_integer_dtype(original_dtype):
-                                    column_data.append(int(float(cell_value)))
-                                elif pd.api.types.is_float_dtype(original_dtype):
-                                    column_data.append(float(cell_value))
-                                elif pd.api.types.is_bool_dtype(original_dtype):
-                                    column_data.append(cell_value.lower() in [
-                                                       'true', '1', 'yes'])
-                                else:
-                                    column_data.append(str(cell_value))
-                            except (ValueError, TypeError):
-                                # If conversion fails, store as string
-                                column_data.append(str(cell_value))
-                    else:
-                        column_data.append(
-                            np.nan if pd.api.types.is_numeric_dtype(original_dtype) else "")
-
-                data_dict[column_name] = column_data
-
-            # Create new DataFrame
-            modified_df = pd.DataFrame(data_dict)
-
-            # If we had more rows in original data (due to 1000 row limit), preserve them
-            if self.original_data is not None and len(self.original_data) > 1000:
-                # Keep the unchanged rows beyond 1000
-                unchanged_rows = self.original_data.iloc[1000:].copy()
-                modified_df = pd.concat(
-                    [modified_df, unchanged_rows], ignore_index=True)
-
-            # Update dataset
-            self.dataset.set_data(modified_df)
-
-            # Update original data reference
-            self.original_data = modified_df.copy()
-
-            # Reset change tracking
-            self.has_unsaved_changes = False
-            self.save_changes_btn.setVisible(False)
-            self.discard_changes_btn.setVisible(False)
-            self.edit_status_label.setText("✅ Changes saved")
-            self._update_edit_status_label_style()
-
-            # Reset item backgrounds and update user data
-            for row in range(rows):
-                for col in range(cols):
-                    item = self.table_widget.item(row, col)
-                    if item:
-                        item.setBackground(
-                            Qt.GlobalColor.white if self.is_editing_enabled else Qt.GlobalColor.transparent)
-                        item.setData(Qt.ItemDataRole.UserRole, item.text())
-
-            # Publish bulk update event
-            self.publish_event(DatasetOperationEvents.DATASET_BULK_UPDATE, {
-                'dataset_id': self.dataset.id,
-                'dataset_name': self.dataset.name,
-                'updated_rows': rows,
-                'updated_columns': cols,
-                'operation': 'save_changes'
-            })
-
-            # Show success message
-            QMessageBox.information(self, "Changes Saved",
-                                    f"Successfully saved changes to '{self.dataset.name}'")
-
-        except Exception as e:
-            self.logger.error(
-                "Error saving changes for dataset %s: %s", self.dataset.id, e, exc_info=True)
-            QMessageBox.critical(self, "Save Error",
-                                 f"Failed to save changes:\n{str(e)}")
-
-    def discard_changes(self):
-        """Discard all unsaved changes and reload original data."""
-        try:
-            # Ask for confirmation
-            reply = QMessageBox.question(self, "Discard Changes",
-                                         "Are you sure you want to discard all unsaved changes?",
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                         QMessageBox.StandardButton.No)
-
-            if reply == QMessageBox.StandardButton.Yes:
-                # Reload original data
-                self.load_dataset_data()
-
-                # Reset change tracking
-                self.has_unsaved_changes = False
-                self.save_changes_btn.setVisible(False)
-                self.discard_changes_btn.setVisible(False)
-                self.edit_status_label.setText(
-                    "Changes discarded" if self.is_editing_enabled else "Read-only mode")
-                self._update_edit_status_label_style()
-
-        except Exception as e:
-            self.logger.error(
-                "Failed to discard changes for dataset %s: %s", self.dataset.id, e, exc_info=True)
-            QMessageBox.critical(
-                self, "Error", f"Failed to discard changes:\n{str(e)}")
 
     def get_tab_title(self) -> str:
         """Get the title for this tab."""
         title = f"📊 {self.dataset.name}"
-        if self.has_unsaved_changes:
+        # Check if model has unsaved changes
+        if hasattr(self.table_model, 'has_changes') and self.table_model.has_changes():
             title += " *"  # Add asterisk to indicate unsaved changes
         return title
 
