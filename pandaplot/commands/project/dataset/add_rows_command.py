@@ -7,18 +7,19 @@ import pandas as pd
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_data import DatasetRowsAddedData, DatasetRowsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
 from pandaplot.models.state import AppState, AppContext
 from pandaplot.models.project.items import Dataset
 
 
-class AddRowsBatchCommand(Command):
+class AddRowsCommand(Command):
     """
     Command to add multiple rows to an existing dataset at a specified position.
     """
 
     def __init__(self, app_context: AppContext, dataset_id: str, num_rows: int, 
-                 row_position: Optional[int] = None, default_values: Optional[List[Any]] = None):
+                 row_position: int, default_values: Optional[List[Any]] = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -119,7 +120,7 @@ class AddRowsBatchCommand(Command):
             new_data = self.dataset.data.copy()
             new_rows_df = pd.DataFrame(new_rows_data)
             
-            if self.row_position is None or self.row_position >= len(new_data):
+            if self.row_position >= len(new_data):
                 # Append at end
                 new_data = pd.concat([new_data, new_rows_df], ignore_index=True)
                 self.inserted_at = len(self.dataset.data)  # Original length
@@ -138,14 +139,10 @@ class AddRowsBatchCommand(Command):
             self.dataset.set_data(new_data)
             
             # Emit event
-            self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_ADDED, {
-                'project': self.project,
-                'dataset_id': self.dataset_id,
-                'dataset_name': self.dataset.name,
-                'row_position': self.inserted_at,
-                'num_rows': self.num_rows,
-                'dataset_data': self.dataset.data
-            })
+            self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_ADDED, DatasetRowsAddedData(
+                dataset_id=self.dataset_id,
+                row_positions=list(range(self.inserted_at, self.inserted_at + self.num_rows))
+            ).to_dict())
 
             self.logger.info(f"Added {self.num_rows} rows at position {self.inserted_at} to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return True
@@ -159,20 +156,16 @@ class AddRowsBatchCommand(Command):
     def undo(self):
         """Undo the add rows command."""
         try:
-            if self.dataset and self.original_data is not None:
+            if self.dataset and self.original_data is not None and self.inserted_at is not None:
                 # Restore original data
                 self.dataset.set_data(self.original_data)
                 
                 # Emit event
-                self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_REMOVED, {
-                    'project': self.project,
-                    'dataset_id': self.dataset_id,
-                    'dataset_name': self.dataset.name,
-                    'row_position': self.inserted_at,
-                    'num_rows': self.num_rows,
-                    'dataset_data': self.dataset.data
-                })
-                
+                self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_REMOVED, DatasetRowsRemovedData(
+                    dataset_id=self.dataset_id,
+                    row_positions=list(range(self.inserted_at, self.inserted_at + self.num_rows))
+                ).to_dict())
+
                 self.logger.info(f"Undid adding {self.num_rows} rows at position {self.inserted_at} to dataset '{self.dataset.name}'")
                 return True
         except Exception as e:

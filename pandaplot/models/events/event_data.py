@@ -4,7 +4,7 @@ Only event types that are actually used (subscribed/emitted) have data classes.
 Unused event types are commented for future reference.
 """
 from dataclasses import dataclass, asdict, fields
-from typing import Any, Tuple, Type, TypeVar
+from typing import Any, List, Tuple, Type, TypeVar
 
 T = TypeVar("T", bound="EventData")
 
@@ -50,3 +50,23 @@ class DatasetDataChangedData(EventData):
     dataset_id: str
     start_index: Tuple[int, int]
     end_index: Tuple[int, int]
+
+@dataclass(frozen=True)
+class DatasetColumnsAddedData(EventData):
+    dataset_id: str
+    column_positions: List[int]
+
+@dataclass(frozen=True)
+class DatasetColumnsRemovedData(EventData):
+    dataset_id: str
+    column_positions: List[int]
+
+@dataclass(frozen=True)
+class DatasetRowsAddedData(EventData):
+    dataset_id: str
+    row_positions: List[int]
+
+@dataclass(frozen=True)
+class DatasetRowsRemovedData(EventData):
+    dataset_id: str
+    row_positions: List[int]

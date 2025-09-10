@@ -10,8 +10,8 @@ from PySide6.QtWidgets import QTableView, QApplication, QMenu
 from PySide6.QtGui import QKeySequence, QAction
 from PySide6.QtCore import Qt
 
-from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
-from pandaplot.commands.project.dataset.add_row_command import AddRowCommand
+from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCommand
+from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
 from pandaplot.commands.project.dataset.edit_batch_command import EditBatchCommand
 from pandaplot.commands.project.dataset.edit_command import EditCommand
 from pandaplot.gui.components.tabs.dataset.pandas_table_model import PandasTableModel
@@ -45,35 +45,35 @@ class CellContextMenu(QMenu):
             }
         """)
         
-        row = self.indexes[0].row()
-        col = self.indexes[0].column()
+        rows = [index.row() for index in self.indexes]
+        cols = [index.index().column() for index in self.indexes]
 
         add_row_action = QAction("Add row(s) below", self)
         add_row_action.triggered.connect(
-            lambda: self.app_context.command_executor.execute_command(AddRowCommand(self.app_context, self.dataset_id))
+            lambda: self.app_context.command_executor.execute_command(AddRowsCommand(self.app_context, self.dataset_id, num_rows=len(set(rows)), row_position=)
         )
         self.addAction(add_row_action)
 
         add_col_action = QAction("Add column(s) to the right", self)
         add_col_action.triggered.connect(
-            lambda: self.app_context.command_executor.execute_command(AddColumnCommand(self.app_context, self.dataset_id))
+            lambda: self.app_context.command_executor.execute_command(AddColumnsCommand(self.app_context, self.dataset_id))
         )
         self.addAction(add_col_action)
 
         self.addSeparator()
-        """
+        
         remove_rows_action = QAction("Delete selected rows", self)
         remove_rows_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(InsertRowCommand(model, row + 1))
         )
-        menu.addAction(remove_rows_action)
+        self.addAction(remove_rows_action)
 
         remove_cols_action = QAction("Delete selected columns", self)
         remove_cols_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(InsertRowCommand(model, row + 1))
         )
-        menu.addAction(remove_cols_action)
-        """
+        self.addAction(remove_cols_action)
+        
 
 class DatasetTableView(QTableView):
     """

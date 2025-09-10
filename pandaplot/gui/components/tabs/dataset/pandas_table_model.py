@@ -61,13 +61,28 @@ class PandasTableModel(QAbstractTableModel):
         self.dataChanged.emit(start_index, end_index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
 
     def on_add_column_event(self, event):
-        self.beginInsertColumns(QModelIndex(), len(self._dataset.data.columns)-1, len(self._dataset.data.columns)-1)
-        # TODO update so we know exactly which rows are added 
+        self.beginInsertColumns(QModelIndex(), len(self._dataset.data.columns), len(self._dataset.data.columns))
         self.endInsertColumns()
+
+    def on_remove_column_event(self, event):
+        self.beginRemoveColumns(QModelIndex(), col_index, col_index)
+        self.endRemoveColumns()
+
+    def on_add_row_event(self, event):
+        self.beginInsertRows(QModelIndex(), len(self._dataset.data), len(self._dataset.data))
+        self.endInsertRows()
+    
+    def on_remove_row_event(self, event):
+        row_index = event["row_position"]
+        self.beginRemoveRows(QModelIndex(), row_index, row_index)
+        self.endRemoveRows()
 
     def setup_event_subscriptions(self):
         self.app_context.event_bus.subscribe(DatasetEvents.DATASET_DATA_CHANGED, self.on_dataset_changed)
         self.app_context.event_bus.subscribe(DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_add_column_event)
+        self.app_context.event_bus.subscribe(DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_remove_column_event)
+        self.app_context.event_bus.subscribe(DatasetOperationEvents.DATASET_ROW_ADDED, self.on_add_row_event)
+        self.app_context.event_bus.subscribe(DatasetOperationEvents.DATASET_ROW_REMOVED, self.on_remove_row_event)
 
     def setData(self, index: QModelIndex, value: Any, role: int = Qt.ItemDataRole.EditRole) -> bool:
         """

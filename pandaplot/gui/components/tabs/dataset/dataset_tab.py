@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.gui.components.tabs.dataset.pandas_table_model import PandasTableModel
 from pandaplot.gui.components.tabs.dataset.dataset_table_view import DatasetTableView
@@ -74,7 +73,7 @@ class DatasetTab(PWidget):
             accent_pressed = accent
         
         # Apply styling to action buttons
-        for btn in [self.create_chart_btn, self.export_btn, self.add_column_btn, self.add_row_btn]:
+        for btn in [self.create_chart_btn, self.export_btn]:
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {accent};
@@ -159,40 +158,6 @@ class DatasetTab(PWidget):
                 background-color: #155724;
             }
         """)
-        
-        self.add_column_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #17a2b8;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #138496;
-            }
-            QPushButton:pressed {
-                background-color: #117a8b;
-            }
-        """)
-    
-        self.add_row_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {secondary_fg};
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 16px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: #5a6268;
-            }}
-            QPushButton:pressed {{
-                background-color: #545b62;
-            }}
-        """)
 
     def on_dataset_column_added(self, event_data):
         """Handle when a column is added to any dataset."""
@@ -262,16 +227,6 @@ class DatasetTab(PWidget):
         self.export_btn = QPushButton("💾 Export Data")
         self.export_btn.clicked.connect(self.export_data)
         actions_layout.addWidget(self.export_btn)
-
-        # Add column button
-        self.add_column_btn = QPushButton("➕ Add Column")
-        self.add_column_btn.clicked.connect(self.add_column_to_dataset)
-        actions_layout.addWidget(self.add_column_btn)
-
-        # Add row button
-        self.add_row_btn = QPushButton("➕ Add Row")
-        self.add_row_btn.clicked.connect(self.add_row_to_dataset)
-        actions_layout.addWidget(self.add_row_btn)
 
         # Add stretch to push buttons to the left
         actions_layout.addStretch()
@@ -358,37 +313,3 @@ class DatasetTab(PWidget):
             "Export data requested for dataset %s (TODO not implemented)",
             self.dataset.id,
         )
-
-    def add_column_to_dataset(self):
-        """Add a new column to the dataset."""
-        if not self.app_context:
-            return
-
-        command = AddColumnCommand(self.app_context, self.dataset.id)
-        success = self.app_context.get_command_executor().execute_command(command)
-
-        if success:
-            # Reload the dataset data to show the new column
-            self.load_dataset_data()
-            self.logger.info("Added column to dataset %s", self.dataset.id)
-        else:
-            self.logger.error(
-                "Failed to add column to dataset %s", self.dataset.id)
-
-    def add_row_to_dataset(self):
-        """Add a new row to the dataset."""
-        if not self.app_context:
-            return
-
-        from pandaplot.commands.project.dataset.add_row_command import AddRowCommand
-
-        command = AddRowCommand(self.app_context, self.dataset.id)
-        success = self.app_context.get_command_executor().execute_command(command)
-
-        if success:
-            # Reload the dataset data to show the new row
-            self.load_dataset_data()
-            self.logger.info("Added row to dataset %s", self.dataset.id)
-        else:
-            self.logger.error(
-                "Failed to add row to dataset %s", self.dataset.id)

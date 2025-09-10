@@ -8,19 +8,20 @@ import numpy as np
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
 from pandaplot.models.state import AppState, AppContext
 from pandaplot.models.project.items import Dataset
 
 
-class AddColumnsBatchCommand(Command):
+class AddColumnsCommand(Command):
     """
     Command to add multiple columns to an existing dataset.
     """
 
     def __init__(self, app_context: AppContext, dataset_id: str, 
-                 column_names: List[str], default_values: Optional[List[Any]] = None,
-                 column_position: Optional[int] = None):
+                 column_names: List[str], column_position: int, default_values: Optional[List[Any]] = None,
+                 ):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -29,7 +30,7 @@ class AddColumnsBatchCommand(Command):
         self.dataset_id = dataset_id
         self.column_names = column_names
         self.default_values = default_values or []
-        self.column_position = column_position  # None means append at end
+        self.column_position = column_position
 
         # Store state for undo
         self.original_data = None
@@ -135,7 +136,7 @@ class AddColumnsBatchCommand(Command):
                     new_columns_data[column_name] = pd.Series([str(default_value)] * num_rows, name=column_name)
             
             # Determine where to insert the columns
-            if self.column_position is None or self.column_position >= len(new_data.columns):
+            if self.column_position >= len(new_data.columns):
                 # Append at end
                 for column_name, column_data in new_columns_data.items():
                     new_data[column_name] = column_data
@@ -165,15 +166,10 @@ class AddColumnsBatchCommand(Command):
             self.dataset.set_data(new_data)
             
             # Emit event
-            self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_COLUMN_ADDED, {
-                'project': self.project,
-                'dataset_id': self.dataset_id,
-                'dataset_name': self.dataset.name,
-                'column_names': self.column_names,
-                'column_position': self.column_position,
-                'default_values': self.default_values,
-                'dataset_data': self.dataset.data
-            })
+            self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_COLUMN_ADDED, DatasetColumnsAddedData(
+                dataset_id=self.dataset_id,
+                column_positions=list(range(self.column_position, self.column_position + len(self.inserted_columns)))
+            ).to_dict())
 
             self.logger.info(f"Added {len(self.column_names)} columns to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return True
@@ -192,14 +188,11 @@ class AddColumnsBatchCommand(Command):
                 self.dataset.set_data(self.original_data)
                 
                 # Emit event
-                self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_COLUMN_REMOVED, {
-                    'project': self.project,
-                    'dataset_id': self.dataset_id,
-                    'dataset_name': self.dataset.name,
-                    'column_names': self.column_names,
-                    'dataset_data': self.dataset.data
-                })
-                
+                self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_COLUMN_REMOVED, DatasetColumnsRemovedData(
+                    dataset_id=self.dataset_id,
+                    column_positions=list(range(self.column_position, self.column_position + len(self.column_names)))
+                ).to_dict())
+
                 self.logger.info(f"Undid adding {len(self.column_names)} columns to dataset '{self.dataset.name}'")
                 return True
         except Exception as e:

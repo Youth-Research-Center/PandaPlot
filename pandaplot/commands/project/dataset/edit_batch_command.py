@@ -1,7 +1,7 @@
 from typing import List, Any, override
 from pandaplot.commands.base_command import Command
-from pandaplot.commands.project.dataset.add_rows_batch_command import AddRowsBatchCommand
-from pandaplot.commands.project.dataset.add_columns_batch_command import AddColumnsBatchCommand
+from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
+from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -91,11 +91,11 @@ class EditBatchCommand(Command):
                 self.logger.info(f"Need to add {rows_to_add} rows")
                 
                 # Use AddRowsBatchCommand to add the required rows
-                add_rows_command = AddRowsBatchCommand(
+                add_rows_command = AddRowsCommand(
                     app_context=self.app_context,
                     dataset_id=self.dataset_id,
                     num_rows=rows_to_add,
-                    row_position=None  # Append at end
+                    row_position=len(self.dataset.data)  # Append at end
                 )
                 
                 if not add_rows_command.execute():
@@ -119,14 +119,14 @@ class EditBatchCommand(Command):
                 for i in range(cols_to_add):
                     new_col_index = current_cols + i
                     new_column_names.append(f"Column_{new_col_index}")
-                
-                # Use AddColumnsBatchCommand to add the required columns
-                add_columns_command = AddColumnsBatchCommand(
+
+                # Use AddColumnsCommand to add the required columns
+                add_columns_command = AddColumnsCommand(
                     app_context=self.app_context,
                     dataset_id=self.dataset_id,
                     column_names=new_column_names,
                     default_values=[0] * cols_to_add,  # Default to 0 for new columns
-                    column_position=None  # Append at end
+                    column_position=len(self.dataset.data.columns)  # Append at end
                 )
                 
                 if not add_columns_command.execute():
