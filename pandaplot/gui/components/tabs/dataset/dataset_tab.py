@@ -314,19 +314,9 @@ class DatasetTab(PWidget):
         else:
             self.logger.info("Dataset '%s' has no data to display", self.dataset.name)
 
-
-
-
-
-
-
-
     def get_tab_title(self) -> str:
         """Get the title for this tab."""
         title = f"📊 {self.dataset.name}"
-        # Check if model has unsaved changes
-        if hasattr(self.table_model, 'has_changes') and self.table_model.has_changes():
-            title += " *"  # Add asterisk to indicate unsaved changes
         return title
 
     def create_chart_from_data(self):

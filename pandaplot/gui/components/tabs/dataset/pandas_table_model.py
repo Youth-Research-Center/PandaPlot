@@ -56,8 +56,9 @@ class PandasTableModel(QAbstractTableModel):
     
     def on_dataset_changed(self, event):
         self.logger.info("On dataset changed")
-        index = self.index(event["index"][0], event["index"][1])
-        self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
+        start_index = self.index(event["start_index"][0], event["start_index"][1])
+        end_index = self.index(event["end_index"][0], event["end_index"][1])
+        self.dataChanged.emit(start_index, end_index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
 
     def on_add_column_event(self, event):
         self.beginInsertColumns(QModelIndex(), len(self._dataset.data.columns)-1, len(self._dataset.data.columns)-1)

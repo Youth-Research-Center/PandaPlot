@@ -4,7 +4,7 @@ Only event types that are actually used (subscribed/emitted) have data classes.
 Unused event types are commented for future reference.
 """
 from dataclasses import dataclass, asdict, fields
-from typing import Any, Type, TypeVar
+from typing import Any, Tuple, Type, TypeVar
 
 T = TypeVar("T", bound="EventData")
 
@@ -44,3 +44,9 @@ class TabOpenRequestedData(EventData):
     # TODO: we need project id ideally
     item_id: str
     item_name: str
+
+@dataclass(frozen=True)
+class DatasetDataChangedData(EventData):
+    dataset_id: str
+    start_index: Tuple[int, int]
+    end_index: Tuple[int, int]

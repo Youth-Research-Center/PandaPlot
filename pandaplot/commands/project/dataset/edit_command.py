@@ -1,6 +1,8 @@
+from tracemalloc import start
 from typing import Tuple, override
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -59,8 +61,12 @@ class EditCommand(Command):
                 return False
             
             self.dataset.data.iloc[self.index[0], self.index[1]] = self.new_value
-            self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, {"index": self.index, "new_value": self.new_value, "old_value": self.old_value})
-
+            self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, DatasetDataChangedData(
+                    dataset_id=self.dataset_id,
+                    start_index=(self.index[0], self.index[1]),
+                    end_index=(self.index[0], self.index[1])
+                ).to_dict())
+            return True
         except Exception as e:
             error_msg = f"Failed to edit cell at index: {self.index} {str(e)}"
             self.logger.error(error_msg)
@@ -69,9 +75,17 @@ class EditCommand(Command):
 
     def undo(self):
         self.dataset.data.iloc[self.index[0], self.index[1]] = self.old_value
-        self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, {"index": self.index, "new_value": self.old_value, "old_value": self.new_value})
+        self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, DatasetDataChangedData(
+                    dataset_id=self.dataset_id,
+                    start_index=(self.index[0], self.index[1]),
+                    end_index=(self.index[0], self.index[1])
+                ).to_dict())
     
     def redo(self):
         self.dataset.data.iloc[self.index[0], self.index[1]] = self.new_value
-        self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, {"index": self.index, "new_value": self.new_value, "old_value": self.old_value})
+        self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, DatasetDataChangedData(
+                    dataset_id=self.dataset_id,
+                    start_index=(self.index[0], self.index[1]),
+                    end_index=(self.index[0], self.index[1])
+                ).to_dict())
         

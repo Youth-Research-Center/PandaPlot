@@ -9,10 +9,10 @@ import logging
 from PySide6.QtWidgets import QTableView, QApplication, QMenu
 from PySide6.QtGui import QKeySequence, QAction
 from PySide6.QtCore import Qt
-from matplotlib.table import Cell
 
 from pandaplot.commands.project.dataset.add_column_command import AddColumnCommand
 from pandaplot.commands.project.dataset.add_row_command import AddRowCommand
+from pandaplot.commands.project.dataset.edit_batch_command import EditBatchCommand
 from pandaplot.commands.project.dataset.edit_command import EditCommand
 from pandaplot.gui.components.tabs.dataset.pandas_table_model import PandasTableModel
 from pandaplot.models.state.app_context import AppContext
@@ -136,18 +136,27 @@ class DatasetTableView(QTableView):
         start_row = selection[0].row()
         start_col = selection[0].column()
         rows = clipboard.split("\n")
-        # TODO: make a command for this to avoid multiple undo steps and event emissions
+
+
+        new_data = []
         for i, row in enumerate(rows):
             if not row.strip():
                 continue
             cols = row.split("\t")
+            new_row = []
             for j, value in enumerate(cols):
                 idx = self._model.index(start_row + i, start_col + j)
-                if idx.isValid():
-                    old_value = self._model._dataset.data.iloc[idx.row(), idx.column()]
-                    new_value = convert_value(value, self._model._dataset.data.dtypes.iloc[idx.column()])
-                    command = EditCommand(self.app_context, self._model._dataset.id, (idx.row(), idx.column(),), old_value, new_value)
-                    self.app_context.command_executor.execute_command(command)
+                new_value = convert_value(value, self._model._dataset.data.dtypes.iloc[idx.column()]) if idx.isValid() else value
+                new_row.append(new_value)
+            new_data.append(new_row)
+
+        self.app_context.command_executor.execute_command(EditBatchCommand(
+            app_context=self.app_context, 
+            dataset_id=self._model._dataset.id,
+            start_row=start_row,
+            start_column=start_col,
+            new_data=new_data
+        ))
 
     def openMenu(self, position):
         indexes = self.selectionModel().selectedIndexes()
