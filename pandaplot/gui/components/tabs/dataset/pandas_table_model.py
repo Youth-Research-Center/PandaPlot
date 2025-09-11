@@ -10,6 +10,7 @@ from typing import Any, override
 import pandas as pd
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
+from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData, DatasetRowsAddedData, DatasetRowsRemovedData
 from pandaplot.models.events.event_types import DatasetEvents, DatasetOperationEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -61,20 +62,28 @@ class PandasTableModel(QAbstractTableModel):
         self.dataChanged.emit(start_index, end_index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
 
     def on_add_column_event(self, event):
-        self.beginInsertColumns(QModelIndex(), len(self._dataset.data.columns), len(self._dataset.data.columns))
+        event_data = DatasetColumnsAddedData.from_dict(event)
+        positions = event_data.column_positions
+        self.beginInsertColumns(QModelIndex(), min(positions), max(positions))
         self.endInsertColumns()
 
     def on_remove_column_event(self, event):
-        self.beginRemoveColumns(QModelIndex(), col_index, col_index)
+        event_data = DatasetColumnsRemovedData.from_dict(event)
+        positions = event_data.column_positions
+        self.beginRemoveColumns(QModelIndex(), min(positions), max(positions))
+
         self.endRemoveColumns()
 
     def on_add_row_event(self, event):
-        self.beginInsertRows(QModelIndex(), len(self._dataset.data), len(self._dataset.data))
+        event_data = DatasetRowsAddedData.from_dict(event)
+        positions = event_data.row_positions
+        self.beginInsertRows(QModelIndex(), min(positions), max(positions))
         self.endInsertRows()
     
     def on_remove_row_event(self, event):
-        row_index = event["row_position"]
-        self.beginRemoveRows(QModelIndex(), row_index, row_index)
+        event_data = DatasetRowsRemovedData.from_dict(event)
+        positions = event_data.row_positions
+        self.beginRemoveRows(QModelIndex(), min(positions), max(positions))
         self.endRemoveRows()
 
     def setup_event_subscriptions(self):

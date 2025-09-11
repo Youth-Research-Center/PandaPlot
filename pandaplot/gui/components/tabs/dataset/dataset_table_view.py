@@ -9,11 +9,13 @@ import logging
 from PySide6.QtWidgets import QTableView, QApplication, QMenu
 from PySide6.QtGui import QKeySequence, QAction
 from PySide6.QtCore import Qt
+from random import random
 
 from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCommand
 from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
+from pandaplot.commands.project.dataset.delete_columns_command import DeleteColumnsCommand
+from pandaplot.commands.project.dataset.delete_rows_command import DeleteRowsCommand
 from pandaplot.commands.project.dataset.edit_batch_command import EditBatchCommand
-from pandaplot.commands.project.dataset.edit_command import EditCommand
 from pandaplot.gui.components.tabs.dataset.pandas_table_model import PandasTableModel
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.utils.pandas import convert_value
@@ -44,19 +46,30 @@ class CellContextMenu(QMenu):
                 color: black;
             }
         """)
-        
-        rows = [index.row() for index in self.indexes]
-        cols = [index.index().column() for index in self.indexes]
 
+        rows = list(set(index.row() for index in self.indexes))
+        cols = list(set(index.column() for index in self.indexes))
+        rows.sort()
+        cols.sort()
+        
         add_row_action = QAction("Add row(s) below", self)
         add_row_action.triggered.connect(
-            lambda: self.app_context.command_executor.execute_command(AddRowsCommand(self.app_context, self.dataset_id, num_rows=len(set(rows)), row_position=)
+            lambda: self.app_context.command_executor.execute_command(AddRowsCommand(
+                self.app_context, 
+                self.dataset_id, 
+                [row + 1 for row in rows]  # Insert after each selected row
+            ))
         )
         self.addAction(add_row_action)
 
         add_col_action = QAction("Add column(s) to the right", self)
         add_col_action.triggered.connect(
-            lambda: self.app_context.command_executor.execute_command(AddColumnsCommand(self.app_context, self.dataset_id))
+            lambda: self.app_context.command_executor.execute_command(AddColumnsCommand(
+                self.app_context, 
+                self.dataset_id, 
+                column_names=[f"Column_{col+1}_{random()}" for col in cols], 
+                column_positions=[col + 1 for col in cols]  # Insert after each selected column
+            ))
         )
         self.addAction(add_col_action)
 
@@ -64,13 +77,13 @@ class CellContextMenu(QMenu):
         
         remove_rows_action = QAction("Delete selected rows", self)
         remove_rows_action.triggered.connect(
-            lambda: self.app_context.command_executor.execute_command(InsertRowCommand(model, row + 1))
+            lambda: self.app_context.command_executor.execute_command(DeleteRowsCommand(self.app_context, self.dataset_id, rows))
         )
         self.addAction(remove_rows_action)
 
         remove_cols_action = QAction("Delete selected columns", self)
         remove_cols_action.triggered.connect(
-            lambda: self.app_context.command_executor.execute_command(InsertRowCommand(model, row + 1))
+            lambda: self.app_context.command_executor.execute_command(DeleteColumnsCommand(self.app_context, self.dataset_id, cols))
         )
         self.addAction(remove_cols_action)
         

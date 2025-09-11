@@ -94,8 +94,7 @@ class EditBatchCommand(Command):
                 add_rows_command = AddRowsCommand(
                     app_context=self.app_context,
                     dataset_id=self.dataset_id,
-                    num_rows=rows_to_add,
-                    row_position=len(self.dataset.data)  # Append at end
+                    row_positions=[len(self.dataset.data) for _ in range(rows_to_add)]  # Append at end
                 )
                 
                 if not add_rows_command.execute():
@@ -126,7 +125,7 @@ class EditBatchCommand(Command):
                     dataset_id=self.dataset_id,
                     column_names=new_column_names,
                     default_values=[0] * cols_to_add,  # Default to 0 for new columns
-                    column_position=len(self.dataset.data.columns)  # Append at end
+                    column_positions=[len(self.dataset.data.columns)] * cols_to_add  # Append at end
                 )
                 
                 if not add_columns_command.execute():
