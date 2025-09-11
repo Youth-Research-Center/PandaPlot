@@ -22,6 +22,7 @@ class EditBatchCommand(Command):
         self.end_row = start_row + len(new_data) - 1
         self.end_column = start_column + len(new_data[0]) - 1 if new_data else start_column
         self.old_data = None  # Will store the original data for undo
+        self.executed_commands = []  # Track commands executed for expansion (for undo)
 
     @override
     def execute(self) -> bool:
@@ -90,11 +91,21 @@ class EditBatchCommand(Command):
                 rows_to_add = self.end_row - current_rows + 1
                 self.logger.info(f"Need to add {rows_to_add} rows")
                 
-                # Use AddRowsBatchCommand to add the required rows
+                # Use AddRowsCommand to add the required rows
+                if current_rows == 0:
+                    # Special case: empty dataset, we need to handle this differently
+                    # This shouldn't happen in practice since we validate data exists above
+                    self.ui_controller.show_error_message(
+                        "Batch Edit", 
+                        "Cannot add rows to completely empty dataset."
+                    )
+                    return False
+                
                 add_rows_command = AddRowsCommand(
                     app_context=self.app_context,
                     dataset_id=self.dataset_id,
-                    row_positions=[len(self.dataset.data) for _ in range(rows_to_add)]  # Append at end
+                    reference_positions=[current_rows - 1] * rows_to_add,  # Reference last row
+                    side='below'  # Insert below the last row
                 )
                 
                 if not add_rows_command.execute():
@@ -103,6 +114,9 @@ class EditBatchCommand(Command):
                         f"Failed to add {rows_to_add} rows to accommodate new data."
                     )
                     return False
+                
+                # Track the command for undo
+                self.executed_commands.append(add_rows_command)
                 
                 self.logger.info(f"Successfully added {rows_to_add} rows")
                 # Refresh the dataset reference after adding rows
@@ -120,12 +134,21 @@ class EditBatchCommand(Command):
                     new_column_names.append(f"Column_{new_col_index}")
 
                 # Use AddColumnsCommand to add the required columns
+                if current_cols == 0:
+                    # Special case: no columns, this shouldn't happen since we validate data exists above
+                    self.ui_controller.show_error_message(
+                        "Batch Edit", 
+                        "Cannot add columns to dataset without any columns."
+                    )
+                    return False
+                
                 add_columns_command = AddColumnsCommand(
                     app_context=self.app_context,
                     dataset_id=self.dataset_id,
                     column_names=new_column_names,
-                    default_values=[0] * cols_to_add,  # Default to 0 for new columns
-                    column_positions=[len(self.dataset.data.columns)] * cols_to_add  # Append at end
+                    reference_positions=[current_cols - 1] * cols_to_add,  # Reference last column
+                    side='right',  # Insert to the right of the last column
+                    default_values=[0] * cols_to_add  # Default to 0 for new columns
                 )
                 
                 if not add_columns_command.execute():
@@ -134,6 +157,9 @@ class EditBatchCommand(Command):
                         f"Failed to add {cols_to_add} columns to accommodate new data."
                     )
                     return False
+                
+                # Track the command for undo
+                self.executed_commands.append(add_columns_command)
                 
                 self.logger.info(f"Successfully added {cols_to_add} columns")
                 # Refresh the dataset reference after adding columns
@@ -170,15 +196,19 @@ class EditBatchCommand(Command):
             return False
 
     def undo(self):
-        """Restore the original data"""
+        """Restore the original data and undo any expansion commands"""
         if self.old_data is not None and self.dataset and self.dataset.data is not None:
             self.dataset.data.iloc[
                 self.start_row:self.end_row + 1, 
                 self.start_column:self.end_column + 1
             ] = self.old_data
 
-            #TODO: we should remove any added rows/columns if they are now extraneous
-            
+            for command in reversed(self.executed_commands):
+                try:
+                    command.undo()
+                except Exception as e:
+                    self.logger.error(f"Failed to undo expansion command: {e}")
+
             self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, {
                 "start_index": (self.start_row, self.start_column),
                 "end_index": (self.end_row, self.end_column),
@@ -188,6 +218,14 @@ class EditBatchCommand(Command):
     
     def redo(self):
         """Reapply the batch edit"""
+        # Re-execute any expansion commands first
+        for command in self.executed_commands:
+            try:
+                command.redo()
+            except Exception as e:
+                self.logger.error(f"Failed to redo expansion command: {e}")
+        
+        # Then reapply the cell changes
         if self.dataset and self.dataset.data is not None:
             for i, row_data in enumerate(self.new_data):
                 for j, value in enumerate(row_data):

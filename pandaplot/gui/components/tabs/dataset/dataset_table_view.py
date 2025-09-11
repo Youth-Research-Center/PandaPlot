@@ -52,26 +52,51 @@ class CellContextMenu(QMenu):
         rows.sort()
         cols.sort()
         
-        add_row_action = QAction("Add row(s) below", self)
-        add_row_action.triggered.connect(
+        add_row_below_action = QAction("Add row(s) below", self)
+        add_row_below_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddRowsCommand(
                 self.app_context, 
                 self.dataset_id, 
-                [row + 1 for row in rows]  # Insert after each selected row
+                reference_positions=rows,  # Reference the selected rows
+                side='below'  # Insert below selected rows
             ))
         )
-        self.addAction(add_row_action)
+        self.addAction(add_row_below_action)
 
-        add_col_action = QAction("Add column(s) to the right", self)
-        add_col_action.triggered.connect(
+        add_row_above_action = QAction("Add row(s) above", self)
+        add_row_above_action.triggered.connect(
+            lambda: self.app_context.command_executor.execute_command(AddRowsCommand(
+                self.app_context, 
+                self.dataset_id, 
+                reference_positions=rows,  # Reference the selected rows
+                side='above'  # Insert above selected rows
+            ))
+        )
+        self.addAction(add_row_above_action)
+
+        add_col_right_action = QAction("Add column(s) to the right", self)
+        add_col_right_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddColumnsCommand(
                 self.app_context, 
                 self.dataset_id, 
                 column_names=[f"Column_{col+1}_{random()}" for col in cols], 
-                column_positions=[col + 1 for col in cols]  # Insert after each selected column
+                reference_positions=cols,  # Reference the selected columns
+                side='right'  # Insert to the right of selected columns
             ))
         )
-        self.addAction(add_col_action)
+        self.addAction(add_col_right_action)
+
+        add_col_left_action = QAction("Add column(s) to the left", self)
+        add_col_left_action.triggered.connect(
+            lambda: self.app_context.command_executor.execute_command(AddColumnsCommand(
+                self.app_context, 
+                self.dataset_id, 
+                column_names=[f"Column_{col}_{random()}" for col in cols], 
+                reference_positions=cols,  # Reference the selected columns
+                side='left'  # Insert to the left of selected columns
+            ))
+        )
+        self.addAction(add_col_left_action)
 
         self.addSeparator()
         
