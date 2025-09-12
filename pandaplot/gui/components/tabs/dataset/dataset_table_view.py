@@ -55,10 +55,6 @@ class DatasetTableView(QTableView):
         self.horizontalHeader().setSelectionMode(QHeaderView.SelectionMode.ExtendedSelection)
         self.verticalHeader().setSelectionMode(QHeaderView.SelectionMode.ExtendedSelection)
         
-        # Connect header selection signals
-        self.horizontalHeader().sectionClicked.connect(self._on_column_header_clicked)
-        self.verticalHeader().sectionClicked.connect(self._on_row_header_clicked)
-        
         # Set up context menus for headers
         self.horizontalHeader().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.verticalHeader().setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -131,14 +127,6 @@ class DatasetTableView(QTableView):
             return
         self.menu = CellContextMenu(self.app_context, self, self._model._dataset.id, indexes)
         self.menu.exec(self.viewport().mapToGlobal(position))
-    
-    def _on_column_header_clicked(self, logical_index):
-        """Handle column header clicks to select entire columns."""
-        self.selectColumn(logical_index)
-    
-    def _on_row_header_clicked(self, logical_index):
-        """Handle row header clicks to select entire rows."""
-        self.selectRow(logical_index)
     
     def _on_column_header_context_menu(self, position):
         """Handle right-click context menu on column headers."""
