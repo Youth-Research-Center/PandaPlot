@@ -266,7 +266,6 @@ class TabContainer(PWidget):
             (ProjectEvents.PROJECT_CLOSED, lambda _: self.on_project_closed()),
 
             # Subscribe to dataset events
-            (DatasetEvents.DATASET_DATA_CHANGED, self.on_dataset_updated),
             (AnalysisEvents.ANALYSIS_COMPLETED, self.on_analysis_completed),
             (ChartEvents.CHART_CREATED, lambda event_data: self.open_tab(event_data.get('chart_id'))),
             (UIEvents.TAB_OPEN_REQUESTED, lambda event_data: self.open_tab(event_data.get('item_id'))),
@@ -313,15 +312,6 @@ class TabContainer(PWidget):
                 'type': 'other',
                 'id': id(widget)
             }
-
-    def on_dataset_updated(self, event_data):
-        """Handle dataset update events."""
-        dataset_id = event_data.get('dataset_id')
-        # Find and refresh the relevant dataset tab
-        for tab_id, tab_widget in self.tabs.items():
-            if hasattr(tab_widget, 'dataset') and tab_widget.dataset.id == dataset_id:
-                if hasattr(tab_widget, 'load_dataset_data'):
-                    tab_widget.load_dataset_data()  # Refresh without signal coupling
 
     def on_analysis_completed(self, event_data):
         """Handle analysis completion events."""

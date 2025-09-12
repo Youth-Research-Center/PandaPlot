@@ -73,14 +73,11 @@ class AppState:
         if self._current_project is not None:
             # TODO: add support for multiple projects
             old_project = self._current_project
-            old_file_path = self._project_file_path
             
             self._current_project = None
-            self._project_file_path = None
 
             self.event_bus.emit(ProjectEvents.PROJECT_CLOSED, {
-                'project': old_project,
-                'file_path': old_file_path
+                'project': old_project
             })
     
     def save_project(self, file_path: Optional[str] = None) -> bool:

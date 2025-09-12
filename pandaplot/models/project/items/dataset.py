@@ -21,7 +21,7 @@ class Dataset(Item):
         super().__init__(id, name)
         
         # Set dataset-specific attributes
-        self.data: Optional[pd.DataFrame] = data
+        self.data: pd.DataFrame = data if data is not None else pd.DataFrame()
         self.source_file: Optional[str] = source_file
     
     def set_data(self, data: pd.DataFrame) -> None:
