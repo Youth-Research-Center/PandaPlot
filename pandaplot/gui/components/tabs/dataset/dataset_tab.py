@@ -266,8 +266,36 @@ class DatasetTab(PWidget):
             rows, cols = df.shape
             self.logger.info("Successfully loaded dataset '%s' with %d rows and %d columns",
                              self.dataset.name, rows, cols)
+            
+            # Auto-resize columns to fit content optimally
+            self._auto_resize_columns()
         else:
             self.logger.info("Dataset '%s' has no data to display", self.dataset.name)
+
+    def _auto_resize_columns(self):
+        """Auto-resize columns to optimal width based on content and headers."""
+        if not self.table_view or not self.dataset or self.dataset.data is None:
+            return
+            
+        # Use ResizeToContents for optimal sizing that considers both headers and content
+        self.table_view.resizeColumnsToContents()
+        
+        # Set reasonable minimum and maximum column widths
+        header = self.table_view.horizontalHeader()
+        for column in range(self.table_view.model().columnCount()):
+            current_width = header.sectionSize(column)
+            
+            # Set minimum width to ensure header text is visible (especially with two-line headers)
+            min_width = 100  # Minimum width to show header content
+            
+            # Set maximum width to prevent extremely wide columns
+            max_width = 300  # Maximum width for readability
+            
+            # Apply constraints
+            optimal_width = max(min_width, min(current_width, max_width))
+            header.resizeSection(column, optimal_width)
+        
+        self.logger.debug("Auto-resized columns for dataset '%s'", self.dataset.name)
 
     def get_tab_title(self) -> str:
         """Get the title for this tab."""
