@@ -164,12 +164,14 @@ class PerformFitCommand:
         data = self.get_current_data()
         if data is None:
             self.fit_panel.results_text.setPlainText("Please select valid data columns.")
+            self.logger.debug("No valid data columns selected, get_current_data() returned None")
             return
 
         x_data, y_data = data
 
         if len(x_data) < 2:
             self.fit_panel.results_text.setPlainText("At least 2 data points are required for fitting.")
+            self.logger.debug("Received %d data points, at least 2 data points are required for fitting.", len(x_data))
             return
 
         try:

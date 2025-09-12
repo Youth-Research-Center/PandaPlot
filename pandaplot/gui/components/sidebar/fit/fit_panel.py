@@ -378,5 +378,5 @@ class FitPanel(PWidget):
                 self.y_column_combo.setCurrentIndex(y_index)
             
             # Update data points display
-            self._update_data_points_display()
+            self.update_data_points_display()
 
