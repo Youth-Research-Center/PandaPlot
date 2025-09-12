@@ -56,18 +56,21 @@ class PandasTableModel(QAbstractTableModel):
         return None
     
     def on_dataset_changed(self, event):
-        self.logger.info("On dataset changed")
+        self.logger.info("On dataset changed: start")
         start_index = self.index(event["start_index"][0], event["start_index"][1])
         end_index = self.index(event["end_index"][0], event["end_index"][1])
         self.dataChanged.emit(start_index, end_index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
+        self.logger.info("On dataset changed: end")
 
     def on_add_column_event(self, event):
+        self.logger.info("On add column event")
         event_data = DatasetColumnsAddedData.from_dict(event)
         positions = event_data.column_positions
         self.beginInsertColumns(QModelIndex(), min(positions), max(positions))
         self.endInsertColumns()
 
     def on_remove_column_event(self, event):
+        self.logger.info("On remove column event")
         event_data = DatasetColumnsRemovedData.from_dict(event)
         positions = event_data.column_positions
         self.beginRemoveColumns(QModelIndex(), min(positions), max(positions))
@@ -75,12 +78,14 @@ class PandasTableModel(QAbstractTableModel):
         self.endRemoveColumns()
 
     def on_add_row_event(self, event):
+        self.logger.info("On add row event")
         event_data = DatasetRowsAddedData.from_dict(event)
         positions = event_data.row_positions
         self.beginInsertRows(QModelIndex(), min(positions), max(positions))
         self.endInsertRows()
     
     def on_remove_row_event(self, event):
+        self.logger.info("On remove row event")
         event_data = DatasetRowsRemovedData.from_dict(event)
         positions = event_data.row_positions
         self.beginRemoveRows(QModelIndex(), min(positions), max(positions))

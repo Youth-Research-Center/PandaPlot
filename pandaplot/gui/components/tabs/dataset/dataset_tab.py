@@ -45,8 +45,6 @@ class DatasetTab(PWidget):
             DatasetOperationEvents.DATASET_ROW_ADDED, self.on_dataset_row_added)
         self.subscribe_to_event(
             DatasetOperationEvents.DATASET_BULK_UPDATE, self.on_dataset_bulk_update)
-        self.subscribe_to_event(
-            DatasetEvents.DATASET_DATA_CHANGED, self.on_dataset_data_changed)
 
     @override
     def _apply_theme(self):
@@ -190,14 +188,6 @@ class DatasetTab(PWidget):
                 "Bulk update event received for dataset %s", dataset_id)
             self.load_dataset_data()  # Refresh the table
 
-    def on_dataset_data_changed(self, event_data):
-        """Handle when dataset data changes."""
-        dataset_id = event_data.get('dataset_id')
-        if dataset_id == self.dataset.id:
-            self.logger.info(
-                "Dataset data changed event received for dataset %s", dataset_id)
-            self.load_dataset_data()  # Refresh the table
-
     @override
     def _init_ui(self):
         """Initialize the UI layout and components."""
@@ -232,17 +222,6 @@ class DatasetTab(PWidget):
         actions_layout.addStretch()
 
         layout.addWidget(actions_frame)
-
-    # Signal handlers for the new table view
-    def _on_table_data_changed(self):
-        """Handle when table data changes."""
-        self.logger.debug("Table data changed in dataset: %s", self.dataset.name)
-        # Data is automatically saved in the model, so we just need to publish events
-        self.publish_event(DatasetEvents.DATASET_DATA_CHANGED, {
-            'dataset_id': self.dataset.id,
-            'dataset_name': self.dataset.name,
-            'operation': 'data_changed'
-        })
 
     def _on_editing_started(self, index: "QModelIndex"):
         """Handle when cell editing starts."""
