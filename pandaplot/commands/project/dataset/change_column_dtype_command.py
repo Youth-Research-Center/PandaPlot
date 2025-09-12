@@ -1,6 +1,8 @@
-from typing import Union, override, Any, Dict
-import pandas as pd
+from typing import Any, Dict, Union, override
+
 import numpy as np
+import pandas as pd
+
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData

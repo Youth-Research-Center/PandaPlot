@@ -1,4 +1,5 @@
 from typing import List, Union, override
+
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData

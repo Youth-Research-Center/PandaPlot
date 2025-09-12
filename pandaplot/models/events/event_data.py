@@ -3,7 +3,7 @@ Event data classes for used event types in PandaPlot.
 Only event types that are actually used (subscribed/emitted) have data classes.
 Unused event types are commented for future reference.
 """
-from dataclasses import dataclass, asdict, fields
+from dataclasses import asdict, dataclass, fields
 from typing import Any, List, Tuple, Type, TypeVar
 
 T = TypeVar("T", bound="EventData")

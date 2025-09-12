@@ -11,7 +11,7 @@ from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
-from pandaplot.models.state import (AppState, AppContext)
+from pandaplot.models.state import AppContext, AppState
 
 
 class CreateEmptyDatasetCommand(Command):

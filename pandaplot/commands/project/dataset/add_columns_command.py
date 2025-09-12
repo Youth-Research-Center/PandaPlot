@@ -1,33 +1,18 @@
 """
 Command to add multiple columns to a dataset at once.
-
-This version supports adding columns relative to existing positions with intuitive semantics:
-- Insert columns to the left or right of specified reference positions
-- Handle multiple insertions efficiently without complex position calculations
-- Support both single and multiple column insertions
-
-Usage examples:
-
-# Insert single column to the right of position 1
-AddColumnsCommand(app_context, dataset_id, ['NewCol'], [1], side='right')
-
-# Insert multiple columns to the right of position 1 (they will be inserted consecutively)
-AddColumnsCommand(app_context, dataset_id, ['Col1', 'Col2'], [1, 1], side='right')
-
-# Insert columns to the left of different positions
-AddColumnsCommand(app_context, dataset_id, ['Col1', 'Col2'], [2, 5], side='left')
 """
 
-from typing import Optional, List, Any, Literal, override
 from enum import Enum
+from typing import Any, List, Literal, Optional, override
+
+import pandas as pd
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
-from pandaplot.models.state import AppState, AppContext
 from pandaplot.models.project.items import Dataset
-import pandas as pd
+from pandaplot.models.state import AppContext, AppState
 
 
 class InsertionSide(Enum):

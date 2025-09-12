@@ -9,10 +9,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pandaplot.gui.core.widget_extension import PWidget
-from pandaplot.gui.components.tabs.dataset.pandas_table_model import PandasTableModel
 from pandaplot.gui.components.tabs.dataset.dataset_table_view import DatasetTableView
-from pandaplot.models.events import DatasetEvents, DatasetOperationEvents
+from pandaplot.gui.components.tabs.dataset.pandas_table_model import PandasTableModel
+from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.models.events import DatasetOperationEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 
@@ -230,8 +230,6 @@ class DatasetTab(PWidget):
     def _on_editing_finished(self, index: "QModelIndex"):
         """Handle when cell editing finishes."""
         self.logger.debug("Editing finished at row %d, col %d", index.row(), index.column())
-
-
 
     def load_dataset_data(self):
         """Load and display the dataset data in the table view."""

@@ -1,7 +1,8 @@
-from typing import List, Any, override
+from typing import Any, List, override
+
 from pandaplot.commands.base_command import Command
-from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
 from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCommand
+from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents

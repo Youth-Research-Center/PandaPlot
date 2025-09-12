@@ -18,16 +18,17 @@ AddRowsCommand(app_context, dataset_id, [1, 2], ['Row1', 'Row2'], side='below')
 AddRowsCommand(app_context, dataset_id, [2, 5], ['Row1', 'Row2'], side='above')
 """
 
-from typing import List, Any, Literal, override
 from enum import Enum
+from typing import Any, List, Literal, override
+
+import pandas as pd
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetRowsAddedData, DatasetRowsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
-from pandaplot.models.state import AppState, AppContext
 from pandaplot.models.project.items import Dataset
-import pandas as pd
+from pandaplot.models.state import AppContext, AppState
 
 
 class InsertionSide(Enum):

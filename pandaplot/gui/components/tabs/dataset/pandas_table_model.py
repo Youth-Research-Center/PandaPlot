@@ -7,14 +7,14 @@ interfaces with pandas DataFrames for high-performance data display and editing.
 
 import logging
 from typing import Any, override
-import pandas as pd
+
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
+from pandaplot.commands.project.dataset.edit_command import EditCommand
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData, DatasetRowsAddedData, DatasetRowsRemovedData
 from pandaplot.models.events.event_types import DatasetEvents, DatasetOperationEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.commands.project.dataset.edit_command import EditCommand
 from pandaplot.utils.pandas import convert_value
 
 
@@ -125,8 +125,6 @@ class PandasTableModel(QAbstractTableModel):
         editCommand = EditCommand(self.app_context, self._dataset.id, (row, col,), self._dataset.data.iloc[row, col], converted_value)
         self.app_context.command_executor.execute_command(editCommand)
         return True
-    
-    
     
     def headerData(self, section: int, orientation: Qt.Orientation, 
                    role: int = Qt.ItemDataRole.DisplayRole) -> Any:
