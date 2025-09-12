@@ -111,11 +111,11 @@ class PandasTableModel(QAbstractTableModel):
             True if the data was set successfully
         """
         if not index.isValid():
-            print("DEBUG: setData failed - invalid index")
+            self.logger.debug("setData failed - invalid index")
             return False
             
         if role != Qt.ItemDataRole.EditRole:
-            print("DEBUG: setData failed - wrong role: {role}")
+            self.logger.debug("setData failed - wrong role: %s", role)
             return False
         
         row = index.row()
@@ -166,47 +166,3 @@ class PandasTableModel(QAbstractTableModel):
         return (Qt.ItemFlag.ItemIsSelectable | 
                 Qt.ItemFlag.ItemIsEnabled | 
                 Qt.ItemFlag.ItemIsEditable)
-    
-    def insertRow(self, row, row_data=None):
-        self.beginInsertRows(QModelIndex(), row, row)
-        if row_data is None:
-            empty = {col: [None] for col in self._df.columns}
-            new_row = pd.DataFrame(empty)
-        else:
-            new_row = pd.DataFrame([row_data])
-        self._df = pd.concat(
-            [self._df.iloc[:row], new_row, self._df.iloc[row:]]
-        ).reset_index(drop=True)
-        self.endInsertRows()
-
-    def insertColumn(self, col, name=None, series=None):
-        self.beginInsertColumns(QModelIndex(), col, col)
-        new_col_name = name or self._generate_new_colname()
-        if series is None:
-            self._df.insert(col, new_col_name, [None] * len(self._df))
-        else:
-            self._df.insert(col, new_col_name, series.values)
-        self.endInsertColumns()
-        return new_col_name
-
-    def removeRows(self, rows):
-        for row in sorted(rows, reverse=True):
-            self.beginRemoveRows(QModelIndex(), row, row)
-            self._df.drop(index=row, inplace=True)
-            self._df.reset_index(drop=True, inplace=True)
-            self.endRemoveRows()
-
-    def removeColumns(self, cols):
-        for col in sorted(cols, reverse=True):
-            self.beginRemoveColumns(QModelIndex(), col, col)
-            self._df.drop(self._df.columns[col], axis=1, inplace=True)
-            self.endRemoveColumns()
-
-    def _generate_new_colname(self):
-        base = "Novi stupac"
-        name = base
-        i = 1
-        while name in self._df.columns:
-            name = f"{base} {i}"
-            i += 1
-        return name
