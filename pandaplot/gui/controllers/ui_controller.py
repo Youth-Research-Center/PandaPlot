@@ -156,6 +156,52 @@ class UIController:
         text, ok = QInputDialog.getText(self.parent_widget, title, message, text=default_text)
         return text if ok else None
     
+
+    def show_export_dataset_dialog(self, dataset_name: str) -> Optional[tuple[str, str]]:
+        """
+        Show file dialog to export dataset with format selection.
+        
+        Args:
+            dataset_name (str): Name of the dataset being exported
+            
+        Returns:
+            tuple[str, str]: (file_path, selected_format) or None if cancelled
+        """
+        # Define supported formats with their filters
+        formats = {
+            'CSV (Comma Separated Values) (*.csv)': ('CSV (Comma Separated Values)', '.csv'),
+            'TSV (Tab Separated Values) (*.tsv)': ('TSV (Tab Separated Values)', '.tsv'),
+            'Excel Workbook (*.xlsx)': ('Excel Workbook', '.xlsx'),
+            'JSON (Records format) (*.json)': ('JSON (Records format)', '.json'),
+            'Parquet (*.parquet)': ('Parquet', '.parquet'),
+            'HTML Table (*.html)': ('HTML Table', '.html'),
+            'Pickle (pandas format) (*.pkl)': ('Pickle (pandas format)', '.pkl')
+        }
+        
+        # Create filter string
+        filter_parts = list(formats.keys())
+        all_filters = ";;".join(filter_parts)
+        
+        # Show save file dialog
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self.parent_widget,
+            f"Export {dataset_name}",
+            f"{dataset_name}.csv",  # Default to CSV
+            all_filters
+        )
+        
+        if file_path and selected_filter:
+            # Get the format name from the selected filter
+            format_name, extension = formats.get(selected_filter, ('CSV (Comma Separated Values)', '.csv'))
+            
+            # Ensure the file has the correct extension
+            if not file_path.lower().endswith(extension.lower()):
+                file_path += extension
+                
+            return file_path, format_name
+        
+        return None
+
     def set_parent_widget(self, parent_widget: QWidget):
         """Set the parent widget for dialogs."""
         self.parent_widget = parent_widget

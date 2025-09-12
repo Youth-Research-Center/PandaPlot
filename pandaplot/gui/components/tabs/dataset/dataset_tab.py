@@ -313,8 +313,23 @@ class DatasetTab(PWidget):
 
     def export_data(self):
         """Export the dataset to a file."""
-        # TODO: Implement data export functionality
+        if not self.app_context or not self.dataset:
+            return
+            
+        from pandaplot.commands.project.dataset.export_dataset_command import ExportDatasetCommand
+        
         self.logger.info(
-            "Export data requested for dataset %s (TODO not implemented)",
-            self.dataset.id,
+            "Export data requested for dataset %s", self.dataset.id
         )
+        
+        # Set the parent widget in UIController for proper dialog centering
+        self.app_context.get_ui_controller().set_parent_widget(self)
+        
+        # Execute the export command
+        export_command = ExportDatasetCommand(
+            self.app_context, 
+            self.dataset.id
+        )
+        
+        # Export command doesn't need undo
+        export_command.execute()
