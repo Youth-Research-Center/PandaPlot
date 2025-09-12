@@ -167,7 +167,7 @@ class AddColumnsCommand(Command):
                 return False
             
             # Insert columns using the new logic
-            new_data = self._insert_columns_with_new_logic()
+            new_data = self._insert_columns_with_new_logic(self.dataset.data)
             
             # Update dataset
             self.dataset.set_data(new_data)
@@ -187,7 +187,7 @@ class AddColumnsCommand(Command):
             self.ui_controller.show_error_message("Add Columns Error", error_msg)
             return False
 
-    def _insert_columns_with_new_logic(self) -> pd.DataFrame:
+    def _insert_columns_with_new_logic(self, data: pd.DataFrame) -> pd.DataFrame:
         """
         Insert columns using the new intuitive logic.
         
@@ -198,7 +198,7 @@ class AddColumnsCommand(Command):
             New DataFrame with columns inserted
         """
         # Start with a copy of the current data
-        result_data = self.dataset.data.copy()
+        result_data = data.copy()
         self.final_insertion_positions = []
         
         # Group consecutive positions

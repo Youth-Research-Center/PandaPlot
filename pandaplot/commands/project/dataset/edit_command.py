@@ -1,5 +1,5 @@
-from tracemalloc import start
 from typing import Tuple, override
+
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
