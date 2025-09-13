@@ -8,7 +8,7 @@ class PanelArea(QStackedWidget):
 
     def __init__(self, parent: QWidget):
         super().__init__(parent)
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         # Store panel names and their widgets
         self.panels: dict[str, QWidget] = {}
 

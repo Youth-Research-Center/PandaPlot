@@ -1,10 +1,9 @@
 import sys
 import traceback
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from PySide6.QtCore import (
     QRunnable,
-    SignalInstance,
     Slot,
 )
 
@@ -12,7 +11,7 @@ from pandaplot.services.qtasks.worker_signal import WorkerSignals
 
 
 class WorkerFuncType(Protocol):
-    def __call__(self, progress_callback: SignalInstance, *args: Any, **kwargs: Any) -> Any: ...
+    def __call__(self, progress_callback: Callable[[float], None], *args: Any, **kwargs: Any) -> Any: ...
 
 
 class Worker(QRunnable):
@@ -35,7 +34,7 @@ class Worker(QRunnable):
         self.kwargs = kwargs
         self.signals = WorkerSignals()
         # Add the callback to our kwargs
-        self.kwargs["progress_callback"] = self.signals.progress
+        self.kwargs["progress_callback"] = self.signals.progress.emit
 
     @Slot()
     def run(self):

@@ -14,7 +14,7 @@ class AppState:
     """
     
     def __init__(self, event_bus: EventBus, project_data_manager: ProjectDataManager):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.event_bus = event_bus
 
         # encapsulate project data manager inside project manager

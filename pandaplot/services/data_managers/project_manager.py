@@ -12,7 +12,7 @@ class ProjectManager:
     """
     
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.supported_extensions = ['.pplot']
         self.logger.debug("ProjectManager initialized with supported extensions: %s", self.supported_extensions)
         

@@ -70,7 +70,7 @@ def create_qt_application(app_context: AppContext, argv: list[str] | None = None
     try:
         theme_mgr.apply_current()
     except Exception:
-        logging.getLogger(__name__).exception("Failed applying initial theme")
+        logging.getLogger(self.__class__.__name__).exception("Failed applying initial theme")
     app_context.ui_controller.set_parent_widget(main_window)
     return app, main_window
 
