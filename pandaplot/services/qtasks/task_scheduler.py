@@ -16,12 +16,15 @@ class TaskScheduler:
 
     def run_task(self, 
                  task: WorkerFuncType, 
-                 task_arguments:dict, 
-                 on_result:Optional[Callable[[Any], None]], 
-                 on_error:Optional[Callable[[Tuple], None]], 
-                 on_finished:Optional[Callable], 
-                 on_progress:Optional[Callable[[float], None]]):
+                 task_arguments:Optional[dict] = None, 
+                 on_result:Optional[Callable[[Any], None]]=None, 
+                 on_error:Optional[Callable[[Tuple], None]]=None, 
+                 on_finished:Optional[Callable] =None, 
+                 on_progress:Optional[Callable[[float], None]]=None):
+        task_arguments = task_arguments if task_arguments is not None else {}
+
         worker = Worker(
+            task,
             **task_arguments
         )  # Any other args, kwargs are passed to the run function
         if on_result:

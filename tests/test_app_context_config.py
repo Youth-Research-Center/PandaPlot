@@ -7,6 +7,7 @@ from pandaplot.services.config import ConfigManager
 from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.storage.project_data_manager import ProjectDataManager
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
+from pandaplot.services.qtasks.task_scheduler import TaskScheduler
 
 
 def test_app_context_has_config_manager(tmp_path):
@@ -16,7 +17,7 @@ def test_app_context_has_config_manager(tmp_path):
     cfg_manager = ConfigManager(event_bus, config_path=tmp_path / "cfg.json")
     cfg_manager.load()
     theme_manager = ThemeManager(event_bus, cfg_manager, None)
-    ctx = AppContext(app_state, event_bus, command_executor=None, ui_controller=None, config_manager=cfg_manager, theme_manager=theme_manager)  # type: ignore[arg-type]
+    ctx = AppContext(app_state, event_bus, command_executor=None, ui_controller=None, config_manager=cfg_manager, theme_manager=theme_manager, task_scheduler=TaskScheduler())  # type: ignore[arg-type]
 
     assert ctx.get_config_manager() is cfg_manager
     # Ensure version present
