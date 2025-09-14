@@ -11,7 +11,7 @@ from pandaplot.models.events import EventBus
 from pandaplot.models.project.items import Chart, Dataset, Folder, Note
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.config import ConfigManager
-from pandaplot.services.qtasks.task_scheduler import TaskScheduler
+from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.theme import ThemeManager
 from pandaplot.storage.chart_data_manager import ChartDataManager
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
@@ -70,7 +70,7 @@ def create_qt_application(app_context: AppContext, argv: list[str] | None = None
     try:
         theme_mgr.apply_current()
     except Exception:
-        logging.getLogger(self.__class__.__name__).exception("Failed applying initial theme")
+        logging.getLogger(__name__).exception("Failed applying initial theme")
     app_context.ui_controller.set_parent_widget(main_window)
     return app, main_window
 

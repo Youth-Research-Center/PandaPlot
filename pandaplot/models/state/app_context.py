@@ -6,7 +6,7 @@ from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import EventBus
 from pandaplot.models.state.app_state import AppState
 from pandaplot.services.config import ConfigManager
-from pandaplot.services.qtasks.task_scheduler import TaskScheduler
+from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.theme import ThemeManager
 
 

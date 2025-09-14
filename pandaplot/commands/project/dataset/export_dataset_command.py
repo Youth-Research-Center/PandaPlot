@@ -1,12 +1,11 @@
 import os
 from typing import Callable, override, Tuple, Any
-from PySide6.QtCore import SignalInstance
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
-from pandaplot.services.qtasks.task_scheduler import TaskScheduler
+from pandaplot.services.qtasks import TaskScheduler
 
 
 class ExportDatasetCommand(Command):
@@ -168,8 +167,6 @@ class ExportDatasetCommand(Command):
             dict: {'success': bool, 'error': str or None, 'path': str or None}
         """
         self.logger.debug("Starting data export task")
-        self.logger.debug(f"progress_callback {dir(progress_callback)}")
-        self.logger.debug(f"kwargs {kwargs}")
         try:
             if progress_callback:
                 progress_callback(0.1)  # Starting export
@@ -324,7 +321,7 @@ class ExportDatasetCommand(Command):
                 on_result=self._on_export_result,
                 on_error=self._on_export_error,
                 on_finished=self._on_export_finished,
-                on_progress= self._on_export_progress
+                on_progress=self._on_export_progress
             )
             return True
         return False
