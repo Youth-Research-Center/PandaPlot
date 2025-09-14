@@ -10,7 +10,7 @@ from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 class ProjectDataManager:
     def __init__(self, item_data_manager_factory: ItemDataManagerFactory):
         self.data_factory = item_data_manager_factory
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def save(self, project: Project, filepath: str):
         self.logger.info(f"Saving project {project.name} to {filepath}")

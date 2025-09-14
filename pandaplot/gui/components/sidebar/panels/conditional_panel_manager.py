@@ -27,7 +27,7 @@ class ConditionalPanelManager(QObject):
             tab_container: The tab container widget
         """
         super().__init__()
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.sidebar = sidebar
         self.tab_container = tab_container
         self.registered_panels: Dict[str, Dict[str, Any]] = {}

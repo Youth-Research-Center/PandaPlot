@@ -11,7 +11,7 @@ from pandaplot.models.state.app_context import AppContext
 
 class ProjectTreeManager:
     def __init__(self, app_context: AppContext, tree, on_item_name_changed):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.app_context = app_context
         self.tree = tree
         self.on_item_name_changed = on_item_name_changed

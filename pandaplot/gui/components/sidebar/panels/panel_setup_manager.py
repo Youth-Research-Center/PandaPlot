@@ -22,7 +22,7 @@ from pandaplot.models.state.app_context import AppContext
 
 class PanelSetupManager:
     def __init__(self, app_context: AppContext):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.app_context = app_context
         self.panels: list[dict] = []
 

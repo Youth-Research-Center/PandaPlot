@@ -11,7 +11,7 @@ class EventBus:
     """
     
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self._subscribers = defaultdict(list)
         self._pattern_subscribers = defaultdict(list)
         self.logger.debug("EventBus initialized")

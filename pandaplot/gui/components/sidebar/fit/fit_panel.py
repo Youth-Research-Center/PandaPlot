@@ -32,7 +32,7 @@ class FitPanel(PWidget):
     def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
         super().__init__(app_context=app_context, parent=parent)
         self.fit_command=PerformFitCommand(self)
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.app_context = app_context
         self.current_project = None
         self.current_chart = None

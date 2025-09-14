@@ -31,7 +31,7 @@ class TransformController(QObject):
     def __init__(self, app_context: AppContext, parent: Optional[QObject] = None):
         super().__init__(parent)
         self.app_context = app_context
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         
         # Safe execution environment
         self.safe_globals = {

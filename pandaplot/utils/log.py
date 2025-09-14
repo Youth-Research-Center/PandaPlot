@@ -35,7 +35,7 @@ def setup_logging(
     logger.handlers.clear()
 
     # Format: timestamp | level | logger name (module/class) | function | message
-    log_format = "%(asctime)s | %(levelname)s | %(name)s | %(funcName)s | %(message)s"
+    log_format = "%(asctime)s | %(levelname)-5s | %(name)s | %(funcName)s | %(message)s"
     formatter = logging.Formatter(fmt=log_format, datefmt=datefmt)
 
     # File handler

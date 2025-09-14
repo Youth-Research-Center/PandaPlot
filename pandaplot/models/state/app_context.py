@@ -6,17 +6,27 @@ from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import EventBus
 from pandaplot.models.state.app_state import AppState
 from pandaplot.services.config import ConfigManager
+from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.theme import ThemeManager
 
 
 class AppContext:
-    def __init__(self, app_state: AppState, event_bus: EventBus, command_executor: CommandExecutor, ui_controller: UIController, config_manager: ConfigManager, theme_manager: ThemeManager):
+    def __init__(
+            self, 
+            app_state: AppState,
+            event_bus: EventBus, 
+            command_executor: CommandExecutor, 
+            ui_controller: UIController, 
+            config_manager: ConfigManager, 
+            theme_manager: ThemeManager, 
+            task_scheduler: TaskScheduler):
         self.app_state = app_state
         self.event_bus = event_bus
         self.command_executor = command_executor
         self.ui_controller = ui_controller
         self.config_manager = config_manager
         self.theme_manager = theme_manager
+        self.task_scheduler = task_scheduler
 
     def get_app_state(self) -> AppState:
         return self.app_state
@@ -39,3 +49,8 @@ class AppContext:
         if self.theme_manager is None:
             raise RuntimeError("ThemeManager not initialized in AppContext")
         return self.theme_manager
+
+    def get_task_scheduler(self) -> TaskScheduler:
+        if self.task_scheduler is None:
+            raise RuntimeError("TaskScheduler not initialized in AppContext")
+        return self.task_scheduler
