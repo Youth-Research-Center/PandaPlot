@@ -464,3 +464,6 @@ class FitPanel(PWidget):
             # Update data points display
             self.update_data_points_display()
 
+
+#TODO: refactor UI, add themes
+#TODO: refactor display_results
