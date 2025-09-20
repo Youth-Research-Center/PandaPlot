@@ -1,11 +1,11 @@
-from typing import override, Callable, Tuple, Any
+from typing import Any, Callable, Tuple, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.state import AppState, AppContext
-from pandaplot.storage.project_data_manager import ProjectDataManager
+from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.qtasks import TaskScheduler
+from pandaplot.storage.project_data_manager import ProjectDataManager
 
 
 class SaveProjectCommand(Command):
