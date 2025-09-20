@@ -3,6 +3,7 @@ from typing import Optional, override
 from pandaplot.commands.base_command import Command
 from pandaplot.commands.project.project.load_project_command import LoadProjectCommand
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.config.config_manager import ConfigManager
 from pandaplot.services.data_managers.project_manager import ProjectManager
 
 
@@ -80,7 +81,7 @@ class OpenProjectCommand(Command):
 
             # Update recent projects list in config
             try:
-                cfg_manager = getattr(self.app_context, 'get_config_manager', lambda: None)()
+                cfg_manager = self.app_context.get_manager(ConfigManager)
                 if cfg_manager:
                     cfg = cfg_manager.config
                     paths = list(cfg.recent_projects)
