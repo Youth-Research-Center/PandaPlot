@@ -25,6 +25,7 @@ from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import NoteEvents
 from pandaplot.models.project.items import Note
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
     
 
 class NoteEditorWidget(PWidget):
@@ -66,7 +67,7 @@ class NoteEditorWidget(PWidget):
     @override
     def _apply_theme(self):
         """Apply theme-specific styling to all components."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors
@@ -315,7 +316,7 @@ class NoteEditorWidget(PWidget):
 
     def _update_status_label_style(self):
         """Update status label styling based on current status and theme."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         secondary_fg = palette.get('secondary_fg', '#555555')
         

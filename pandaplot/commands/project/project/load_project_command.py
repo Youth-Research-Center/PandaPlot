@@ -3,6 +3,7 @@ from typing import Optional, override
 from pandaplot.commands.base_command import Command
 from pandaplot.models.project import Project
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.storage.project_data_manager import ProjectDataManager
 
 
 class LoadProjectCommand(Command):
@@ -18,6 +19,7 @@ class LoadProjectCommand(Command):
         super().__init__()
         self.app_state = app_context.app_state
         self.app_context = app_context
+        self.project_data_manager = app_context.get_manager(ProjectDataManager)
         self.file_path = file_path
         self.previous_project: Optional[Project] = None
         self.previous_file_path: Optional[str] = None
@@ -32,7 +34,7 @@ class LoadProjectCommand(Command):
             self.previous_file_path = self.app_state.project_file_path
 
             # Update app state (this will emit events)
-            self.app_state.load_project_from_file(self.file_path)
+            self.app_state.load_project(self.load_project_from_file(self.file_path))
             return True
 
         except Exception as e:
@@ -41,6 +43,10 @@ class LoadProjectCommand(Command):
             # and ensure the state is handled well.
             raise Exception(
                 f"Failed to load project from {self.file_path}: {str(e)}")
+
+    def load_project_from_file(self, file_path):
+        self.logger.info(f"Loading project from file: {file_path}")
+        return self.project_data_manager.load(file_path)
 
     def undo(self):
         """Undo the load project command."""

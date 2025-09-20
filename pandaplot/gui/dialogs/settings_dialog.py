@@ -15,6 +15,8 @@ from typing import Dict, Any, Optional, override
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.config import ApplicationConfig
+from pandaplot.services.config.config_manager import ConfigManager
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 THEME_DISPLAY = {
     'light': 'Light',
@@ -33,7 +35,7 @@ class SettingsDialog(PDialog):
         super().__init__(app_context=app_context, parent=parent)
         self.original_settings: Dict[str, Any] = {}
         self.current_settings: Dict[str, Any] = {}
-        self._config_manager = self.app_context.get_config_manager()
+        self._config_manager = self.app_context.get_manager(ConfigManager)
         self._applying = False  # guard to prevent feedback loops
 
         self._initialize()
@@ -70,7 +72,7 @@ class SettingsDialog(PDialog):
     @override
     def _apply_theme(self):
         """Apply theme-specific styling to all components."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
 
     
 class WelcomeTab(PWidget):
@@ -103,7 +104,7 @@ class WelcomeTab(PWidget):
         try:
             if not self.app_context or not getattr(self.app_context, 'get_theme_manager', None):
                 return
-            tm = self.app_context.get_theme_manager()
+            tm = self.app_context.get_manager(ThemeManager)
             palette = tm.get_surface_palette()
             card_bg = palette['card_bg']
             card_hover = palette['card_hover']

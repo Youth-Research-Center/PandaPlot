@@ -20,6 +20,8 @@ from pandaplot.models.events import ChartEvents
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.config.config_manager import ConfigManager
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class ChartEditorWidget(PWidget):
@@ -49,7 +51,7 @@ class ChartEditorWidget(PWidget):
     @override
     def _apply_theme(self):
         """Apply theme-specific styling to all components."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors
@@ -100,7 +102,7 @@ class ChartEditorWidget(PWidget):
     def _apply_spinbox_style(self, spinbox):
         """Apply theme-aware styling to a QSpinBox"""
         try:
-            theme_manager = self.app_context.get_theme_manager()
+            theme_manager = self.app_context.get_manager(ThemeManager)
             palette = theme_manager.get_surface_palette()
             
             base_fg = palette.get('base_fg', '#000000')
@@ -127,7 +129,7 @@ class ChartEditorWidget(PWidget):
     def _apply_label_style(self, label):
         """Apply theme-aware styling to a QLabel"""
         try:
-            theme_manager = self.app_context.get_theme_manager()
+            theme_manager = self.app_context.get_manager(ThemeManager)
             palette = theme_manager.get_surface_palette()
             base_fg = palette.get('base_fg', '#000000')
 
@@ -143,7 +145,7 @@ class ChartEditorWidget(PWidget):
 
     def _apply_toolbar_theme(self):
         """Apply theme-aware styling to the preview toolbar."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         base_fg = palette.get('base_fg', '#000000')
         card_bg = palette.get('card_bg', '#f8f9fa')
@@ -177,7 +179,7 @@ class ChartEditorWidget(PWidget):
 
     def _update_status_label_style(self):
         """Update status label styling based on current status and theme."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         secondary_fg = palette.get('secondary_fg', '#555555')
         
@@ -291,7 +293,7 @@ class ChartEditorWidget(PWidget):
         # Fetch preferred DPI from config manager
         dpi = 100
         try:
-            cfg_manager = self.app_context.get_config_manager()
+            cfg_manager = self.app_context.get_manager(ConfigManager)
             cfg = getattr(cfg_manager, 'config', None)
             if cfg and getattr(cfg, 'chart_display', None):
                 dpi = getattr(cfg.chart_display, 'dpi', dpi) or dpi

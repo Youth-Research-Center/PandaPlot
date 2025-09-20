@@ -29,6 +29,7 @@ from pandaplot.gui.components.sidebar.transform.transform_controller import Tran
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class TransformPanel(PWidget):
@@ -112,7 +113,7 @@ class TransformPanel(PWidget):
     def _apply_theme(self):
         """Apply current theme to transform panel components."""
         # Get theme colors
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         card_bg = palette.get('card_bg', '#ffffff')

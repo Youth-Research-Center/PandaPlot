@@ -1,9 +1,10 @@
-from typing import override
+from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state import (AppState, AppContext)
+from pandaplot.storage.project_data_manager import ProjectDataManager
 
 
 class SaveProjectCommand(Command):
@@ -61,7 +62,7 @@ class SaveProjectCommand(Command):
             self.previous_file_path = current_path
 
             # Save the project
-            success = self.app_state.save_project(save_path)
+            success = self.save_project(save_path)
 
             if success:
                 # Update app state with new file path (if it changed)
@@ -95,6 +96,43 @@ class SaveProjectCommand(Command):
             self.ui_controller.show_error_message(
                 "Save Project Error", error_msg)
             raise
+
+    def save_project(self, file_path: Optional[str] = None) -> bool:
+        """
+        Save the current project.
+        
+        Args:
+            file_path (str, optional): New file path to save to. If None, uses current path.
+        """
+        if not self.app_state.has_project and (project := self.app_state.current_project) is None:
+            return False
+        
+        self.logger.info(f"Saving project {project.name} to {file_path}")
+
+        save_path = file_path or project.project_file_path
+        if save_path is None:
+            self.logger.warning("No save file path provided.")
+            return False
+        
+        # Update the stored path if a new one was provided
+        if file_path is not None:
+            project.project_file_path = file_path
+
+        self.app_context.event_bus.emit(ProjectEvents.PROJECT_SAVING, {
+            'project': project,
+            'file_path': save_path
+        })
+        
+        # TODO: make saving async since it's a file operation
+        project_data_manager = self.app_context.get_manager(ProjectDataManager)
+        project_data_manager.save(project, save_path)
+
+        self.app_context.event_bus.emit(ProjectEvents.PROJECT_SAVED, {
+            'project': project,
+            'file_path': save_path
+        })
+
+        return True
 
     def undo(self):
         """Undo the save project command by reverting file path changes."""
