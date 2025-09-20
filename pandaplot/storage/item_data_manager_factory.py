@@ -10,7 +10,7 @@ class RegistryItem:
 class ItemDataManagerFactory:
     def __init__(self):
         self._registry : dict[str, RegistryItem] = {}
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def register(self, type_name: str, item_class: type, manager: ItemDataManager, extension: str):
         """

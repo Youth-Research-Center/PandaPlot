@@ -23,7 +23,7 @@ class ProjectPanelCommandManager:
                  get_current_item,
                  get_selected_item_info,
                  edit_item):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.app_context = app_context
         self.app_state = app_context.get_app_state()
         self.get_target_folder_id = get_target_folder_id

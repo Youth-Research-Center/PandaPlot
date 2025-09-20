@@ -8,7 +8,7 @@ from pandaplot.storage.item_data_manager import ItemDataManager
 
 class DatasetDataManager(ItemDataManager):
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         
     @override
     def save(self, item, zip_file, path_in_zip: str) -> None:

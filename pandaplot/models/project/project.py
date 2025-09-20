@@ -12,7 +12,7 @@ class Project:
     """
     
     def __init__(self, name: str = "Untitled Project", description: str = ""):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.name = name
         self.description = description
         

@@ -10,7 +10,7 @@ Usage patterns:
 - Multi-level publishing: publish both specific and generic events
 """
 
-from typing import List, Dict
+from typing import Dict, List
 
 # TODO: make event data classes
 
@@ -179,7 +179,7 @@ class EventHierarchy:
         "analysis.config_changed": ["analysis.config_changed"],
         
         # Chart events
-        "chart.created": ["chart.created"],
+        "chart.created": ["chart.created", "project.item_added", "project.changed"],
         "chart.updated": ["chart.updated"],
         "chart.deleted": ["chart.deleted"],
         "chart.style_changed": ["chart.style_changed"],

@@ -11,6 +11,7 @@ from pandaplot.models.events import EventBus
 from pandaplot.models.project.items import Chart, Dataset, Folder, Note
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.config import ConfigManager
+from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.theme import ThemeManager
 from pandaplot.storage.chart_data_manager import ChartDataManager
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
@@ -42,6 +43,7 @@ def build_app_context() -> AppContext:
     theme_manager = ThemeManager(event_bus, config_manager)
     ui_controller = UIController()
     command_executor = CommandExecutor()
+    task_scheduler = TaskScheduler()
     return AppContext(
         app_state=app_state,
         event_bus=event_bus,
@@ -49,6 +51,7 @@ def build_app_context() -> AppContext:
         ui_controller=ui_controller,
         config_manager=config_manager,
         theme_manager=theme_manager,
+        task_scheduler=task_scheduler
     )
 
 
@@ -118,4 +121,7 @@ if __name__ == "__main__":
     # TODO: fix how we use font size across the app.
     # TODO: fix dark theme colors
     # TODO: make chart area scrollable
-    # TODO: in dataset tab we should show all of the data, but we should load it lazily
+    # TODO: in dataset tab we show all of the data lazily, but we should load it lazily also from the disk if it's too big
+    # TODO: add support for sorting and filtering of the data
+    # TODO: add export options for dataset tab
+    # TODO: add support for formulas in dataset tab

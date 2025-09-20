@@ -17,7 +17,7 @@ from pandaplot.models.state.app_context import AppContext
 class ProjectViewPanelContextManager(QMenu):
     def __init__(self, parent: QWidget, app_context: AppContext, command_manager: ProjectPanelCommandManager, getItemAt, getGlobalPosition):
         super().__init__(parent)
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.app_state = app_context.get_app_state()
         self.command_manager = command_manager
         self.getItemAt = getItemAt
