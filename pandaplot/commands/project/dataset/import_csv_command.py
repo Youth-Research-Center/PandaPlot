@@ -65,6 +65,13 @@ class ImportCsvCommand(Command):
             # Get dataset name if not provided
             self.dataset_name = os.path.splitext(os.path.basename(self.file_path))[0]
 
+            # Preflight check: validate file exists before starting import
+            if not os.path.exists(self.file_path):
+                error_msg = f"Selected file does not exist: {self.file_path}"
+                self.ui_controller.show_error_message("Import CSV Error", error_msg)
+                self.logger.error(error_msg)
+                return False
+
             # Show starting message
             self.ui_controller.show_info_message("Import Starting", f"Starting to import CSV file:\n{self.file_path}")
 

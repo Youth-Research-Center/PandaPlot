@@ -73,6 +73,9 @@ class SaveProjectCommand(Command):
             if self.save_as_path or not current_path:
                 self.ui_controller.show_info_message("Save Starting", f"Starting save of project '{project.name}' to:\n{save_path}")
 
+            # Emit saving event on main thread before starting background task
+            self.app_context.event_bus.emit(ProjectEvents.PROJECT_SAVING, {"project": project, "file_path": save_path})
+
             # Start background save operation
             self.is_saving = True
 
@@ -138,18 +141,12 @@ class SaveProjectCommand(Command):
             if progress_callback:
                 progress_callback(0.3)  # Save path determined
 
-            # Emit saving event
-            self.app_context.event_bus.emit(ProjectEvents.PROJECT_SAVING, {"project": project, "file_path": save_path})
-
-            if progress_callback:
-                progress_callback(0.4)  # Event emitted
-
             # Update the project file path if needed
             if save_path != project.project_file_path:
                 project.project_file_path = save_path
 
             if progress_callback:
-                progress_callback(0.5)  # Project path updated
+                progress_callback(0.4)  # Project path updated
 
             # Perform the actual save operation
             project_data_manager = self.app_context.get_manager(ProjectDataManager)
