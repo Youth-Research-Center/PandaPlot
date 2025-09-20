@@ -1,4 +1,3 @@
-
 import logging
 import sys
 
@@ -44,22 +43,11 @@ def build_app_context() -> AppContext:
     ui_controller = UIController()
     command_executor = CommandExecutor()
     task_scheduler = TaskScheduler()
-    
+
     # Create list of managers to pass to AppContext
-    managers = [
-        command_executor,
-        ui_controller,
-        config_manager,
-        theme_manager,
-        task_scheduler,
-        project_data_manager
-    ]
-    
-    return AppContext(
-        app_state=app_state,
-        event_bus=event_bus,
-        managers=managers
-    )
+    managers = [command_executor, ui_controller, config_manager, theme_manager, task_scheduler, project_data_manager]
+
+    return AppContext(app_state=app_state, event_bus=event_bus, managers=managers)
 
 
 def create_qt_application(app_context: AppContext, argv: list[str] | None = None) -> tuple[QApplication, PandaMainWindow]:
@@ -89,7 +77,7 @@ def launch(app_context: AppContext) -> int:
     """
     if app_context is None:
         raise RuntimeError("AppContext must be provided to launch the application")
-    
+
     app, main_window = create_qt_application(app_context)
     main_window.show()
     return app.exec()

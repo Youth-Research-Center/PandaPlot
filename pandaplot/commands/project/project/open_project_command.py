@@ -42,8 +42,7 @@ class OpenProjectCommand(Command):
             # Validate the file before attempting to load
             if not self.project_manager.validate_project_file(file_path):
                 self.app_context.ui_controller.show_error_message(
-                    "Invalid Project File",
-                    f"The selected file is not a valid project file:\n{file_path}"
+                    "Invalid Project File", f"The selected file is not a valid project file:\n{file_path}"
                 )
                 self.was_executed = False
                 return
@@ -52,20 +51,16 @@ class OpenProjectCommand(Command):
             if self.app_context.app_state.has_project:
                 should_continue = self.app_context.ui_controller.show_question(
                     "Open Project",
-                    "Opening a new project will close the current project.\n"
-                    "Any unsaved changes will be lost.\n\n"
-                    "Do you want to continue?"
+                    "Opening a new project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
                 )
 
                 if not should_continue:
-                    self.logger.info(
-                        "Open project cancelled by user (current project protection)")
+                    self.logger.info("Open project cancelled by user (current project protection)")
                     self.was_executed = False
                     return
 
             # Create and execute load command
-            self.load_command = LoadProjectCommand(
-                self.app_context, file_path)
+            self.load_command = LoadProjectCommand(self.app_context, file_path)
             self.load_command.execute()
 
             self.was_executed = True
@@ -74,10 +69,7 @@ class OpenProjectCommand(Command):
             # Show success message
             project = self.app_context.app_state.current_project
             if project:
-                self.app_context.ui_controller.show_info_message(
-                    "Project Opened",
-                    f"Successfully opened project: {project.name}"
-                )
+                self.app_context.ui_controller.show_info_message("Project Opened", f"Successfully opened project: {project.name}")
 
             # Update recent projects list in config
             try:
@@ -96,8 +88,7 @@ class OpenProjectCommand(Command):
         except Exception as e:
             error_msg = f"Failed to open project: {str(e)}"
             self.logger.error(error_msg)
-            self.app_context.ui_controller.show_error_message(
-                "Open Project Error", error_msg)
+            self.app_context.ui_controller.show_error_message("Open Project Error", error_msg)
             self.was_executed = False
 
     def undo(self):

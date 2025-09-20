@@ -32,7 +32,7 @@ class ImportCsvCommand(Command):
         self.dataset_id = None
         self.imported_data = None
         self.project = None
-        
+
         # Task state
         self.is_importing = False
 
@@ -41,19 +41,16 @@ class ImportCsvCommand(Command):
         """Execute the import CSV command."""
         try:
             self.logger.info("Executing ImportCsvCommand")
-            
+
             # Prevent concurrent imports
             if self.is_importing:
                 self.logger.warning("Import operation already in progress")
                 self.ui_controller.show_info_message("Import In Progress", "A CSV import is already in progress.")
                 return False
-            
+
             # Check if we have a project loaded
             if not self.app_state.has_project:
-                self.ui_controller.show_warning_message(
-                    "Import CSV",
-                    "Please open or create a project first."
-                )
+                self.ui_controller.show_warning_message("Import CSV", "Please open or create a project first.")
                 return False
 
             self.project = self.app_state.current_project
@@ -69,14 +66,11 @@ class ImportCsvCommand(Command):
             self.dataset_name = os.path.splitext(os.path.basename(self.file_path))[0]
 
             # Show starting message
-            self.ui_controller.show_info_message(
-                "Import Starting", 
-                f"Starting to import CSV file:\n{self.file_path}"
-            )
+            self.ui_controller.show_info_message("Import Starting", f"Starting to import CSV file:\n{self.file_path}")
 
             # Start background import operation
             self.is_importing = True
-            
+
             # Run import in background thread
             self.task_scheduler.run_task(
                 task=self._import_csv_task,
@@ -84,9 +78,9 @@ class ImportCsvCommand(Command):
                 on_result=self._on_import_result,
                 on_error=self._on_import_error,
                 on_finished=self._on_import_finished,
-                on_progress=self._on_import_progress
+                on_progress=self._on_import_progress,
             )
-            
+
             return True  # Command initiated successfully
 
         except Exception as e:
@@ -100,10 +94,10 @@ class ImportCsvCommand(Command):
         """
         Import CSV task function to be run in a background thread.
         Returns a dictionary with success status and any error message.
-        
+
         Args:
             progress_callback: Optional callback for progress updates
-            
+
         Returns:
             dict: {'success': bool, 'error': str or None, 'dataset_id': str or None, 'dataset': Dataset or None}
         """
@@ -111,48 +105,43 @@ class ImportCsvCommand(Command):
         try:
             if progress_callback:
                 progress_callback(0.1)  # Starting import
-                
+
             if not self.file_path or not os.path.exists(self.file_path):
-                return {'success': False, 'error': f"File not found: {self.file_path}", 'dataset_id': None, 'dataset': None}
-                
+                return {"success": False, "error": f"File not found: {self.file_path}", "dataset_id": None, "dataset": None}
+
             if progress_callback:
                 progress_callback(0.2)  # File validation complete
-                
+
             # Read the CSV file
             try:
                 df = pd.read_csv(self.file_path)
                 if df.empty:
-                    return {'success': False, 'error': "The selected CSV file is empty.", 'dataset_id': None, 'dataset': None}
-                
+                    return {"success": False, "error": "The selected CSV file is empty.", "dataset_id": None, "dataset": None}
+
                 self.imported_data = df
-                
+
             except Exception as e:
-                return {'success': False, 'error': f"Failed to read CSV file: {str(e)}", 'dataset_id': None, 'dataset': None}
-                
+                return {"success": False, "error": f"Failed to read CSV file: {str(e)}", "dataset_id": None, "dataset": None}
+
             if progress_callback:
                 progress_callback(0.6)  # CSV file read successfully
-                
+
             # Get dataset name if not provided
             if not self.dataset_name:
                 self.dataset_name = os.path.splitext(os.path.basename(self.file_path))[0]
-                
+
             # Create dataset ID
             self.dataset_id = str(uuid.uuid4())
-            
+
             if progress_callback:
                 progress_callback(0.8)  # Dataset metadata prepared
-                
+
             # Create dataset object
-            dataset = Dataset(
-                id=self.dataset_id,
-                name=self.dataset_name,
-                data=self.imported_data,
-                source_file=self.file_path
-            )
-            
+            dataset = Dataset(id=self.dataset_id, name=self.dataset_name, data=self.imported_data, source_file=self.file_path)
+
             if progress_callback:
                 progress_callback(0.9)  # Dataset object created
-                
+
             self.logger.info(
                 "Successfully imported CSV '%s' from '%s' with ID '%s' (rows=%d, cols=%d)",
                 self.dataset_name,
@@ -161,71 +150,70 @@ class ImportCsvCommand(Command):
                 self.imported_data.shape[0],
                 self.imported_data.shape[1],
             )
-            
+
             if progress_callback:
                 progress_callback(1.0)  # Finished
-                
+
             return {
-                'success': True, 
-                'error': None, 
-                'dataset_id': self.dataset_id, 
-                'dataset': dataset,
-                'dataset_name': self.dataset_name,
-                'file_path': self.file_path,
-                'rows': self.imported_data.shape[0],
-                'cols': self.imported_data.shape[1]
+                "success": True,
+                "error": None,
+                "dataset_id": self.dataset_id,
+                "dataset": dataset,
+                "dataset_name": self.dataset_name,
+                "file_path": self.file_path,
+                "rows": self.imported_data.shape[0],
+                "cols": self.imported_data.shape[1],
             }
-            
+
         except Exception as e:
             error_msg = f"Error during CSV import: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
-            return {'success': False, 'error': error_msg, 'dataset_id': None, 'dataset': None}
+            return {"success": False, "error": error_msg, "dataset_id": None, "dataset": None}
 
     def _on_import_result(self, result: dict):
         """Handle successful completion of import task."""
         try:
             self.is_importing = False
-            
-            if result.get('success', False):
-                dataset = result.get('dataset')
-                dataset_id = result.get('dataset_id')
-                dataset_name = result.get('dataset_name')
-                file_path = result.get('file_path')
-                rows = result.get('rows', 0)
-                cols = result.get('cols', 0)
-                
+
+            if result.get("success", False):
+                dataset = result.get("dataset")
+                dataset_id = result.get("dataset_id")
+                dataset_name = result.get("dataset_name")
+                file_path = result.get("file_path")
+                rows = result.get("rows", 0)
+                cols = result.get("cols", 0)
+
                 if dataset and self.project:
                     # Add dataset to project
                     self.project.add_item(dataset, parent_id=self.folder_id)
 
                     # Emit event
-                    self.app_state.event_bus.emit(DatasetEvents.DATASET_CREATED, {
-                        'project': self.project,
-                        'dataset_id': dataset_id,
-                        'dataset_name': dataset_name,
-                        'folder_id': self.folder_id,
-                        'dataset_data': dataset.data,
-                        'file_path': file_path,
-                        'dataframe': self.imported_data
-                    })
+                    self.app_state.event_bus.emit(
+                        DatasetEvents.DATASET_CREATED,
+                        {
+                            "project": self.project,
+                            "dataset_id": dataset_id,
+                            "dataset_name": dataset_name,
+                            "folder_id": self.folder_id,
+                            "dataset_data": dataset.data,
+                            "file_path": file_path,
+                            "dataframe": self.imported_data,
+                        },
+                    )
 
                     self.logger.info("Dataset '%s' successfully added to project", dataset_name)
-                    
+
                     # Show success message to user
-                    self.ui_controller.show_info_message(
-                        "Import CSV",
-                        f"Successfully imported '{dataset_name}'\n"
-                        f"Rows: {rows}, Columns: {cols}"
-                    )
+                    self.ui_controller.show_info_message("Import CSV", f"Successfully imported '{dataset_name}'\nRows: {rows}, Columns: {cols}")
                 else:
                     error_msg = "Missing dataset or project in import result"
                     self.ui_controller.show_error_message("Import Failed", error_msg)
                     self.logger.error(error_msg)
             else:
-                error_msg = result.get('error', 'Unknown import error')
+                error_msg = result.get("error", "Unknown import error")
                 self.ui_controller.show_error_message("Import Failed", error_msg)
                 self.logger.error(f"Import failed: {error_msg}")
-                
+
         except Exception as e:
             self.logger.error(f"Error handling import result: {e}", exc_info=True)
             self.ui_controller.show_error_message("Import Error", f"Error processing import result: {str(e)}")
@@ -236,12 +224,12 @@ class ImportCsvCommand(Command):
             self.is_importing = False
             error_type, error_value, error_traceback = error_info
             error_msg = f"Import failed with {error_type.__name__}: {str(error_value)}"
-            
+
             self.logger.error(f"Import task error: {error_msg}")
             self.logger.error(f"Traceback: {error_traceback}")
-            
+
             self.ui_controller.show_error_message("Import CSV Error", error_msg)
-            
+
         except Exception as e:
             self.logger.error(f"Error handling import error: {e}", exc_info=True)
 
@@ -250,7 +238,7 @@ class ImportCsvCommand(Command):
         try:
             self.is_importing = False
             self.logger.info("Import task finished")
-            
+
         except Exception as e:
             self.logger.error(f"Error in import finished handler: {e}", exc_info=True)
 
@@ -261,7 +249,7 @@ class ImportCsvCommand(Command):
             if progress <= 1.0:
                 percentage = int(progress * 100)
                 self.logger.debug(f"Import progress: {percentage}%")
-                
+
         except Exception as e:
             self.logger.error(f"Error handling import progress: {e}", exc_info=True)
 
@@ -276,15 +264,11 @@ class ImportCsvCommand(Command):
                         project.remove_item(dataset)
 
                     # Emit event
-                    self.app_state.event_bus.emit(DatasetEvents.DATASET_DELETED, {
-                        'project': project,
-                        'dataset_id': self.dataset_id,
-                        'dataset_data': self.imported_data
-                    })
-
-                    self.logger.info(
-                        "Undone import of dataset '%s'", self.dataset_id
+                    self.app_state.event_bus.emit(
+                        DatasetEvents.DATASET_DELETED, {"project": project, "dataset_id": self.dataset_id, "dataset_data": self.imported_data}
                     )
+
+                    self.logger.info("Undone import of dataset '%s'", self.dataset_id)
 
         except Exception as e:
             error_msg = f"Failed to undo CSV import: {str(e)}"
