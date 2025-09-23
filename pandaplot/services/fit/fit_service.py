@@ -59,7 +59,7 @@ class FitService:
         # Create function dynamically
         def custom_func(x, *free_args):
             local_vars = {"x": x, "np": np}
-            # Fill in predifined fixed values
+            # Fill in predefined fixed values
             for k, v in fixed_params.items():
                 local_vars[k] = v
             # Fill in free values
