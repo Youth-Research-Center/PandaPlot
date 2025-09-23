@@ -1,5 +1,5 @@
 """Curve fitting panel for performing regression analysis on chart data."""
-
+import pandas as pd
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, 
     QComboBox, QPushButton, QLineEdit, QGroupBox, QScrollArea,
@@ -11,7 +11,7 @@ import logging
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import FitEvents, UIEvents
 from pandaplot.models.project.items import Dataset
-from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
+from pandaplot.services.fit.fit_service import FitService
 from pandaplot.models.state import AppContext
 from typing import Optional, override
 
@@ -31,8 +31,9 @@ class FitPanel(PWidget):
     
     def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
         super().__init__(app_context=app_context, parent=parent)
-        self.fit_command=PerformFitCommand(self)
+        self.fit_command=FitService(self)
         self.logger = logging.getLogger(self.__class__.__name__)
+
         self.app_context = app_context
         self.current_project = None
         self.current_chart = None
@@ -233,7 +234,7 @@ class FitPanel(PWidget):
     
     def _connect_signals(self):
         """Connect widget signals."""
-        self.dataset_combo.currentTextChanged.connect(self.fit_command.on_dataset_changed)
+        self.dataset_combo.currentTextChanged.connect(self._on_dataset_changed)
         self.fit_type_combo.currentTextChanged.connect(self._on_fit_type_changed)
         self.fit_button.clicked.connect(self.fit_command.perform_fit)
         self.apply_button.clicked.connect(self._apply_fit)
@@ -241,7 +242,7 @@ class FitPanel(PWidget):
     
     def setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
-        self.subscribe_to_event(UIEvents.TAB_CHANGED, self.fit_command.on_tab_changed)
+        self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
 
     def _show_scipy_warning(self):
         """Show warning if scipy is not available."""
@@ -268,11 +269,95 @@ class FitPanel(PWidget):
                     self.dataset_combo.addItem(item.name, item.id)
                     self.datasets.append(item)
     
+    def _on_dataset_changed(self):
+        """Handle dataset selection change."""
+        dataset_id = self.dataset_combo.currentData()
+        if dataset_id and self.current_project:
+            dataset = self.current_project.find_item(dataset_id)
+            if isinstance(dataset, Dataset) and dataset.data is not None:
+                columns = list(dataset.data.columns)
 
-    
+                # Update column combos
+                self.x_column_combo.clear()
+                self.y_column_combo.clear()
+
+                for column in columns:
+                    self.x_column_combo.addItem(column)
+                    self.y_column_combo.addItem(column)
+
+                # Set defaults if possible
+                if len(columns) >= 2:
+                    self.x_column_combo.setCurrentIndex(0)
+                    self.y_column_combo.setCurrentIndex(1)
+                elif len(columns) == 1:
+                    self.x_column_combo.setCurrentIndex(0)
+
+                # Update data points display
+                self.update_data_points_display()
+
+    def get_current_data(self):
+        """Get the currently selected data."""
+        dataset_id = self.dataset_combo.currentData()
+        x_column = self.x_column_combo.currentText()
+        y_column = self.y_column_combo.currentText()
+
+        if not all([dataset_id, x_column, y_column]):
+            self.logger.warning("Missing dataset or columns")
+            return None
+
+        if self.current_project:
+            dataset = self.current_project.find_item(dataset_id)
+            if isinstance(dataset, Dataset) and dataset.data is not None:
+                df = dataset.data
+                if x_column in df.columns and y_column in df.columns:
+                    # Remove any NaN values
+                    mask = ~(pd.isna(df[x_column]) | pd.isna(df[y_column]))
+                    x_data = df[x_column][mask].values
+                    y_data = df[y_column][mask].values
+                    return x_data, y_data
+
+        return None
+
+    def _on_tab_changed(self, event_data):
+        """Handle tab change events to update context."""
+        current_tab_type = event_data.get('tab_type')
+        chart_id = event_data.get('chart_id')
+        dataset_id = event_data.get('dataset_id')
+
+        # Check if current tab is a chart tab
+        if current_tab_type == 'chart' and chart_id:
+            # Get the chart from the project using chart_id
+            project = self.app_context.app_state.current_project
+            if project is not None:
+                chart = project.find_item(chart_id)
+                if chart:
+                    # Load the chart into the fit panel for data analysis
+                    self.load_chart_object(chart)
+                    self.set_project(project)
+                    self.logger.info("Fit panel context set to chart %s", chart.name)
+                else:
+                    self.logger.warning("Fit panel: chart id %s not found in project", chart_id)
+            else:
+                self.logger.warning("No current project available while switching tab")
+
+        elif current_tab_type == 'dataset' and dataset_id:
+            # For dataset tabs, provide context for data fitting
+            project = self.app_context.app_state.current_project
+            if project is not None:
+                dataset = project.find_item(dataset_id)
+                if dataset:
+                    # Set project context for dataset access
+                    self.set_project(project)
+                    self.load_chart_object(None)  # Clear chart context
+                    self.logger.debug("Fit panel dataset context set for dataset %s", dataset.name)
+        else:
+            # Clear fit panel context when no relevant tab is active
+            self.load_chart_object(None)
+            self.logger.debug("Fit panel context cleared")
+
     def update_data_points_display(self):
         """Update the data points display."""
-        current_data = self.fit_command.get_current_data()
+        current_data = self.get_current_data()
         if current_data is not None:
             x_data, y_data = current_data
             self.data_points_label.setText(f"{len(x_data)} points")
@@ -380,3 +465,6 @@ class FitPanel(PWidget):
             # Update data points display
             self.update_data_points_display()
 
+
+#TODO: refactor UI, add themes
+#TODO: refactor display_results
