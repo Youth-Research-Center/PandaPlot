@@ -7,7 +7,7 @@ from pandaplot.models.events import FitEvents
 from pandaplot.models.project.items import Dataset
 
 
-#preforms fit, doesnt include combobox methodes
+#performs fit, doesn't include combobox methods
 class FitService:
     def __init__(self, fit_panel):
         self.fit_results = None
