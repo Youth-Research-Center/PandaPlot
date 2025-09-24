@@ -53,10 +53,9 @@ class FitPanel(PWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         
         # Title
-        title_label = QLabel("Curve Fitting")
-        title_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 5px;")
-        layout.addWidget(title_label)
-        
+        self.title_label = QLabel("Curve Fitting")
+        layout.addWidget(self.title_label)
+
         # Scroll area for content
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -83,8 +82,115 @@ class FitPanel(PWidget):
 
     @override
     def _apply_theme(self):
-        pass
-    
+        """Apply theme styling to all components."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+
+        # Get theme colors with fallbacks
+        card_bg = palette.get('card_bg', '#ffffff')
+        card_border = palette.get('card_border', '#dee2e6')
+        base_fg = palette.get('base_fg', '#333333')
+        card_hover = palette.get('card_hover', '#e5f3ff')
+
+        # Apply theme to main widget
+        self.setStyleSheet(f"""
+            FitPanel {{
+                background-color: {card_bg};
+                color: {base_fg};
+            }}
+            QGroupBox {{
+                font-weight: bold;
+                font-size: 9pt;
+                color: {base_fg};
+                margin-top: 5px;
+                padding-top: 10px;
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 4px;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+                background-color: {card_bg};
+            }}
+        """)
+
+        # Title label with improved styling
+        self.title_label.setStyleSheet(f"""
+            QLabel {{
+                font-size: 14px;
+                font-weight: bold;
+                color: {base_fg};
+                padding: 5px;
+                background-color: {card_border};
+                border-radius: 3px;
+            }}
+        """)
+
+        # Main action buttons
+        self._apply_button_styling()
+#TODO: color buttons
+    def _apply_button_styling(self):
+        """Apply theme styling to action buttons."""
+        theme_manager = self.app_context.get_theme_manager()
+        palette = theme_manager.get_surface_palette()
+
+        # Get colors with fallbacks
+        accent = palette.get('accent', '#4CAF50')
+        secondary_fg = palette.get('secondary_fg', '#666666')
+        card_hover = palette.get('card_hover', '#e5f3ff')
+        base_fg = palette.get('base_fg', '#333333')
+        card_border = palette.get('card_border', '#dee2e6')
+        card_bg = palette.get('card_bg', '#ffffff')
+
+        # Primary button (Perform Fit)
+        primary_style = f"""
+            QPushButton {{
+                background-color: {accent};
+                color: white;
+                padding: 6px 14px;
+                border: none;
+                border-radius: 4px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: {card_hover};
+                color: {base_fg};
+            }}
+            QPushButton:pressed {{
+                background-color: {card_border};
+            }}
+            QPushButton:disabled {{
+                background-color: {secondary_fg};
+                color: #999999;
+            }}
+        """
+        self.fit_button.setStyleSheet(primary_style)
+
+        # Secondary buttons (Apply to Chart, Clear Results)
+        secondary_style = f"""
+            QPushButton {{
+                background-color: {card_hover};
+                color: {base_fg};
+                padding: 6px 14px;
+                border: 1px solid {card_border};
+                border-radius: 4px;
+            }}
+            QPushButton:hover {{
+                background-color: {card_bg};
+            }}
+            QPushButton:pressed {{
+                background-color: {card_border};
+            }}
+            QPushButton:disabled {{
+                background-color: {card_hover};
+                color: {secondary_fg};
+            }}
+        """
+        for button in [self.apply_button, self.clear_button]:
+            button.setStyleSheet(secondary_style)
+
     def _create_data_source_section(self, layout):
         """Create the data source selection section."""
         data_group = QGroupBox("Data Source")
