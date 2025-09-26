@@ -18,6 +18,7 @@ from pandaplot.commands.project.project import (
 from pandaplot.gui.core.widget_extension import PMenuBar
 from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 def show_about():
@@ -33,7 +34,7 @@ class MainMenu(PMenuBar):
     @override
     def _apply_theme(self):
         """Apply theme-specific styling to the main menu based on current theme."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors

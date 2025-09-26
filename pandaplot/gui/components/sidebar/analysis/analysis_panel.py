@@ -18,6 +18,7 @@ from pandaplot.models.events import (
     AnalysisEvents, UIEvents, DatasetEvents, DatasetOperationEvents
 )
 from pandaplot.models.project.items import Dataset
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class AnalysisPanel(PWidget):
@@ -88,7 +89,7 @@ class AnalysisPanel(PWidget):
     def _apply_theme(self):
         """Apply current theme to analysis panel components."""
         # Get theme colors
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         card_bg = palette.get('card_bg', '#ffffff')
@@ -186,7 +187,7 @@ class AnalysisPanel(PWidget):
     
     def apply_info_label_theme(self, label):
         """Apply theme styling to info labels."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         secondary_fg = palette.get('secondary_fg', '#666666')
         

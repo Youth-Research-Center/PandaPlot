@@ -20,6 +20,8 @@ from PySide6.QtWidgets import (
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.config.config_manager import ConfigManager
+from pandaplot.services.theme.theme_manager import ThemeManager
 
     
 class WelcomeTab(PWidget):
@@ -101,9 +103,7 @@ class WelcomeTab(PWidget):
         ThemeManager, avoiding global stylesheet bloat.
         """
         try:
-            if not self.app_context or not getattr(self.app_context, 'get_theme_manager', None):
-                return
-            tm = self.app_context.get_theme_manager()
+            tm = self.app_context.get_manager(ThemeManager)
             palette = tm.get_surface_palette()
             card_bg = palette['card_bg']
             card_hover = palette['card_hover']
@@ -539,20 +539,11 @@ class WelcomeTab(PWidget):
             if not self.app_context:
                 return []
             # Prefer ConfigManager (source of truth) instead of AppState (which currently has no config attr)
-            cfg_manager = getattr(self.app_context, 'get_config_manager', None)
-            cfg = None
-            if callable(cfg_manager):
-                try:
-                    cfg = cfg_manager().config  # type: ignore[attr-defined]
-                except Exception:  # noqa: BLE001
-                    cfg = None
-            # Fallback: legacy / future pattern where app_state holds config
-            if cfg is None:
-                app_state = getattr(self.app_context, 'app_state', None) or self.app_context.get_app_state()
-                cfg = getattr(app_state, 'config', None)
+            cfg_manager = self.app_context.get_manager(ConfigManager)
+            cfg = cfg_manager.config
             if not cfg:
                 return []
-            recent_paths = getattr(cfg, 'recent_projects', None)
+            recent_paths = cfg.recent_projects
             if not recent_paths:
                 return []
             results = []

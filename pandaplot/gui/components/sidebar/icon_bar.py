@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class IconBar(PWidget):
@@ -50,7 +51,7 @@ class IconBar(PWidget):
     @override
     def _apply_theme(self):
         """Apply theme styling to icon bar components."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get theme colors for main background
@@ -71,7 +72,7 @@ class IconBar(PWidget):
     
     def _apply_settings_button_theme(self):
         """Apply theme styling to settings button."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         card_hover = palette.get('card_hover', '#e5f3ff')
@@ -102,7 +103,7 @@ class IconBar(PWidget):
     
     def _apply_button_theme(self, button, is_active=False):
         """Apply theme styling to a single button."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         card_hover = palette.get('card_hover', '#e5f3ff')

@@ -15,6 +15,7 @@ from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import DatasetOperationEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class DatasetTab(PWidget):
@@ -49,7 +50,7 @@ class DatasetTab(PWidget):
     @override
     def _apply_theme(self):
         """Apply theme-specific styling to all components."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors

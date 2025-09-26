@@ -10,6 +10,7 @@ from pandaplot.gui.components.sidebar.panels.panel_setup_manager import PanelSet
 from pandaplot.gui.core.widget_extension import PMainWindow
 from pandaplot.models.events import AppEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class PandaMainWindow(PMainWindow):
@@ -41,7 +42,7 @@ class PandaMainWindow(PMainWindow):
     @override
     def _apply_theme(self):
         """Apply theme-specific styling to the main window based on current theme."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate background color

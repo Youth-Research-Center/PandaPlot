@@ -3,7 +3,7 @@ from typing import override
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
-from pandaplot.models.state import (AppState, AppContext)
+from pandaplot.models.state import AppContext, AppState
 
 
 class NewProjectCommand(Command):
