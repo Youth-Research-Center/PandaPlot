@@ -125,7 +125,8 @@ class ImportCsvCommand(Command):
                 if df.empty:
                     return {"success": False, "error": "The selected CSV file is empty.", "dataset_id": None, "dataset": None}
 
-                self.imported_data = df
+                # Note: Don't assign to self.imported_data here to avoid thread safety issues
+                # The DataFrame will be returned in the result payload
 
             except Exception as e:
                 return {"success": False, "error": f"Failed to read CSV file: {str(e)}", "dataset_id": None, "dataset": None}
@@ -144,7 +145,7 @@ class ImportCsvCommand(Command):
                 progress_callback(0.8)  # Dataset metadata prepared
 
             # Create dataset object
-            dataset = Dataset(id=self.dataset_id, name=self.dataset_name, data=self.imported_data, source_file=self.file_path)
+            dataset = Dataset(id=self.dataset_id, name=self.dataset_name, data=df, source_file=self.file_path)
 
             if progress_callback:
                 progress_callback(0.9)  # Dataset object created
@@ -154,8 +155,8 @@ class ImportCsvCommand(Command):
                 self.dataset_name,
                 self.file_path,
                 self.dataset_id,
-                self.imported_data.shape[0],
-                self.imported_data.shape[1],
+                df.shape[0],
+                df.shape[1],
             )
 
             if progress_callback:
@@ -168,8 +169,9 @@ class ImportCsvCommand(Command):
                 "dataset": dataset,
                 "dataset_name": self.dataset_name,
                 "file_path": self.file_path,
-                "rows": self.imported_data.shape[0],
-                "cols": self.imported_data.shape[1],
+                "rows": df.shape[0],
+                "cols": df.shape[1],
+                "imported_data": df,  # Return DataFrame in result payload
             }
 
         except Exception as e:
@@ -189,12 +191,39 @@ class ImportCsvCommand(Command):
                 file_path = result.get("file_path")
                 rows = result.get("rows", 0)
                 cols = result.get("cols", 0)
+                imported_data = result.get("imported_data")
+
+                # Assign imported_data on main thread to avoid thread safety issues
+                self.imported_data = imported_data
 
                 if dataset and self.project:
+                    # Verify that we still have a project and it's the same as when we started the import
+                    if not self.app_state.has_project:
+                        # Project was closed during import - abort with user message
+                        self.logger.warning("Project was closed during CSV import - aborting import operation")
+                        self.ui_controller.show_warning_message(
+                            "Import Cancelled", 
+                            f"The project was closed during CSV import of '{dataset_name}'. "
+                            "The import has been cancelled."
+                        )
+                        return
+                    
+                    current_project = self.app_state.current_project
+                    if current_project != self.project:
+                        # Project changed during import - abort with user message
+                        self.logger.warning("Project changed during CSV import - aborting import operation")
+                        self.ui_controller.show_warning_message(
+                            "Import Cancelled", 
+                            f"The project was changed during CSV import of '{dataset_name}'. "
+                            "The import has been cancelled to prevent data inconsistency."
+                        )
+                        return
+                    
                     # Add dataset to project
                     self.project.add_item(dataset, parent_id=self.folder_id)
 
                     # Emit event
+                    # TODO: migrate to item created and create data class
                     self.app_state.event_bus.emit(
                         DatasetEvents.DATASET_CREATED,
                         {
@@ -204,7 +233,7 @@ class ImportCsvCommand(Command):
                             "folder_id": self.folder_id,
                             "dataset_data": dataset.data,
                             "file_path": file_path,
-                            "dataframe": self.imported_data,
+                            "dataframe": imported_data,  # Use DataFrame from result payload
                         },
                     )
 
