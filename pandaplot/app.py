@@ -1,4 +1,3 @@
-
 import logging
 import sys
 
@@ -37,22 +36,18 @@ def build_app_context() -> AppContext:
     """Create and return a fully initialized AppContext (no Qt widgets yet)."""
     event_bus = EventBus()
     project_data_manager = create_project_data_manager()
-    app_state = AppState(event_bus, project_data_manager=project_data_manager)
+    app_state = AppState(event_bus)
     config_manager = ConfigManager(event_bus)
     config_manager.load()
     theme_manager = ThemeManager(event_bus, config_manager)
     ui_controller = UIController()
     command_executor = CommandExecutor()
     task_scheduler = TaskScheduler()
-    return AppContext(
-        app_state=app_state,
-        event_bus=event_bus,
-        command_executor=command_executor,
-        ui_controller=ui_controller,
-        config_manager=config_manager,
-        theme_manager=theme_manager,
-        task_scheduler=task_scheduler
-    )
+
+    # Create list of managers to pass to AppContext
+    managers = [command_executor, ui_controller, config_manager, theme_manager, task_scheduler, project_data_manager]
+
+    return AppContext(app_state=app_state, event_bus=event_bus, managers=managers)
 
 
 def create_qt_application(app_context: AppContext, argv: list[str] | None = None) -> tuple[QApplication, PandaMainWindow]:
@@ -65,7 +60,7 @@ def create_qt_application(app_context: AppContext, argv: list[str] | None = None
     app = QApplication(argv)
 
     main_window = PandaMainWindow(app_context)
-    theme_mgr = app_context.get_theme_manager()
+    theme_mgr = app_context.get_manager(ThemeManager)
     theme_mgr.set_qt_app(app)
     try:
         theme_mgr.apply_current()
@@ -82,7 +77,7 @@ def launch(app_context: AppContext) -> int:
     """
     if app_context is None:
         raise RuntimeError("AppContext must be provided to launch the application")
-    
+
     app, main_window = create_qt_application(app_context)
     main_window.show()
     return app.exec()
@@ -125,3 +120,4 @@ if __name__ == "__main__":
     # TODO: add support for sorting and filtering of the data
     # TODO: add export options for dataset tab
     # TODO: add support for formulas in dataset tab
+    # TODO: encapsulate project data manager inside project manager

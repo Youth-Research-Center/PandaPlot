@@ -1,13 +1,15 @@
 """
 Facade for accessing application state and services.
 """
+from typing import Any, TypeVar
+
 from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import EventBus
 from pandaplot.models.state.app_state import AppState
-from pandaplot.services.config import ConfigManager
 from pandaplot.services.qtasks import TaskScheduler
-from pandaplot.services.theme import ThemeManager
+
+T = TypeVar('T')
 
 
 class AppContext:
@@ -15,18 +17,42 @@ class AppContext:
             self, 
             app_state: AppState,
             event_bus: EventBus, 
-            command_executor: CommandExecutor, 
-            ui_controller: UIController, 
-            config_manager: ConfigManager, 
-            theme_manager: ThemeManager, 
-            task_scheduler: TaskScheduler):
+            managers: list[Any]):
         self.app_state = app_state
         self.event_bus = event_bus
-        self.command_executor = command_executor
-        self.ui_controller = ui_controller
-        self.config_manager = config_manager
-        self.theme_manager = theme_manager
-        self.task_scheduler = task_scheduler
+        
+        # Create managers dictionary mapping type to instance
+        self._managers: dict[type, Any] = {}
+        for manager in managers:
+            self._managers[type(manager)] = manager
+        
+        # Keep backward compatibility by storing individual references
+        self.command_executor = self.get_manager(CommandExecutor)
+        self.ui_controller = self.get_manager(UIController)
+        self.task_scheduler = self.get_manager(TaskScheduler)
+
+    def get_manager(self, manager_type: type[T]) -> T:
+        """
+        Generic method to retrieve a manager instance by its type.
+        
+        Args:
+            manager_type: The type/class of the manager to retrieve
+            
+        Returns:
+            The manager instance of the specified type
+            
+        Raises:
+            KeyError: If no manager of the specified type is registered
+            RuntimeError: If the manager is None (not initialized)
+        """
+        if manager_type not in self._managers:
+            raise KeyError(f"Manager of type {manager_type.__name__} not found in AppContext")
+        
+        manager = self._managers[manager_type]
+        if manager is None:
+            raise RuntimeError(f"{manager_type.__name__} not initialized in AppContext")
+        
+        return manager
 
     def get_app_state(self) -> AppState:
         return self.app_state
@@ -35,22 +61,10 @@ class AppContext:
         return self.event_bus
 
     def get_command_executor(self) -> CommandExecutor:
-        return self.command_executor
+        return self.get_manager(CommandExecutor)
 
     def get_ui_controller(self) -> UIController:
-        return self.ui_controller
-
-    def get_config_manager(self) -> ConfigManager:
-        if self.config_manager is None:
-            raise RuntimeError("ConfigManager not initialized in AppContext")
-        return self.config_manager
-    
-    def get_theme_manager(self) -> ThemeManager:
-        if self.theme_manager is None:
-            raise RuntimeError("ThemeManager not initialized in AppContext")
-        return self.theme_manager
+        return self.get_manager(UIController)
 
     def get_task_scheduler(self) -> TaskScheduler:
-        if self.task_scheduler is None:
-            raise RuntimeError("TaskScheduler not initialized in AppContext")
-        return self.task_scheduler
+        return self.get_manager(TaskScheduler)

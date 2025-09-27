@@ -1,5 +1,6 @@
 import os
-from typing import Callable, override, Tuple, Any
+from typing import Any, Callable, Tuple, override
+
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.dataset import Dataset

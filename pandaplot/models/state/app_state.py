@@ -4,8 +4,6 @@ from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project import Project
 from typing import Optional
 
-from pandaplot.storage.project_data_manager import ProjectDataManager
-
 
 class AppState:
     """
@@ -13,12 +11,9 @@ class AppState:
     when state changes occur.
     """
     
-    def __init__(self, event_bus: EventBus, project_data_manager: ProjectDataManager):
+    def __init__(self, event_bus: EventBus):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.event_bus = event_bus
-
-        # encapsulate project data manager inside project manager
-        self.project_data_manager = project_data_manager
 
         self._current_project: Optional[Project] = None
         
@@ -61,12 +56,6 @@ class AppState:
                 'project': project
             })
 
-    def load_project_from_file(self, file_path):
-        self.logger.info(f"Loading project from file: {file_path}")
-        project = self.project_data_manager.load(file_path)
-        if project:
-            self.load_project(project)
-
     def close_project(self):
         """Close the currently loaded project."""
         self.logger.info("Closing project")
@@ -80,42 +69,4 @@ class AppState:
                 'project': old_project
             })
     
-    def save_project(self, file_path: Optional[str] = None) -> bool:
-        """
-        Save the current project.
-        
-        Args:
-            file_path (str, optional): New file path to save to. If None, uses current path.
-        """
-        if self._current_project is None:
-            return False
-        self.logger.info(f"Saving project {self._current_project.name} to {file_path}")
-        # TODO: this shouldn't be in the application state. 
-        if self._current_project is None:
-            # TODO: consider returning false
-            raise ValueError("No project loaded to save")
-        
-        save_path = file_path or self.project_file_path
-        if save_path is None:
-            # TODO: consider returning false
-            raise ValueError("No file path specified for saving")
-        
-        # Update the stored path if a new one was provided
-        if file_path is not None:
-            self._current_project.project_file_path = file_path
-
-        self.event_bus.emit(ProjectEvents.PROJECT_SAVING, {
-            'project': self._current_project,
-            'file_path': save_path
-        })
-        
-        # TODO: Implement actual saving logic in a service
-        # TODO: make saving async since it's a file operation
-        self.project_data_manager.save(self._current_project, save_path)
-
-        self.event_bus.emit(ProjectEvents.PROJECT_SAVED, {
-            'project': self._current_project,
-            'file_path': save_path
-        })
-
-        return True
+    

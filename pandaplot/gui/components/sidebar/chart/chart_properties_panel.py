@@ -18,6 +18,7 @@ from pandaplot.models.chart.chart_style_manager import ChartStyleManager
 from pandaplot.models.events import UIEvents, ChartEvents, ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.project.items import Dataset
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class ColorButton(QPushButton):
@@ -52,7 +53,7 @@ class ColorButton(QPushButton):
     def _update_appearance(self):
         """Trigger a repaint with theme-aware button styling."""
         # Get theme colors if parent has app_context
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         bg_color = palette.get('card_hover', '#f5f5f5')
         border_color = palette.get('card_border', '#888')
@@ -178,7 +179,7 @@ class ChartPropertiesPanel(PWidget):
     @override
     def _apply_theme(self):
         """Apply theme styling to all components."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get theme colors with fallbacks
@@ -273,7 +274,7 @@ class ChartPropertiesPanel(PWidget):
     
     def _apply_button_styling(self):
         """Apply theme styling to main action buttons."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get colors with fallbacks
@@ -335,7 +336,7 @@ class ChartPropertiesPanel(PWidget):
     
     def _apply_series_button_styling(self):
         """Apply theme styling to series management buttons."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get colors with fallbacks

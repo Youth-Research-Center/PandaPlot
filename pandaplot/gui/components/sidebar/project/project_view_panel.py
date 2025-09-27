@@ -19,6 +19,7 @@ from pandaplot.gui.components.sidebar.project.project_tree_manager import Projec
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class ProjectViewPanel(PWidget):
@@ -223,7 +224,7 @@ class ProjectViewPanel(PWidget):
     def _apply_theme(self):
         """Apply theme-specific styling to the project view panel based on current theme."""
 
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors

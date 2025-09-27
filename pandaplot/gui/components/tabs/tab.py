@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor
 from pandaplot.gui.components.tabs.tab_bar import CustomTabBar
 from pandaplot.gui.core.widget_extension import PTabWidget
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class CustomTabWidget(PTabWidget):
@@ -32,7 +33,7 @@ class CustomTabWidget(PTabWidget):
     @override
     def _apply_theme(self):
         """Apply theme-specific styling to the tab widget based on current theme."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors

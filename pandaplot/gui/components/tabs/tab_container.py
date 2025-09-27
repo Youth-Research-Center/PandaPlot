@@ -11,7 +11,6 @@ from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import (
     AnalysisEvents,
     ChartEvents,
-    DatasetEvents,
     ProjectEvents,
     UIEvents,
 )
