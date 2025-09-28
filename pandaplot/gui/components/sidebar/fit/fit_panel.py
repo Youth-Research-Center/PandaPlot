@@ -15,6 +15,7 @@ from pandaplot.services.fit.fit_service import FitService
 from pandaplot.models.state import AppContext
 from typing import Optional, override
 
+from pandaplot.services.theme import ThemeManager
 # Import scipy for curve fitting (will handle gracefully if not available)
 try:
     from scipy.optimize import curve_fit
@@ -83,7 +84,7 @@ class FitPanel(PWidget):
     @override
     def _apply_theme(self):
         """Apply theme styling to all components."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
 
         # Get theme colors with fallbacks
@@ -130,10 +131,10 @@ class FitPanel(PWidget):
 
         # Main action buttons
         self._apply_button_styling()
-#TODO: color buttons
+
     def _apply_button_styling(self):
         """Apply theme styling to action buttons."""
-        theme_manager = self.app_context.get_theme_manager()
+        theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
 
         # Get colors with fallbacks
@@ -299,7 +300,7 @@ class FitPanel(PWidget):
         equation_layout = QHBoxLayout()
         equation_layout.addWidget(QLabel("Equation:"))
         self.equation_label = QLabel("No fit performed")
-        self.equation_label.setStyleSheet("font-family: monospace; background-color: #f5f5f5; padding: 5px; border: 1px solid #ddd;")
+        self.equation_label.setStyleSheet("font-family: monospace; background-color: #f5f5f5; color: #333333, padding: 5px; border: 1px solid #ddd;")
         equation_layout.addWidget(self.equation_label)
         results_layout.addLayout(equation_layout)
         
@@ -571,6 +572,4 @@ class FitPanel(PWidget):
             # Update data points display
             self.update_data_points_display()
 
-
-#TODO: refactor UI, add themes
-#TODO: refactor display_results
+#TODO: add sin, cos func buttons
