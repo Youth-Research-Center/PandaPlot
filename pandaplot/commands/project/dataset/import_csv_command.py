@@ -6,6 +6,7 @@ import pandas as pd
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_data import DatasetCreatedData
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state import AppContext, AppState
@@ -184,7 +185,7 @@ class ImportCsvCommand(Command):
         try:
             self.is_importing = False
 
-            if result.get("success", False):
+            if result.get("success", False) and result.get("dataset_id", None) is not None:
                 dataset = result.get("dataset")
                 dataset_id = result.get("dataset_id")
                 dataset_name = result.get("dataset_name")
@@ -225,16 +226,7 @@ class ImportCsvCommand(Command):
                     # Emit event
                     # TODO: migrate to item created and create data class
                     self.app_state.event_bus.emit(
-                        DatasetEvents.DATASET_CREATED,
-                        {
-                            "project": self.project,
-                            "dataset_id": dataset_id,
-                            "dataset_name": dataset_name,
-                            "folder_id": self.folder_id,
-                            "dataset_data": dataset.data,
-                            "file_path": file_path,
-                            "dataframe": imported_data,  # Use DataFrame from result payload
-                        },
+                        DatasetEvents.DATASET_CREATED, DatasetCreatedData(item_id=dataset_id).to_dict()
                     )
 
                     self.logger.info("Dataset '%s' successfully added to project", dataset_name)

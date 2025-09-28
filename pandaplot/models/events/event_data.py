@@ -35,9 +35,17 @@ class NoteContentChangedData(EventData):
     new_content: str
 
 @dataclass(frozen=True)
-class ChartCreatedData(EventData):
+class ItemCreatedData(EventData):
     # TODO: we need project id ideally
-    chart_id: str
+    item_id: str
+
+@dataclass(frozen=True)
+class ChartCreatedData(ItemCreatedData):
+    pass
+
+@dataclass(frozen=True)
+class DatasetCreatedData(ItemCreatedData):
+    pass
 
 @dataclass(frozen=True)
 class TabOpenRequestedData(EventData):

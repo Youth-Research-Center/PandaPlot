@@ -107,7 +107,7 @@ class CreateChartCommand(Command):
             # Publish chart creation event
             event_bus = self.app_context.event_bus
             event_bus.emit(ChartEvents.CHART_CREATED, ChartCreatedData(
-                chart_id=chart.id
+                item_id=chart.id
             ).to_dict())
 
             return True
