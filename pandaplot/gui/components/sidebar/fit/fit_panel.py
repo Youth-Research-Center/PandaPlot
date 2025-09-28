@@ -300,7 +300,7 @@ class FitPanel(PWidget):
         equation_layout = QHBoxLayout()
         equation_layout.addWidget(QLabel("Equation:"))
         self.equation_label = QLabel("No fit performed")
-        self.equation_label.setStyleSheet("font-family: monospace; background-color: #f5f5f5; color: #333333, padding: 5px; border: 1px solid #ddd;")
+        self.equation_label.setStyleSheet("font-family: monospace; background-color: #f5f5f5; color: #333333; padding: 5px; border: 1px solid #ddd;")
         equation_layout.addWidget(self.equation_label)
         results_layout.addLayout(equation_layout)
         
@@ -312,24 +312,8 @@ class FitPanel(PWidget):
         
         self.fit_button = QPushButton("Perform Fit")
         self.fit_button.setEnabled(SCIPY_AVAILABLE)
-        self.fit_button.setStyleSheet("""
-            QPushButton {
-                background-color: #007bff;
-                color: white;
-                padding: 8px 16px;
-                border: none;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #0056b3;
-            }
-            QPushButton:disabled {
-                background-color: #6c757d;
-            }
-        """)
         button_layout.addWidget(self.fit_button)
-        
+
         self.apply_button = QPushButton("Apply to Chart")
         self.apply_button.setEnabled(False)
         button_layout.addWidget(self.apply_button)
