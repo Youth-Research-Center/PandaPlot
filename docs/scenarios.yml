@@ -71,9 +71,24 @@
   description: User can create a pie chart of categorical data
   status: pending
 
-- id: S016
-  title: Customize plot appearance
-  description: User can customize the appearance of plots (colors, labels, titles)  
+- id: S016a
+  title: Change plot colors
+  description: User can change the colors of plot elements (lines, markers, bars, etc.)
+  status: pending
+
+- id: S016b
+  title: Edit plot labels
+  description: User can edit axis labels and legend text on plots
+  status: pending
+
+- id: S016c
+  title: Set plot title
+  description: User can set or modify the title of a plot
+  status: pending
+
+- id: S016d
+  title: Adjust plot style
+  description: User can select different plot styles (grid, background, font size)
   status: pending
 
 - id: S017
@@ -91,7 +106,7 @@
 - id: S019
   title: Perform linear regression
   description: User can perform linear regression analysis on a dataset
-  status: pending
+  status: pending ##kad ubacimo ML
 
 - id: S020
   title: Perform logistic regression
@@ -119,14 +134,39 @@
   status: pending 
 
 ## User Interface Scenarios 
+
 - id: S025
-  title: Navigate application menus
-  description: User can navigate through the application menus to access different features
+  title: Open chart tab
+  description: User can open a new tab displaying a selected chart (e.g., scatter, line, bar)
+  status: pending
+
+- id: S025a
+  title: Open settings menu
+  description: User can open the application settings menu from the main menu bar
+  status: pending
+
+- id: S025b
+  title: Open data table tab
+  description: User can open a tab displaying the raw data table for the current dataset
+  status: pending
+
+- id: S025c
+  title: Switch between open tabs
+  description: User can switch between multiple open tabs (charts, data tables, analysis results)
   status: pending
 
 - id: S026
   title: Use toolbar shortcuts
-  description: User can use toolbar shortcuts to quickly access common functions
+  description: |
+    User can use toolbar shortcuts to quickly access common functions, including:
+      - Copy selected data or plot (Ctrl+C)
+      - Paste data (Ctrl+V)
+      - Undo last action (Ctrl+Z)
+      - Redo last undone action (Ctrl+Y)
+      - Save current project (Ctrl+S)
+      - Open project (Ctrl+O)
+      - Create new project (Ctrl+N)
+      - Delete selected item (Del)
   status: pending
 
 - id: S027
@@ -147,7 +187,7 @@
   ## Performance and Reliability Scenarios
 - id: S030
   title: Load large datasets
-  description: Application can load and handle large datasets without crashing
+  description: Application can load and handle large datasets (e.g., 100,000 rows × 1,000 columns of float data) without crashing
   status: pending
 
 - id: S031
