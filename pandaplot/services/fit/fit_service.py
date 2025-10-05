@@ -32,6 +32,13 @@ class FitService:
             self.logger.error("Unknown fit type: %s", fit_type)
             raise ValueError(f"Unknown fit type: {fit_type}")
 
+    def insert_function(self, function_str):
+        cursor_pos = self.fit_panel.custom_function_edit.cursorPosition()
+        current_text = self.fit_panel.custom_function_edit.text()
+        new_text = current_text[:cursor_pos] + function_str + current_text[cursor_pos:]
+        self.fit_panel.custom_function_edit.setText(new_text)
+        self.fit_panel.custom_function_edit.setCursorPosition(cursor_pos + len(function_str))
+
     def _create_custom_function(self):
         """Create a custom fitting function from user input."""
         function_str = self.fit_panel.custom_function_edit.text().strip()
@@ -41,6 +48,12 @@ class FitService:
         if not function_str or not params_str:
             self.logger.warning("Custom function or parameters not specified")
             raise ValueError("Custom function and parameters must be specified")
+
+        # add prefix np. to func
+        func_list = ["sin", "cos", "tan", "sqrt", "log", "exp", "arcsin", "arccos"]
+        for func in func_list:
+            function_str = function_str.replace(f"{func}(", f"np.{func}(")
+            function_str = function_str.replace(f"np.np.{func}(", f"np.{func}(") #avoid np.np
 
         # Parse parameters
         params = [p.strip() for p in params_str.split(",")]

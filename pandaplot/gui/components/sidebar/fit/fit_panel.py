@@ -246,20 +246,20 @@ class FitPanel(PWidget):
         self.custom_function_edit = QLineEdit()
         self.custom_function_edit.setPlaceholderText("e.g., a*x**2 + b*x + c")
         custom_layout.addWidget(self.custom_function_edit, 0, 1)
-        #show menue
+        #show menu
         self.function_button = QPushButton("Functions")
         custom_layout.addWidget(self.function_button, 0, 2)
-
-        # Create menu - without action
         self.menu = QMenu()
-        # add action to buttons
-        self.menu.addAction("sin(x)")
-        self.menu.addAction("cos(x)")
-        self.menu.addAction("sqrt(x)")
-        self.menu.addAction("log(x)")
-        # Connect button to show menu - add actions
-        self.function_button.clicked.connect(lambda: self.menu.exec_(self.function_button.mapToGlobal(self.function_button.rect().bottomLeft())))
+        function_names = ["sin", "cos","tan", "sqrt", "exp", "log", "arcsin", "arccos"]
 
+        for name in function_names:
+            action = self.menu.addAction(name)
+            action.triggered.connect(lambda checked, f=name: self.fit_command.insert_function(f + "("))
+
+        #connect buttons to menu
+        self.function_button.clicked.connect(
+            lambda: self.menu.exec_(self.function_button.mapToGlobal(self.function_button.rect().bottomLeft()))
+        )
         
         custom_layout.addWidget(QLabel("Parameters:"), 1, 0)
         self.custom_params_edit = QLineEdit()
@@ -572,3 +572,4 @@ class FitPanel(PWidget):
 
 #TODO: add sin, cos func buttons
 #TODO: fix equation box
+#TODO: fix custom equation display -2.3*x+b instead of 4.2*x-2.3
