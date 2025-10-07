@@ -1,9 +1,9 @@
 """Curve fitting panel for performing regression analysis on chart data."""
 import pandas as pd
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, 
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QComboBox, QPushButton, QLineEdit, QGroupBox, QScrollArea,
-    QTextEdit, QCheckBox, QSpinBox
+    QTextEdit, QCheckBox, QSpinBox, QMenu
 )
 from PySide6.QtCore import Qt, Signal
 import logging
@@ -192,6 +192,63 @@ class FitPanel(PWidget):
         for button in [self.apply_button, self.clear_button]:
             button.setStyleSheet(secondary_style)
 
+    def _apply_menu_styling(self):
+            """Apply theme styling to the function menu"""
+            theme_manager = self.app_context.get_manager(ThemeManager)
+            palette = theme_manager.get_surface_palette()
+
+            # Get theme colors with fallbacks
+            card_bg = palette.get('card_bg', '#ffffff')
+            card_border = palette.get('card_border', '#dee2e6')
+            base_fg = palette.get('base_fg', '#333333')
+            card_hover = palette.get('card_hover', '#e5f3ff')
+            secondary_fg = palette.get('secondary_fg', '#666666')
+
+            # Function button styling
+            function_button_style = f"""
+            QPushButton {{
+                background-color: {card_hover};
+                color: {base_fg};
+                padding: 6px 14px;
+                border: 1px solid {card_border};
+                border-radius: 4px;
+            }}
+            QPushButton:hover {{
+                background-color: {card_bg};
+            }}
+            QPushButton:pressed {{
+                background-color: {card_border};
+            }}
+            QPushButton:disabled {{
+                background-color: {card_hover};
+                color: {secondary_fg};
+            }}
+        """
+            self.function_button.setStyleSheet(function_button_style)
+
+            # Menu styling
+            menu_style = f"""
+                QMenu {{
+                    background-color: {card_bg};
+                    color: {base_fg};
+                    border: 1px solid {card_border};
+                    border-radius: 4px;
+                }}
+                QMenu::item {{
+                    padding: 5px 20px;
+                    background-color: transparent;
+                }}
+                QMenu::item:selected {{
+                    background-color: {card_hover};
+                    color: {base_fg};
+                }}
+                QMenu::item:pressed {{
+                    background-color: {card_border};
+                    color: {base_fg};
+                }}
+            """
+            self.menu.setStyleSheet(menu_style)
+
     def _create_data_source_section(self, layout):
         """Create the data source selection section."""
         data_group = QGroupBox("Data Source")
@@ -246,6 +303,21 @@ class FitPanel(PWidget):
         self.custom_function_edit = QLineEdit()
         self.custom_function_edit.setPlaceholderText("e.g., a*x**2 + b*x + c")
         custom_layout.addWidget(self.custom_function_edit, 0, 1)
+        #show menu
+        self.function_button = QPushButton("Functions")
+        custom_layout.addWidget(self.function_button, 0, 2)
+        self.menu = QMenu()
+        self.function_names = ["sin", "cos","tan", "sqrt", "exp", "log", "arcsin", "arccos"]
+        self._apply_menu_styling()
+
+        for name in self.function_names:
+            action = self.menu.addAction(name)
+            action.triggered.connect(lambda checked, f=name: self.fit_command.insert_function(f + "("))
+
+        #connect buttons to menu
+        self.function_button.clicked.connect(
+            lambda: self.menu.exec_(self.function_button.mapToGlobal(self.function_button.rect().bottomLeft()))
+        )
         
         custom_layout.addWidget(QLabel("Parameters:"), 1, 0)
         self.custom_params_edit = QLineEdit()
@@ -556,4 +628,5 @@ class FitPanel(PWidget):
             # Update data points display
             self.update_data_points_display()
 
-#TODO: add sin, cos func buttons
+#TODO: fix equation box
+#TODO: fix custom equation display -2.3*x+b instead of 4.2*x-2.3
