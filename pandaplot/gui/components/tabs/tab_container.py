@@ -251,10 +251,38 @@ class TabContainer(PWidget):
             return self.open_tab(chart_id)
 
     def on_project_closed(self):
-        """Called when a project is closed - clean up tracking dictionaries and show welcome tab if no tabs are open."""
+        """Called when a project is closed - close all project-related tabs and show welcome tab if no tabs are open."""
+        self.logger.info("Closing all project-related tabs")
+        
+        # Close all project-related tabs (tracked in self.tabs dictionary)
+        # We need to collect tabs to close first to avoid modifying dictionary during iteration
+        tabs_to_close = list(self.tabs.values())
+        
+        for tab_widget in tabs_to_close:
+            try:
+                # Find the tab index for this widget
+                tab_index = self.tab_widget.indexOf(tab_widget)
+                if tab_index >= 0:
+                    self.close_tab(tab_index)
+                else:
+                    # Tab not found in tab widget, remove from tracking
+                    self.logger.warning("Tab widget not found in tab container, cleaning up tracking")
+                    # Find and remove from tracking dictionary
+                    item_id_to_remove = None
+                    for curr_item_id, curr_tab in self.tabs.items():
+                        if curr_tab is tab_widget:
+                            item_id_to_remove = curr_item_id
+                            break
+                    if item_id_to_remove:
+                        del self.tabs[item_id_to_remove]
+            except RuntimeError:
+                # Qt object has been deleted, continue with cleanup
+                self.logger.debug("Qt widget already deleted during project close cleanup")
+        
         # Clear tracking dictionaries since project is closed
         self.tabs.clear()
 
+        # Create welcome tab if no tabs remain
         if self.tab_widget.count() == 0:
             self.create_welcome_tab()
 
