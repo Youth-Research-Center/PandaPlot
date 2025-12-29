@@ -50,7 +50,7 @@ class FitService:
             raise ValueError("Custom function and parameters must be specified")
 
         # add prefix np. to func
-        func_list = ["sin", "cos", "tan", "sqrt", "log", "exp", "arcsin", "arccos"]
+        func_list = self.fit_panel.function_names
         for func in func_list:
             function_str = function_str.replace(f"{func}(", f"np.{func}(")
             function_str = function_str.replace(f"np.np.{func}(", f"np.{func}(") #avoid np.np
