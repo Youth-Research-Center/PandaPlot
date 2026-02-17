@@ -1,6 +1,7 @@
 from typing import override
 
 import pandas as pd
+from shiboken6 import isValid
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
@@ -380,6 +381,11 @@ class ChartEditorWidget(PWidget):
 
     def update_chart(self):
         """Update the chart preview."""
+        # Guard: Check if widget still exists
+        if not isValid(self.chart_canvas):
+            self.logger.debug("Chart canvas already deleted, skipping update")
+            return
+
         try:
             # Clear the current plot
             self.chart_canvas.axes.clear()
@@ -551,6 +557,10 @@ class ChartEditorWidget(PWidget):
 
     def update_status(self, status: str):
         """Update the status label."""
+        # Guard: Check if widget still exists
+        if not isValid(self.status_label):
+            return
+
         self.status_label.setText(status)
         self._update_status_label_style()
 
@@ -580,6 +590,10 @@ class ChartEditorWidget(PWidget):
 
     def refresh_chart(self):
         """Refresh the chart preview when configuration changes from external sources."""
+        # Guard: Check if widget still exists
+        if not isValid(self.chart_canvas):
+            return
+
         self.update_chart()
 
         # Update dataset label in status
