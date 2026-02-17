@@ -1,12 +1,13 @@
 from typing import override
 
 import pandas as pd
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QScrollArea,
     QSizePolicy,
     QSpinBox,
     QToolBar,
@@ -308,7 +309,18 @@ class ChartEditorWidget(PWidget):
             nav_toolbar = self.chart_canvas.navigation_toolbar
             preview_layout.addWidget(nav_toolbar)
 
-        preview_layout.addWidget(self.chart_canvas)
+        # Wrap chart canvas in scroll area for large charts
+        canvas_scroll = QScrollArea()
+        canvas_scroll.setWidgetResizable(False)  # Important: False to allow canvas to exceed viewport
+        canvas_scroll.setWidget(self.chart_canvas)
+        canvas_scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding
+        )
+        canvas_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        canvas_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        preview_layout.addWidget(canvas_scroll)
 
         layout.addWidget(self.preview_frame)
 

@@ -736,7 +736,14 @@ class ChartPropertiesPanel(PWidget):
             
             # Update the series list
             self._update_series_list()
-            
+
+            # Publish chart updated event to refresh display
+            self.publish_event(ChartEvents.CHART_UPDATED, {
+                'chart_id': self.current_chart.id,
+                'update_type': 'series_added',
+                'chart': self.current_chart
+            })
+
             # Select the new series
             self.series_list.setCurrentRow(len(self.current_chart.data_series) - 1)
     
@@ -749,10 +756,17 @@ class ChartPropertiesPanel(PWidget):
         if current_row >= 0 and current_row < len(self.current_chart.data_series):
             # Remove the series
             self.current_chart.remove_data_series(current_row)
-            
+
             # Update the series list
             self._update_series_list()
-            
+
+            # Publish chart updated event to refresh display
+            self.publish_event(ChartEvents.CHART_UPDATED, {
+                'chart_id': self.current_chart.id,
+                'update_type': 'series_removed',
+                'chart': self.current_chart
+            })
+
             # Select previous series or disable if no series left
             if self.current_chart.data_series:
                 new_row = min(current_row, len(self.current_chart.data_series) - 1)
