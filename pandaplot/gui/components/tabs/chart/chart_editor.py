@@ -312,7 +312,7 @@ class ChartEditorWidget(PWidget):
 
         # Wrap chart canvas in scroll area for large charts
         canvas_scroll = QScrollArea()
-        canvas_scroll.setWidgetResizable(False)  # Important: False to allow canvas to exceed viewport
+        canvas_scroll.setWidgetResizable(True)
         canvas_scroll.setWidget(self.chart_canvas)
         canvas_scroll.setSizePolicy(
             QSizePolicy.Policy.Expanding,

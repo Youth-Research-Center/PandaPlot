@@ -828,7 +828,8 @@ class ChartPropertiesPanel(PWidget):
             # Fit data: columns/dataset not editable, ignore
             return
 
-        # We don't rebuild the list here to preserve edit focus; apply button can trigger full refresh if needed.
+        self._has_unsaved_changes = True
+        self._update_status_indicator()
     
     def _on_style_changed(self):
         """Handle style changes."""
