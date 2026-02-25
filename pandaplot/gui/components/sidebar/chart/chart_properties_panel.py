@@ -91,7 +91,6 @@ class ChartPropertiesPanel(PWidget):
     
     chart_created = Signal(str)  # chart_id
     chart_updated = Signal(str)  # chart_id
-    preview_requested = Signal(ChartConfiguration)
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
         super().__init__(app_context=app_context, parent=parent)
@@ -104,6 +103,7 @@ class ChartPropertiesPanel(PWidget):
         # Internal flags/state for safe UI updates
         self._updating_controls: bool = False  # Guard to prevent feedback loops
         self._pending_label: str = ""        # Buffer while user types label
+        self._has_unsaved_changes: bool = False
 
         self._initialize()
         self._connect_signals()
@@ -159,22 +159,23 @@ class ChartPropertiesPanel(PWidget):
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 6, 0, 0)
         button_layout.setSpacing(8)
-        self.preview_button = QPushButton("Preview")
+
+        self.status_label = QLabel("")
+        self.status_label.setMinimumHeight(30)
         self.apply_button = QPushButton("Apply")
         self.reset_button = QPushButton("Cancel")
 
-        self.preview_button.setObjectName("chartPreviewButton")
         self.apply_button.setObjectName("chartApplyButton")
         self.reset_button.setObjectName("chartCancelButton")
 
-        for btn in (self.preview_button, self.apply_button, self.reset_button):
+        for btn in (self.apply_button, self.reset_button):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setMinimumHeight(30)
 
-        button_layout.addWidget(self.preview_button)
+        button_layout.addWidget(self.status_label)
+        button_layout.addStretch(1)
         button_layout.addWidget(self.apply_button)
         button_layout.addWidget(self.reset_button)
-        button_layout.addStretch(1)
         layout.addLayout(button_layout)
     
     @override
@@ -310,30 +311,27 @@ class ChartPropertiesPanel(PWidget):
         """
         self.apply_button.setStyleSheet(primary_style)
         
-        # Secondary buttons (Preview, Cancel)
+        # Secondary button (Cancel)
         secondary_style = f"""
-            QPushButton {{ 
-                background-color: {card_hover}; 
-                color: {base_fg}; 
-                padding: 6px 14px; 
-                border: 1px solid {card_border}; 
-                border-radius: 4px; 
+            QPushButton {{
+                background-color: {card_hover};
+                color: {base_fg};
+                padding: 6px 14px;
+                border: 1px solid {card_border};
+                border-radius: 4px;
             }}
-            QPushButton:hover {{ 
-                background-color: {card_bg}; 
+            QPushButton:hover {{
+                background-color: {card_bg};
             }}
-            QPushButton:pressed {{ 
-                background-color: {card_border}; 
+            QPushButton:pressed {{
+                background-color: {card_border};
             }}
-            QPushButton:disabled {{ 
-                background-color: {card_hover}; 
-                color: {secondary_fg}; 
+            QPushButton:disabled {{
+                background-color: {card_hover};
+                color: {secondary_fg};
             }}
         """
-        
-        for button in [getattr(self, 'preview_button', None), getattr(self, 'reset_button', None)]:
-            if button:
-                button.setStyleSheet(secondary_style)
+        self.reset_button.setStyleSheet(secondary_style)
     
     def _apply_series_button_styling(self):
         """Apply theme styling to series management buttons."""
@@ -621,7 +619,6 @@ class ChartPropertiesPanel(PWidget):
     def _connect_signals(self):
         """Connect widget signals."""
         self.dataset_combo.currentTextChanged.connect(self._on_dataset_changed)
-        self.preview_button.clicked.connect(self._on_preview)
         self.apply_button.clicked.connect(self._on_apply)
         self.reset_button.clicked.connect(self._on_reset)
         
@@ -877,11 +874,13 @@ class ChartPropertiesPanel(PWidget):
 
         # Emit update event so any open chart tab refreshes immediately
         if self.current_chart:
+            self._has_unsaved_changes = True
+            self._update_status_indicator()
             self.publish_event(ChartEvents.CHART_UPDATED, {
                 'chart_id': self.current_chart.id,
                 'update_type': 'series_updated'
             })
-    
+
     def _on_chart_config_changed(self):
         """Handle chart-level configuration changes."""
         if not self.current_chart or self._updating_controls:
@@ -915,11 +914,21 @@ class ChartPropertiesPanel(PWidget):
         
         # Emit update event so any open chart tab refreshes immediately
         if self.current_chart:
+            self._has_unsaved_changes = True
+            self._update_status_indicator()
             self.publish_event(ChartEvents.CHART_UPDATED, {
                 'chart_id': self.current_chart.id,
                 'update_type': 'config_updated'
             })
-    
+
+    def _update_status_indicator(self):
+        """Update the status label to reflect unsaved changes."""
+        if self._has_unsaved_changes:
+            self.status_label.setText("Modified *")
+            self.status_label.setStyleSheet("color: #ffc107; font-size: 9pt; font-weight: bold;")
+        else:
+            self.status_label.setText("")
+
     def _update_series_list(self):
         """Update the series list widget."""
         previous_row = self.series_list.currentRow()
@@ -1182,26 +1191,20 @@ class ChartPropertiesPanel(PWidget):
         
         return config
     
-    def _on_preview(self):
-        """Handle preview button click."""
-        config = self._get_current_configuration()
-        # Publish chart preview event
-        self.publish_event(ChartEvents.CHART_PREVIEW_REQUESTED, {
-            'chart_config': config,
-            'chart_id': self.current_chart_id
-        })
-    
     def _on_apply(self):
         """Handle apply button click."""
         if self.current_chart:
             # Apply changes to the current chart object
             self.apply_to_chart(self.current_chart)
-            
+
             # Publish chart updated event
             self.publish_event(ChartEvents.CHART_UPDATED, {
                 'chart_id': self.current_chart.id,
                 'chart': self.current_chart
             })
+
+            self._has_unsaved_changes = False
+            self._update_status_indicator()
     
     def _on_reset(self):
         """Handle reset button click."""
@@ -1234,7 +1237,9 @@ class ChartPropertiesPanel(PWidget):
             chart: Chart object to load, or None to clear
         """
         self.current_chart = chart
-        
+        self._has_unsaved_changes = False
+        self._update_status_indicator()
+
         if chart:
             # Ensure datasets are available (important after opening a project file)
             self._ensure_datasets_loaded()
