@@ -38,7 +38,8 @@ class ColorButton(QPushButton):
         """Set the button color."""
         self._color = color
         self._update_appearance()
-        self.colorChanged.emit(color)
+        if not self.signalsBlocked():
+            self.colorChanged.emit(color)
     
     def get_color(self) -> str:
         """Get the current color."""
@@ -709,7 +710,7 @@ class ChartPropertiesPanel(PWidget):
         # If this is our current chart, refresh the display
         if self.current_chart and chart_id == self.current_chart.id:
             # Refresh the series list to show new series (like fit lines)
-            if update_type in ['fit_added', 'series_added', 'series_updated']:
+            if update_type in ['fit_added', 'series_added', 'series_removed']:
                 self._update_series_list()
                 self.logger.debug("Chart properties panel refreshed for update: %s", update_type)
     
@@ -834,7 +835,7 @@ class ChartPropertiesPanel(PWidget):
     
     def _on_style_changed(self):
         """Handle style changes."""
-        if not self.current_chart:
+        if self._updating_controls or not self.current_chart:
             return
         
         current_row = self.series_list.currentRow()
@@ -848,25 +849,20 @@ class ChartPropertiesPanel(PWidget):
             if current_row >= len(self.current_chart.data_series):
                 return
             series = self.current_chart.data_series[current_row]
-            
-            # Update basic style properties that exist in DataSeries model
+
+            # Update colors independently
             series.color = self.line_color_button.get_color()
+            series.marker_color = self.marker_color_button.get_color()
+            series.marker_edge_color = self.marker_edge_color_button.get_color()
+
             series.line_width = self.line_width_spin.value()
             series.marker_size = self.marker_size_spin.value()
-                
+
             # Line style & marker style (store enum values as strings)
             if hasattr(self, 'line_style_combo') and self.line_style_combo.currentData():
                 series.line_style = self.line_style_combo.currentData().value
             if hasattr(self, 'marker_type_combo') and self.marker_type_combo.currentData():
                 series.marker_style = self.marker_type_combo.currentData().value
-                
-            # If marker color is set differently, use that instead of line color
-            # (For now, DataSeries only has one color field, so we prioritize marker color if it's different)
-            if hasattr(self, 'marker_color_button'):
-                marker_color = self.marker_color_button.get_color()
-                # If user specifically changed marker color and it's different from line color, use marker color
-                if marker_color != self.line_color_button.get_color():
-                    series.color = marker_color
                 
         else:
             # Updating fit data
@@ -926,24 +922,29 @@ class ChartPropertiesPanel(PWidget):
     
     def _update_series_list(self):
         """Update the series list widget."""
+        previous_row = self.series_list.currentRow()
         self.series_list.clear()
-        
+
         if not self.current_chart:
             return
-        
+
         # Add data series
         for i, series in enumerate(self.current_chart.data_series):
             label = series.label or f"Series {i+1}"
             self.series_list.addItem(label)
-        
+
         # Add fit data as separate items
         for i, fit in enumerate(self.current_chart.fit_data):
             label = f"🔧 {fit.label}" # Wrench emoji to distinguish fit data
             self.series_list.addItem(label)
-        
+
         # Enable/disable controls
         has_items = len(self.current_chart.data_series) > 0 or len(self.current_chart.fit_data) > 0
         self.remove_series_button.setEnabled(has_items)
+
+        # Restore previous selection if still valid
+        if previous_row >= 0 and previous_row < self.series_list.count():
+            self.series_list.setCurrentRow(previous_row)
     
     def _load_series_into_controls(self, series):
         """Load a data series into the configuration controls."""
@@ -986,11 +987,16 @@ class ChartPropertiesPanel(PWidget):
             self.marker_size_spin.setValue(series.marker_size)
             self.marker_size_spin.blockSignals(False)
             
-            # Update other style controls if they exist
+            # Update marker color controls
             if hasattr(self, 'marker_color_button'):
                 self.marker_color_button.blockSignals(True)
-                self.marker_color_button.set_color(series.color)  # Use same color for marker
+                self.marker_color_button.set_color(series.marker_color or series.color)
                 self.marker_color_button.blockSignals(False)
+
+            if hasattr(self, 'marker_edge_color_button'):
+                self.marker_edge_color_button.blockSignals(True)
+                self.marker_edge_color_button.set_color(series.marker_edge_color or '#000000')
+                self.marker_edge_color_button.blockSignals(False)
                 
             if hasattr(self, 'line_style_combo'):
                 self.line_style_combo.blockSignals(True)
@@ -1318,24 +1324,42 @@ class ChartPropertiesPanel(PWidget):
         if chart_type in chart_type_map:
             chart.chart_type = chart_type_map[chart_type]
         
-        # Update style properties for all series (apply current style to all)
-        style_updates = {
-            'color': self.line_color_button.get_color(),
-            'line_width': self.line_width_spin.value(),
-            'marker_size': self.marker_size_spin.value()
-        }
-        
-        # Apply style updates to the currently selected series only
+        # Apply style updates to the currently selected series or fit data
         current_row = self.series_list.currentRow()
-        if (current_row >= 0 and current_row < len(chart.data_series)):
-            series = chart.data_series[current_row]
-            self.logger.debug(
-                "Updating series %d: %s (dataset_id=%s) with style %s", 
-                current_row, getattr(series, 'label', '?'), getattr(series, 'dataset_id', '?'), style_updates
-            )
-            for key, value in style_updates.items():
-                if hasattr(series, key):
-                    setattr(series, key, value)
+        if current_row >= 0:
+            total_series = len(chart.data_series)
+
+            if current_row < total_series:
+                # Update data series
+                series = chart.data_series[current_row]
+
+                series.color = self.line_color_button.get_color()
+                series.marker_color = self.marker_color_button.get_color()
+                series.marker_edge_color = self.marker_edge_color_button.get_color()
+                series.line_width = self.line_width_spin.value()
+                series.marker_size = self.marker_size_spin.value()
+
+                if hasattr(self, 'line_style_combo') and self.line_style_combo.currentData():
+                    series.line_style = self.line_style_combo.currentData().value
+                if hasattr(self, 'marker_type_combo') and self.marker_type_combo.currentData():
+                    series.marker_style = self.marker_type_combo.currentData().value
+
+                self.logger.debug(
+                    "Applied style to data series %d: %s (color=%s, marker_color=%s)",
+                    current_row, series.label, series.color, series.marker_color
+                )
+            else:
+                # Update fit data
+                fit_index = current_row - total_series
+                if 0 <= fit_index < len(chart.fit_data):
+                    fit = chart.fit_data[fit_index]
+                    fit.color = self.line_color_button.get_color()
+                    fit.line_width = self.line_width_spin.value()
+
+                    self.logger.debug(
+                        "Applied style to fit data %d: %s (color=%s)",
+                        fit_index, fit.label, fit.color
+                    )
         
         # If no series exist but we have configuration, create a default series
         if not chart.data_series:

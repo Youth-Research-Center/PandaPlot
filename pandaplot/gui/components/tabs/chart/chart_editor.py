@@ -415,16 +415,23 @@ class ChartEditorWidget(PWidget):
 
                                 # Plot based on chart type for regular data series
                                 if self.chart.chart_type == 'line':
+                                    mfc = series.marker_color or series.color
+                                    mec = series.marker_edge_color or series.color
                                     self.chart_canvas.axes.plot(x_data, y_data,
                                                                 color=series.color,
                                                                 linewidth=series.line_width,
                                                                 marker='o' if series.marker_style == 'circle' else 's',
                                                                 markersize=series.marker_size,
+                                                                markerfacecolor=mfc,
+                                                                markeredgecolor=mec,
                                                                 label=series.label,
                                                                 alpha=1.0 if series.visible else 0.3)
                                 elif self.chart.chart_type == 'scatter':
+                                    mfc = series.marker_color or series.color
+                                    mec = series.marker_edge_color or series.color
                                     self.chart_canvas.axes.scatter(x_data, y_data,
-                                                                   c=series.color,
+                                                                   c=mfc,
+                                                                   edgecolors=mec,
                                                                    s=series.marker_size*10,
                                                                    label=series.label,
                                                                    alpha=1.0 if series.visible else 0.3)
@@ -445,11 +452,15 @@ class ChartEditorWidget(PWidget):
                                 y_data = self.sample_data[y_col] if y_col in self.sample_data.columns else self.sample_data['y1']
 
                                 if self.chart.chart_type == 'line':
+                                    mfc = series.marker_color or series.color
+                                    mec = series.marker_edge_color or series.color
                                     self.chart_canvas.axes.plot(x_data, y_data,
                                                                 color=series.color,
                                                                 linewidth=series.line_width,
                                                                 marker='o' if series.marker_style == 'circle' else 's',
                                                                 markersize=series.marker_size,
+                                                                markerfacecolor=mfc,
+                                                                markeredgecolor=mec,
                                                                 label=f"{series.label} (Column not found)",
                                                                 alpha=0.5, linestyle='--')
                         else:
@@ -459,11 +470,15 @@ class ChartEditorWidget(PWidget):
                             y_data = self.sample_data[y_col] if y_col in self.sample_data.columns else self.sample_data['y1']
 
                             if self.chart.chart_type == 'line':
+                                mfc = series.marker_color or series.color
+                                mec = series.marker_edge_color or series.color
                                 self.chart_canvas.axes.plot(x_data, y_data,
                                                             color=series.color,
                                                             linewidth=series.line_width,
                                                             marker='o' if series.marker_style == 'circle' else 's',
                                                             markersize=series.marker_size,
+                                                            markerfacecolor=mfc,
+                                                            markeredgecolor=mec,
                                                             label=f"{series.label} (Dataset not found)",
                                                             alpha=0.5, linestyle=':')
 
