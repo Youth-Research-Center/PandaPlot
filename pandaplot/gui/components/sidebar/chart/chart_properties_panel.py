@@ -9,6 +9,9 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPainter
 from typing import Optional, List, override
 
+from pandaplot.commands.project.chart import (
+    AddSeriesCommand, ApplyChartPropertiesCommand, RemoveSeriesCommand,
+)
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_configuration import (
     ChartConfiguration, ChartType, LineStyleType, MarkerType, 
@@ -715,32 +718,27 @@ class ChartPropertiesPanel(PWidget):
         """Add a new data series."""
         if not self.current_chart:
             return
-        
+
         # Create a new series with default values
         dataset_id = self.dataset_combo.currentData() if self.dataset_combo.count() > 0 else ""
         dataset_name = self.dataset_combo.currentText() if self.dataset_combo.count() > 0 else ""
         x_column = self.x_column_combo.currentText() if self.x_column_combo.count() > 0 else ""
         y_column = self.y_column_combo.currentText() if self.y_column_combo.count() > 0 else ""
-        
+
         if dataset_id and x_column and y_column:
-            # Add series to chart
-            self.current_chart.add_data_series(
+            command = AddSeriesCommand(
+                self.app_context,
+                chart_id=self.current_chart.id,
                 dataset_id=dataset_id,
                 x_column=x_column,
                 y_column=y_column,
                 label=f"{dataset_name}:{y_column}",
-                color=self._get_next_series_color()
+                color=self._get_next_series_color(),
             )
-            
+            self.command_executor.execute_command(command)
+
             # Update the series list
             self._update_series_list()
-
-            # Publish chart updated event to refresh display
-            self.publish_event(ChartEvents.CHART_UPDATED, {
-                'chart_id': self.current_chart.id,
-                'update_type': 'series_added',
-                'chart': self.current_chart
-            })
 
             # Select the new series
             self.series_list.setCurrentRow(len(self.current_chart.data_series) - 1)
@@ -752,18 +750,15 @@ class ChartPropertiesPanel(PWidget):
         
         current_row = self.series_list.currentRow()
         if current_row >= 0 and current_row < len(self.current_chart.data_series):
-            # Remove the series
-            self.current_chart.remove_data_series(current_row)
+            command = RemoveSeriesCommand(
+                self.app_context,
+                chart_id=self.current_chart.id,
+                series_index=current_row,
+            )
+            self.command_executor.execute_command(command)
 
             # Update the series list
             self._update_series_list()
-
-            # Publish chart updated event to refresh display
-            self.publish_event(ChartEvents.CHART_UPDATED, {
-                'chart_id': self.current_chart.id,
-                'update_type': 'series_removed',
-                'chart': self.current_chart
-            })
 
             # Select previous series or disable if no series left
             if self.current_chart.data_series:
@@ -1195,14 +1190,12 @@ class ChartPropertiesPanel(PWidget):
     def _on_apply(self):
         """Handle apply button click."""
         if self.current_chart:
-            # Apply changes to the current chart object
-            self.apply_to_chart(self.current_chart)
-
-            # Publish chart updated event
-            self.publish_event(ChartEvents.CHART_UPDATED, {
-                'chart_id': self.current_chart.id,
-                'chart': self.current_chart
-            })
+            command = ApplyChartPropertiesCommand(
+                self.app_context,
+                chart_id=self.current_chart.id,
+                apply_fn=self.apply_to_chart,
+            )
+            self.command_executor.execute_command(command)
 
             self._has_unsaved_changes = False
             self._update_status_indicator()

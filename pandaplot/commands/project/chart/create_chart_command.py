@@ -6,7 +6,7 @@ from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.events import ChartEvents
+from pandaplot.models.events import ChartEvents, ProjectEvents
 from pandaplot.models.events.event_data import ChartCreatedData
 from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.state import (AppState, AppContext)
@@ -138,6 +138,13 @@ class CreateChartCommand(Command):
                 return
 
             project.remove_item_by_id(self.created_chart_id)
+
+            # Emit event so TabContainer can close the tab
+            event_bus = self.app_context.event_bus
+            event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
+                'item_id': self.created_chart_id,
+                'item_type': 'chart',
+            })
 
             self.logger.info(
                 f"CreateChartCommand: Undid creation of chart '{self.created_chart_id}'")
