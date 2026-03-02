@@ -1,22 +1,17 @@
 from typing import Any, List, override
 
-from pandaplot.commands.base_command import Command
 from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCommand
 from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
-from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.commands.project.dataset.dataset_command import DatasetCommand
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
-from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 
-class EditBatchCommand(Command):
+class EditBatchCommand(DatasetCommand):
     def __init__(self, app_context: AppContext, dataset_id: str, start_row: int, start_column: int, new_data: List[List[Any]]):
-        super().__init__()
-        self.app_context = app_context
-        self.ui_controller: UIController = app_context.get_ui_controller()
+        super().__init__(app_context, dataset_id)
 
-        self.dataset_id = dataset_id
         self.start_row = start_row
         self.start_column = start_column
         self.new_data = new_data
@@ -29,34 +24,8 @@ class EditBatchCommand(Command):
     def execute(self) -> bool:
         try:
             self.logger.info("Executing EditBatchCommand")
-            if not self.app_context.app_state.has_project:
-                self.ui_controller.show_warning_message(
-                    "Batch Edit", 
-                    "Please open or create a project first."
-                )
+            if not self._validate_and_get_dataset("Batch Edit"):
                 return False
-                
-            self.project = self.app_context.app_state.current_project
-            if not self.project:
-                return False
-
-            # Find the dataset
-            found_item = self.project.find_item(self.dataset_id)
-            if not found_item:
-                self.ui_controller.show_error_message(
-                    "Batch Edit", 
-                    f"Dataset with ID '{self.dataset_id}' not found."
-                )
-                return False
-            
-            if not isinstance(found_item, Dataset):
-                self.ui_controller.show_error_message(
-                    "Batch Edit", 
-                    "Selected item is not a dataset."
-                )
-                return False
-
-            self.dataset = found_item
 
             # Get current data
             if self.dataset.data is None:

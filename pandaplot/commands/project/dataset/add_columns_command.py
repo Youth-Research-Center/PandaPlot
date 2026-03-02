@@ -7,12 +7,10 @@ from typing import Any, List, Literal, Optional, override
 
 import pandas as pd
 
-from pandaplot.commands.base_command import Command
-from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.commands.project.dataset.dataset_command import DatasetCommand
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
-from pandaplot.models.project.items import Dataset
-from pandaplot.models.state import AppContext, AppState
+from pandaplot.models.state import AppContext
 
 
 class InsertionSide(Enum):
@@ -21,10 +19,10 @@ class InsertionSide(Enum):
     RIGHT = "right"
 
 
-class AddColumnsCommand(Command):
+class AddColumnsCommand(DatasetCommand):
     """
     Command to add multiple columns to an existing dataset.
-    
+
     Supports adding columns to the left or right of specified reference positions.
     When multiple columns are added at the same reference position, they are inserted consecutively.
     """
@@ -35,7 +33,7 @@ class AddColumnsCommand(Command):
                  default_values: Optional[List[Any]] = None):
         """
         Initialize the AddColumnsCommand.
-        
+
         Args:
             app_context: Application context
             dataset_id: ID of the target dataset
@@ -44,12 +42,8 @@ class AddColumnsCommand(Command):
             side: Whether to insert 'left' or 'right' of reference positions
             default_values: Optional default values for new columns
         """
-        super().__init__()
-        self.app_context = app_context
-        self.app_state: AppState = app_context.get_app_state()
-        self.ui_controller: UIController = app_context.get_ui_controller()
+        super().__init__(app_context, dataset_id)
 
-        self.dataset_id = dataset_id
         self.column_names = column_names
         self.reference_positions = reference_positions
         self.side = InsertionSide(side)
@@ -57,8 +51,6 @@ class AddColumnsCommand(Command):
 
         # Store state for undo
         self.original_data = None
-        self.project = None
-        self.dataset = None
         self.final_insertion_positions = []  # Store actual positions where columns were inserted
 
     @override
@@ -82,35 +74,8 @@ class AddColumnsCommand(Command):
                 )
                 return False
             
-            # Check if we have a project loaded
-            if not self.app_state.has_project:
-                self.ui_controller.show_warning_message(
-                    "Add Columns", 
-                    "Please open or create a project first."
-                )
+            if not self._validate_and_get_dataset("Add Columns"):
                 return False
-                
-            self.project = self.app_state.current_project
-            if not self.project:
-                return False
-            
-            # Find the dataset
-            found_item = self.project.find_item(self.dataset_id)
-            if not found_item:
-                self.ui_controller.show_error_message(
-                    "Add Columns", 
-                    f"Dataset with ID '{self.dataset_id}' not found."
-                )
-                return False
-            
-            if not isinstance(found_item, Dataset):
-                self.ui_controller.show_error_message(
-                    "Add Columns", 
-                    "Selected item is not a dataset."
-                )
-                return False
-                
-            self.dataset = found_item
             
             # Get current data
             if self.dataset.data is None or self.dataset.data.empty:

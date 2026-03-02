@@ -1,15 +1,12 @@
 import os
 from typing import Any, Callable, Tuple, override
 
-from pandaplot.commands.base_command import Command
-from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.commands.project.dataset.dataset_command import DatasetCommand
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
 from pandaplot.services.qtasks import TaskScheduler
 
 
-class ExportDatasetCommand(Command):
+class ExportDatasetCommand(DatasetCommand):
     """
     Command to export dataset to various file formats supported by pandas.
     """
@@ -60,20 +57,13 @@ class ExportDatasetCommand(Command):
     }
 
     def __init__(self, app_context: AppContext, dataset_id: str):
-        super().__init__()
-        self.app_context = app_context
-        self.app_state: AppState = app_context.get_app_state()
-        self.ui_controller: UIController = app_context.get_ui_controller()
+        super().__init__(app_context, dataset_id)
         self.task_scheduler: TaskScheduler = app_context.get_task_scheduler()
-        
-        self.dataset_id = dataset_id
-        
+
         # Export details
         self.export_path = None
         self.export_format = None
-        self.project = None
-        self.dataset = None
-        
+
         # Task state
         self.is_exporting = False
 
@@ -83,34 +73,8 @@ class ExportDatasetCommand(Command):
         try:
             self.logger.info(f"Executing ExportDatasetCommand for dataset {self.dataset_id}")
             
-            if not self.app_state.has_project:
-                self.ui_controller.show_warning_message(
-                    "Export Dataset", 
-                    "Please open or create a project first."
-                )
+            if not self._validate_and_get_dataset("Export Dataset"):
                 return False
-                
-            self.project = self.app_state.current_project
-            if not self.project:
-                return False
-
-            # Find the dataset
-            found_item = self.project.find_item(self.dataset_id)
-            if not found_item:
-                self.ui_controller.show_error_message(
-                    "Export Dataset", 
-                    f"Dataset with ID '{self.dataset_id}' not found."
-                )
-                return False
-            
-            if not isinstance(found_item, Dataset):
-                self.ui_controller.show_error_message(
-                    "Export Dataset", 
-                    "Selected item is not a dataset."
-                )
-                return False
-
-            self.dataset = found_item
 
             # Validate dataset has data
             if self.dataset.data is None or self.dataset.data.empty:

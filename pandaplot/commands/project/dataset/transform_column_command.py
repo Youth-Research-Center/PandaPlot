@@ -6,12 +6,12 @@ from typing import Any, Dict, Optional, override
 
 import pandas as pd
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.project.dataset.dataset_command import DatasetCommand
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 
-class TransformColumnCommand(Command):
+class TransformColumnCommand(DatasetCommand):
     """
     Command to apply data transformation to a dataset column.
     Integrates with existing command system for undo/redo support.
@@ -31,15 +31,12 @@ class TransformColumnCommand(Command):
                 - expression: str - transformation expression
                 - replace_existing: bool - whether to replace existing column
         """
-        super().__init__()
-        self.app_context = app_context
-        self.dataset_id = dataset_id
+        super().__init__(app_context, dataset_id)
         self.transform_config = transform_config
 
         # State for undo/redo
         self.original_data = None
         self.column_existed_before = False
-        self.dataset = None
 
         # Extract config
         self.new_column_name = transform_config['new_column_name']
@@ -54,15 +51,9 @@ class TransformColumnCommand(Command):
         try:
             self.logger.info("Executing TransformColumnCommand")
             # Get dataset from app context
-            self.dataset = self._get_dataset()
+            self.dataset = self._resolve_dataset()
             if not self.dataset:
                 self.logger.warning(f"Dataset {self.dataset_id} not found")
-                return False
-
-            # Ensure we have a Dataset object
-            if not isinstance(self.dataset, Dataset):
-                self.logger.warning(
-                    f"Retrieved item is not a Dataset: {type(self.dataset)}")
                 return False
 
             # Validate inputs
@@ -131,18 +122,6 @@ class TransformColumnCommand(Command):
     def redo(self) -> bool:
         """Re-execute the transformation."""
         return self.execute()
-
-    def _get_dataset(self):
-        """Get dataset from app context."""
-        try:
-            if self.app_context and hasattr(self.app_context, 'app_state'):
-                current_project = self.app_context.app_state.current_project
-                if current_project:
-                    return current_project.find_item(self.dataset_id)
-            return None
-        except Exception as e:
-            self.logger.error(f"Error getting dataset: {e}")
-            return None
 
     def _validate_inputs(self) -> bool:
         """Validate all required inputs are present and valid."""

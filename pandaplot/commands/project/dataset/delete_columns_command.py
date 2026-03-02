@@ -1,39 +1,30 @@
 from typing import List, Union, override
 
-from pandaplot.commands.base_command import Command
-from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.commands.project.dataset.dataset_command import DatasetCommand
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
-from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
 
 
-class DeleteColumnsCommand(Command):
+class DeleteColumnsCommand(DatasetCommand):
     """
     Command to delete multiple columns from an existing dataset.
     Supports both column positions and column names for backward compatibility.
     """
 
-    def __init__(self, app_context: AppContext, dataset_id: str, 
+    def __init__(self, app_context: AppContext, dataset_id: str,
                  column_specs: Union[List[int], List[str]]):
-        super().__init__()
-        self.app_context = app_context
-        self.app_state: AppState = app_context.get_app_state()
-        self.ui_controller: UIController = app_context.get_ui_controller()
-        
-        self.dataset_id = dataset_id
+        super().__init__(app_context, dataset_id)
+
         self.column_specs = column_specs
-        
+
         # These will be populated in execute() after we have access to the dataset
         self.column_names = []
         self.column_positions = []
-        
+
         # Store state for undo
         self.original_data = None
         self.deleted_columns_data = None
-        self.project = None
-        self.dataset = None
 
     @override
     def execute(self) -> bool:
@@ -49,35 +40,8 @@ class DeleteColumnsCommand(Command):
                 )
                 return False
             
-            # Check if we have a project loaded
-            if not self.app_state.has_project:
-                self.ui_controller.show_warning_message(
-                    "Delete Columns", 
-                    "Please open or create a project first."
-                )
+            if not self._validate_and_get_dataset("Delete Columns"):
                 return False
-                
-            self.project = self.app_state.current_project
-            if not self.project:
-                return False
-            
-            # Find the dataset
-            found_item = self.project.find_item(self.dataset_id)
-            if not found_item:
-                self.ui_controller.show_error_message(
-                    "Delete Columns", 
-                    f"Dataset with ID '{self.dataset_id}' not found."
-                )
-                return False
-            
-            if not isinstance(found_item, Dataset):
-                self.ui_controller.show_error_message(
-                    "Delete Columns", 
-                    "Selected item is not a dataset."
-                )
-                return False
-                
-            self.dataset = found_item
             
             # Get current data
             if self.dataset.data is None or self.dataset.data.empty:

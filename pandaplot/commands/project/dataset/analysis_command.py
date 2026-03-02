@@ -7,12 +7,12 @@ from typing import Any, Dict, override
 import pandas as pd
 
 from pandaplot.analysis import AnalysisEngine, AnalysisType
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.project.dataset.dataset_command import DatasetCommand
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 
-class AnalysisCommand(Command):
+class AnalysisCommand(DatasetCommand):
     """
     Command to apply mathematical analysis to dataset columns.
     """
@@ -32,15 +32,12 @@ class AnalysisCommand(Command):
                 - replace_existing: bool - whether to replace existing column
                 - parameters: dict - analysis-specific parameters
         """
-        super().__init__()
-        self.app_context = app_context
-        self.dataset_id = dataset_id
+        super().__init__(app_context, dataset_id)
         self.analysis_config = analysis_config
 
         # State for undo/redo
         self.original_data = None
         self.column_existed_before = False
-        self.dataset = None
 
         # Extract config
         self.analysis_type = AnalysisType(analysis_config['analysis_type'])
@@ -56,7 +53,7 @@ class AnalysisCommand(Command):
         try:
             self.logger.info("Executing AnalysisCommand")
             # Get dataset
-            self.dataset = self._get_dataset()
+            self.dataset = self._resolve_dataset()
             if not self.dataset:
                 self.logger.warning(
                     f"Analysis execution failed: Dataset {self.dataset_id} not found")
@@ -145,20 +142,6 @@ class AnalysisCommand(Command):
     def redo(self) -> bool:
         """Re-execute the analysis."""
         return self.execute()
-
-    def _get_dataset(self) -> Dataset | None:
-        """Get dataset from app context."""
-        try:
-            app_state = self.app_context.get_app_state()
-            if app_state.has_project and app_state.current_project:
-                project = app_state.current_project
-                dataset_item = project.find_item(self.dataset_id)
-                if dataset_item and hasattr(dataset_item, 'data') and isinstance(dataset_item, Dataset):
-                    return dataset_item  # Return the dataset object, not the data
-            return None
-        except Exception as e:
-            self.logger.error(f"Error getting dataset: {e}")
-            return None
 
     def _validate_inputs(self) -> bool:
         """Validate all required inputs are present and valid."""

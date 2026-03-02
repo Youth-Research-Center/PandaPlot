@@ -3,39 +3,30 @@ from typing import Any, Dict, Union, override
 import numpy as np
 import pandas as pd
 
-from pandaplot.commands.base_command import Command
-from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.commands.project.dataset.dataset_command import DatasetCommand
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
-from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.models.state.app_state import AppState
 
 
-class ChangeColumnDtypeCommand(Command):
+class ChangeColumnDtypeCommand(DatasetCommand):
     """
     Command to change the data type of a column in a dataset.
     Handles data conversion and removes values that cannot be converted.
     """
 
-    def __init__(self, app_context: AppContext, dataset_id: str, 
+    def __init__(self, app_context: AppContext, dataset_id: str,
                  column_index: int, target_dtype: str):
-        super().__init__()
-        self.app_context = app_context
-        self.app_state: AppState = app_context.get_app_state()
-        self.ui_controller: UIController = app_context.get_ui_controller()
-        
-        self.dataset_id = dataset_id
+        super().__init__(app_context, dataset_id)
+
         self.column_index = column_index
         self.target_dtype = target_dtype
-        
+
         # Store state for undo
         self.original_data = None
         self.original_dtype = None
         self.column_name = None
         self.conversion_report = {}
-        self.project = None
-        self.dataset = None
 
     @override
     def execute(self) -> bool:
@@ -43,34 +34,8 @@ class ChangeColumnDtypeCommand(Command):
         try:
             self.logger.info(f"Executing ChangeColumnDtypeCommand for column {self.column_index} to {self.target_dtype}")
             
-            if not self.app_state.has_project:
-                self.ui_controller.show_warning_message(
-                    "Change Column Type", 
-                    "Please open or create a project first."
-                )
+            if not self._validate_and_get_dataset("Change Column Type"):
                 return False
-                
-            self.project = self.app_state.current_project
-            if not self.project:
-                return False
-
-            # Find the dataset
-            found_item = self.project.find_item(self.dataset_id)
-            if not found_item:
-                self.ui_controller.show_error_message(
-                    "Change Column Type", 
-                    f"Dataset with ID '{self.dataset_id}' not found."
-                )
-                return False
-            
-            if not isinstance(found_item, Dataset):
-                self.ui_controller.show_error_message(
-                    "Change Column Type", 
-                    "Selected item is not a dataset."
-                )
-                return False
-
-            self.dataset = found_item
 
             # Validate dataset has data
             if self.dataset.data is None or self.dataset.data.empty:
