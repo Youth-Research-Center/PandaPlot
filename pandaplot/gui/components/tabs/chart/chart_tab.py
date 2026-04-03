@@ -61,11 +61,15 @@ class ChartTab(PWidget):
 
         # Only respond if this is our chart
         if updated_chart_id == self.chart.id:
-            # Refresh the chart display
-            if hasattr(self.chart_editor, 'refresh_chart'):
-                self.chart_editor.refresh_chart()
-                self.logger.debug(
-                    "ChartTab refreshed for chart %s", self.chart.name)
+            # Guard: Check if editor still exists before refreshing
+            if hasattr(self, 'chart_editor') and self.chart_editor is not None:
+                try:
+                    self.chart_editor.refresh_chart()
+                    self.logger.debug(
+                        "ChartTab refreshed for chart %s", self.chart.name)
+                except RuntimeError as e:
+                    # Widget was deleted during callback
+                    self.logger.debug(f"Chart editor deleted during update: {e}")
 
     def on_fit_applied(self, event_data: dict):
         """Handle fit applied events to add fit curves to the chart."""

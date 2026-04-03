@@ -38,7 +38,8 @@ class ColorButton(QPushButton):
         """Set the button color."""
         self._color = color
         self._update_appearance()
-        self.colorChanged.emit(color)
+        if not self.signalsBlocked():
+            self.colorChanged.emit(color)
     
     def get_color(self) -> str:
         """Get the current color."""
@@ -90,7 +91,6 @@ class ChartPropertiesPanel(PWidget):
     
     chart_created = Signal(str)  # chart_id
     chart_updated = Signal(str)  # chart_id
-    preview_requested = Signal(ChartConfiguration)
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
         super().__init__(app_context=app_context, parent=parent)
@@ -103,6 +103,7 @@ class ChartPropertiesPanel(PWidget):
         # Internal flags/state for safe UI updates
         self._updating_controls: bool = False  # Guard to prevent feedback loops
         self._pending_label: str = ""        # Buffer while user types label
+        self._has_unsaved_changes: bool = False
 
         self._initialize()
         self._connect_signals()
@@ -158,22 +159,23 @@ class ChartPropertiesPanel(PWidget):
         button_layout = QHBoxLayout()
         button_layout.setContentsMargins(0, 6, 0, 0)
         button_layout.setSpacing(8)
-        self.preview_button = QPushButton("Preview")
+
+        self.status_label = QLabel("")
+        self.status_label.setMinimumHeight(30)
         self.apply_button = QPushButton("Apply")
         self.reset_button = QPushButton("Cancel")
 
-        self.preview_button.setObjectName("chartPreviewButton")
         self.apply_button.setObjectName("chartApplyButton")
         self.reset_button.setObjectName("chartCancelButton")
 
-        for btn in (self.preview_button, self.apply_button, self.reset_button):
+        for btn in (self.apply_button, self.reset_button):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setMinimumHeight(30)
 
-        button_layout.addWidget(self.preview_button)
+        button_layout.addWidget(self.status_label)
+        button_layout.addStretch(1)
         button_layout.addWidget(self.apply_button)
         button_layout.addWidget(self.reset_button)
-        button_layout.addStretch(1)
         layout.addLayout(button_layout)
     
     @override
@@ -309,30 +311,27 @@ class ChartPropertiesPanel(PWidget):
         """
         self.apply_button.setStyleSheet(primary_style)
         
-        # Secondary buttons (Preview, Cancel)
+        # Secondary button (Cancel)
         secondary_style = f"""
-            QPushButton {{ 
-                background-color: {card_hover}; 
-                color: {base_fg}; 
-                padding: 6px 14px; 
-                border: 1px solid {card_border}; 
-                border-radius: 4px; 
+            QPushButton {{
+                background-color: {card_hover};
+                color: {base_fg};
+                padding: 6px 14px;
+                border: 1px solid {card_border};
+                border-radius: 4px;
             }}
-            QPushButton:hover {{ 
-                background-color: {card_bg}; 
+            QPushButton:hover {{
+                background-color: {card_bg};
             }}
-            QPushButton:pressed {{ 
-                background-color: {card_border}; 
+            QPushButton:pressed {{
+                background-color: {card_border};
             }}
-            QPushButton:disabled {{ 
-                background-color: {card_hover}; 
-                color: {secondary_fg}; 
+            QPushButton:disabled {{
+                background-color: {card_hover};
+                color: {secondary_fg};
             }}
         """
-        
-        for button in [getattr(self, 'preview_button', None), getattr(self, 'reset_button', None)]:
-            if button:
-                button.setStyleSheet(secondary_style)
+        self.reset_button.setStyleSheet(secondary_style)
     
     def _apply_series_button_styling(self):
         """Apply theme styling to series management buttons."""
@@ -620,7 +619,6 @@ class ChartPropertiesPanel(PWidget):
     def _connect_signals(self):
         """Connect widget signals."""
         self.dataset_combo.currentTextChanged.connect(self._on_dataset_changed)
-        self.preview_button.clicked.connect(self._on_preview)
         self.apply_button.clicked.connect(self._on_apply)
         self.reset_button.clicked.connect(self._on_reset)
         
@@ -709,7 +707,7 @@ class ChartPropertiesPanel(PWidget):
         # If this is our current chart, refresh the display
         if self.current_chart and chart_id == self.current_chart.id:
             # Refresh the series list to show new series (like fit lines)
-            if update_type in ['fit_added', 'series_added', 'series_updated']:
+            if update_type in ['fit_added', 'series_added', 'series_removed']:
                 self._update_series_list()
                 self.logger.debug("Chart properties panel refreshed for update: %s", update_type)
     
@@ -736,7 +734,14 @@ class ChartPropertiesPanel(PWidget):
             
             # Update the series list
             self._update_series_list()
-            
+
+            # Publish chart updated event to refresh display
+            self.publish_event(ChartEvents.CHART_UPDATED, {
+                'chart_id': self.current_chart.id,
+                'update_type': 'series_added',
+                'chart': self.current_chart
+            })
+
             # Select the new series
             self.series_list.setCurrentRow(len(self.current_chart.data_series) - 1)
     
@@ -749,10 +754,17 @@ class ChartPropertiesPanel(PWidget):
         if current_row >= 0 and current_row < len(self.current_chart.data_series):
             # Remove the series
             self.current_chart.remove_data_series(current_row)
-            
+
             # Update the series list
             self._update_series_list()
-            
+
+            # Publish chart updated event to refresh display
+            self.publish_event(ChartEvents.CHART_UPDATED, {
+                'chart_id': self.current_chart.id,
+                'update_type': 'series_removed',
+                'chart': self.current_chart
+            })
+
             # Select previous series or disable if no series left
             if self.current_chart.data_series:
                 new_row = min(current_row, len(self.current_chart.data_series) - 1)
@@ -816,11 +828,12 @@ class ChartPropertiesPanel(PWidget):
             # Fit data: columns/dataset not editable, ignore
             return
 
-        # We don't rebuild the list here to preserve edit focus; apply button can trigger full refresh if needed.
+        self._has_unsaved_changes = True
+        self._update_status_indicator()
     
     def _on_style_changed(self):
         """Handle style changes."""
-        if not self.current_chart:
+        if self._updating_controls or not self.current_chart:
             return
         
         current_row = self.series_list.currentRow()
@@ -834,25 +847,20 @@ class ChartPropertiesPanel(PWidget):
             if current_row >= len(self.current_chart.data_series):
                 return
             series = self.current_chart.data_series[current_row]
-            
-            # Update basic style properties that exist in DataSeries model
+
+            # Update colors independently
             series.color = self.line_color_button.get_color()
+            series.marker_color = self.marker_color_button.get_color()
+            series.marker_edge_color = self.marker_edge_color_button.get_color()
+
             series.line_width = self.line_width_spin.value()
             series.marker_size = self.marker_size_spin.value()
-                
+
             # Line style & marker style (store enum values as strings)
             if hasattr(self, 'line_style_combo') and self.line_style_combo.currentData():
                 series.line_style = self.line_style_combo.currentData().value
             if hasattr(self, 'marker_type_combo') and self.marker_type_combo.currentData():
                 series.marker_style = self.marker_type_combo.currentData().value
-                
-            # If marker color is set differently, use that instead of line color
-            # (For now, DataSeries only has one color field, so we prioritize marker color if it's different)
-            if hasattr(self, 'marker_color_button'):
-                marker_color = self.marker_color_button.get_color()
-                # If user specifically changed marker color and it's different from line color, use marker color
-                if marker_color != self.line_color_button.get_color():
-                    series.color = marker_color
                 
         else:
             # Updating fit data
@@ -867,11 +875,13 @@ class ChartPropertiesPanel(PWidget):
 
         # Emit update event so any open chart tab refreshes immediately
         if self.current_chart:
+            self._has_unsaved_changes = True
+            self._update_status_indicator()
             self.publish_event(ChartEvents.CHART_UPDATED, {
                 'chart_id': self.current_chart.id,
                 'update_type': 'series_updated'
             })
-    
+
     def _on_chart_config_changed(self):
         """Handle chart-level configuration changes."""
         if not self.current_chart or self._updating_controls:
@@ -905,31 +915,46 @@ class ChartPropertiesPanel(PWidget):
         
         # Emit update event so any open chart tab refreshes immediately
         if self.current_chart:
+            self._has_unsaved_changes = True
+            self._update_status_indicator()
             self.publish_event(ChartEvents.CHART_UPDATED, {
                 'chart_id': self.current_chart.id,
                 'update_type': 'config_updated'
             })
-    
+
+    def _update_status_indicator(self):
+        """Update the status label to reflect unsaved changes."""
+        if self._has_unsaved_changes:
+            self.status_label.setText("Modified *")
+            self.status_label.setStyleSheet("color: #ffc107; font-size: 9pt; font-weight: bold;")
+        else:
+            self.status_label.setText("")
+
     def _update_series_list(self):
         """Update the series list widget."""
+        previous_row = self.series_list.currentRow()
         self.series_list.clear()
-        
+
         if not self.current_chart:
             return
-        
+
         # Add data series
         for i, series in enumerate(self.current_chart.data_series):
             label = series.label or f"Series {i+1}"
             self.series_list.addItem(label)
-        
+
         # Add fit data as separate items
         for i, fit in enumerate(self.current_chart.fit_data):
             label = f"🔧 {fit.label}" # Wrench emoji to distinguish fit data
             self.series_list.addItem(label)
-        
+
         # Enable/disable controls
         has_items = len(self.current_chart.data_series) > 0 or len(self.current_chart.fit_data) > 0
         self.remove_series_button.setEnabled(has_items)
+
+        # Restore previous selection if still valid
+        if previous_row >= 0 and previous_row < self.series_list.count():
+            self.series_list.setCurrentRow(previous_row)
     
     def _load_series_into_controls(self, series):
         """Load a data series into the configuration controls."""
@@ -972,11 +997,16 @@ class ChartPropertiesPanel(PWidget):
             self.marker_size_spin.setValue(series.marker_size)
             self.marker_size_spin.blockSignals(False)
             
-            # Update other style controls if they exist
+            # Update marker color controls
             if hasattr(self, 'marker_color_button'):
                 self.marker_color_button.blockSignals(True)
-                self.marker_color_button.set_color(series.color)  # Use same color for marker
+                self.marker_color_button.set_color(series.marker_color or series.color)
                 self.marker_color_button.blockSignals(False)
+
+            if hasattr(self, 'marker_edge_color_button'):
+                self.marker_edge_color_button.blockSignals(True)
+                self.marker_edge_color_button.set_color(series.marker_edge_color or '#000000')
+                self.marker_edge_color_button.blockSignals(False)
                 
             if hasattr(self, 'line_style_combo'):
                 self.line_style_combo.blockSignals(True)
@@ -1162,26 +1192,20 @@ class ChartPropertiesPanel(PWidget):
         
         return config
     
-    def _on_preview(self):
-        """Handle preview button click."""
-        config = self._get_current_configuration()
-        # Publish chart preview event
-        self.publish_event(ChartEvents.CHART_PREVIEW_REQUESTED, {
-            'chart_config': config,
-            'chart_id': self.current_chart_id
-        })
-    
     def _on_apply(self):
         """Handle apply button click."""
         if self.current_chart:
             # Apply changes to the current chart object
             self.apply_to_chart(self.current_chart)
-            
+
             # Publish chart updated event
             self.publish_event(ChartEvents.CHART_UPDATED, {
                 'chart_id': self.current_chart.id,
                 'chart': self.current_chart
             })
+
+            self._has_unsaved_changes = False
+            self._update_status_indicator()
     
     def _on_reset(self):
         """Handle reset button click."""
@@ -1214,7 +1238,9 @@ class ChartPropertiesPanel(PWidget):
             chart: Chart object to load, or None to clear
         """
         self.current_chart = chart
-        
+        self._has_unsaved_changes = False
+        self._update_status_indicator()
+
         if chart:
             # Ensure datasets are available (important after opening a project file)
             self._ensure_datasets_loaded()
@@ -1304,24 +1330,42 @@ class ChartPropertiesPanel(PWidget):
         if chart_type in chart_type_map:
             chart.chart_type = chart_type_map[chart_type]
         
-        # Update style properties for all series (apply current style to all)
-        style_updates = {
-            'color': self.line_color_button.get_color(),
-            'line_width': self.line_width_spin.value(),
-            'marker_size': self.marker_size_spin.value()
-        }
-        
-        # Apply style updates to the currently selected series only
+        # Apply style updates to the currently selected series or fit data
         current_row = self.series_list.currentRow()
-        if (current_row >= 0 and current_row < len(chart.data_series)):
-            series = chart.data_series[current_row]
-            self.logger.debug(
-                "Updating series %d: %s (dataset_id=%s) with style %s", 
-                current_row, getattr(series, 'label', '?'), getattr(series, 'dataset_id', '?'), style_updates
-            )
-            for key, value in style_updates.items():
-                if hasattr(series, key):
-                    setattr(series, key, value)
+        if current_row >= 0:
+            total_series = len(chart.data_series)
+
+            if current_row < total_series:
+                # Update data series
+                series = chart.data_series[current_row]
+
+                series.color = self.line_color_button.get_color()
+                series.marker_color = self.marker_color_button.get_color()
+                series.marker_edge_color = self.marker_edge_color_button.get_color()
+                series.line_width = self.line_width_spin.value()
+                series.marker_size = self.marker_size_spin.value()
+
+                if hasattr(self, 'line_style_combo') and self.line_style_combo.currentData():
+                    series.line_style = self.line_style_combo.currentData().value
+                if hasattr(self, 'marker_type_combo') and self.marker_type_combo.currentData():
+                    series.marker_style = self.marker_type_combo.currentData().value
+
+                self.logger.debug(
+                    "Applied style to data series %d: %s (color=%s, marker_color=%s)",
+                    current_row, series.label, series.color, series.marker_color
+                )
+            else:
+                # Update fit data
+                fit_index = current_row - total_series
+                if 0 <= fit_index < len(chart.fit_data):
+                    fit = chart.fit_data[fit_index]
+                    fit.color = self.line_color_button.get_color()
+                    fit.line_width = self.line_width_spin.value()
+
+                    self.logger.debug(
+                        "Applied style to fit data %d: %s (color=%s)",
+                        fit_index, fit.label, fit.color
+                    )
         
         # If no series exist but we have configuration, create a default series
         if not chart.data_series:

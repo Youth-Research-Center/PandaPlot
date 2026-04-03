@@ -1,12 +1,14 @@
 from typing import override
 
 import pandas as pd
-from PySide6.QtCore import QTimer
+from shiboken6 import isValid
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QScrollArea,
     QSizePolicy,
     QSpinBox,
     QToolBar,
@@ -308,7 +310,18 @@ class ChartEditorWidget(PWidget):
             nav_toolbar = self.chart_canvas.navigation_toolbar
             preview_layout.addWidget(nav_toolbar)
 
-        preview_layout.addWidget(self.chart_canvas)
+        # Wrap chart canvas in scroll area for large charts
+        canvas_scroll = QScrollArea()
+        canvas_scroll.setWidgetResizable(True)
+        canvas_scroll.setWidget(self.chart_canvas)
+        canvas_scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding
+        )
+        canvas_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        canvas_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        preview_layout.addWidget(canvas_scroll)
 
         layout.addWidget(self.preview_frame)
 
@@ -368,6 +381,20 @@ class ChartEditorWidget(PWidget):
 
     def update_chart(self):
         """Update the chart preview."""
+        # Guard: Check if widget still exists
+        if not isValid(self.chart_canvas):
+            self.logger.debug("Chart canvas already deleted, skipping update")
+            return
+
+        # Mapping from model string values to matplotlib parameters
+        _marker_map = {
+            'circle': 'o', 'square': 's', 'triangle': '^', 'diamond': 'D',
+            'star': '*', 'plus': '+', 'cross': 'x', 'none': '',
+        }
+        _linestyle_map = {
+            'solid': '-', 'dashed': '--', 'dotted': ':', 'dashdot': '-.',
+        }
+
         try:
             # Clear the current plot
             self.chart_canvas.axes.clear()
@@ -397,16 +424,25 @@ class ChartEditorWidget(PWidget):
 
                                 # Plot based on chart type for regular data series
                                 if self.chart.chart_type == 'line':
+                                    mfc = series.marker_color or series.color
+                                    mec = series.marker_edge_color or series.color
                                     self.chart_canvas.axes.plot(x_data, y_data,
                                                                 color=series.color,
                                                                 linewidth=series.line_width,
-                                                                marker='o' if series.marker_style == 'circle' else 's',
+                                                                linestyle=_linestyle_map.get(series.line_style, '-'),
+                                                                marker=_marker_map.get(series.marker_style, 'o'),
                                                                 markersize=series.marker_size,
+                                                                markerfacecolor=mfc,
+                                                                markeredgecolor=mec,
                                                                 label=series.label,
                                                                 alpha=1.0 if series.visible else 0.3)
                                 elif self.chart.chart_type == 'scatter':
+                                    mfc = series.marker_color or series.color
+                                    mec = series.marker_edge_color or series.color
                                     self.chart_canvas.axes.scatter(x_data, y_data,
-                                                                   c=series.color,
+                                                                   c=mfc,
+                                                                   edgecolors=mec,
+                                                                   marker=_marker_map.get(series.marker_style, 'o'),
                                                                    s=series.marker_size*10,
                                                                    label=series.label,
                                                                    alpha=1.0 if series.visible else 0.3)
@@ -427,13 +463,18 @@ class ChartEditorWidget(PWidget):
                                 y_data = self.sample_data[y_col] if y_col in self.sample_data.columns else self.sample_data['y1']
 
                                 if self.chart.chart_type == 'line':
+                                    mfc = series.marker_color or series.color
+                                    mec = series.marker_edge_color or series.color
                                     self.chart_canvas.axes.plot(x_data, y_data,
                                                                 color=series.color,
                                                                 linewidth=series.line_width,
-                                                                marker='o' if series.marker_style == 'circle' else 's',
+                                                                linestyle='--',
+                                                                marker=_marker_map.get(series.marker_style, 'o'),
                                                                 markersize=series.marker_size,
+                                                                markerfacecolor=mfc,
+                                                                markeredgecolor=mec,
                                                                 label=f"{series.label} (Column not found)",
-                                                                alpha=0.5, linestyle='--')
+                                                                alpha=0.5)
                         else:
                             # Dataset not found - use sample data as fallback
                             x_data = self.sample_data['x']
@@ -441,23 +482,27 @@ class ChartEditorWidget(PWidget):
                             y_data = self.sample_data[y_col] if y_col in self.sample_data.columns else self.sample_data['y1']
 
                             if self.chart.chart_type == 'line':
+                                mfc = series.marker_color or series.color
+                                mec = series.marker_edge_color or series.color
                                 self.chart_canvas.axes.plot(x_data, y_data,
                                                             color=series.color,
                                                             linewidth=series.line_width,
-                                                            marker='o' if series.marker_style == 'circle' else 's',
+                                                            linestyle=':',
+                                                            marker=_marker_map.get(series.marker_style, 'o'),
                                                             markersize=series.marker_size,
+                                                            markerfacecolor=mfc,
+                                                            markeredgecolor=mec,
                                                             label=f"{series.label} (Dataset not found)",
-                                                            alpha=0.5, linestyle=':')
+                                                            alpha=0.5)
 
                 # Plot fit data from chart.fit_data
                 for i, fit in enumerate(self.chart.fit_data):
                     if fit.visible:
                         # Plot the fit line
-                        line_style = '--' if fit.line_style == 'dashed' else '-'
                         self.chart_canvas.axes.plot(fit.x_data, fit.y_data,
                                                     color=fit.color,
                                                     linewidth=fit.line_width,
-                                                    linestyle=line_style,
+                                                    linestyle=_linestyle_map.get(fit.line_style, '--'),
                                                     label=fit.label,
                                                     alpha=1.0)
 
@@ -539,6 +584,10 @@ class ChartEditorWidget(PWidget):
 
     def update_status(self, status: str):
         """Update the status label."""
+        # Guard: Check if widget still exists
+        if not isValid(self.status_label):
+            return
+
         self.status_label.setText(status)
         self._update_status_label_style()
 
@@ -568,6 +617,10 @@ class ChartEditorWidget(PWidget):
 
     def refresh_chart(self):
         """Refresh the chart preview when configuration changes from external sources."""
+        # Guard: Check if widget still exists
+        if not isValid(self.chart_canvas):
+            return
+
         self.update_chart()
 
         # Update dataset label in status
