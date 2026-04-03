@@ -100,6 +100,20 @@ class TabContainer(PWidget):
                 'tab_id': id(widget) if widget else None
             })
 
+    def close_tab_by_item_id(self, item_id: str):
+        """Close a tab by its associated item ID, if open."""
+        if item_id not in self.tabs:
+            return
+        tab_widget = self.tabs[item_id]
+        try:
+            tab_index = self.tab_widget.indexOf(tab_widget)
+            if tab_index >= 0:
+                self.close_tab(tab_index)
+            else:
+                del self.tabs[item_id]
+        except RuntimeError:
+            del self.tabs[item_id]
+
     def open_tab(self, item_id):
         if not self.app_context:
             self.logger.warning("Cannot open tab: No app context provided")
@@ -296,6 +310,7 @@ class TabContainer(PWidget):
             (AnalysisEvents.ANALYSIS_COMPLETED, self.on_analysis_completed),
             (ChartEvents.CHART_CREATED, lambda event_data: self.open_tab(event_data.get('chart_id'))),
             (UIEvents.TAB_OPEN_REQUESTED, lambda event_data: self.open_tab(event_data.get('item_id'))),
+            (ProjectEvents.PROJECT_ITEM_REMOVED, lambda event_data: self.close_tab_by_item_id(event_data.get('item_id'))),
         ])
 
     def on_tab_changed(self, index: int):
