@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Callable, Optional, Tuple
 
-from PySide6.QtCore import QThreadPool
+from PySide6.QtCore import QMutex, QMutexLocker, QThreadPool
 
 from pandaplot.services.qtasks.worker import Worker, WorkerFuncType
 
@@ -12,6 +12,7 @@ class TaskScheduler:
         self.threadpool = QThreadPool()
         thread_count = self.threadpool.maxThreadCount()
         self._workers = []
+        self._workers_lock = QMutex()
         self.logger.info(f"Multithreading with maximum {thread_count} threads")
 
     def run_task(self, 
@@ -41,27 +42,33 @@ class TaskScheduler:
                 if on_finished:
                     on_finished()
             finally:
-                # Disconnect all signals to release callback references (prevent memory leak)
-                try:
-                    if on_result:
-                        worker.signals.result.disconnect(on_result)
-                    if on_progress:
-                        worker.signals.progress.disconnect(on_progress)
-                    if on_error:
-                        worker.signals.error.disconnect(on_error)
-                    worker.signals.finished.disconnect(_finished_wrapper)
-                except RuntimeError:
-                    self.logger.debug("Signal already disconnected during worker cleanup.")
+                # Disconnect all signals to release callback references (prevent memory leak).
+                # Each disconnect is guarded individually so a failure on one does not
+                # prevent the remaining signals from being disconnected.
+                for name, signal, callback in [
+                    ("result",   worker.signals.result,   on_result),
+                    ("progress", worker.signals.progress, on_progress),
+                    ("error",    worker.signals.error,    on_error),
+                    ("finished", worker.signals.finished, _finished_wrapper),
+                ]:
+                    if callback is None:
+                        continue
+                    try:
+                        signal.disconnect(callback)
+                    except RuntimeError:
+                        self.logger.debug("Signal '%s' already disconnected during worker cleanup.", name)
 
                 # Remove reference after it has truly finished
-                if worker in self._workers:
-                    self._workers.remove(worker)
-                    self.logger.debug("Removed worker successfully.")
-                else:
-                    self.logger.warning("Worker not available in collection.")
+                with QMutexLocker(self._workers_lock):
+                    if worker in self._workers:
+                        self._workers.remove(worker)
+                        self.logger.debug("Removed worker successfully.")
+                    else:
+                        self.logger.warning("Worker not available in collection.")
 
         worker.signals.finished.connect(_finished_wrapper)
-        self._workers.append(worker)
+        with QMutexLocker(self._workers_lock):
+            self._workers.append(worker)
 
         # Execute
         self.threadpool.start(worker)
