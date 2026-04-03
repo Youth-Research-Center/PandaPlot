@@ -10,6 +10,7 @@ from pandaplot.commands.project.dataset.create_empty_dataset_command import (
 from pandaplot.commands.project.dataset import ImportCsvCommand
 from pandaplot.commands.project.note import CreateNoteCommand
 from pandaplot.commands.project.project import (
+    CloseProjectCommand,
     NewProjectCommand,
     OpenProjectCommand,
     SaveProjectAsCommand,
@@ -137,6 +138,11 @@ class MainMenu(PMenuBar):
         open_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(OpenProjectCommand(self.app_context)))
         file_menu.addAction(open_action)
+
+        close_action = QAction("Close", self)
+        close_action.triggered.connect(lambda: self.app_context.get_command_executor(
+        ).execute_command(CloseProjectCommand(self.app_context)))
+        file_menu.addAction(close_action)
 
         file_menu.addSeparator()
 
