@@ -41,13 +41,24 @@ class TaskScheduler:
                 if on_finished:
                     on_finished()
             finally:
+                # Disconnect all signals to release callback references (prevent memory leak)
+                try:
+                    if on_result:
+                        worker.signals.result.disconnect(on_result)
+                    if on_progress:
+                        worker.signals.progress.disconnect(on_progress)
+                    if on_error:
+                        worker.signals.error.disconnect(on_error)
+                    worker.signals.finished.disconnect(_finished_wrapper)
+                except RuntimeError:
+                    self.logger.debug("Signal already disconnected during worker cleanup.")
+
                 # Remove reference after it has truly finished
                 if worker in self._workers:
                     self._workers.remove(worker)
                     self.logger.debug("Removed worker successfully.")
                 else:
                     self.logger.warning("Worker not available in collection.")
-                
 
         worker.signals.finished.connect(_finished_wrapper)
         self._workers.append(worker)
