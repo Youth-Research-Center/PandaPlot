@@ -36,12 +36,11 @@ class AppState:
     def load_project(self, project: Project):
         """
         Load a project into the application state.
-        
+
         Args:
-            project (Project): The project to load
-            file_path (str, optional): The file path where the project is stored
+            project (Project): The project to load.
         """
-        self.logger.info(f"Loading project: {project.name}")
+        self.logger.info("Loading project: %s", project.name)
         old_project = self._current_project
         self._current_project = project
         
