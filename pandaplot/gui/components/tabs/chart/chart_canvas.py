@@ -7,7 +7,7 @@ class ChartCanvas(FigureCanvas):
     """Custom matplotlib canvas for displaying charts."""
 
     def __init__(self, width=10, height=6, dpi=100):
-        self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor='white')
+        self.fig = Figure(figsize=(width, height), dpi=dpi, facecolor="white")
         super().__init__(self.fig)
         self.axes = self.fig.add_subplot(111)
         self.setParent(None)
@@ -29,11 +29,11 @@ class ChartCanvas(FigureCanvas):
         # Store the navigation toolbar for external access
         self.navigation_toolbar = self.toolbar
 
-    def apply_navigation_theme(self, base_fg='#495057', surface_bg='#f8f9fa', border_color='#e9ecef'):
+    def apply_navigation_theme(self, base_fg="#495057", surface_bg="#f8f9fa", border_color="#e9ecef"):
         """Apply theme-aware styling to the navigation toolbar."""
-        if hasattr(self, 'navigation_toolbar'):
+        if hasattr(self, "navigation_toolbar"):
             hover_bg = border_color
-            pressed_bg = '#dee2e6'
+            pressed_bg = "#dee2e6"
 
             # More aggressive styling for matplotlib NavigationToolbar2QT
             self.navigation_toolbar.setStyleSheet(f"""
@@ -113,23 +113,23 @@ class ChartCanvas(FigureCanvas):
 
             # Force toolbar to regenerate icons with new colors
             # This triggers matplotlib's icon color logic
-            if hasattr(self.navigation_toolbar, '_actions'):
+            if hasattr(self.navigation_toolbar, "_actions"):
                 for action_name, action in self.navigation_toolbar._actions.items():
-                    if hasattr(action, 'setIcon'):
+                    if hasattr(action, "setIcon"):
                         # Get the original icon file name and regenerate it
                         # This forces matplotlib to re-evaluate the colors
                         try:
                             # Get the icon file from the toolbar's _icon method
                             # Based on matplotlib's NavigationToolbar2QT.toolitems
                             icon_mapping = {
-                                'home': 'home',
-                                'back': 'back',
-                                'forward': 'forward',
-                                'pan': 'move',
-                                'zoom': 'zoom_to_rect',
-                                'configure_subplots': 'subplots',
-                                'edit_parameters': 'qt4_editor_options',  # Edit axis button
-                                'save_figure': 'filesave'  # Save figure button
+                                "home": "home",
+                                "back": "back",
+                                "forward": "forward",
+                                "pan": "move",
+                                "zoom": "zoom_to_rect",
+                                "configure_subplots": "subplots",
+                                "edit_parameters": "qt4_editor_options",  # Edit axis button
+                                "save_figure": "filesave"  # Save figure button
                             }
                             if action_name in icon_mapping:
                                 new_icon = self.navigation_toolbar._icon(
@@ -138,7 +138,7 @@ class ChartCanvas(FigureCanvas):
                         except Exception as e:
                             # If regeneration fails, continue with other actions
                             # Add some debug info
-                            if hasattr(self, 'logger'):
+                            if hasattr(self, "logger"):
                                 self.logger.debug(
                                     f"Failed to regenerate icon for {action_name}: {e}")
                             pass

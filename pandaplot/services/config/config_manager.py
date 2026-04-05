@@ -19,14 +19,14 @@ Notes:
 """
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Mapping, Optional
 import logging
 import shutil
+from pathlib import Path
+from typing import Any, Mapping, Optional
 
+from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.config import ApplicationConfig
-from pandaplot.models.events.event_bus import EventBus
 from pandaplot.services.config.config_validation import validate_config
 
 

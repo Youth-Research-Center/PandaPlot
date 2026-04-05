@@ -9,7 +9,7 @@ from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import ChartEvents, ProjectEvents
 from pandaplot.models.events.event_data import ChartCreatedData
 from pandaplot.models.project.items import Chart, Dataset
-from pandaplot.models.state import (AppState, AppContext)
+from pandaplot.models.state import AppContext, AppState
 
 
 class CreateChartCommand(Command):
@@ -67,7 +67,7 @@ class CreateChartCommand(Command):
 
             # Generate chart name if not provided
             if not self.chart_name:
-                dataset_name = getattr(dataset, 'name', 'Dataset')
+                dataset_name = getattr(dataset, "name", "Dataset")
                 self.chart_name = f"Chart from {dataset_name}"
 
             # Create chart using chart manager
@@ -142,8 +142,8 @@ class CreateChartCommand(Command):
             # Emit event so TabContainer can close the tab
             event_bus = self.app_context.event_bus
             event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
-                'item_id': self.created_chart_id,
-                'item_type': 'chart',
+                "item_id": self.created_chart_id,
+                "item_type": "chart",
             })
 
             self.logger.info(

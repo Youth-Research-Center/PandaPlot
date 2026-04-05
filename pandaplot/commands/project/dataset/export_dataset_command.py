@@ -15,47 +15,47 @@ class ExportDatasetCommand(Command):
     """
 
     SUPPORTED_FORMATS = {
-        'CSV (Comma Separated Values)': {
-            'extension': '.csv',
-            'method': 'to_csv',
-            'kwargs': {'index': False},
-            'description': 'CSV files'
+        "CSV (Comma Separated Values)": {
+            "extension": ".csv",
+            "method": "to_csv",
+            "kwargs": {"index": False},
+            "description": "CSV files"
         },
-        'TSV (Tab Separated Values)': {
-            'extension': '.tsv',
-            'method': 'to_csv',
-            'kwargs': {'sep': '\t', 'index': False},
-            'description': 'TSV files'
+        "TSV (Tab Separated Values)": {
+            "extension": ".tsv",
+            "method": "to_csv",
+            "kwargs": {"sep": "\t", "index": False},
+            "description": "TSV files"
         },
-        'Excel Workbook': {
-            'extension': '.xlsx',
-            'method': 'to_excel',
-            'kwargs': {'index': False},
-            'description': 'Excel files'
+        "Excel Workbook": {
+            "extension": ".xlsx",
+            "method": "to_excel",
+            "kwargs": {"index": False},
+            "description": "Excel files"
         },
-        'JSON (Records format)': {
-            'extension': '.json',
-            'method': 'to_json',
-            'kwargs': {'orient': 'records', 'indent': 2},
-            'description': 'JSON files'
+        "JSON (Records format)": {
+            "extension": ".json",
+            "method": "to_json",
+            "kwargs": {"orient": "records", "indent": 2},
+            "description": "JSON files"
         },
-        'Parquet': {
-            'extension': '.parquet',
-            'method': 'to_parquet',
-            'kwargs': {'index': False},
-            'description': 'Parquet files'
+        "Parquet": {
+            "extension": ".parquet",
+            "method": "to_parquet",
+            "kwargs": {"index": False},
+            "description": "Parquet files"
         },
-        'HTML Table': {
-            'extension': '.html',
-            'method': 'to_html',
-            'kwargs': {'index': False},
-            'description': 'HTML files'
+        "HTML Table": {
+            "extension": ".html",
+            "method": "to_html",
+            "kwargs": {"index": False},
+            "description": "HTML files"
         },
-        'Pickle (pandas format)': {
-            'extension': '.pkl',
-            'method': 'to_pickle',
-            'kwargs': {},
-            'description': 'Pickle files'
+        "Pickle (pandas format)": {
+            "extension": ".pkl",
+            "method": "to_pickle",
+            "kwargs": {},
+            "description": "Pickle files"
         }
     }
 
@@ -175,17 +175,17 @@ class ExportDatasetCommand(Command):
             if not self.export_format or self.export_format not in self.SUPPORTED_FORMATS:
                 error_msg = f"Unsupported export format: {self.export_format}"
                 self.logger.error(error_msg)
-                return {'success': False, 'error': error_msg, 'path': None}
+                return {"success": False, "error": error_msg, "path": None}
             
             if not self.dataset or self.dataset.data is None or not self.export_path:
-                return {'success': False, 'error': "Missing dataset or export path", 'path': None}
+                return {"success": False, "error": "Missing dataset or export path", "path": None}
                 
             if progress_callback:
                 progress_callback(0.2)  # Validation complete
                 
             format_info = self.SUPPORTED_FORMATS[self.export_format]
-            method_name = format_info['method']
-            method_kwargs = format_info.get('kwargs', {})
+            method_name = format_info["method"]
+            method_kwargs = format_info.get("kwargs", {})
             
             if progress_callback:
                 progress_callback(0.3)  # Format info retrieved
@@ -194,7 +194,7 @@ class ExportDatasetCommand(Command):
             if not hasattr(self.dataset.data, method_name):
                 error_msg = f"DataFrame does not have method: {method_name}"
                 self.logger.error(error_msg)
-                return {'success': False, 'error': f"Export format '{self.export_format}' is not supported in this pandas version.", 'path': None}
+                return {"success": False, "error": f"Export format '{self.export_format}' is not supported in this pandas version.", "path": None}
             
             export_method = getattr(self.dataset.data, method_name)
             
@@ -210,21 +210,21 @@ class ExportDatasetCommand(Command):
                 progress_callback(0.5)  # Directory prepared
             
             # Special handling for different formats
-            if method_name == 'to_excel':
+            if method_name == "to_excel":
                 # For Excel, we might need to install openpyxl
                 try:
                     export_method(self.export_path, **method_kwargs)
                 except ImportError as e:
-                    if 'openpyxl' in str(e):
-                        return {'success': False, 'error': "Excel export requires openpyxl. Please install it with:\npip install openpyxl", 'path': None}
+                    if "openpyxl" in str(e):
+                        return {"success": False, "error": "Excel export requires openpyxl. Please install it with:\npip install openpyxl", "path": None}
                     raise
-            elif method_name == 'to_parquet':
+            elif method_name == "to_parquet":
                 # For Parquet, we might need to install pyarrow or fastparquet
                 try:
                     export_method(self.export_path, **method_kwargs)
                 except ImportError as e:
-                    if any(lib in str(e) for lib in ['pyarrow', 'fastparquet']):
-                        return {'success': False, 'error': "Parquet export requires pyarrow or fastparquet. Please install with:\npip install pyarrow", 'path': None}
+                    if any(lib in str(e) for lib in ["pyarrow", "fastparquet"]):
+                        return {"success": False, "error": "Parquet export requires pyarrow or fastparquet. Please install with:\npip install pyarrow", "path": None}
                     raise
             else:
                 # Standard export
@@ -238,19 +238,19 @@ class ExportDatasetCommand(Command):
             if progress_callback:
                 progress_callback(1.0)  # Finished
                 
-            return {'success': True, 'error': None, 'path': self.export_path}
+            return {"success": True, "error": None, "path": self.export_path}
             
         except Exception as e:
             error_msg = f"Error during data export: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
-            return {'success': False, 'error': error_msg, 'path': None}
+            return {"success": False, "error": error_msg, "path": None}
 
     def _on_export_result(self, result: dict):
         """Handle successful completion of export task."""
         try:
             self.is_exporting = False
             
-            if result.get('success', False):
+            if result.get("success", False):
                 dataset_name = self.dataset.name if self.dataset else "Unknown"
                 self.ui_controller.show_info_message(
                     "Export Successful", 
@@ -258,7 +258,7 @@ class ExportDatasetCommand(Command):
                 )
                 self.logger.info(f"Export completed successfully: {result['path']}")
             else:
-                error_msg = result.get('error', 'Unknown export error')
+                error_msg = result.get("error", "Unknown export error")
                 self.ui_controller.show_error_message("Export Failed", error_msg)
                 self.logger.error(f"Export failed: {error_msg}")
                 

@@ -1,5 +1,7 @@
 import logging
+
 from pandaplot.storage.item_data_manager import ItemDataManager
+
 
 class RegistryItem:
     def __init__(self, item_class: type, manager: ItemDataManager, extension: str):

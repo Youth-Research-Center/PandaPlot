@@ -1,7 +1,6 @@
 from typing import override
 
 import pandas as pd
-from shiboken6 import isValid
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
@@ -15,6 +14,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
 from pandaplot.gui.components.tabs.chart.chart_canvas import ChartCanvas
 from pandaplot.gui.core.widget_extension import PWidget
@@ -57,10 +57,10 @@ class ChartEditorWidget(PWidget):
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors
-        card_bg = palette.get('card_bg', '#f8f9fa')
-        card_border = palette.get('card_border', '#dee2e6')
-        base_fg = palette.get('base_fg', '#000000')
-        secondary_fg = palette.get('secondary_fg', '#555555')
+        card_bg = palette.get("card_bg", "#f8f9fa")
+        card_border = palette.get("card_border", "#dee2e6")
+        base_fg = palette.get("base_fg", "#000000")
+        secondary_fg = palette.get("secondary_fg", "#555555")
         
         # Apply styling to preview frame
         self.preview_frame.setStyleSheet(f"""
@@ -107,9 +107,9 @@ class ChartEditorWidget(PWidget):
             theme_manager = self.app_context.get_manager(ThemeManager)
             palette = theme_manager.get_surface_palette()
             
-            base_fg = palette.get('base_fg', '#000000')
-            card_border = palette.get('card_border', '#dee2e6')
-            card_bg = palette.get('card_bg', '#f8f9fa')
+            base_fg = palette.get("base_fg", "#000000")
+            card_border = palette.get("card_border", "#dee2e6")
+            card_bg = palette.get("card_bg", "#f8f9fa")
 
             spinbox.setStyleSheet(f"""
                 QSpinBox {{
@@ -133,7 +133,7 @@ class ChartEditorWidget(PWidget):
         try:
             theme_manager = self.app_context.get_manager(ThemeManager)
             palette = theme_manager.get_surface_palette()
-            base_fg = palette.get('base_fg', '#000000')
+            base_fg = palette.get("base_fg", "#000000")
 
             label.setStyleSheet(f"""
                 QLabel {{
@@ -149,9 +149,9 @@ class ChartEditorWidget(PWidget):
         """Apply theme-aware styling to the preview toolbar."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        base_fg = palette.get('base_fg', '#000000')
-        card_bg = palette.get('card_bg', '#f8f9fa')
-        card_border = palette.get('card_border', '#dee2e6')
+        base_fg = palette.get("base_fg", "#000000")
+        card_bg = palette.get("card_bg", "#f8f9fa")
+        card_border = palette.get("card_border", "#dee2e6")
         
         self.preview_toolbar.setStyleSheet(f"""
             QToolBar {{
@@ -183,7 +183,7 @@ class ChartEditorWidget(PWidget):
         """Update status label styling based on current status and theme."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        secondary_fg = palette.get('secondary_fg', '#555555')
+        secondary_fg = palette.get("secondary_fg", "#555555")
         
         status_text = self.status_label.text()
         
@@ -219,10 +219,10 @@ class ChartEditorWidget(PWidget):
     def _on_config_updated(self, data):
         """Handle config.updated events to apply display changes (e.g., DPI)."""
         try:
-            cfg = data.get('config') if isinstance(data, dict) else None
+            cfg = data.get("config") if isinstance(data, dict) else None
             if not cfg:
                 return
-            dpi = getattr(getattr(cfg, 'chart_display', None), 'dpi', None)
+            dpi = getattr(getattr(cfg, "chart_display", None), "dpi", None)
             if dpi and self.chart_canvas and self.chart_canvas.fig.dpi != dpi:
                 self.chart_canvas.fig.set_dpi(dpi)
                 # Matplotlib may need a tight_layout or redraw
@@ -296,9 +296,9 @@ class ChartEditorWidget(PWidget):
         dpi = 100
         try:
             cfg_manager = self.app_context.get_manager(ConfigManager)
-            cfg = getattr(cfg_manager, 'config', None)
-            if cfg and getattr(cfg, 'chart_display', None):
-                dpi = getattr(cfg.chart_display, 'dpi', dpi) or dpi
+            cfg = getattr(cfg_manager, "config", None)
+            if cfg and getattr(cfg, "chart_display", None):
+                dpi = getattr(cfg.chart_display, "dpi", dpi) or dpi
         except Exception:
             pass
         self.chart_canvas = ChartCanvas(width=8, height=6, dpi=dpi)
@@ -306,7 +306,7 @@ class ChartEditorWidget(PWidget):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         # Add navigation toolbar for zoom/pan
-        if hasattr(self.chart_canvas, 'navigation_toolbar'):
+        if hasattr(self.chart_canvas, "navigation_toolbar"):
             nav_toolbar = self.chart_canvas.navigation_toolbar
             preview_layout.addWidget(nav_toolbar)
 
@@ -388,11 +388,11 @@ class ChartEditorWidget(PWidget):
 
         # Mapping from model string values to matplotlib parameters
         _marker_map = {
-            'circle': 'o', 'square': 's', 'triangle': '^', 'diamond': 'D',
-            'star': '*', 'plus': '+', 'cross': 'x', 'none': '',
+            "circle": "o", "square": "s", "triangle": "^", "diamond": "D",
+            "star": "*", "plus": "+", "cross": "x", "none": "",
         }
         _linestyle_map = {
-            'solid': '-', 'dashed': '--', 'dotted': ':', 'dashdot': '-.',
+            "solid": "-", "dashed": "--", "dotted": ":", "dashdot": "-.",
         }
 
         try:
@@ -423,53 +423,53 @@ class ChartEditorWidget(PWidget):
                                 y_data = df[series.y_column]
 
                                 # Plot based on chart type for regular data series
-                                if self.chart.chart_type == 'line':
+                                if self.chart.chart_type == "line":
                                     mfc = series.marker_color or series.color
                                     mec = series.marker_edge_color or series.color
                                     self.chart_canvas.axes.plot(x_data, y_data,
                                                                 color=series.color,
                                                                 linewidth=series.line_width,
-                                                                linestyle=_linestyle_map.get(series.line_style, '-'),
-                                                                marker=_marker_map.get(series.marker_style, 'o'),
+                                                                linestyle=_linestyle_map.get(series.line_style, "-"),
+                                                                marker=_marker_map.get(series.marker_style, "o"),
                                                                 markersize=series.marker_size,
                                                                 markerfacecolor=mfc,
                                                                 markeredgecolor=mec,
                                                                 label=series.label,
                                                                 alpha=1.0 if series.visible else 0.3)
-                                elif self.chart.chart_type == 'scatter':
+                                elif self.chart.chart_type == "scatter":
                                     mfc = series.marker_color or series.color
                                     mec = series.marker_edge_color or series.color
                                     self.chart_canvas.axes.scatter(x_data, y_data,
                                                                    c=mfc,
                                                                    edgecolors=mec,
-                                                                   marker=_marker_map.get(series.marker_style, 'o'),
+                                                                   marker=_marker_map.get(series.marker_style, "o"),
                                                                    s=series.marker_size*10,
                                                                    label=series.label,
                                                                    alpha=1.0 if series.visible else 0.3)
-                                elif self.chart.chart_type == 'bar':
+                                elif self.chart.chart_type == "bar":
                                     self.chart_canvas.axes.bar(x_data, y_data,
                                                                color=series.color,
                                                                label=series.label,
                                                                alpha=1.0 if series.visible else 0.3)
-                                elif self.chart.chart_type == 'hist':
+                                elif self.chart.chart_type == "hist":
                                     self.chart_canvas.axes.hist(y_data, bins=20,
                                                                 color=series.color,
                                                                 label=series.label,
                                                                 alpha=0.7 if series.visible else 0.3)
                             else:
                                 # Column not found - use sample data as fallback
-                                x_data = self.sample_data['x']
-                                y_col = 'y1' if i == 0 else 'y2'
-                                y_data = self.sample_data[y_col] if y_col in self.sample_data.columns else self.sample_data['y1']
+                                x_data = self.sample_data["x"]
+                                y_col = "y1" if i == 0 else "y2"
+                                y_data = self.sample_data[y_col] if y_col in self.sample_data.columns else self.sample_data["y1"]
 
-                                if self.chart.chart_type == 'line':
+                                if self.chart.chart_type == "line":
                                     mfc = series.marker_color or series.color
                                     mec = series.marker_edge_color or series.color
                                     self.chart_canvas.axes.plot(x_data, y_data,
                                                                 color=series.color,
                                                                 linewidth=series.line_width,
-                                                                linestyle='--',
-                                                                marker=_marker_map.get(series.marker_style, 'o'),
+                                                                linestyle="--",
+                                                                marker=_marker_map.get(series.marker_style, "o"),
                                                                 markersize=series.marker_size,
                                                                 markerfacecolor=mfc,
                                                                 markeredgecolor=mec,
@@ -477,18 +477,18 @@ class ChartEditorWidget(PWidget):
                                                                 alpha=0.5)
                         else:
                             # Dataset not found - use sample data as fallback
-                            x_data = self.sample_data['x']
-                            y_col = 'y1' if i == 0 else 'y2'
-                            y_data = self.sample_data[y_col] if y_col in self.sample_data.columns else self.sample_data['y1']
+                            x_data = self.sample_data["x"]
+                            y_col = "y1" if i == 0 else "y2"
+                            y_data = self.sample_data[y_col] if y_col in self.sample_data.columns else self.sample_data["y1"]
 
-                            if self.chart.chart_type == 'line':
+                            if self.chart.chart_type == "line":
                                 mfc = series.marker_color or series.color
                                 mec = series.marker_edge_color or series.color
                                 self.chart_canvas.axes.plot(x_data, y_data,
                                                             color=series.color,
                                                             linewidth=series.line_width,
-                                                            linestyle=':',
-                                                            marker=_marker_map.get(series.marker_style, 'o'),
+                                                            linestyle=":",
+                                                            marker=_marker_map.get(series.marker_style, "o"),
                                                             markersize=series.marker_size,
                                                             markerfacecolor=mfc,
                                                             markeredgecolor=mec,
@@ -502,24 +502,24 @@ class ChartEditorWidget(PWidget):
                         self.chart_canvas.axes.plot(fit.x_data, fit.y_data,
                                                     color=fit.color,
                                                     linewidth=fit.line_width,
-                                                    linestyle=_linestyle_map.get(fit.line_style, '--'),
+                                                    linestyle=_linestyle_map.get(fit.line_style, "--"),
                                                     label=fit.label,
                                                     alpha=1.0)
 
             # Apply chart configuration
             config = self.chart.config
             self.chart_canvas.axes.set_title(config.get(
-                'title', self.chart.name), fontsize=14, fontweight='bold')
-            self.chart_canvas.axes.set_xlabel(config.get('x_label', ''))
-            self.chart_canvas.axes.set_ylabel(config.get('y_label', ''))
+                "title", self.chart.name), fontsize=14, fontweight="bold")
+            self.chart_canvas.axes.set_xlabel(config.get("x_label", ""))
+            self.chart_canvas.axes.set_ylabel(config.get("y_label", ""))
 
-            if config.get('show_grid', True):
+            if config.get("show_grid", True):
                 self.chart_canvas.axes.grid(
-                    True, alpha=config.get('grid_alpha', 0.3))
+                    True, alpha=config.get("grid_alpha", 0.3))
 
-            if config.get('show_legend', True) and (self.chart.data_series or self.chart.fit_data):
+            if config.get("show_legend", True) and (self.chart.data_series or self.chart.fit_data):
                 self.chart_canvas.axes.legend(
-                    loc=config.get('legend_position', 'upper right'))
+                    loc=config.get("legend_position", "upper right"))
 
             # Store original limits for zoom reset functionality
             self.chart_canvas.store_original_limits()
@@ -543,8 +543,8 @@ class ChartEditorWidget(PWidget):
 
             # Publish chart updated event
             self.publish_event(ChartEvents.CHART_UPDATED, {
-                'chart_id': self.chart.id,
-                'chart_name': self.chart.name
+                "chart_id": self.chart.id,
+                "chart_name": self.chart.name
             })
 
             # Reset status after 2 seconds
@@ -564,7 +564,7 @@ class ChartEditorWidget(PWidget):
             # Save the current figure
             filename = f"{self.chart.name}.png"
             self.chart_canvas.fig.savefig(
-                filename, dpi=300, bbox_inches='tight')
+                filename, dpi=300, bbox_inches="tight")
             self.update_status(f"Exported to {filename} ✓")
 
             # Reset status after 3 seconds
@@ -593,7 +593,7 @@ class ChartEditorWidget(PWidget):
 
     def _on_size_changed(self):
         """Handle chart size changes."""
-        if hasattr(self, 'chart_canvas'):
+        if hasattr(self, "chart_canvas"):
             width = self.width_spin.value()
             height = self.height_spin.value()
             self.chart_canvas.set_size(width, height)
@@ -604,7 +604,7 @@ class ChartEditorWidget(PWidget):
 
     def _on_reset_zoom(self):
         """Handle reset zoom action."""
-        if hasattr(self, 'chart_canvas'):
+        if hasattr(self, "chart_canvas"):
             self.chart_canvas.reset_zoom()
             self.update_status("Zoom reset")
 

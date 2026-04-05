@@ -4,10 +4,10 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QMessageBox, QWidget
 
 from pandaplot.commands.app.exit_command import ExitCommand
+from pandaplot.commands.project.dataset import ImportCsvCommand
 from pandaplot.commands.project.dataset.create_empty_dataset_command import (
     CreateEmptyDatasetCommand,
 )
-from pandaplot.commands.project.dataset import ImportCsvCommand
 from pandaplot.commands.project.note import CreateNoteCommand
 from pandaplot.commands.project.project import (
     CloseProjectCommand,
@@ -39,11 +39,11 @@ class MainMenu(PMenuBar):
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors
-        card_bg = palette.get('card_bg', '#F0F0F0')
-        base_fg = palette.get('base_fg', '#000000')
-        card_border = palette.get('card_border', '#D0D0D0')
-        accent = palette.get('accent', '#4A90E2')
-        card_pressed = palette.get('card_pressed', '#dee2e6')
+        card_bg = palette.get("card_bg", "#F0F0F0")
+        base_fg = palette.get("base_fg", "#000000")
+        card_border = palette.get("card_border", "#D0D0D0")
+        accent = palette.get("accent", "#4A90E2")
+        card_pressed = palette.get("card_pressed", "#dee2e6")
         
         # Apply dynamic theme-based styling
         self.setStyleSheet(f"""

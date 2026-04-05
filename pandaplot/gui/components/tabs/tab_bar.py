@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QMenu, QTabBar, QTabWidget, QWidget
-from PySide6.QtCore import Qt, Signal, QPoint, SignalInstance
+from PySide6.QtCore import QPoint, Qt, Signal, SignalInstance
 from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QMenu, QTabBar, QTabWidget, QWidget
 
 
 class TabHeaderContextMenu(QMenu):

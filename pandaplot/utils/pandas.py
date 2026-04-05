@@ -1,7 +1,9 @@
 """Pandaplot pandas utilities."""
-import pandas as pd
-import numpy as np
 from typing import Any
+
+import numpy as np
+import pandas as pd
+
 
 def convert_value(value: Any, target_dtype: Any) -> Any:
     """
@@ -33,7 +35,7 @@ def convert_value(value: Any, target_dtype: Any) -> Any:
         
         elif pd.api.types.is_bool_dtype(target_dtype):
             if isinstance(value, str):
-                return value.lower() in ['true', '1', 'yes', 'y', 'on']
+                return value.lower() in ["true", "1", "yes", "y", "on"]
             return bool(value)
         
         elif pd.api.types.is_datetime64_any_dtype(target_dtype):

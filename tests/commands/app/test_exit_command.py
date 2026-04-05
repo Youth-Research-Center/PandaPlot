@@ -10,8 +10,10 @@ Tests cover the ExitCommand class, including:
 - Edge cases and error conditions
 """
 
+from unittest.mock import MagicMock, Mock, call
+
 import pytest
-from unittest.mock import Mock, MagicMock, call
+
 from pandaplot.commands.app.exit_command import ExitCommand
 from pandaplot.commands.base_command import Command
 from pandaplot.models.events import AppEvents
@@ -79,7 +81,7 @@ class TestExitCommandInitialization:
         
         # Verify the app_context is stored correctly
         assert command.app_context is mock_app_context
-        assert hasattr(command, 'app_context')
+        assert hasattr(command, "app_context")
 
 
 class TestExitCommandExecution:
@@ -163,12 +165,12 @@ class TestExitCommandInheritance:
     def test_implements_command_interface(self, exit_command):
         """Test that ExitCommand implements the Command interface."""
         # All abstract methods should be implemented
-        assert hasattr(exit_command, 'execute')
-        assert hasattr(exit_command, 'undo')
-        assert hasattr(exit_command, 'redo')
-        assert callable(getattr(exit_command, 'execute'))
-        assert callable(getattr(exit_command, 'undo'))
-        assert callable(getattr(exit_command, 'redo'))
+        assert hasattr(exit_command, "execute")
+        assert hasattr(exit_command, "undo")
+        assert hasattr(exit_command, "redo")
+        assert callable(exit_command.execute)
+        assert callable(exit_command.undo)
+        assert callable(exit_command.redo)
     
     def test_repr_method_inherited(self, exit_command):
         """Test that __repr__ method works correctly."""
@@ -242,7 +244,7 @@ class TestExitCommandEdgeCases:
         """Test with AppContext that doesn't have event_bus."""
         mock_context = Mock()
         # Don't set event_bus attribute
-        delattr(mock_context, 'event_bus') if hasattr(mock_context, 'event_bus') else None
+        delattr(mock_context, "event_bus") if hasattr(mock_context, "event_bus") else None
         
         command = ExitCommand(mock_context)
         
@@ -252,7 +254,7 @@ class TestExitCommandEdgeCases:
     def test_event_bus_without_emit_method(self, mock_app_context):
         """Test with event bus that doesn't have emit method."""
         mock_app_context.event_bus = Mock()
-        delattr(mock_app_context.event_bus, 'emit')
+        delattr(mock_app_context.event_bus, "emit")
         
         command = ExitCommand(mock_app_context)
         
@@ -272,10 +274,10 @@ class TestExitCommandEdgeCases:
     def test_command_state_after_initialization(self, exit_command):
         """Test command state immediately after initialization."""
         # Should be able to call execute without any prior operations
-        assert hasattr(exit_command, 'app_context')
-        assert hasattr(exit_command, 'execute')
-        assert hasattr(exit_command, 'undo')
-        assert hasattr(exit_command, 'redo')
+        assert hasattr(exit_command, "app_context")
+        assert hasattr(exit_command, "execute")
+        assert hasattr(exit_command, "undo")
+        assert hasattr(exit_command, "redo")
     
     def test_command_immutability_of_app_context_reference(self, mock_app_context):
         """Test that the app_context reference doesn't change after initialization."""
@@ -314,5 +316,5 @@ class TestExitCommandDocumentation:
         assert "not applicable" in exit_command.redo.__doc__.lower()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main([__file__])

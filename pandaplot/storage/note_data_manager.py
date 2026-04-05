@@ -33,11 +33,11 @@ class NoteDataManager(ItemDataManager):
         path_in_zip is without extension.
         """
         # Read markdown content
-        content = zip_file.read(f"{path_in_zip}.md").decode('utf-8')
+        content = zip_file.read(f"{path_in_zip}.md").decode("utf-8")
 
         # Read metadata
         metadata = json.loads(zip_file.read(
-            f"{path_in_zip}.json").decode('utf-8'))
+            f"{path_in_zip}.json").decode("utf-8"))
 
         # Reconstruct note
         note = item_class(

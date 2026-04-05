@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 
+
 class ItemDataManager(ABC):
     @abstractmethod
     def save(self, item, zip_file, path_in_zip: str) -> None:

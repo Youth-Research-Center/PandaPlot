@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+
 def setup_logging(
     log_file: str | Path = "application.log",
     level: int = logging.INFO,

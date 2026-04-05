@@ -1,13 +1,13 @@
-from tkinter import EventType
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
+
 from pandaplot.commands.project.note import CreateNoteCommand
-from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.project.items import Note
-from pandaplot.models.project import Project
-from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.project import Project
+from pandaplot.models.project.items import Note
+from pandaplot.models.state import AppContext, AppState
 
 
 class TestCreateNoteCommand:
@@ -97,7 +97,7 @@ class TestCreateNoteCommand:
         
         command = CreateNoteCommand(app_context)  # No name provided
         
-        with patch('uuid.uuid4') as mock_uuid:
+        with patch("uuid.uuid4") as mock_uuid:
             mock_uuid.return_value = Mock()
             mock_uuid.return_value.__str__ = Mock(return_value="test-uuid")
             
@@ -110,11 +110,11 @@ class TestCreateNoteCommand:
         assert command.created_note.content == ""
         sample_project.add_item.assert_called_once()
         app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
-            'project': sample_project,
-            'note_id': "test-uuid",
-            'note_name': "New Note",
-            'folder_id': None,
-            'note': command.created_note
+            "project": sample_project,
+            "note_id": "test-uuid",
+            "note_name": "New Note",
+            "folder_id": None,
+            "note": command.created_note
         })
 
     def test_execute_with_specified_name_and_content(self, mock_app_context, sample_project):
@@ -125,7 +125,7 @@ class TestCreateNoteCommand:
         
         command = CreateNoteCommand(app_context, "Custom Note", "Custom content", "folder-123")
         
-        with patch('uuid.uuid4') as mock_uuid:
+        with patch("uuid.uuid4") as mock_uuid:
             mock_uuid.return_value = Mock()
             mock_uuid.return_value.__str__ = Mock(return_value="test-uuid")
             
@@ -145,7 +145,7 @@ class TestCreateNoteCommand:
         
         command = CreateNoteCommand(app_context, "Test Note", "", "parent-folder")
         
-        with patch('uuid.uuid4') as mock_uuid:
+        with patch("uuid.uuid4") as mock_uuid:
             mock_uuid.return_value = Mock()
             mock_uuid.return_value.__str__ = Mock(return_value="test-uuid")
             
@@ -157,7 +157,7 @@ class TestCreateNoteCommand:
         # Check event data
         call_args = app_state.event_bus.emit.call_args[0]
         event_data = call_args[1]
-        assert event_data['folder_id'] == "parent-folder"
+        assert event_data["folder_id"] == "parent-folder"
 
     def test_execute_with_exception(self, mock_app_context, sample_project):
         """Test execute when an exception occurs."""
@@ -194,9 +194,9 @@ class TestCreateNoteCommand:
         sample_project.find_item.assert_called_once_with("test-id")
         sample_project.remove_item.assert_called_once_with(mock_note)
         app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_REMOVED, {
-            'project': sample_project,
-            'note_id': "test-id",
-            'note': mock_note
+            "project": sample_project,
+            "note_id": "test-id",
+            "note": mock_note
         })
 
     def test_undo_no_note_id(self, mock_app_context):
@@ -272,11 +272,11 @@ class TestCreateNoteCommand:
         assert result is True
         sample_project.add_item.assert_called_once_with(mock_note, parent_id="parent-folder")
         app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
-            'project': sample_project,
-            'note_id': "test-id",
-            'note_name': "Test Note",
-            'folder_id': "parent-folder",
-            'note': mock_note
+            "project": sample_project,
+            "note_id": "test-id",
+            "note_name": "Test Note",
+            "folder_id": "parent-folder",
+            "note": mock_note
         })
 
     def test_redo_no_note(self, mock_app_context, sample_project):
@@ -331,7 +331,7 @@ class TestCreateNoteCommand:
         
         command = CreateNoteCommand(app_context, "My Note", "My content")
         
-        with patch('uuid.uuid4') as mock_uuid:
+        with patch("uuid.uuid4") as mock_uuid:
             mock_uuid.return_value = Mock()
             mock_uuid.return_value.__str__ = Mock(return_value="unique-id")
             
@@ -350,7 +350,7 @@ class TestCreateNoteCommand:
         
         command = CreateNoteCommand(app_context, "Test Note")
         
-        with patch('uuid.uuid4') as mock_uuid:
+        with patch("uuid.uuid4") as mock_uuid:
             expected_uuid = Mock()
             expected_uuid.__str__ = Mock(return_value="generated-uuid-123")
             mock_uuid.return_value = expected_uuid
@@ -369,7 +369,7 @@ class TestCreateNoteCommand:
         command1 = CreateNoteCommand(app_context, "Note 1")
         command2 = CreateNoteCommand(app_context, "Note 2")
         
-        with patch('uuid.uuid4') as mock_uuid:
+        with patch("uuid.uuid4") as mock_uuid:
             mock_uuid.side_effect = [
                 Mock(__str__=Mock(return_value="id-1")),
                 Mock(__str__=Mock(return_value="id-2"))
@@ -394,7 +394,7 @@ class TestCreateNoteCommand:
         
         command = CreateNoteCommand(app_context, "Event Note", "Event content", "parent-123")
         
-        with patch('uuid.uuid4') as mock_uuid:
+        with patch("uuid.uuid4") as mock_uuid:
             mock_uuid.return_value = Mock()
             mock_uuid.return_value.__str__ = Mock(return_value="event-id")
             
@@ -405,14 +405,14 @@ class TestCreateNoteCommand:
         event_name, event_data = app_state.event_bus.emit.call_args[0]
         
         assert event_name == ProjectEvents.PROJECT_ITEM_ADDED
-        assert 'project' in event_data
-        assert 'note_id' in event_data
-        assert 'note_name' in event_data
-        assert 'folder_id' in event_data
-        assert 'note' in event_data
+        assert "project" in event_data
+        assert "note_id" in event_data
+        assert "note_name" in event_data
+        assert "folder_id" in event_data
+        assert "note" in event_data
         
-        assert event_data['project'] == sample_project
-        assert event_data['note_id'] == "event-id"
-        assert event_data['note_name'] == "Event Note"
-        assert event_data['folder_id'] == "parent-123"
-        assert event_data['note'] == command.created_note
+        assert event_data["project"] == sample_project
+        assert event_data["note_id"] == "event-id"
+        assert event_data["note_name"] == "Event Note"
+        assert event_data["folder_id"] == "parent-123"
+        assert event_data["note"] == command.created_note

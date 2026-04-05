@@ -1,14 +1,13 @@
 """Chart style manager for applying configurations to matplotlib."""
 
-import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-from matplotlib.axes import Axes
-import pandas as pd
 from typing import Tuple
 
-from .chart_configuration import (
-    ChartConfiguration, ChartType, ScaleType
-)
+import matplotlib.pyplot as plt
+import pandas as pd
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+
+from .chart_configuration import ChartConfiguration, ChartType, ScaleType
 
 
 class ChartStyleManager:
@@ -17,8 +16,8 @@ class ChartStyleManager:
     def __init__(self):
         """Initialize the chart style manager."""
         self._color_palette = [
-            '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-            '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'
+            "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+            "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"
         ]
     
     def apply_configuration(self, figure: Figure, config: ChartConfiguration, 
@@ -60,7 +59,7 @@ class ChartStyleManager:
         """Plot data according to chart type."""
         if config.x_column not in data.columns or config.y_column not in data.columns:
             ax.text(0.5, 0.5, f"Columns '{config.x_column}' or '{config.y_column}' not found",
-                   ha='center', va='center', transform=ax.transAxes)
+                   ha="center", va="center", transform=ax.transAxes)
             return
         
         x_data = data[config.x_column]
@@ -97,13 +96,13 @@ class ChartStyleManager:
         
         # Remove marker key for scatter plot
         scatter_kwargs = marker_kwargs.copy()
-        scatter_kwargs['s'] = scatter_kwargs.pop('markersize', 6) ** 2  # Convert to area
-        scatter_kwargs['c'] = scatter_kwargs.pop('markerfacecolor', '#1f77b4')
-        scatter_kwargs['edgecolors'] = scatter_kwargs.pop('markeredgecolor', '#000000')
-        scatter_kwargs['linewidths'] = scatter_kwargs.pop('markeredgewidth', 1.0)
+        scatter_kwargs["s"] = scatter_kwargs.pop("markersize", 6) ** 2  # Convert to area
+        scatter_kwargs["c"] = scatter_kwargs.pop("markerfacecolor", "#1f77b4")
+        scatter_kwargs["edgecolors"] = scatter_kwargs.pop("markeredgecolor", "#000000")
+        scatter_kwargs["linewidths"] = scatter_kwargs.pop("markeredgewidth", 1.0)
         
         # Remove marker key if present
-        scatter_kwargs.pop('marker', None)
+        scatter_kwargs.pop("marker", None)
         
         ax.scatter(x_data, y_data, **scatter_kwargs, label=config.y_column)
     
@@ -121,7 +120,7 @@ class ChartStyleManager:
         transparency = config.line_style.transparency
         
         ax.hist(data, bins=30, color=color, alpha=transparency, 
-                edgecolor='black', label=config.y_column)
+                edgecolor="black", label=config.y_column)
     
     def _plot_box(self, ax: Axes, data: pd.Series, config: ChartConfiguration):
         """Plot box plot."""
@@ -129,7 +128,7 @@ class ChartStyleManager:
         ax.set_xticklabels([config.y_column])
         
         # Apply colors
-        for patch in bp['boxes']:
+        for patch in bp["boxes"]:
             patch.set_facecolor(config.line_style.color)
             patch.set_alpha(config.line_style.transparency)
     
@@ -138,8 +137,8 @@ class ChartStyleManager:
         parts = ax.violinplot([data], positions=[1], showmeans=True, showmedians=True)
         
         # Apply colors
-        if 'bodies' in parts:
-            for pc in parts['bodies']:
+        if "bodies" in parts:
+            for pc in parts["bodies"]:
                 pc.set_facecolor(config.line_style.color)
                 pc.set_alpha(config.line_style.transparency)
         
@@ -164,9 +163,9 @@ class ChartStyleManager:
         
         # Scales
         if config.x_axis.scale == ScaleType.LOG:
-            ax.set_xscale('log')
+            ax.set_xscale("log")
         if config.y_axis.scale == ScaleType.LOG:
-            ax.set_yscale('log')
+            ax.set_yscale("log")
         
         # Limits
         if not config.x_axis.auto_limits:
@@ -178,9 +177,9 @@ class ChartStyleManager:
                 ax.set_ylim(config.y_axis.min_limit, config.y_axis.max_limit)
         
         # Font styling for tick labels
-        ax.tick_params(axis='x', labelsize=config.x_axis.font_size, 
+        ax.tick_params(axis="x", labelsize=config.x_axis.font_size, 
                       colors=config.x_axis.color)
-        ax.tick_params(axis='y', labelsize=config.y_axis.font_size, 
+        ax.tick_params(axis="y", labelsize=config.y_axis.font_size, 
                       colors=config.y_axis.color)
     
     def _apply_legend_styling(self, ax: Axes, config: ChartConfiguration):
@@ -188,14 +187,14 @@ class ChartStyleManager:
         if config.legend.show:
             legend_kwargs = config.legend.to_matplotlib_kwargs()
             # Remove alpha if present (use transparency mapping instead)
-            if 'alpha' in legend_kwargs:
-                legend_kwargs['framealpha'] = legend_kwargs.pop('alpha')
+            if "alpha" in legend_kwargs:
+                legend_kwargs["framealpha"] = legend_kwargs.pop("alpha")
             ax.legend(**legend_kwargs)
     
     def _apply_title(self, ax: Axes, config: ChartConfiguration):
         """Apply title to the chart."""
         if config.title:
-            ax.set_title(config.title, fontsize=14, fontweight='bold', pad=20)
+            ax.set_title(config.title, fontsize=14, fontweight="bold", pad=20)
     
     def create_preview(self, config: ChartConfiguration, data: pd.DataFrame, 
                       size: Tuple[float, float] = (4, 3)) -> Figure:
@@ -282,13 +281,13 @@ class ChartStyleManager:
             Dictionary containing the style preset
         """
         return {
-            'name': name,
-            'line_style': config.line_style.to_matplotlib_kwargs(),
-            'marker_style': config.marker_style.to_matplotlib_kwargs(),
-            'x_axis': config.x_axis.to_matplotlib_kwargs(),
-            'y_axis': config.y_axis.to_matplotlib_kwargs(),
-            'legend': config.legend.to_matplotlib_kwargs(),
-            'background_color': config.background_color
+            "name": name,
+            "line_style": config.line_style.to_matplotlib_kwargs(),
+            "marker_style": config.marker_style.to_matplotlib_kwargs(),
+            "x_axis": config.x_axis.to_matplotlib_kwargs(),
+            "y_axis": config.y_axis.to_matplotlib_kwargs(),
+            "legend": config.legend.to_matplotlib_kwargs(),
+            "background_color": config.background_color
         }
     
     def apply_style_preset(self, config: ChartConfiguration, preset: dict) -> ChartConfiguration:

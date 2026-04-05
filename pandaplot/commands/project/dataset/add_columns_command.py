@@ -31,7 +31,7 @@ class AddColumnsCommand(Command):
 
     def __init__(self, app_context: AppContext, dataset_id: str, column_names: List[str],
                  reference_positions: List[int],
-                 side: Literal['left', 'right'] = 'right',
+                 side: Literal["left", "right"] = "right",
                  default_values: Optional[List[Any]] = None):
         """
         Initialize the AddColumnsCommand.
@@ -225,7 +225,7 @@ class AddColumnsCommand(Command):
             List of groups, where each group contains consecutive positions
         """
         # Create list of (reference_position, column_name, default_value, original_index)
-        items = list(zip(self.reference_positions, self.column_names, self.default_values, range(len(self.column_names))))
+        items = list(zip(self.reference_positions, self.column_names, self.default_values, range(len(self.column_names)), strict=False))
         
         # Sort by reference position
         items.sort(key=lambda x: x[0])
@@ -275,7 +275,7 @@ class AddColumnsCommand(Command):
         new_columns_data = {}
         num_rows = len(data)
         
-        for col_name, default_val in zip(column_names, default_values):
+        for col_name, default_val in zip(column_names, default_values, strict=False):
             # Determine default value
             if default_val is not None:
                 final_default = default_val

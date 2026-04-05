@@ -106,7 +106,7 @@ class EditBatchCommand(Command):
                     app_context=self.app_context,
                     dataset_id=self.dataset_id,
                     reference_positions=[current_rows - 1] * rows_to_add,  # Reference last row
-                    side='below'  # Insert below the last row
+                    side="below"  # Insert below the last row
                 )
                 
                 if not add_rows_command.execute():
@@ -148,7 +148,7 @@ class EditBatchCommand(Command):
                     dataset_id=self.dataset_id,
                     column_names=new_column_names,
                     reference_positions=[current_cols - 1] * cols_to_add,  # Reference last column
-                    side='right',  # Insert to the right of the last column
+                    side="right",  # Insert to the right of the last column
                     default_values=[0] * cols_to_add  # Default to 0 for new columns
                 )
                 

@@ -10,8 +10,10 @@ Tests cover the Project class, including:
 - Edge cases and error handling
 """
 
-import pytest
 import uuid
+
+import pytest
+
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Item, ItemCollection
 
@@ -230,12 +232,12 @@ class TestSerialization:
         data = sample_project.to_dict()
         
         assert isinstance(data, dict)
-        assert data['name'] == "Test Project"
-        assert data['description'] == "A test project"
-        assert data['version'] == "1.0"
-        assert isinstance(data['metadata'], dict)
-        assert isinstance(data['root'], dict)
-        assert data['root']['name'] == "Test Project Root"
+        assert data["name"] == "Test Project"
+        assert data["description"] == "A test project"
+        assert data["version"] == "1.0"
+        assert isinstance(data["metadata"], dict)
+        assert isinstance(data["root"], dict)
+        assert data["root"]["name"] == "Test Project Root"
     
     def test_to_dict_populated_project(self, populated_project):
         """Test serializing a populated project to dictionary."""
@@ -244,43 +246,43 @@ class TestSerialization:
         data = project.to_dict()
         
         assert isinstance(data, dict)
-        assert data['name'] == "Populated Project"
-        assert isinstance(data['root'], dict)
+        assert data["name"] == "Populated Project"
+        assert isinstance(data["root"], dict)
         # Root should contain serialized items
-        assert 'items' in data['root']
-        assert isinstance(data['root']['items'], list)
+        assert "items" in data["root"]
+        assert isinstance(data["root"]["items"], list)
     
     def test_from_dict_minimal_data(self):
         """Test creating project from minimal dictionary data."""
         data = {
-            'name': 'Restored Project',
-            'description': 'A restored project'
+            "name": "Restored Project",
+            "description": "A restored project"
         }
         
         project = Project.from_dict(data)
         
-        assert project.name == 'Restored Project'
-        assert project.description == 'A restored project'
-        assert project.version == '1.0'  # Default value
+        assert project.name == "Restored Project"
+        assert project.description == "A restored project"
+        assert project.version == "1.0"  # Default value
         assert isinstance(project.metadata, dict)
         assert len(project.metadata) == 0
     
     def test_from_dict_complete_data(self):
         """Test creating project from complete dictionary data."""
         data = {
-            'name': 'Complete Project',
-            'description': 'A complete project',
-            'version': '2.0',
-            'metadata': {'author': 'Test User', 'tags': ['test', 'demo']}
+            "name": "Complete Project",
+            "description": "A complete project",
+            "version": "2.0",
+            "metadata": {"author": "Test User", "tags": ["test", "demo"]}
         }
         
         project = Project.from_dict(data)
         
-        assert project.name == 'Complete Project'
-        assert project.description == 'A complete project'
-        assert project.version == '2.0'
-        assert project.metadata['author'] == 'Test User'
-        assert project.metadata['tags'] == ['test', 'demo']
+        assert project.name == "Complete Project"
+        assert project.description == "A complete project"
+        assert project.version == "2.0"
+        assert project.metadata["author"] == "Test User"
+        assert project.metadata["tags"] == ["test", "demo"]
     
     def test_from_dict_empty_data(self):
         """Test creating project from empty dictionary."""
@@ -288,16 +290,16 @@ class TestSerialization:
         
         project = Project.from_dict(data)
         
-        assert project.name == 'Untitled Project'  # Default value
-        assert project.description == ''  # Default value
-        assert project.version == '1.0'  # Default value
+        assert project.name == "Untitled Project"  # Default value
+        assert project.description == ""  # Default value
+        assert project.version == "1.0"  # Default value
         assert isinstance(project.metadata, dict)
         assert len(project.metadata) == 0
     
     def test_serialization_roundtrip(self, sample_project):
         """Test that serialization and deserialization preserve data."""
         # Add some metadata
-        sample_project.metadata = {'test': 'value', 'number': 42}
+        sample_project.metadata = {"test": "value", "number": 42}
         
         # Serialize
         data = sample_project.to_dict()
@@ -459,17 +461,17 @@ class TestComplexScenarios:
     def test_project_with_metadata(self, sample_project):
         """Test project with extensive metadata."""
         sample_project.metadata = {
-            'author': 'Test Author',
-            'created_date': '2023-01-01',
-            'tags': ['analysis', 'visualization', 'demo'],
-            'settings': {
-                'theme': 'dark',
-                'auto_save': True,
-                'backup_count': 5
+            "author": "Test Author",
+            "created_date": "2023-01-01",
+            "tags": ["analysis", "visualization", "demo"],
+            "settings": {
+                "theme": "dark",
+                "auto_save": True,
+                "backup_count": 5
             },
-            'custom_fields': {
-                'priority': 'high',
-                'status': 'active'
+            "custom_fields": {
+                "priority": "high",
+                "status": "active"
             }
         }
         
@@ -477,11 +479,11 @@ class TestComplexScenarios:
         data = sample_project.to_dict()
         restored_project = Project.from_dict(data)
         
-        assert restored_project.metadata['author'] == 'Test Author'
-        assert restored_project.metadata['tags'] == ['analysis', 'visualization', 'demo']
-        assert restored_project.metadata['settings']['theme'] == 'dark'
-        assert restored_project.metadata['custom_fields']['priority'] == 'high'
+        assert restored_project.metadata["author"] == "Test Author"
+        assert restored_project.metadata["tags"] == ["analysis", "visualization", "demo"]
+        assert restored_project.metadata["settings"]["theme"] == "dark"
+        assert restored_project.metadata["custom_fields"]["priority"] == "high"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main([__file__])

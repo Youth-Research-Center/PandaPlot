@@ -1,10 +1,19 @@
+import json
 import logging
 import zipfile
-import json
 
-from pandaplot.models.project.items import Item
 from pandaplot.models.project import Project
+from pandaplot.models.project.items import Item
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
+
+
+class _ZipBytesProxy:
+    """Mimics zipfile.ZipFile.read() using pre-loaded bytes so managers need no changes."""
+    def __init__(self, raw_data: dict):
+        self._raw_data = raw_data
+
+    def read(self, path: str) -> bytes:
+        return self._raw_data[path]
 
 
 class ProjectDataManager:
@@ -14,7 +23,7 @@ class ProjectDataManager:
 
     def save(self, project: Project, filepath: str):
         self.logger.info(f"Saving project {project.name} to {filepath}")
-        with zipfile.ZipFile(filepath, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(filepath, "w", compression=zipfile.ZIP_DEFLATED) as zf:
             project_dict = project.to_dict()
 
             # Add item references (with paths to their separate files)
@@ -33,24 +42,32 @@ class ProjectDataManager:
 
     def load(self, filepath: str) -> Project:
         self.logger.info(f"Loading project from {filepath}")
-        with zipfile.ZipFile(filepath, 'r') as zf:
-            project_dict = json.loads(zf.read("project.json").decode('utf-8'))
-            project = Project.from_dict(project_dict)
 
-            items_info = project_dict.get("item_files", {}).items()
-            items = {}
+        # Phase 1: Read all raw bytes while the zip is open.
+        # The file is held open only during this block; closing it immediately
+        # prevents the Windows exclusive-lock window that would otherwise last
+        # until all processing (Project.from_dict, item deserialization, …) finishes.
+        with zipfile.ZipFile(filepath, "r") as zf:
+            names = set(zf.namelist())
+            if "project.json" not in names:
+                raise ValueError(f"Invalid project file: missing project.json in {filepath}")
+            raw_data = {name: zf.read(name) for name in names}
+        # ← zip closed here; Windows file lock released before any deserialization
 
-            # Load all of the items
-            for item_id, info in items_info:
-                curr_item = self._load_item(item_id, info, zf)
-                if curr_item is not None:
-                    items[item_id] = curr_item
+        # Phase 2: Deserialize entirely from in-memory bytes (no file lock held).
+        zip_proxy = _ZipBytesProxy(raw_data)
+        project_dict = json.loads(raw_data["project.json"].decode("utf-8"))
+        project = Project.from_dict(project_dict)
 
-            project_root = project_dict.get("root", {})
-            project.root.id = project_root.get("id", project.root.id)
-            project_tree = project_root.get("items", [])
-            self._add_items_to_project(project, items, project_tree)
+        items = {}
+        for item_id, info in project_dict.get("item_files", {}).items():
+            curr_item = self._load_item(item_id, info, zip_proxy)
+            if curr_item is not None:
+                items[item_id] = curr_item
 
+        project_root = project_dict.get("root", {})
+        project.root.id = project_root.get("id", project.root.id)
+        self._add_items_to_project(project, items, project_root.get("items", []))
         return project
 
     def _load_item(self, item_id: str, info, zip_file) -> Item | None:

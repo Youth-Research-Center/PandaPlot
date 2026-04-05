@@ -1,7 +1,8 @@
-from collections import OrderedDict
-from typing import Optional, Dict, Any, List
 import uuid
+from collections import OrderedDict
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 
 class Item:
     """Base class for all project items."""
@@ -26,25 +27,25 @@ class Item:
     def to_dict(self) -> Dict[str, Any]:
         """Convert item to dictionary for serialization."""
         return {
-            'id': self.id,
-            'name': self.name,
-            'parent_id': self.parent_id,
-            'created_at': self.created_at,
-            'modified_at': self.modified_at,
-            'metadata': self.metadata
+            "id": self.id,
+            "name": self.name,
+            "parent_id": self.parent_id,
+            "created_at": self.created_at,
+            "modified_at": self.modified_at,
+            "metadata": self.metadata
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Item':
+    def from_dict(cls, data: Dict[str, Any]) -> "Item":
         """Create item from dictionary."""
         item = cls(
-            id=data.get('id'),
-            name=data.get('name', '')
+            id=data.get("id"),
+            name=data.get("name", "")
         )
-        item.parent_id = data.get('parent_id')
-        item.created_at = data.get('created_at', datetime.now().isoformat())
-        item.modified_at = data.get('modified_at', item.created_at)
-        item.metadata = data.get('metadata', {})
+        item.parent_id = data.get("parent_id")
+        item.created_at = data.get("created_at", datetime.now().isoformat())
+        item.modified_at = data.get("modified_at", item.created_at)
+        item.metadata = data.get("metadata", {})
         return item
     
     def __str__(self):
@@ -105,21 +106,21 @@ class ItemCollection(Item):
     def to_dict(self) -> Dict[str, Any]:
         """Convert collection to dictionary for serialization."""
         data = super().to_dict()
-        data['items'] = [item.to_dict() for item in self.items.values()]
+        data["items"] = [item.to_dict() for item in self.items.values()]
         return data
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'ItemCollection':
+    def from_dict(cls, data: Dict[str, Any]) -> "ItemCollection":
         """Create collection from dictionary."""
         # TODO: We should consider getting rid of this method, or changing the scope
         collection = cls(
-            id=data.get('id'),
-            name=data.get('name', 'Collection')
+            id=data.get("id"),
+            name=data.get("name", "Collection")
         )
-        collection.parent_id = data.get('parent_id')
-        collection.created_at = data.get('created_at', datetime.now().isoformat())
-        collection.modified_at = data.get('modified_at', collection.created_at)
-        collection.metadata = data.get('metadata', {})
+        collection.parent_id = data.get("parent_id")
+        collection.created_at = data.get("created_at", datetime.now().isoformat())
+        collection.modified_at = data.get("modified_at", collection.created_at)
+        collection.metadata = data.get("metadata", {})
 
         # TODO: Parse nested items when their specific types are implemented
         return collection

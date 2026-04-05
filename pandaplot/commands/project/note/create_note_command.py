@@ -5,7 +5,7 @@ from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Note
-from pandaplot.models.state import (AppState, AppContext)
+from pandaplot.models.state import AppContext, AppState
 
 
 class CreateNoteCommand(Command):
@@ -64,11 +64,11 @@ class CreateNoteCommand(Command):
 
             # Emit dotted event only (legacy underscore events removed)
             self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
-                'project': self.project,
-                'note_id': self.created_note_id,
-                'note_name': note_name,
-                'folder_id': self.folder_id,
-                'note': self.created_note
+                "project": self.project,
+                "note_id": self.created_note_id,
+                "note_name": note_name,
+                "folder_id": self.folder_id,
+                "note": self.created_note
             })
             self.logger.info(
                 "CreateNoteCommand: Created note '%s' (id=%s) in folder %s",
@@ -98,14 +98,14 @@ class CreateNoteCommand(Command):
 
                     # Emit dotted delete event
                     self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
-                        'project': project,
-                        'note_id': self.created_note_id,
-                        'note': self.created_note
+                        "project": project,
+                        "note_id": self.created_note_id,
+                        "note": self.created_note
                     })
                     self.logger.info(
                         "CreateNoteCommand: Undo creation of note id=%s (name=%s)",
                         self.created_note_id,
-                        getattr(self.created_note, 'name', '<unknown>')
+                        getattr(self.created_note, "name", "<unknown>")
                     )
 
         except Exception as e:
@@ -126,11 +126,11 @@ class CreateNoteCommand(Command):
 
                 # Emit dotted event only
                 self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
-                    'project': project,
-                    'note_id': self.created_note_id,
-                    'note_name': self.created_note.name,
-                    'folder_id': self.folder_id,
-                    'note': self.created_note
+                    "project": project,
+                    "note_id": self.created_note_id,
+                    "note_name": self.created_note.name,
+                    "folder_id": self.folder_id,
+                    "note": self.created_note
                 })
                 self.logger.info(
                     "CreateNoteCommand: Redo creation of item '%s' (id=%s) in folder %s",

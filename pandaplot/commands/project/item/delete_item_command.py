@@ -4,7 +4,7 @@ from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Item
-from pandaplot.models.state import (AppState, AppContext)
+from pandaplot.models.state import AppContext, AppState
 
 
 class DeleteItemCommand(Command):
@@ -60,7 +60,7 @@ class DeleteItemCommand(Command):
                 self.parent_item = project.find_item(item.parent_id)
 
             # Get item name for user confirmation
-            item_name = getattr(item, 'name', self.item_id)
+            item_name = getattr(item, "name", self.item_id)
             item_type = self.deleted_item_class.__name__.lower()
 
             # Confirm deletion
@@ -76,11 +76,11 @@ class DeleteItemCommand(Command):
 
             # Emit event
             self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
-                'project': project,
-                'item_id': self.item_id,
-                'item_type': item_type,
-                'item_name': item_name,
-                'item_data': self.deleted_item_data
+                "project": project,
+                "item_id": self.item_id,
+                "item_type": item_type,
+                "item_name": item_name,
+                "item_data": self.deleted_item_data
             })
             self.logger.info(
                 "DeleteItemCommand: Deleted %s '%s' (id=%s)",
@@ -122,16 +122,16 @@ class DeleteItemCommand(Command):
             project.add_item(restored_item, parent_id=parent_id)
 
             # Get item info for logging
-            item_name = getattr(restored_item, 'name', self.item_id)
+            item_name = getattr(restored_item, "name", self.item_id)
             item_type = self.deleted_item_class.__name__.lower()
 
             # Emit event
             self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
-                'project': project,
-                'item_id': self.item_id,
-                'item_type': item_type,
-                'item_name': item_name,
-                'item': restored_item
+                "project": project,
+                "item_id": self.item_id,
+                "item_type": item_type,
+                "item_name": item_name,
+                "item": restored_item
             })
             self.logger.info(
                 "DeleteItemCommand: Restored %s '%s' (id=%s)",
@@ -168,16 +168,16 @@ class DeleteItemCommand(Command):
             project.remove_item(item)
 
             # Get item info for logging and events
-            item_name = getattr(item, 'name', self.item_id)
+            item_name = getattr(item, "name", self.item_id)
             item_type = self.deleted_item_class.__name__.lower()
 
             # Emit event
             self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
-                'project': project,
-                'item_id': self.item_id,
-                'item_type': item_type,
-                'item_name': item_name,
-                'item_data': self.deleted_item_data
+                "project": project,
+                "item_id": self.item_id,
+                "item_type": item_type,
+                "item_name": item_name,
+                "item_data": self.deleted_item_data
             })
             self.logger.info(
                 "DeleteItemCommand: Redone deletion of %s '%s' (id=%s)",

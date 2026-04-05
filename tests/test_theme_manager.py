@@ -1,9 +1,9 @@
 from pathlib import Path
 
 from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.state.config import ApplicationConfig, Theme
 from pandaplot.services.config import ConfigManager
 from pandaplot.services.theme.theme_manager import ThemeManager
-from pandaplot.models.state.config import ApplicationConfig, Theme
 
 
 class DummyFont:

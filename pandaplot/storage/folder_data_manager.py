@@ -1,5 +1,6 @@
 import json
 from typing import override
+
 from pandaplot.storage.item_data_manager import ItemDataManager
 
 
@@ -19,7 +20,7 @@ class FolderDataManager(ItemDataManager):
         """Read and deserialize item data from given path in the zip."""
         # Read metadata
         metadata = json.loads(zip_file.read(
-            f"{path_in_zip}.json").decode('utf-8'))
+            f"{path_in_zip}.json").decode("utf-8"))
 
         # Reconstruct folder
         # We aren't loading items as they will get loaded independently

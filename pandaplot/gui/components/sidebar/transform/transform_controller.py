@@ -6,14 +6,15 @@ and transformation logic for the transform panel.
 """
 
 import logging
-import pandas as pd
-import numpy as np
 import re
 from typing import Any, Dict, List, Optional
+
+import numpy as np
+import pandas as pd
 from PySide6.QtCore import QObject, Signal
 
-from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.state.app_context import AppContext
 
 
 class TransformController(QObject):
@@ -35,23 +36,23 @@ class TransformController(QObject):
         
         # Safe execution environment
         self.safe_globals = {
-            'pd': pd,
-            'np': np,
-            'abs': abs,
-            'min': min,
-            'max': max,
-            'sum': sum,
-            'len': len,
-            'round': round,
-            'int': int,
-            'float': float,
-            'str': str,
-            'bool': bool,
-            'list': list,
-            'dict': dict,
-            'range': range,
-            'enumerate': enumerate,
-            'zip': zip,
+            "pd": pd,
+            "np": np,
+            "abs": abs,
+            "min": min,
+            "max": max,
+            "sum": sum,
+            "len": len,
+            "round": round,
+            "int": int,
+            "float": float,
+            "str": str,
+            "bool": bool,
+            "list": list,
+            "dict": dict,
+            "range": range,
+            "enumerate": enumerate,
+            "zip": zip,
         }
         
         # Add pandas and numpy functions commonly used in transformations
@@ -61,8 +62,8 @@ class TransformController(QObject):
     def _add_pandas_functions(self):
         """Add commonly used pandas functions to safe globals."""
         pandas_functions = [
-            'to_datetime', 'to_numeric', 'isna', 'notna', 'cut', 'qcut',
-            'concat', 'merge', 'pivot_table', 'crosstab'
+            "to_datetime", "to_numeric", "isna", "notna", "cut", "qcut",
+            "concat", "merge", "pivot_table", "crosstab"
         ]
         
         for func_name in pandas_functions:
@@ -72,9 +73,9 @@ class TransformController(QObject):
     def _add_numpy_functions(self):
         """Add commonly used numpy functions to safe globals."""
         numpy_functions = [
-            'sqrt', 'log', 'log10', 'exp', 'sin', 'cos', 'tan',
-            'mean', 'median', 'std', 'var', 'percentile', 'quantile',
-            'floor', 'ceil', 'round', 'absolute', 'sign'
+            "sqrt", "log", "log10", "exp", "sin", "cos", "tan",
+            "mean", "median", "std", "var", "percentile", "quantile",
+            "floor", "ceil", "round", "absolute", "sign"
         ]
         
         for func_name in numpy_functions:
@@ -96,11 +97,11 @@ class TransformController(QObject):
         
         # Check for dangerous operations
         dangerous_patterns = [
-            r'\bimport\b', r'\bexec\b', r'\beval\b', r'\b__.*__\b',
-            r'\bopen\b', r'\bfile\b', r'\bwith\b.*open',
-            r'\bos\.\b', r'\bsys\.\b', r'\bsubprocess\b',
-            r'\bglobals\b', r'\blocals\b', r'\bvars\b',
-            r'\bdir\b', r'\bgetattr\b', r'\bsetattr\b', r'\bdelattr\b'
+            r"\bimport\b", r"\bexec\b", r"\beval\b", r"\b__.*__\b",
+            r"\bopen\b", r"\bfile\b", r"\bwith\b.*open",
+            r"\bos\.\b", r"\bsys\.\b", r"\bsubprocess\b",
+            r"\bglobals\b", r"\blocals\b", r"\bvars\b",
+            r"\bdir\b", r"\bgetattr\b", r"\bsetattr\b", r"\bdelattr\b"
         ]
         
         for pattern in dangerous_patterns:
@@ -109,7 +110,7 @@ class TransformController(QObject):
         
         # Try to compile the code
         try:
-            compile(function_code, '<transform>', 'eval')
+            compile(function_code, "<transform>", "eval")
         except SyntaxError as e:
             return False, f"Syntax error: {e}"
         except Exception as e:
@@ -137,7 +138,7 @@ class TransformController(QObject):
             if not dataset or not isinstance(dataset, Dataset):
                 return None
             
-            if not hasattr(dataset, 'data') or dataset.data is None:
+            if not hasattr(dataset, "data") or dataset.data is None:
                 return None
             
             df = dataset.data
@@ -147,22 +148,22 @@ class TransformController(QObject):
             # Validate function code
             is_valid, error_msg = self.validate_function_code(function_code)
             if not is_valid:
-                return {'error': error_msg}
+                return {"error": error_msg}
             
             # Get preview data
             preview_data = df[source_column].head(preview_rows)
             
             # Apply transformation to preview data
-            local_vars = {'x': preview_data}
+            local_vars = {"x": preview_data}
             result = eval(function_code, self.safe_globals, local_vars)
             
             # Create preview result
             preview_result = {
-                'source_values': preview_data.tolist(),
-                'transformed_values': result.tolist() if hasattr(result, 'tolist') else [result] * len(preview_data),
-                'source_column': source_column,
-                'function_code': function_code,
-                'preview_rows': preview_rows
+                "source_values": preview_data.tolist(),
+                "transformed_values": result.tolist() if hasattr(result, "tolist") else [result] * len(preview_data),
+                "source_column": source_column,
+                "function_code": function_code,
+                "preview_rows": preview_rows
             }
             
             self.preview_ready.emit(dataset_id, preview_result)
@@ -170,7 +171,7 @@ class TransformController(QObject):
             
         except Exception as e:
             error_msg = f"Preview generation failed: {str(e)}"
-            return {'error': error_msg}
+            return {"error": error_msg}
     
     def apply_transformation(self, dataset_id: str, source_column: str, 
                            new_column_name: str, function_code: str, 
@@ -195,7 +196,7 @@ class TransformController(QObject):
                 self.transform_failed.emit(dataset_id, "Dataset not found")
                 return False
             
-            if not hasattr(dataset, 'data') or dataset.data is None:
+            if not hasattr(dataset, "data") or dataset.data is None:
                 self.transform_failed.emit(dataset_id, "Dataset has no data")
                 return False
             
@@ -221,11 +222,11 @@ class TransformController(QObject):
             
             # Create transform configuration
             transform_config = {
-                'new_column_name': new_column_name,
-                'transform_type': 'column',  # Default to column operation for now
-                'source_columns': [source_column],
-                'expression': function_code,
-                'replace_existing': replace_existing
+                "new_column_name": new_column_name,
+                "transform_type": "column",  # Default to column operation for now
+                "source_columns": [source_column],
+                "expression": function_code,
+                "replace_existing": replace_existing
             }
             
             # Create and execute command
@@ -259,23 +260,23 @@ class TransformController(QObject):
         # Simple heuristics for common transformations
         code_lower = function_code.lower()
         
-        if 'upper' in code_lower:
+        if "upper" in code_lower:
             return f"{source_column}_upper"
-        elif 'lower' in code_lower:
+        elif "lower" in code_lower:
             return f"{source_column}_lower"
-        elif 'strip' in code_lower:
+        elif "strip" in code_lower:
             return f"{source_column}_stripped"
-        elif '*' in function_code and '2' in function_code:
+        elif "*" in function_code and "2" in function_code:
             return f"{source_column}_doubled"
-        elif '**' in function_code and '2' in function_code:
+        elif "**" in function_code and "2" in function_code:
             return f"{source_column}_squared"
-        elif 'sqrt' in code_lower:
+        elif "sqrt" in code_lower:
             return f"{source_column}_sqrt"
-        elif 'log' in code_lower:
+        elif "log" in code_lower:
             return f"{source_column}_log"
-        elif 'datetime' in code_lower:
+        elif "datetime" in code_lower:
             return f"{source_column}_datetime"
-        elif 'mean' in code_lower or 'std' in code_lower:
+        elif "mean" in code_lower or "std" in code_lower:
             return f"{source_column}_normalized"
         else:
             return f"{source_column}_transformed"
@@ -322,7 +323,7 @@ class TransformController(QObject):
         """Get dataset from app context."""
         try:
             # Use the app state to get the current project and find the dataset
-            if self.app_context and hasattr(self.app_context, 'app_state'):
+            if self.app_context and hasattr(self.app_context, "app_state"):
                 app_state = self.app_context.app_state
                 if app_state.current_project:
                     return app_state.current_project.find_item(dataset_id)

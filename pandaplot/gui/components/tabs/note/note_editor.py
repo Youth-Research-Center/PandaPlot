@@ -71,11 +71,11 @@ class NoteEditorWidget(PWidget):
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors
-        card_bg = palette.get('card_bg', '#f8f9fa')
-        card_hover = palette.get('card_hover', '#e9ecef')
-        card_border = palette.get('card_border', '#dee2e6')
-        base_fg = palette.get('base_fg', '#000000')
-        secondary_fg = palette.get('secondary_fg', '#555555')
+        card_bg = palette.get("card_bg", "#f8f9fa")
+        card_hover = palette.get("card_hover", "#e9ecef")
+        card_border = palette.get("card_border", "#dee2e6")
+        base_fg = palette.get("base_fg", "#000000")
+        secondary_fg = palette.get("secondary_fg", "#555555")
         
         # Apply styling to content frame
         self.content_frame.setStyleSheet(f"""
@@ -318,7 +318,7 @@ class NoteEditorWidget(PWidget):
         """Update status label styling based on current status and theme."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        secondary_fg = palette.get('secondary_fg', '#555555')
+        secondary_fg = palette.get("secondary_fg", "#555555")
         
         status_text = self.status_label.text()
         
@@ -367,9 +367,9 @@ class NoteEditorWidget(PWidget):
 
     def on_note_content_changed_event(self, event_data: dict):
         """Handle external note content changes (undo/redo or other editors)."""
-        if event_data.get('note_id') != self.note.id:
+        if event_data.get("note_id") != self.note.id:
             return
-        new_content = event_data.get('new_content')
+        new_content = event_data.get("new_content")
         if new_content is not None and self.text_edit.toPlainText() != new_content:
             self.text_edit.blockSignals(True)
             self.text_edit.setPlainText(new_content)

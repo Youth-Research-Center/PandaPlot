@@ -3,10 +3,10 @@ import logging
 from PySide6.QtCore import Qt
 
 from pandaplot.commands.project.chart.create_chart_command import CreateChartCommand
+from pandaplot.commands.project.dataset import ImportCsvCommand
 from pandaplot.commands.project.dataset.create_empty_dataset_command import (
     CreateEmptyDatasetCommand,
 )
-from pandaplot.commands.project.dataset import ImportCsvCommand
 from pandaplot.commands.project.folder import CreateFolderCommand
 from pandaplot.commands.project.item import DeleteItemCommand
 from pandaplot.commands.project.note import CreateNoteCommand
@@ -80,12 +80,12 @@ class ProjectPanelCommandManager:
 
         # Get dataset information
         item_data = selected_item.data(0, Qt.ItemDataRole.UserRole)
-        if not item_data or item_data.get('type') != 'dataset':
+        if not item_data or item_data.get("type") != "dataset":
             return
 
-        dataset_id = item_data.get('id')
-        dataset_obj: Dataset = item_data.get('data')
-        dataset_name = dataset_obj.name if dataset_obj else 'Dataset'
+        dataset_id = item_data.get("id")
+        dataset_obj: Dataset = item_data.get("data")
+        dataset_name = dataset_obj.name if dataset_obj else "Dataset"
         chart_name = f"Chart from {dataset_name}"
 
         command = CreateChartCommand(self.app_context, dataset_id, chart_name, dataset_obj.parent_id)
@@ -94,11 +94,11 @@ class ProjectPanelCommandManager:
     def rename_selected_item(self):
         """Rename the selected item by starting inline editing."""
         selected_info = self.get_selected_item_info()
-        if not selected_info or selected_info['type'] == 'project':
+        if not selected_info or selected_info["type"] == "project":
             return
 
         # Start inline editing on the current item
-        current_item = selected_info['item']
+        current_item = selected_info["item"]
         if current_item:
             # Start editing the first column (name)
             self.edit_item(current_item, 0)
@@ -106,10 +106,10 @@ class ProjectPanelCommandManager:
     def delete_selected_item(self):
         """Delete the selected item."""
         selected_info = self.get_selected_item_info()
-        if not selected_info or selected_info['type'] == 'project':
+        if not selected_info or selected_info["type"] == "project":
             return
 
-        item_id = selected_info['id']
+        item_id = selected_info["id"]
         command = DeleteItemCommand(self.app_context, item_id)
         self.app_context.get_command_executor().execute_command(command)
 
@@ -123,16 +123,16 @@ class ProjectPanelCommandManager:
         if not item_data:
             return
 
-        item_type = item_data.get('type', '')
-        item_id = item_data.get('id', '')
+        item_type = item_data.get("type", "")
+        item_id = item_data.get("id", "")
 
         # Handle different item types
-        if item_type == 'folder':
+        if item_type == "folder":
             # Toggle folder expansion
             current_item.setExpanded(not current_item.isExpanded())
         else:
-            item = item_data.get('data')
-            item_name = item.name if item else 'Unnamed Item'
+            item = item_data.get("data")
+            item_name = item.name if item else "Unnamed Item"
 
             if self.app_state:
                 self.app_state.event_bus.emit(UIEvents.TAB_OPEN_REQUESTED, TabOpenRequestedData(
@@ -144,13 +144,13 @@ class ProjectPanelCommandManager:
         """Handle double-click on tree item."""
         item_data = item.data(0, Qt.ItemDataRole.UserRole)
         if item_data:
-            item_type = item_data.get('type', '')
+            item_type = item_data.get("type", "")
 
             # For folders, toggle expansion
-            if item_type == 'folder':
+            if item_type == "folder":
                 item.setExpanded(not item.isExpanded())
             # For other items that can be opened, don't start editing
-            elif item_type in ['note', 'dataset', 'chart']:
+            elif item_type in ["note", "dataset", "chart"]:
                 self.open_selected_item()
                 return
 

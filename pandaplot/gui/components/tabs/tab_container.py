@@ -3,8 +3,8 @@ from typing import override
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from pandaplot.commands.project.chart import CreateChartCommand
-from pandaplot.commands.project.project import (LoadProjectCommand, NewProjectCommand, OpenProjectCommand)
-from pandaplot.gui.components.tabs import DatasetTab, NoteTab, ChartTab
+from pandaplot.commands.project.project import LoadProjectCommand, NewProjectCommand, OpenProjectCommand
+from pandaplot.gui.components.tabs import ChartTab, DatasetTab, NoteTab
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
 from pandaplot.gui.core.widget_extension import PWidget
@@ -95,9 +95,9 @@ class TabContainer(PWidget):
 
             # Publish tab closed event
             self.publish_event(UIEvents.TAB_CLOSED, {
-                'tab_index': index,
-                'tab_title': tab_title,
-                'tab_id': id(widget) if widget else None
+                "tab_index": index,
+                "tab_title": tab_title,
+                "tab_id": id(widget) if widget else None
             })
 
     def close_tab_by_item_id(self, item_id: str):
@@ -308,9 +308,9 @@ class TabContainer(PWidget):
 
             # Subscribe to dataset events
             (AnalysisEvents.ANALYSIS_COMPLETED, self.on_analysis_completed),
-            (ChartEvents.CHART_CREATED, lambda event_data: self.open_tab(event_data.get('chart_id'))),
-            (UIEvents.TAB_OPEN_REQUESTED, lambda event_data: self.open_tab(event_data.get('item_id'))),
-            (ProjectEvents.PROJECT_ITEM_REMOVED, lambda event_data: self.close_tab_by_item_id(event_data.get('item_id'))),
+            (ChartEvents.CHART_CREATED, lambda event_data: self.open_tab(event_data.get("chart_id"))),
+            (UIEvents.TAB_OPEN_REQUESTED, lambda event_data: self.open_tab(event_data.get("item_id"))),
+            (ProjectEvents.PROJECT_ITEM_REMOVED, lambda event_data: self.close_tab_by_item_id(event_data.get("item_id"))),
         ])
 
     def on_tab_changed(self, index: int):
@@ -320,48 +320,48 @@ class TabContainer(PWidget):
             tab_data = self.get_tab_data(current_widget) 
 
             self.publish_event(UIEvents.TAB_CHANGED, {
-                'tab_index': index,
-                'tab_type': tab_data['type'],
-                'tab_id': tab_data['id'],
-                'tab_title': self.tab_widget.tabText(index),
-                'dataset_id': tab_data.get('dataset_id'),
-                'chart_id': tab_data.get('chart_id'),
-                'note_id': tab_data.get('note_id')
+                "tab_index": index,
+                "tab_type": tab_data["type"],
+                "tab_id": tab_data["id"],
+                "tab_title": self.tab_widget.tabText(index),
+                "dataset_id": tab_data.get("dataset_id"),
+                "chart_id": tab_data.get("chart_id"),
+                "note_id": tab_data.get("note_id")
             })
 
     def get_tab_data(self, widget):
         """Get tab data for a widget."""
-        if hasattr(widget, 'dataset') and widget.dataset:
+        if hasattr(widget, "dataset") and widget.dataset:
             return {
-                'type': 'dataset',
-                'id': widget.dataset.id,
-                'dataset_id': widget.dataset.id
+                "type": "dataset",
+                "id": widget.dataset.id,
+                "dataset_id": widget.dataset.id
             }
-        elif hasattr(widget, 'chart') and widget.chart:
+        elif hasattr(widget, "chart") and widget.chart:
             return {
-                'type': 'chart',
-                'id': widget.chart.id,
-                'chart_id': widget.chart.id
+                "type": "chart",
+                "id": widget.chart.id,
+                "chart_id": widget.chart.id
             }
-        elif hasattr(widget, 'note') and widget.note:
+        elif hasattr(widget, "note") and widget.note:
             return {
-                'type': 'note',
-                'id': widget.note.id,
-                'note_id': widget.note.id
+                "type": "note",
+                "id": widget.note.id,
+                "note_id": widget.note.id
             }
         else:
             return {
-                'type': 'other',
-                'id': id(widget)
+                "type": "other",
+                "id": id(widget)
             }
 
     def on_analysis_completed(self, event_data):
         """Handle analysis completion events."""
-        dataset_id = event_data.get('dataset_id')
+        dataset_id = event_data.get("dataset_id")
         # Find and refresh the relevant dataset tab
         for tab_id, tab_widget in self.tabs.items():
-            if hasattr(tab_widget, 'dataset') and tab_widget.dataset.id == dataset_id:
-                if hasattr(tab_widget, 'load_dataset_data'):
+            if hasattr(tab_widget, "dataset") and tab_widget.dataset.id == dataset_id:
+                if hasattr(tab_widget, "load_dataset_data"):
                     tab_widget.load_dataset_data()  # Refresh to show new analysis column
 
 

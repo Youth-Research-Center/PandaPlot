@@ -9,7 +9,7 @@ from pandaplot.models.events import EventBus
 from pandaplot.models.state.app_state import AppState
 from pandaplot.services.qtasks import TaskScheduler
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class AppContext:

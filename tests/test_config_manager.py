@@ -2,12 +2,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Dict, Any
-
+from typing import Any, Dict, List
 
 from pandaplot.models.events.event_bus import EventBus
-from pandaplot.services.config import ConfigManager
 from pandaplot.models.state.config import ApplicationConfig, Theme
+from pandaplot.services.config import ConfigManager
 
 
 class EventCollector:

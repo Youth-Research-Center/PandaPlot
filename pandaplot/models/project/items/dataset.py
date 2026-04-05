@@ -3,8 +3,10 @@ Dataset model for managing data table items in the project.
 """
 
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 import pandas as pd
+
 from pandaplot.models.project.items import Item
 
 
@@ -33,8 +35,8 @@ class Dataset(Item):
         """Convert dataset to dictionary for serialization."""
         data = super().to_dict()
         data.update({
-            'source_file': self.source_file,
-            'has_data': self.data is not None
+            "source_file": self.source_file,
+            "has_data": self.data is not None
         })
         
         # TODO: serialization of dataframe
@@ -43,18 +45,18 @@ class Dataset(Item):
         return data
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Dataset':
+    def from_dict(cls, data: Dict[str, Any]) -> "Dataset":
         """Create dataset from dictionary."""
         dataset = cls(
-            id=data.get('id'),
-            name=data.get('name', ''),
-            source_file=data.get('source_file')
+            id=data.get("id"),
+            name=data.get("name", ""),
+            source_file=data.get("source_file")
         )
         
         # Set inherited attributes
-        dataset.parent_id = data.get('parent_id')
-        dataset.created_at = data.get('created_at', datetime.now().isoformat())
-        dataset.modified_at = data.get('modified_at', dataset.created_at)
+        dataset.parent_id = data.get("parent_id")
+        dataset.created_at = data.get("created_at", datetime.now().isoformat())
+        dataset.modified_at = data.get("modified_at", dataset.created_at)
         
         return dataset
         

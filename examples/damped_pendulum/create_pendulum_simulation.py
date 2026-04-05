@@ -3,22 +3,23 @@ Example script creating a damped pendulum simulation project.
 This example demonstrates mathematical modeling and physics visualization.
 """
 
-import pandas as pd
-import numpy as np
 import os
 import sys
+
+import numpy as np
+import pandas as pd
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from pandaplot.models.project import Project
-from pandaplot.models.project.items import Folder, Dataset, Chart, Note
-from pandaplot.storage.project_data_manager import ProjectDataManager
-from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
-from pandaplot.storage.note_data_manager import NoteDataManager
-from pandaplot.storage.folder_data_manager import FolderDataManager
+from pandaplot.models.project.items import Chart, Dataset, Folder, Note
 from pandaplot.storage.chart_data_manager import ChartDataManager
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
+from pandaplot.storage.folder_data_manager import FolderDataManager
+from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
+from pandaplot.storage.note_data_manager import NoteDataManager
+from pandaplot.storage.project_data_manager import ProjectDataManager
 
 
 def simulate_damped_pendulum(length=1.0, gravity=9.81, damping=0.1, 
@@ -92,17 +93,17 @@ def simulate_damped_pendulum(length=1.0, gravity=9.81, damping=0.1,
     
     # Create DataFrame
     data = pd.DataFrame({
-        'Time': t,
-        'Angle_rad': theta,
-        'Angle_deg': np.degrees(theta),
-        'Angular_Velocity': omega,
-        'Position_X': position_x,
-        'Position_Y': position_y,
-        'Velocity_X': velocity_x,
-        'Velocity_Y': velocity_y,
-        'Kinetic_Energy': kinetic_energy,
-        'Potential_Energy': potential_energy,
-        'Total_Energy': total_energy
+        "Time": t,
+        "Angle_rad": theta,
+        "Angle_deg": np.degrees(theta),
+        "Angular_Velocity": omega,
+        "Position_X": position_x,
+        "Position_Y": position_y,
+        "Velocity_X": velocity_x,
+        "Velocity_Y": velocity_y,
+        "Kinetic_Energy": kinetic_energy,
+        "Potential_Energy": potential_energy,
+        "Total_Energy": total_energy
     })
     
     return data
@@ -192,7 +193,7 @@ def create_pendulum_project():
     param_studies = create_parameter_study()
     
     for name, data in param_studies.items():
-        damping_val = name.split('_')[1]
+        damping_val = name.split("_")[1]
         dataset_name = f"Damping γ={damping_val}"
         dataset = Dataset(name=dataset_name, data=data)
         project.add_item(dataset, parameter_study_folder.id)
@@ -209,18 +210,18 @@ def create_pendulum_project():
     # 1. Main pendulum motion
     angle_chart = Chart(name="Pendulum Angle vs Time (Damping γ=0.1)", chart_type="line")
     angle_chart.config.update({
-        'title': 'Pendulum Angle vs Time (Damping γ=0.1)',
-        'x_label': 'Time (s)',
-        'y_label': 'Angle (degrees)'
+        "title": "Pendulum Angle vs Time (Damping γ=0.1)",
+        "x_label": "Time (s)",
+        "y_label": "Angle (degrees)"
     })
     # Create data series for the chart
     from pandaplot.models.project.items.chart import DataSeries
     angle_series = DataSeries(
         dataset_id=main_dataset.id,
-        x_column='Time',
-        y_column='Angle_deg',
-        label='Angle',
-        color='#1f77b4'
+        x_column="Time",
+        y_column="Angle_deg",
+        label="Angle",
+        color="#1f77b4"
     )
     angle_chart.data_series.append(angle_series)
     project.add_item(angle_chart, analysis_folder.id)
@@ -228,16 +229,16 @@ def create_pendulum_project():
     # 2. Phase portrait
     phase_chart = Chart(name="Phase Portrait (θ vs ω)", chart_type="scatter")
     phase_chart.config.update({
-        'title': 'Phase Portrait (θ vs ω)',
-        'x_label': 'Angle (rad)',
-        'y_label': 'Angular Velocity (rad/s)'
+        "title": "Phase Portrait (θ vs ω)",
+        "x_label": "Angle (rad)",
+        "y_label": "Angular Velocity (rad/s)"
     })
     phase_series = DataSeries(
         dataset_id=main_dataset.id,
-        x_column='Angle_rad',
-        y_column='Angular_Velocity',
-        label='Phase Space',
-        color='#ff7f0e'
+        x_column="Angle_rad",
+        y_column="Angular_Velocity",
+        label="Phase Space",
+        color="#ff7f0e"
     )
     phase_chart.data_series.append(phase_series)
     project.add_item(phase_chart, analysis_folder.id)
@@ -245,31 +246,31 @@ def create_pendulum_project():
     # 3. Energy analysis
     energy_chart = Chart(name="Energy Analysis", chart_type="line")
     energy_chart.config.update({
-        'title': 'Energy vs Time',
-        'x_label': 'Time (s)',
-        'y_label': 'Energy (J)'
+        "title": "Energy vs Time",
+        "x_label": "Time (s)",
+        "y_label": "Energy (J)"
     })
     energy_series = DataSeries(
         dataset_id=main_dataset.id,
-        x_column='Time',
-        y_column='Total_Energy',
-        label='Total Energy',
+        x_column="Time",
+        y_column="Total_Energy",
+        label="Total Energy",
         color="#2c5ea0"
     )
 
     kinetic_series = DataSeries(
         dataset_id=main_dataset.id,
-        x_column='Time',
-        y_column='Kinetic_Energy',
-        label='Kinetic Energy',
-        color='#2ca02c'
+        x_column="Time",
+        y_column="Kinetic_Energy",
+        label="Kinetic Energy",
+        color="#2ca02c"
     )
 
     potential_series = DataSeries(
         dataset_id=main_dataset.id,
-        x_column='Time',
-        y_column='Potential_Energy',
-        label='Potential Energy',
+        x_column="Time",
+        y_column="Potential_Energy",
+        label="Potential Energy",
         color="#a07d2c"
     )
 
@@ -281,16 +282,16 @@ def create_pendulum_project():
     # 4. Pendulum trajectory
     trajectory_chart = Chart(name="Pendulum Trajectory", chart_type="scatter")
     trajectory_chart.config.update({
-        'title': 'Pendulum Trajectory',
-        'x_label': 'X Position (m)',
-        'y_label': 'Y Position (m)'
+        "title": "Pendulum Trajectory",
+        "x_label": "X Position (m)",
+        "y_label": "Y Position (m)"
     })
     trajectory_series = DataSeries(
         dataset_id=main_dataset.id,
-        x_column='Position_X',
-        y_column='Position_Y',
-        label='Trajectory',
-        color='#d62728'
+        x_column="Position_X",
+        y_column="Position_Y",
+        label="Trajectory",
+        color="#d62728"
     )
     trajectory_chart.data_series.append(trajectory_series)
     project.add_item(trajectory_chart, analysis_folder.id)
@@ -317,7 +318,7 @@ def create_envelope_analysis():
     time_points = np.linspace(0, 20, 100)
     damping_values = [0.05, 0.1, 0.2, 0.5]
     
-    data = {'Time': time_points}
+    data = {"Time": time_points}
     
     for damping in damping_values:
         # Theoretical envelope for small angle approximation
@@ -326,7 +327,7 @@ def create_envelope_analysis():
         initial_amplitude = np.pi/3  # 60 degrees initial
         envelope = initial_amplitude * np.exp(-damping * omega_0 * time_points)
         
-        data[f'Envelope_γ{damping:.2f}'] = envelope
+        data[f"Envelope_γ{damping:.2f}"] = envelope
     
     return pd.DataFrame(data)
 
@@ -423,10 +424,10 @@ def create_analysis_summary(project, analysis_folder_id, main_data):
     """Create analysis summary with actual results."""
     
     # Calculate some statistics
-    max_angle = np.max(np.abs(main_data['Angle_rad']))
-    min_angle = np.min(main_data['Angle_rad'])
+    max_angle = np.max(np.abs(main_data["Angle_rad"]))
+    min_angle = np.min(main_data["Angle_rad"])
     period_estimate = estimate_period(main_data)
-    energy_loss = (main_data['Total_Energy'].iloc[0] - main_data['Total_Energy'].iloc[-1]) / main_data['Total_Energy'].iloc[0] * 100
+    energy_loss = (main_data["Total_Energy"].iloc[0] - main_data["Total_Energy"].iloc[-1]) / main_data["Total_Energy"].iloc[0] * 100
     
     summary_note = Note(name="Simulation Results")
     summary_content = f"""# Damped Pendulum Simulation Results
@@ -476,8 +477,8 @@ This simulation model applies to:
 
 def estimate_period(data):
     """Estimate the period from zero crossings."""
-    angles = data['Angle_rad'].values
-    time = data['Time'].values
+    angles = data["Angle_rad"].values
+    time = data["Time"].values
     
     # Find zero crossings
     zero_crossings = []
@@ -518,7 +519,7 @@ def print_project_structure(project, item_id, indent_level):
         print(f"{indent}{icon} {item.name}")
         
         # If it's a folder/collection, print its children
-        if hasattr(item, 'get_items'):
+        if hasattr(item, "get_items"):
             for child in item.get_items():
                 print_project_structure(project, child.id, indent_level + 1)
 

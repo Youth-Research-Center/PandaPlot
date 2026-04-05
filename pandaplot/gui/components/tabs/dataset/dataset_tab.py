@@ -54,12 +54,12 @@ class DatasetTab(PWidget):
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors
-        card_bg = palette.get('card_bg', '#f8f9fa')
-        card_hover = palette.get('card_hover', '#e9ecef')
-        card_border = palette.get('card_border', '#dee2e6')
-        base_fg = palette.get('base_fg', '#000000')
-        secondary_fg = palette.get('secondary_fg', '#555555')
-        accent = palette.get('accent', '#4A90E2')
+        card_bg = palette.get("card_bg", "#f8f9fa")
+        card_hover = palette.get("card_hover", "#e9ecef")
+        card_border = palette.get("card_border", "#dee2e6")
+        base_fg = palette.get("base_fg", "#000000")
+        secondary_fg = palette.get("secondary_fg", "#555555")
+        accent = palette.get("accent", "#4A90E2")
         
         # Derive accent color variants for interaction states
         from PySide6.QtGui import QColor
@@ -162,9 +162,9 @@ class DatasetTab(PWidget):
         """Handle when a column is added to any dataset."""
         self.logger.debug(
             "DatasetTab received DATASET_COLUMN_ADDED event: %s", event_data)
-        dataset_id = event_data.get('dataset_id')
+        dataset_id = event_data.get("dataset_id")
         self.logger.debug("Event dataset_id: %s, current dataset_id: %s",
-                          dataset_id, self.dataset.id if self.dataset else 'None')
+                          dataset_id, self.dataset.id if self.dataset else "None")
         if dataset_id == self.dataset.id:
             self.logger.info(
                 "Column added event received for dataset %s", dataset_id)
@@ -175,7 +175,7 @@ class DatasetTab(PWidget):
 
     def on_dataset_row_added(self, event_data):
         """Handle when a row is added to any dataset."""
-        dataset_id = event_data.get('dataset_id')
+        dataset_id = event_data.get("dataset_id")
         if dataset_id == self.dataset.id:
             self.logger.info(
                 "Row added event received for dataset %s", dataset_id)
@@ -183,7 +183,7 @@ class DatasetTab(PWidget):
 
     def on_dataset_bulk_update(self, event_data):
         """Handle bulk updates to any dataset."""
-        dataset_id = event_data.get('dataset_id')
+        dataset_id = event_data.get("dataset_id")
         if dataset_id == self.dataset.id:
             self.logger.info(
                 "Bulk update event received for dataset %s", dataset_id)
@@ -235,7 +235,7 @@ class DatasetTab(PWidget):
     def load_dataset_data(self):
         """Load and display the dataset data in the table view."""
         self.logger.debug("Loading dataset data for: %s",
-                          self.dataset.name if self.dataset else 'None')
+                          self.dataset.name if self.dataset else "None")
         
         # The PandasTableModel automatically handles data loading when dataset is set
         # Log the data shape for debugging
@@ -293,13 +293,13 @@ class DatasetTab(PWidget):
 
         # Get the tab container from parent hierarchy
         parent_widget = self.parent()
-        while parent_widget and not hasattr(parent_widget, 'create_chart_from_dataset'):
+        while parent_widget and not hasattr(parent_widget, "create_chart_from_dataset"):
             parent_widget = parent_widget.parent()
 
-        if parent_widget and hasattr(parent_widget, 'create_chart_from_dataset'):
+        if parent_widget and hasattr(parent_widget, "create_chart_from_dataset"):
             try:
                 create_method = getattr(
-                    parent_widget, 'create_chart_from_dataset', None)
+                    parent_widget, "create_chart_from_dataset", None)
                 if callable(create_method):
                     create_method(self.dataset.id, chart_name)
                 else:

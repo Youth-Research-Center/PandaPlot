@@ -2,8 +2,9 @@
 Visitor pattern implementation for traversing project item hierarchies.
 """
 
-from typing import Protocol, Any
-from pandaplot.models.project.items import Item, ItemCollection, Folder, Note, Dataset, Chart
+from typing import Any, Protocol
+
+from pandaplot.models.project.items import Chart, Dataset, Folder, Item, ItemCollection, Note
 
 
 class ItemVisitor(Protocol):
@@ -65,7 +66,7 @@ class ProjectTreeBuilder:
             parent_tree_item = self.tree_item_factory(
                 f"📁 {root_collection.name}",
                 "project", 
-                {'type': 'project', 'id': root_collection.id, 'data': root_collection}
+                {"type": "project", "id": root_collection.id, "data": root_collection}
             )
         
         # Visit all items in the collection
@@ -98,7 +99,7 @@ class ProjectTreeBuilder:
         tree_item = self.tree_item_factory(
             f"📁 {folder.name}",
             "folder",
-            {'type': 'folder', 'id': folder.id, 'data': folder}
+            {"type": "folder", "id": folder.id, "data": folder}
         )
         
         # Recursively add child items
@@ -113,7 +114,7 @@ class ProjectTreeBuilder:
         return self.tree_item_factory(
             f"📝 {note.name}",
             "note",
-            {'type': 'note', 'id': note.id, 'data': note}
+            {"type": "note", "id": note.id, "data": note}
         )
     
     def visit_dataset(self, dataset: Dataset, parent_context: Any = None) -> Any:
@@ -121,7 +122,7 @@ class ProjectTreeBuilder:
         return self.tree_item_factory(
             f"📊 {dataset.name}",
             "dataset",
-            {'type': 'dataset', 'id': dataset.id, 'data': dataset}
+            {"type": "dataset", "id": dataset.id, "data": dataset}
         )
     
     def visit_chart(self, chart: Chart, parent_context: Any = None) -> Any:
@@ -129,7 +130,7 @@ class ProjectTreeBuilder:
         return self.tree_item_factory(
             f"📈 {chart.name}",
             "chart",
-            {'type': 'chart', 'id': chart.id, 'data': chart}
+            {"type": "chart", "id": chart.id, "data": chart}
         )
     
     def visit_item_collection(self, collection: ItemCollection, parent_context: Any = None) -> Any:
@@ -137,7 +138,7 @@ class ProjectTreeBuilder:
         tree_item = self.tree_item_factory(
             f"📁 {collection.name}",
             "collection",
-            {'type': 'collection', 'id': collection.id, 'data': collection}
+            {"type": "collection", "id": collection.id, "data": collection}
         )
         
         # Recursively add child items
@@ -152,7 +153,7 @@ class ProjectTreeBuilder:
         return self.tree_item_factory(
             f"📄 {item.name}",
             "item",
-            {'type': 'item', 'id': item.id, 'data': item}
+            {"type": "item", "id": item.id, "data": item}
         )
     
     def attach_tree_item(self, parent_tree_item: Any, child_tree_item: Any):
@@ -161,7 +162,7 @@ class ProjectTreeBuilder:
         This method should be overridden or the tree_item_factory should handle this.
         """
         # Default implementation - assumes parent has addChild method (like QTreeWidgetItem)
-        if hasattr(parent_tree_item, 'addChild'):
+        if hasattr(parent_tree_item, "addChild"):
             parent_tree_item.addChild(child_tree_item)
         else:
             # For other tree implementations, this would need to be customized
@@ -183,7 +184,7 @@ class QTreeItemFactory:
         tree_item.setData(0, Qt.ItemDataRole.UserRole, item_data)
         
         # Set item flags based on type
-        if item_type == 'project':
+        if item_type == "project":
             # Project root is not editable
             tree_item.setFlags(tree_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
         else:

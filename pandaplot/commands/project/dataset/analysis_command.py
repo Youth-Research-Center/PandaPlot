@@ -43,12 +43,12 @@ class AnalysisCommand(Command):
         self.dataset = None
 
         # Extract config
-        self.analysis_type = AnalysisType(analysis_config['analysis_type'])
-        self.x_column = analysis_config['x_column']
-        self.y_column = analysis_config['y_column']
-        self.new_column_name = analysis_config['new_column_name']
-        self.replace_existing = analysis_config.get('replace_existing', False)
-        self.parameters = analysis_config.get('parameters', {})
+        self.analysis_type = AnalysisType(analysis_config["analysis_type"])
+        self.x_column = analysis_config["x_column"]
+        self.y_column = analysis_config["y_column"]
+        self.new_column_name = analysis_config["new_column_name"]
+        self.replace_existing = analysis_config.get("replace_existing", False)
+        self.parameters = analysis_config.get("parameters", {})
 
     @override
     def execute(self) -> bool:
@@ -153,7 +153,7 @@ class AnalysisCommand(Command):
             if app_state.has_project and app_state.current_project:
                 project = app_state.current_project
                 dataset_item = project.find_item(self.dataset_id)
-                if dataset_item and hasattr(dataset_item, 'data') and isinstance(dataset_item, Dataset):
+                if dataset_item and hasattr(dataset_item, "data") and isinstance(dataset_item, Dataset):
                     return dataset_item  # Return the dataset object, not the data
             return None
         except Exception as e:
@@ -166,7 +166,7 @@ class AnalysisCommand(Command):
             self.logger.error("Error: New column name cannot be empty")
             return False
 
-        if self.dataset is None or not hasattr(self.dataset, 'data') or self.dataset.data is None:
+        if self.dataset is None or not hasattr(self.dataset, "data") or self.dataset.data is None:
             self.logger.error("Error: Dataset has no data")
             return False
 
@@ -218,9 +218,9 @@ class AnalysisCommand(Command):
         y_data = df[self.y_column]
 
         # Extract parameters
-        start_index = self.parameters.get('start_index', 0)
-        end_index = self.parameters.get('end_index', -1)
-        method = self.parameters.get('method', 'central')
+        start_index = self.parameters.get("start_index", 0)
+        end_index = self.parameters.get("end_index", -1)
+        method = self.parameters.get("method", "central")
 
         # Route to appropriate analysis method
         if self.analysis_type == AnalysisType.DERIVATIVE:
@@ -237,12 +237,12 @@ class AnalysisCommand(Command):
             )
         elif self.analysis_type == AnalysisType.SMOOTHING:
             additional_params = {k: v for k, v in self.parameters.items()
-                                 if k not in ['start_index', 'end_index', 'method']}
+                                 if k not in ["start_index", "end_index", "method"]}
             return AnalysisEngine.smooth_data(
                 x_data, y_data, method, start_index, end_index, **additional_params
             )
         elif self.analysis_type == AnalysisType.INTERPOLATION:
-            num_points = self.parameters.get('num_points', None)
+            num_points = self.parameters.get("num_points", None)
             return AnalysisEngine.interpolate_data(
                 x_data, y_data, method, num_points, start_index, end_index
             )

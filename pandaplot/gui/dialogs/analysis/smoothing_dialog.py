@@ -2,11 +2,13 @@
 Dialog for data smoothing configuration.
 """
 
-from PySide6.QtWidgets import QFormLayout, QComboBox, QGroupBox, QSpinBox
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+from PySide6.QtWidgets import QComboBox, QFormLayout, QGroupBox, QSpinBox
+
+from pandaplot.analysis import AnalysisEngine, AnalysisType
 
 from .base_analysis_dialog import BaseAnalysisDialog
-from pandaplot.analysis import AnalysisEngine, AnalysisType
 
 
 class SmoothingDialog(BaseAnalysisDialog):
@@ -75,7 +77,7 @@ class SmoothingDialog(BaseAnalysisDialog):
     def preview_analysis(self):
         """Preview smoothing operation."""
         try:
-            if self.dataset is None or not hasattr(self.dataset, 'data') or self.dataset.data is None:
+            if self.dataset is None or not hasattr(self.dataset, "data") or self.dataset.data is None:
                 self.preview_text.setText("No dataset available for preview.")
                 return
             
@@ -103,10 +105,10 @@ class SmoothingDialog(BaseAnalysisDialog):
             
             kwargs = {}
             if method == "savgol":
-                kwargs['window_length'] = self.window_length.value()
-                kwargs['polynomial_order'] = self.poly_order.value()
+                kwargs["window_length"] = self.window_length.value()
+                kwargs["polynomial_order"] = self.poly_order.value()
             elif method == "rolling_mean":
-                kwargs['window'] = self.window_length.value()
+                kwargs["window"] = self.window_length.value()
             
             result = AnalysisEngine.smooth_data(
                 x_data, y_data, method, start_idx, end_idx, **kwargs
@@ -141,16 +143,16 @@ class SmoothingDialog(BaseAnalysisDialog):
         additional_params = {}
         method = self.method_combo.currentText()
         if method == "Savitzky-Golay":
-            additional_params['window_length'] = self.window_length.value()
-            additional_params['polynomial_order'] = self.poly_order.value()
+            additional_params["window_length"] = self.window_length.value()
+            additional_params["polynomial_order"] = self.poly_order.value()
         elif method == "Rolling Mean":
-            additional_params['window'] = self.window_length.value()
+            additional_params["window"] = self.window_length.value()
         
         config.update({
-            'analysis_type': AnalysisType.SMOOTHING.value,
-            'parameters': {
-                **config['parameters'],
-                'method': method_map[method],
+            "analysis_type": AnalysisType.SMOOTHING.value,
+            "parameters": {
+                **config["parameters"],
+                "method": method_map[method],
                 **additional_params
             }
         })

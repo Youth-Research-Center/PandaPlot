@@ -1,5 +1,7 @@
-import pytest
 from abc import ABC
+
+import pytest
+
 from pandaplot.commands.base_command import Command
 
 
@@ -17,9 +19,9 @@ class TestCommand:
     def test_command_has_required_abstract_methods(self):
         """Test that Command defines the required abstract methods."""
         # Check that abstract methods are defined
-        assert hasattr(Command, 'execute')
-        assert hasattr(Command, 'undo')
-        assert hasattr(Command, 'redo')
+        assert hasattr(Command, "execute")
+        assert hasattr(Command, "undo")
+        assert hasattr(Command, "redo")
         
         # Check that they are abstract methods
         assert Command.execute.__isabstractmethod__
@@ -28,9 +30,9 @@ class TestCommand:
     
     def test_command_repr_method(self):
         """Test that Command has a __repr__ method."""
-        assert hasattr(Command, '__repr__')
+        assert hasattr(Command, "__repr__")
         # The __repr__ method should not be abstract
-        assert not getattr(Command.__repr__, '__isabstractmethod__', False)
+        assert not getattr(Command.__repr__, "__isabstractmethod__", False)
 
 
 class ConcreteCommand(Command):

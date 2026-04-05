@@ -1,12 +1,13 @@
-import pytest
 from unittest.mock import Mock
 
+import pytest
+
 from pandaplot.commands.project.note import EditNoteCommand
-from pandaplot.models.events.event_types import NoteEvents
-from pandaplot.models.project.items import Note
-from pandaplot.models.project import Project
-from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import NoteEvents
+from pandaplot.models.project import Project
+from pandaplot.models.project.items import Note
+from pandaplot.models.state import AppContext, AppState
 
 
 class TestEditNoteCommand:
@@ -136,9 +137,9 @@ class TestEditNoteCommand:
         
         # Check event emission
         app_state.event_bus.emit.assert_called_once_with(NoteEvents.NOTE_CONTENT_CHANGED, {
-            'note_id': "note-123",
-            'old_content': "Original content",
-            'new_content': "New content"
+            "note_id": "note-123",
+            "old_content": "Original content",
+            "new_content": "New content"
         })
 
     def test_execute_with_exception(self, mock_app_context, sample_project, sample_note):
@@ -175,9 +176,9 @@ class TestEditNoteCommand:
         
         # Check event emission
         app_state.event_bus.emit.assert_called_once_with(NoteEvents.NOTE_CONTENT_CHANGED, {
-            'note_id': "note-123",
-            'old_content': "New content",
-            'new_content': "Original content"
+            "note_id": "note-123",
+            "old_content": "New content",
+            "new_content": "Original content"
         })
 
     def test_undo_no_old_content(self, mock_app_context):
@@ -296,9 +297,9 @@ class TestEditNoteCommand:
         
         # Check event emission
         app_state.event_bus.emit.assert_called_once_with(NoteEvents.NOTE_CONTENT_CHANGED, {
-            'note_id': "note-123",
-            'old_content': "Original content",
-            'new_content': "New content"
+            "note_id": "note-123",
+            "old_content": "Original content",
+            "new_content": "New content"
         })
 
     def test_redo_no_old_content(self, mock_app_context):
@@ -447,13 +448,13 @@ class TestEditNoteCommand:
         event_name, event_data = app_state.event_bus.emit.call_args[0]
         
         assert event_name == NoteEvents.NOTE_CONTENT_CHANGED
-        assert 'note_id' in event_data
-        assert 'old_content' in event_data
-        assert 'new_content' in event_data
+        assert "note_id" in event_data
+        assert "old_content" in event_data
+        assert "new_content" in event_data
         
-        assert event_data['note_id'] == "test-note"
-        assert event_data['old_content'] == "Old content"
-        assert event_data['new_content'] == "New content"
+        assert event_data["note_id"] == "test-note"
+        assert event_data["old_content"] == "Old content"
+        assert event_data["new_content"] == "New content"
 
     def test_command_state_isolation(self, mock_app_context, sample_project):
         """Test that multiple command instances don't interfere with each other."""

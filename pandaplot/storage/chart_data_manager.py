@@ -25,7 +25,7 @@ class ChartDataManager(ItemDataManager):
         """
         # Read JSON data
         chart_data = json.loads(zip_file.read(
-            f"{path_in_zip}.json").decode('utf-8'))
+            f"{path_in_zip}.json").decode("utf-8"))
 
         # Reconstruct chart using from_dict class method
         chart = item_class.from_dict(chart_data)

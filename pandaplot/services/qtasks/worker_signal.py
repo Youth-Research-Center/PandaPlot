@@ -4,6 +4,7 @@ from PySide6.QtCore import (
     Signal,
 )
 
+
 class WorkerSignals(QObject):
     """Signals from a running worker thread.
 

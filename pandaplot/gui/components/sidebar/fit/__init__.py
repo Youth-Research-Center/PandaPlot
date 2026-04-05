@@ -2,4 +2,4 @@
 
 from .fit_panel import FitPanel
 
-__all__ = ['FitPanel']
+__all__ = ["FitPanel"]

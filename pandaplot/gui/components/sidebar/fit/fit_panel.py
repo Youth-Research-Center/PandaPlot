@@ -1,21 +1,33 @@
 """Curve fitting panel for performing regression analysis on chart data."""
-import pandas as pd
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
-    QComboBox, QPushButton, QLineEdit, QGroupBox, QScrollArea,
-    QTextEdit, QCheckBox, QSpinBox, QMenu
-)
-from PySide6.QtCore import Qt, Signal
 import logging
+from typing import Optional, override
+
+import pandas as pd
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import FitEvents, UIEvents
 from pandaplot.models.project.items import Dataset
-from pandaplot.services.fit.fit_service import FitService
 from pandaplot.models.state import AppContext
-from typing import Optional, override
-
+from pandaplot.services.fit.fit_service import FitService
 from pandaplot.services.theme import ThemeManager
+
 # Import scipy for curve fitting (will handle gracefully if not available)
 try:
     from scipy.optimize import curve_fit
@@ -88,10 +100,10 @@ class FitPanel(PWidget):
         palette = theme_manager.get_surface_palette()
 
         # Get theme colors with fallbacks
-        card_bg = palette.get('card_bg', '#ffffff')
-        card_border = palette.get('card_border', '#dee2e6')
-        base_fg = palette.get('base_fg', '#333333')
-        card_hover = palette.get('card_hover', '#e5f3ff')
+        card_bg = palette.get("card_bg", "#ffffff")
+        card_border = palette.get("card_border", "#dee2e6")
+        base_fg = palette.get("base_fg", "#333333")
+        card_hover = palette.get("card_hover", "#e5f3ff")
 
         # Apply theme to main widget
         self.setStyleSheet(f"""
@@ -138,12 +150,12 @@ class FitPanel(PWidget):
         palette = theme_manager.get_surface_palette()
 
         # Get colors with fallbacks
-        accent = palette.get('accent', '#4CAF50')
-        secondary_fg = palette.get('secondary_fg', '#666666')
-        card_hover = palette.get('card_hover', '#e5f3ff')
-        base_fg = palette.get('base_fg', '#333333')
-        card_border = palette.get('card_border', '#dee2e6')
-        card_bg = palette.get('card_bg', '#ffffff')
+        accent = palette.get("accent", "#4CAF50")
+        secondary_fg = palette.get("secondary_fg", "#666666")
+        card_hover = palette.get("card_hover", "#e5f3ff")
+        base_fg = palette.get("base_fg", "#333333")
+        card_border = palette.get("card_border", "#dee2e6")
+        card_bg = palette.get("card_bg", "#ffffff")
 
         # Primary button (Perform Fit)
         primary_style = f"""
@@ -198,11 +210,11 @@ class FitPanel(PWidget):
             palette = theme_manager.get_surface_palette()
 
             # Get theme colors with fallbacks
-            card_bg = palette.get('card_bg', '#ffffff')
-            card_border = palette.get('card_border', '#dee2e6')
-            base_fg = palette.get('base_fg', '#333333')
-            card_hover = palette.get('card_hover', '#e5f3ff')
-            secondary_fg = palette.get('secondary_fg', '#666666')
+            card_bg = palette.get("card_bg", "#ffffff")
+            card_border = palette.get("card_border", "#dee2e6")
+            base_fg = palette.get("base_fg", "#333333")
+            card_hover = palette.get("card_hover", "#e5f3ff")
+            secondary_fg = palette.get("secondary_fg", "#666666")
 
             # Function button styling
             function_button_style = f"""
@@ -483,12 +495,12 @@ class FitPanel(PWidget):
 
     def _on_tab_changed(self, event_data):
         """Handle tab change events to update context."""
-        current_tab_type = event_data.get('tab_type')
-        chart_id = event_data.get('chart_id')
-        dataset_id = event_data.get('dataset_id')
+        current_tab_type = event_data.get("tab_type")
+        chart_id = event_data.get("chart_id")
+        dataset_id = event_data.get("dataset_id")
 
         # Check if current tab is a chart tab
-        if current_tab_type == 'chart' and chart_id:
+        if current_tab_type == "chart" and chart_id:
             # Get the chart from the project using chart_id
             project = self.app_context.app_state.current_project
             if project is not None:
@@ -503,7 +515,7 @@ class FitPanel(PWidget):
             else:
                 self.logger.warning("No current project available while switching tab")
 
-        elif current_tab_type == 'dataset' and dataset_id:
+        elif current_tab_type == "dataset" and dataset_id:
             # For dataset tabs, provide context for data fitting
             project = self.app_context.app_state.current_project
             if project is not None:
@@ -542,11 +554,11 @@ class FitPanel(PWidget):
             return
         
         results = self.fit_command.fit_results
-        fit_type = results['fit_type']
-        popt = results['parameters']
-        perr = results['errors']
-        param_names = results['param_names']
-        r_squared = results['r_squared']
+        fit_type = results["fit_type"]
+        popt = results["parameters"]
+        perr = results["errors"]
+        param_names = results["param_names"]
+        r_squared = results["r_squared"]
         
         # Format equation
         equation = self.fit_command.format_equation(fit_type, popt)
@@ -556,7 +568,7 @@ class FitPanel(PWidget):
         results_text = f"Fit Type: {fit_type}\n\n"
         results_text += "Parameters:\n"
         
-        for i, (name, value, error) in enumerate(zip(param_names, popt, perr)):
+        for i, (name, value, error) in enumerate(zip(param_names, popt, perr, strict=False)):
             results_text += f"  {name} = {value:.6g} ± {error:.6g}\n"
         
         if r_squared is not None:
@@ -581,18 +593,18 @@ class FitPanel(PWidget):
             # Add source dataset info to fit results
             enhanced_fit_results = self.fit_command.fit_results.copy()
             enhanced_fit_results.update({
-                'source_dataset_id': dataset_id,
-                'source_x_column': x_column,
-                'source_y_column': y_column
+                "source_dataset_id": dataset_id,
+                "source_x_column": x_column,
+                "source_y_column": y_column
             })
             
             # Publish fit applied event
             self.publish_event(FitEvents.FIT_APPLIED, {
-                'fit_results': enhanced_fit_results,
-                'chart_id': self.current_chart.id if self.current_chart else None,
-                'chart': self.current_chart,
-                'fit_type': self.fit_command.fit_results.get('fit_type', 'Unknown'),
-                'dataset_name': dataset_name
+                "fit_results": enhanced_fit_results,
+                "chart_id": self.current_chart.id if self.current_chart else None,
+                "chart": self.current_chart,
+                "fit_type": self.fit_command.fit_results.get("fit_type", "Unknown"),
+                "dataset_name": dataset_name
             })
     
     def _clear_results(self):

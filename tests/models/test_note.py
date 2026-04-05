@@ -10,10 +10,12 @@ Tests cover the Note class, including:
 - Edge cases and error handling
 """
 
-import pytest
-import uuid
 import time
-from pandaplot.models.project.items import Note, Item
+import uuid
+
+import pytest
+
+from pandaplot.models.project.items import Item, Note
 
 
 # Fixtures
@@ -21,10 +23,10 @@ from pandaplot.models.project.items import Note, Item
 def sample_note_data():
     """Fixture providing test data for notes."""
     return {
-        'id': "test-note-123",
-        'name': "Test Note",
-        'content': "This is a test note content.",
-        'tags': ['test', 'sample', 'demo']
+        "id": "test-note-123",
+        "name": "Test Note",
+        "content": "This is a test note content.",
+        "tags": ["test", "sample", "demo"]
     }
 
 
@@ -34,7 +36,7 @@ def sample_note():
     return Note(
         name="Sample Note",
         content="Sample content for testing",
-        tags=['sample', 'test']
+        tags=["sample", "test"]
     )
 
 
@@ -72,17 +74,17 @@ class TestNoteInitialization:
     def test_custom_initialization(self, sample_note_data):
         """Test note creation with custom parameters."""
         note = Note(
-            id=sample_note_data['id'],
-            name=sample_note_data['name'],
-            content=sample_note_data['content'],
-            tags=sample_note_data['tags'].copy()
+            id=sample_note_data["id"],
+            name=sample_note_data["name"],
+            content=sample_note_data["content"],
+            tags=sample_note_data["tags"].copy()
         )
         
-        assert note.id == sample_note_data['id']
-        assert note.name == sample_note_data['name']
-        assert note.content == sample_note_data['content']
-        assert note.tags == sample_note_data['tags']
-        assert note.tags is not sample_note_data['tags']  # Should be a copy
+        assert note.id == sample_note_data["id"]
+        assert note.name == sample_note_data["name"]
+        assert note.content == sample_note_data["content"]
+        assert note.tags == sample_note_data["tags"]
+        assert note.tags is not sample_note_data["tags"]  # Should be a copy
     
     def test_partial_initialization(self):
         """Test note creation with partial parameters."""
@@ -247,10 +249,10 @@ class TestSerialization:
     def test_to_dict_complete_note(self, sample_note_data):
         """Test serializing a complete note to dictionary."""
         note = Note(
-            id=sample_note_data['id'],
-            name=sample_note_data['name'],
-            content=sample_note_data['content'],
-            tags=sample_note_data['tags'].copy()
+            id=sample_note_data["id"],
+            name=sample_note_data["name"],
+            content=sample_note_data["content"],
+            tags=sample_note_data["tags"].copy()
         )
         note.parent_id = "parent-123"
         note.metadata = {"key": "value", "number": 42}
@@ -258,51 +260,51 @@ class TestSerialization:
         result = note.to_dict()
         
         # Check inherited Item fields
-        assert result['id'] == sample_note_data['id']
-        assert result['name'] == sample_note_data['name']
-        assert result['parent_id'] == "parent-123"
-        assert 'created_at' in result
-        assert 'modified_at' in result
-        assert result['metadata'] == {"key": "value", "number": 42}
+        assert result["id"] == sample_note_data["id"]
+        assert result["name"] == sample_note_data["name"]
+        assert result["parent_id"] == "parent-123"
+        assert "created_at" in result
+        assert "modified_at" in result
+        assert result["metadata"] == {"key": "value", "number": 42}
         
         # Check Note-specific fields
-        assert result['content'] == sample_note_data['content']
-        assert result['tags'] == sample_note_data['tags']
+        assert result["content"] == sample_note_data["content"]
+        assert result["tags"] == sample_note_data["tags"]
     
     def test_to_dict_empty_note(self, empty_note):
         """Test serializing an empty note to dictionary."""
         result = empty_note.to_dict()
         
         assert isinstance(result, dict)
-        assert 'id' in result
-        assert result['name'] == ""
-        assert result['content'] == ""
-        assert result['tags'] == []
-        assert result['parent_id'] is None
-        assert 'created_at' in result
-        assert 'modified_at' in result
-        assert result['metadata'] == {}
+        assert "id" in result
+        assert result["name"] == ""
+        assert result["content"] == ""
+        assert result["tags"] == []
+        assert result["parent_id"] is None
+        assert "created_at" in result
+        assert "modified_at" in result
+        assert result["metadata"] == {}
     
     def test_from_dict_complete_data(self, sample_note_data):
         """Test creating note from complete dictionary data."""
         data = {
-            'id': sample_note_data['id'],
-            'name': sample_note_data['name'],
-            'content': sample_note_data['content'],
-            'tags': sample_note_data['tags'].copy(),
-            'parent_id': "parent-123",
-            'created_at': "2023-01-01T12:00:00",
-            'modified_at': "2023-01-01T13:00:00",
-            'metadata': {"key": "value"}
+            "id": sample_note_data["id"],
+            "name": sample_note_data["name"],
+            "content": sample_note_data["content"],
+            "tags": sample_note_data["tags"].copy(),
+            "parent_id": "parent-123",
+            "created_at": "2023-01-01T12:00:00",
+            "modified_at": "2023-01-01T13:00:00",
+            "metadata": {"key": "value"}
         }
         
         note = Note.from_dict(data)
         
         # Check all fields are correctly set
-        assert note.id == sample_note_data['id']
-        assert note.name == sample_note_data['name']
-        assert note.content == sample_note_data['content']
-        assert note.tags == sample_note_data['tags']
+        assert note.id == sample_note_data["id"]
+        assert note.name == sample_note_data["name"]
+        assert note.content == sample_note_data["content"]
+        assert note.tags == sample_note_data["tags"]
         assert note.parent_id == "parent-123"
         assert note.created_at == "2023-01-01T12:00:00"
         assert note.modified_at == "2023-01-01T13:00:00"
@@ -331,23 +333,23 @@ class TestSerialization:
     def test_from_dict_partial_data(self):
         """Test creating note from partial dictionary data."""
         data = {
-            'name': 'Partial Note',
-            'content': 'Some content',
-            'tags': ['tag1', 'tag2']
+            "name": "Partial Note",
+            "content": "Some content",
+            "tags": ["tag1", "tag2"]
         }
         
         note = Note.from_dict(data)
         
         assert isinstance(note.id, str)
-        assert note.name == 'Partial Note'
-        assert note.content == 'Some content'
-        assert note.tags == ['tag1', 'tag2']
+        assert note.name == "Partial Note"
+        assert note.content == "Some content"
+        assert note.tags == ["tag1", "tag2"]
         assert note.parent_id is None
     
     def test_serialization_roundtrip(self, sample_note):
         """Test that serialization and deserialization preserve data."""
         # Add some metadata
-        sample_note.metadata = {'test': 'value', 'number': 42}
+        sample_note.metadata = {"test": "value", "number": 42}
         sample_note.parent_id = "test-parent"
         
         # Serialize
@@ -515,5 +517,5 @@ class TestNoteSpecificFunctionality:
         assert empty_note.created_at == original_created  # Should not change
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pytest.main([__file__])

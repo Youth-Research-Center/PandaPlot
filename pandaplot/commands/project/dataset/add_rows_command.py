@@ -47,7 +47,7 @@ class AddRowsCommand(Command):
 
     def __init__(self, app_context: AppContext, dataset_id: str,
                  reference_positions: List[int],
-                 side: Literal['above', 'below'] = 'below'):
+                 side: Literal["above", "below"] = "below"):
         """
         Initialize the AddRowsCommand.
         

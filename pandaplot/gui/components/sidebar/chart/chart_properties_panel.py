@@ -1,26 +1,49 @@
 """Chart properties side panel for configuring chart appearance and data."""
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, 
-    QComboBox, QPushButton, QSpinBox, QDoubleSpinBox, QLineEdit, 
-    QColorDialog, QCheckBox, QGroupBox, QScrollArea,
-    QTabWidget, QListWidget
-)
+from typing import List, Optional, override
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPainter
-from typing import Optional, List, override
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
+    QDoubleSpinBox,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from pandaplot.commands.project.chart import (
-    AddSeriesCommand, ApplyChartPropertiesCommand, RemoveSeriesCommand,
+    AddSeriesCommand,
+    ApplyChartPropertiesCommand,
+    RemoveSeriesCommand,
 )
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_configuration import (
-    ChartConfiguration, ChartType, LineStyleType, MarkerType, 
-    ScaleType, LegendPosition, LineStyle, MarkerStyle, AxisStyle, LegendStyle
+    AxisStyle,
+    ChartConfiguration,
+    ChartType,
+    LegendPosition,
+    LegendStyle,
+    LineStyle,
+    LineStyleType,
+    MarkerStyle,
+    MarkerType,
+    ScaleType,
 )
 from pandaplot.models.chart.chart_style_manager import ChartStyleManager
-from pandaplot.models.events import UIEvents, ChartEvents, ProjectEvents
-from pandaplot.models.state.app_context import AppContext
+from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items import Dataset
+from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -59,10 +82,10 @@ class ColorButton(QPushButton):
         # Get theme colors if parent has app_context
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        bg_color = palette.get('card_hover', '#f5f5f5')
-        border_color = palette.get('card_border', '#888')
-        hover_color = palette.get('card_bg', '#eaeaea')
-        pressed_color = palette.get('card_border', '#e0e0e0')
+        bg_color = palette.get("card_hover", "#f5f5f5")
+        border_color = palette.get("card_border", "#888")
+        hover_color = palette.get("card_bg", "#eaeaea")
+        pressed_color = palette.get("card_border", "#e0e0e0")
         
         self.setStyleSheet(f"""
             QPushButton {{ 
@@ -84,7 +107,7 @@ class ColorButton(QPushButton):
         # Draw inner color swatch
         painter = QPainter(self)
         swatch_rect = self.rect().adjusted(6, 6, -6, -6)
-        painter.setPen(QColor('#555555'))
+        painter.setPen(QColor("#555555"))
         painter.setBrush(QColor(self._color))
         painter.drawRect(swatch_rect)
 
@@ -188,10 +211,10 @@ class ChartPropertiesPanel(PWidget):
         palette = theme_manager.get_surface_palette()
         
         # Get theme colors with fallbacks
-        card_bg = palette.get('card_bg', '#ffffff')
-        card_border = palette.get('card_border', '#dee2e6')
-        base_fg = palette.get('base_fg', '#333333')
-        card_hover = palette.get('card_hover', '#e5f3ff')
+        card_bg = palette.get("card_bg", "#ffffff")
+        card_border = palette.get("card_border", "#dee2e6")
+        base_fg = palette.get("base_fg", "#333333")
+        card_hover = palette.get("card_hover", "#e5f3ff")
         
         # Apply theme to main widget
         self.setStyleSheet(f"""
@@ -267,10 +290,10 @@ class ChartPropertiesPanel(PWidget):
     def _update_color_buttons(self):
         """Update all ColorButton instances with current theme."""
         color_buttons = [
-            getattr(self, 'line_color_button', None),
-            getattr(self, 'marker_color_button', None),
-            getattr(self, 'marker_edge_color_button', None),
-            getattr(self, 'legend_bg_color_button', None)
+            getattr(self, "line_color_button", None),
+            getattr(self, "marker_color_button", None),
+            getattr(self, "marker_edge_color_button", None),
+            getattr(self, "legend_bg_color_button", None)
         ]
         
         for button in color_buttons:
@@ -283,12 +306,12 @@ class ChartPropertiesPanel(PWidget):
         palette = theme_manager.get_surface_palette()
         
         # Get colors with fallbacks
-        accent = palette.get('accent', '#4CAF50')
-        secondary_fg = palette.get('secondary_fg', '#666666')
-        card_hover = palette.get('card_hover', '#e5f3ff')
-        base_fg = palette.get('base_fg', '#333333')
-        card_border = palette.get('card_border', '#dee2e6')
-        card_bg = palette.get('card_bg', '#ffffff')
+        accent = palette.get("accent", "#4CAF50")
+        secondary_fg = palette.get("secondary_fg", "#666666")
+        card_hover = palette.get("card_hover", "#e5f3ff")
+        base_fg = palette.get("base_fg", "#333333")
+        card_border = palette.get("card_border", "#dee2e6")
+        card_bg = palette.get("card_bg", "#ffffff")
         
         # Primary button (Apply)
         primary_style = f"""
@@ -342,12 +365,12 @@ class ChartPropertiesPanel(PWidget):
         palette = theme_manager.get_surface_palette()
         
         # Get colors with fallbacks
-        accent = palette.get('accent', '#4CAF50')
-        secondary_fg = palette.get('secondary_fg', '#666666')
-        card_hover = palette.get('card_hover', '#e5f3ff')
-        base_fg = palette.get('base_fg', '#333333')
-        card_border = palette.get('card_border', '#dee2e6')
-        card_bg = palette.get('card_bg', '#ffffff')
+        accent = palette.get("accent", "#4CAF50")
+        secondary_fg = palette.get("secondary_fg", "#666666")
+        card_hover = palette.get("card_hover", "#e5f3ff")
+        base_fg = palette.get("base_fg", "#333333")
+        card_border = palette.get("card_border", "#dee2e6")
+        card_bg = palette.get("card_bg", "#ffffff")
         
         # Add series button (primary style)
         add_style = f"""
@@ -660,8 +683,8 @@ class ChartPropertiesPanel(PWidget):
         # 'project_loaded' (underscore) and 'first_project_loaded'. Also subscribe to the
         # canonical constant for forward compatibility.
         self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, self._on_project_loaded)  # may not fire yet
-        self.subscribe_to_event('project_loaded', self._on_project_loaded)
-        self.subscribe_to_event('first_project_loaded', self._on_project_loaded)
+        self.subscribe_to_event("project_loaded", self._on_project_loaded)
+        self.subscribe_to_event("first_project_loaded", self._on_project_loaded)
 
     def _ensure_datasets_loaded(self):
         """Populate datasets if empty (idempotent)."""
@@ -670,7 +693,7 @@ class ChartPropertiesPanel(PWidget):
 
     def _on_project_loaded(self, event_data):
         """Handle project loaded to refresh dataset list and any active chart context."""
-        project = event_data.get('project') or self.app_context.app_state.current_project
+        project = event_data.get("project") or self.app_context.app_state.current_project
         if project:
             self.set_project(project)
             # If a chart tab already active, re-load to bind series list correctly
@@ -679,11 +702,11 @@ class ChartPropertiesPanel(PWidget):
     
     def _on_tab_changed(self, event_data):
         """Handle tab change events to update context."""
-        current_tab_type = event_data.get('tab_type')
-        chart_id = event_data.get('chart_id')
+        current_tab_type = event_data.get("tab_type")
+        chart_id = event_data.get("chart_id")
         
         # Check if current tab is a chart tab
-        if current_tab_type == 'chart' and chart_id:
+        if current_tab_type == "chart" and chart_id:
             # Get the chart from the project using chart_id
             project = self.app_context.app_state.current_project
             self.set_project(project)
@@ -704,13 +727,13 @@ class ChartPropertiesPanel(PWidget):
     
     def _on_chart_updated(self, event_data):
         """Handle chart updated events to refresh the panel."""
-        chart_id = event_data.get('chart_id')
-        update_type = event_data.get('update_type', '')
+        chart_id = event_data.get("chart_id")
+        update_type = event_data.get("update_type", "")
         
         # If this is our current chart, refresh the display
         if self.current_chart and chart_id == self.current_chart.id:
             # Refresh the series list to show new series (like fit lines)
-            if update_type in ['fit_added', 'series_added', 'series_removed']:
+            if update_type in ["fit_added", "series_added", "series_removed"]:
                 self._update_series_list()
                 self.logger.debug("Chart properties panel refreshed for update: %s", update_type)
     
@@ -852,9 +875,9 @@ class ChartPropertiesPanel(PWidget):
             series.marker_size = self.marker_size_spin.value()
 
             # Line style & marker style (store enum values as strings)
-            if hasattr(self, 'line_style_combo') and self.line_style_combo.currentData():
+            if hasattr(self, "line_style_combo") and self.line_style_combo.currentData():
                 series.line_style = self.line_style_combo.currentData().value
-            if hasattr(self, 'marker_type_combo') and self.marker_type_combo.currentData():
+            if hasattr(self, "marker_type_combo") and self.marker_type_combo.currentData():
                 series.marker_style = self.marker_type_combo.currentData().value
                 
         else:
@@ -873,8 +896,8 @@ class ChartPropertiesPanel(PWidget):
             self._has_unsaved_changes = True
             self._update_status_indicator()
             self.publish_event(ChartEvents.CHART_UPDATED, {
-                'chart_id': self.current_chart.id,
-                'update_type': 'series_updated'
+                "chart_id": self.current_chart.id,
+                "update_type": "series_updated"
             })
 
     def _on_chart_config_changed(self):
@@ -883,26 +906,26 @@ class ChartPropertiesPanel(PWidget):
             return
         
         # Update chart configuration from UI controls
-        if hasattr(self, 'title_edit'):
+        if hasattr(self, "title_edit"):
             self.current_chart.name = self.title_edit.text()
         
         config = self.current_chart.config
-        if hasattr(self, 'x_label_edit'):
-            config['x_label'] = self.x_label_edit.text()
-        if hasattr(self, 'y_label_edit'):
-            config['y_label'] = self.y_label_edit.text()
-        if hasattr(self, 'x_grid_check') and hasattr(self, 'y_grid_check'):
-            config['show_grid'] = self.x_grid_check.isChecked() and self.y_grid_check.isChecked()
-        if hasattr(self, 'legend_show_check'):
-            config['show_legend'] = self.legend_show_check.isChecked()
-        if hasattr(self, 'chart_type_combo') and self.chart_type_combo.currentData():
+        if hasattr(self, "x_label_edit"):
+            config["x_label"] = self.x_label_edit.text()
+        if hasattr(self, "y_label_edit"):
+            config["y_label"] = self.y_label_edit.text()
+        if hasattr(self, "x_grid_check") and hasattr(self, "y_grid_check"):
+            config["show_grid"] = self.x_grid_check.isChecked() and self.y_grid_check.isChecked()
+        if hasattr(self, "legend_show_check"):
+            config["show_legend"] = self.legend_show_check.isChecked()
+        if hasattr(self, "chart_type_combo") and self.chart_type_combo.currentData():
             chart_type_map = {
-                ChartType.LINE: 'line',
-                ChartType.SCATTER: 'scatter',
-                ChartType.BAR: 'bar',
-                ChartType.HISTOGRAM: 'hist',
-                ChartType.BOX: 'box',
-                ChartType.VIOLIN: 'violin'
+                ChartType.LINE: "line",
+                ChartType.SCATTER: "scatter",
+                ChartType.BAR: "bar",
+                ChartType.HISTOGRAM: "hist",
+                ChartType.BOX: "box",
+                ChartType.VIOLIN: "violin"
             }
             chart_type = self.chart_type_combo.currentData()
             if chart_type in chart_type_map:
@@ -913,8 +936,8 @@ class ChartPropertiesPanel(PWidget):
             self._has_unsaved_changes = True
             self._update_status_indicator()
             self.publish_event(ChartEvents.CHART_UPDATED, {
-                'chart_id': self.current_chart.id,
-                'update_type': 'config_updated'
+                "chart_id": self.current_chart.id,
+                "update_type": "config_updated"
             })
 
     def _update_status_indicator(self):
@@ -993,17 +1016,17 @@ class ChartPropertiesPanel(PWidget):
             self.marker_size_spin.blockSignals(False)
             
             # Update marker color controls
-            if hasattr(self, 'marker_color_button'):
+            if hasattr(self, "marker_color_button"):
                 self.marker_color_button.blockSignals(True)
                 self.marker_color_button.set_color(series.marker_color or series.color)
                 self.marker_color_button.blockSignals(False)
 
-            if hasattr(self, 'marker_edge_color_button'):
+            if hasattr(self, "marker_edge_color_button"):
                 self.marker_edge_color_button.blockSignals(True)
-                self.marker_edge_color_button.set_color(series.marker_edge_color or '#000000')
+                self.marker_edge_color_button.set_color(series.marker_edge_color or "#000000")
                 self.marker_edge_color_button.blockSignals(False)
                 
-            if hasattr(self, 'line_style_combo'):
+            if hasattr(self, "line_style_combo"):
                 self.line_style_combo.blockSignals(True)
                 for i in range(self.line_style_combo.count()):
                     if self.line_style_combo.itemData(i) and self.line_style_combo.itemData(i).value == series.line_style:
@@ -1011,7 +1034,7 @@ class ChartPropertiesPanel(PWidget):
                         break
                 self.line_style_combo.blockSignals(False)
                 
-            if hasattr(self, 'marker_type_combo'):
+            if hasattr(self, "marker_type_combo"):
                 self.marker_type_combo.blockSignals(True)
                 for i in range(self.marker_type_combo.count()):
                     if self.marker_type_combo.itemData(i) and self.marker_type_combo.itemData(i).value == series.marker_style:
@@ -1214,7 +1237,7 @@ class ChartPropertiesPanel(PWidget):
         
         if chart_id and self.current_project:
             # Load existing chart
-            if hasattr(self.current_project, 'charts') and chart_id in self.current_project.charts:
+            if hasattr(self.current_project, "charts") and chart_id in self.current_project.charts:
                 chart_dict = self.current_project.charts[chart_id]
                 config = ChartConfiguration.from_dict(chart_dict)
                 self._load_configuration(config)
@@ -1238,16 +1261,16 @@ class ChartPropertiesPanel(PWidget):
             # Ensure datasets are available (important after opening a project file)
             self._ensure_datasets_loaded()
             # Load basic info
-            self.title_edit.setText(chart.config.get('title', chart.name))
+            self.title_edit.setText(chart.config.get("title", chart.name))
             
             # Set chart type
             chart_type_map = {
-                'line': ChartType.LINE,
-                'scatter': ChartType.SCATTER,
-                'bar': ChartType.BAR,
-                'hist': ChartType.HISTOGRAM,
-                'box': ChartType.BOX,
-                'violin': ChartType.VIOLIN
+                "line": ChartType.LINE,
+                "scatter": ChartType.SCATTER,
+                "bar": ChartType.BAR,
+                "hist": ChartType.HISTOGRAM,
+                "box": ChartType.BOX,
+                "violin": ChartType.VIOLIN
             }
             chart_type = chart_type_map.get(chart.chart_type, ChartType.LINE)
             for i in range(self.chart_type_combo.count()):
@@ -1278,20 +1301,20 @@ class ChartPropertiesPanel(PWidget):
             
             # Load configuration
             config = chart.config
-            self.x_label_edit.setText(config.get('x_label', ''))
-            self.y_label_edit.setText(config.get('y_label', ''))
-            self.x_grid_check.setChecked(config.get('show_grid', True))
-            self.y_grid_check.setChecked(config.get('show_grid', True))
-            self.legend_show_check.setChecked(config.get('show_legend', True))
+            self.x_label_edit.setText(config.get("x_label", ""))
+            self.y_label_edit.setText(config.get("y_label", ""))
+            self.x_grid_check.setChecked(config.get("show_grid", True))
+            self.y_grid_check.setChecked(config.get("show_grid", True))
+            self.legend_show_check.setChecked(config.get("show_legend", True))
             
         else:
             # Clear/default values
             self._load_default_configuration()
             self.series_list.clear()
             self.series_config_group.setEnabled(False)
-            if hasattr(self, 'add_series_button'):
+            if hasattr(self, "add_series_button"):
                 self.add_series_button.show()
-            if hasattr(self, 'remove_series_button'):
+            if hasattr(self, "remove_series_button"):
                 self.remove_series_button.hide()
     
     def apply_to_chart(self, chart):
@@ -1304,20 +1327,20 @@ class ChartPropertiesPanel(PWidget):
             return
         
         # Update basic chart properties
-        chart.config['title'] = self.title_edit.text()
-        chart.config['x_label'] = self.x_label_edit.text()
-        chart.config['y_label'] = self.y_label_edit.text()
-        chart.config['show_grid'] = self.x_grid_check.isChecked() and self.y_grid_check.isChecked()
-        chart.config['show_legend'] = self.legend_show_check.isChecked()
+        chart.config["title"] = self.title_edit.text()
+        chart.config["x_label"] = self.x_label_edit.text()
+        chart.config["y_label"] = self.y_label_edit.text()
+        chart.config["show_grid"] = self.x_grid_check.isChecked() and self.y_grid_check.isChecked()
+        chart.config["show_legend"] = self.legend_show_check.isChecked()
         
         # Update chart type
         chart_type_map = {
-            ChartType.LINE: 'line',
-            ChartType.SCATTER: 'scatter',
-            ChartType.BAR: 'bar',
-            ChartType.HISTOGRAM: 'hist',
-            ChartType.BOX: 'box',
-            ChartType.VIOLIN: 'violin'
+            ChartType.LINE: "line",
+            ChartType.SCATTER: "scatter",
+            ChartType.BAR: "bar",
+            ChartType.HISTOGRAM: "hist",
+            ChartType.BOX: "box",
+            ChartType.VIOLIN: "violin"
         }
         chart_type = self.chart_type_combo.currentData()
         if chart_type in chart_type_map:
@@ -1338,9 +1361,9 @@ class ChartPropertiesPanel(PWidget):
                 series.line_width = self.line_width_spin.value()
                 series.marker_size = self.marker_size_spin.value()
 
-                if hasattr(self, 'line_style_combo') and self.line_style_combo.currentData():
+                if hasattr(self, "line_style_combo") and self.line_style_combo.currentData():
                     series.line_style = self.line_style_combo.currentData().value
-                if hasattr(self, 'marker_type_combo') and self.marker_type_combo.currentData():
+                if hasattr(self, "marker_type_combo") and self.marker_type_combo.currentData():
                     series.marker_style = self.marker_type_combo.currentData().value
 
                 self.logger.debug(

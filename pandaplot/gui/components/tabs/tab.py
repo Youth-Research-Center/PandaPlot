@@ -1,8 +1,8 @@
 from typing import override
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QWidget
 
 from pandaplot.gui.components.tabs.tab_bar import CustomTabBar
 from pandaplot.gui.core.widget_extension import PTabWidget
@@ -37,13 +37,13 @@ class CustomTabWidget(PTabWidget):
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors
-        card_bg = palette.get('card_bg', '#f8f9fa')
-        card_hover = palette.get('card_hover', '#e9ecef')
-        card_pressed = palette.get('card_pressed', '#dee2e6')
-        card_border = palette.get('card_border', '#dee2e6')
-        base_fg = palette.get('base_fg', '#000000')
-        secondary_fg = palette.get('secondary_fg', '#555555')
-        accent = palette.get('accent', '#4A90E2')
+        card_bg = palette.get("card_bg", "#f8f9fa")
+        card_hover = palette.get("card_hover", "#e9ecef")
+        card_pressed = palette.get("card_pressed", "#dee2e6")
+        card_border = palette.get("card_border", "#dee2e6")
+        base_fg = palette.get("base_fg", "#000000")
+        secondary_fg = palette.get("secondary_fg", "#555555")
+        accent = palette.get("accent", "#4A90E2")
         
         # Derive accent color variant for pressed state
         accent_color = QColor(accent)

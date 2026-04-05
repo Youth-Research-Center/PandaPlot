@@ -4,7 +4,7 @@ from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
 from pandaplot.models.events import ChartEvents
-from pandaplot.models.project.items.chart import Chart, DataSeries
+from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext
 
 
@@ -46,9 +46,9 @@ class AddSeriesCommand(Command):
         self.added_index = len(chart.data_series) - 1
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-            'chart_id': self.chart_id,
-            'update_type': 'series_added',
-            'chart': chart,
+            "chart_id": self.chart_id,
+            "update_type": "series_added",
+            "chart": chart,
         })
         return True
 
@@ -60,9 +60,9 @@ class AddSeriesCommand(Command):
 
         chart.remove_data_series(self.added_index)
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-            'chart_id': self.chart_id,
-            'update_type': 'series_removed',
-            'chart': chart,
+            "chart_id": self.chart_id,
+            "update_type": "series_removed",
+            "chart": chart,
         })
 
     @override

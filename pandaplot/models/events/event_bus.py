@@ -1,7 +1,8 @@
-from collections import defaultdict
 import logging
 import re
-from typing import Callable, Dict, Any
+from collections import defaultdict
+from typing import Any, Callable, Dict
+
 from .event_types import EventHierarchy
 
 
@@ -25,9 +26,9 @@ class EventBus:
         """
         self.logger.debug("Subscribing to event pattern: %s", event_pattern)
         
-        if '*' in event_pattern:
+        if "*" in event_pattern:
             # Convert glob pattern to regex
-            regex_pattern = event_pattern.replace('.', r'\.').replace('*', '.*')
+            regex_pattern = event_pattern.replace(".", r"\.").replace("*", ".*")
             self._pattern_subscribers[regex_pattern].append(callback)
             self.logger.debug("Added pattern subscriber for: %s (regex: %s)", event_pattern, regex_pattern)
         else:
@@ -43,8 +44,8 @@ class EventBus:
         """
         self.logger.debug("Unsubscribing from event pattern: %s", event_pattern)
         
-        if '*' in event_pattern:
-            regex_pattern = event_pattern.replace('.', r'\.').replace('*', '.*')
+        if "*" in event_pattern:
+            regex_pattern = event_pattern.replace(".", r"\.").replace("*", ".*")
             if callback in self._pattern_subscribers[regex_pattern]:
                 self._pattern_subscribers[regex_pattern].remove(callback)
                 self.logger.debug("Removed pattern subscriber for: %s", event_pattern)
@@ -79,8 +80,8 @@ class EventBus:
         # Emit events from specific to generic
         for event_level in hierarchy:
             event_data = data.copy()
-            event_data['event_type'] = event_level
-            event_data['original_event'] = event_type
+            event_data["event_type"] = event_level
+            event_data["original_event"] = event_type
             
             # Emit to exact subscribers
             subscriber_count = len(self._subscribers[event_level])

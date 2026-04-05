@@ -2,11 +2,13 @@
 Dialog for integral analysis configuration.
 """
 
-from PySide6.QtWidgets import QGroupBox, QFormLayout, QLabel
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+from PySide6.QtWidgets import QFormLayout, QGroupBox, QLabel
+
+from pandaplot.analysis import AnalysisEngine, AnalysisType
 
 from .base_analysis_dialog import BaseAnalysisDialog
-from pandaplot.analysis import AnalysisEngine, AnalysisType
 
 
 class IntegralDialog(BaseAnalysisDialog):
@@ -40,7 +42,7 @@ class IntegralDialog(BaseAnalysisDialog):
     def preview_analysis(self):
         """Preview integral calculation."""
         try:
-            if self.dataset is None or not hasattr(self.dataset, 'data') or self.dataset.data is None:
+            if self.dataset is None or not hasattr(self.dataset, "data") or self.dataset.data is None:
                 self.preview_text.setText("No dataset available for preview.")
                 return
             
@@ -81,10 +83,10 @@ class IntegralDialog(BaseAnalysisDialog):
         config = super().get_analysis_config()
         
         config.update({
-            'analysis_type': AnalysisType.INTEGRAL.value,
-            'parameters': {
-                **config['parameters'],
-                'method': 'trapezoidal'
+            "analysis_type": AnalysisType.INTEGRAL.value,
+            "parameters": {
+                **config["parameters"],
+                "method": "trapezoidal"
             }
         })
         

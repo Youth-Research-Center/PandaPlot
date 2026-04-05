@@ -3,8 +3,9 @@ Conditional Panel Manager for managing sidebar panel visibility based on active 
 Provides a generic framework for panels that should appear/disappear based on context.
 """
 
-from typing import Dict, Callable, Optional, Any
 import logging
+from typing import Any, Callable, Dict, Optional
+
 from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QWidget
 
@@ -38,7 +39,7 @@ class ConditionalPanelManager(QObject):
     
     def _connect_tab_events(self):
         """Connect to tab container events."""
-        if hasattr(self.tab_container, 'tab_widget'):
+        if hasattr(self.tab_container, "tab_widget"):
             self.tab_container.tab_widget.currentChanged.connect(self._on_tab_index_changed)
     
     def register_conditional_panel(self, panel_name: str, condition_func: Callable[[QWidget], bool], priority: int = 0):
@@ -51,15 +52,15 @@ class ConditionalPanelManager(QObject):
             priority: Priority for evaluation order (higher priority evaluated first)
         """
         self.registered_panels[panel_name] = {
-            'condition_func': condition_func,
-            'priority': priority,
-            'is_visible': None  # Initially unknown
+            "condition_func": condition_func,
+            "priority": priority,
+            "is_visible": None  # Initially unknown
         }
         
         # Sort by priority (descending)
         self.registered_panels = dict(
             sorted(self.registered_panels.items(), 
-                  key=lambda x: x[1]['priority'], 
+                  key=lambda x: x[1]["priority"], 
                   reverse=True)
         )
         
@@ -95,12 +96,12 @@ class ConditionalPanelManager(QObject):
                 current_tab_widget = None
         
         self.current_tab_widget = current_tab_widget
-        tab_class_name = type(current_tab_widget).__name__ if current_tab_widget else 'None'
+        tab_class_name = type(current_tab_widget).__name__ if current_tab_widget else "None"
         self.logger.debug("Tab changed to %s", tab_class_name)
         
         # Debug: Check if it's a dataset tab
         if current_tab_widget:
-            is_dataset = tab_class_name == 'DatasetTab'
+            is_dataset = tab_class_name == "DatasetTab"
             self.logger.debug("Is dataset tab? %s", is_dataset)
         
         # Evaluate all panel conditions
@@ -112,8 +113,8 @@ class ConditionalPanelManager(QObject):
             return
         
         for panel_name, panel_config in self.registered_panels.items():
-            condition_func = panel_config['condition_func']
-            previous_visibility = panel_config['is_visible']
+            condition_func = panel_config["condition_func"]
+            previous_visibility = panel_config["is_visible"]
             
             try:
                 # Evaluate condition
@@ -122,7 +123,7 @@ class ConditionalPanelManager(QObject):
 
                 # Update visibility if changed
                 if should_be_visible != previous_visibility:
-                    panel_config['is_visible'] = should_be_visible
+                    panel_config["is_visible"] = should_be_visible
                     self._update_panel_visibility(panel_name, should_be_visible)
                     
                     self.logger.debug("Panel '%s' visibility changed -> %s", panel_name, should_be_visible)
@@ -170,7 +171,7 @@ class ConditionalPanelManager(QObject):
             Name of an alternative visible panel, or None
         """
         for panel_name, panel_config in self.registered_panels.items():
-            if panel_config['is_visible'] and panel_name in self.sidebar.panel_area.panels:
+            if panel_config["is_visible"] and panel_name in self.sidebar.panel_area.panels:
                 return panel_name
         
         # Check for non-conditional panels (always visible)

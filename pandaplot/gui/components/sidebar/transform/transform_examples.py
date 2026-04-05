@@ -5,7 +5,6 @@ Extracted from transform_tab.py for reuse in the sidebar interface.
 
 from typing import Dict, List
 
-
 # Column Operation Examples
 COLUMN_OPERATION_EXAMPLES = """Column Operation Examples:
 • value + 2                    # Add 2 to each value
@@ -185,15 +184,15 @@ def search_functions(query: str) -> List[Dict[str, str]]:
 # Common validation patterns
 VALIDATION_PATTERNS = {
     "dangerous_imports": [
-        r'\bimport\s+os\b', r'\bimport\s+sys\b', r'\bimport\s+subprocess\b',
-        r'\bfrom\s+os\b', r'\bfrom\s+sys\b', r'\bfrom\s+subprocess\b'
+        r"\bimport\s+os\b", r"\bimport\s+sys\b", r"\bimport\s+subprocess\b",
+        r"\bfrom\s+os\b", r"\bfrom\s+sys\b", r"\bfrom\s+subprocess\b"
     ],
     "dangerous_functions": [
-        r'\beval\b', r'\bexec\b', r'\bopen\b', r'\bfile\b',
-        r'\b__.*__\b', r'\bglobals\b', r'\blocals\b'
+        r"\beval\b", r"\bexec\b", r"\bopen\b", r"\bfile\b",
+        r"\b__.*__\b", r"\bglobals\b", r"\blocals\b"
     ],
     "file_operations": [
-        r'\bwith\s+open\b', r'\.read\(\)', r'\.write\(\)', r'\.delete\(\)'
+        r"\bwith\s+open\b", r"\.read\(\)", r"\.write\(\)", r"\.delete\(\)"
     ]
 }
 
@@ -218,7 +217,7 @@ def validate_expression_safety(expression: str) -> tuple[bool, str]:
     
     # Try to compile the expression
     try:
-        compile(expression, '<expression>', 'eval')
+        compile(expression, "<expression>", "eval")
         return True, ""
     except SyntaxError as e:
         return False, f"Syntax error: {e}"

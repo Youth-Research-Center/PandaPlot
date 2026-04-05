@@ -2,10 +2,12 @@
 Chart model for managing chart/visualization items in the project.
 """
 
-from datetime import datetime
-from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import numpy as np
+
 from pandaplot.models.project.items import Item
 
 
@@ -77,29 +79,29 @@ class Chart(Item):
     def _init_default_config(self) -> None:
         """Initialize default chart configuration."""
         self.config = {
-            'title': self.name,
-            'x_label': '',
-            'y_label': '',
-            'show_legend': True,
-            'show_grid': True,
-            'legend_position': 'upper right',
-            'grid_style': 'solid',
-            'grid_alpha': 0.3
+            "title": self.name,
+            "x_label": "",
+            "y_label": "",
+            "show_legend": True,
+            "show_grid": True,
+            "legend_position": "upper right",
+            "grid_style": "solid",
+            "grid_alpha": 0.3
         }
         
         self.style = {
-            'figure_size': (10, 6),
-            'background_color': '#ffffff',
-            'font_size': 12,
-            'font_family': 'Arial',
-            'dpi': 100
+            "figure_size": (10, 6),
+            "background_color": "#ffffff",
+            "font_size": 12,
+            "font_family": "Arial",
+            "dpi": 100
         }
     
     def update_name(self, new_name: str) -> None:
         """Update the chart name and modification timestamp."""
         # TODO: separate item name and title
         self.name = new_name
-        self.config['title'] = new_name  # Update chart title as well
+        self.config["title"] = new_name  # Update chart title as well
         self.update_modified_time()
     
     def set_chart_type(self, chart_type: str) -> None:
@@ -215,25 +217,25 @@ class Chart(Item):
                   y_label: Optional[str] = None) -> None:
         """Set chart labels."""
         if title is not None:
-            self.config['title'] = title
+            self.config["title"] = title
             # Also update the item name if different
             if title != self.name:
                 self.name = title
         if x_label is not None:
-            self.config['x_label'] = x_label
+            self.config["x_label"] = x_label
         if y_label is not None:
-            self.config['y_label'] = y_label
+            self.config["y_label"] = y_label
         self.update_modified_time()
     
     def get_config_summary(self) -> Dict[str, Any]:
         """Get a summary of the chart configuration."""
         return {
-            'chart_type': self.chart_type,
-            'data_series_count': len(self.data_series),
-            'datasets': self.get_all_datasets(),
-            'title': self.config.get('title', ''),
-            'has_legend': self.config.get('show_legend', True),
-            'has_grid': self.config.get('show_grid', True)
+            "chart_type": self.chart_type,
+            "data_series_count": len(self.data_series),
+            "datasets": self.get_all_datasets(),
+            "title": self.config.get("title", ""),
+            "has_legend": self.config.get("show_legend", True),
+            "has_grid": self.config.get("show_grid", True)
         }
     
     def search_chart(self, query: str) -> bool:
@@ -242,7 +244,7 @@ class Chart(Item):
         
         # Search in name and title
         if (query_lower in self.name.lower() or 
-            query_lower in self.config.get('title', '').lower()):
+            query_lower in self.config.get("title", "").lower()):
             return True
         
         # Search in chart type
@@ -263,100 +265,100 @@ class Chart(Item):
         """Convert chart to dictionary for serialization."""
         data = super().to_dict()
         data.update({
-            'chart_type': self.chart_type,
-            'data_series': [
+            "chart_type": self.chart_type,
+            "data_series": [
                 {
-                    'dataset_id': series.dataset_id,
-                    'x_column': series.x_column,
-                    'y_column': series.y_column,
-                    'label': series.label,
-                    'color': series.color,
-                    'marker_color': series.marker_color,
-                    'marker_edge_color': series.marker_edge_color,
-                    'line_style': series.line_style,
-                    'marker_style': series.marker_style,
-                    'line_width': series.line_width,
-                    'marker_size': series.marker_size,
-                    'visible': series.visible
+                    "dataset_id": series.dataset_id,
+                    "x_column": series.x_column,
+                    "y_column": series.y_column,
+                    "label": series.label,
+                    "color": series.color,
+                    "marker_color": series.marker_color,
+                    "marker_edge_color": series.marker_edge_color,
+                    "line_style": series.line_style,
+                    "marker_style": series.marker_style,
+                    "line_width": series.line_width,
+                    "marker_size": series.marker_size,
+                    "visible": series.visible
                 } for series in self.data_series
             ],
-            'fit_data': [
+            "fit_data": [
                 {
-                    'source_dataset_id': fit.source_dataset_id,
-                    'source_x_column': fit.source_x_column,
-                    'source_y_column': fit.source_y_column,
-                    'fit_type': fit.fit_type,
-                    'x_data': fit.x_data.tolist(),
-                    'y_data': fit.y_data.tolist(),
-                    'label': fit.label,
-                    'color': fit.color,
-                    'line_style': fit.line_style,
-                    'line_width': fit.line_width,
-                    'visible': fit.visible,
-                    'fit_params': fit.fit_params,
-                    'fit_stats': fit.fit_stats
+                    "source_dataset_id": fit.source_dataset_id,
+                    "source_x_column": fit.source_x_column,
+                    "source_y_column": fit.source_y_column,
+                    "fit_type": fit.fit_type,
+                    "x_data": fit.x_data.tolist(),
+                    "y_data": fit.y_data.tolist(),
+                    "label": fit.label,
+                    "color": fit.color,
+                    "line_style": fit.line_style,
+                    "line_width": fit.line_width,
+                    "visible": fit.visible,
+                    "fit_params": fit.fit_params,
+                    "fit_stats": fit.fit_stats
                 } for fit in self.fit_data
             ],
-            'config': self.config,
-            'style': self.style
+            "config": self.config,
+            "style": self.style
         })
         return data
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Chart':
+    def from_dict(cls, data: Dict[str, Any]) -> "Chart":
         """Create chart from dictionary."""
         chart = cls(
-            id=data.get('id'),
-            name=data.get('name', ''),
-            chart_type=data.get('chart_type', 'line')
+            id=data.get("id"),
+            name=data.get("name", ""),
+            chart_type=data.get("chart_type", "line")
         )
         
         # Set inherited attributes
-        chart.parent_id = data.get('parent_id')
-        chart.created_at = data.get('created_at', datetime.now().isoformat())
-        chart.modified_at = data.get('modified_at', chart.created_at)
-        chart.metadata = data.get('metadata', {})
+        chart.parent_id = data.get("parent_id")
+        chart.created_at = data.get("created_at", datetime.now().isoformat())
+        chart.modified_at = data.get("modified_at", chart.created_at)
+        chart.metadata = data.get("metadata", {})
         
         # Set chart-specific attributes
-        chart.config = data.get('config', {})
-        chart.style = data.get('style', {})
+        chart.config = data.get("config", {})
+        chart.style = data.get("style", {})
         
         # Load data series
-        series_data = data.get('data_series', [])
+        series_data = data.get("data_series", [])
         for series_dict in series_data:
             series = DataSeries(
-                dataset_id=series_dict['dataset_id'],
-                x_column=series_dict['x_column'],
-                y_column=series_dict['y_column'],
-                label=series_dict.get('label', ''),
-                color=series_dict.get('color', '#1f77b4'),
-                marker_color=series_dict.get('marker_color', ''),
-                marker_edge_color=series_dict.get('marker_edge_color', '#000000'),
-                line_style=series_dict.get('line_style', 'solid'),
-                marker_style=series_dict.get('marker_style', 'circle'),
-                line_width=series_dict.get('line_width', 2.0),
-                marker_size=series_dict.get('marker_size', 6.0),
-                visible=series_dict.get('visible', True)
+                dataset_id=series_dict["dataset_id"],
+                x_column=series_dict["x_column"],
+                y_column=series_dict["y_column"],
+                label=series_dict.get("label", ""),
+                color=series_dict.get("color", "#1f77b4"),
+                marker_color=series_dict.get("marker_color", ""),
+                marker_edge_color=series_dict.get("marker_edge_color", "#000000"),
+                line_style=series_dict.get("line_style", "solid"),
+                marker_style=series_dict.get("marker_style", "circle"),
+                line_width=series_dict.get("line_width", 2.0),
+                marker_size=series_dict.get("marker_size", 6.0),
+                visible=series_dict.get("visible", True)
             )
             chart.data_series.append(series)
         
         # Load fit data
-        fit_data_list = data.get('fit_data', [])
+        fit_data_list = data.get("fit_data", [])
         for fit_dict in fit_data_list:
             fit = FitData(
-                source_dataset_id=fit_dict['source_dataset_id'],
-                source_x_column=fit_dict['source_x_column'],
-                source_y_column=fit_dict['source_y_column'],
-                fit_type=fit_dict['fit_type'],
-                x_data=np.array(fit_dict['x_data']),
-                y_data=np.array(fit_dict['y_data']),
-                label=fit_dict.get('label', ''),
-                color=fit_dict.get('color', '#ff7f0e'),
-                line_style=fit_dict.get('line_style', 'dashed'),
-                line_width=fit_dict.get('line_width', 2.0),
-                visible=fit_dict.get('visible', True),
-                fit_params=fit_dict.get('fit_params', {}),
-                fit_stats=fit_dict.get('fit_stats', {})
+                source_dataset_id=fit_dict["source_dataset_id"],
+                source_x_column=fit_dict["source_x_column"],
+                source_y_column=fit_dict["source_y_column"],
+                fit_type=fit_dict["fit_type"],
+                x_data=np.array(fit_dict["x_data"]),
+                y_data=np.array(fit_dict["y_data"]),
+                label=fit_dict.get("label", ""),
+                color=fit_dict.get("color", "#ff7f0e"),
+                line_style=fit_dict.get("line_style", "dashed"),
+                line_width=fit_dict.get("line_width", 2.0),
+                visible=fit_dict.get("visible", True),
+                fit_params=fit_dict.get("fit_params", {}),
+                fit_stats=fit_dict.get("fit_stats", {})
             )
             chart.fit_data.append(fit)
         

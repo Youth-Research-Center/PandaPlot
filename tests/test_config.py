@@ -11,7 +11,6 @@ These tests focus purely on the data model behavior implemented in
 """
 from __future__ import annotations
 
-
 import pytest
 
 from pandaplot.models.state.config import (

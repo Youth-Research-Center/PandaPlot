@@ -50,19 +50,19 @@ class ChartTab(PWidget):
     def on_tab_title_changed(self, event_data: dict):
         """Handle tab title change events."""
         # Check if this title change is for our chart
-        chart_name = event_data.get('new_title')
-        if chart_name and event_data.get('tab_type') == 'chart':
+        chart_name = event_data.get("new_title")
+        if chart_name and event_data.get("tab_type") == "chart":
             # This is handled by the tab container - we just need to acknowledge the event
             pass
 
     def on_chart_updated(self, event_data: dict):
         """Handle chart update events from other components."""
-        updated_chart_id = event_data.get('chart_id')
+        updated_chart_id = event_data.get("chart_id")
 
         # Only respond if this is our chart
         if updated_chart_id == self.chart.id:
             # Guard: Check if editor still exists before refreshing
-            if hasattr(self, 'chart_editor') and self.chart_editor is not None:
+            if hasattr(self, "chart_editor") and self.chart_editor is not None:
                 try:
                     self.chart_editor.refresh_chart()
                     self.logger.debug(
@@ -73,37 +73,37 @@ class ChartTab(PWidget):
 
     def on_fit_applied(self, event_data: dict):
         """Handle fit applied events to add fit curves to the chart."""
-        fit_chart_id = event_data.get('chart_id')
+        fit_chart_id = event_data.get("chart_id")
 
         # Only respond if this is our chart
         if fit_chart_id == self.chart.id:
-            fit_results = event_data.get('fit_results', {})
-            fit_type = fit_results.get('fit_type', 'Unknown')
-            source_dataset_name = event_data.get('dataset_name', 'Unknown')
+            fit_results = event_data.get("fit_results", {})
+            fit_type = fit_results.get("fit_type", "Unknown")
+            source_dataset_name = event_data.get("dataset_name", "Unknown")
 
             # Get the source dataset info from the fit results
-            source_dataset_id = fit_results.get('source_dataset_id', '')
-            source_x_column = fit_results.get('source_x_column', '')
-            source_y_column = fit_results.get('source_y_column', '')
+            source_dataset_id = fit_results.get("source_dataset_id", "")
+            source_x_column = fit_results.get("source_x_column", "")
+            source_y_column = fit_results.get("source_y_column", "")
 
             # Generate unique color for fit line based on fit type
             fit_colors = {
-                'Linear': '#ff0000',      # Red
-                'Polynomial': '#00aa00',  # Green
-                'Exponential': '#0066cc',  # Blue
-                'Logarithmic': '#ff6600',  # Orange
-                'Power': '#cc00cc',       # Magenta
-                'Gaussian': '#00cccc',    # Cyan
+                "Linear": "#ff0000",      # Red
+                "Polynomial": "#00aa00",  # Green
+                "Exponential": "#0066cc",  # Blue
+                "Logarithmic": "#ff6600",  # Orange
+                "Power": "#cc00cc",       # Magenta
+                "Gaussian": "#00cccc",    # Cyan
             }
-            fit_color = fit_colors.get(fit_type, '#ff0000')  # Default to red
+            fit_color = fit_colors.get(fit_type, "#ff0000")  # Default to red
 
             # Add fit data directly to the chart
             import numpy as np
-            x_fit = np.array(fit_results.get('x_fit', []))
-            y_fit = np.array(fit_results.get('y_fit', []))
+            x_fit = np.array(fit_results.get("x_fit", []))
+            y_fit = np.array(fit_results.get("y_fit", []))
 
-            fit_params = fit_results.get('fit_params', {})
-            fit_stats = fit_results.get('fit_stats', {})
+            fit_params = fit_results.get("fit_params", {})
+            fit_stats = fit_results.get("fit_stats", {})
 
             self.chart.add_fit_data(
                 source_dataset_id=source_dataset_id,
@@ -121,14 +121,14 @@ class ChartTab(PWidget):
             )
 
             # Refresh the chart display to show the new fit
-            if hasattr(self.chart_editor, 'refresh_chart'):
+            if hasattr(self.chart_editor, "refresh_chart"):
                 self.chart_editor.refresh_chart()
 
             # Publish chart updated event to notify other components
             self.publish_event(ChartEvents.CHART_UPDATED, {
-                'chart_id': self.chart.id,
-                'chart': self.chart,
-                'update_type': 'fit_added'
+                "chart_id": self.chart.id,
+                "chart": self.chart,
+                "update_type": "fit_added"
             })
 
     def get_tab_title(self) -> str:
@@ -141,5 +141,5 @@ class ChartTab(PWidget):
 
     def refresh_chart(self):
         """Refresh the chart display when properties are updated externally."""
-        if hasattr(self.chart_editor, 'refresh_chart'):
+        if hasattr(self.chart_editor, "refresh_chart"):
             self.chart_editor.refresh_chart()

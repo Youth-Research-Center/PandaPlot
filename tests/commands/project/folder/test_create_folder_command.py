@@ -2,15 +2,16 @@
 Unit tests for CreateFolderCommand.
 """
 
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
+
 from pandaplot.commands.project.folder import CreateFolderCommand
-from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project import Project
 from pandaplot.models.project.items.folder import Folder
+from pandaplot.models.state import AppContext, AppState
 
 
 class TestCreateFolderCommand:
@@ -145,11 +146,11 @@ class TestCreateFolderCommand:
         # Check event emission
         event_bus = app_state.event_bus
         event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
-            'project': sample_project,
-            'folder_id': command.created_folder_id,
-            'folder_name': folder_name,
-            'parent_id': None,
-            'folder': command.created_folder
+            "project": sample_project,
+            "folder_id": command.created_folder_id,
+            "folder_name": folder_name,
+            "parent_id": None,
+            "folder": command.created_folder
         })
 
     def test_execute_with_parent_id(self, mock_app_context, sample_project):
@@ -247,7 +248,7 @@ class TestCreateFolderCommand:
         assert event_bus.emit.call_count == 2  # One for create, one for delete
         delete_event_call = event_bus.emit.call_args_list[1]
         assert delete_event_call[0][0] == ProjectEvents.PROJECT_ITEM_REMOVED
-        assert delete_event_call[0][1]['folder_id'] == command.created_folder_id
+        assert delete_event_call[0][1]["folder_id"] == command.created_folder_id
 
     def test_undo_no_folder_id(self, mock_app_context, sample_project):
         """Test undo when no folder_id is set."""
@@ -390,7 +391,7 @@ class TestCreateFolderCommand:
         assert folder.name == folder_name
         assert folder.parent_id == sample_project.root.id  # Should be added to root
 
-    @patch('uuid.uuid4')
+    @patch("uuid.uuid4")
     def test_folder_id_generation(self, mock_uuid, mock_app_context, sample_project):
         """Test that folder ID is generated correctly."""
         app_context, app_state, ui_controller = mock_app_context
@@ -451,11 +452,11 @@ class TestCreateFolderCommand:
         assert event_call[0][0] == ProjectEvents.PROJECT_ITEM_ADDED
         event_data = event_call[0][1]
         
-        expected_keys = {'project', 'folder_id', 'folder_name', 'parent_id', 'folder'}
+        expected_keys = {"project", "folder_id", "folder_name", "parent_id", "folder"}
         assert set(event_data.keys()) == expected_keys
         
-        assert event_data['project'] == sample_project
-        assert event_data['folder_id'] == command.created_folder_id
-        assert event_data['folder_name'] == folder_name
-        assert event_data['parent_id'] == parent_id
-        assert event_data['folder'] == command.created_folder
+        assert event_data["project"] == sample_project
+        assert event_data["folder_id"] == command.created_folder_id
+        assert event_data["folder_name"] == folder_name
+        assert event_data["parent_id"] == parent_id
+        assert event_data["folder"] == command.created_folder

@@ -62,9 +62,9 @@ class CreateEmptyDatasetCommand(Command):
 
             # Create empty DataFrame with basic structure
             empty_data = pd.DataFrame({
-                'Column1': [''],
-                'Column2': [''],
-                'Column3': ['']
+                "Column1": [""],
+                "Column2": [""],
+                "Column3": [""]
             })
 
             # Create dataset ID
@@ -81,11 +81,11 @@ class CreateEmptyDatasetCommand(Command):
 
             # Emit event
             self.app_state.event_bus.emit(DatasetEvents.DATASET_CREATED, {
-                'project': self.project,
-                'dataset_id': self.dataset_id,
-                'dataset_name': self.dataset_name,
-                'folder_id': self.folder_id,
-                'dataset_data': dataset.data
+                "project": self.project,
+                "dataset_id": self.dataset_id,
+                "dataset_name": self.dataset_name,
+                "folder_id": self.folder_id,
+                "dataset_data": dataset.data
             })
 
             if dataset.data is None:
@@ -120,9 +120,9 @@ class CreateEmptyDatasetCommand(Command):
 
                     # Emit event
                     self.app_state.event_bus.emit(DatasetEvents.DATASET_DELETED, {
-                        'project': project,
-                        'dataset_id': self.dataset_id,
-                        'dataset_name': self.dataset_name
+                        "project": project,
+                        "dataset_id": self.dataset_id,
+                        "dataset_name": self.dataset_name
                     })
 
                     self.logger.info(

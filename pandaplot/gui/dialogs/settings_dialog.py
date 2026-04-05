@@ -3,14 +3,26 @@ Modern Settings dialog for the pandaplot application.
 Provides a user interface for changing application preferences with modern PySide6 styling.
 """
 
-from PySide6.QtWidgets import (QVBoxLayout, QHBoxLayout, QPushButton, 
-                             QTabWidget, QWidget, QLabel, QGroupBox, QComboBox,
-                             QSpinBox, QCheckBox, QFrame, QColorDialog,
-                             QMessageBox, QScrollArea)
+from typing import Any, Dict, Optional, override
+
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor
-from typing import Dict, Any, Optional, override
-
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QColorDialog,
+    QComboBox,
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.events.event_types import ConfigEvents
@@ -19,9 +31,9 @@ from pandaplot.services.config.config_manager import ConfigManager
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 THEME_DISPLAY = {
-    'light': 'Light',
-    'dark': 'Dark',
-    'system': 'Auto (System)'
+    "light": "Light",
+    "dark": "Dark",
+    "system": "Auto (System)"
 }
 THEME_REVERSE = {v: k for k, v in THEME_DISPLAY.items()}
 
@@ -76,12 +88,12 @@ class SettingsDialog(PDialog):
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors
-        card_bg = palette.get('card_bg', '#f8f9fa')
-        card_hover = palette.get('card_hover', '#e9ecef')
-        card_border = palette.get('card_border', '#dee2e6')
-        base_fg = palette.get('base_fg', '#000000')
-        secondary_fg = palette.get('secondary_fg', '#555555')
-        accent = palette.get('accent', '#4A90E2')
+        card_bg = palette.get("card_bg", "#f8f9fa")
+        card_hover = palette.get("card_hover", "#e9ecef")
+        card_border = palette.get("card_border", "#dee2e6")
+        base_fg = palette.get("base_fg", "#000000")
+        secondary_fg = palette.get("secondary_fg", "#555555")
+        accent = palette.get("accent", "#4A90E2")
         
         # Apply main dialog styling
         self.setStyleSheet(f"""
@@ -422,16 +434,16 @@ class SettingsDialog(PDialog):
             cfg = ApplicationConfig.default()
 
         self.original_settings = {
-            'auto_save': cfg.auto_save.enabled,
-            'auto_save_interval': cfg.auto_save.interval_seconds,
-            'theme': THEME_DISPLAY.get(cfg.appearance.theme.value, 'Auto (System)'),
-            'accent_color': cfg.appearance.accent_color,
-            'interface_font_size': cfg.appearance.interface_font_size,
-            'editor_font_size': cfg.appearance.editor_font_size,
-            'word_wrap': cfg.editor.word_wrap,
-            'line_numbers': cfg.editor.line_numbers,
-            'tab_size': cfg.editor.tab_size,
-            'chart_dpi': getattr(getattr(cfg, 'chart_display', None), 'dpi', 100),
+            "auto_save": cfg.auto_save.enabled,
+            "auto_save_interval": cfg.auto_save.interval_seconds,
+            "theme": THEME_DISPLAY.get(cfg.appearance.theme.value, "Auto (System)"),
+            "accent_color": cfg.appearance.accent_color,
+            "interface_font_size": cfg.appearance.interface_font_size,
+            "editor_font_size": cfg.appearance.editor_font_size,
+            "word_wrap": cfg.editor.word_wrap,
+            "line_numbers": cfg.editor.line_numbers,
+            "tab_size": cfg.editor.tab_size,
+            "chart_dpi": getattr(getattr(cfg, "chart_display", None), "dpi", 100),
         }
         self.current_settings = self.original_settings.copy()
 
@@ -446,7 +458,7 @@ class SettingsDialog(PDialog):
     def _on_config_event(self, data: Dict[str, Any]):
         if self._applying:
             return
-        config = data.get('config')
+        config = data.get("config")
         if not config:
             return
         # Re-load from live config
@@ -454,50 +466,50 @@ class SettingsDialog(PDialog):
 
     def apply_settings_to_ui(self):
         """Apply current settings to UI controls."""
-        self.auto_save_check.setChecked(self.current_settings['auto_save'])
-        self.auto_save_interval.setValue(self.current_settings['auto_save_interval'])
-        self.theme_combo.setCurrentText(self.current_settings['theme'])
-        self.interface_font_size.setValue(self.current_settings['interface_font_size'])
-        self.editor_font_size.setValue(self.current_settings['editor_font_size'])
-        self.word_wrap_check.setChecked(self.current_settings['word_wrap'])
-        self.line_numbers_check.setChecked(self.current_settings['line_numbers'])
-        self.tab_size_spin.setValue(self.current_settings['tab_size'])
-        if 'chart_dpi' in self.current_settings:
-            self.chart_dpi_spin.setValue(self.current_settings['chart_dpi'])
-        if 'chart_width' in self.current_settings:
-            self.chart_width_spin.setValue(self.current_settings['chart_width'])
-        if 'chart_height' in self.current_settings:
-            self.chart_height_spin.setValue(self.current_settings['chart_height'])
+        self.auto_save_check.setChecked(self.current_settings["auto_save"])
+        self.auto_save_interval.setValue(self.current_settings["auto_save_interval"])
+        self.theme_combo.setCurrentText(self.current_settings["theme"])
+        self.interface_font_size.setValue(self.current_settings["interface_font_size"])
+        self.editor_font_size.setValue(self.current_settings["editor_font_size"])
+        self.word_wrap_check.setChecked(self.current_settings["word_wrap"])
+        self.line_numbers_check.setChecked(self.current_settings["line_numbers"])
+        self.tab_size_spin.setValue(self.current_settings["tab_size"])
+        if "chart_dpi" in self.current_settings:
+            self.chart_dpi_spin.setValue(self.current_settings["chart_dpi"])
+        if "chart_width" in self.current_settings:
+            self.chart_width_spin.setValue(self.current_settings["chart_width"])
+        if "chart_height" in self.current_settings:
+            self.chart_height_spin.setValue(self.current_settings["chart_height"])
         
         # Update accent color button
-        color = self.current_settings['accent_color']
+        color = self.current_settings["accent_color"]
         self.accent_color_btn.setStyleSheet(f"background-color: {color}; border-radius: 4px;")
     
     def get_current_settings_from_ui(self) -> Dict[str, Any]:
         """Get current settings from UI controls."""
         return {
-            'auto_save': self.auto_save_check.isChecked(),
-            'auto_save_interval': self.auto_save_interval.value(),
-            'theme': self.theme_combo.currentText(),
-            'accent_color': self.current_settings['accent_color'],  # Updated via color picker
-            'interface_font_size': self.interface_font_size.value(),
-            'editor_font_size': self.editor_font_size.value(),
-            'word_wrap': self.word_wrap_check.isChecked(),
-            'line_numbers': self.line_numbers_check.isChecked(),
-            'tab_size': self.tab_size_spin.value(),
-            'chart_dpi': self.chart_dpi_spin.value(),
-            'chart_width': self.chart_width_spin.value(),
-            'chart_height': self.chart_height_spin.value()
+            "auto_save": self.auto_save_check.isChecked(),
+            "auto_save_interval": self.auto_save_interval.value(),
+            "theme": self.theme_combo.currentText(),
+            "accent_color": self.current_settings["accent_color"],  # Updated via color picker
+            "interface_font_size": self.interface_font_size.value(),
+            "editor_font_size": self.editor_font_size.value(),
+            "word_wrap": self.word_wrap_check.isChecked(),
+            "line_numbers": self.line_numbers_check.isChecked(),
+            "tab_size": self.tab_size_spin.value(),
+            "chart_dpi": self.chart_dpi_spin.value(),
+            "chart_width": self.chart_width_spin.value(),
+            "chart_height": self.chart_height_spin.value()
         }
     
     def choose_accent_color(self):
         """Open color picker for accent color."""
-        current_color = QColor(self.current_settings['accent_color'])
+        current_color = QColor(self.current_settings["accent_color"])
         color = QColorDialog.getColor(current_color, self, "Choose Accent Color")
         
         if color.isValid():
             color_str = color.name()
-            self.current_settings['accent_color'] = color_str
+            self.current_settings["accent_color"] = color_str
             self.accent_color_btn.setStyleSheet(f"background-color: {color_str}; border-radius: 4px;")
     
     def reset_to_defaults(self):
@@ -523,23 +535,23 @@ class SettingsDialog(PDialog):
             if self._config_manager:
                 # Build mapping for config update
                 mapping = {
-                    'auto_save': {
-                        'enabled': self.current_settings['auto_save'],
-                        'interval_seconds': self.current_settings['auto_save_interval'],
+                    "auto_save": {
+                        "enabled": self.current_settings["auto_save"],
+                        "interval_seconds": self.current_settings["auto_save_interval"],
                     },
-                    'appearance': {
-                        'theme': THEME_REVERSE.get(self.current_settings['theme'], 'system'),
-                        'accent_color': self.current_settings['accent_color'],
-                        'interface_font_size': self.current_settings['interface_font_size'],
-                        'editor_font_size': self.current_settings['editor_font_size'],
+                    "appearance": {
+                        "theme": THEME_REVERSE.get(self.current_settings["theme"], "system"),
+                        "accent_color": self.current_settings["accent_color"],
+                        "interface_font_size": self.current_settings["interface_font_size"],
+                        "editor_font_size": self.current_settings["editor_font_size"],
                     },
-                    'editor': {
-                        'word_wrap': self.current_settings['word_wrap'],
-                        'line_numbers': self.current_settings['line_numbers'],
-                        'tab_size': self.current_settings['tab_size'],
+                    "editor": {
+                        "word_wrap": self.current_settings["word_wrap"],
+                        "line_numbers": self.current_settings["line_numbers"],
+                        "tab_size": self.current_settings["tab_size"],
                     },
-                    'chart_display': {
-                        'dpi': self.current_settings.get('chart_dpi', 100)
+                    "chart_display": {
+                        "dpi": self.current_settings.get("chart_dpi", 100)
                     }
                 }
                 self._config_manager.update(mapping, save=True)

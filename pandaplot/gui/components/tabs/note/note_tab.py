@@ -3,6 +3,7 @@ Note tab widget for displaying and editing notes in the main tab container.
 """
 
 from typing import override
+
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QVBoxLayout,
@@ -57,26 +58,26 @@ class NoteTab(PWidget):
 
     def on_tab_title_changed_event(self, event_data: dict):
         """Update tab title when UI tab title changed event is emitted for this note."""
-        if event_data.get('tab_type') == 'note' and event_data.get('note_id') == self.note.id:
+        if event_data.get("tab_type") == "note" and event_data.get("note_id") == self.note.id:
             self.refresh_tab_title()
 
     def on_note_renamed_event(self, event_data: dict):
         """Fallback in case UI event wasn't published (should be) - ensures title refresh."""
-        if event_data.get('note_id') == self.note.id:
+        if event_data.get("note_id") == self.note.id:
             self.refresh_tab_title()
 
     def on_note_content_changed_event(self, event_data: dict):
-        if event_data.get('note_id') == self.note.id:
+        if event_data.get("note_id") == self.note.id:
             self.refresh_tab_title()
 
     def refresh_tab_title(self):
         """Helper to update the tab title via parent tab widget."""
         parent_container = self.parent()
         # Climb up if needed
-        while parent_container is not None and not hasattr(parent_container, 'update_tab_title'):
+        while parent_container is not None and not hasattr(parent_container, "update_tab_title"):
             parent_container = parent_container.parent()
         if parent_container:
-            update_fn = getattr(parent_container, 'update_tab_title', None)
+            update_fn = getattr(parent_container, "update_tab_title", None)
             if callable(update_fn):
                 new_title = self.get_tab_title()
                 try:

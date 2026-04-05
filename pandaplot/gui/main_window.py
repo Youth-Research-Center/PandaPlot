@@ -46,7 +46,7 @@ class PandaMainWindow(PMainWindow):
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate background color
-        background_color = palette.get('card_bg', '#F5F5F5')
+        background_color = palette.get("card_bg", "#F5F5F5")
         
         # Apply background to central widget
         central_widget = self.centralWidget()

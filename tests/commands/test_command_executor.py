@@ -1,6 +1,7 @@
 from unittest.mock import patch
-from pandaplot.commands.command_executor import CommandExecutor
+
 from pandaplot.commands.base_command import Command
+from pandaplot.commands.command_executor import CommandExecutor
 
 
 class MockCommand(Command):
@@ -496,7 +497,7 @@ class TestEdgeCases:
         executor = CommandExecutor()
         command = MockCommand("FailingCommand", should_fail=True, fail_on="execute")
         
-        with patch('builtins.print'):
+        with patch("builtins.print"):
             executor.execute_command(command)
         
         # Command should not be executed or added to stack
@@ -511,7 +512,7 @@ class TestEdgeCases:
         cmd2 = MockCommand("FailingCommand", should_fail=True, fail_on="execute")
         cmd3 = MockCommand("SuccessCommand2")
         
-        with patch('builtins.print'):
+        with patch("builtins.print"):
             result1 = executor.execute_command(cmd1)
             result2 = executor.execute_command(cmd2)
             result3 = executor.execute_command(cmd3)

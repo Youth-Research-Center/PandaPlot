@@ -41,9 +41,9 @@ class RemoveSeriesCommand(Command):
         chart.remove_data_series(self.series_index)
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-            'chart_id': self.chart_id,
-            'update_type': 'series_removed',
-            'chart': chart,
+            "chart_id": self.chart_id,
+            "update_type": "series_removed",
+            "chart": chart,
         })
         return True
 
@@ -59,9 +59,9 @@ class RemoveSeriesCommand(Command):
         chart.update_modified_time()
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-            'chart_id': self.chart_id,
-            'update_type': 'series_added',
-            'chart': chart,
+            "chart_id": self.chart_id,
+            "update_type": "series_added",
+            "chart": chart,
         })
 
     @override

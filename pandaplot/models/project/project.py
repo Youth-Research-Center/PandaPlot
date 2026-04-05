@@ -1,7 +1,9 @@
 
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
 from pandaplot.models.project.items import Item, ItemCollection
+
 
 class Project:
     """
@@ -115,24 +117,24 @@ class Project:
     def to_dict(self) -> Dict[str, Any]:
         """Convert project to dictionary for serialization."""
         return {
-            'name': self.name,
-            'description': self.description,
-            'root': self.root.to_dict(),
-            'metadata': self.metadata,
-            'version': self.version,
-            'path': self.project_file_path
+            "name": self.name,
+            "description": self.description,
+            "root": self.root.to_dict(),
+            "metadata": self.metadata,
+            "version": self.version,
+            "path": self.project_file_path
         }
         
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Project':
+    def from_dict(cls, data: Dict[str, Any]) -> "Project":
         """Create project from dictionary."""
         project = cls(
-            name=data.get('name', 'Untitled Project'),
-            description=data.get('description', '')
+            name=data.get("name", "Untitled Project"),
+            description=data.get("description", "")
         )
-        project.metadata = data.get('metadata', {})
-        project.version = data.get('version', '1.0')
-        project.project_file_path = data.get('path', None)
+        project.metadata = data.get("metadata", {})
+        project.version = data.get("version", "1.0")
+        project.project_file_path = data.get("path", None)
 
         # TODO: Parse root hierarchy when item types are fully implemented
         return project

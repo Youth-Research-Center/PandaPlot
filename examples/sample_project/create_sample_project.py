@@ -2,23 +2,24 @@
 Example script showing how to use the new project structure system.
 """
 
-import pandas as pd
-import numpy as np
 import os
 import sys
+
+import numpy as np
+import pandas as pd
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 
 from pandaplot.models.project import Project
-from pandaplot.models.project.items import Folder, Dataset, Chart, Note
-from pandaplot.storage.project_data_manager import ProjectDataManager
-from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
-from pandaplot.storage.note_data_manager import NoteDataManager
-from pandaplot.storage.folder_data_manager import FolderDataManager
+from pandaplot.models.project.items import Chart, Dataset, Folder, Note
 from pandaplot.storage.chart_data_manager import ChartDataManager
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
+from pandaplot.storage.folder_data_manager import FolderDataManager
+from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
+from pandaplot.storage.note_data_manager import NoteDataManager
+from pandaplot.storage.project_data_manager import ProjectDataManager
 
 
 def create_project_data_manager() -> ProjectDataManager:
@@ -75,20 +76,20 @@ def create_sample_project():
     
     # Create sample data
     # Monthly Sales data
-    months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
     sales_data = pd.DataFrame({
-        'Month': months,
-        'Sales': [12000, 15000, 13500, 16800, 18200, 21000],
-        'Units': [120, 150, 135, 168, 182, 210],
-        'Returns': [240, 300, 270, 336, 364, 420]
+        "Month": months,
+        "Sales": [12000, 15000, 13500, 16800, 18200, 21000],
+        "Units": [120, 150, 135, 168, 182, 210],
+        "Returns": [240, 300, 270, 336, 364, 420]
     })
     
     # Customer data
     customer_data = pd.DataFrame({
-        'Customer_ID': range(1, 101),
-        'Age': np.random.randint(18, 65, 100),
-        'Purchase_Amount': np.random.normal(500, 150, 100),
-        'Satisfaction': np.random.randint(1, 6, 100)
+        "Customer_ID": range(1, 101),
+        "Age": np.random.randint(18, 65, 100),
+        "Purchase_Amount": np.random.normal(500, 150, 100),
+        "Satisfaction": np.random.randint(1, 6, 100)
     })
     
     # Create datasets
@@ -180,7 +181,7 @@ def print_project_structure(project, item_id, indent_level):
         print(f"{indent}{icon} {item.name}")
         
         # If it's a collection (like Folder), print its children
-        if hasattr(item, 'get_items'):
+        if hasattr(item, "get_items"):
             for child in item.get_items():
                 print_project_structure(project, child.id, indent_level + 1)
 

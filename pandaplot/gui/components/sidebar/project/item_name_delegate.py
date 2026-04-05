@@ -19,13 +19,13 @@ class ItemNameDelegate(QStyledItemDelegate):
         full_text = index.data(Qt.ItemDataRole.DisplayRole)
         if isinstance(full_text, str):
             # Remove emoji prefix
-            if full_text.startswith('📁 '):
+            if full_text.startswith("📁 "):
                 name_only = full_text[2:].strip()
-            elif full_text.startswith('📝 '):
+            elif full_text.startswith("📝 "):
                 name_only = full_text[2:].strip()
-            elif full_text.startswith('📊 '):
+            elif full_text.startswith("📊 "):
                 name_only = full_text[2:].strip()
-            elif full_text.startswith('📈 '):
+            elif full_text.startswith("📈 "):
                 name_only = full_text[2:].strip()
             else:
                 name_only = full_text.strip()
@@ -50,13 +50,13 @@ class ItemNameDelegate(QStyledItemDelegate):
             full_text = index.data(Qt.ItemDataRole.DisplayRole)
             if isinstance(full_text, str):
                 # Preserve the emoji prefix
-                if full_text.startswith('📁 '):
+                if full_text.startswith("📁 "):
                     new_full_text = f"📁 {new_name}"
-                elif full_text.startswith('📝 '):
+                elif full_text.startswith("📝 "):
                     new_full_text = f"📝 {new_name}"
-                elif full_text.startswith('📊 '):
+                elif full_text.startswith("📊 "):
                     new_full_text = f"📊 {new_name}"
-                elif full_text.startswith('📈 '):
+                elif full_text.startswith("📈 "):
                     new_full_text = f"📈 {new_name}"
                 else:
                     new_full_text = new_name

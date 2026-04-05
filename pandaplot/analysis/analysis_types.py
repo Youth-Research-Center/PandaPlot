@@ -2,11 +2,13 @@
 Analysis types and data structures for mathematical analysis operations.
 """
 
-from enum import Enum
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List, Union
-import pandas as pd
+from enum import Enum
+from typing import Any, Dict, List, Optional, Union
+
 import numpy as np
+import pandas as pd
+
 
 class AnalysisType(Enum):
     """Supported analysis types."""
@@ -62,13 +64,13 @@ class AnalysisResult:
         """Convert result to DataFrame for easy integration."""
         if isinstance(self.result_data, pd.Series):
             return pd.DataFrame({
-                'x': self.x_data,
-                'result': self.result_data
+                "x": self.x_data,
+                "result": self.result_data
             })
         else:
             return pd.DataFrame({
-                'x': self.x_data,
-                'result': self.result_data
+                "x": self.x_data,
+                "result": self.result_data
             })
     
     def get_column_name(self) -> str:

@@ -1,7 +1,8 @@
 import json
 import logging
-import pandas as pd
 from typing import override
+
+import pandas as pd
 
 from pandaplot.storage.item_data_manager import ItemDataManager
 
@@ -63,7 +64,7 @@ class DatasetDataManager(ItemDataManager):
             # Read metadata
             json_path = f"{path_in_zip}.json"
             self.logger.debug("Reading dataset metadata from: %s", json_path)
-            metadata = json.loads(zip_file.read(json_path).decode('utf-8'))
+            metadata = json.loads(zip_file.read(json_path).decode("utf-8"))
 
             dataset_name = metadata.get("name", "Unknown")
             dataset_id = metadata.get("id", "Unknown")
@@ -74,7 +75,7 @@ class DatasetDataManager(ItemDataManager):
                 try:
                     csv_path = f"{path_in_zip}.csv"
                     self.logger.debug("Reading dataset data from: %s", csv_path)
-                    csv_content = zip_file.read(csv_path).decode('utf-8')
+                    csv_content = zip_file.read(csv_path).decode("utf-8")
                     # Use StringIO to read CSV from string
                     from io import StringIO
                     data = pd.read_csv(StringIO(csv_content))

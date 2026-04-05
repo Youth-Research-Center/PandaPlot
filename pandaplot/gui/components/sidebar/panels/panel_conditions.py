@@ -7,6 +7,7 @@ from typing import Optional
 
 from PySide6.QtWidgets import QWidget
 
+
 def is_dataset_tab_active(tab_widget: Optional[QWidget]) -> bool:
     """
     Check if current tab is a dataset tab.
@@ -21,7 +22,7 @@ def is_dataset_tab_active(tab_widget: Optional[QWidget]) -> bool:
         return False
 
     class_name = type(tab_widget).__name__
-    return class_name == 'DatasetTab'
+    return class_name == "DatasetTab"
 
 
 def is_chart_tab_active(tab_widget: Optional[QWidget]) -> bool:
@@ -38,7 +39,7 @@ def is_chart_tab_active(tab_widget: Optional[QWidget]) -> bool:
         return False
 
     class_name = type(tab_widget).__name__
-    return class_name == 'ChartTab'
+    return class_name == "ChartTab"
 
 
 

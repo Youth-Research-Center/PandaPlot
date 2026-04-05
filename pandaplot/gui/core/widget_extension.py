@@ -1,13 +1,15 @@
 
 
+import logging
 from abc import abstractmethod
 from collections.abc import Callable
-import logging
 from typing import Any, Dict, List, Optional, Tuple
+
+from PySide6.QtWidgets import QDialog, QMainWindow, QMenuBar, QTabWidget, QWidget
 
 from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.state.app_context import AppContext
-from PySide6.QtWidgets import QMainWindow, QWidget, QMenuBar, QTabWidget, QDialog
+
 
 class WidgetExtension:
     def __init__(self, app_context: AppContext):
@@ -48,7 +50,7 @@ class WidgetExtension:
     def publish_event(self, event_type: str, data: Dict[str, Any] | None = None) -> None:
         """Publish an event through the event bus."""
         event_data = data or {}
-        event_data['source_component'] = self.__class__.__name__
+        event_data["source_component"] = self.__class__.__name__
         self.app_context.event_bus.emit(event_type, event_data)
 
     def subscribe_to_event(self, event_type: str, handler: Callable[[Dict[str, Any]], None]) -> None:

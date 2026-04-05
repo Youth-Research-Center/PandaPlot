@@ -55,11 +55,11 @@ class ProjectTreeWidget(QTreeWidget):
             event.ignore()
             return
 
-        source_type = source_data.get('type', '')
-        source_id = source_data.get('id', '')
+        source_type = source_data.get("type", "")
+        source_id = source_data.get("id", "")
 
         # Don't allow moving the project root
-        if source_type == 'project':
+        if source_type == "project":
             event.ignore()
             return
 
@@ -67,26 +67,26 @@ class ProjectTreeWidget(QTreeWidget):
         target_item = self.itemAt(event.position().toPoint())
 
         # Determine new parent folder ID
-        new_parent_id = 'root'  # Default to project root
+        new_parent_id = "root"  # Default to project root
 
         if target_item:
             target_data = target_item.data(0, Qt.ItemDataRole.UserRole)
             if target_data:
-                target_type = target_data.get('type', '')
+                target_type = target_data.get("type", "")
 
                 # If dropping on a folder, make it the parent
-                if target_type == 'folder':
-                    new_parent_id = target_data.get('id', 'root')
+                if target_type == "folder":
+                    new_parent_id = target_data.get("id", "root")
                     self.logger.debug(
                         "ProjectTreeWidget: dropping on folder new_parent_id=%s", new_parent_id)
                 # If dropping on another item, use its parent folder
-                elif target_type in ['note', 'dataset', 'chart']:
-                    target_item_obj = target_data.get('data')
+                elif target_type in ["note", "dataset", "chart"]:
+                    target_item_obj = target_data.get("data")
                     if target_item_obj and target_item_obj.parent_id:
                         # Check if the parent_id is the root collection ID
                         project = self.parent_panel.app_state.current_project
                         if project and target_item_obj.parent_id == project.root.id:
-                            new_parent_id = 'root'
+                            new_parent_id = "root"
                             self.logger.debug(
                                 "ProjectTreeWidget: target item parent is root; new_parent_id=root")
                         else:
@@ -94,28 +94,28 @@ class ProjectTreeWidget(QTreeWidget):
                             self.logger.debug(
                                 "ProjectTreeWidget: target item parent set to %s", new_parent_id)
                     else:
-                        new_parent_id = 'root'
+                        new_parent_id = "root"
                         self.logger.debug(
                             "ProjectTreeWidget: target item has no parent; new_parent_id=root")
                 # If dropping on project root, use root
-                elif target_type == 'project':
-                    new_parent_id = 'root'
+                elif target_type == "project":
+                    new_parent_id = "root"
 
         # Get current parent folder ID
-        current_item_obj = source_data.get('data')
+        current_item_obj = source_data.get("data")
         if current_item_obj:
             # Check if the parent_id is the root collection ID
             project = self.parent_panel.app_state.current_project
             if project and current_item_obj.parent_id == project.root.id:
-                current_parent_id = 'root'
+                current_parent_id = "root"
                 self.logger.debug(
                     "ProjectTreeWidget: current item parent is root")
             else:
-                current_parent_id = current_item_obj.parent_id if current_item_obj.parent_id else 'root'
+                current_parent_id = current_item_obj.parent_id if current_item_obj.parent_id else "root"
                 self.logger.debug(
                     "ProjectTreeWidget: current item parent is %s", current_parent_id)
         else:
-            current_parent_id = 'root'
+            current_parent_id = "root"
             self.logger.debug(
                 "ProjectTreeWidget: no current item data; current_parent_id=root")
 
@@ -144,7 +144,7 @@ class ProjectTreeWidget(QTreeWidget):
         self._is_dragging = False
 
         # Also set a timer to clear drag state in case events are out of order
-        QTimer.singleShot(100, lambda: setattr(self, '_is_dragging', False))
+        QTimer.singleShot(100, lambda: setattr(self, "_is_dragging", False))
 
     def dragMoveEvent(self, event):
         """Handle drag move events with visual feedback."""
@@ -160,19 +160,19 @@ class ProjectTreeWidget(QTreeWidget):
                 try:
                     target_data = target_item.data(0, Qt.ItemDataRole.UserRole)
                     if target_data:
-                        target_type = target_data.get('type', '')
-                        target_id = target_data.get('id', '')
+                        target_type = target_data.get("type", "")
+                        target_id = target_data.get("id", "")
 
                         self.logger.debug(
                             "ProjectTreeWidget: drag over item %s %s", target_type, target_id)
 
                         # Valid drop targets: folders (drop into), project root, or any item (to drop beside it)
-                        if target_type in ['folder', 'project', 'note', 'dataset', 'chart']:
+                        if target_type in ["folder", "project", "note", "dataset", "chart"]:
                             # Only highlight folders and project root for "drop into" operations
                             # For other items, provide subtle feedback since it's a "drop beside" operation
-                            if target_type in ['folder', 'project']:
+                            if target_type in ["folder", "project"]:
                                 self._highlight_item(target_item)
-                                if target_type == 'folder':
+                                if target_type == "folder":
                                     self.setToolTip("Drop into folder")
                                 else:
                                     self.setToolTip("Drop at project root")
@@ -214,7 +214,7 @@ class ProjectTreeWidget(QTreeWidget):
             try:
                 item_data = item.data(0, Qt.ItemDataRole.UserRole)
                 self.logger.debug("ProjectTreeWidget: highlighting %s %s", item_data.get(
-                    'type', 'unknown'), item_data.get('id', 'no-id'))
+                    "type", "unknown"), item_data.get("id", "no-id"))
             except RuntimeError:
                 # Item has been deleted by Qt, skip highlighting
                 self.logger.debug(
@@ -227,14 +227,14 @@ class ProjectTreeWidget(QTreeWidget):
 
             # Determine highlight color based on item type
             target_data = item.data(0, Qt.ItemDataRole.UserRole)
-            target_type = target_data.get('type', '') if target_data else ''
+            target_type = target_data.get("type", "") if target_data else ""
 
             from PySide6.QtGui import QColor
 
-            if target_type == 'folder':
+            if target_type == "folder":
                 # Green for folders (items will be moved INTO the folder)
                 highlight_color = QColor(144, 238, 144, 120)  # Light green
-            elif target_type == 'project':
+            elif target_type == "project":
                 # Blue for project root (items will be moved to root level)
                 highlight_color = QColor(173, 216, 230, 120)  # Light blue
             else:

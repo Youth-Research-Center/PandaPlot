@@ -39,7 +39,7 @@ class ProjectTreeManager:
             root_item = QTreeWidgetItem([f"📁 {project.name}"])
             root_item.setToolTip(0, f"Project: {project.description}")
             root_item.setData(0, Qt.ItemDataRole.UserRole, {
-                              'type': 'project', 'id': 'root'})
+                              "type": "project", "id": "root"})
 
             # Make project root non-editable
             root_item.setFlags(root_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -66,7 +66,7 @@ class ProjectTreeManager:
             tree_item.setData(0, Qt.ItemDataRole.UserRole, item_data)
 
             # Set item flags based on type
-            if item_type == 'project':
+            if item_type == "project":
                 # Project root is not editable
                 tree_item.setFlags(tree_item.flags() & ~
                                    Qt.ItemFlag.ItemIsEditable)
@@ -93,8 +93,8 @@ class ProjectTreeManager:
         def check_item(item):
             if item.isExpanded():
                 item_data = item.data(0, Qt.ItemDataRole.UserRole)
-                if item_data and item_data.get('type') in ['project', 'folder']:
-                    expanded.add(item_data.get('id', ''))
+                if item_data and item_data.get("type") in ["project", "folder"]:
+                    expanded.add(item_data.get("id", ""))
 
             # Check children
             for i in range(item.childCount()):
@@ -110,7 +110,7 @@ class ProjectTreeManager:
         """Restore the expanded state of folders."""
         def expand_item(item):
             item_data = item.data(0, Qt.ItemDataRole.UserRole)
-            if item_data and item_data.get('id') in expanded_folders:
+            if item_data and item_data.get("id") in expanded_folders:
                 item.setExpanded(True)
 
             # Check children
@@ -132,10 +132,10 @@ class ProjectTreeManager:
             return None
 
         return {
-            'item': current_item,
-            'type': item_data.get('type', ''),
-            'id': item_data.get('id', ''),
-            'data': item_data.get('data')
+            "item": current_item,
+            "type": item_data.get("type", ""),
+            "id": item_data.get("id", ""),
+            "data": item_data.get("data")
         }
 
     def get_target_folder_id(self):
@@ -144,11 +144,11 @@ class ProjectTreeManager:
         if not selected_info:
             return None
 
-        if selected_info['type'] == 'folder':
-            return selected_info['id']
-        elif selected_info['type'] == 'project':
+        if selected_info["type"] == "folder":
+            return selected_info["id"]
+        elif selected_info["type"] == "project":
             return None  # Root level
         else:
             # For non-folder items, get their parent folder
-            item_obj = selected_info['data']
+            item_obj = selected_info["data"]
             return item_obj.parent_id if item_obj else None

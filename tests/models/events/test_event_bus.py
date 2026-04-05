@@ -10,7 +10,7 @@ class TestEventBus:
         """Test EventBus initialization."""
         event_bus = EventBus()
 
-        assert hasattr(event_bus, '_subscribers')
+        assert hasattr(event_bus, "_subscribers")
         assert len(event_bus._subscribers) == 0
 
     def test_subscribe_single_callback(self):
@@ -98,8 +98,8 @@ class TestEventBus:
 
         # EventBus converts None to {} and adds metadata
         expected_data = {
-            'event_type': 'test_event',
-            'original_event': 'test_event'
+            "event_type": "test_event",
+            "original_event": "test_event"
         }
         callback.assert_called_once_with(expected_data)
 
@@ -116,8 +116,8 @@ class TestEventBus:
         expected_data = {
             "key": "value",
             "number": 42,
-            'event_type': 'test_event',
-            'original_event': 'test_event'
+            "event_type": "test_event",
+            "original_event": "test_event"
         }
         callback.assert_called_once_with(expected_data)
 
@@ -131,8 +131,8 @@ class TestEventBus:
 
         # EventBus treats None as empty dict and adds metadata
         expected_data = {
-            'event_type': 'test_event',
-            'original_event': 'test_event'
+            "event_type": "test_event",
+            "original_event": "test_event"
         }
         callback.assert_called_once_with(expected_data)
 
@@ -161,8 +161,8 @@ class TestEventBus:
             # Expected data includes the original data plus metadata
             expected_data = data.copy()
             expected_data.update({
-                'event_type': 'test_event',
-                'original_event': 'test_event'
+                "event_type": "test_event",
+                "original_event": "test_event"
             })
             callback.assert_called_once_with(expected_data)
 
@@ -183,8 +183,8 @@ class TestEventBus:
         # Expected data includes metadata
         expected_data = {
             "message": {"data": "test_data"},
-            'event_type': 'test_event',
-            'original_event': 'test_event'
+            "event_type": "test_event",
+            "original_event": "test_event"
         }
         callback1.assert_called_once_with(expected_data)
         callback2.assert_called_once_with(expected_data)

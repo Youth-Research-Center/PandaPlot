@@ -2,6 +2,7 @@ import json
 import logging
 import os
 from pathlib import Path
+
 from pandaplot.models.project import Project
 
 
@@ -13,7 +14,7 @@ class ProjectManager:
     
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
-        self.supported_extensions = ['.pplot']
+        self.supported_extensions = [".pplot"]
         self.logger.debug("ProjectManager initialized with supported extensions: %s", self.supported_extensions)
         
     def create_project(self, name: str) -> Project:
@@ -57,7 +58,7 @@ class ProjectManager:
         
         try:
             self.logger.debug("Reading project file: %s", file_path)
-            with open(file_path, 'r', encoding='utf-8') as file:
+            with open(file_path, "r", encoding="utf-8") as file:
                 data = json.load(file)
                 
             # Validate required fields
@@ -118,7 +119,7 @@ class ProjectManager:
             
             # Save to file
             self.logger.debug("Writing project data to file: %s", file_path)
-            with open(file_path, 'w', encoding='utf-8') as file:
+            with open(file_path, "w", encoding="utf-8") as file:
                 json.dump(data, file, indent=2, ensure_ascii=False)
                 
             self.logger.info("Successfully saved project '%s' to: %s", project.name, file_path)

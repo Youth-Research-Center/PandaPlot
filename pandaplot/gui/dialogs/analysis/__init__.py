@@ -8,8 +8,8 @@ from .integral_dialog import IntegralDialog
 from .smoothing_dialog import SmoothingDialog
 
 __all__ = [
-    'BaseAnalysisDialog',
-    'DerivativeDialog',
-    'IntegralDialog',
-    'SmoothingDialog'
+    "BaseAnalysisDialog",
+    "DerivativeDialog",
+    "IntegralDialog",
+    "SmoothingDialog"
 ]

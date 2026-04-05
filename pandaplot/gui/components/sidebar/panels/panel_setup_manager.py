@@ -12,8 +12,8 @@ from pandaplot.gui.components.sidebar.panels.conditional_panel_manager import (
     ConditionalPanelManager,
 )
 from pandaplot.gui.components.sidebar.panels.panel_conditions import (
-    is_dataset_tab_active,
     is_chart_tab_active,
+    is_dataset_tab_active,
 )
 from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
 from pandaplot.gui.components.sidebar.transform.transform_panel import TransformPanel

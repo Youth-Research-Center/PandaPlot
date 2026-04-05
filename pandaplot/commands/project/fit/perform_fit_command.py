@@ -1,7 +1,6 @@
 import logging
 
 
-
 class PerformFitCommand:
     def __init__(self, fit_panel):
         self.fit_results = None

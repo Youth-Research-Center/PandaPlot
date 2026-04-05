@@ -108,10 +108,10 @@ class ChangeColumnDtypeCommand(Command):
                 return False
                 
             # Apply the converted data
-            self.dataset.data[self.column_name] = conversion_result['converted_data']
+            self.dataset.data[self.column_name] = conversion_result["converted_data"]
             
             # Show conversion report if there were issues
-            if conversion_result['errors_count'] > 0:
+            if conversion_result["errors_count"] > 0:
                 self.ui_controller.show_warning_message(
                     "Column Type Changed", 
                     f"Column '{self.column_name}' type changed from {self.original_dtype} to {self.target_dtype}.\n"
@@ -157,22 +157,22 @@ class ChangeColumnDtypeCommand(Command):
             errors_count = 0
             converted_data = None
             
-            if self.target_dtype == 'int64':
+            if self.target_dtype == "int64":
                 # Convert to integer
-                converted_data = pd.to_numeric(original_series, errors='coerce').astype('Int64')
+                converted_data = pd.to_numeric(original_series, errors="coerce").astype("Int64")
                 errors_count = converted_data.isna().sum() - original_series.isna().sum()
                 
-            elif self.target_dtype == 'float64':
+            elif self.target_dtype == "float64":
                 # Convert to float
-                converted_data = pd.to_numeric(original_series, errors='coerce')
+                converted_data = pd.to_numeric(original_series, errors="coerce")
                 errors_count = converted_data.isna().sum() - original_series.isna().sum()
                 
-            elif self.target_dtype == 'object' or self.target_dtype == 'string':
+            elif self.target_dtype == "object" or self.target_dtype == "string":
                 # Convert to string - should always work
-                converted_data = original_series.astype('string')
+                converted_data = original_series.astype("string")
                 errors_count = 0
                 
-            elif self.target_dtype == 'bool':
+            elif self.target_dtype == "bool":
                 # Convert to boolean
                 # Try to interpret common boolean representations
                 def convert_to_bool(value):
@@ -184,18 +184,18 @@ class ChangeColumnDtypeCommand(Command):
                         return bool(value)
                     if isinstance(value, str):
                         lower_val = value.lower().strip()
-                        if lower_val in ['true', '1', 'yes', 'y', 't']:
+                        if lower_val in ["true", "1", "yes", "y", "t"]:
                             return True
-                        elif lower_val in ['false', '0', 'no', 'n', 'f']:
+                        elif lower_val in ["false", "0", "no", "n", "f"]:
                             return False
                     return np.nan
                 
                 converted_data = original_series.apply(convert_to_bool)
                 errors_count = converted_data.isna().sum() - original_series.isna().sum()
                 
-            elif self.target_dtype == 'datetime64[ns]':
+            elif self.target_dtype == "datetime64[ns]":
                 # Convert to datetime
-                converted_data = pd.to_datetime(original_series, errors='coerce')
+                converted_data = pd.to_datetime(original_series, errors="coerce")
                 errors_count = converted_data.isna().sum() - original_series.isna().sum()
                 
             else:
@@ -206,10 +206,10 @@ class ChangeColumnDtypeCommand(Command):
                 return None
             
             return {
-                'converted_data': converted_data,
-                'errors_count': errors_count,
-                'original_dtype': self.original_dtype,
-                'target_dtype': self.target_dtype
+                "converted_data": converted_data,
+                "errors_count": errors_count,
+                "original_dtype": self.original_dtype,
+                "target_dtype": self.target_dtype
             }
             
         except Exception as e:
@@ -241,7 +241,7 @@ class ChangeColumnDtypeCommand(Command):
             # Re-execute the conversion
             conversion_result = self._convert_column_dtype()
             if conversion_result:
-                self.dataset.data[self.column_name] = conversion_result['converted_data']
+                self.dataset.data[self.column_name] = conversion_result["converted_data"]
                 
                 # Emit event for data change
                 self.app_context.event_bus.emit(

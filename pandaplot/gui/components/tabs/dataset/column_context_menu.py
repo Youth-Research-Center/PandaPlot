@@ -44,7 +44,7 @@ class ColumnHeaderContextMenu(QMenu):
                 self.dataset_id, 
                 column_names=[f"Column_{col}_{random()}" for col in self.column_indices], 
                 reference_positions=self.column_indices,
-                side='left'
+                side="left"
             ))
         )
         self.addAction(add_col_left_action)
@@ -56,7 +56,7 @@ class ColumnHeaderContextMenu(QMenu):
                 self.dataset_id, 
                 column_names=[f"Column_{col+1}_{random()}" for col in self.column_indices], 
                 reference_positions=self.column_indices,
-                side='right'
+                side="right"
             ))
         )
         self.addAction(add_col_right_action)

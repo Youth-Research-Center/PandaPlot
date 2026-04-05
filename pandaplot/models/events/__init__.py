@@ -6,28 +6,28 @@ This module provides a simplified event bus architecture for decoupling componen
 
 from .event_bus import EventBus
 from .event_types import (
+    AnalysisEvents,
     AppEvents,
+    ChartEvents,
     DatasetEvents,
     DatasetOperationEvents,
-    AnalysisEvents,
-    ChartEvents,
-    UIEvents,
-    ProjectEvents,
-    NoteEvents,
     EventHierarchy,
-    FitEvents
+    FitEvents,
+    NoteEvents,
+    ProjectEvents,
+    UIEvents,
 )
 
 __all__ = [
-    'AppEvents',
-    'EventBus',
-    'DatasetEvents',
-    'DatasetOperationEvents', 
-    'AnalysisEvents',
-    'ChartEvents',
-    'UIEvents',
-    'ProjectEvents',
-    'NoteEvents',
-    'EventHierarchy',
-    'FitEvents'
+    "AppEvents",
+    "EventBus",
+    "DatasetEvents",
+    "DatasetOperationEvents", 
+    "AnalysisEvents",
+    "ChartEvents",
+    "UIEvents",
+    "ProjectEvents",
+    "NoteEvents",
+    "EventHierarchy",
+    "FitEvents"
 ]

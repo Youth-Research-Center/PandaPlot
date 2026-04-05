@@ -116,12 +116,12 @@ class TransformPanel(PWidget):
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
-        card_bg = palette.get('card_bg', '#ffffff')
-        card_border = palette.get('card_border', '#dee2e6')
-        base_fg = palette.get('base_fg', '#333333')
-        secondary_fg = palette.get('secondary_fg', '#666666')
-        accent = palette.get('accent', '#4CAF50')
-        card_hover = palette.get('card_hover', '#e5f3ff')
+        card_bg = palette.get("card_bg", "#ffffff")
+        card_border = palette.get("card_border", "#dee2e6")
+        base_fg = palette.get("base_fg", "#333333")
+        secondary_fg = palette.get("secondary_fg", "#666666")
+        accent = palette.get("accent", "#4CAF50")
+        card_hover = palette.get("card_hover", "#e5f3ff")
         
         # Apply theme to main widget (like project view panel)
         self.setStyleSheet(f"""
@@ -407,11 +407,11 @@ class TransformPanel(PWidget):
     def update_dataset_info(self):
         """Update the dataset information display."""
         if self.current_dataset:
-            dataset_name = getattr(self.current_dataset, 'name', 'Unknown Dataset')
+            dataset_name = getattr(self.current_dataset, "name", "Unknown Dataset")
             self.dataset_label.setText(dataset_name)
             
             # Get row count if available
-            if hasattr(self.current_dataset, 'data') and self.current_dataset.data is not None:
+            if hasattr(self.current_dataset, "data") and self.current_dataset.data is not None:
                 try:
                     df = self.current_dataset.data
                     row_count = len(df)
@@ -437,7 +437,7 @@ class TransformPanel(PWidget):
         self.source_column_list.clear()
         self.available_columns = []
         
-        if self.current_dataset and hasattr(self.current_dataset, 'data') and self.current_dataset.data is not None:
+        if self.current_dataset and hasattr(self.current_dataset, "data") and self.current_dataset.data is not None:
             try:
                 df = self.current_dataset.data
                 self.available_columns = list(df.columns)
@@ -505,7 +505,7 @@ class TransformPanel(PWidget):
         
         try:
             # Get dataset ID and preview rows
-            dataset_id = getattr(self.current_dataset, 'id', None)
+            dataset_id = getattr(self.current_dataset, "id", None)
             preview_rows = int(self.preview_rows_combo.currentText())
             
             if dataset_id:
@@ -517,20 +517,20 @@ class TransformPanel(PWidget):
                     preview_rows=preview_rows
                 )
                 
-                if preview_result and 'error' not in preview_result:
+                if preview_result and "error" not in preview_result:
                     # Format preview display
                     preview_text = f"Source ({source_column}):\n"
-                    for i, value in enumerate(preview_result['source_values']):
+                    for i, value in enumerate(preview_result["source_values"]):
                         preview_text += f"  {i+1}: {value}\n"
                     
                     preview_text += f"\nFunction: {function_code}\n"
                     preview_text += "Transformed:\n"
-                    for i, value in enumerate(preview_result['transformed_values']):
+                    for i, value in enumerate(preview_result["transformed_values"]):
                         preview_text += f"  {i+1}: {value}\n"
                     
                     self.preview_text.setPlainText(preview_text)
                 else:
-                    error_msg = preview_result.get('error', 'Preview generation failed') if preview_result else 'Preview unavailable'
+                    error_msg = preview_result.get("error", "Preview generation failed") if preview_result else "Preview unavailable"
                     self.preview_text.setPlainText(f"Preview error: {error_msg}")
             else:
                 # Fallback to simple preview without controller
@@ -575,7 +575,7 @@ class TransformPanel(PWidget):
         
         try:
             # Get dataset ID
-            dataset_id = getattr(self.current_dataset, 'id', None)
+            dataset_id = getattr(self.current_dataset, "id", None)
             if not dataset_id:
                 self.logger.warning("TransformPanel: dataset id not available; aborting transform")
                 return
@@ -592,11 +592,11 @@ class TransformPanel(PWidget):
             if success:
                 # Publish transform completion event
                 self.publish_event(DatasetOperationEvents.DATASET_COLUMN_ADDED, {
-                    'dataset_id': dataset_id,
-                    'column_name': new_column_name,
-                    'transform_type': 'custom_function',
-                    'source_column': source_column,
-                    'function_code': function_code
+                    "dataset_id": dataset_id,
+                    "column_name": new_column_name,
+                    "transform_type": "custom_function",
+                    "source_column": source_column,
+                    "function_code": function_code
                 })
                 self.logger.info("TransformPanel: transform applied %s -> %s using %s", source_column, new_column_name, function_code)
                 # Clear the panel after successful transform
@@ -638,21 +638,21 @@ class TransformPanel(PWidget):
     
     def on_column_added(self, event_data):
         """Handle specific column additions."""
-        dataset_id = event_data.get('dataset_id')
-        if self.current_dataset and hasattr(self.current_dataset, 'id') and dataset_id == self.current_dataset.id:
+        dataset_id = event_data.get("dataset_id")
+        if self.current_dataset and hasattr(self.current_dataset, "id") and dataset_id == self.current_dataset.id:
             self.refresh_column_list()
     
     def on_column_removed(self, event_data):
         """Handle specific column removals.""" 
-        dataset_id = event_data.get('dataset_id')
-        if self.current_dataset and hasattr(self.current_dataset, 'id') and dataset_id == self.current_dataset.id:
+        dataset_id = event_data.get("dataset_id")
+        if self.current_dataset and hasattr(self.current_dataset, "id") and dataset_id == self.current_dataset.id:
             self.refresh_column_list()
     
     def on_tab_changed(self, event_data):
         """Handle tab change events."""
-        if event_data.get('tab_type') == 'dataset':
+        if event_data.get("tab_type") == "dataset":
             # Update context for new dataset tab
-            dataset_id = event_data.get('dataset_id')
+            dataset_id = event_data.get("dataset_id")
             project = self.app_context.app_state.current_project
             if project:
                 dataset = project.find_item(dataset_id)
@@ -670,7 +670,7 @@ class TransformPanel(PWidget):
     
     def refresh_column_list(self):
         """Refresh the column list from current dataset."""
-        if self.current_dataset and hasattr(self.current_dataset, 'data') and self.current_dataset.data is not None:
+        if self.current_dataset and hasattr(self.current_dataset, "data") and self.current_dataset.data is not None:
             self.available_columns = list(self.current_dataset.data.columns)
             self.source_column_list.clear()
             self.source_column_list.addItems(self.available_columns)

@@ -42,11 +42,11 @@ class TransformColumnCommand(Command):
         self.dataset = None
 
         # Extract config
-        self.new_column_name = transform_config['new_column_name']
-        self.transform_type = transform_config['transform_type']
-        self.source_columns = transform_config['source_columns']
-        self.expression = transform_config['expression']
-        self.replace_existing = transform_config.get('replace_existing', False)
+        self.new_column_name = transform_config["new_column_name"]
+        self.transform_type = transform_config["transform_type"]
+        self.source_columns = transform_config["source_columns"]
+        self.expression = transform_config["expression"]
+        self.replace_existing = transform_config.get("replace_existing", False)
 
     @override
     def execute(self) -> bool:
@@ -70,7 +70,7 @@ class TransformColumnCommand(Command):
                 return False
 
             # Get current dataframe
-            if not hasattr(self.dataset, 'data') or self.dataset.data is None:
+            if not hasattr(self.dataset, "data") or self.dataset.data is None:
                 self.logger.warning("Dataset has no data")
                 return False
 
@@ -105,7 +105,7 @@ class TransformColumnCommand(Command):
             if not self.dataset or not isinstance(self.dataset, Dataset):
                 return False
 
-            if not hasattr(self.dataset, 'data') or self.dataset.data is None:
+            if not hasattr(self.dataset, "data") or self.dataset.data is None:
                 return False
 
             df = self.dataset.data.copy()
@@ -135,7 +135,7 @@ class TransformColumnCommand(Command):
     def _get_dataset(self):
         """Get dataset from app context."""
         try:
-            if self.app_context and hasattr(self.app_context, 'app_state'):
+            if self.app_context and hasattr(self.app_context, "app_state"):
                 current_project = self.app_context.app_state.current_project
                 if current_project:
                     return current_project.find_item(self.dataset_id)
@@ -165,7 +165,7 @@ class TransformColumnCommand(Command):
 
         # Get dataframe for validation
         try:
-            if not hasattr(self.dataset, 'data') or self.dataset.data is None:
+            if not hasattr(self.dataset, "data") or self.dataset.data is None:
                 self.logger.error("Dataset has no data")
                 return False
             df = self.dataset.data
@@ -202,11 +202,11 @@ class TransformColumnCommand(Command):
             # Create safe execution environment
             safe_globals = self._create_safe_execution_environment()
 
-            if self.transform_type == 'column':
+            if self.transform_type == "column":
                 return self._execute_column_operation(df, safe_globals)
-            elif self.transform_type == 'row':
+            elif self.transform_type == "row":
                 return self._execute_row_operation(df, safe_globals)
-            elif self.transform_type == 'multi_column':
+            elif self.transform_type == "multi_column":
                 return self._execute_multi_column_operation(df, safe_globals)
             else:
                 self.logger.error(f"Unknown transform type: {self.transform_type}")
@@ -223,10 +223,10 @@ class TransformColumnCommand(Command):
 
         # Create local variables for evaluation
         local_vars = {
-            'value': source_data,
-            'x': source_data,  # Alternative name
-            'column': source_data,
-            'data': source_data
+            "value": source_data,
+            "x": source_data,  # Alternative name
+            "column": source_data,
+            "data": source_data
         }
 
         # Execute expression
@@ -249,8 +249,8 @@ class TransformColumnCommand(Command):
         # For row operations, we apply the function to each row
         def row_transform(row):
             local_vars = {
-                'row': row,
-                'r': row  # Alternative name
+                "row": row,
+                "r": row  # Alternative name
             }
             return eval(self.expression, safe_globals, local_vars)
 
@@ -264,9 +264,9 @@ class TransformColumnCommand(Command):
 
         # Create local variables
         local_vars = {
-            'cols': selected_columns,
-            'columns': selected_columns,
-            'data': selected_columns
+            "cols": selected_columns,
+            "columns": selected_columns,
+            "data": selected_columns
         }
 
         # Execute expression
@@ -292,52 +292,52 @@ class TransformColumnCommand(Command):
         # Create safe environment with commonly used functions
         safe_globals = {
             # Pandas and numpy
-            'pd': pd,
-            'np': np,
-            'math': math,
+            "pd": pd,
+            "np": np,
+            "math": math,
 
             # Built-in functions (safe subset)
-            'abs': abs,
-            'min': min,
-            'max': max,
-            'sum': sum,
-            'len': len,
-            'round': round,
-            'int': int,
-            'float': float,
-            'str': str,
-            'bool': bool,
-            'list': list,
-            'dict': dict,
-            'range': range,
-            'enumerate': enumerate,
-            'zip': zip,
+            "abs": abs,
+            "min": min,
+            "max": max,
+            "sum": sum,
+            "len": len,
+            "round": round,
+            "int": int,
+            "float": float,
+            "str": str,
+            "bool": bool,
+            "list": list,
+            "dict": dict,
+            "range": range,
+            "enumerate": enumerate,
+            "zip": zip,
 
             # Math functions
-            'sqrt': math.sqrt,
-            'log': math.log,
-            'log10': math.log10,
-            'exp': math.exp,
-            'sin': math.sin,
-            'cos': math.cos,
-            'tan': math.tan,
-            'floor': math.floor,
-            'ceil': math.ceil,
+            "sqrt": math.sqrt,
+            "log": math.log,
+            "log10": math.log10,
+            "exp": math.exp,
+            "sin": math.sin,
+            "cos": math.cos,
+            "tan": math.tan,
+            "floor": math.floor,
+            "ceil": math.ceil,
 
             # Pandas functions
-            'to_datetime': pd.to_datetime,
-            'to_numeric': pd.to_numeric,
-            'isna': pd.isna,
-            'notna': pd.notna,
-            'cut': pd.cut,
-            'qcut': pd.qcut,
+            "to_datetime": pd.to_datetime,
+            "to_numeric": pd.to_numeric,
+            "isna": pd.isna,
+            "notna": pd.notna,
+            "cut": pd.cut,
+            "qcut": pd.qcut,
 
             # Numpy functions
-            'mean': np.mean,
-            'median': np.median,
-            'std': np.std,
-            'var': np.var,
-            'percentile': np.percentile,
+            "mean": np.mean,
+            "median": np.median,
+            "std": np.std,
+            "var": np.var,
+            "percentile": np.percentile,
         }
 
         return safe_globals

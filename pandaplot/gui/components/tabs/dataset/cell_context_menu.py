@@ -48,7 +48,7 @@ class CellContextMenu(QMenu):
                 self.app_context, 
                 self.dataset_id, 
                 reference_positions=rows,  # Reference the selected rows
-                side='below'  # Insert below selected rows
+                side="below"  # Insert below selected rows
             ))
         )
         self.addAction(add_row_below_action)
@@ -59,7 +59,7 @@ class CellContextMenu(QMenu):
                 self.app_context, 
                 self.dataset_id, 
                 reference_positions=rows,  # Reference the selected rows
-                side='above'  # Insert above selected rows
+                side="above"  # Insert above selected rows
             ))
         )
         self.addAction(add_row_above_action)
@@ -71,7 +71,7 @@ class CellContextMenu(QMenu):
                 self.dataset_id, 
                 column_names=[f"Column_{col+1}_{random()}" for col in cols], 
                 reference_positions=cols,  # Reference the selected columns
-                side='right'  # Insert to the right of selected columns
+                side="right"  # Insert to the right of selected columns
             ))
         )
         self.addAction(add_col_right_action)
@@ -83,7 +83,7 @@ class CellContextMenu(QMenu):
                 self.dataset_id, 
                 column_names=[f"Column_{col}_{random()}" for col in cols], 
                 reference_positions=cols,  # Reference the selected columns
-                side='left'  # Insert to the left of selected columns
+                side="left"  # Insert to the left of selected columns
             ))
         )
         self.addAction(add_col_left_action)

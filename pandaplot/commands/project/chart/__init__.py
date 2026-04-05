@@ -6,8 +6,8 @@ from .create_chart_command import CreateChartCommand
 from .remove_series_command import RemoveSeriesCommand
 
 __all__ = [
-    'AddSeriesCommand',
-    'ApplyChartPropertiesCommand',
-    'CreateChartCommand',
-    'RemoveSeriesCommand',
+    "AddSeriesCommand",
+    "ApplyChartPropertiesCommand",
+    "CreateChartCommand",
+    "RemoveSeriesCommand",
 ]

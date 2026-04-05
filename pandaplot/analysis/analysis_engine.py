@@ -2,17 +2,16 @@
 Core analysis engine providing mathematical analysis operations.
 """
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
-from typing import Optional
-from scipy.signal import savgol_filter
-from scipy.interpolate import interp1d, CubicSpline
 from scipy.integrate import cumulative_trapezoid, trapezoid
+from scipy.interpolate import CubicSpline, interp1d
+from scipy.signal import savgol_filter
 
-from .analysis_types import (
-    AnalysisType, AnalysisResult, AnalysisParameters,
-    DerivativeMethod, SmoothingMethod, InterpolationMethod
-)
+from .analysis_types import AnalysisParameters, AnalysisResult, AnalysisType, DerivativeMethod, InterpolationMethod, SmoothingMethod
+
 
 class AnalysisEngine:
     """
@@ -59,10 +58,10 @@ class AnalysisEngine:
         
         # Calculate statistics
         statistics = {
-            'min': float(np.min(derivative)),
-            'max': float(np.max(derivative)),
-            'mean': float(np.mean(derivative)),
-            'std': float(np.std(derivative))
+            "min": float(np.min(derivative)),
+            "max": float(np.max(derivative)),
+            "mean": float(np.mean(derivative)),
+            "std": float(np.std(derivative))
         }
         
         parameters = AnalysisParameters(
@@ -79,7 +78,7 @@ class AnalysisEngine:
             result_data=pd.Series(derivative, index=x_slice.index),
             parameters=parameters,
             statistics=statistics,
-            metadata={'method_used': method}
+            metadata={"method_used": method}
         )
     
     @staticmethod
@@ -119,9 +118,9 @@ class AnalysisEngine:
             total_integral = np.trapz(y_slice, x_slice)
         
         statistics = {
-            'total_integral': float(total_integral),
-            'final_value': float(integral_values[-1]),
-            'mean_rate': float(total_integral / (x_slice.iloc[-1] - x_slice.iloc[0])) if len(x_slice) > 1 else 0.0
+            "total_integral": float(total_integral),
+            "final_value": float(integral_values[-1]),
+            "mean_rate": float(total_integral / (x_slice.iloc[-1] - x_slice.iloc[0])) if len(x_slice) > 1 else 0.0
         }
         
         parameters = AnalysisParameters(
@@ -137,7 +136,7 @@ class AnalysisEngine:
             result_data=pd.Series(integral_values, index=x_slice.index),
             parameters=parameters,
             statistics=statistics,
-            metadata={'method': 'trapezoidal'}
+            metadata={"method": "trapezoidal"}
         )
     
     @staticmethod
@@ -175,9 +174,9 @@ class AnalysisEngine:
         total_length = np.sum(arc_segments)
         
         statistics = {
-            'total_length': float(total_length),
-            'mean_segment': float(np.mean(arc_segments)) if len(arc_segments) > 0 else 0.0,
-            'max_segment': float(np.max(arc_segments)) if len(arc_segments) > 0 else 0.0
+            "total_length": float(total_length),
+            "mean_segment": float(np.mean(arc_segments)) if len(arc_segments) > 0 else 0.0,
+            "max_segment": float(np.max(arc_segments)) if len(arc_segments) > 0 else 0.0
         }
         
         parameters = AnalysisParameters(
@@ -193,7 +192,7 @@ class AnalysisEngine:
             result_data=pd.Series(cumulative_length, index=x_slice.index),
             parameters=parameters,
             statistics=statistics,
-            metadata={'method': 'euclidean_distance'}
+            metadata={"method": "euclidean_distance"}
         )
     
     @staticmethod
@@ -228,8 +227,8 @@ class AnalysisEngine:
         
         # Apply smoothing based on method
         if method == SmoothingMethod.SAVGOL.value:
-            window_length = kwargs.get('window_length', min(11, len(y_slice) // 2 * 2 + 1))
-            poly_order = kwargs.get('polynomial_order', min(3, window_length - 1))
+            window_length = kwargs.get("window_length", min(11, len(y_slice) // 2 * 2 + 1))
+            poly_order = kwargs.get("polynomial_order", min(3, window_length - 1))
             # Ensure window_length is odd and >= poly_order + 1
             if window_length % 2 == 0:
                 window_length += 1
@@ -237,18 +236,18 @@ class AnalysisEngine:
             smoothed = savgol_filter(y_slice, window_length, poly_order)
             
         elif method == SmoothingMethod.ROLLING_MEAN.value:
-            window = kwargs.get('window', min(5, len(y_slice) // 4))
+            window = kwargs.get("window", min(5, len(y_slice) // 4))
             smoothed = y_slice.rolling(window=window, center=True).mean().bfill().ffill()
             
         else:  # LOWESS
             try:
                 from statsmodels.nonparametric.smoothers_lowess import lowess
-                frac = kwargs.get('frac', 0.2)
+                frac = kwargs.get("frac", 0.2)
                 result = lowess(y_slice, x_slice, frac=frac)
                 smoothed = result[:, 1]
             except ImportError:
                 # Fallback to rolling mean if statsmodels not available
-                window = kwargs.get('window', 5)
+                window = kwargs.get("window", 5)
                 smoothed = y_slice.rolling(window=window, center=True).mean().bfill().ffill()
         
         # Calculate statistics
@@ -257,10 +256,10 @@ class AnalysisEngine:
         noise_reduction = ((original_std - smoothed_std) / original_std) * 100 if original_std > 0 else 0
         
         statistics = {
-            'original_std': original_std,
-            'smoothed_std': smoothed_std,
-            'noise_reduction_percent': noise_reduction,
-            'correlation': float(np.corrcoef(y_slice, smoothed)[0, 1]) if len(y_slice) > 1 else 1.0
+            "original_std": original_std,
+            "smoothed_std": smoothed_std,
+            "noise_reduction_percent": noise_reduction,
+            "correlation": float(np.corrcoef(y_slice, smoothed)[0, 1]) if len(y_slice) > 1 else 1.0
         }
         
         parameters = AnalysisParameters(
@@ -278,7 +277,7 @@ class AnalysisEngine:
             result_data=pd.Series(smoothed, index=x_slice.index),
             parameters=parameters,
             statistics=statistics,
-            metadata={'method_used': method}
+            metadata={"method_used": method}
         )
     
     @staticmethod
@@ -329,17 +328,17 @@ class AnalysisEngine:
                 y_new = cs(x_new)
             except Exception:
                 # Fallback to linear interpolation
-                f = interp1d(x_slice, y_slice, kind='linear')
+                f = interp1d(x_slice, y_slice, kind="linear")
                 y_new = f(x_new)
         else:
             f = interp1d(x_slice, y_slice, kind=method)
             y_new = f(x_new)
         
         statistics = {
-            'original_points': len(x_slice),
-            'interpolated_points': num_points,
-            'x_range': float(x_slice.max() - x_slice.min()),
-            'point_density_ratio': float(num_points / len(x_slice))
+            "original_points": len(x_slice),
+            "interpolated_points": num_points,
+            "x_range": float(x_slice.max() - x_slice.min()),
+            "point_density_ratio": float(num_points / len(x_slice))
         }
         
         parameters = AnalysisParameters(
@@ -357,5 +356,5 @@ class AnalysisEngine:
             result_data=pd.Series(y_new),
             parameters=parameters,
             statistics=statistics,
-            metadata={'method_used': method}
+            metadata={"method_used": method}
         )

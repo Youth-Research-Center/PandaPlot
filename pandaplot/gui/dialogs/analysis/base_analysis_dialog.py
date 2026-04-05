@@ -2,12 +2,21 @@
 Base dialog for analysis operations.
 """
 
+from typing import Any, Dict, Optional
+
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QFormLayout, QGroupBox,
-    QComboBox, QSpinBox, QLineEdit, QPushButton, QCheckBox,
-    QTextEdit, QDialogButtonBox
+    QCheckBox,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
+    QGroupBox,
+    QLineEdit,
+    QPushButton,
+    QSpinBox,
+    QTextEdit,
+    QVBoxLayout,
 )
-from typing import Dict, Any, Optional
 
 from pandaplot.models.project.items.dataset import Dataset
 
@@ -128,7 +137,7 @@ class BaseAnalysisDialog(QDialog):
     
     def setup_column_choices(self):
         """Setup column choices from dataset."""
-        if self.dataset and hasattr(self.dataset, 'data') and self.dataset.data is not None:
+        if self.dataset and hasattr(self.dataset, "data") and self.dataset.data is not None:
             columns = list(self.dataset.data.columns)
             
             self.x_column_combo.addItems(columns)
@@ -154,13 +163,13 @@ class BaseAnalysisDialog(QDialog):
     def get_analysis_config(self) -> Dict[str, Any]:
         """Get analysis configuration - to be implemented by subclasses."""
         base_config = {
-            'x_column': self.x_column_combo.currentText(),
-            'y_column': self.y_column_combo.currentText(),
-            'new_column_name': self.result_column_name.text().strip(),
-            'replace_existing': self.replace_existing.isChecked(),
-            'parameters': {
-                'start_index': self.start_index.value(),
-                'end_index': self.end_index.value() if self.end_index.value() != -1 else -1
+            "x_column": self.x_column_combo.currentText(),
+            "y_column": self.y_column_combo.currentText(),
+            "new_column_name": self.result_column_name.text().strip(),
+            "replace_existing": self.replace_existing.isChecked(),
+            "parameters": {
+                "start_index": self.start_index.value(),
+                "end_index": self.end_index.value() if self.end_index.value() != -1 else -1
             }
         }
         return base_config

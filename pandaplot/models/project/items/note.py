@@ -3,7 +3,8 @@ Note model for managing text-based note items in the project.
 """
 
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
+
 from pandaplot.models.project.items import Item
 
 
@@ -44,23 +45,23 @@ class Note(Item):
         """Convert note to dictionary for serialization."""
         data = super().to_dict()
         data.update({
-            'content': self.content,
-            'tags': self.tags
+            "content": self.content,
+            "tags": self.tags
         })
         return data
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Note':
+    def from_dict(cls, data: Dict[str, Any]) -> "Note":
         """Create note from dictionary."""
         note = cls(
-            id=data.get('id'),
-            name=data.get('name', ''),
-            content=data.get('content', ''),
-            tags=data.get('tags', [])
+            id=data.get("id"),
+            name=data.get("name", ""),
+            content=data.get("content", ""),
+            tags=data.get("tags", [])
         )
         # Set inherited attributes
-        note.parent_id = data.get('parent_id')
-        note.created_at = data.get('created_at', datetime.now().isoformat())
-        note.modified_at = data.get('modified_at', note.created_at)
-        note.metadata = data.get('metadata', {})
+        note.parent_id = data.get("parent_id")
+        note.created_at = data.get("created_at", datetime.now().isoformat())
+        note.modified_at = data.get("modified_at", note.created_at)
+        note.metadata = data.get("metadata", {})
         return note

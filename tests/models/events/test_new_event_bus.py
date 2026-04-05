@@ -31,8 +31,8 @@ class TestNewEventBus:
         
         # Should be called with metadata-enriched empty dict
         expected_data = {
-            'event_type': 'test_event',
-            'original_event': 'test_event'
+            "event_type": "test_event",
+            "original_event": "test_event"
         }
         callback.assert_called_once_with(expected_data)
     
@@ -49,8 +49,8 @@ class TestNewEventBus:
         expected_data = {
             "message": "hello",
             "value": 42,
-            'event_type': 'test_event',
-            'original_event': 'test_event'
+            "event_type": "test_event",
+            "original_event": "test_event"
         }
         callback.assert_called_once_with(expected_data)
     
@@ -64,8 +64,8 @@ class TestNewEventBus:
         
         # None should become empty dict with metadata
         expected_data = {
-            'event_type': 'test_event',
-            'original_event': 'test_event'
+            "event_type": "test_event",
+            "original_event": "test_event"
         }
         callback.assert_called_once_with(expected_data)
     
@@ -85,8 +85,8 @@ class TestNewEventBus:
         
         expected_data = {
             "test": "data",
-            'event_type': 'test_event',
-            'original_event': 'test_event'
+            "event_type": "test_event",
+            "original_event": "test_event"
         }
         
         callback1.assert_called_once_with(expected_data)
@@ -112,8 +112,8 @@ class TestNewEventBus:
         
         expected_data = {
             "dataset_id": "123",
-            'event_type': 'dataset.data_changed',
-            'original_event': 'dataset.data_changed'
+            "event_type": "dataset.data_changed",
+            "original_event": "dataset.data_changed"
         }
         callback.assert_called_with(expected_data)
     
@@ -134,8 +134,8 @@ class TestNewEventBus:
         # Both should be called (hierarchy mapping should cause generic event to fire)
         expected_specific_data = {
             "column_name": "new_col",
-            'event_type': 'dataset.column_added',
-            'original_event': 'dataset.column_added'
+            "event_type": "dataset.column_added",
+            "original_event": "dataset.column_added"
         }
         
         specific_callback.assert_called_with(expected_specific_data)
@@ -184,14 +184,14 @@ class TestNewEventBus:
         
         # Original data should be unchanged
         assert original_data == {"key": "value"}
-        assert 'event_type' not in original_data
-        assert 'original_event' not in original_data
+        assert "event_type" not in original_data
+        assert "original_event" not in original_data
         
         # Callback should receive enriched copy
         call_args = callback.call_args[0][0]
         assert call_args["key"] == "value"
-        assert call_args['event_type'] == "test_event"
-        assert call_args['original_event'] == "test_event"
+        assert call_args["event_type"] == "test_event"
+        assert call_args["original_event"] == "test_event"
     
     def test_complex_data_structures(self):
         """Test with complex nested data structures."""
@@ -225,8 +225,8 @@ class TestNewEventBus:
         assert len(call_args["items"]) == 2
         
         # Plus metadata
-        assert call_args['event_type'] == "complex_event"
-        assert call_args['original_event'] == "complex_event"
+        assert call_args["event_type"] == "complex_event"
+        assert call_args["original_event"] == "complex_event"
     
     def test_event_bus_isolation(self):
         """Test that different EventBus instances are isolated."""
@@ -281,7 +281,7 @@ class TestNewEventBus:
         call_data = analysis_panel_callback.call_args[0][0]
         assert call_data["dataset_id"] == "dataset_123"
         assert call_data["column_name"] == "new_column"
-        assert call_data['event_type'] == "dataset.column_added"
+        assert call_data["event_type"] == "dataset.column_added"
         
         # Chart panel should get it via pattern subscription
         chart_panel_callback.assert_called()

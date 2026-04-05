@@ -1,4 +1,5 @@
 from typing import override
+
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
@@ -55,7 +56,7 @@ class IconBar(PWidget):
         palette = theme_manager.get_surface_palette()
         
         # Get theme colors for main background
-        card_border = palette.get('card_border', '#dee2e6')
+        card_border = palette.get("card_border", "#dee2e6")
         
         # Apply theme to main icon bar background
         self.setStyleSheet(f"""
@@ -75,9 +76,9 @@ class IconBar(PWidget):
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
-        card_hover = palette.get('card_hover', '#e5f3ff')
-        card_pressed = palette.get('card_pressed', '#dee2e6')
-        base_fg = palette.get('base_fg', '#333333')
+        card_hover = palette.get("card_hover", "#e5f3ff")
+        card_pressed = palette.get("card_pressed", "#dee2e6")
+        base_fg = palette.get("base_fg", "#333333")
         
         self.settings_button.setStyleSheet(f"""
             QPushButton {{
@@ -106,10 +107,10 @@ class IconBar(PWidget):
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
-        card_hover = palette.get('card_hover', '#e5f3ff')
-        card_pressed = palette.get('card_pressed', '#dee2e6')
-        base_fg = palette.get('base_fg', '#333333')
-        accent = palette.get('accent', '#4A90E2')
+        card_hover = palette.get("card_hover", "#e5f3ff")
+        card_pressed = palette.get("card_pressed", "#dee2e6")
+        base_fg = palette.get("base_fg", "#333333")
+        accent = palette.get("accent", "#4A90E2")
         
         if is_active:
             button.setStyleSheet(f"""

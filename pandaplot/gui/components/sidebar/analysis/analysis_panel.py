@@ -2,22 +2,31 @@
 Analysis panel for mathematical operations on dataset columns.
 """
 
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QGroupBox,
-    QLabel, QComboBox, QSpinBox, QLineEdit, QPushButton, QCheckBox,
-    QTextEdit, QScrollArea
-)
-from PySide6.QtCore import Qt
-from typing import Dict, Any, Optional, override
+from typing import Any, Dict, Optional, override
 
-from pandaplot.gui.core.widget_extension import PWidget
-from pandaplot.models.state.app_context import AppContext
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
+    QSpinBox,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
+
 from pandaplot.analysis import AnalysisEngine
 from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
-from pandaplot.models.events import (
-    AnalysisEvents, UIEvents, DatasetEvents, DatasetOperationEvents
-)
+from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.models.events import AnalysisEvents, DatasetEvents, DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
+from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -92,12 +101,12 @@ class AnalysisPanel(PWidget):
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         
-        card_bg = palette.get('card_bg', '#ffffff')
-        card_border = palette.get('card_border', '#dee2e6')
-        base_fg = palette.get('base_fg', '#333333')
-        secondary_fg = palette.get('secondary_fg', '#666666')
-        accent = palette.get('accent', '#4CAF50')
-        card_hover = palette.get('card_hover', '#e5f3ff')
+        card_bg = palette.get("card_bg", "#ffffff")
+        card_border = palette.get("card_border", "#dee2e6")
+        base_fg = palette.get("base_fg", "#333333")
+        secondary_fg = palette.get("secondary_fg", "#666666")
+        accent = palette.get("accent", "#4CAF50")
+        card_hover = palette.get("card_hover", "#e5f3ff")
         
         # Apply theme to main widget
         self.setStyleSheet(f"""
@@ -189,7 +198,7 @@ class AnalysisPanel(PWidget):
         """Apply theme styling to info labels."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        secondary_fg = palette.get('secondary_fg', '#666666')
+        secondary_fg = palette.get("secondary_fg", "#666666")
         
         label.setStyleSheet(f"""
             QLabel {{
@@ -327,7 +336,7 @@ class AnalysisPanel(PWidget):
             return
         
         # Check if this is a dataset tab
-        if hasattr(tab_widget, 'dataset') and tab_widget.dataset:
+        if hasattr(tab_widget, "dataset") and tab_widget.dataset:
             self.current_dataset = tab_widget.dataset
             self.current_dataset_id = tab_widget.dataset.id
             self.setEnabled(True)
@@ -339,7 +348,7 @@ class AnalysisPanel(PWidget):
     
     def update_column_choices(self):
         """Update column choices based on current dataset."""
-        if not self.current_dataset or not hasattr(self.current_dataset, 'data'):
+        if not self.current_dataset or not hasattr(self.current_dataset, "data"):
             return
         
         df = self.current_dataset.data
@@ -419,7 +428,7 @@ class AnalysisPanel(PWidget):
     
     def update_smoothing_params(self):
         """Update smoothing parameters based on method."""
-        if not hasattr(self, 'smooth_method_combo'):
+        if not hasattr(self, "smooth_method_combo"):
             return
         
         method = self.smooth_method_combo.currentText()
@@ -471,8 +480,8 @@ class AnalysisPanel(PWidget):
             df = self.current_dataset.data
             if df is None:
                 return
-            x_data = df[config['x_column']]
-            y_data = df[config['y_column']]
+            x_data = df[config["x_column"]]
+            y_data = df[config["y_column"]]
             
             # Execute analysis preview
             result = self.execute_analysis_preview(x_data, y_data, config)
@@ -497,33 +506,33 @@ class AnalysisPanel(PWidget):
     
     def execute_analysis_preview(self, x_data, y_data, config):
         """Execute analysis for preview purposes."""
-        analysis_type = config['analysis_type']
-        params = config['parameters']
+        analysis_type = config["analysis_type"]
+        params = config["parameters"]
         
-        if analysis_type == 'derivative':
+        if analysis_type == "derivative":
             return AnalysisEngine.calculate_derivative(
-                x_data, y_data, params.get('method', 'central'),
-                params['start_index'], params['end_index']
+                x_data, y_data, params.get("method", "central"),
+                params["start_index"], params["end_index"]
             )
-        elif analysis_type == 'integral':
+        elif analysis_type == "integral":
             return AnalysisEngine.calculate_integral(
-                x_data, y_data, params['start_index'], params['end_index']
+                x_data, y_data, params["start_index"], params["end_index"]
             )
-        elif analysis_type == 'arc_length':
+        elif analysis_type == "arc_length":
             return AnalysisEngine.calculate_arc_length(
-                x_data, y_data, params['start_index'], params['end_index']
+                x_data, y_data, params["start_index"], params["end_index"]
             )
-        elif analysis_type == 'smoothing':
+        elif analysis_type == "smoothing":
             additional_params = {k: v for k, v in params.items() 
-                               if k not in ['start_index', 'end_index', 'method']}
+                               if k not in ["start_index", "end_index", "method"]}
             return AnalysisEngine.smooth_data(
-                x_data, y_data, params.get('method', 'savgol'),
-                params['start_index'], params['end_index'], **additional_params
+                x_data, y_data, params.get("method", "savgol"),
+                params["start_index"], params["end_index"], **additional_params
             )
-        elif analysis_type == 'interpolation':
+        elif analysis_type == "interpolation":
             return AnalysisEngine.interpolate_data(
-                x_data, y_data, params.get('method', 'cubic'),
-                params.get('num_points'), params['start_index'], params['end_index']
+                x_data, y_data, params.get("method", "cubic"),
+                params.get("num_points"), params["start_index"], params["end_index"]
             )
         
         return None
@@ -545,18 +554,18 @@ class AnalysisPanel(PWidget):
                 if execution_result:
                     # Publish analysis completion event
                     self.publish_event(AnalysisEvents.ANALYSIS_COMPLETED, {
-                        'dataset_id': self.current_dataset_id,
-                        'new_column_name': config['new_column_name'],
-                        'analysis_type': config['analysis_type'],
-                        'analysis_config': config
+                        "dataset_id": self.current_dataset_id,
+                        "new_column_name": config["new_column_name"],
+                        "analysis_type": config["analysis_type"],
+                        "analysis_config": config
                     })
                     
                     # Also publish dataset column added event for UI updates
                     self.publish_event(DatasetOperationEvents.DATASET_COLUMN_ADDED, {
-                        'dataset_id': self.current_dataset_id,
-                        'column_name': config['new_column_name'],
-                        'operation': 'analysis',
-                        'source': 'analysis_panel'
+                        "dataset_id": self.current_dataset_id,
+                        "column_name": config["new_column_name"],
+                        "operation": "analysis",
+                        "source": "analysis_panel"
                     })
                     
                     self.preview_text.setText(f"✅ Analysis applied successfully!\nColumn '{config['new_column_name']}' added to dataset.")
@@ -575,7 +584,7 @@ class AnalysisPanel(PWidget):
             self.preview_text.setText("❌ No dataset selected.")
             return False
 
-        if not hasattr(self.current_dataset, 'data') or self.current_dataset.data is None:
+        if not hasattr(self.current_dataset, "data") or self.current_dataset.data is None:
             self.preview_text.setText("❌ Dataset data is not available.")
             return False
         
@@ -600,53 +609,53 @@ class AnalysisPanel(PWidget):
         }
         
         config = {
-            'analysis_type': analysis_type_map[self.analysis_type_combo.currentText()],
-            'x_column': self.x_column_combo.currentText(),
-            'y_column': self.y_column_combo.currentText(),
-            'new_column_name': self.result_column_name.text().strip(),
-            'replace_existing': self.replace_existing.isChecked(),
-            'parameters': {
-                'start_index': self.start_index.value(),
-                'end_index': self.end_index.value() if self.end_index.value() != -1 else -1
+            "analysis_type": analysis_type_map[self.analysis_type_combo.currentText()],
+            "x_column": self.x_column_combo.currentText(),
+            "y_column": self.y_column_combo.currentText(),
+            "new_column_name": self.result_column_name.text().strip(),
+            "replace_existing": self.replace_existing.isChecked(),
+            "parameters": {
+                "start_index": self.start_index.value(),
+                "end_index": self.end_index.value() if self.end_index.value() != -1 else -1
             }
         }
         
         # Add analysis-specific parameters
         analysis_type = self.analysis_type_combo.currentText()
         
-        if analysis_type == "Derivative" and hasattr(self, 'method_combo'):
+        if analysis_type == "Derivative" and hasattr(self, "method_combo"):
             method_map = {
                 "Central Difference": "central",
                 "Forward Difference": "forward",
                 "Backward Difference": "backward"
             }
-            config['parameters']['method'] = method_map[self.method_combo.currentText()]
+            config["parameters"]["method"] = method_map[self.method_combo.currentText()]
             
-        elif analysis_type == "Smoothing" and hasattr(self, 'smooth_method_combo'):
+        elif analysis_type == "Smoothing" and hasattr(self, "smooth_method_combo"):
             method_map = {
                 "Savitzky-Golay": "savgol",
                 "Rolling Mean": "rolling_mean",
                 "LOWESS": "lowess"
             }
-            config['parameters']['method'] = method_map[self.smooth_method_combo.currentText()]
+            config["parameters"]["method"] = method_map[self.smooth_method_combo.currentText()]
             
-            if hasattr(self, 'window_length_spin'):
-                config['parameters']['window_length'] = self.window_length_spin.value()
-            if hasattr(self, 'poly_order_spin'):
-                config['parameters']['polynomial_order'] = self.poly_order_spin.value()
-            if hasattr(self, 'window_spin'):
-                config['parameters']['window'] = self.window_spin.value()
+            if hasattr(self, "window_length_spin"):
+                config["parameters"]["window_length"] = self.window_length_spin.value()
+            if hasattr(self, "poly_order_spin"):
+                config["parameters"]["polynomial_order"] = self.poly_order_spin.value()
+            if hasattr(self, "window_spin"):
+                config["parameters"]["window"] = self.window_spin.value()
                 
-        elif analysis_type == "Interpolation" and hasattr(self, 'interp_method_combo'):
+        elif analysis_type == "Interpolation" and hasattr(self, "interp_method_combo"):
             method_map = {
                 "Linear": "linear",
                 "Cubic": "cubic", 
                 "Quadratic": "quadratic",
                 "Nearest": "nearest"
             }
-            config['parameters']['method'] = method_map[self.interp_method_combo.currentText()]
-            if hasattr(self, 'num_points_spin'):
-                config['parameters']['num_points'] = self.num_points_spin.value()
+            config["parameters"]["method"] = method_map[self.interp_method_combo.currentText()]
+            if hasattr(self, "num_points_spin"):
+                config["parameters"]["num_points"] = self.num_points_spin.value()
         
         return config
     
@@ -678,30 +687,30 @@ class AnalysisPanel(PWidget):
     
     def on_dataset_changed(self, event_data):
         """Handle generic dataset changes."""
-        dataset_id = event_data.get('dataset_id')
+        dataset_id = event_data.get("dataset_id")
         if dataset_id == self.current_dataset_id:
             self.refresh_ui_state()
     
     def on_column_added(self, event_data):
         """Handle specific column additions."""
-        dataset_id = event_data.get('dataset_id')
-        column_name = event_data.get('column_name')
+        dataset_id = event_data.get("dataset_id")
+        column_name = event_data.get("column_name")
         if dataset_id == self.current_dataset_id and column_name:
             # Refresh column choices
             self.refresh_column_choices()
     
     def on_column_removed(self, event_data):
         """Handle specific column removals."""
-        dataset_id = event_data.get('dataset_id')
-        column_name = event_data.get('column_name')
+        dataset_id = event_data.get("dataset_id")
+        column_name = event_data.get("column_name")
         if dataset_id == self.current_dataset_id and column_name:
             # Refresh column choices
             self.refresh_column_choices()
     
     def on_tab_changed(self, event_data):
         """Handle tab change events."""
-        if event_data.get('tab_type') == 'dataset':
-            new_dataset_id = event_data.get('dataset_id')
+        if event_data.get("tab_type") == "dataset":
+            new_dataset_id = event_data.get("dataset_id")
             if new_dataset_id != self.current_dataset_id:
                 self.current_dataset_id = new_dataset_id
                 

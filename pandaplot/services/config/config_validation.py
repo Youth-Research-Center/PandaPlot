@@ -14,10 +14,10 @@ warnings or further mutate already-corrected fields).
 """
 from __future__ import annotations
 
-from typing import List
 import re
+from typing import List
 
-from pandaplot.models.state.config import ApplicationConfig, AppearanceConfig
+from pandaplot.models.state.config import AppearanceConfig, ApplicationConfig
 
 # Hard bounds / defaults (centralised here for consistency)
 ACCENT_COLOR_FALLBACK = AppearanceConfig().accent_color  # '#3B82F6'

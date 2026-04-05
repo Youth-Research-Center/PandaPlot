@@ -16,9 +16,9 @@ from pandaplot.gui.components.sidebar.project.project_command_manager import Pro
 from pandaplot.gui.components.sidebar.project.project_context_manager import ProjectViewPanelContextManager
 from pandaplot.gui.components.sidebar.project.project_tree import ProjectTreeWidget
 from pandaplot.gui.components.sidebar.project.project_tree_manager import ProjectTreeManager
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -84,7 +84,7 @@ class ProjectViewPanel(PWidget):
 
         # Create treeview
         self.tree = ProjectTreeWidget(self)
-        self.tree.setHeaderLabel('Project Structure')
+        self.tree.setHeaderLabel("Project Structure")
 
         # Enable context menu and interactions
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -122,8 +122,8 @@ class ProjectViewPanel(PWidget):
 
     def on_project_loaded(self, event_data):
         """Handle project loaded event."""
-        project = event_data.get('project')
-        file_path = event_data.get('file_path')
+        project = event_data.get("project")
+        file_path = event_data.get("file_path")
 
         self.logger.info(f"Project loaded - {project.name}")
 
@@ -164,11 +164,11 @@ class ProjectViewPanel(PWidget):
             return
 
         # Prevent recursive updates
-        if getattr(self, '_editing_in_progress', False):
+        if getattr(self, "_editing_in_progress", False):
             return
 
         # Prevent rename operations during drag and drop
-        if hasattr(self.tree, '_is_dragging') and self.tree._is_dragging:
+        if hasattr(self.tree, "_is_dragging") and self.tree._is_dragging:
             self.logger.debug("Skipping rename during drag operation")
             return
 
@@ -176,29 +176,29 @@ class ProjectViewPanel(PWidget):
         if not item_data:
             return
 
-        item_type = item_data.get('type', '')
-        item_id = item_data.get('id', '')
+        item_type = item_data.get("type", "")
+        item_id = item_data.get("id", "")
 
         # Skip project root
-        if item_type == 'project':
+        if item_type == "project":
             return
 
         # Extract new name from the item text (remove emoji prefix)
         new_text = item.text(0)
-        if new_text.startswith('📁 '):
+        if new_text.startswith("📁 "):
             new_name = new_text[2:].strip()
-        elif new_text.startswith('📝 '):
+        elif new_text.startswith("📝 "):
             new_name = new_text[2:].strip()
-        elif new_text.startswith('📊 '):
+        elif new_text.startswith("📊 "):
             new_name = new_text[2:].strip()
-        elif new_text.startswith('📈 '):
+        elif new_text.startswith("📈 "):
             new_name = new_text[2:].strip()
         else:
             new_name = new_text.strip()
 
         # Get current name from data
-        item_obj = item_data.get('data')
-        current_name = item_obj.name if item_obj else ''
+        item_obj = item_data.get("data")
+        current_name = item_obj.name if item_obj else ""
 
         # Only process if name actually changed
         if new_name and new_name != current_name and new_name.strip():
@@ -217,7 +217,7 @@ class ProjectViewPanel(PWidget):
                 self._editing_in_progress = False
         else:
             # Revert to original name if invalid
-            prefix = '📁 ' if item_type == 'folder' else '📝 ' if item_type == 'note' else '📊 ' if item_type == 'dataset' else '📈 '
+            prefix = "📁 " if item_type == "folder" else "📝 " if item_type == "note" else "📊 " if item_type == "dataset" else "📈 "
             item.setText(0, f"{prefix}{current_name}")
 
     @override
@@ -228,12 +228,12 @@ class ProjectViewPanel(PWidget):
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors
-        card_bg = palette.get('card_bg', '#ffffff')
-        base_fg = palette.get('base_fg', '#000000')
-        secondary_fg = palette.get('secondary_fg', '#555555')
-        card_border = palette.get('card_border', '#DCDCDC')
-        accent = palette.get('accent', '#0078d4')
-        card_hover = palette.get('card_hover', '#e5f3ff')
+        card_bg = palette.get("card_bg", "#ffffff")
+        base_fg = palette.get("base_fg", "#000000")
+        secondary_fg = palette.get("secondary_fg", "#555555")
+        card_border = palette.get("card_border", "#DCDCDC")
+        accent = palette.get("accent", "#0078d4")
+        card_hover = palette.get("card_hover", "#e5f3ff")
         
         # Apply theme to main widget (like other panels)
         self.setStyleSheet(f"""

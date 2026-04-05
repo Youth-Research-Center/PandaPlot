@@ -1,10 +1,9 @@
-import numpy as np
-import pandas as pd
-from scipy.optimize import curve_fit
 import logging
 
+import numpy as np
+from scipy.optimize import curve_fit
+
 from pandaplot.models.events import FitEvents
-from pandaplot.models.project.items import Dataset
 
 
 #performs fit, doesn't include combobox methods
@@ -125,16 +124,16 @@ class FitService:
 
             # Store results
             self.fit_results = {
-                'fit_type': fit_type,
-                'parameters': popt,
-                'errors': perr,
-                'param_names': param_names,
-                'r_squared': r_squared,
-                'x_fit': x_fit,
-                'y_fit': y_fit,
-                'x_data': x_data,
-                'y_data': y_data,
-                'covariance': pcov
+                "fit_type": fit_type,
+                "parameters": popt,
+                "errors": perr,
+                "param_names": param_names,
+                "r_squared": r_squared,
+                "x_fit": x_fit,
+                "y_fit": y_fit,
+                "x_data": x_data,
+                "y_data": y_data,
+                "covariance": pcov
             }
 
             # Display results
@@ -145,9 +144,9 @@ class FitService:
 
             # Publish fit completed event
             self.fit_panel.publish_event(FitEvents.FIT_COMPLETED, {
-                'fit_results': self.fit_results,
-                'chart_id': self.fit_panel.current_chart.id if self.fit_panel.current_chart else None,
-                'fit_type': self.fit_results.get('fit_type', 'Unknown')
+                "fit_results": self.fit_results,
+                "chart_id": self.fit_panel.current_chart.id if self.fit_panel.current_chart else None,
+                "fit_type": self.fit_results.get("fit_type", "Unknown")
             })
 
         except Exception as e:
@@ -180,7 +179,7 @@ class FitService:
 
             # Substitute parameter values
             equation = function_str
-            for name, value in zip(param_names, params):
+            for name, value in zip(param_names, params, strict=False):
                 equation = equation.replace(name, f"{value:.6g}")
             return f"y = {equation}"
         else:

@@ -1,5 +1,6 @@
-from PySide6.QtWidgets import QFileDialog, QWidget, QMessageBox, QInputDialog
 from typing import Optional
+
+from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QWidget
 
 # TODO: ui controller should be a facade for all UI-related interactions
 # This allows us to keep UI logic separate from business logic in the MVC pattern.
@@ -169,13 +170,13 @@ class UIController:
         """
         # Define supported formats with their filters
         formats = {
-            'CSV (Comma Separated Values) (*.csv)': ('CSV (Comma Separated Values)', '.csv'),
-            'TSV (Tab Separated Values) (*.tsv)': ('TSV (Tab Separated Values)', '.tsv'),
-            'Excel Workbook (*.xlsx)': ('Excel Workbook', '.xlsx'),
-            'JSON (Records format) (*.json)': ('JSON (Records format)', '.json'),
-            'Parquet (*.parquet)': ('Parquet', '.parquet'),
-            'HTML Table (*.html)': ('HTML Table', '.html'),
-            'Pickle (pandas format) (*.pkl)': ('Pickle (pandas format)', '.pkl')
+            "CSV (Comma Separated Values) (*.csv)": ("CSV (Comma Separated Values)", ".csv"),
+            "TSV (Tab Separated Values) (*.tsv)": ("TSV (Tab Separated Values)", ".tsv"),
+            "Excel Workbook (*.xlsx)": ("Excel Workbook", ".xlsx"),
+            "JSON (Records format) (*.json)": ("JSON (Records format)", ".json"),
+            "Parquet (*.parquet)": ("Parquet", ".parquet"),
+            "HTML Table (*.html)": ("HTML Table", ".html"),
+            "Pickle (pandas format) (*.pkl)": ("Pickle (pandas format)", ".pkl")
         }
         
         # Create filter string
@@ -192,7 +193,7 @@ class UIController:
         
         if file_path and selected_filter:
             # Get the format name from the selected filter
-            format_name, extension = formats.get(selected_filter, ('CSV (Comma Separated Values)', '.csv'))
+            format_name, extension = formats.get(selected_filter, ("CSV (Comma Separated Values)", ".csv"))
             
             # Ensure the file has the correct extension
             if not file_path.lower().endswith(extension.lower()):

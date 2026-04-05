@@ -5,7 +5,7 @@ from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Folder
-from pandaplot.models.state import (AppState, AppContext)
+from pandaplot.models.state import AppContext, AppState
 
 
 class CreateFolderCommand(Command):
@@ -75,11 +75,11 @@ class CreateFolderCommand(Command):
 
             # Emit event
             self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
-                'project': self.project,
-                'folder_id': self.created_folder_id,
-                'folder_name': folder_name,
-                'parent_id': self.parent_id,
-                'folder': self.created_folder
+                "project": self.project,
+                "folder_id": self.created_folder_id,
+                "folder_name": folder_name,
+                "parent_id": self.parent_id,
+                "folder": self.created_folder
             })
             self.logger.info(
                 "CreateFolderCommand: Created folder '%s' (id=%s) under parent %s",
@@ -110,14 +110,14 @@ class CreateFolderCommand(Command):
 
                     # Emit event
                     self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
-                        'project': project,
-                        'folder_id': self.created_folder_id,
-                        'folder': self.created_folder
+                        "project": project,
+                        "folder_id": self.created_folder_id,
+                        "folder": self.created_folder
                     })
                     self.logger.info(
                         "CreateFolderCommand: Undo creation of folder id=%s (name=%s)",
                         self.created_folder_id,
-                        getattr(self.created_folder, 'name', '<unknown>')
+                        getattr(self.created_folder, "name", "<unknown>")
                     )
 
         except Exception as e:
@@ -139,11 +139,11 @@ class CreateFolderCommand(Command):
 
                 # Emit event
                 self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
-                    'project': project,
-                    'folder_id': self.created_folder_id,
-                    'folder_name': self.created_folder.name,
-                    'parent_id': self.parent_id,
-                    'folder': self.created_folder
+                    "project": project,
+                    "folder_id": self.created_folder_id,
+                    "folder_name": self.created_folder.name,
+                    "parent_id": self.parent_id,
+                    "folder": self.created_folder
                 })
                 self.logger.info(
                     "CreateFolderCommand: Redo creation of folder '%s' (id=%s) under parent %s",

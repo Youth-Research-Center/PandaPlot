@@ -5,9 +5,9 @@ from PySide6.QtWidgets import QHBoxLayout, QWidget
 
 from pandaplot.gui.components.sidebar.icon_bar import IconBar
 from pandaplot.gui.components.sidebar.panels.panel_area import PanelArea
+from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -164,7 +164,7 @@ class CollapsibleSidebar(PWidget):
         palette = theme_manager.get_surface_palette()
         
         # Get theme-appropriate colors
-        panel_bg = palette.get('card_bg', '#ffffff')
+        panel_bg = palette.get("card_bg", "#ffffff")
         
         # Apply theme to sidebar background
         self.setStyleSheet(f"QWidget {{ background-color: {panel_bg}; }}")

@@ -105,13 +105,13 @@ class WelcomeTab(PWidget):
         try:
             tm = self.app_context.get_manager(ThemeManager)
             palette = tm.get_surface_palette()
-            card_bg = palette['card_bg']
-            card_hover = palette['card_hover']
-            card_pressed = palette['card_pressed']
-            card_border = palette['card_border']
-            base_fg = palette['base_fg']
-            secondary_fg = palette['secondary_fg']
-            accent = palette['accent']
+            card_bg = palette["card_bg"]
+            card_hover = palette["card_hover"]
+            card_pressed = palette["card_pressed"]
+            card_border = palette["card_border"]
+            base_fg = palette["base_fg"]
+            secondary_fg = palette["secondary_fg"]
+            accent = palette["accent"]
 
             # Scoped QSS (only applies within this tab widget)
             qss = f"""
@@ -472,7 +472,7 @@ class WelcomeTab(PWidget):
     def update_recent_projects(self):
         """Update the recent projects list."""
         # TODO: this probably shouldn't be here, but somewhere else as we can update it in multiple places
-        if not hasattr(self, 'recent_projects_layout'):
+        if not hasattr(self, "recent_projects_layout"):
             return
 
         recent_projects = self.get_recent_projects()
@@ -481,7 +481,7 @@ class WelcomeTab(PWidget):
         seen = set()
         deduped = []
         for rp in recent_projects:
-            p = rp.get('path')
+            p = rp.get("path")
             if not p or p in seen:
                 continue
             seen.add(p)
@@ -499,7 +499,7 @@ class WelcomeTab(PWidget):
                 path_text = labels[1].text()
                 current_paths.append(path_text)
 
-        desired_paths = [rp.get('path','') for rp in deduped[:5]] if deduped else []
+        desired_paths = [rp.get("path","") for rp in deduped[:5]] if deduped else []
         if current_paths == desired_paths:
             return  # No change
 
@@ -520,9 +520,9 @@ class WelcomeTab(PWidget):
 
         for project_info in deduped[:5]:
             project_item = self.create_recent_project_item(
-                project_info.get('name', 'Untitled Project'),
-                project_info.get('path', ''),
-                project_info.get('last_opened', 'Unknown')
+                project_info.get("name", "Untitled Project"),
+                project_info.get("path", ""),
+                project_info.get("last_opened", "Unknown")
             )
             self.recent_projects_layout.addWidget(project_item)
     
@@ -557,16 +557,16 @@ class WelcomeTab(PWidget):
                     name = path_obj.stem
                     # Use file modified time as last_opened fallback
                     ts = os.path.getmtime(p)
-                    last_opened = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M')
+                    last_opened = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
                     results.append({
-                        'name': name,
-                        'path': str(path_obj),
-                        'last_opened': last_opened
+                        "name": name,
+                        "path": str(path_obj),
+                        "last_opened": last_opened
                     })
                 except Exception:
                     continue
             # Sort newest first by last_opened timestamp string descending
-            results.sort(key=lambda x: x['last_opened'], reverse=True)
+            results.sort(key=lambda x: x["last_opened"], reverse=True)
             return results
         except Exception as e:
             self.logger.warning("Failed to load recent projects: %s", e)

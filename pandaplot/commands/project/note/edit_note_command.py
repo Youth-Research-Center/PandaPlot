@@ -5,7 +5,7 @@ from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import NoteContentChangedData
 from pandaplot.models.events.event_types import NoteEvents
 from pandaplot.models.project.items import Note
-from pandaplot.models.state import (AppState, AppContext)
+from pandaplot.models.state import AppContext, AppState
 
 
 class EditNoteCommand(Command):

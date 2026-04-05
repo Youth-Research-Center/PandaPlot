@@ -3,7 +3,7 @@ from typing import Optional, override
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.state import (AppState, AppContext)
+from pandaplot.models.state import AppContext, AppState
 
 
 class MoveItemCommand(Command):
@@ -67,11 +67,11 @@ class MoveItemCommand(Command):
                 return
 
             # Store item name for better error messages
-            item_name = getattr(item, 'name', 'Unnamed Item')
+            item_name = getattr(item, "name", "Unnamed Item")
             self.logger.debug(f"Moving item '{item_name}' (ID: {self.item_id})")
 
             # Validate target folder exists (if specified)
-            if self.target_folder_id and self.target_folder_id != 'root':
+            if self.target_folder_id and self.target_folder_id != "root":
                 self.logger.debug(f"Looking for target folder '{self.target_folder_id}'")
                 target_folder = project.find_item(self.target_folder_id)
                 if target_folder is None:
@@ -91,19 +91,19 @@ class MoveItemCommand(Command):
 
             # Add item to new parent
             # Convert 'root' string to None for project.add_item()
-            parent_id_for_add = None if self.target_folder_id == 'root' else self.target_folder_id
+            parent_id_for_add = None if self.target_folder_id == "root" else self.target_folder_id
             project.add_item(item, parent_id=parent_id_for_add)
 
             self.move_performed = True
 
             # Emit event
             self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_MOVED, {
-                'project': project,
-                'item_id': self.item_id,
-                'item_type': self.item_type,
-                'source_folder': self.source_folder_id,
-                'target_folder': self.target_folder_id,
-                'item': item
+                "project": project,
+                "item_id": self.item_id,
+                "item_type": self.item_type,
+                "source_folder": self.source_folder_id,
+                "target_folder": self.target_folder_id,
+                "item": item
             })
 
             self.logger.info(f"Moved {self.item_type} '{item_name}' (ID: {self.item_id}) from '{self.source_folder_id}' to '{self.target_folder_id}'")
@@ -124,25 +124,25 @@ class MoveItemCommand(Command):
                     item = project.find_item(self.item_id)
                     if item is not None:
                         # Get item name for better messages
-                        item_name = getattr(item, 'name', 'Unnamed Item')
+                        item_name = getattr(item, "name", "Unnamed Item")
 
                         # Remove item from current location
                         project.remove_item(item)
 
                         # Add item back to original location
                         # Convert 'root' string to None for project.add_item()
-                        parent_id_for_add = None if self.source_folder_id == 'root' else self.source_folder_id
+                        parent_id_for_add = None if self.source_folder_id == "root" else self.source_folder_id
                         project.add_item(item, parent_id=parent_id_for_add)
 
                         # Emit event
                         self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_MOVED, {
-                            'project': project,
-                            'item_id': self.item_id,
-                            'item_type': self.item_type,
-                            'source_folder': self.target_folder_id,  # Reversed for undo
-                            'target_folder': self.source_folder_id,
-                            'item': item,
-                            'undo': True
+                            "project": project,
+                            "item_id": self.item_id,
+                            "item_type": self.item_type,
+                            "source_folder": self.target_folder_id,  # Reversed for undo
+                            "target_folder": self.source_folder_id,
+                            "item": item,
+                            "undo": True
                         })
 
                         self.logger.info(f"Undid move of {self.item_type} '{item_name}' (ID: {self.item_id})")
@@ -155,7 +155,7 @@ class MoveItemCommand(Command):
                 if project and self.item_id:
                     item = project.find_item(self.item_id)
                     if item is not None:
-                        item_name = getattr(item, 'name', self.item_id)
+                        item_name = getattr(item, "name", self.item_id)
 
             error_msg = f"Failed to undo move of '{item_name}': {str(e)}"
             self.logger.error(error_msg)

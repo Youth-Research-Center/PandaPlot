@@ -41,7 +41,7 @@ class RowHeaderContextMenu(QMenu):
                 self.app_context, 
                 self.dataset_id, 
                 reference_positions=self.row_indices,
-                side='above'
+                side="above"
             ))
         )
         self.addAction(add_row_above_action)
@@ -52,7 +52,7 @@ class RowHeaderContextMenu(QMenu):
                 self.app_context, 
                 self.dataset_id, 
                 reference_positions=self.row_indices,
-                side='below'
+                side="below"
             ))
         )
         self.addAction(add_row_below_action)

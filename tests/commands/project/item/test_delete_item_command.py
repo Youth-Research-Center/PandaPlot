@@ -1,12 +1,13 @@
-import pytest
 from unittest.mock import Mock
 
+import pytest
+
 from pandaplot.commands.project.item import DeleteItemCommand
-from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.project.items import Note, Folder
-from pandaplot.models.project import Project
-from pandaplot.models.state import (AppState, AppContext)
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.project import Project
+from pandaplot.models.project.items import Folder, Note
+from pandaplot.models.state import AppContext, AppState
 
 
 class TestDeleteItemCommand:
@@ -141,19 +142,19 @@ class TestDeleteItemCommand:
         assert result is True
         assert command.deleted_item_class == Note
         assert command.deleted_item_data is not None
-        assert command.deleted_item_data['id'] == "note-123"
-        assert command.deleted_item_data['name'] == "Test Note"
-        assert command.deleted_item_data['content'] == "Test content"
+        assert command.deleted_item_data["id"] == "note-123"
+        assert command.deleted_item_data["name"] == "Test Note"
+        assert command.deleted_item_data["content"] == "Test content"
         
         sample_project.remove_item.assert_called_once_with(sample_note)
         
         # Check event emission
         app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_REMOVED, {
-            'project': sample_project,
-            'item_id': "note-123",
-            'item_type': "note",
-            'item_name': "Test Note",
-            'item_data': command.deleted_item_data
+            "project": sample_project,
+            "item_id": "note-123",
+            "item_type": "note",
+            "item_name": "Test Note",
+            "item_data": command.deleted_item_data
         })
 
     def test_execute_successful_folder_deletion(self, mock_app_context, sample_project, sample_folder):
@@ -171,8 +172,8 @@ class TestDeleteItemCommand:
         assert result is True
         assert command.deleted_item_class == Folder
         assert command.deleted_item_data is not None
-        assert command.deleted_item_data['id'] == "folder-123"
-        assert command.deleted_item_data['name'] == "Test Folder"
+        assert command.deleted_item_data["id"] == "folder-123"
+        assert command.deleted_item_data["name"] == "Test Folder"
         
         sample_project.remove_item.assert_called_once_with(sample_folder)
 
@@ -243,11 +244,11 @@ class TestDeleteItemCommand:
         
         # Check event emission
         app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
-            'project': sample_project,
-            'item_id': "note-123",
-            'item_type': "note",
-            'item_name': "Test Note",
-            'item': restored_item
+            "project": sample_project,
+            "item_id": "note-123",
+            "item_type": "note",
+            "item_name": "Test Note",
+            "item": restored_item
         })
 
     def test_undo_with_parent(self, mock_app_context, sample_project, sample_note):
@@ -270,7 +271,7 @@ class TestDeleteItemCommand:
         # Verify add_item was called with parent_id
         sample_project.add_item.assert_called_once()
         call_args = sample_project.add_item.call_args
-        assert call_args[1]['parent_id'] == "parent-123"
+        assert call_args[1]["parent_id"] == "parent-123"
 
     def test_undo_no_deleted_data(self, mock_app_context):
         """Test undo when no deleted data is stored."""
@@ -332,11 +333,11 @@ class TestDeleteItemCommand:
         
         # Check event emission
         app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_REMOVED, {
-            'project': sample_project,
-            'item_id': "note-123",
-            'item_type': "note",
-            'item_name': "Test Note",
-            'item_data': command.deleted_item_data
+            "project": sample_project,
+            "item_id": "note-123",
+            "item_type": "note",
+            "item_name": "Test Note",
+            "item_data": command.deleted_item_data
         })
 
     def test_redo_no_deleted_data(self, mock_app_context):
@@ -412,7 +413,7 @@ class TestDeleteItemCommand:
             # Check event emission
             event_call = app_state.event_bus.emit.call_args
             assert event_call[0][0] == ProjectEvents.PROJECT_ITEM_REMOVED
-            assert event_call[0][1]['item_type'] == expected_type
+            assert event_call[0][1]["item_type"] == expected_type
 
     def test_serialization_round_trip(self, mock_app_context, sample_project):
         """Test that items can be properly serialized and deserialized."""
@@ -468,17 +469,17 @@ class TestDeleteItemCommand:
         event_name, event_data = app_state.event_bus.emit.call_args[0]
         
         assert event_name == ProjectEvents.PROJECT_ITEM_REMOVED
-        assert 'project' in event_data
-        assert 'item_id' in event_data
-        assert 'item_type' in event_data
-        assert 'item_name' in event_data
-        assert 'item_data' in event_data
+        assert "project" in event_data
+        assert "item_id" in event_data
+        assert "item_type" in event_data
+        assert "item_name" in event_data
+        assert "item_data" in event_data
         
-        assert event_data['project'] == sample_project
-        assert event_data['item_id'] == "note-123"
-        assert event_data['item_type'] == "note"
-        assert event_data['item_name'] == "Test Note"
-        assert event_data['item_data'] == command.deleted_item_data
+        assert event_data["project"] == sample_project
+        assert event_data["item_id"] == "note-123"
+        assert event_data["item_type"] == "note"
+        assert event_data["item_name"] == "Test Note"
+        assert event_data["item_data"] == command.deleted_item_data
 
     def test_command_state_isolation(self, mock_app_context, sample_project):
         """Test that multiple command instances don't interfere with each other."""
@@ -510,7 +511,7 @@ class TestDeleteItemCommand:
         assert command2.deleted_item_class == Note
         assert command1.deleted_item_data is not None
         assert command2.deleted_item_data is not None
-        assert command1.deleted_item_data['id'] == "note-1"
-        assert command2.deleted_item_data['id'] == "note-2"
-        assert command1.deleted_item_data['name'] == "Note 1"
-        assert command2.deleted_item_data['name'] == "Note 2"
+        assert command1.deleted_item_data["id"] == "note-1"
+        assert command2.deleted_item_data["id"] == "note-2"
+        assert command1.deleted_item_data["name"] == "Note 1"
+        assert command2.deleted_item_data["name"] == "Note 2"

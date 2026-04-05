@@ -2,11 +2,13 @@
 Dialog for derivative analysis configuration.
 """
 
-from PySide6.QtWidgets import QFormLayout, QComboBox, QGroupBox
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
+from PySide6.QtWidgets import QComboBox, QFormLayout, QGroupBox
+
+from pandaplot.analysis import AnalysisEngine, AnalysisType
 
 from .base_analysis_dialog import BaseAnalysisDialog
-from pandaplot.analysis import AnalysisEngine, AnalysisType
 
 
 class DerivativeDialog(BaseAnalysisDialog):
@@ -46,7 +48,7 @@ class DerivativeDialog(BaseAnalysisDialog):
     def preview_analysis(self):
         """Preview derivative calculation."""
         try:
-            if self.dataset is None or not hasattr(self.dataset, 'data') or self.dataset.data is None:
+            if self.dataset is None or not hasattr(self.dataset, "data") or self.dataset.data is None:
                 self.preview_text.setText("No dataset available for preview.")
                 return
             
@@ -102,10 +104,10 @@ class DerivativeDialog(BaseAnalysisDialog):
         }
         
         config.update({
-            'analysis_type': AnalysisType.DERIVATIVE.value,
-            'parameters': {
-                **config['parameters'],
-                'method': method_map[self.method_combo.currentText()]
+            "analysis_type": AnalysisType.DERIVATIVE.value,
+            "parameters": {
+                **config["parameters"],
+                "method": method_map[self.method_combo.currentText()]
             }
         })
         
