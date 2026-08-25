@@ -103,17 +103,14 @@ class StyleTab(QWidget):
     """Chart-style settings plus per-entry Line/Marker style controls.
 
     There is deliberately no independent series selector here: the chip row
-    at the top mirrors the same "currently selected entry" state the Data
-    tab's expand/collapse cards drive -- until Data tab migrates (Task 5),
-    the panel is the source of truth for that selection and calls
-    `set_selected` directly; a non-"chart" chip click is relayed back to the
-    panel (which still owns `_expand_series`) via `seriesChipSelected`.
+    mirrors the "currently selected entry" state the Data tab's
+    expand/collapse cards drive -- the panel is the source of truth for that
+    selection and calls `set_selected` directly; a non-"chart" chip click is
+    relayed back to the panel (which still owns `_expand_series`) via
+    `seriesChipSelected`.
 
-    A literal rendered line/marker preview (as sketched in the original
-    design brief) is intentionally omitted here: this panel has no chart
-    canvas of its own to paint into, and the live chart view already
-    re-renders immediately on every change, so a second, redundant
-    mini-renderer wasn't worth the complexity.
+    No rendered line/marker preview: this panel has no chart canvas of its
+    own, and the live chart view already re-renders on every change.
     """
 
     configChanged = Signal()
@@ -823,11 +820,11 @@ class StyleTab(QWidget):
             self._current_target = ("colormap_config", None)
             self._update_target_cards_visibility()
         elif value is not None:
-            # The panel (until Task 5) or DataTab (after Task 5) is the
-            # source of truth for series/fit selection -- this tab does not
-            # self-select a series; it only reacts to set_selected(). `None`
-            # is the transient value QComboBox reports mid-`clear()` (no
-            # current item yet) and isn't a real selection to relay.
+            # The panel is the source of truth for series/fit selection --
+            # this tab does not self-select a series; it only reacts to
+            # set_selected(). `None` is the transient value QComboBox
+            # reports mid-`clear()` (no current item yet) and isn't a real
+            # selection to relay.
             self.seriesChipSelected.emit(value)
 
     def _update_target_cards_visibility(self):
@@ -836,19 +833,13 @@ class StyleTab(QWidget):
         visibility for a selected series is driven by SERIES_TYPE_SPECS for
         the selected series' own type (falling back to the chart's type for
         the Chart/Axes chips, which have no specific series) -- the single
-        source of truth this design introduces, replacing the is_scatter/
-        is_vector booleans this method used to compute locally (which had
-        already drifted out of sync with chart_editor.py's own per-type
-        rendering, e.g. showing error-bar controls for a histogram series
-        the renderer never draws).
+        source of truth for this, replacing per-type booleans this method
+        used to compute locally.
 
-        A selected *fit* entry is unaffected by the series' spec -- a fit is
-        always rendered as a line (chart_editor.py plots it unconditionally),
-        regardless of the chart's own type -- so the Line card stays visible
-        for fit even on Scatter charts.
-
-        The Marker card only applies to a series: fit data has no marker
-        concept at all (see load_fit_style/apply_fit_style_to).
+        A selected *fit* is unaffected by the series' spec -- a fit is
+        always rendered as a line regardless of chart type -- so the Line
+        card stays visible for fit even on Scatter charts. The Marker card
+        only applies to a series: fit data has no marker concept.
         """
         kind, obj = self._current_target
         is_chart = kind == "chart"
@@ -1177,21 +1168,15 @@ class StyleTab(QWidget):
 
     def _is_scatter_series_target(self) -> bool:
         """Whether the current target is a data series with no drawn line at
-        all (Line card is hidden; see _update_target_cards_visibility), so
+        all (Line card hidden; see _update_target_cards_visibility), so
         "match line" has nothing to refer to and marker colors must always
         be set explicitly. Spec-driven off SERIES_TYPE_SPECS.supports_color
-        (the same flag the Line card's own visibility is gated on) rather
-        than hardcoding SeriesType.SCATTER, so this stays correct for any
-        other no-line series type -- e.g. Colormap, which also has
-        supports_color=False and a required marker (see marker_mode) but
-        was previously missed by the SCATTER-only check, leaving "Match
-        line" visible and able to silently blank marker_edge_color/
-        swatch_color for Colormap series.
+        (the same flag gating the Line card) rather than hardcoding
+        SeriesType.SCATTER, so it also covers Colormap (supports_color=False,
+        required marker).
 
-        In practice this only affects LINE/SCATTER/COLORMAP: BAR/HIST/
-        VECTOR/HEATMAP all have marker_mode="unsupported", so their Marker
-        card (and this toggle) is never shown regardless of this value (see
-        marker_supported in _update_target_cards_visibility)."""
+        BAR/HIST/VECTOR/HEATMAP have marker_mode="unsupported", so their
+        Marker card is never shown regardless of this value."""
         kind, obj = self._current_target
         if kind != "series" or not isinstance(obj, DataSeries):
             return False
@@ -1240,33 +1225,25 @@ class StyleTab(QWidget):
     def set_series_list(self, data_series, fit_data, selected_index: int = 0):
         """Sync `style_series_chips` with the same series+fit list the Data
         tab's cards are built from, keeping its selection in lockstep with
-        `selected_index` (the Data tab's own combined series/fit index,
-        `DataTab.selected_index`) -- unless "Chart" is the currently selected
-        target, which is independent of the series/fit list and must survive
-        a refresh.
+        `selected_index` (`DataTab.selected_index`) -- unless "Chart" is the
+        currently selected target, which is independent of the series/fit
+        list and must survive a refresh.
 
         Values are the combined index (int) for series/fit, or the "chart"
         sentinel, so selecting an entry can drive `set_selected` directly.
+        `DataTab.seriesListChanged` is a plain `(data_series, fit_data)`
+        two-arg signal, so the panel's connection wraps it to also pass
+        `self.data_tab.selected_index` as `selected_index` here.
 
-        `DataTab.seriesListChanged` itself is a plain `(data_series,
-        fit_data)` two-arg signal (this tab has no direct reference to
-        DataTab), so the panel's connection wraps it to also pass
-        `self.data_tab.selected_index` as `selected_index` here -- this tab
-        does not otherwise track that index itself (unlike the pre-Task-5
-        panel's single `_expanded_series_index` shared by both concerns).
-
-        The "was Chart explicitly selected" check is intentionally based on
-        `style_series_chips.currentValue()` (this widget's own previous
-        state), not `self._current_target`: `_current_target` gets
-        reflexively reassigned to the currently-expanded series/fit on every
-        Data-tab card rebuild (via `seriesSelected`, emitted regardless of
-        whether the user actually changed anything, e.g. a purely-visual
-        accordion toggle or a live theme refresh) and so cannot reliably
-        answer "did the user deliberately choose Chart" by the time this
-        runs. The chip widget's own value is untouched by any of that -- it
-        only ever changes via a direct chip click (`_on_chip_selected`) or
-        this method's own prior conclusion -- so it survives those
-        reflexive reassignments correctly.
+        The "was Chart explicitly selected" check is based on
+        `style_series_chips.currentValue()`, not `self._current_target`:
+        `_current_target` gets reflexively reassigned to the
+        currently-expanded series/fit on every Data-tab card rebuild
+        (emitted regardless of whether the user changed anything, e.g. an
+        accordion toggle or theme refresh), so it can't reliably answer "did
+        the user deliberately choose Chart". The chip widget's own value only
+        changes via a direct chip click or this method's own prior
+        conclusion, so it survives those reflexive reassignments.
         """
         self._data_series = list(data_series)
         previous_value = self.style_series_chips.currentValue()
@@ -1360,21 +1337,16 @@ class StyleTab(QWidget):
 
     def _update_marker_controls_enabled(self):
         """Show the marker sub-controls only while markers are enabled;
-        hide them (not just grey them out) when disabled, leaving only
-        the greyed section title -- reported live: "if I disable entire
-        section, such as marker, we should hide options and just leave
-        the section title with a disabled state, instead of showing all
-        options in a disabled state." Same "match line hides colors"
-        sub-behavior as before once markers are on.
+        hide them (not just grey them out) when disabled, leaving only the
+        greyed section title. Same "match line hides colors" sub-behavior
+        once markers are on.
 
-        For a scatter-chart series there is no drawn line at all (the Line
-        card is hidden -- see _update_target_cards_visibility), so "Match
-        line" is meaningless: that row alone is hidden outright whenever
-        markers are on, regardless of the toggle's stored state -- UNLESS
-        the target is Z-driven (Colormap), whose fill genuinely varies per
-        point through the colormap and so has its own, different thing to
-        match (each point's own color, via edgecolors="face") -- see the
-        relabeling below.
+        For a scatter-chart series there is no drawn line at all (Line card
+        hidden), so "Match line" is meaningless and that row is hidden
+        outright whenever markers are on -- UNLESS the target is Z-driven
+        (Colormap), whose fill varies per point through the colormap and so
+        has its own thing to match (each point's own color via
+        edgecolors="face") -- see the relabeling below.
 
         A required-marker series (Scatter, Colormap) can never turn its
         markers off -- they're the only thing it draws -- so the on/off
@@ -1642,17 +1614,15 @@ class StyleTab(QWidget):
             series.alpha = self.line_opacity_slider.value()
 
         # "Markers enabled" isn't a separate persisted flag: it maps onto
-        # the existing MarkerType.NONE member -- except for a
-        # required-marker target (Scatter, Colormap), which can never
-        # write NONE regardless of the (hidden) toggle's stored state.
-        # "Match line"/"Match point color" reuses the existing "" ==
-        # inherit convention for marker_color/marker_edge_color (rendering
-        # falls back to style.color for either field when empty -- see
+        # MarkerType.NONE -- except for a required-marker target (Scatter,
+        # Colormap), which can never write NONE regardless of the (hidden)
+        # toggle's stored state. "Match line"/"Match point color" reuses the
+        # "" == inherit convention for marker_color/marker_edge_color
+        # (rendering falls back to style.color when empty -- see
         # series_renderers/line.py and scatter.py; render_colormap_series
         # falls back to matplotlib's "face" sentinel for marker_edge_color
-        # instead, and never reads marker_color at all, since fill color
-        # always comes from z_data there). LineSeriesStyle/ScatterSeriesStyle/
-        # ColormapSeriesStyle declare marker fields.
+        # instead, and never reads marker_color, since fill color always
+        # comes from z_data there).
         if isinstance(style, (LineSeriesStyle, ScatterSeriesStyle, ColormapSeriesStyle)):
             if self.markers_enabled_toggle.isChecked() or self._is_required_marker_target():
                 style.marker.marker_style = self.marker_shape_control.currentValue().value

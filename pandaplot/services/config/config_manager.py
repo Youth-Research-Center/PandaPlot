@@ -1,21 +1,11 @@
-"""Configuration Manager Service (Phase 1.2)
+"""Configuration Manager Service
 
-Responsibilities:
-    * Manage a singleton-like ApplicationConfig instance
-    * Load / save configuration JSON from disk
-    * Provide update & reset operations with validation
-    * Emit lifecycle events on the shared EventBus
-
-Events emitted (data always includes the *current* config object under key 'config'):
-    - config.loaded  : after successful load (even if defaults due to missing/corrupt file)
-    - config.updated : after in-memory update/merge
-    - config.saved   : after persisting to disk
-    - config.reset   : after resetting to defaults
+Emits config.loaded / .updated / .saved / .reset on the shared EventBus; each
+event's data includes the *current* config object under key 'config'.
 
 Notes:
     * Migration is deferred to a later phase (a hook is reserved where version differs)
-    * The manager is filesystem agnostic apart from the Path passed on construction
-    * All file operations are defensive; failures fall back to defaults & log warnings
+    * File operations are defensive; failures fall back to defaults & log warnings
 """
 from __future__ import annotations
 

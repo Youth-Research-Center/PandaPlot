@@ -1,20 +1,11 @@
-"""Regression tests for two ordering bugs in StyleTab's Axes-section Colors
-card (style_tab.py), moved here from tests/gui/test_axes_tab.py in Task 6
-when the Colors card itself moved from AxesTab into StyleTab's "Axes"
-section.
+"""Regression tests for two ordering bugs in StyleTab's Axes-section Colors card.
 
-1. `load_chart_style` must set match-toggle checked state BEFORE loading
-   swatch colors from `chart.config`. `ToggleSwitch.setChecked` emits
-   `toggled` unconditionally, and the toggled handler
-   (`_on_axis_style_match_x_colors_toggled`) pre-fills its swatches from
-   X's *current* color whenever the new state is "not matching" -- this
-   would silently clobber a saved custom color the moment a chart with
-   `y_match_x_colors=False` loaded, if colors were loaded first.
-
-2. `_on_copy_axis_style` has the same ordering requirement: it must set
-   the target's match toggles BEFORE copying the source axis's colors
-   into the target, or the toggled handler's pre-fill would overwrite the
-   just-copied colors with X's instead.
+Both `load_chart_style` and `_on_copy_axis_style` must set match-toggle
+checked state BEFORE loading/copying swatch colors. `ToggleSwitch.setChecked`
+emits `toggled` unconditionally, and the toggled handler
+(`_on_axis_style_match_x_colors_toggled`) pre-fills swatches from X's
+*current* color whenever the new state is "not matching" -- doing colors
+first would silently clobber a saved/just-copied custom color with X's.
 """
 import types
 

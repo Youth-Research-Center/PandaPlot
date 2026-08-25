@@ -180,33 +180,16 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-    # TODO(#206): fix add (load damped pendulum project, try to add series to energy graph)
-    # TODO(#206): fix remove series
-    # TODO(#207): log error messages to the user
-    # TODO(#208): fix how we treat transformed columns, they aren't saved correctly
-    # TODO(#209): consider creating project creation dialog
-    # TODO(#209): improve view of project name
-    # TODO(#209): when opening a project which is already open, we should just switch to it instead of reloading it
-    # TODO(#211): create process for multi-threaded operations
-    # TODO(#212): use mm instead of cm or make it configurable
-    # TODO(#211): improve initial loading of the app
-    # TODO(#210): clean state on opening new project or add support for multiple projects
-    # TODO(#213): list and implement copy paste capabilities we want to support
-    # TODO(#214): improve how we handle styles and themes
-    # TODO(#209): ask whether open project needs to be saved before closing - either a new project or open documents that have been modified. We can track modifications somewhere if needed.
-    # TODO(#209): save on an existing project is acting as save as, we need to fix this behavior.
-    # TODO(#215): enable chart creation without opening a dataset
-    # TODO(#209): remove dialog on project open success
+    # TODO(#206): fix add/remove series on energy graph
+    # TODO(#208): fix transformed columns not saving correctly
+    # TODO(#209): misc project open/save/close UX issues (dialogs, saved-state tracking, tab cleanup)
+    # TODO(#210): clean state on new project / support multiple projects
+    # TODO(#211): multi-threaded processing; improve initial app load time
+    # TODO(#212): use mm instead of cm, or make units configurable
+    # TODO(#213): copy/paste support
+    # TODO(#214): styles/themes: font size, dark theme colors
+    # TODO(#215): chart creation/properties panel fixes; scrollable chart area
     # TODO(#216): improve project info display in sidebar
-    # TODO(#209): fix saved state tracking - when opening a project it should say it's saved until modified
-    # TODO(#215): disable chart properties and curve fitting sidepanels on dataset view
-    # TODO(#209): close open tabs related to a project when closing project
-    # TODO(#215): in chart properties panel, fix tab display, ensure buttons are visible
-    # TODO(#214): fix how we use font size across the app.
-    # TODO(#214): fix dark theme colors
-    # TODO(#215): make chart area scrollable
-    # TODO(#217): in dataset tab we show all of the data lazily, but we should load it lazily also from the disk if it's too big
-    # TODO(#217): add support for sorting and filtering of the data
-    # TODO(#217): add export options for dataset tab
-    # TODO(#154): add support for formulas in dataset tab
+    # TODO(#217): dataset tab: lazy disk loading, sorting/filtering, export
+    # TODO(#154): support formulas in dataset tab
     # TODO(#218): encapsulate project data manager inside project manager

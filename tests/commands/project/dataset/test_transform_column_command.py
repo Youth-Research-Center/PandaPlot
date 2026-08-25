@@ -69,6 +69,13 @@ class TestTransformColumnCommand:
         app_context, _, _ = ctx
         command = TransformColumnCommand(app_context, "ds-1", _config("a", replace=False))
         assert command.execute() is False
+        assert "a" in command.error_message
+
+    def test_expression_error_is_captured_in_error_message(self, ctx):
+        app_context, _, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("bad", expression="1 / 0"))
+        assert command.execute() is False
+        assert "division" in command.error_message.lower() or "zero" in command.error_message.lower()
 
     def test_undo_restores_replaced_column(self, ctx):
         app_context, dataset, _ = ctx

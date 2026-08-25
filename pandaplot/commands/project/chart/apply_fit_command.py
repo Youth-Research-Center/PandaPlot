@@ -3,6 +3,7 @@
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command
+from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.events import ChartEvents
 from pandaplot.models.project.items.chart import Chart
@@ -47,6 +48,7 @@ class ApplyFitCommand(Command):
         super().__init__()
 
         self.app_context = app_context
+        self.ui_controller: UIController = app_context.get_ui_controller()
         self.chart_id = chart_id
         self.fit_results = fit_results
 
@@ -80,6 +82,9 @@ class ApplyFitCommand(Command):
             self.logger.warning(
                 "ApplyFitCommand.execute: chart '%s' not found or not a Chart",
                 self.chart_id,
+            )
+            self.ui_controller.show_error_message(
+                "Apply Fit Error", f"Chart '{self.chart_id}' not found."
             )
             return False
 

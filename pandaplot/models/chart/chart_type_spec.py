@@ -1,19 +1,14 @@
 """Per-chart-type column-role requirements and series-type allow-list.
 
-Absorbs pandaplot/gui/dialogs/chart/chart_role_spec.py's ChartRoleSpec/
-CHART_ROLE_SPECS (display_name/roles/required_roles, unchanged) into this
-single registry rather than keeping two competing ones, and adds the
-allowed_series_types/allows_fit/default_series_type fields nothing in the
-codebase declared before. `allowed_series_types` is enforced by
-`Chart.set_chart_type`, which retypes only the series that fall outside
-the new chart type's allow-list, and by the "add series" flow -- mixed
-series types are a real, working capability on a chart today.
+Merges chart_role_spec.py's ChartRoleSpec/CHART_ROLE_SPECS into one
+registry instead of two competing ones, adding allowed_series_types/
+allows_fit/default_series_type. allowed_series_types is enforced by
+Chart.set_chart_type and the add-series flow -- mixed series types on
+one chart are a real, working capability.
 
-supports_error_bars is a *property*, not a stored field: chart_role_spec.py
-used to store this fact directly per chart type, but SeriesTypeSpec now
-owns the single definition of which series types render error bars.
-Storing it twice here would let the two silently drift again -- the exact
-kind of duplication this whole design exists to eliminate.
+supports_error_bars is a property, not a stored field: SeriesTypeSpec
+now owns the single definition of which series types render error bars,
+so duplicating it here would let the two silently drift again.
 """
 from dataclasses import dataclass
 
@@ -116,22 +111,17 @@ def compatible_chart_types(chart_type: "str | ChartType") -> frozenset[ChartType
 
 def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]") -> frozenset[ChartType]:
     """Chart types it's non-destructive to switch into, given the ACTUAL
-    series types present on a chart -- not just the chart's nominal type's
-    static default_series_type (see `compatible_chart_types`, which only
-    looks at that).
+    series types on a chart -- not just the nominal type's static
+    default_series_type (see `compatible_chart_types`).
 
-    A target chart type is compatible iff EVERY one of `series_types` is
-    already in that target's allowed_series_types, i.e. switching to it
-    would force-retype NONE of the chart's existing series. An empty
-    `series_types` (a brand-new, still-empty chart) has nothing to
-    protect, so every chart type is compatible.
+    Compatible iff EVERY series type is in the target's allowed_series_types,
+    i.e. the switch force-retypes none of the chart's existing series. An
+    empty `series_types` (a new chart) has nothing to protect, so every type
+    qualifies.
 
-    Fixes a real gap in `compatible_chart_types`: a mixed chart -- e.g. a
-    Scatter chart holding both SCATTER and VECTOR series -- would
-    otherwise report Bar as a safe switch target (since SCATTER alone is
-    allowed on Bar's {BAR, SCATTER}), silently retyping and discarding
-    the VECTOR series' configuration on selection. Flagged in PR #180
-    review.
+    Fixes a gap in `compatible_chart_types`: a mixed chart (e.g. Scatter
+    holding both SCATTER and VECTOR) would otherwise report Bar as safe,
+    silently discarding the VECTOR series' config on switch.
     """
     types = frozenset(series_types)
     if not types:

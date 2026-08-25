@@ -1,17 +1,11 @@
 """Regression test: re-running `DataTab.set_project` (as happens on every
-chart-tab switch, via `ChartPropertiesPanel._on_tab_changed`) must not
-silently corrupt the currently selected series' dataset_id/x_column_id/
-y_column_id.
+chart-tab switch) must not silently corrupt the currently selected series'
+dataset_id/x_column_id/y_column_id.
 
-Root cause: `_update_datasets()` cleared and repopulated `dataset_combo`
-without blocking signals. That fired `currentTextChanged` ->
-`_on_dataset_changed` -> `_populate_column_combos` (defaulting to whichever
-dataset landed at combo index 0) -> `_on_series_config_changed`, which wrote
-that unrelated dataset/columns straight into whatever series was currently
-selected -- even though nothing about the actual series had changed. This
-surfaced whenever a user revisited a chart tab (e.g. to edit a fit's style)
-after having a series selected: reopening the project, switching tabs, or
-just re-entering the chart tab quietly rewrote the series' source columns.
+Root cause: `_update_datasets()` repopulated `dataset_combo` without
+blocking signals, so `currentTextChanged` cascaded into
+`_on_series_config_changed` and overwrote the selected series with whatever
+dataset landed at combo index 0.
 """
 import sys
 

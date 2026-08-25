@@ -22,6 +22,7 @@ import pandas as pd
 
 from pandaplot.analysis import AnalysisEngine, AnalysisType
 from pandaplot.commands.base_command import Command
+from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart, resolve_series_column
@@ -47,6 +48,7 @@ class AnalyzeChartSeriesCommand(Command):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
+        self.ui_controller: UIController = app_context.get_ui_controller()
 
         self.chart_id = chart_id
         self.source_kind = source_kind
@@ -58,6 +60,11 @@ class AnalyzeChartSeriesCommand(Command):
 
         # State for undo/redo.
         self.result_dataset_id: Optional[str] = None
+
+        # Cache for _resolve_xy_cached: the resolved series don't change over
+        # the command's lifetime, and the UI calls it repeatedly (once per
+        # segment bound, on every spinbox tick) to resolve/bound indices.
+        self._resolved_xy_cache: Optional[tuple[pd.Series, pd.Series, str, str]] = None
 
     # -- source resolution ------------------------------------------------
 
@@ -111,6 +118,18 @@ class AnalyzeChartSeriesCommand(Command):
         label = series.label or y_name
         return x, y, x_label, label
 
+    def _resolve_xy_cached(self, chart: Chart) -> tuple[pd.Series, pd.Series, str, str]:
+        """``_resolve_xy``, memoized for the lifetime of this command.
+
+        ``source_length``/``resolve_point`` are called repeatedly by the UI
+        (once per segment bound, on every spinbox tick); re-running the
+        NaN-dropping/``to_numeric`` work on every call is wasted since the
+        resolved series can't change within a single command instance.
+        """
+        if self._resolved_xy_cache is None:
+            self._resolved_xy_cache = self._resolve_xy(chart)
+        return self._resolved_xy_cache
+
     def source_length(self) -> int:
         """Best-effort length of the resolved series, after NaN-dropping.
 
@@ -122,10 +141,27 @@ class AnalyzeChartSeriesCommand(Command):
             chart = self._get_chart()
             if chart is None:
                 return 0
-            x, _y, _x_label, _y_label = self._resolve_xy(chart)
+            x, _y, _x_label, _y_label = self._resolve_xy_cached(chart)
             return len(x)
         except (ValueError, AttributeError):
             return 0
+
+    def resolve_point(self, index: int) -> Optional[tuple[float, float]]:
+        """Return the resolved (x, y) at a source-series index, or None.
+
+        Used by the UI to show the actual data point a segment start/end
+        index refers to, on the same resolved series ``source_length`` uses.
+        """
+        try:
+            chart = self._get_chart()
+            if chart is None:
+                return None
+            x, y, _x_label, _y_label = self._resolve_xy_cached(chart)
+            if not (0 <= index < len(x)):
+                return None
+            return float(x.iloc[index]), float(y.iloc[index])
+        except (ValueError, AttributeError):
+            return None
 
     # -- analysis ---------------------------------------------------------
 
@@ -195,7 +231,9 @@ class AnalyzeChartSeriesCommand(Command):
     def execute(self) -> bool:
         try:
             if not self.app_state.has_project or not self.app_state.current_project:
-                self.logger.warning("No project loaded; cannot analyze chart series.")
+                message = "No project loaded; cannot analyze chart series."
+                self.logger.warning(message)
+                self.ui_controller.show_error_message("Chart Analysis Error", message)
                 return False
 
             project = self.app_state.current_project
@@ -223,6 +261,7 @@ class AnalyzeChartSeriesCommand(Command):
 
         except Exception as e:
             self.logger.error("Analyze-chart-series failed: %s", e, exc_info=True)
+            self.ui_controller.show_error_message("Chart Analysis Error", str(e))
             return False
 
     @override

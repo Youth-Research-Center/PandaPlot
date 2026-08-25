@@ -236,20 +236,14 @@ class MainWindow(QMainWindow):
         )
 
     def _apply_sidebar_selection_style(self) -> None:
-        """Storybook-local fix for requirement 5: QListWidget's default
-        selection relies on QPalette::Highlight/HighlightedText, which Qt
-        renders with a more muted "inactive" palette group when the widget
-        lacks keyboard focus. This instance-local stylesheet makes the
-        selected item equally visible focused or not, in both themes.
-
-        Storybook-local fix for review finding 1: `accent_active_text` is
-        designed for accent-colored *text* on a light/neutral background
-        elsewhere in pandaplot (it's only `accent.darker(115)`), not for
-        text drawn ON TOP of the `accent` background used here, so pairing
-        them gave ~1.22:1 contrast. Instead pick whichever of black/white
-        actually clears WCAG AA against the real `accent` token at render
-        time (verified in storybook_tests/test_color_contrast.py against
-        real ThemeManager tokens for both themes).
+        """Instance-local override: QListWidget's default selection uses
+        QPalette::Highlight/HighlightedText, which Qt mutes when the widget
+        lacks keyboard focus, so selection visibility would vary by focus
+        state and theme. `accent_active_text` doesn't fix this either — it's
+        tuned for accent text on light backgrounds, not text drawn on top of
+        `accent`, and gives only ~1.22:1 contrast there. Instead we pick
+        whichever of black/white clears WCAG AA against `accent` at render
+        time (verified in storybook_tests/test_color_contrast.py).
         """
         tokens = self._theme_manager.get_design_tokens()
         selected_text = pick_contrasting_text(tokens["accent"])

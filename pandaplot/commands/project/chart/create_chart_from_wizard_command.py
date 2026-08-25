@@ -140,21 +140,15 @@ class CreateChartFromWizardCommand(Command):
             # Keep a strong reference so the dialog isn't garbage-collected while
             # open.
             self._dialog = dialog
-            # Connect a lambda closure, *not* the bound method
-            # `self._on_wizard_finished`: PySide gives bound-method connections
-            # weak-reference-like treatment for the receiver, so a bound method
-            # would not keep this command alive. The command is only referenced
-            # by CommandExecutor's undo stack, which drops entries past
-            # `max_undo_levels` -- 10 unrelated commands while the wizard sits
-            # open (the user may take a while configuring it) would collect the
-            # command and silently break Finish.
-            # The closure holds a genuine strong reference to `self` and to
-            # `dialog`, and the dialog owns the connection, so
-            # `self <-> dialog <-> closure` keeps everything alive for as long
-            # as the wizard is open. The dialog is also captured explicitly
-            # rather than re-read from `self._dialog` at emit time, so a stale
-            # or replaced `self._dialog` can never make the wrong wizard's state
-            # build the chart.
+            # Use a lambda closure, not the bound method `self._on_wizard_finished`:
+            # PySide treats bound-method slots as weak references, so it wouldn't
+            # keep this command alive -- the command is otherwise only held by the
+            # undo stack, which can evict it past `max_undo_levels` while the wizard
+            # sits open, silently breaking Finish. The closure's strong references
+            # to `self` and `dialog` keep both alive for as long as the wizard is
+            # open. `dialog` is captured explicitly rather than read from
+            # `self._dialog` at emit time, so a replaced `self._dialog` can't make
+            # the wrong wizard's state build the chart.
             dialog.finished.connect(lambda result: self._on_wizard_finished(result, dialog))
             # `exec()` used to make the wizard application-modal implicitly;
             # `show()` does not, so set it explicitly to keep the project from

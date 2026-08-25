@@ -356,9 +356,7 @@ class TestDataSeriesRejectsMismatchedStyle:
     will read fields the wrong style class doesn't declare, and a
     save/reload round-trip is guaranteed to fail (from_dict rebuilds the
     class series_type says it should be, from fields belonging to a
-    different one). Caught by a GitHub Copilot review comment on PR #180
-    after AddSeriesCommand started taking a caller-constructed DataSeries
-    directly, which made this mismatch newly reachable."""
+    different one)."""
 
     def test_vector_style_on_a_line_series_raises(self):
         with pytest.raises(ValueError, match="LineSeriesStyle"):
@@ -776,8 +774,8 @@ class TestRetypeSeriesToColormapCarriesOverMarker:
 
     def test_retyping_heatmap_to_colormap_carries_over_z_column(self):
         """Heatmap and Colormap both require a Z column -- retyping between
-        them must not force the user to re-pick the same column. Flagged in
-        PR #190 review: retype_series built a fresh style() and dropped
+        them must not force the user to re-pick the same column. Pins a
+        regression where retype_series built a fresh style() and dropped
         z_column_id/z_column entirely, silently unresolving the series."""
         chart = Chart(name="C", chart_type="heatmap")
         chart.add_data_series(

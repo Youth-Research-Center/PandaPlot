@@ -125,6 +125,7 @@ class TestSignalAnalysisCommand:
         assert command.execute() is False
 
         assert command.result_dataset_id is None
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
     def test_undo_logs_a_warning_when_nothing_to_undo(
         self,
@@ -144,3 +145,16 @@ class TestSignalAnalysisCommand:
         with caplog.at_level(logging.WARNING):
             assert command.undo() is False
         assert "SignalAnalysisCommand.undo" in caplog.text
+
+    def test_execute_surfaces_no_project_loaded_to_the_user(self):
+        app_context = Mock(spec=AppContext)
+        app_state = Mock(spec=AppState)
+        app_state.has_project = False
+        app_state.current_project = None
+        app_context.get_app_state.return_value = app_state
+
+        command = SignalAnalysisCommand(
+            app_context, "ds-1", SignalAnalysisType.FFT, "signal", sampling_rate=1000,
+        )
+        assert command.execute() is False
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once()

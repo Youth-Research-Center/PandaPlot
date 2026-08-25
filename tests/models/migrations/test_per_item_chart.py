@@ -321,39 +321,24 @@ class TestMigrateChartLegacyToV1:
 
 
 def test_style_field_names_match_the_real_style_dataclasses():
-    """Guards against pandaplot/models/migrations/per_item/chart.py's
-    _DIRECT_STYLE_FIELDS_BY_CHART_TYPE/_MARKER_FIELDS_BY_CHART_TYPE/
-    _ERROR_BAR_FIELDS silently drifting out of sync with the real style
-    dataclasses (pandaplot/models/chart/series_style/,
-    pandaplot/models/chart/marker_style.py,
-    pandaplot/models/chart/error_bar_config.py) -- a drift here produces a
-    TypeError at project-load time that gets silently swallowed by
-    ProjectDataManager._load_item()'s bare except, dropping the whole
-    chart from the loaded project.
+    """Guards against the migration's _DIRECT_STYLE_FIELDS_BY_CHART_TYPE/
+    _MARKER_FIELDS_BY_CHART_TYPE/_ERROR_BAR_FIELDS drifting out of sync
+    with the real style dataclasses -- a drift here raises a TypeError at
+    project-load time that ProjectDataManager._load_item()'s bare except
+    silently swallows, dropping the whole chart.
 
-    Since a chart type's real style dataclass now composes marker/
-    error_bars as nested dataclass fields (a single "marker"/"error_bars"
-    field name, not the fields nested inside them), a flat comparison
-    against dataclasses.fields(style_cls) would only ever check the
-    top-level field names. So direct fields are checked against the
-    style class's own top-level names (minus "marker"/"error_bars"
-    themselves), and the marker/error-bar field tuples are checked
-    separately against MarkerStyle/ErrorBarConfig's own fields.
+    Since a style dataclass composes marker/error_bars as single nested
+    fields, a flat dataclasses.fields() comparison only sees the
+    top-level names; direct fields are checked against those (minus
+    "marker"/"error_bars"), while marker/error-bar fields are checked
+    separately against MarkerStyle/ErrorBarConfig.
 
-    COLORMAP/HEATMAP are deliberately excluded from this per-type loop:
-    they were added long after CURRENT_SCHEMA_VERSION was bumped to 1
-    (see schema_version.py), so no project file ever saved by a real
-    user could contain a legacy (schema_version 0 / absent) chart with
-    chart_type "colormap"/"heatmap" -- those chart_type strings simply
-    didn't exist yet when schema_version 0 data was the only kind being
-    written. migrate_chart_legacy_to_v1 is only ever invoked for
-    schema_version 0 data (see migrate_chart's dispatch loop and
-    ChartDataManager's call site), so this migration's dicts genuinely
-    have nothing to do for these two types -- there is no legacy shape
-    to convert. A separate assertion below locks in that the two dicts
-    stay free of entries for them, so a future contributor doesn't
-    "helpfully" add placeholder entries that no legacy data will ever
-    exercise."""
+    COLORMAP/HEATMAP are excluded: they were added after
+    CURRENT_SCHEMA_VERSION was bumped to 1, so no legacy (schema_version
+    0) project file can contain them, and this migration only runs for
+    schema_version 0 data. A separate assertion locks the two dicts free
+    of entries for them, so no one adds placeholder entries that legacy
+    data will never exercise."""
     import dataclasses
 
     from pandaplot.models.chart.error_bar_config import ErrorBarConfig
@@ -408,19 +393,15 @@ def test_style_field_names_match_the_real_style_dataclasses():
 
 
 def test_fit_style_fields_are_a_subset_of_the_real_fit_style_dataclass():
-    """Guards against pandaplot/models/migrations/per_item/chart.py's
-    _FIT_STYLE_FIELDS silently drifting out of sync with FitStyle
-    (pandaplot/models/chart/fit_style.py) -- a drift here (e.g. a field
-    rename) means an old fit dict's flat key ends up under the wrong name
-    inside the migrated "style" dict, so FitStyle(**style_dict) raises a
-    TypeError at project-load time that gets silently swallowed by
-    ProjectDataManager._load_item()'s bare except, dropping the whole
-    chart from the loaded project.
+    """Guards against the migration's _FIT_STYLE_FIELDS drifting out of
+    sync with FitStyle -- a drift (e.g. a rename) would raise a TypeError
+    at project-load time, silently swallowed by
+    ProjectDataManager._load_item()'s bare except, dropping the chart.
 
-    A subset (not equality) check is correct here: FitStyle also has
-    band_fill_enabled/band_fill_alpha/band_color, which are deliberately
-    NOT in _FIT_STYLE_FIELDS since old data never had them -- they
-    should fall through to FitStyle's own defaults on migration."""
+    Subset (not equality) is correct: FitStyle also has
+    band_fill_enabled/band_fill_alpha/band_color, deliberately absent
+    from _FIT_STYLE_FIELDS since old data never had them and should fall
+    through to FitStyle's own defaults."""
     import dataclasses
 
     from pandaplot.models.chart.fit_style import FitStyle

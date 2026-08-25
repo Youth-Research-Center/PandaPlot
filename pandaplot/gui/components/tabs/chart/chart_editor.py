@@ -74,27 +74,19 @@ def apply_chart_title(
 ) -> None:
     """Render the title (figure-level) and subtitle (axes-level) as two
     independent Matplotlib Text artists so each can have its own font size
-    -- a single set_title() call can't mix font sizes within one string.
+    -- a single set_title() call cannot mix font sizes within one string.
 
-    `title_padding` is the gap (in points) between the plot area and the
-    subtitle/title block, matching Axes.set_title's own `pad` parameter
-    (rcParam `axes.titlepad` default: 6.0).
+    `title_padding` mirrors Axes.set_title's `pad` (points, rcParam
+    `axes.titlepad` default 6.0). `main_title_padding` is also in points,
+    but Figure.suptitle() has no `pad` -- it is positioned via `y` (a 0-1
+    fraction of figure height), so the value is converted using
+    `fig_height_inches`, which should be the figure's TARGET height (the
+    one about to be applied via ChartCanvas.set_size()), not its current
+    height, since resizing afterward with a different height would make
+    the conversion wrong. Defaults to the figure's current height.
 
-    `main_title_padding` is the gap (in points) between the top edge of the
-    figure and the main title. Figure.suptitle() has no `pad` parameter of
-    its own -- it's positioned via `y`, a 0-1 fraction of the figure height
-    (fixed default 0.98) -- so the points value is converted to that
-    fraction, keeping the same points-based unit the subtitle's padding
-    uses. `fig_height_inches` should be the figure's TARGET height (the one
-    about to be applied via ChartCanvas.set_size(), which callers must
-    resolve before calling this), not necessarily its current height -- the
-    conversion is wrong if the figure is resized afterward using a
-    different height than was used here. Defaults to the figure's current
-    height when not given (e.g. in tests using a bare Figure/Axes).
-
-    When `title`/`subtitle` is empty, that artist's text is cleared instead
-    of being (re)positioned, so an absent title/subtitle doesn't leave a
-    stale reserved-looking gap where it used to be."""
+    An empty `title`/`subtitle` clears that artist's text instead of
+    repositioning it, avoiding a stale reserved-looking gap."""
     fig = axes.figure
 
     if title:
@@ -140,20 +132,12 @@ def apply_axis_ticks(
     """Apply tick placement, label formatting, direction, and minor ticks to
     a matplotlib Axis.
 
-    axis: a matplotlib Axis object (e.g. ax.xaxis or ax.yaxis)
-    mode: "auto" | "count" | "step" - tick placement strategy
-    count: number of ticks when mode == "count"
-    step: fixed spacing between ticks when mode == "step"
-    fmt: "auto" | "integer" | "1decimal" | "2decimal" | "scientific" | "custom"
-    custom_fmt: a Python format spec (e.g. "{:.2f}") used when fmt == "custom"
-    direction: "out" | "in" | "inout" - which way major ticks point
-    minor_enabled: whether minor ticks are shown between the major ones
-    minor_direction: "out" | "in" | "inout" - which way minor ticks point,
-        independent of major `direction`. Defaults to `direction` when not
-        given (e.g. in tests that only care about major-tick behavior).
-    major_color: color of the major tick marks
-    minor_color: color of the minor tick marks
-    labelcolor: color of the tick value text (shared by major and minor)
+    mode/count/step control major tick placement ("auto"/"count"/"step");
+    fmt/custom_fmt control the label format, with custom_fmt a Python
+    format spec (e.g. "{:.2f}") used only when fmt == "custom".
+
+    minor_direction independently controls which way minor ticks point;
+    when not given it defaults to `direction` (the major-tick setting).
     """
     if mode == "count":
         axis.set_major_locator(MaxNLocator(nbins=count))
@@ -305,21 +289,16 @@ def build_legend(
 
 def apply_layout_with_legend(fig, tight_layout_kwargs: dict, legend_placed_outside: bool) -> None:
     """Run Figure.tight_layout(), re-running it once more when the legend was
-    placed outside the axes (`bbox_to_anchor` set -- Outside Right/Top/Bottom
-    or Custom, see resolve_legend_placement). The first tight_layout() pass
-    runs before Matplotlib can account for an out-of-axes legend's extent,
-    so without the second pass such a legend gets clipped by the figure
-    boundary.
+    placed outside the axes (`bbox_to_anchor` set). The first pass runs
+    before Matplotlib can account for an out-of-axes legend's extent, so
+    without the second pass the legend gets clipped by the figure boundary.
 
-    tight_layout() measures every text artist's extent, which is where
-    Matplotlib's mathtext parser actually runs -- a title/label/tick-label
-    containing invalid mathtext (e.g. `$\\theta_$`, unbalanced `$...$`) raises
-    ValueError/RuntimeError here rather than when the text was set. Mathtext
-    parsing is re-enabled for every text artist before each attempt (so a
-    label the user has since fixed gets rendered as math again), and only
-    disabled -- falling back to literal text -- if that attempt still fails,
-    instead of leaving the layout (and the whole chart preview) stuck
-    mid-update."""
+    tight_layout() is also where Matplotlib's mathtext parser runs while
+    measuring text extents, so invalid mathtext (e.g. unbalanced `$...$`)
+    raises here instead of when the text was set. Mathtext is re-enabled
+    before each attempt (so a fixed label renders as math again) and only
+    disabled -- falling back to literal text -- if that attempt still
+    fails, so a bad label cannot leave the chart preview stuck mid-update."""
     run_with_mathtext_fallback(fig, lambda: fig.tight_layout(**tight_layout_kwargs))
     if legend_placed_outside:
         fig.tight_layout(**tight_layout_kwargs)
@@ -342,24 +321,19 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
 
     Returns (x_data, y_data, x_err, y_err, x_err_minus, y_err_minus, None) on
     success, or all-None with a message when the dataset or a required
-    column can't be found. An empty x_column means "plot against the
-    DataFrame index" for series types that need one -- per
-    SERIES_TYPE_SPECS[...].needs_x_column, keyed by `chart_type` when
-    explicitly passed (used by wizard_preview.py, whose throwaway
-    DataSeries objects don't yet carry a reliable series_type of their
-    own), otherwise by the series' own `series_type` -- the correct
-    source once every real caller has one. Histograms only ever plot
-    y_column, so a stale/unused x_column is ignored (never resolved,
-    never missing-column-checked) and x_data comes back None for a hist
-    series. The error columns are resolved leniently (see
-    _resolve_error_column) since they're optional; x_err_minus/
-    y_err_minus are only meaningful when style.error_bars.error_symmetric
-    is False.
-    Secondary columns (u_data/v_data, required; magnitude_data, optional)
-    are resolved the same way, keyed off needs_secondary_columns. The Z
-    (color) column for Colormap/Heatmap series is resolved the same way
-    too, keyed off needs_z_column: required, so a missing/unresolvable
-    Z column errors out just like a missing U/V column does.
+    column cannot be found. An empty x_column means "plot against the
+    DataFrame index" (SERIES_TYPE_SPECS[...].needs_x_column) -- keyed by
+    `chart_type` when passed explicitly (wizard_preview.py's throwaway
+    DataSeries lack a reliable series_type), otherwise by the series' own
+    series_type. Histograms never use x_column, so x_data is always None
+    for a hist series.
+
+    Error columns are resolved leniently since optional (see
+    _resolve_error_column); x_err_minus/y_err_minus only matter when
+    error_bars.error_symmetric is False. Secondary columns (u_data/v_data
+    required, magnitude_data optional) and the Colormap/Heatmap Z column
+    are resolved the same way, but required ones error out the whole
+    series when unresolvable.
     """
     from pandaplot.models.project.items.chart import resolve_series_column
     from pandaplot.models.project.items.dataset import Dataset
@@ -425,23 +399,19 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
 
 def compute_axis_data_range(project, data_series, prefix: str, positive_only: bool = False) -> Optional[tuple[float, float]]:
     """Compute (min, max) across every series plotted against the given
-    axis (`prefix` in "x", "y", "y2"). All series contribute to "x"
-    regardless of which y-axis they use; "y"/"y2" are filtered by
-    `series.y_axis`. Returns None if no series have resolvable data for
-    this axis (no series yet, or every reference is broken) -- callers
-    fall back to a fixed default range in that case.
+    axis (`prefix` in "x", "y", "y2"). "x" includes all series; "y"/"y2"
+    are filtered by `series.y_axis`. Returns None when no series have
+    resolvable data for this axis, so callers can fall back to a default
+    range.
 
-    Each series' own `series_type` (not one chart-wide type) governs
-    whether it needs an x-column when contributing to the "x" range --
-    a chart containing series of different types (once Phase 4c allows
-    that) must not have one type's column requirements silently applied
-    to another series that doesn't share it.
+    Each series' own `series_type` (not a chart-wide type) governs whether
+    it needs an x-column, so mixed-type charts do not apply one series'
+    column requirements to another.
 
-    `positive_only` should be True when the axis is Log-scaled: matplotlib's
-    own autoscale ignores non-positive data points when computing log-scale
-    view limits (a <= 0 limit is invalid on a log axis and gets silently
-    rejected), so we match that behavior here rather than letting zero/
-    negative values leak into the Range card or into set_xlim/set_ylim."""
+    `positive_only` should be True for a Log-scaled axis: matplotlib's
+    autoscale silently ignores non-positive values on a log axis, and this
+    matches that behavior instead of letting them leak into the Range card
+    or set_xlim/set_ylim."""
     from pandaplot.models.project.items.chart import YAxis
 
     ranges: list[tuple[float, float]] = []
@@ -760,21 +730,16 @@ class ChartEditorWidget(PWidget):
         pass
 
     def _resolve_fill_baseline(self, project, series_index, fill_base, fill_to_index, query, horizontal=False):
-        """Resolve the second bound for a series' area fill.
+        """Resolve the second bound for a series' area fill: either the
+        constant ``fill_base``, or -- when ``fill_to_index`` points at another
+        series -- that series' curve interpolated onto this series' sampling
+        grid, so the region *between* the two curves is filled.
 
-        Returns either the constant ``fill_base`` (fill down/across to a
-        straight baseline) or, when ``fill_to_index`` points at another
-        series in the chart, that series' curve interpolated onto this
-        series' sampling grid so the region *between* the two curves is
-        filled.
-
-        ``query`` is this series' independent-axis samples: its x-values for a
-        vertical fill (interpolating the other series' y over x), or its
-        y-values for a horizontal fill (interpolating the other series' x over
-        y). Interpolation makes ``fill_between``/``fill_betweenx`` well-defined
-        even when the two series don't share a sampling grid; it falls back to
-        the constant baseline if the referenced series is missing or fails to
-        resolve.
+        ``query`` is this series' independent-axis samples (x for a vertical
+        fill, y for a horizontal one). Interpolation makes ``fill_between``/
+        ``fill_betweenx`` well-defined even when the two series do not share
+        a sampling grid; falls back to ``fill_base`` if the referenced
+        series is missing or fails to resolve.
         """
         if fill_to_index is None or fill_to_index < 0 or fill_to_index == series_index or fill_to_index >= len(self.chart.data_series):
             return fill_base
@@ -826,22 +791,15 @@ class ChartEditorWidget(PWidget):
             # Clear the current plot
             self.chart_canvas.axes.clear()
 
-            # Reset the main axes to a fresh full-figure 1x1 gridspec. A
-            # colorbar created with the default use_gridspec=True
-            # *subdivides* the axes' gridspec to make room, and that
-            # subdivision survives colorbar.remove() -- so without this
-            # reset, every re-render of a colormap/heatmap chart would steal
-            # space from the already-shrunk axes, making the plot
-            # progressively smaller (PR #156 review comment).
+            # Reset the main axes to a fresh full-figure 1x1 gridspec. A colorbar's
+            # default use_gridspec=True *subdivides* the gridspec, and that
+            # subdivision survives colorbar.remove() -- without this reset, each
+            # re-render of a colormap/heatmap chart would shrink the axes further.
             #
-            # An existing secondary axis (axes2, a twinx() sharing the same
-            # gridspec cell) must be reset to the SAME fresh spec here too,
-            # unconditionally -- not only when a new colorbar ends up being
-            # drawn below. Otherwise a render that removes/skips the
-            # colorbar (colorbar_show=False, or the chart no longer has a
-            # z-driven series) leaves axes2 on its old, possibly-subdivided
-            # spec while axes just got the fresh one, and tight_layout()
-            # misaligns the two axes (PR #190 review).
+            # axes2 (twinx(), sharing the same gridspec cell) must get the SAME
+            # fresh spec unconditionally, even when no colorbar is drawn below --
+            # otherwise it stays on its old subdivided spec while axes gets the
+            # fresh one, and tight_layout() misaligns the two.
             from matplotlib.gridspec import GridSpec
             subplotspec = self.chart_canvas.axes.get_subplotspec()
             if subplotspec is not None:
@@ -1291,10 +1249,9 @@ class ChartEditorWidget(PWidget):
                     handles += handles2
                     labels += labels2
                 # Skip drawing the legend when there are no handles to show
-                # (e.g. a chart with only an unlabeled Heatmap series before
-                # PR-review fix, or any chart where nothing has a label) --
-                # matplotlib would otherwise draw an empty framed legend box
-                # over the plot.
+                # (e.g. a chart with only an unlabeled Heatmap series, or any
+                # chart where nothing has a label) -- matplotlib would
+                # otherwise draw an empty framed legend box over the plot.
                 if handles:
                     placement_kwargs = resolve_legend_placement(
                         config.get("legend_position", "upper right"),

@@ -85,6 +85,25 @@ class TestAnalysisCommand:
         assert changed and changed[0]["start_index"][1] == 1  # column index of 'y'
         assert not _emitted(event_bus, DatasetOperationEvents.DATASET_COLUMN_ADDED)
 
+    def test_dataset_not_found_is_surfaced_to_the_user(self, ctx):
+        app_context, _, _, _ = ctx
+        command = AnalysisCommand(app_context, "missing-ds", {
+            "analysis_type": "derivative", "x_column": "x", "y_column": "y",
+            "new_column_name": "dydx",
+        })
+        assert command.execute() is False
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+
+    def test_dataset_with_no_data_is_surfaced_to_the_user(self, ctx):
+        app_context, _, dataset, _ = ctx
+        dataset.data = None
+        command = AnalysisCommand(app_context, "ds-1", {
+            "analysis_type": "derivative", "x_column": "x", "y_column": "y",
+            "new_column_name": "dydx",
+        })
+        assert command.execute() is False
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+
     def test_existing_target_without_replace_fails(self, ctx):
         app_context, _, _, _ = ctx
         command = AnalysisCommand(app_context, "ds-1", {
@@ -92,6 +111,22 @@ class TestAnalysisCommand:
             "new_column_name": "y", "replace_existing": False,
         })
         assert command.execute() is False
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+
+    def test_analysis_engine_failure_is_surfaced_to_the_user(self, ctx, monkeypatch):
+        app_context, _, _, _ = ctx
+        monkeypatch.setattr(
+            "pandaplot.commands.project.dataset.analysis_command.AnalysisEngine.calculate_derivative",
+            Mock(side_effect=ValueError("boom")),
+        )
+        command = AnalysisCommand(app_context, "ds-1", {
+            "analysis_type": "derivative", "x_column": "x", "y_column": "y",
+            "new_column_name": "dydx",
+        })
+        assert command.execute() is False
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+        title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
+        assert "boom" in message
 
     def test_undo_removes_added_column_and_emits(self, ctx):
         app_context, _, dataset, event_bus = ctx

@@ -31,18 +31,10 @@ class ImportOptions:
     """
     A fully-resolved description of how to parse a data file.
 
-    Attributes:
-        file_format: One of ``CSV_FORMAT``, ``EXCEL_FORMAT``, ``JSON_FORMAT``.
-        delimiter: Field separator for delimited text. May be a single
-            character (``","``) or a regex such as ``r"\\s+"`` for whitespace;
-            ignored for Excel/JSON.
-        has_header: When True the first non-skipped row provides column names;
-            when False synthetic ``Column 1..N`` names are generated.
-        skip_rows: Number of leading rows to discard before the header/data
-            (useful for files with title/metadata banners).
-        encoding: Text encoding for delimited-text and JSON files.
-        sheet_name: Worksheet to read for Excel workbooks (name or 0-based
-            index); ignored for other formats.
+    ``delimiter``, ``skip_rows``, and ``encoding`` apply only to delimited
+    text; ``sheet_name`` only to Excel. ``delimiter`` may be a regex (e.g.
+    ``r"\\s+"``) rather than a literal separator. When ``has_header`` is
+    False, synthetic ``Column 1..N`` names are generated instead.
     """
 
     file_format: str = CSV_FORMAT

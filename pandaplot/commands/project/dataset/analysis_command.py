@@ -9,6 +9,7 @@ import pandas as pd
 from pandaplot.analysis import AnalysisEngine, AnalysisType
 from pandaplot.commands.base_command import Command
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
+from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 
@@ -35,6 +36,7 @@ class AnalysisCommand(Command):
         """
         super().__init__()
         self.app_context = app_context
+        self.ui_controller: UIController = app_context.get_ui_controller()
         self.dataset_id = dataset_id
         self.analysis_config = analysis_config
 
@@ -59,8 +61,9 @@ class AnalysisCommand(Command):
             # Get dataset
             self.dataset = self._get_dataset()
             if not self.dataset:
-                self.logger.warning(
-                    f"Analysis execution failed: Dataset {self.dataset_id} not found")
+                message = f"Dataset {self.dataset_id} not found"
+                self.logger.warning(f"Analysis execution failed: {message}")
+                self.ui_controller.show_error_message("Analysis Error", message)
                 return False
 
             # Validate inputs
@@ -70,16 +73,18 @@ class AnalysisCommand(Command):
             # Store original state for undo
             df = self.dataset.data
             if df is None:
-                self.logger.warning(
-                    "Analysis execution failed: Dataset is empty")
+                message = "Dataset is empty"
+                self.logger.warning(f"Analysis execution failed: {message}")
+                self.ui_controller.show_error_message("Analysis Error", message)
                 return False
             self._store_original_state(df)
 
             # Execute analysis
             result = self._execute_analysis(df)
             if result is None:
-                self.logger.warning(
-                    "Analysis execution failed: Analysis returned no result")
+                message = "Analysis returned no result"
+                self.logger.warning(f"Analysis execution failed: {message}")
+                self.ui_controller.show_error_message("Analysis Error", message)
                 return False
 
             # Add result column to dataset
@@ -116,6 +121,7 @@ class AnalysisCommand(Command):
 
         except Exception as e:
             self.logger.error(f"Analysis execution failed: {e}")
+            self.ui_controller.show_error_message("Analysis Error", str(e))
             return False
 
     def undo(self) -> bool:
@@ -197,11 +203,15 @@ class AnalysisCommand(Command):
     def _validate_inputs(self) -> bool:
         """Validate all required inputs are present and valid."""
         if not self.new_column_name.strip():
-            self.logger.error("Error: New column name cannot be empty")
+            message = "New column name cannot be empty"
+            self.logger.error(f"Error: {message}")
+            self.ui_controller.show_error_message("Analysis Error", message)
             return False
 
         if self.dataset is None or not hasattr(self.dataset, "data") or self.dataset.data is None:
-            self.logger.error("Error: Dataset has no data")
+            message = "Dataset has no data"
+            self.logger.error(f"Error: {message}")
+            self.ui_controller.show_error_message("Analysis Error", message)
             return False
 
         df = self.dataset.data
@@ -214,25 +224,29 @@ class AnalysisCommand(Command):
             missing_columns.append(self.y_column)
 
         if missing_columns:
-            self.logger.error(
-                f"Error: Source columns not found: {missing_columns}")
+            message = f"Source columns not found: {missing_columns}"
+            self.logger.error(f"Error: {message}")
+            self.ui_controller.show_error_message("Analysis Error", message)
             return False
 
         # Check if new column already exists
         if self.new_column_name in df.columns and not self.replace_existing:
-            self.logger.error(
-                f"Error: Column '{self.new_column_name}' already exists")
+            message = f"Column '{self.new_column_name}' already exists"
+            self.logger.error(f"Error: {message}")
+            self.ui_controller.show_error_message("Analysis Error", message)
             return False
 
         # Check data types for numeric operations
         if not pd.api.types.is_numeric_dtype(df[self.x_column]):
-            self.logger.error(
-                f"Error: X column '{self.x_column}' must be numeric")
+            message = f"X column '{self.x_column}' must be numeric"
+            self.logger.error(f"Error: {message}")
+            self.ui_controller.show_error_message("Analysis Error", message)
             return False
 
         if not pd.api.types.is_numeric_dtype(df[self.y_column]):
-            self.logger.error(
-                f"Error: Y column '{self.y_column}' must be numeric")
+            message = f"Y column '{self.y_column}' must be numeric"
+            self.logger.error(f"Error: {message}")
+            self.ui_controller.show_error_message("Analysis Error", message)
             return False
 
         return True

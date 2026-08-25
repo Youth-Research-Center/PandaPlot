@@ -1,18 +1,14 @@
-"""Regression test for the outside-legend clipping bug in
-ChartEditor.update_chart.
+"""Regression test for outside-legend clipping in ChartEditor.update_chart.
 
-A legend placed outside the axes via `bbox_to_anchor` (the Outside Right/
-Top/Bottom/Custom positions -- see resolve_legend_placement) sits past the
-axes' own bounding box, so `fig.tight_layout()` must run *after* the legend
-exists for Matplotlib to shrink the axes and make room for it. Before the
-fix, `tight_layout()` in `update_chart` only ran when a secondary axis was
-present, so a single-axis chart with an outside/custom legend never got any
-`tight_layout()` call at all -- the legend was clipped by the figure
-boundary and never fully on-figure.
+A legend placed outside the axes via `bbox_to_anchor` (Outside Right/Top/
+Bottom/Custom -- see resolve_legend_placement) needs `fig.tight_layout()`
+to run *after* the legend exists so Matplotlib shrinks the axes to make
+room for it. Previously `tight_layout()` only ran when a secondary axis
+was present, so single-axis charts with an outside legend got clipped.
 
-This exercises the real `apply_layout_with_legend` helper used by
-`ChartEditorWidget.update_chart` (extracted so it can be tested without a
-live QApplication/canvas)."""
+Exercises `apply_layout_with_legend`, extracted from
+`ChartEditorWidget.update_chart` so it's testable without a live
+QApplication/canvas."""
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 

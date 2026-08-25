@@ -40,23 +40,17 @@ def pivot_to_grid(x_data, y_data, z_data):
     """Pivot scattered ``(x, y, z)`` triples into a dense grid for pcolormesh.
 
     Returns ``(xs, ys, grid)`` where ``xs``/``ys`` are the sorted unique x/y
-    coordinates and ``grid`` has shape ``(len(ys), len(xs))`` with
-    ``grid[j, i]`` the z value at ``(xs[i], ys[j])``. Cells with no matching
-    sample are left as ``NaN`` (drawn transparent by pcolormesh), so the same
-    routine handles a fully-populated regular grid and a sparse/ragged one.
-    When the same (x, y) pair appears more than once the last occurrence wins,
-    matching how a plain dict-style pivot would resolve duplicates.
+    coordinates and ``grid[j, i]`` is the z value at ``(xs[i], ys[j])``;
+    unmatched cells are ``NaN`` (transparent), so this handles both a
+    fully-populated grid and a sparse/ragged one. Duplicate (x, y) pairs
+    resolve to the last occurrence. Raises ``ValueError`` when there are no
+    points to grid.
 
-    Raises ``ValueError`` when there are no points to grid, so the caller can
-    surface a "no data" state rather than drawing an empty axes.
-
-    Rows with a non-finite X or Y are dropped before gridding --
-    ``pcolormesh`` rejects non-finite coordinate arrays outright, and that
-    exception would occur after this function returns, escaping the
-    caller's ``ValueError`` guard. A non-finite Z at an otherwise-finite
-    (x, y), by contrast, is left in place: it becomes that cell's stored
-    value, which already renders as a transparent cell (NaN), the same
-    outcome as a cell nothing ever sampled.
+    Rows with a non-finite X/Y are dropped before gridding, since
+    ``pcolormesh`` rejects non-finite coordinates outright and that error
+    would surface after this function returns, past the ``ValueError``
+    guard. A non-finite Z is left in place -- it just renders as the
+    already-supported transparent (NaN) cell.
     """
     x = np.asarray(x_data, dtype=float)
     y = np.asarray(y_data, dtype=float)
@@ -82,23 +76,15 @@ def pivot_to_grid(x_data, y_data, z_data):
 
 def bin_to_grid(x_data, y_data, z_data, bins: int):
     """Aggregate scattered ``(x, y, z)`` points into a regular ``bins x bins``
-    grid, each cell holding the **mean** z of the points that fall in it.
+    grid via 2-D-histogram, each cell holding the **mean** z of points that
+    fall in it (unlike :func:`pivot_to_grid`, which needs an exact x/y
+    lattice). Empty cells are ``NaN``. Returns ``(x_centers, y_centers,
+    grid)`` shaped for pcolormesh with ``shading="nearest"``. Raises
+    ``ValueError`` when there are no points to bin.
 
-    Unlike :func:`pivot_to_grid` (which needs the points to already sit on a
-    lattice of exact x/y values), this handles arbitrary scattered data by
-    binning it -- the standard 2-D-histogram approach. Empty cells (no points)
-    are ``NaN`` so they render transparent. Returns ``(x_centers, y_centers,
-    grid)`` with ``grid`` shape ``(bins, bins)`` = ``(len(y_centers),
-    len(x_centers))``, ready for pcolormesh with ``shading="nearest"``.
-
-    Raises ``ValueError`` when there are no points to bin.
-
-    A non-finite X, Y, or Z drops the whole (x, y, z) triple before
-    binning: a non-finite X/Y breaks ``histogram2d``'s auto-detected
-    range outright, and a non-finite Z would silently contaminate the
-    weighted sum for an otherwise-valid bin shared with finite points.
-    Dropping the triple is equivalent to that point never having been
-    sampled, which this function already treats as an empty (NaN) cell.
+    A non-finite X, Y, or Z drops the whole triple first: a non-finite X/Y
+    would break ``histogram2d``'s auto-detected range, and a non-finite Z
+    would contaminate the weighted sum of an otherwise-valid bin.
     """
     x = np.asarray(x_data, dtype=float)
     y = np.asarray(y_data, dtype=float)
@@ -125,22 +111,18 @@ def bin_to_grid(x_data, y_data, z_data, bins: int):
 
 def interpolate_to_grid(x_data, y_data, z_data, resolution: int, method: str = "linear"):
     """Interpolate scattered ``(x, y, z)`` points onto a regular
-    ``resolution x resolution`` grid via ``scipy.interpolate.griddata``, giving
-    a smooth continuous heatmap (as opposed to :func:`bin_to_grid`'s blocky
-    per-cell means).
+    ``resolution x resolution`` grid via ``scipy.interpolate.griddata``, for a
+    smooth heatmap (vs. :func:`bin_to_grid`'s blocky per-cell means).
 
     ``method`` is "linear"/"cubic"/"nearest"; "linear"/"cubic" leave points
-    outside the data's convex hull as ``NaN`` (transparent). Degenerate inputs
-    that ``griddata`` can't triangulate (too few points, all collinear) fall
-    back to "nearest", which always produces a full field. Returns
-    ``(x_centers, y_centers, grid)`` shaped for pcolormesh, or raises
-    ``ValueError`` when there's nothing to interpolate.
+    outside the convex hull as ``NaN``. Inputs ``griddata`` can't triangulate
+    (too few points, all collinear) fall back to "nearest", which always
+    fills the field. Returns ``(x_centers, y_centers, grid)`` shaped for
+    pcolormesh, or raises ``ValueError`` when there's nothing to interpolate.
 
-    A non-finite X, Y, or Z drops the whole (x, y, z) triple first: a
-    non-finite X/Y would make ``x.min()``/``y.min()`` non-finite, breaking
-    both the primary interpolation and the "nearest" fallback outright and
-    discarding all otherwise-valid points; a non-finite Z would corrupt
-    ``griddata``'s own output near that point regardless.
+    A non-finite X, Y, or Z drops the whole triple first: a non-finite X/Y
+    would make ``x.min()``/``y.min()`` non-finite, breaking both the
+    interpolation and the "nearest" fallback for all points.
     """
     from scipy.interpolate import griddata
 

@@ -1,17 +1,13 @@
 """Live preview renderer for the chart wizard's Labels step.
 
-Deliberately a *small, self-contained* renderer, not a reuse of
-`ChartEditorWidget.update_chart()` (the app's real chart-rendering path):
-that method is ~500 lines tightly bound to a persisted `Chart` object, a live
-`ChartEditorWidget`, and its own zoom/pan/toolbar state -- pulling it in here
-would mean either a large extraction refactor of the main rendering path, or
-embedding a full editor widget in a tiny preview pane. This function plots
-real series data (via the same `resolve_series_data` the real renderer uses)
-with a deliberately simplified subset of styling: default matplotlib
-line/scatter/bar/hist plotting, a title/subtitle, axis labels, and on/off
-legend and grid -- everything the wizard's Labels step actually exposes.
-Anything else (per-series color/style, legend position, grid color, ...) is
-still only ever set via Chart Properties after Finish, exactly as today.
+Deliberately self-contained rather than reusing
+`ChartEditorWidget.update_chart()`: that method is ~500 lines tightly bound
+to a persisted `Chart`, a live `ChartEditorWidget`, and its own zoom/pan/
+toolbar state, so reusing it would mean a large refactor or embedding a
+full editor in a tiny preview pane. Uses the same `resolve_series_data` as
+the real renderer, but only styles what the Labels step exposes (title/
+subtitle, axis labels, legend/grid on-off); everything else is still set
+via Chart Properties after Finish, as today.
 """
 from pandaplot.gui.components.tabs.chart.chart_canvas import ChartCanvas
 from pandaplot.gui.components.tabs.chart.chart_editor import resolve_series_data

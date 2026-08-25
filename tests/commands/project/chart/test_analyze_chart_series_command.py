@@ -121,8 +121,18 @@ class TestAnalyzeChartSeriesCommand:
         assert project.find_item(new_id) is None
 
     def test_invalid_source_index_fails(self, ctx):
+        app_context, _ = ctx
         command = _cmd(ctx, source_kind="fit", source_index=9)
         assert command.execute() is False
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+
+    def test_execute_surfaces_no_project_loaded_to_the_user(self, ctx):
+        app_context, _ = ctx
+        app_context.get_app_state.return_value.has_project = False
+        app_context.get_app_state.return_value.current_project = None
+        command = _cmd(ctx)
+        assert command.execute() is False
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
     def test_source_length_excludes_nan_rows(self, ctx):
         _, project = ctx
@@ -140,3 +150,17 @@ class TestAnalyzeChartSeriesCommand:
         chart.fit_data[0].source_dataset_id = "chart-1"
         command = _cmd(ctx, source_kind="fit", analysis_type=AnalysisType.INTEGRAL)
         assert command.execute() is True
+
+    def test_resolve_point_returns_xy_at_index(self, ctx):
+        command = _cmd(ctx, source_kind="series")
+        point = command.resolve_point(10)
+        assert point == pytest.approx((1.0, 1.0))
+
+    def test_resolve_point_out_of_range_returns_none(self, ctx):
+        command = _cmd(ctx, source_kind="series")
+        assert command.resolve_point(101) is None
+        assert command.resolve_point(-1) is None
+
+    def test_resolve_point_invalid_source_returns_none(self, ctx):
+        command = _cmd(ctx, source_kind="fit", source_index=9)
+        assert command.resolve_point(0) is None

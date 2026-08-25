@@ -29,6 +29,7 @@ def test_execute_logs_a_warning_when_no_project_loaded(caplog):
     with caplog.at_level(logging.WARNING):
         assert command.execute() is False
     assert "no project" in caplog.text.lower()
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
 
 def test_undo_logs_a_warning_when_no_project_loaded(caplog):
@@ -39,3 +40,15 @@ def test_undo_logs_a_warning_when_no_project_loaded(caplog):
     with caplog.at_level(logging.WARNING):
         assert command.undo() is False
     assert "result-1" in caplog.text
+
+
+def test_execute_surfaces_compute_failure_to_the_user():
+    project = Mock()
+    project.find_item.return_value = None  # source dataset not found
+    app_context, _ = _make_app_context(has_project=True, current_project=project)
+    command = DescriptiveStatsCommand(app_context, "ds-1", ["A"])
+
+    assert command.execute() is False
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+    _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
+    assert "not available" in message

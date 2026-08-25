@@ -265,27 +265,19 @@ class Chart(Item):
         }
     
     def retype_series(self, index: int, series_type: "str | SeriesType") -> None:
-        """Retype a single series to `series_type`, rebuilding its
-        `.style` for the new type and carrying over its current base
-        color, plus its `marker`/`error_bars` sub-objects when the new
-        style class supports them too (e.g. Line -> Scatter: both
-        compose `marker`/`error_bars`, so a retype must not silently
-        discard a user's already-configured marker styling or error
-        bars just because the concrete style class changed). This is
-        the same per-series retype logic `set_chart_type` applies in
-        bulk to every series a chart-type change makes disallowed --
-        extracted here so an explicit single-series retype (e.g. a user
-        picking a type via a per-series UI control) shares one
-        implementation with that bulk case, instead of duplicating the
-        carry-over logic.
+        """Retype a single series to `series_type`, rebuilding its `.style`
+        for the new type while carrying over its base color and any
+        `marker`/`error_bars` sub-objects the new style class also supports,
+        so a retype doesn't silently discard already-configured marker
+        styling or error bars. Shared by `set_chart_type`'s bulk retype of
+        every series a chart-type change disallows, and by explicit
+        single-series retypes from a per-series UI control.
 
-        Deliberately does NOT add a line when retyping Scatter -> Line
-        (asymmetric with Line -> Scatter, which drops the line): Line ->
-        Scatter drops it out of necessity (ScatterSeriesStyle has no line
-        concept to keep it in), whereas Scatter -> Line has an available
-        destination but adding one would be a user-visible rendering
-        change nobody asked for at retype time. Left as an explicit,
-        subsequent style edit instead.
+        Deliberately does NOT add a line when retyping Scatter -> Line: Line
+        -> Scatter drops the line out of necessity (ScatterSeriesStyle has
+        no line concept), but adding one back on the reverse retype would be
+        an unrequested rendering change -- left as an explicit follow-up
+        style edit instead.
         """
         series = self.data_series[index]
         new_type = SeriesType(series_type)
@@ -315,7 +307,7 @@ class Chart(Item):
         if hasattr(old_style, "z_column_id") and hasattr(new_style, "z_column_id"):
             # Colormap <-> Heatmap both require a Z column -- retyping
             # between them must not force the user to re-pick the same
-            # column (PR #190 review).
+            # column.
             new_style.z_column_id = old_style.z_column_id
             new_style.z_column = old_style.z_column
         series.style = new_style
@@ -324,16 +316,14 @@ class Chart(Item):
     def set_chart_type(self, chart_type: "str | ChartType") -> None:
         """Set the chart type, retyping only series not allowed under it.
 
-        chart_editor.py's renderer picks its dispatch function AND its
-        style-field expectations from each series' own `series_type` --
-        so a series only needs retyping when its current type falls
-        OUTSIDE the new chart type's `allowed_series_types` (e.g. a HIST
-        series can't stay on a chart that just became "line", since
-        Line's spec only allows {LINE, SCATTER}). A series whose type is
-        already allowed (e.g. a LINE series when the chart becomes
-        "vector", since Vector's spec allows {VECTOR, LINE}) is left
-        completely untouched -- mixed series types are legitimate for
-        that combination. Retyped series become the new chart type's own
+        The renderer dispatches and expects style fields based on each
+        series' own `series_type`, so a series only needs retyping when its
+        current type falls outside the new chart type's
+        `allowed_series_types` (e.g. a HIST series can't stay once the chart
+        becomes "line", whose spec only allows {LINE, SCATTER}). A series
+        already allowed under the new type (e.g. LINE on a "vector" chart,
+        which allows {VECTOR, LINE}) is left untouched -- mixed series types
+        are legitimate. Retyped series become the new type's own
         `default_series_type`, via `retype_series`.
         """
         new_type = ChartType(chart_type)
@@ -351,20 +341,17 @@ class Chart(Item):
         """Add a new data series to the chart.
 
         Columns are referenced by their stable ids (``x_column_id`` /
-        ``y_column_id``); any error/vector column ids arrive nested inside
-        a ``style=`` argument, not as flat ``kwargs``. The caller resolves
-        names to ids against the dataset; this model holds no
-        :class:`Dataset` reference — the renderer resolves ids back to live
-        names with :func:`resolve_series_column`.
+        ``y_column_id``); error/vector column ids arrive nested inside a
+        ``style=`` argument, not as flat ``kwargs``. This model holds no
+        :class:`Dataset` reference -- the caller resolves names to ids, and
+        the renderer resolves ids back to live names via
+        :func:`resolve_series_column`.
 
-        ``series_type`` defaults to this chart's own type when the caller
-        doesn't pass one explicitly. Mixed series types are a real,
-        working capability today -- a chart's `allowed_series_types` (see
-        :class:`ChartTypeSpec`) restricts which types may coexist on it --
-        but a series added without an explicit type should still default
-        to the chart's own type rather than silently landing on
-        SeriesType.LINE regardless of what kind of chart it's being added
-        to.
+        ``series_type`` defaults to this chart's own type when not passed
+        explicitly, so a series added to e.g. a vector chart doesn't
+        silently land on SeriesType.LINE -- mixed series types are legitimate
+        (see :class:`ChartTypeSpec`.allowed_series_types), but the default
+        should still match the chart it's being added to.
         """
         kwargs.setdefault("series_type", SeriesType(self.chart_type))
         series = DataSeries(
@@ -674,17 +661,15 @@ def resolve_series_column(dataset: Any, column_id: str,
 def assign_series_column_ids(series: "DataSeries", dataset: Any) -> None:
     """Fill a series' ``*_column_id`` fields from its name fields via ``dataset``.
 
-    Called at series write sites; the per-item chart migration itself is a
-    pure dict transform that never calls this method -- only
-    ``cross_item/column_ids.py``'s post-load backfill does, at a later point
-    in the load pipeline once items are constructed objects. A name that
-    resolves to a column gets that column's id; an unresolved name leaves the
-    existing id untouched (resolution falls back to the stored name).
+    Called at series write sites and by ``cross_item/column_ids.py``'s
+    post-load backfill (once items are constructed objects) -- the per-item
+    chart migration itself never calls this, since it's a pure dict
+    transform. A name that resolves to a column gets that column's id; an
+    unresolved name leaves the existing id untouched.
 
-    The error and vector column pairs now live nested on ``series.style``
-    (``series.style.error_bars`` / a ``VectorSeriesStyle`` instance) rather
-    than directly on ``series``, so each nested target is resolved and
-    guarded the same way ``has_error_data``/``retype_series`` do.
+    Error and vector column pairs live nested on ``series.style``
+    (``error_bars`` / a ``VectorSeriesStyle`` instance) rather than directly
+    on ``series``, so each nested target is resolved separately.
     """
     if dataset is None:
         return

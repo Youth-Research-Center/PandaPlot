@@ -71,17 +71,19 @@ class DerivativeDialog(BaseAnalysisDialog):
             x_data = self.dataset.data[x_col]
             y_data = self.dataset.data[y_col]
             
-            start_idx = self.start_index.value()
-            end_idx = self.end_index.value() if self.end_index.value() != -1 else len(x_data)
-            
+            # start/end row numbers are 1-based; the engine wants a 0-based
+            # start and an exclusive end boundary.
+            start_idx = self.start_index.value() - 1
+            end_idx = self.end_index.value()
+
             result = AnalysisEngine.calculate_derivative(
                 x_data, y_data, method, start_idx, end_idx
             )
-            
+
             # Display preview
             preview_text = "Derivative Analysis Preview\n"
             preview_text += f"Method: {method.title()}\n"
-            preview_text += f"Data Range: {start_idx} to {end_idx}\n"
+            preview_text += f"Data Range: {self.start_index.value()} to {self.end_index.value()}\n"
             preview_text += f"Points: {len(result.result_data)}\n\n"
             preview_text += "Statistics:\n"
             for key, value in result.statistics.items():

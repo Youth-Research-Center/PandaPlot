@@ -42,6 +42,10 @@ class TransformColumnCommand(Command):
         self.column_existed_before = False
         self.dataset = None
 
+        # Set to the reason execute()/undo() returned False, so callers (the
+        # transform panel) can surface it instead of a generic message.
+        self.error_message: Optional[str] = None
+
         # Extract config
         self.new_column_name = transform_config["new_column_name"]
         self.transform_type = transform_config["transform_type"]
@@ -57,13 +61,14 @@ class TransformColumnCommand(Command):
             # Get dataset from app context
             self.dataset = self._get_dataset()
             if not self.dataset:
-                self.logger.warning(f"Dataset {self.dataset_id} not found")
+                self.error_message = f"Dataset {self.dataset_id} not found"
+                self.logger.warning(self.error_message)
                 return False
 
             # Ensure we have a Dataset object
             if not isinstance(self.dataset, Dataset):
-                self.logger.warning(
-                    f"Retrieved item is not a Dataset: {type(self.dataset)}")
+                self.error_message = f"Retrieved item is not a Dataset: {type(self.dataset)}"
+                self.logger.warning(self.error_message)
                 return False
 
             # Validate inputs
@@ -72,7 +77,8 @@ class TransformColumnCommand(Command):
 
             # Get current dataframe
             if not hasattr(self.dataset, "data") or self.dataset.data is None:
-                self.logger.warning("Dataset has no data")
+                self.error_message = "Dataset has no data"
+                self.logger.warning(self.error_message)
                 return False
 
             df = self.dataset.data.copy()  # Work with a copy
@@ -103,6 +109,7 @@ class TransformColumnCommand(Command):
             return True
 
         except Exception as e:
+            self.error_message = str(e)
             self.logger.error(f"Transform execution failed: {e}")
             return False
 
@@ -192,42 +199,53 @@ class TransformColumnCommand(Command):
     def _validate_inputs(self) -> bool:
         """Validate all required inputs are present and valid."""
         if not self.new_column_name.strip():
-            self.logger.error("New column name cannot be empty")
+            self.error_message = "New column name cannot be empty"
+            self.logger.error(self.error_message)
             return False
 
         if not self.expression.strip():
-            self.logger.error("Transform expression cannot be empty")
+            self.error_message = "Transform expression cannot be empty"
+            self.logger.error(self.error_message)
             return False
 
         if not self.source_columns:
-            self.logger.error("At least one source column must be selected")
+            self.error_message = "At least one source column must be selected"
+            self.logger.error(self.error_message)
             return False
 
         # Check if dataset is available
         if not self.dataset or not isinstance(self.dataset, Dataset):
-            self.logger.error("Dataset not available for validation")
+            self.error_message = "Dataset not available for validation"
+            self.logger.error(self.error_message)
             return False
 
         # Get dataframe for validation
         try:
             if not hasattr(self.dataset, "data") or self.dataset.data is None:
-                self.logger.error("Dataset has no data")
+                self.error_message = "Dataset has no data"
+                self.logger.error(self.error_message)
                 return False
             df = self.dataset.data
         except Exception as e:
-            self.logger.error(f"Cannot access dataset dataframe: {e}")
+            self.error_message = f"Cannot access dataset dataframe: {e}"
+            self.logger.error(self.error_message)
             return False
 
         # Check if source columns exist
         missing_columns = [
             col for col in self.source_columns if col not in df.columns]
         if missing_columns:
-            self.logger.error(f"Source columns not found: {missing_columns}")
+            self.error_message = f"Source columns not found: {missing_columns}"
+            self.logger.error(self.error_message)
             return False
 
         # Check if target column exists and handle accordingly
         if self.new_column_name in df.columns and not self.replace_existing:
-            self.logger.error(f"Column '{self.new_column_name}' already exists. Enable replace option or choose different name.")
+            self.error_message = (
+                f"Column '{self.new_column_name}' already exists. "
+                "Enable replace option or choose different name."
+            )
+            self.logger.error(self.error_message)
             return False
 
         return True
@@ -254,10 +272,12 @@ class TransformColumnCommand(Command):
             elif self.transform_type == "multi_column":
                 return self._execute_multi_column_operation(df, safe_globals)
             else:
-                self.logger.error(f"Unknown transform type: {self.transform_type}")
+                self.error_message = f"Unknown transform type: {self.transform_type}"
+                self.logger.error(self.error_message)
                 return None
 
         except Exception as e:
+            self.error_message = str(e)
             self.logger.error(f"Transform logic execution failed: {e}")
             return None
 

@@ -2,16 +2,18 @@
 from typing import override
 
 from pandaplot.commands.base_command import Command
+from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.session import SessionPersistenceManager
 
 
 class CloseProjectCommand(Command):
     """Command to close the currently loaded project."""
-    
+
     def __init__(self, app_context: AppContext):
         super().__init__()
         self.app_context = app_context
+        self.ui_controller: UIController = app_context.get_ui_controller()
 
     @override
     def execute(self) -> bool:
@@ -41,6 +43,7 @@ class CloseProjectCommand(Command):
             
         except Exception as e:
             self.logger.error(f"Failed to close project: {e}")
+            self.ui_controller.show_error_message("Close Project Error", str(e))
             return False
 
     @override

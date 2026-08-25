@@ -62,23 +62,19 @@ _ALL_EXTRACTED_SERIES_FIELDS = frozenset(
 
 def migrate_chart_legacy_to_v1(raw: dict) -> dict:
     """Bring a pre-this-refactor chart dict (schema_version absent/0) up
-    to the current typed shape in one step: each series gets a
-    series_type + fully-nested style (direct fields, plus a "marker"
-    sub-dict for line/scatter and an "error_bars" sub-dict for
-    line/scatter/bar); each fit gets a nested style. There is exactly
-    one prior shape in the wild -- this whole schema-versioning system
-    has never shipped to a real user -- so there is nothing to preserve
-    from an intermediate v1/v2 shape; this replaces what were previously
-    two separate migration steps (v1->v2 for series, v2->v3 for fits).
+    to the current typed shape: each series gets a series_type +
+    fully-nested style (direct fields, plus "marker" for line/scatter
+    and "error_bars" for line/scatter/bar); each fit gets a nested
+    style. This replaces what were previously two separate migrations
+    (v1->v2 for series, v2->v3 for fits) -- there's exactly one prior
+    shape in the wild (this schema-versioning system never shipped to a
+    real user), so there's nothing intermediate to preserve.
 
-    Unlike the original v1->v2 (which deliberately left the old flat
-    fields in place for a "later sub-phase" to remove, once every
-    consumer read from the new nested fields instead), this migration
-    also strips the flat keys it just copied into style. That later
-    sub-phase is this same connected redesign landing in one shot -- by
-    the time this migration ships, every consumer already reads the
-    nested style fields (Tasks 1-9), so there's no longer a reason to
-    carry the redundant flat duplicates forward.
+    Unlike the original v1->v2, which left the old flat fields in place
+    for a later cleanup once all consumers read the nested fields, this
+    migration strips them immediately -- that cleanup already happened
+    as part of this same redesign, so the flat duplicates are dead
+    weight from the start.
     """
     chart_type = raw.get("chart_type", "line")
     direct_fields = _DIRECT_STYLE_FIELDS_BY_CHART_TYPE.get(chart_type, _DIRECT_STYLE_FIELDS_BY_CHART_TYPE["line"])

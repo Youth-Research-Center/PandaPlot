@@ -104,17 +104,11 @@ def test_freshly_saved_project_round_trips_schema_version(tmp_path, manager):
 
 
 def test_a_schema_version_newer_than_current_is_rejected(tmp_path, manager):
-    """Regression test: every per-item/cross-item migration dispatcher is
-    a `while schema_version < CURRENT_SCHEMA_VERSION` loop, which silently
-    no-ops for a schema_version that's already >= CURRENT_SCHEMA_VERSION --
-    including one that's newer than this app understands (e.g. a file
-    saved by a future app version). Loading it anyway would hand
-    un-migrated-for-this-shape dicts straight to each item's from_dict(),
-    which _load_item's broad except would swallow into silently-missing
-    items -- and a later save would overwrite the original file with that
-    truncated project. Caught by a GitHub Copilot review comment on PR
-    #180; must fail loudly before any item is loaded, not silently drop
-    data."""
+    """Migration dispatchers loop `while schema_version < CURRENT_SCHEMA_VERSION`,
+    so a version newer than this app understands would silently skip migration,
+    feed un-migrated dicts to from_dict(), and get swallowed by _load_item's
+    broad except -- silently dropping items and risking a truncated overwrite
+    on save. Must fail loudly instead."""
     project_dict = {
         "name": "From The Future",
         "description": "",

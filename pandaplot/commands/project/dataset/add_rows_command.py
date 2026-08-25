@@ -1,21 +1,10 @@
 """
 Command to add multiple rows to a dataset at once.
 
-This version supports adding rows relative to existing positions with intuitive semantics:
-- Insert rows above or below specified reference positions
-- Handle multiple insertions efficiently by grouping consecutive selections
-- Support both single and multiple row insertions
-
-Usage examples:
-
-# Insert single row below position 1
-AddRowsCommand(app_context, dataset_id, 1, ['NewRow'], side='below')
-
-# Insert multiple rows below consecutive positions (they will be inserted as a block)
-AddRowsCommand(app_context, dataset_id, [1, 2], ['Row1', 'Row2'], side='below')
-
-# Insert rows above different positions 
-AddRowsCommand(app_context, dataset_id, [2, 5], ['Row1', 'Row2'], side='above')
+Rows are inserted relative to existing reference positions (side='above'/'below')
+rather than at absolute indices. Consecutive reference positions are grouped so
+they are inserted together as a single contiguous block instead of one row at a
+time, which keeps multi-row insertion efficient.
 """
 
 from enum import Enum

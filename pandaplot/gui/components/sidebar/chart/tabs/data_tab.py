@@ -281,18 +281,16 @@ class DataTab(QWidget):
     def _rebuild_series_cards(self):
         """Rebuild the Data tab's card list from `self.current_chart`.
 
-        Each entry renders as one of three variants:
-        - the *selected* entry (`self._expanded_series_index`) always gets
-          the full configuration card (dataset/X/Y/Y-axis/label) -- it hosts
-          the one shared, live-wired form widget;
-        - other entries whose index is in `self._expanded_card_indices` get
-          a read-only detail row (purely visual "accordion open" state,
-          independent of selection);
-        - everything else gets the single-line collapsed chip row.
+        Each entry renders as one of three variants: the *selected* entry
+        always gets the full configuration card (hosting the one shared,
+        live-wired form widget); other entries in `self._expanded_card_indices`
+        get a read-only detail row (a purely visual accordion state,
+        independent of selection); everything else gets the collapsed chip
+        row.
 
-        Safe to call at any point: fetches fresh theme tokens, so this
-        doubles as the mechanism by which cards pick up a live theme change
-        (see `apply_theme`).
+        Safe to call at any point: fetches fresh theme tokens, so this also
+        serves as the mechanism for picking up a live theme change (see
+        `apply_theme`).
         """
         # Detach the persistent form widget from whatever card currently
         # hosts it *before* that card is torn down below, so it survives
@@ -968,20 +966,14 @@ class DataTab(QWidget):
             self._updating_controls = previous_guard
 
     def _on_label_typing(self, text: str):
-        """Buffer label text while user is typing without mutating the model.
+        """Buffer label text while typing, without mutating the model.
 
-        Also marks the panel dirty immediately (not deferred to
-        editingFinished like the model write itself): the footer's Apply
-        button starts out disabled, and a *disabled* QPushButton doesn't
-        accept mouse clicks at all -- so if dirty-marking waited for
-        editingFinished, clicking Apply directly after typing would never
-        blur the field (a disabled button can't steal focus), meaning
-        editingFinished never fires, the label never commits, and Apply
-        stays disabled forever. The user would have to click some other
-        widget first just to force the blur. Marking dirty on every
-        keystroke (safe here: blockSignals during programmatic population
-        means this only ever fires for genuine user edits) breaks that
-        deadlock by enabling Apply before the user ever tries to click it.
+        Marks the panel dirty immediately rather than deferring to
+        editingFinished like the model write itself: Apply starts disabled,
+        and a disabled QPushButton can't take focus, so it could never blur
+        the field to fire editingFinished -- deadlocking Apply as disabled
+        forever. Marking dirty per keystroke breaks that (safe: blockSignals
+        during programmatic population means this only fires on real edits).
         """
         self._pending_label = text
         if not self._updating_controls and self.current_chart:
@@ -1060,17 +1052,13 @@ class DataTab(QWidget):
     def _update_datasets(self):
         """Update the available datasets.
 
-        Signals are blocked while clearing/populating: unlike
-        `_populate_column_combos`/`_populate_error_column_combos`, this used
-        to fire `dataset_combo.currentTextChanged` live -- `set_project` (and
-        so this) runs on every chart-tab switch (`ChartPropertiesPanel.
-        _on_tab_changed`), well after a chart may already be loaded and a
-        series selected here, so an unblocked fire of `_on_dataset_changed`
-        -> `_on_series_config_changed` silently overwrote the currently
-        selected series' `dataset_id`/`x_column_id`/`y_column_id` with
-        whatever dataset happened to land at the freshly-rebuilt combo's
-        index 0/1 -- corrupting a series having nothing to do with the tab
-        switch that triggered it.
+        Signals are blocked while clearing/populating: `set_project` runs on
+        every chart-tab switch, well after a chart/series may already be
+        selected, so an unblocked `dataset_combo.currentTextChanged` would
+        fire `_on_dataset_changed` -> `_on_series_config_changed` and
+        silently overwrite the selected series' dataset/column ids with
+        whatever landed at the freshly-rebuilt combo's index 0/1 --
+        corrupting a series unrelated to the tab switch that triggered it.
         """
         self.dataset_combo.blockSignals(True)
         try:

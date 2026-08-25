@@ -98,28 +98,17 @@ class ChartTab(QWidget):
         self._on_field_changed()
 
     def _update_chart_type_compatibility(self):
-        """Disable chart-type options that would force-retype (and therefore
-        visually alter) this chart's ACTUAL series -- not just its nominal
-        type's default series type, per `compatible_chart_types_for_series`.
-        Using the chart's real series types (rather than
-        `compatible_chart_types`, which only considers the chart type's
-        static default) is required for mixed-type charts: a Scatter chart
-        holding a VECTOR series must NOT show Bar as enabled just because a
-        plain Scatter series would survive the switch -- the VECTOR series
-        wouldn't. Reported live: "if we don't want to support some
-        transitions in chart type we could disable it. like I don't think we
-        should support going from vector to barchart"; refined via PR #180
-        review to account for mixed-series charts, not just single-type ones.
-        Recomputed on every type change (not just on `load()`), since the
-        compatible set depends on the CURRENT chart's actual series.
+        """Disable chart-type options that would force-retype (and visually
+        alter) this chart's ACTUAL series, not just the nominal type's
+        default series type -- needed for mixed-type charts, e.g. a Scatter
+        chart holding a VECTOR series must not show Bar as enabled just
+        because a plain Scatter series would survive the switch.
+        Recomputed on every type change, since the compatible set depends
+        on the current chart's actual series.
 
-        A chart with no series yet (a still-empty new chart, or the tab in
-        its cleared state) has no actual series to protect, so this falls
-        back to the current type's own default_series_type -- matching the
-        reviewer's "falling back to the chart default only when empty" --
-        rather than treating "no series" as "every chart type is safe",
-        which would defeat the whole point of the check for e.g. a
-        freshly-created Vector chart with no series added yet."""
+        If the chart has no series yet, falls back to the current type's
+        own default_series_type rather than treating "no series" as "every
+        chart type is safe"."""
         current_type = self.chart_type_control.currentValue()
         if current_type is None:
             return

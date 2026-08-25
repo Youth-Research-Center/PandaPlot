@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QGroupBox,
+    QHBoxLayout,
+    QLabel,
     QLineEdit,
     QSpinBox,
     QTextEdit,
@@ -37,9 +39,12 @@ class BaseAnalysisDialog(QDialog):
         
         self.setup_ui()
         self.setup_column_choices()
-        
+        self._connect_range_signals()
+
         if default_y_column:
             self.y_column_combo.setCurrentText(default_y_column)
+
+        self._update_range_labels()
     
     def setup_ui(self):
         """Setup the user interface."""
@@ -101,21 +106,64 @@ class BaseAnalysisDialog(QDialog):
         """Create data range selection group."""
         group = QGroupBox("Data Range")
         layout = QFormLayout()
-        
+
+        # Both spinboxes show 1-based row numbers, matching the row numbers
+        # in the dataset table (pandas_table_model.py shows "row + 1").
         self.start_index = QSpinBox()
         self.start_index.setMinimum(0)
         self.start_index.setValue(0)
-        
+        self.start_value_label = QLabel("–")
+        start_row = QHBoxLayout()
+        start_row.addWidget(self.start_index)
+        start_row.addWidget(self.start_value_label)
+        layout.addRow("Start Row:", start_row)
+
         self.end_index = QSpinBox()
-        self.end_index.setMinimum(-1)
-        self.end_index.setValue(-1)
-        self.end_index.setSpecialValueText("End")
-        
-        layout.addRow("Start Index:", self.start_index)
-        layout.addRow("End Index:", self.end_index)
-        
+        self.end_index.setMinimum(0)
+        self.end_index.setValue(0)
+        self.end_value_label = QLabel("–")
+        end_row = QHBoxLayout()
+        end_row.addWidget(self.end_index)
+        end_row.addWidget(self.end_value_label)
+        layout.addRow("End Row:", end_row)
+
         group.setLayout(layout)
         return group
+
+    def _connect_range_signals(self):
+        self.start_index.valueChanged.connect(self._update_range_labels)
+        self.end_index.valueChanged.connect(self._update_range_labels)
+        self.x_column_combo.currentIndexChanged.connect(self._update_range_labels)
+        self.y_column_combo.currentIndexChanged.connect(self._update_range_labels)
+
+    def _resolve_point(self, row_number: int) -> Optional[tuple]:
+        """Return the resolved (x, y) at a 1-based row number, or None."""
+        if self.dataset is None or self.dataset.data is None:
+            return None
+        x_col = self.x_column_combo.currentText()
+        y_col = self.y_column_combo.currentText()
+        if not x_col or not y_col or x_col not in self.dataset.data.columns \
+                or y_col not in self.dataset.data.columns:
+            return None
+        x_data = self.dataset.data[x_col]
+        y_data = self.dataset.data[y_col]
+        index = row_number - 1
+        if not (0 <= index < len(x_data)):
+            return None
+        try:
+            return float(x_data.iloc[index]), float(y_data.iloc[index])
+        except (TypeError, ValueError):
+            return None
+
+    def _format_point(self, point: Optional[tuple]) -> str:
+        if point is None:
+            return "–"
+        x, y = point
+        return f"x={x:.4g}, y={y:.4g}"
+
+    def _update_range_labels(self):
+        self.start_value_label.setText(self._format_point(self._resolve_point(self.start_index.value())))
+        self.end_value_label.setText(self._format_point(self._resolve_point(self.end_index.value())))
     
     def create_preview_group(self) -> QGroupBox:
         """Create preview group."""
@@ -152,10 +200,16 @@ class BaseAnalysisDialog(QDialog):
                 self.x_column_combo.setCurrentIndex(0)
                 self.y_column_combo.setCurrentIndex(0)
             
-            # Update max values for range selection
-            max_rows = len(self.dataset.data)
-            self.start_index.setMaximum(max_rows - 1)
-            self.end_index.setMaximum(max_rows)
+            # Both spinboxes show 1-based row numbers (row 1..row_count),
+            # matching the dataset table. end_index defaults to the last row
+            # so decreasing it shrinks the segment.
+            row_count = len(self.dataset.data)
+            lo = 1 if row_count > 0 else 0
+            self.start_index.setMinimum(lo)
+            self.start_index.setMaximum(row_count)
+            self.end_index.setMinimum(lo)
+            self.end_index.setMaximum(row_count)
+            self.end_index.setValue(row_count)
     
     def preview_analysis(self):
         """Preview the analysis - to be implemented by subclasses."""
@@ -169,8 +223,12 @@ class BaseAnalysisDialog(QDialog):
             "new_column_name": self.result_column_name.text().strip(),
             "replace_existing": self.replace_existing.isChecked(),
             "parameters": {
-                "start_index": self.start_index.value(),
-                "end_index": self.end_index.value() if self.end_index.value() != -1 else -1
+                # The spinboxes show 1-based row numbers; the engine wants a
+                # 0-based start and an exclusive end boundary, which is the
+                # displayed end row number unchanged (row N inclusive == an
+                # exclusive boundary of N in 0-based terms).
+                "start_index": self.start_index.value() - 1,
+                "end_index": self.end_index.value(),
             }
         }
         return base_config

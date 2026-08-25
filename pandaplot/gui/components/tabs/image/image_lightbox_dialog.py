@@ -66,16 +66,12 @@ class ImageLightboxDialog(QDialog):
         return self._images[self._index]
 
     def _content_area_size(self) -> QSize:
-        """The available space to scale an image into. Before the user has
-        manually resized the dialog, always use the known initial fixed
-        size directly rather than trusting the label's reported size --
-        Qt's default pre-layout QLabel size (640x480) is NOT (0, 0), so it
-        can't be used to detect "not laid out yet". Once the user has
-        resized the window (detected via resizeEvent, since Qt also fires
-        resizeEvent for our own constructor-time self.resize() call with
-        the initial size -- which we can distinguish because that call
-        never changes the size away from the initial constants), use the
-        label's actual current size to honor their chosen window size."""
+        """The available space to scale an image into. Before a real user
+        resize, use the known initial size, not the label's reported size --
+        Qt's pre-layout QLabel default (640x480) isn't (0, 0), so it can't
+        signal "not laid out yet". A real resize is distinguished from our
+        own constructor-time self.resize() via resizeEvent by checking the
+        size actually changed from the initial constants."""
         if not self._user_has_resized:
             nav_row_height = self.previous_button.sizeHint().height()
             return QSize(_INITIAL_WIDTH, _INITIAL_HEIGHT - nav_row_height)

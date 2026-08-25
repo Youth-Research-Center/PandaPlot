@@ -574,17 +574,10 @@ class TestImageGalleryTabThemeRefresh:
 
 class TestImageGalleryTabListViewIconScaling:
     def test_list_view_icon_is_scaled_thumbnail_not_center_crop(self, app_context):
-        """Regression: build_gallery_tile_icon() only centers the pixmap it's
-        given on the target canvas -- it does not scale it. The grid (120x120
-        icon size) happens to work because _thumbnail_for already scales to
-        exactly 120x120, but the list view asks for a 16x16 icon using that
-        same already-120x120 pixmap. Before the fix, centering a 120x120
-        pixmap on a 16x16 canvas produces a large negative offset, so the
-        visible 16x16 icon is really a 1:1 center-crop of the middle 16x16
-        pixels of the thumbnail -- landing entirely inside this image's solid
-        green interior and showing a single uniform color instead of a
-        genuine small rendering of the whole (red-bordered, green-centered)
-        image.
+        """Regression: build_gallery_tile_icon() only centers a pixmap, it
+        doesn't scale it. The list view's 16x16 icon reused the 120x120 grid
+        thumbnail as-is, so centering center-cropped its green interior
+        instead of showing a scaled view of the whole bordered image.
         """
         gallery = ImageGallery(name="Trip")
         image = Image(name="Beach")

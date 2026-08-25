@@ -90,6 +90,7 @@ def test_execute_returns_false_when_chart_not_found(caplog):
         assert command.execute() is False
     assert command.added_index is None
     assert "missing" in caplog.text
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
 
 def test_undo_removes_the_added_series(app_context_with_chart):

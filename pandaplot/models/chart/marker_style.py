@@ -1,17 +1,12 @@
-"""Marker (point-symbol) styling, shared by every series type whose
-marker_mode is not "unsupported" (today: LINE, SCATTER, COLORMAP).
-Extracted from LineSeriesStyle/ScatterSeriesStyle, which used to declare
-these 5 fields identically -- composition here means a future third
-marker-capable series type reuses this instead of copying the fields
-again.
+"""Marker styling shared by every marker-capable series type (LINE, SCATTER,
+COLORMAP). Extracted from LineSeriesStyle/ScatterSeriesStyle so a future
+marker-capable series type reuses these fields via composition instead of
+duplicating them.
 
 `marker_edge_color` defaults to "" (empty), the same "inherit" sentinel
-`marker_color` already uses: every renderer that reads these fields
-(line.py/scatter.py fall back to `style.color`; colormap.py falls back to
-matplotlib's "face" sentinel, matching each point's own fill) treats an
-empty edge color as "match the fill" rather than a literal color. A fresh
-series therefore starts with a matching fill/edge by default -- still
-independently editable afterward via the Style tab's marker controls.
+`marker_color` uses: renderers treat an empty edge color as "match the
+fill" rather than a literal color, so a fresh series starts with a
+matching fill/edge, still independently editable via the Style tab.
 """
 from dataclasses import dataclass
 

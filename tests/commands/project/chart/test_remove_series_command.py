@@ -96,6 +96,7 @@ def test_execute_logs_a_warning_when_chart_not_found(caplog):
     with caplog.at_level(logging.WARNING):
         assert command.execute() is False
     assert "missing" in caplog.text
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
 
 def test_execute_logs_a_warning_when_series_index_out_of_range(app_context_with_chart, caplog):
@@ -106,6 +107,7 @@ def test_execute_logs_a_warning_when_series_index_out_of_range(app_context_with_
     with caplog.at_level(logging.WARNING):
         assert command.execute() is False
     assert "5" in caplog.text
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
 
 def test_undo_logs_a_warning_when_nothing_to_undo(app_context_with_chart, caplog):

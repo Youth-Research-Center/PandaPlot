@@ -66,6 +66,24 @@ def test_render_equation_error_flag():
     assert result.data_uri == ""
 
 
+def test_render_equation_has_transparent_background():
+    """Equations must not carry an opaque background, or they show as a
+    white box when embedded in a dark-themed note (issue #163)."""
+    import base64
+    import io
+
+    from PIL import Image
+
+    result = render_equation(r"x^2", color="#ffffff", fontsize=11, display=False)
+    data = base64.b64decode(result.data_uri.split(",", 1)[1])
+    image = Image.open(io.BytesIO(data))
+    assert image.mode == "RGBA"
+    alpha = image.getchannel("A")
+    # The corners (outside the glyph strokes) should be fully transparent.
+    assert alpha.getpixel((0, 0)) == 0
+    assert alpha.getpixel((image.width - 1, 0)) == 0
+
+
 def test_wrap_document_applies_colors():
     doc = wrap_document("<p>hi</p>", color="#123456", background="#abcdef")
     assert "#123456" in doc

@@ -1,28 +1,20 @@
-"""Renders a "colormap" series: a scatter whose fill color is driven by
-series_data.z_data through a colormap, not a fixed color -- marker
-shape/size/edge still come from style.marker (marker_mode is "required"
-for this type). Returns the matplotlib PathCollection so chart_editor.py
-can attach the shared colorbar to it.
+"""Renders a "colormap" series: a scatter whose fill color comes from
+series_data.z_data through a colormap, while marker shape/size/edge still
+come from style.marker. Returns the matplotlib PathCollection so
+chart_editor.py can attach the shared colorbar to it.
 
-The colormap name and color-scale limits are shared across every
-Colormap/Heatmap series on the chart (there's only one physical colorbar)
--- chart_editor.py computes them once and passes them through `extra`
-rather than this reading them off `style`.
+The colormap name and color-scale limits come from `extra`, not `style`,
+because they're shared across every Colormap/Heatmap series on the chart
+(there's only one physical colorbar) and chart_editor.py computes them once.
 
-Edge color has no single style.color to fall back to here (unlike line.py/
-scatter.py) since fill genuinely varies per point -- an empty
-marker_edge_color instead resolves to matplotlib's "face" sentinel, which
-makes each point's edge match ITS OWN fill exactly, point by point.
+An empty marker_edge_color resolves to matplotlib's "face" sentinel rather
+than a fixed style.color fallback, since fill varies per point -- "face"
+makes each point's edge match its own fill.
 
-The Data tab's Z-column picker permits any column, including non-numeric
-ones -- passing raw strings straight to scatter(c=...) either raises (a
-ValueError matplotlib itself throws, uncaught by anything in
-chart_editor.py's render loop, which would blank the WHOLE chart) or,
-worse, silently treats valid color-name strings as literal marker colors
-instead of values to map through the colormap. Z is coerced to numeric
-here and this returns None (matching render_heatmap_series' contract) for
-invalid or empty data, so chart_editor.py surfaces a per-series error
-instead."""
+Z is coerced to numeric, returning None on invalid/empty data (matching
+render_heatmap_series' contract), because passing non-numeric strings
+straight to scatter(c=...) would either raise uncaught and blank the whole
+chart, or silently misread color names as literal marker colors."""
 import numpy as np
 
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData

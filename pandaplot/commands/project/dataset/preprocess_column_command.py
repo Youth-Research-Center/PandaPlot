@@ -11,6 +11,7 @@ from pandaplot.analysis import PreprocessingEngine, PreprocessingMethod
 from pandaplot.analysis.preprocessing_types import PREPROCESSING_METHODS
 from pandaplot.commands.base_command import Command
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
+from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 
@@ -38,6 +39,7 @@ class PreprocessColumnCommand(Command):
         """
         super().__init__()
         self.app_context = app_context
+        self.ui_controller: UIController = app_context.get_ui_controller()
         self.dataset_id = dataset_id
         self.config = config
 
@@ -71,6 +73,9 @@ class PreprocessColumnCommand(Command):
             self.dataset = self._get_dataset()
             if not isinstance(self.dataset, Dataset):
                 self.logger.warning("Dataset %s not found", self.dataset_id)
+                self.ui_controller.show_error_message(
+                    "Preprocessing Error", f"Dataset '{self.dataset_id}' not found."
+                )
                 return False
 
             if not self._validate_inputs():
@@ -107,6 +112,7 @@ class PreprocessColumnCommand(Command):
 
         except Exception as e:
             self.logger.error("Preprocessing execution failed: %s", e)
+            self.ui_controller.show_error_message("Preprocessing Error", str(e))
             return False
 
     @override
@@ -196,18 +202,24 @@ class PreprocessColumnCommand(Command):
     def _validate_inputs(self) -> bool:
         """Validate columns exist, are numeric, and targets do not collide."""
         if self.dataset is None or self.dataset.data is None:
-            self.logger.error("Dataset has no data")
+            message = "Dataset has no data"
+            self.logger.error(message)
+            self.ui_controller.show_error_message("Preprocessing Error", message)
             return False
 
         if not self.source_columns:
-            self.logger.error("No source columns selected")
+            message = "No source columns selected"
+            self.logger.error(message)
+            self.ui_controller.show_error_message("Preprocessing Error", message)
             return False
 
         df = self.dataset.data
 
         missing = [c for c in self.source_columns if c not in df.columns]
         if missing:
-            self.logger.error("Source columns not found: %s", missing)
+            message = f"Source columns not found: {missing}"
+            self.logger.error(message)
+            self.ui_controller.show_error_message("Preprocessing Error", message)
             return False
 
         non_numeric = [
@@ -215,10 +227,9 @@ class PreprocessColumnCommand(Command):
             if not pd.api.types.is_numeric_dtype(df[c])
         ]
         if non_numeric:
-            self.logger.error(
-                "Preprocessing requires numeric columns; not numeric: %s",
-                non_numeric,
-            )
+            message = f"Preprocessing requires numeric columns; not numeric: {non_numeric}"
+            self.logger.error(message)
+            self.ui_controller.show_error_message("Preprocessing Error", message)
             return False
 
         # Guard against overwriting an existing column that the user did not
@@ -227,19 +238,17 @@ class PreprocessColumnCommand(Command):
         for source_column in self.source_columns:
             target = self._target_name(source_column)
             if target in seen_targets:
-                self.logger.error(
-                    "Multiple source columns map to the same result column '%s'",
-                    target,
-                )
+                message = f"Multiple source columns map to the same result column '{target}'"
+                self.logger.error(message)
+                self.ui_controller.show_error_message("Preprocessing Error", message)
                 return False
             seen_targets.add(target)
 
             overwrites_existing = target in df.columns and target != source_column
             if overwrites_existing and not self.replace_existing:
-                self.logger.error(
-                    "Column '%s' already exists. Enable replace or rename.",
-                    target,
-                )
+                message = f"Column '{target}' already exists. Enable replace or rename."
+                self.logger.error(message)
+                self.ui_controller.show_error_message("Preprocessing Error", message)
                 return False
 
         return True

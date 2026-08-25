@@ -1,16 +1,10 @@
 """Regression test for mixing series types on one chart.
 
-Mixed series types are the core capability this whole chart-architecture
-refactor was built to support: a chart's `allowed_series_types` (see
-`ChartTypeSpec`) restricts which `SeriesType`s may coexist on it, rather
-than every series on a chart being forced to share the chart's own type.
-A "vector" chart is the concrete example the design calls out
-(`CHART_TYPE_SPECS[ChartType.VECTOR].allowed_series_types ==
-{SeriesType.VECTOR, SeriesType.LINE, SeriesType.SCATTER}`) -- a raw line
-series can sit alongside vector arrows on the same chart.
-
-This was previously verified only by a throwaway manual script during a
-whole-branch review; this test makes that verification permanent.
+A chart's `allowed_series_types` (see `ChartTypeSpec`) restricts which
+`SeriesType`s may coexist on it, rather than forcing every series to
+share the chart's own type -- e.g. a VECTOR chart also allows LINE and
+SCATTER series alongside vector arrows. Previously verified only by a
+throwaway manual script; this test makes that verification permanent.
 """
 from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS,

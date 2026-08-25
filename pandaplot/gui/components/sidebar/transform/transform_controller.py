@@ -237,7 +237,9 @@ class TransformController(QObject):
                 self.transform_completed.emit(dataset_id, new_column_name, None)
                 return True
             else:
-                self.transform_failed.emit(dataset_id, "Failed to execute transformation command")
+                self.transform_failed.emit(
+                    dataset_id, command.error_message or "Failed to execute transformation command"
+                )
                 return False
                 
         except Exception as e:
