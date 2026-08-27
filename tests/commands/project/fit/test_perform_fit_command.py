@@ -60,6 +60,23 @@ def test_execute_logs_a_warning_when_fit_service_returns_no_result(fit_service, 
     assert "linear" in caplog.text
 
 
+def test_cleanup_clears_fit_result(fit_service, fit_result):
+    fit_service.perform_fit.return_value = fit_result
+
+    command = PerformFitCommand(
+        fit_service=fit_service,
+        fit_type="linear",
+        x_data=[1, 2, 3],
+        y_data=[2, 4, 6],
+    )
+    command.execute()
+    assert command.result is fit_result
+
+    command.cleanup()
+
+    assert command.result is None
+
+
 def test_undo_clears_fit_result(fit_service, fit_result):
     fit_service.perform_fit.return_value = fit_result
 

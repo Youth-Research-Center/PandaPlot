@@ -230,3 +230,14 @@ class TestCreateEmptyDatasetCommand:
         with caplog.at_level(logging.WARNING):
             command.redo()
         assert "cannot redo" in caplog.text.lower()
+
+    def test_cleanup_releases_the_dataset_id_and_project_reference(self, mock_app_context, sample_project):
+        app_context, app_state, ui_controller = mock_app_context
+        command = CreateEmptyDatasetCommand(app_context, dataset_name="Programmatic")
+        command.dataset_id = "ds-1"
+        command.project = sample_project
+
+        command.cleanup()
+
+        assert command.dataset_id is None
+        assert command.project is None

@@ -87,3 +87,9 @@ class RemoveSeriesCommand(Command):
     @override
     def redo(self):
         self.execute()
+
+    @override
+    def cleanup(self) -> None:
+        """Release the removed series-data snapshot held for undo once this
+        command is dropped from the stacks for good (see Command.cleanup)."""
+        self.removed_series_data = None

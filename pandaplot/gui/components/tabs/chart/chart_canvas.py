@@ -29,7 +29,7 @@ def inches_to_cm(inches):
     return inches * CM_PER_INCH
 
 
-def set_figure_mathtext_parsing(fig, enabled: bool) -> None:
+def set_figure_mathtext_parsing(fig, *, enabled: bool) -> None:
     """Enable or disable mathtext parsing on every text artist in `fig`.
 
     Matplotlib only parses a Text artist's mathtext (`$...$`) when it is
@@ -53,12 +53,12 @@ def run_with_mathtext_fallback(fig, action):
     attempt, so a label the user has since fixed is rendered as math again
     rather than staying disabled forever from an earlier failure. Only if
     that attempt still raises is parsing disabled and `action()` retried."""
-    set_figure_mathtext_parsing(fig, True)
+    set_figure_mathtext_parsing(fig, enabled=True)
     try:
         action()
     except (ValueError, RuntimeError):
         logger.debug("invalid mathtext; retrying with mathtext parsing disabled", exc_info=True)
-        set_figure_mathtext_parsing(fig, False)
+        set_figure_mathtext_parsing(fig, enabled=False)
         action()
 
 

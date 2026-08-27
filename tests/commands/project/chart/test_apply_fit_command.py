@@ -164,3 +164,22 @@ def test_redo_adds_fit_again(app_context_with_chart, fit_results):
     assert fit.fit_type == "linear"
     assert fit.x_data == [1, 2, 3]
     assert fit.y_data == [2, 4, 6]
+
+
+def test_cleanup_releases_the_added_index(app_context_with_chart, fit_results):
+    app_context, chart = app_context_with_chart
+
+    command = ApplyFitCommand(
+        app_context=app_context,
+        chart_id=chart.id,
+        fit_results=fit_results,
+        source_dataset_id="ds1",
+        source_x_column_id="x_id",
+        source_y_column_id="y_id",
+    )
+
+    command.execute()
+    assert command.added_index is not None
+
+    command.cleanup()
+    assert command.added_index is None

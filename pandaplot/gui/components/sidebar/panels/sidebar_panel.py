@@ -39,7 +39,7 @@ class SidebarPanel(PWidget):
         self.main_layout.addWidget(self.title_label)
         return self.title_label
 
-    def _set_content(self, widget: QWidget, scrollable: bool = True) -> None:
+    def _set_content(self, widget: QWidget, *, scrollable: bool = True) -> None:
         """Add `widget` to `main_layout`, after the title.
 
         If `scrollable`, wrap `widget` in a frameless, resizable QScrollArea

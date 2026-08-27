@@ -232,3 +232,10 @@ class LoadProjectCommand(Command):
         else:
             self.logger.warning("Cannot redo load command while load is in progress")
             return False
+
+    @override
+    def cleanup(self) -> None:
+        """Release the whole-Project references held for undo/redo once this
+        command is dropped from the stacks for good (see Command.cleanup)."""
+        self.previous_project = None
+        self.loaded_project = None

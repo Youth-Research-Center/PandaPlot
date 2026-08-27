@@ -40,3 +40,8 @@ class ExitCommand(Command):
         """
         self.logger.error("ExitCommand cannot be redone.")
         raise NotImplementedError("Exit command cannot be redone.")
+
+    @override
+    def cleanup(self) -> None:
+        """No undo state to release -- this command is not undoable."""
+        return

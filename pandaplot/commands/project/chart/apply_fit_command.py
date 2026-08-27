@@ -150,3 +150,9 @@ class ApplyFitCommand(Command):
     @override
     def redo(self):
         self.execute()
+
+    @override
+    def cleanup(self) -> None:
+        """Release the insertion-index bookkeeping held for undo once this
+        command is dropped from the stacks for good (see Command.cleanup)."""
+        self.added_index = None

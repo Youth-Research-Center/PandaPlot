@@ -30,13 +30,15 @@ class _GalleryTilePreview(QLabel):
         self._tile_type = "image"
         self._selected = False
 
-    def set_type_and_selection(self, tile_type: str, selected: bool) -> None:
+    def set_type_and_selection(self, tile_type: str, *, selected: bool) -> None:
         self._tile_type = tile_type
         self._selected = selected
 
     def set_tokens(self, tokens: dict) -> None:
         pixmap = _sample_pixmap() if self._tile_type == "image" else None
-        icon = build_gallery_tile_icon(pixmap, self._tile_type, self._selected, tokens)
+        icon = build_gallery_tile_icon(
+            pixmap, self._tile_type, selected=self._selected, tokens=tokens
+        )
         self.setPixmap(icon.pixmap(QSize(120, 120)))
 
 
@@ -44,7 +46,7 @@ class _GalleryTilePreview(QLabel):
 def _build() -> StoryDef:
     def make_widget(values: dict, tokens: dict) -> QWidget:
         preview = _GalleryTilePreview()
-        preview.set_type_and_selection(values["tile_type"], values["selected"])
+        preview.set_type_and_selection(values["tile_type"], selected=values["selected"])
         preview.set_tokens(tokens)
 
         container = QWidget()
@@ -55,7 +57,7 @@ def _build() -> StoryDef:
     return StoryDef(
         controls=[
             ChoiceControl("tile_type", "image", ["image", "album", "broken"]),
-            BoolControl("selected", False),
+            BoolControl("selected", default=False),
         ],
         make_widget=make_widget,
     )

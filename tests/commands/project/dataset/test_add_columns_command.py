@@ -230,3 +230,18 @@ class TestAddColumnsCommandLogging:
         with caplog.at_level(logging.WARNING):
             command.undo()
         assert "ds-1" in caplog.text
+
+
+def test_cleanup_releases_the_original_data_snapshot():
+    app_context = Mock(spec=AppContext)
+    app_context.get_app_state.return_value = Mock(spec=AppState)
+    app_context.get_ui_controller.return_value = Mock()
+
+    command = AddColumnsCommand(
+        app_context, "ds-1", column_names=["b"], reference_positions=[0], side="right"
+    )
+    command.original_data = pd.DataFrame({"a": [1, 2, 3]})
+
+    command.cleanup()
+
+    assert command.original_data is None

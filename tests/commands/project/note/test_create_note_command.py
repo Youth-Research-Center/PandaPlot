@@ -402,6 +402,24 @@ class TestCreateNoteCommand:
         assert command.created_note_id == "generated-uuid-123"
         mock_uuid.assert_called_once()
 
+    def test_cleanup_releases_project_reference_only(self, mock_app_context, sample_project):
+        """Test cleanup releases the cached project reference but preserves
+        the created-note state needed by redo()."""
+        app_context, app_state, ui_controller = mock_app_context
+
+        mock_note = Mock(spec=Note)
+
+        command = CreateNoteCommand(app_context, "Test Note")
+        command.project = sample_project
+        command.created_note_id = "test-id"
+        command.created_note = mock_note
+
+        command.cleanup()
+
+        assert command.project is None
+        assert command.created_note_id == "test-id"
+        assert command.created_note is mock_note
+
     def test_command_state_isolation(self, mock_app_context, sample_project):
         """Test that multiple command instances don't interfere with each other."""
         app_context, app_state, ui_controller = mock_app_context

@@ -19,8 +19,8 @@ class WizardFooter(QWidget):
     cancelClicked = Signal()
     emptyRequested = Signal()
 
-    def __init__(self, step_number: int, total_steps: int, show_empty_link: bool,
-                 parent: QWidget | None = None):
+    def __init__(self, step_number: int, total_steps: int, *, show_empty_link: bool,
+                 show_next: bool = True, parent: QWidget | None = None):
         super().__init__(parent)
         self.setFixedHeight(48)
         layout = QHBoxLayout(self)
@@ -54,19 +54,19 @@ class WizardFooter(QWidget):
         self.next_button = PButton(
             "Next", role="primary", on_click=self.nextClicked.emit, parent=self
         )
-        self.next_button.setVisible(not is_last_step)
+        self.next_button.setVisible(show_next and not is_last_step)
         layout.addWidget(self.next_button)
 
         self.finish_button = PButton(
             "Create Chart", role="primary", on_click=self.finishClicked.emit, parent=self
         )
-        self.finish_button.setVisible(is_last_step)
+        self.finish_button.setVisible(show_next and is_last_step)
         layout.addWidget(self.finish_button)
 
-    def set_back_enabled(self, enabled: bool) -> None:
+    def set_back_enabled(self, *, enabled: bool) -> None:
         self.back_button.setEnabled(enabled)
 
-    def set_next_enabled(self, enabled: bool) -> None:
+    def set_next_enabled(self, *, enabled: bool) -> None:
         self.next_button.setEnabled(enabled)
         self.finish_button.setEnabled(enabled)
 

@@ -100,6 +100,26 @@ def test_restore_reverts_fit_alpha():
     assert chart.fit_data[0].style.alpha == 1.0
 
 
+def test_restore_reverts_fit_label():
+    """Regression (#187): the fit's label -- editable via the same Data-tab
+    field used for data-series labels -- was never snapshotted (only
+    `fit.style` was), so Undo left a fit-data label edit in place even
+    though the equivalent data-series edit correctly reverted."""
+    chart = _make_chart()
+    chart.add_fit_data(
+        "ds1", "Linear",
+        np.array([1.0]), np.array([2.0]),
+        label="Original Fit",
+    )
+    snap = snapshot_chart_state(chart)
+
+    chart.fit_data[0].label = "Renamed Fit"
+
+    restore_chart_state(chart, snap)
+
+    assert chart.fit_data[0].label == "Original Fit"
+
+
 def test_restore_reverts_fit_line_style():
     """Regression test for a bug that survived until this phase: only
     color/line_width/alpha were snapshotted, so line_style silently kept

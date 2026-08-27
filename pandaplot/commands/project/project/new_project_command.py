@@ -92,3 +92,9 @@ class NewProjectCommand(Command):
     def redo(self):
         """Redo the new project command."""
         self.execute()
+
+    @override
+    def cleanup(self) -> None:
+        """Release the previous-Project reference held for undo once this
+        command is dropped from the stacks for good (see Command.cleanup)."""
+        self.previous_project = None

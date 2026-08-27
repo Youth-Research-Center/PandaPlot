@@ -144,3 +144,11 @@ class CopyImagesCommand(Command):
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
+
+    @override
+    def cleanup(self) -> None:
+        """Release the created-image-id bookkeeping and cached project
+        reference held for undo once this command is dropped from the
+        stacks for good (see Command.cleanup)."""
+        self.created_image_ids = []
+        self.project = None

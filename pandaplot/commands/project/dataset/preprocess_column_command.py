@@ -186,6 +186,12 @@ class PreprocessColumnCommand(Command):
         """Re-apply the transformation."""
         return self.execute()
 
+    @override
+    def cleanup(self) -> None:
+        """Release the per-column undo state held for undo once this
+        command is dropped from the stacks for good (see Command.cleanup)."""
+        self._undo_state = []
+
     def _get_dataset(self) -> Optional[Dataset]:
         """Get the dataset from the app context."""
         try:

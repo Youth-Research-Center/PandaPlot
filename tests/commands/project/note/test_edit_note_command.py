@@ -558,6 +558,19 @@ class TestEditNoteCommand:
         assert event_data["old_content"] == "Old content"
         assert event_data["new_content"] == "New content"
 
+    def test_cleanup_releases_old_content_only(self, mock_app_context):
+        """Test cleanup releases the pre-edit content snapshot but preserves
+        new_content needed by redo()."""
+        app_context, app_state, ui_controller = mock_app_context
+
+        command = EditNoteCommand(app_context, "note-123", "New content")
+        command.old_content = "Original content"
+
+        command.cleanup()
+
+        assert command.old_content is None
+        assert command.new_content == "New content"
+
     def test_command_state_isolation(self, mock_app_context, sample_project):
         """Test that multiple command instances don't interfere with each other."""
         app_context, app_state, ui_controller = mock_app_context

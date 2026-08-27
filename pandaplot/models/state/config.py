@@ -35,6 +35,19 @@ class Theme(str, Enum):
 	SYSTEM = "system"  # Follow OS / desktop environment
 
 
+class LengthUnit(str, Enum):
+	"""Display unit for chart width/height fields in the UI.
+
+	Internal storage of chart size (``width_cm``/``height_cm`` on chart
+	config, ``default_width_cm``/``default_height_cm`` here) is always
+	centimeters; this only controls how values are shown/edited.
+	"""
+
+	CM = "cm"
+	MM = "mm"
+	IN = "in"
+
+
 @dataclass(slots=True)
 class AutoSaveConfig:
 	enabled: bool = True
@@ -107,8 +120,17 @@ class ChartDisplayConfig:
 	dpi: int = 100
 	default_width_cm: float = 20.0
 	default_height_cm: float = 15.0
+	measurement_unit: LengthUnit = LengthUnit.CM
 
 	def validate(self) -> None:
+		if not isinstance(self.measurement_unit, LengthUnit):
+			try:
+				self.measurement_unit = LengthUnit(self.measurement_unit)  # by value
+			except ValueError:
+				try:
+					self.measurement_unit = LengthUnit[str(self.measurement_unit).upper()]  # by name
+				except (KeyError, AttributeError):
+					self.measurement_unit = LengthUnit.CM
 		if self.dpi < 50:
 			self.dpi = 50
 		if self.dpi > 600:
@@ -172,7 +194,10 @@ class ApplicationConfig:
 			},
 			"editor": asdict(self.editor),
 			"project": asdict(self.project),
-			"chart_display": asdict(self.chart_display),
+			"chart_display": {
+				**asdict(self.chart_display),
+				"measurement_unit": self.chart_display.measurement_unit.value,
+			},
 			"recent_projects": list(self.recent_projects),
 			"last_project_path": self.last_project_path,
 			"last_tab_panes": [list(pane) for pane in self.last_tab_panes],
@@ -348,12 +373,14 @@ class ApplicationConfig:
 		self.appearance = fresh.appearance
 		self.editor = fresh.editor
 		self.project = fresh.project
+		self.chart_display = fresh.chart_display
 
 
 # Public export surface
 __all__ = [
 	"CONFIG_VERSION",
 	"Theme",
+	"LengthUnit",
 	"AutoSaveConfig",
 	"AppearanceConfig",
 	"EditorConfig",

@@ -12,6 +12,7 @@ from ..signal_types import SignalAnalysisResult, SignalAnalysisType
 
 def run(
     column: pd.Series,
+    *,
     normalize: bool = True,
     **_: Any,
 ) -> SignalAnalysisResult:

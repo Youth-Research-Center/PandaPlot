@@ -7,7 +7,7 @@ from pandaplot.models.chart.series_style import LineSeriesStyle
 
 
 def render_line_series(axes, series_data: SeriesData, style: LineSeriesStyle,
-                        label: str, alpha: float, visible: bool, extra: dict) -> None:
+                        label: str, alpha: float, *, visible: bool, extra: dict) -> None:
     mfc = style.marker.marker_color or style.color
     mec = style.marker.marker_edge_color or style.color
     axes.plot(series_data.x_data, series_data.y_data,
@@ -26,10 +26,10 @@ def render_line_series(axes, series_data: SeriesData, style: LineSeriesStyle,
         fill_color = style.fill_color or style.color
         fill_alpha = style.fill_alpha if visible else 0.3 * style.fill_alpha
         if style.fill_orientation == "horizontal":
-            baseline = resolve_fill_baseline(series_data.y_data, True)
+            baseline = resolve_fill_baseline(series_data.y_data, horizontal=True)
             axes.fill_betweenx(series_data.y_data, series_data.x_data, baseline,
                                 color=fill_color, alpha=fill_alpha)
         else:
-            baseline = resolve_fill_baseline(series_data.x_data, False)
+            baseline = resolve_fill_baseline(series_data.x_data, horizontal=False)
             axes.fill_between(series_data.x_data, series_data.y_data, baseline,
                                color=fill_color, alpha=fill_alpha)

@@ -150,6 +150,7 @@ class FitService:
             x_data: np.ndarray,
             y_data: np.ndarray,
             fit_points: int = 500,
+            *,
             calculate_r_squared: bool = True,
             confidence_bands: bool = False,
             sigma_y: np.ndarray | None = None,

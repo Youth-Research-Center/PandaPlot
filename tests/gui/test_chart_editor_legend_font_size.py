@@ -21,8 +21,8 @@ def test_build_legend_applies_configured_font_size_with_font_family_set():
     legend = build_legend(
         axes, handles, labels,
         "DejaVu Sans", 22,
-        "#ffffff", True, 1, 1.0,
-        {"loc": "upper right"},
+        "#ffffff", show_frame=True, columns=1, bg_alpha=1.0,
+        placement_kwargs={"loc": "upper right"},
     )
     assert legend.get_texts()[0].get_fontsize() == 22
     assert legend.get_texts()[0].get_fontfamily() == ["DejaVu Sans"]
@@ -34,8 +34,8 @@ def test_build_legend_applies_default_font_size_of_ten():
     legend = build_legend(
         axes, handles, labels,
         "DejaVu Sans", 10,
-        "#ffffff", True, 1, 1.0,
-        {"loc": "upper right"},
+        "#ffffff", show_frame=True, columns=1, bg_alpha=1.0,
+        placement_kwargs={"loc": "upper right"},
     )
     assert legend.get_texts()[0].get_fontsize() == 10
 

@@ -215,7 +215,7 @@ def test_toggling_auto_to_manual_recomputes_fresh_from_data():
     assert y_form["min_spin"].value() == 100.0
     assert y_form["max_spin"].value() == 300.0
 
-    y_form["auto_toggle"].setChecked(False)
+    y_form["auto_toggle"].setChecked(checked=False)
 
     assert y_form["min_spin"].value() == 100.0
     assert y_form["max_spin"].value() == 300.0

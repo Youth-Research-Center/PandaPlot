@@ -12,6 +12,7 @@ from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import EventBus
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.services.autosave import AutoSaveManager
 from pandaplot.services.config import ConfigManager
 from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.session import SessionPersistenceManager
@@ -48,15 +49,21 @@ def build_app_context() -> AppContext:
     config_manager = ConfigManager(event_bus)
     config_manager.load()
     theme_manager = ThemeManager(event_bus, config_manager)
+    auto_save_manager = AutoSaveManager(event_bus, config_manager, app_state)
     session_manager = SessionPersistenceManager(config_manager)
     ui_controller = UIController()
     command_executor = CommandExecutor()
     task_scheduler = TaskScheduler()
 
     # Create list of managers to pass to AppContext
-    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, task_scheduler, project_data_manager]
+    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_data_manager]
 
-    return AppContext(app_state=app_state, event_bus=event_bus, managers=managers)
+    app_context = AppContext(app_state=app_state, event_bus=event_bus, managers=managers)
+    # AutoSaveManager needs the AppContext itself (to construct SaveProjectCommand),
+    # which doesn't exist yet while the manager list above is being built.
+    auto_save_manager.set_app_context(app_context)
+
+    return app_context
 
 
 def create_qt_application(app_context: AppContext, argv: list[str] | None = None) -> tuple[QApplication, PandaMainWindow]:
@@ -90,6 +97,11 @@ def create_qt_application(app_context: AppContext, argv: list[str] | None = None
 
     main_window = PandaMainWindow(app_context)
     app_context.ui_controller.set_parent_widget(main_window)
+
+    # QTimer needs a running Qt event loop, so start auto-save here rather
+    # than in build_app_context().
+    app_context.get_manager(AutoSaveManager).start()
+
     return app, main_window
 
 
@@ -119,6 +131,35 @@ def _schedule_import_warmup(app_context: AppContext) -> None:
     """Kick off _warm_up_heavy_imports on a background thread."""
     task_scheduler = app_context.get_manager(TaskScheduler)
     task_scheduler.run_task(_warm_up_heavy_imports)
+
+
+def _flush_save_on_quit(app_context: AppContext) -> None:
+    """Synchronously save the current project (if it already has a file path)
+    right before the app exits.
+
+    Auto-save only fires on a timer, so an edit made seconds before the user
+    quits (via the window's close button, File > Exit, Cmd+Q, ...) can be
+    lost if it hasn't ticked yet. This runs the save directly on the main
+    thread instead of through SaveProjectCommand's background-task path, so
+    it's guaranteed to finish before the process actually exits rather than
+    racing shutdown.
+    """
+    app_state = app_context.get_app_state()
+    if not app_state.has_project:
+        return
+    project = app_state.current_project
+    if project is None:
+        return
+    file_path = app_state.project_file_path
+    if not file_path:
+        # Never-saved project: nothing to silently write to.
+        return
+    try:
+        project_data_manager = app_context.get_manager(ProjectDataManager)
+        project_data_manager.save(project, file_path)
+        logging.getLogger(__name__).info("Flushed project save on quit: %s", file_path)
+    except Exception:
+        logging.getLogger(__name__).exception("Failed to flush project save on quit")
 
 
 def restore_last_session(app_context: AppContext, main_window: PandaMainWindow) -> None:
@@ -165,6 +206,11 @@ def launch(app_context: AppContext) -> int:
     # its harmless stderr noise) possible -- just less likely.
     task_scheduler = app_context.get_manager(TaskScheduler)
     app.aboutToQuit.connect(lambda: task_scheduler.threadpool.waitForDone(2000))
+
+    # Flush any unsaved edits before the process actually exits, regardless
+    # of how the user is quitting (window close, File > Exit, Cmd+Q, ...) --
+    # auto-save alone can miss edits made just before quitting.
+    app.aboutToQuit.connect(lambda: _flush_save_on_quit(app_context))
 
     return app.exec()
 

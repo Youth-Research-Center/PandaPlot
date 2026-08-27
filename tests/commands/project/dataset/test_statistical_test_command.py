@@ -93,3 +93,17 @@ class TestStatisticalTestCommand:
         command = StatisticalTestCommand(app_context, "ds-1", StatTestType.PEARSON, ["A", "B"])
         assert command.execute() is False
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+
+    def test_cleanup_releases_the_result_dataset_id_and_result(self, app_context_with_project):
+        app_context, _ = app_context_with_project
+        command = StatisticalTestCommand(
+            app_context, "ds-1", StatTestType.PEARSON, ["A", "B"]
+        )
+        assert command.execute() is True
+        assert command.result_dataset_id is not None
+        assert command.result is not None
+
+        command.cleanup()
+
+        assert command.result_dataset_id is None
+        assert command.result is None

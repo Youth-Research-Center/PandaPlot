@@ -39,9 +39,9 @@ class ValueComboBox(QComboBox):
         index = self.findData(value)
         if index < 0:
             return
-        self.blockSignals(True)
+        self.blockSignals(True)  # noqa: FBT003 -- Qt bound method, positional-only
         self.setCurrentIndex(index)
-        self.blockSignals(False)
+        self.blockSignals(False)  # noqa: FBT003 -- Qt bound method, positional-only
 
     def set_tokens(self, tokens: dict):
         pass  # native Qt combo box styling; no token-driven QSS needed today

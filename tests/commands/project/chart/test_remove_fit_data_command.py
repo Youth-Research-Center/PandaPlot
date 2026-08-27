@@ -131,3 +131,14 @@ def test_undo_restores_the_fit_with_its_typed_style_object_intact(app_context_wi
     assert isinstance(restored.style, FitStyle)
     assert restored.style.color == "#abcdef"
     assert restored.style.band_fill_enabled is False
+
+
+def test_cleanup_releases_the_removed_fit_data_snapshot(app_context_with_chart):
+    app_context, chart = app_context_with_chart
+    command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
+
+    command.execute()
+    assert command.removed_fit_data is not None
+
+    command.cleanup()
+    assert command.removed_fit_data is None

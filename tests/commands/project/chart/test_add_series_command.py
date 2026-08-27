@@ -138,3 +138,15 @@ def test_redo_appends_series_type_matching_the_original_construction(app_context
 
     assert chart.data_series[-1].series_type == SeriesType.SCATTER
     assert chart.data_series[-1].style.color == "#112233"
+
+
+def test_cleanup_releases_the_added_index(app_context_with_chart):
+    app_context, chart = app_context_with_chart
+    series = DataSeries(dataset_id="ds-1", x_column_id="col-x", y_column_id="col-y")
+    command = AddSeriesCommand(app_context, chart_id=chart.id, series=series)
+
+    command.execute()
+    assert command.added_index is not None
+
+    command.cleanup()
+    assert command.added_index is None

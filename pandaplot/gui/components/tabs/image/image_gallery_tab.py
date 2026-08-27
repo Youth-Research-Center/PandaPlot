@@ -406,9 +406,9 @@ class ImageGalleryTab(PWidget):
         # Block signals: setCurrentIndex would otherwise emit
         # currentIndexChanged -> _on_sort_field_changed -> a redundant
         # _populate_grid() call, on top of the explicit one below.
-        self.sort_field_combo.blockSignals(True)
+        self.sort_field_combo.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
         self.sort_field_combo.setCurrentIndex(self._sort_field_values.index(field))
-        self.sort_field_combo.blockSignals(False)
+        self.sort_field_combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
         self.sort_direction_button.setText("▲" if self._sort_ascending else "▼")
         self._populate_grid()
 
@@ -448,7 +448,7 @@ class ImageGalleryTab(PWidget):
             item = QListWidgetItem(self._elided_text(child.name, _TILE_SIZE.width() - 8))
             item.setToolTip(child.name)
             item.setData(Qt.ItemDataRole.UserRole, child.id)
-            item.setIcon(self._tile_icon_for(child, False, tokens))
+            item.setIcon(self._tile_icon_for(child, is_selected=False, tokens=tokens))
             self.grid.addItem(item)
         self._last_child_ids = {child.id for child in self.current_gallery.get_items()}
         self._refresh_toolbar_state()
@@ -502,17 +502,21 @@ class ImageGalleryTab(PWidget):
                 return f.read()
         return None
 
-    def _tile_icon_for(self, child, is_selected: bool, tokens: dict, size: QSize = _TILE_SIZE):
+    def _tile_icon_for(self, child, *, is_selected: bool, tokens: dict, size: QSize = _TILE_SIZE):
         """Build the themed tile icon for a gallery child (album/image/broken-image)."""
         if isinstance(child, ImageGallery):
-            return build_gallery_tile_icon(None, "album", is_selected, tokens, size=size)
+            return build_gallery_tile_icon(
+                None, "album", selected=is_selected, tokens=tokens, size=size
+            )
         if isinstance(child, Image):
             thumbnail = self._thumbnail_for(child)
             if thumbnail is not None and (thumbnail.width() > size.width() or thumbnail.height() > size.height()):
                 thumbnail = thumbnail.scaled(size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             tile_type = "image" if thumbnail is not None else "broken"
-            return build_gallery_tile_icon(thumbnail, tile_type, is_selected, tokens, size=size)
-        return build_gallery_tile_icon(None, "broken", is_selected, tokens, size=size)
+            return build_gallery_tile_icon(
+                thumbnail, tile_type, selected=is_selected, tokens=tokens, size=size
+            )
+        return build_gallery_tile_icon(None, "broken", selected=is_selected, tokens=tokens, size=size)
 
     def _active_view_widget(self):
         """The currently-visible of grid/list_view (falls back to grid before
@@ -556,7 +560,7 @@ class ImageGalleryTab(PWidget):
             if child is None:
                 continue
             is_selected = child_id in selected_ids
-            item.setIcon(self._tile_icon_for(child, is_selected, tokens))
+            item.setIcon(self._tile_icon_for(child, is_selected=is_selected, tokens=tokens))
         if hasattr(self, "list_view"):
             for i in range(self.list_view.topLevelItemCount()):
                 row = self.list_view.topLevelItem(i)
@@ -564,7 +568,7 @@ class ImageGalleryTab(PWidget):
                 child = self.current_gallery.get_item_by_id(child_id)
                 if child is None:
                     continue
-                row.setIcon(0, self._tile_icon_for(child, False, tokens, size=QSize(16, 16)))
+                row.setIcon(0, self._tile_icon_for(child, is_selected=False, tokens=tokens, size=QSize(16, 16)))
 
     def _on_grid_context_menu(self, position) -> None:
         item = self.grid.itemAt(position)
@@ -841,14 +845,14 @@ class ImageGalleryTab(PWidget):
             ])
             row.setToolTip(0, child.name)
             row.setData(0, Qt.ItemDataRole.UserRole, child.id)
-            row.setIcon(0, self._tile_icon_for(child, False, tokens, size=QSize(16, 16)))
+            row.setIcon(0, self._tile_icon_for(child, is_selected=False, tokens=tokens, size=QSize(16, 16)))
             self.list_view.addTopLevelItem(row)
 
-        header.blockSignals(True)
+        header.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
         column = self._SORT_FIELD_TO_COLUMN.get(self._sort_field, 0)
         order = Qt.SortOrder.AscendingOrder if self._sort_ascending else Qt.SortOrder.DescendingOrder
         header.setSortIndicator(column, order)
-        header.blockSignals(False)
+        header.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
 
     def _format_size(self, size_bytes: Optional[int]) -> str:
         if size_bytes is None:

@@ -58,7 +58,7 @@ class SignalEngine:
         SignalEngine._validate_input(
             column,
             sampling_rate,
-            info.uses_sampling_rate,
+            requires_sampling_rate=info.uses_sampling_rate,
         )
 
         return handler(
@@ -72,6 +72,7 @@ class SignalEngine:
     def _validate_input(
         column: pd.Series,
         sampling_rate: float | None,
+        *,
         requires_sampling_rate: bool,
     ) -> None:
         """ Validate common input requirements. """

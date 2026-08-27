@@ -186,6 +186,12 @@ class AnalysisCommand(Command):
         """Re-execute the analysis."""
         return self.execute()
 
+    @override
+    def cleanup(self) -> None:
+        """Release the original-data snapshot held for undo once this
+        command is dropped from the stacks for good (see Command.cleanup)."""
+        self.original_data = None
+
     def _get_dataset(self) -> Dataset | None:
         """Get dataset from app context."""
         try:

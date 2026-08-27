@@ -292,3 +292,9 @@ class ChangeColumnDtypeCommand(Command):
             "ChangeColumnDtypeCommand.redo: cannot redo for dataset '%s' (conversion_report set=%s, dataset found=%s, column_name set=%s)",
             self.dataset_id, bool(self.conversion_report), self.dataset is not None, bool(self.column_name),
         )
+
+    @override
+    def cleanup(self) -> None:
+        """Release the original-data snapshot held for undo once this
+        command is dropped from the stacks for good (see Command.cleanup)."""
+        self.original_data = None

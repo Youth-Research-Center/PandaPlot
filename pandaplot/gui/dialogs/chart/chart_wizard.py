@@ -1,13 +1,17 @@
 """Top-level chart creation wizard: Type step, then Data step."""
-from typing import Callable, Optional
+from typing import Callable, Optional, override
 
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QWizard
+from PySide6.QtWidgets import QDialog, QWizard
 
 from pandaplot.gui.core.widget_extension import PWizard
 from pandaplot.gui.dialogs.chart.chart_data_page import ChartDataPage
 from pandaplot.gui.dialogs.chart.chart_labels_page import ChartLabelsPage
+from pandaplot.gui.dialogs.chart.chart_no_dataset_page import ChartNoDatasetPage
 from pandaplot.gui.dialogs.chart.chart_type_page import ChartTypePage
+from pandaplot.models.events.event_types import DatasetEvents
+from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
@@ -31,6 +35,7 @@ class ChartWizard(PWizard):
         self._columns_provider = columns_provider or (lambda _dataset_id: [])
         self._project = project
         self._is_empty = False
+        self._no_dataset_mode = not self._datasets
         super().__init__(app_context=app_context, parent=parent)
         self._initialize()
 
@@ -65,6 +70,11 @@ class ChartWizard(PWizard):
         self.labels_page = ChartLabelsPage(app_context=self.app_context)
         self._labels_page_id = self.addPage(self.labels_page)
 
+        self.no_dataset_page = ChartNoDatasetPage(app_context=self.app_context)
+        self.no_dataset_page.importRequested.connect(self._on_import_requested)
+        self.no_dataset_page.emptyRequested.connect(self._finish_empty)
+        self._no_dataset_page_id = self.addPage(self.no_dataset_page)
+
         self.currentIdChanged.connect(self._on_page_changed)
         # QWizard only assigns a currentId (and instantiates page state) once it
         # is shown or restarted; since this wizard is driven headlessly in
@@ -73,7 +83,7 @@ class ChartWizard(PWizard):
         # before the wizard is displayed.
         self.restart()
 
-        for page in (self.type_page, self.data_page, self.labels_page):
+        for page in (self.type_page, self.data_page, self.labels_page, self.no_dataset_page):
             page.step_rail.stepClicked.connect(self._jump_to_step)
 
     def _jump_to_step(self, step_index: int) -> None:
@@ -165,13 +175,20 @@ class ChartWizard(PWizard):
         """)
 
     def _on_page_changed(self, page_id: int) -> None:
-        if page_id not in (self._type_page_id, self._data_page_id, self._labels_page_id):
+        if page_id not in (
+            self._type_page_id, self._data_page_id, self._labels_page_id, self._no_dataset_page_id,
+        ):
             # QWizard's internal reset() (Cancel/Esc/window-close) emits
             # currentIdChanged(-1); there's no page to sync the rail to.
             return
         summaries = self._completed_step_summaries()
-        current_index = {self._type_page_id: 0, self._data_page_id: 1, self._labels_page_id: 2}[page_id]
-        for page in (self.type_page, self.data_page, self.labels_page):
+        current_index = {
+            self._type_page_id: 0,
+            self._data_page_id: 1,
+            self._no_dataset_page_id: 1,
+            self._labels_page_id: 2,
+        }[page_id]
+        for page in (self.type_page, self.data_page, self.labels_page, self.no_dataset_page):
             page.step_rail.set_state(current_index, summaries)
 
         if page_id == self._data_page_id:
@@ -229,6 +246,66 @@ class ChartWizard(PWizard):
         # The initial selection stays available for the wizard's lifetime so it
         # can be re-applied whenever a fresh card set is built (e.g. the user
         # goes Back, changes the chart type, and comes forward again).
+
+    @override
+    def setup_event_subscriptions(self):
+        self.subscribe_to_event(DatasetEvents.DATASET_CREATED, self._on_dataset_created)
+
+    def _on_import_requested(self) -> None:
+        from pandaplot.commands.project.dataset.import_data_command import ImportDataCommand
+
+        command = ImportDataCommand(self.app_context)
+        self.app_context.get_command_executor().execute_command(command)
+
+    def _is_active_on_no_dataset_page(self) -> bool:
+        # QWizard's internal reset() (Cancel/Esc/window-close) resets currentId
+        # to -1, and accept() (e.g. "Create Empty Chart") leaves currentId
+        # unchanged but sets result() to Accepted -- either means this wizard
+        # is closed/finished and no longer the active recipient of import
+        # events. Comparing currentId() to the no-dataset page also means a
+        # DATASET_CREATED that arrives after the wizard has moved on to the
+        # Data page (or backed up past it) is ignored, and -- since it isn't
+        # gated on "has any import ever succeeded" -- a second import started
+        # after backing up to this page is not silently swallowed either.
+        if self.result() == QDialog.DialogCode.Accepted:
+            return False
+        return self.currentId() == self._no_dataset_page_id
+
+    def _on_dataset_created(self, event_data: dict) -> None:
+        if not self._is_active_on_no_dataset_page():
+            return
+        self._no_dataset_mode = False
+        if self._initial_dataset_id is None:
+            self._initial_dataset_id = event_data.get("dataset_id")
+        # Defer to the next event-loop turn: a multi-sheet Excel import emits
+        # one DATASET_CREATED per sheet, synchronously, in a loop that adds
+        # each dataset to the project before emitting for it. Reacting to the
+        # *first* event immediately would only see that one sheet's dataset;
+        # deferring lets the whole loop finish so every sheet is visible by
+        # the time the Data page's dataset options are computed.
+        QTimer.singleShot(0, self._advance_after_import)
+
+    def _advance_after_import(self) -> None:
+        if not self._is_active_on_no_dataset_page():
+            return
+        self.data_page.set_datasets(self._current_dataset_options())
+        self.data_page.set_dataset_columns_provider(self._current_columns_provider())
+        self.next()
+
+    def _current_dataset_options(self) -> list[tuple[str, str]]:
+        if self._project is None:
+            return []
+        return [(item.id, item.name) for item in self._project.get_all_items() if isinstance(item, Dataset)]
+
+    def _current_columns_provider(self) -> Callable[[str], list[tuple[str, str]]]:
+        def provider(dataset_id: str) -> list[tuple[str, str]]:
+            if self._project is None:
+                return []
+            dataset = self._project.find_item(dataset_id)
+            if not isinstance(dataset, Dataset) or dataset.data is None:
+                return []
+            return [(dataset.column_id(name) or "", name) for name in dataset.data.columns]
+        return provider
 
     def _finish_empty(self) -> None:
         self._is_empty = True

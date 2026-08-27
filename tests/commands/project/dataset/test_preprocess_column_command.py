@@ -159,3 +159,16 @@ class TestPreprocessColumnCommand:
         with caplog.at_level(logging.WARNING):
             assert command.undo() is False
         assert "ds-1" in caplog.text
+
+
+def test_cleanup_releases_the_undo_state():
+    app_context = Mock(spec=AppContext)
+
+    command = PreprocessColumnCommand(app_context, "ds-1", {
+        "method": "standardize", "source_columns": ["A"],
+    })
+    command._undo_state = [("A_zscore", True, pd.Series([1.0, 2.0, 3.0]))]
+
+    command.cleanup()
+
+    assert command._undo_state == []

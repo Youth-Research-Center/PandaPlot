@@ -5,7 +5,7 @@ from pandaplot.models.chart.series_style import HistSeriesStyle
 
 
 def render_hist_series(axes, series_data: SeriesData, style: HistSeriesStyle,
-                        label: str, alpha: float, visible: bool, extra: dict) -> None:
+                        label: str, alpha: float, *, visible: bool, extra: dict) -> None:
     axes.hist(series_data.y_data,
               bins=extra["bins"],
               color=style.color,

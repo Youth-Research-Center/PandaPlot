@@ -47,7 +47,7 @@ def _series_label(project, config: dict) -> str:
 def render_wizard_preview(
     canvas: ChartCanvas, project, chart_type: str, series_configs: list[dict],
     title: str, subtitle: str, x_label: str, y_label: str,
-    show_legend: bool, show_grid: bool,
+    *, show_legend: bool, show_grid: bool,
 ) -> None:
     axes = canvas.axes
     axes.clear()

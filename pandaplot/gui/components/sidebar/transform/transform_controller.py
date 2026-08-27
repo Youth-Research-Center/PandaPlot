@@ -173,9 +173,9 @@ class TransformController(QObject):
             error_msg = f"Preview generation failed: {str(e)}"
             return {"error": error_msg}
     
-    def apply_transformation(self, dataset_id: str, source_column: str, 
-                           new_column_name: str, function_code: str, 
-                           replace_existing: bool = False) -> bool:
+    def apply_transformation(self, dataset_id: str, source_column: str,
+                           new_column_name: str, function_code: str,
+                           *, replace_existing: bool = False) -> bool:
         """
         Apply the transformation to the dataset.
         

@@ -477,3 +477,13 @@ class DeleteColumnsCommand(Command):
             self.logger.error(f"DeleteColumnsCommand Redo Error: {error_msg}")
             self.ui_controller.show_error_message("Delete Columns Error", error_msg)
             return False
+
+    @override
+    def cleanup(self) -> None:
+        """Release the undo snapshots held for undo once this command is
+        dropped from the stacks for good (see Command.cleanup)."""
+        self.original_data = None
+        self.original_column_ids = None
+        self.deleted_columns_data = None
+        self.removed_chart_refs = {}
+        self.cleared_error_refs = {}

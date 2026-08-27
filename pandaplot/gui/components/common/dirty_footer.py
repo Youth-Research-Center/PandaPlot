@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 from pandaplot.gui.components.common.p_button import PButton
 
 
-def format_status_text(is_modified: bool, change_count: int) -> str:
+def format_status_text(*, is_modified: bool, change_count: int) -> str:
     if not is_modified or change_count <= 0:
         return "No changes"
     if change_count == 1:
@@ -34,8 +34,10 @@ class DirtyFooter(QWidget):
         layout.addWidget(self._revert_button)
         layout.addWidget(self._apply_button)
 
-    def setModified(self, is_modified: bool, change_count: int = 0):  # noqa: N802
-        self._status_label.setText(format_status_text(is_modified, change_count))
+    def setModified(self, *, is_modified: bool, change_count: int = 0):  # noqa: N802
+        self._status_label.setText(
+            format_status_text(is_modified=is_modified, change_count=change_count)
+        )
         is_effectively_modified = is_modified and change_count > 0
         self._revert_button.setEnabled(is_effectively_modified)
         self._apply_button.setEnabled(is_effectively_modified)

@@ -107,14 +107,14 @@ class TabContainer(PWidget):
         """Push down whether each pane can still split further or only merge back."""
         can_split = len(self.panes) == 1
         for pane in self.panes:
-            pane.set_split_capable(can_split)
-            pane.set_merge_capable(not can_split)
+            pane.set_split_capable(can_split=can_split)
+            pane.set_merge_capable(can_merge=not can_split)
 
     def _activate_pane(self, pane: CustomTabWidget):
         """Mark `pane` as the one driving the sidebar, updating the visual indicator."""
         show_indicator = len(self.panes) > 1
         for p in self.panes:
-            p.set_active(show_indicator and p is pane)
+            p.set_active(is_active=show_indicator and p is pane)
 
         if pane is self._active_pane:
             return

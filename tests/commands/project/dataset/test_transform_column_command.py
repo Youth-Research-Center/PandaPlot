@@ -36,7 +36,7 @@ def _emitted(event_bus, name):
     return [c.args[1] for c in event_bus.emit.call_args_list if c.args and c.args[0] == name]
 
 
-def _config(new_name, expression="value * 2", replace=False):
+def _config(new_name, expression="value * 2", *, replace=False):
     return {
         "new_column_name": new_name,
         "transform_type": "column",
@@ -125,3 +125,20 @@ def test_undo_logs_a_warning_when_dataset_has_no_data(caplog):
     with caplog.at_level(logging.WARNING):
         assert command.undo() is False
     assert "ds-1" in caplog.text
+
+
+def test_cleanup_releases_the_original_data_snapshot():
+    app_context = Mock(spec=AppContext)
+
+    command = TransformColumnCommand(app_context, "ds-1", {
+        "new_column_name": "a_x2",
+        "transform_type": "column",
+        "source_columns": ["a"],
+        "expression": "value * 2",
+        "replace_existing": False,
+    })
+    command.original_data = pd.Series([1, 2, 3])
+
+    command.cleanup()
+
+    assert command.original_data is None

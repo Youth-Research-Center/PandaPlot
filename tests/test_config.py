@@ -15,6 +15,7 @@ import pytest
 
 from pandaplot.models.state.config import (
     ApplicationConfig,
+    LengthUnit,
     Theme,
 )
 
@@ -122,7 +123,7 @@ def test_clone_is_deep_copy():
         ("no", False),
     ],
 )
-def test_bool_string_matrix(input_value: str, expected: bool):
+def test_bool_string_matrix(input_value: str, *, expected: bool):
     cfg = ApplicationConfig.default()
     cfg.update_from_mapping({"auto_save": {"enabled": input_value}})
     assert cfg.auto_save.enabled is expected
@@ -134,3 +135,58 @@ def test_font_size_validation_lower_bound():
     # Since invalid small ints get coerced -> validate ensures >=8 ( but update only sets ints )
     assert cfg.appearance.interface_font_size == 8
     assert cfg.appearance.editor_font_size == 8
+
+
+def test_chart_display_measurement_unit_default_and_serialization():
+    cfg = ApplicationConfig.default()
+    assert cfg.chart_display.measurement_unit == LengthUnit.CM
+    d = cfg.to_dict()
+    assert d["chart_display"]["measurement_unit"] == "cm"
+
+
+def test_chart_display_measurement_unit_update_by_value_and_name():
+    cfg = ApplicationConfig.default()
+    cfg.update_from_mapping({"chart_display": {"measurement_unit": "mm"}})
+    assert cfg.chart_display.measurement_unit == LengthUnit.MM
+    cfg.update_from_mapping({"chart_display": {"measurement_unit": "IN"}})
+    assert cfg.chart_display.measurement_unit == LengthUnit.IN
+
+
+def test_chart_display_measurement_unit_invalid_value_ignored():
+    cfg = ApplicationConfig.default()
+    original = cfg.chart_display.measurement_unit
+    cfg.update_from_mapping({"chart_display": {"measurement_unit": "furlongs"}})
+    assert cfg.chart_display.measurement_unit == original
+
+
+def test_chart_display_measurement_unit_json_roundtrip():
+    cfg = ApplicationConfig.default()
+    cfg.chart_display.measurement_unit = LengthUnit.IN
+    loaded = ApplicationConfig.from_json(cfg.to_json())
+    assert loaded.chart_display.measurement_unit == LengthUnit.IN
+
+
+def test_chart_display_validate_coerces_raw_name_string_not_just_value():
+    """validate() must accept an enum *name* string (e.g. "IN"), not just a
+    value string (e.g. "in"), for consistency with update_from_mapping's
+    name-or-value parsing -- assigning a raw name directly and re-validating
+    must not silently reset to the CM fallback."""
+    cfg = ApplicationConfig.default()
+    cfg.chart_display.measurement_unit = "IN"  # type: ignore[assignment]
+    cfg.chart_display.validate()
+    assert cfg.chart_display.measurement_unit == LengthUnit.IN
+
+
+def test_reset_defaults_restores_chart_display():
+    cfg = ApplicationConfig.default()
+    default_chart_display = ApplicationConfig.default().chart_display
+    cfg.chart_display.measurement_unit = LengthUnit.IN
+    cfg.chart_display.dpi = 300
+    assert cfg.chart_display.measurement_unit != default_chart_display.measurement_unit
+    assert cfg.chart_display.dpi != default_chart_display.dpi
+
+    cfg.reset_defaults()
+
+    assert cfg.chart_display.measurement_unit == default_chart_display.measurement_unit
+    assert cfg.chart_display.dpi == default_chart_display.dpi
+    assert cfg.chart_display == default_chart_display

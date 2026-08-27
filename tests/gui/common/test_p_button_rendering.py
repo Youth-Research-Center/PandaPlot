@@ -13,7 +13,7 @@ def qapp():
     yield app
 
 
-def _render_and_pick_color(app: QApplication, theme: Theme, role: str, icon: bool = False) -> str:
+def _render_and_pick_color(app: QApplication, theme: Theme, role: str, *, icon: bool = False) -> str:
     manager = ThemeManager.__new__(ThemeManager)
     ctx = ThemeContext(theme=theme, accent="#4A56C6", interface_font_size=10)
     manager._current = ctx

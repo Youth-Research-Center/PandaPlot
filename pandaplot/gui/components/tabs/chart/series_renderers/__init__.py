@@ -1,6 +1,8 @@
 """SeriesType -> render function dispatch table, replacing chart_editor.py's
 former 5 if/elif branches. Every render function shares the signature
-(axes, series_data, style, label, alpha, visible, extra) -> None -- extra
+(axes, series_data, style, label, alpha, *, visible, extra) -> None --
+`visible`/`extra` are keyword-only (ruff FBT001/002/003: boolean-trap
+avoidance) since they're only ever called from our own Python code. `extra`
 carries the few pieces of per-type context that don't fit the uniform
 shape (bins for hist, resolve_fill_baseline for line), ignored by the
 renderers that don't need them, so callers can dispatch through one call

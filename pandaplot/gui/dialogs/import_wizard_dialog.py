@@ -425,7 +425,7 @@ class ImportWizardDialog(PDialog):
     def _refresh_preview(self):
         """Read a small preview with the current options and render the table."""
         if not self.file_path:
-            self._set_import_enabled(False)
+            self._set_import_enabled(enabled=False)
             return
 
         # For Excel, at least one worksheet must be checked to import anything.
@@ -433,7 +433,7 @@ class ImportWizardDialog(PDialog):
             self.preview_table.clearContents()
             self.preview_table.setRowCount(0)
             self._set_status("Select at least one worksheet to import.", error=True)
-            self._set_import_enabled(False)
+            self._set_import_enabled(enabled=False)
             return
 
         try:
@@ -445,25 +445,25 @@ class ImportWizardDialog(PDialog):
             self.preview_table.setRowCount(0)
             self.preview_table.setColumnCount(0)
             self._set_status(f"Could not parse with these options: {error}", error=True)
-            self._set_import_enabled(False)
+            self._set_import_enabled(enabled=False)
             return
 
         self._populate_table(df)
 
         if df.shape[1] == 0:
             self._set_status("No columns found. Adjust the options above.", error=True)
-            self._set_import_enabled(False)
+            self._set_import_enabled(enabled=False)
             return
 
         if df.empty:
             self._set_status("File parsed but contains no data rows.", error=True)
-            self._set_import_enabled(False)
+            self._set_import_enabled(enabled=False)
             return
 
         shown = df.shape[0]
         more = " (first rows shown)" if shown >= PREVIEW_ROWS else ""
         self._set_status(f"Preview: {shown} row(s){more} · {df.shape[1]} column(s).", error=False)
-        self._set_import_enabled(True)
+        self._set_import_enabled(enabled=True)
 
     def _populate_table(self, df):
         self.preview_table.clear()
@@ -477,13 +477,13 @@ class ImportWizardDialog(PDialog):
                 text = "" if value is None or (isinstance(value, float) and value != value) else str(value)
                 self.preview_table.setItem(row, col, QTableWidgetItem(text))
 
-    def _set_status(self, message: str, error: bool):
+    def _set_status(self, message: str, *, error: bool):
         self.status_label.setText(message)
         self._status_is_error = error
         # Colour is applied in _apply_theme; refresh it here for live updates.
         self._style_status()
 
-    def _set_import_enabled(self, enabled: bool):
+    def _set_import_enabled(self, *, enabled: bool):
         self.import_button.setEnabled(enabled)
 
     # ---------------------------------------------------------------- public API

@@ -87,6 +87,13 @@ def test_no_project_loaded_logs_a_warning(env, caplog):
     assert "New Name" in caplog.text
 
 
+def test_cleanup_does_not_raise(env):
+    app_context, _project = env
+    command = RenameProjectCommand(app_context, "New Name")
+    command.execute()
+    command.cleanup()
+
+
 def test_event_emitted_on_rename(env):
     app_context, project = env
     command = RenameProjectCommand(app_context, "New Name")

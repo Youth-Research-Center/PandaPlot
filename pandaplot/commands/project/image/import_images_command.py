@@ -33,7 +33,7 @@ class ImportImagesCommand(Command):
     """
 
     def __init__(self, app_context: AppContext, gallery_id: str, sources: List[str],
-                 copy_into_project: bool = True):
+                 *, copy_into_project: bool = True):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -254,3 +254,11 @@ class ImportImagesCommand(Command):
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
+
+    @override
+    def cleanup(self) -> None:
+        """Release the created-image-id bookkeeping and cached project
+        reference held for undo once this command is dropped from the
+        stacks for good (see Command.cleanup)."""
+        self.created_image_ids = []
+        self.project = None

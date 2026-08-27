@@ -78,3 +78,10 @@ class RenameProjectCommand(Command):
     def redo(self):
         if self._applied and self.old_name is not None:
             self._apply_rename(self.new_name)
+
+    @override
+    def cleanup(self) -> None:
+        """No undo-only resource to release -- old_name is needed by both
+        undo() and redo() (rename is symmetric via _apply_rename), and
+        _applied is a boolean guard flag, not a held reference."""
+        return

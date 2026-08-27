@@ -102,14 +102,14 @@ class ConditionalPanelManager(QObject):
                 # Update visibility if changed
                 if should_be_visible != previous_visibility:
                     panel_config["is_visible"] = should_be_visible
-                    self._update_panel_visibility(panel_name, should_be_visible)
+                    self._update_panel_visibility(panel_name, should_be_visible=should_be_visible)
                     
                     self.logger.debug("Panel '%s' visibility changed -> %s", panel_name, should_be_visible)
                     
             except Exception:
                 self.logger.error("Error evaluating condition for panel '%s'", panel_name, exc_info=True)
     
-    def _update_panel_visibility(self, panel_name: str, should_be_visible: bool):
+    def _update_panel_visibility(self, panel_name: str, *, should_be_visible: bool):
         """
         Update the actual panel visibility in the sidebar.
         

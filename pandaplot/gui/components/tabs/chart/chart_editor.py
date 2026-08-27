@@ -63,6 +63,7 @@ def apply_chart_title(
     title_padding: float = 6.0,
     main_title_padding: float = 10.0,
     fig_height_inches: float | None = None,
+    *,
     title_bold: bool = True,
     title_italic: bool = False,
     subtitle_bold: bool = False,
@@ -126,7 +127,7 @@ def resolve_chart_size(
 
 def apply_axis_ticks(
     axis, mode, count, step, fmt, custom_fmt,
-    direction="out", minor_enabled=False, minor_direction=None,
+    direction="out", *, minor_enabled=False, minor_direction=None,
     major_color="#000000", minor_color="#000000", labelcolor="#000000",
 ):
     """Apply tick placement, label formatting, direction, and minor ticks to
@@ -173,7 +174,7 @@ def apply_axis_ticks(
     )
 
 
-def apply_tick_label_font(axis, font_size, font_family, bold=False, italic=False, rotation=0):
+def apply_tick_label_font(axis, font_size, font_family, *, bold=False, italic=False, rotation=0):
     """Set font size/family/weight/style/rotation on every major and minor
     tick-value label of a matplotlib Axis. `Axis.set_tick_params` (used by
     `apply_axis_ticks` for color/direction) has no font-family/weight/style
@@ -268,7 +269,7 @@ def resolve_legend_placement(position: str, custom_x: float, custom_y: float, cu
 def build_legend(
     axes, handles, labels,
     font_family: str, font_size,
-    bg_color: str, show_frame: bool, columns: int, bg_alpha: float,
+    bg_color: str, *, show_frame: bool, columns: int, bg_alpha: float,
     placement_kwargs: dict,
 ):
     """Add a legend to `axes`, merging `font_size` into `prop` alongside
@@ -287,7 +288,7 @@ def build_legend(
     )
 
 
-def apply_layout_with_legend(fig, tight_layout_kwargs: dict, legend_placed_outside: bool) -> None:
+def apply_layout_with_legend(fig, tight_layout_kwargs: dict, *, legend_placed_outside: bool) -> None:
     """Run Figure.tight_layout(), re-running it once more when the legend was
     placed outside the axes (`bbox_to_anchor` set). The first pass runs
     before Matplotlib can account for an out-of-axes legend's extent, so
@@ -397,7 +398,7 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
                       u_data=u_data, v_data=v_data, magnitude_data=magnitude_data, z_data=z_data)
 
 
-def compute_axis_data_range(project, data_series, prefix: str, positive_only: bool = False) -> Optional[tuple[float, float]]:
+def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> Optional[tuple[float, float]]:
     """Compute (min, max) across every series plotted against the given
     axis (`prefix` in "x", "y", "y2"). "x" includes all series; "y"/"y2"
     are filtered by `series.y_axis`. Returns None when no series have
@@ -729,7 +730,7 @@ class ChartEditorWidget(PWidget):
         # No configuration UI to load since it's now in the side panel
         pass
 
-    def _resolve_fill_baseline(self, project, series_index, fill_base, fill_to_index, query, horizontal=False):
+    def _resolve_fill_baseline(self, project, series_index, fill_base, fill_to_index, query, *, horizontal=False):
         """Resolve the second bound for a series' area fill: either the
         constant ``fill_base``, or -- when ``fill_to_index`` points at another
         series -- that series' curve interpolated onto this series' sampling
@@ -852,7 +853,7 @@ class ChartEditorWidget(PWidget):
                 # renderer runs in the main loop.
                 z_arrays: list[np.ndarray] = []
                 if color_scale_auto:
-                    for series, data in zip(self.chart.data_series, resolved_data):
+                    for series, data in zip(self.chart.data_series, resolved_data, strict=True):
                         if not SERIES_TYPE_SPECS[series.series_type].needs_z_column or data.error is not None:
                             continue
                         try:
@@ -862,12 +863,12 @@ class ChartEditorWidget(PWidget):
                 combined_z = np.concatenate(z_arrays) if z_arrays else np.array([])
                 color_limits = resolve_color_limits(
                     combined_z,
-                    color_scale_auto,
-                    self.chart.config.get("color_vmin", 0.0),
-                    self.chart.config.get("color_vmax", 1.0),
+                    auto=color_scale_auto,
+                    vmin=self.chart.config.get("color_vmin", 0.0),
+                    vmax=self.chart.config.get("color_vmax", 1.0),
                 )
 
-                for i, (series, series_data) in enumerate(zip(self.chart.data_series, resolved_data)):
+                for i, (series, series_data) in enumerate(zip(self.chart.data_series, resolved_data, strict=True)):
                     # Route this series to its configured Y axis
                     target_axes = (self.chart_canvas.axes2
                                    if series.y_axis == "secondary" and self.chart_canvas.axes2 is not None
@@ -911,15 +912,20 @@ class ChartEditorWidget(PWidget):
                                 alpha=alpha)
 
                     renderer = SERIES_RENDERERS[series_type]
-                    mappable = renderer(target_axes, series_data, style, series.label, alpha, series.visible, {
-                        "bins": self.chart.config.get("hist_bins", 20),
-                        "resolve_fill_baseline": (
-                            lambda query, horizontal, _i=i, _style=style: self._resolve_fill_baseline(
-                                project, _i, _style.fill_base, _style.fill_to_index, query, horizontal=horizontal)
-                        ),
-                        "colormap": self.chart.config.get("colormap", "viridis"),
-                        "color_limits": color_limits,
-                    })
+                    mappable = renderer(
+                        target_axes, series_data, style, series.label, alpha,
+                        visible=series.visible,
+                        extra={
+                            "bins": self.chart.config.get("hist_bins", 20),
+                            "resolve_fill_baseline": (
+                                lambda query, *, horizontal, _i=i, _style=style: self._resolve_fill_baseline(
+                                    project, _i, _style.fill_base, _style.fill_to_index, query,
+                                    horizontal=horizontal)
+                            ),
+                            "colormap": self.chart.config.get("colormap", "viridis"),
+                            "color_limits": color_limits,
+                        },
+                    )
                     if mappable is None and series_type in (SeriesType.COLORMAP, SeriesType.HEATMAP):
                         series_errors.append(f"{series.label or f'Series {i + 1}'}: no data to grid")
                         continue
@@ -992,7 +998,7 @@ class ChartEditorWidget(PWidget):
                             x_err=None, y_err=None, x_err_minus=None, y_err_minus=None, error=None,
                         )
                         render_line_series(fit_axes, fit_series_data, line_style_adapter,
-                                            fit.label, style.alpha, fit.visible, {})
+                                            fit.label, style.alpha, visible=fit.visible, extra={})
 
                         if (style.band_fill_enabled
                                 and fit.confidence_lower is not None
@@ -1145,14 +1151,14 @@ class ChartEditorWidget(PWidget):
                 )
 
                 if config.get("show_grid_y2", True):
-                    self.chart_canvas.axes2.grid(True, axis="y", alpha=config.get("grid_alpha", 0.3))
+                    self.chart_canvas.axes2.grid(visible=True, axis="y", alpha=config.get("grid_alpha", 0.3))
                 else:
-                    self.chart_canvas.axes2.grid(False, axis="y")
+                    self.chart_canvas.axes2.grid(visible=False, axis="y")
                 if config.get("y2_show_minor_grid", False):
                     self.chart_canvas.axes2.grid(
-                        True, axis="y", which="minor", alpha=config.get("minor_grid_alpha", 0.15))
+                        visible=True, axis="y", which="minor", alpha=config.get("minor_grid_alpha", 0.15))
                 else:
-                    self.chart_canvas.axes2.grid(False, axis="y", which="minor")
+                    self.chart_canvas.axes2.grid(visible=False, axis="y", which="minor")
 
             if not config.get("x_auto_limits", True):
                 self.chart_canvas.axes.set_xlim(config.get("x_min", 0.0), config.get("x_max", 1.0))
@@ -1222,21 +1228,21 @@ class ChartEditorWidget(PWidget):
             grid_alpha = config.get("grid_alpha", 0.3)
             minor_grid_alpha = config.get("minor_grid_alpha", 0.15)
             if config.get("show_grid_x", True):
-                self.chart_canvas.axes.grid(True, axis="x", alpha=grid_alpha)
+                self.chart_canvas.axes.grid(visible=True, axis="x", alpha=grid_alpha)
             else:
-                self.chart_canvas.axes.grid(False, axis="x")
+                self.chart_canvas.axes.grid(visible=False, axis="x")
             if config.get("x_show_minor_grid", False):
-                self.chart_canvas.axes.grid(True, axis="x", which="minor", alpha=minor_grid_alpha)
+                self.chart_canvas.axes.grid(visible=True, axis="x", which="minor", alpha=minor_grid_alpha)
             else:
-                self.chart_canvas.axes.grid(False, axis="x", which="minor")
+                self.chart_canvas.axes.grid(visible=False, axis="x", which="minor")
             if config.get("show_grid_y", True):
-                self.chart_canvas.axes.grid(True, axis="y", alpha=grid_alpha)
+                self.chart_canvas.axes.grid(visible=True, axis="y", alpha=grid_alpha)
             else:
-                self.chart_canvas.axes.grid(False, axis="y")
+                self.chart_canvas.axes.grid(visible=False, axis="y")
             if config.get("y_show_minor_grid", False):
-                self.chart_canvas.axes.grid(True, axis="y", which="minor", alpha=minor_grid_alpha)
+                self.chart_canvas.axes.grid(visible=True, axis="y", which="minor", alpha=minor_grid_alpha)
             else:
-                self.chart_canvas.axes.grid(False, axis="y", which="minor")
+                self.chart_canvas.axes.grid(visible=False, axis="y", which="minor")
 
             legend = None
             placement_kwargs = {}
@@ -1264,10 +1270,10 @@ class ChartEditorWidget(PWidget):
                         config.get("legend_font_family", "DejaVu Sans"),
                         config.get("legend_font_size", 10),
                         config.get("legend_bg_color", "#ffffff"),
-                        config.get("legend_show_frame", True),
-                        config.get("legend_columns", 1),
-                        config.get("legend_bg_alpha", 1.0),
-                        placement_kwargs,
+                        show_frame=config.get("legend_show_frame", True),
+                        columns=config.get("legend_columns", 1),
+                        bg_alpha=config.get("legend_bg_alpha", 1.0),
+                        placement_kwargs=placement_kwargs,
                     )
 
             tight_layout_kwargs = dict(
@@ -1280,7 +1286,9 @@ class ChartEditorWidget(PWidget):
             # clipped at the right edge of the figure.
             apply_layout_with_legend(
                 self.chart_canvas.fig, tight_layout_kwargs,
-                legend is not None and placement_kwargs.get("bbox_to_anchor") is not None,
+                legend_placed_outside=(
+                    legend is not None and placement_kwargs.get("bbox_to_anchor") is not None
+                ),
             )
 
             # Store original limits for zoom reset functionality

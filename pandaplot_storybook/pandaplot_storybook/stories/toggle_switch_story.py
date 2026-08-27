@@ -11,4 +11,4 @@ def _build() -> StoryDef:
     def make_widget(values: dict, tokens: dict) -> QWidget:
         return ToggleSwitch(checked=values["checked"])
 
-    return StoryDef(controls=[BoolControl("checked", False)], make_widget=make_widget)
+    return StoryDef(controls=[BoolControl("checked", default=False)], make_widget=make_widget)

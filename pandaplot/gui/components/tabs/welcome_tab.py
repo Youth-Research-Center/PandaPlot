@@ -352,7 +352,7 @@ class WelcomeTab(PWidget):
         desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc_label.setWordWrap(True)
         # Mark as secondary text for theming
-        desc_label.setProperty("secondary", True)
+        desc_label.setProperty("secondary", True)  # noqa: FBT003 - Qt method rejects keyword args
         desc_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)  # Prevent text selection
         
         button_layout.addWidget(title_label)
@@ -392,7 +392,7 @@ class WelcomeTab(PWidget):
         desc_font = QFont()
         desc_font.setPointSize(9)
         desc_label.setFont(desc_font)
-        desc_label.setProperty("secondary", True)
+        desc_label.setProperty("secondary", True)  # noqa: FBT003 - Qt method rejects keyword args
         desc_label.setWordWrap(True)
         desc_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         desc_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)  # Prevent text selection
@@ -443,7 +443,7 @@ class WelcomeTab(PWidget):
         path_font = QFont()
         path_font.setPointSize(8)
         path_label.setFont(path_font)
-        path_label.setProperty("secondary", True)
+        path_label.setProperty("secondary", True)  # noqa: FBT003 - Qt method rejects keyword args
         path_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         path_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         # Provide minimal left indent to visually separate while keeping nearly aligned
@@ -452,7 +452,7 @@ class WelcomeTab(PWidget):
         # Last opened label (kept aligned with path)
         last_opened_label = QLabel(f"Last opened: {last_opened}")
         last_opened_label.setFont(path_font)
-        last_opened_label.setProperty("secondary", True)
+        last_opened_label.setProperty("secondary", True)  # noqa: FBT003 - Qt method rejects keyword args
         last_opened_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         last_opened_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         last_opened_label.setStyleSheet("min-height:14px; padding-left:2px;")
@@ -467,7 +467,7 @@ class WelcomeTab(PWidget):
         # Project type icon
         icon_label = QLabel("📊")
         icon_label.setStyleSheet("font-size: 20px;")
-        icon_label.setProperty("accentIcon", True)
+        icon_label.setProperty("accentIcon", True)  # noqa: FBT003 - Qt method rejects keyword args
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         button_layout.addWidget(icon_label)
@@ -520,7 +520,7 @@ class WelcomeTab(PWidget):
         if not deduped:
             placeholder = QLabel("No recent projects")
             placeholder.setStyleSheet("font-style: italic; padding: 20px;")
-            placeholder.setProperty("secondary", True)
+            placeholder.setProperty("secondary", True)  # noqa: FBT003 - Qt method rejects keyword args
             placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
             placeholder.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
             self.recent_projects_layout.addWidget(placeholder)

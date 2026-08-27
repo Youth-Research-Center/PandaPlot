@@ -73,7 +73,7 @@ class SeriesConfigCard(Card):
         self._error_status_label = QLabel()
         summary_layout.addWidget(self._error_status_label)
         self._expand_button = PButton(
-            "▸", role="secondary", icon=True, on_click=lambda: self.set_collapsed(False)
+            "▸", role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=False)
         )
         summary_layout.addWidget(self._expand_button)
         outer.addWidget(self._summary_row)
@@ -86,7 +86,7 @@ class SeriesConfigCard(Card):
         collapse_row = QHBoxLayout()
         collapse_row.addStretch(1)
         self._collapse_button = PButton(
-            "▾", role="secondary", icon=True, on_click=lambda: self.set_collapsed(True)
+            "▾", role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=True)
         )
         collapse_row.addWidget(self._collapse_button)
         grid.addLayout(collapse_row, row, 0, 1, 2)
@@ -132,7 +132,7 @@ class SeriesConfigCard(Card):
                 setattr(self, f"_{error_role}_label", error_label)
                 row += 1
 
-            self._set_error_controls_visible(False)
+            self._set_error_controls_visible(visible=False)
 
         self.remove_button = PButton(
             "Remove", role="destructive", on_click=self.removeRequested.emit
@@ -147,7 +147,7 @@ class SeriesConfigCard(Card):
     def is_collapsed(self) -> bool:
         return self._collapsed
 
-    def set_collapsed(self, collapsed: bool) -> None:
+    def set_collapsed(self, *, collapsed: bool) -> None:
         self._collapsed = collapsed
         self._update_visibility()
         if collapsed:
@@ -187,7 +187,7 @@ class SeriesConfigCard(Card):
 
     # -- Everything below is unchanged from the pre-redesign implementation --
 
-    def _set_error_controls_visible(self, visible: bool):
+    def _set_error_controls_visible(self, *, visible: bool):
         for error_role in ("x_error", "y_error"):
             getattr(self, f"_{error_role}_label").setVisible(visible)
             self._role_combos[error_role].setVisible(visible)
@@ -200,11 +200,11 @@ class SeriesConfigCard(Card):
             getattr(self, f"_{error_role}_label").setVisible(show_minus)
             self._role_combos[error_role].setVisible(show_minus)
 
-    def _on_error_bars_toggled(self, checked: bool):
-        self._set_error_controls_visible(checked)
+    def _on_error_bars_toggled(self, checked: bool):  # noqa: FBT001 - Qt `toggled` callback, invoked positionally
+        self._set_error_controls_visible(visible=checked)
         self.configChanged.emit()
 
-    def _on_error_symmetry_toggled(self, checked: bool):
+    def _on_error_symmetry_toggled(self, checked: bool):  # noqa: FBT001 - Qt `toggled` callback, invoked positionally
         """Mirrors data_tab.py's _on_error_symmetry_toggled: default each
         newly-shown minus combo to its plus-side sibling's current
         selection, so ticking the checkbox doesn't silently zero out the
@@ -228,13 +228,13 @@ class SeriesConfigCard(Card):
 
     def set_datasets(self, datasets: list[tuple[str, str]]) -> None:
         """`datasets` is a list of (dataset_id, display_name)."""
-        self.dataset_combo.blockSignals(True)
+        self.dataset_combo.blockSignals(True)  # noqa: FBT003 - Qt method, no keyword args
         try:
             self.dataset_combo.clear()
             for dataset_id, name in datasets:
                 self.dataset_combo.addItem(name, dataset_id)
         finally:
-            self.dataset_combo.blockSignals(False)
+            self.dataset_combo.blockSignals(False)  # noqa: FBT003 - Qt method, no keyword args
 
     def set_dataset_columns(self, dataset_id: str, columns: list[tuple[str, str]]) -> None:
         """`columns` is a list of (column_id, display_name) for `dataset_id`.
@@ -245,14 +245,14 @@ class SeriesConfigCard(Card):
         if self.dataset_combo.currentData() != dataset_id:
             return
         for combo in self._role_combos.values():
-            combo.blockSignals(True)
+            combo.blockSignals(True)  # noqa: FBT003 - Qt method, no keyword args
             try:
                 combo.clear()
                 combo.addItem("", "")
                 for column_id, name in columns:
                     combo.addItem(name, column_id)
             finally:
-                combo.blockSignals(False)
+                combo.blockSignals(False)  # noqa: FBT003 - Qt method, no keyword args
 
     def get_series_config(self) -> dict:
         config = {

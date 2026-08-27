@@ -21,4 +21,4 @@ dev = [
 line-length = 150
 
 [tool.ruff.lint]
-extend-select = ["B", "Q", "I"]
+extend-select = ["B", "Q", "I", "FBT"]

@@ -164,7 +164,7 @@ def render_body_html(source: str, *, color: str = "#000000", fontsize: float = 1
     equations: list[str] = []
     display_flags: list[bool] = []
 
-    def _stash(latex: str, display: bool) -> str:
+    def _stash(latex: str, *, display: bool) -> str:
         equations.append(latex)
         display_flags.append(display)
         return _MATH_TOKEN.format(index=len(equations) - 1)
@@ -172,8 +172,8 @@ def render_body_html(source: str, *, color: str = "#000000", fontsize: float = 1
     # 2. Extract display math first (so $$ is never split by the inline $ pass),
     #    then inline math. Each becomes an inert alphanumeric placeholder token
     #    that Markdown passes through untouched.
-    text = _DISPLAY_MATH_RE.sub(lambda m: _stash(m.group(1), True), text)
-    text = _INLINE_MATH_RE.sub(lambda m: _stash(m.group(1), False), text)
+    text = _DISPLAY_MATH_RE.sub(lambda m: _stash(m.group(1), display=True), text)
+    text = _INLINE_MATH_RE.sub(lambda m: _stash(m.group(1), display=False), text)
 
     # 3. Run Markdown on the now math-free text.
     html = markdown(text, extensions=["tables", "fenced_code"])

@@ -314,13 +314,21 @@ class ExportDatasetCommand(Command):
         except Exception as e:
             self.logger.error(f"Error handling export progress: {e}", exc_info=True)
 
+    @override
+    def occupies_undo_slot(self) -> bool:
+        """This command's undo() is a documented no-op (exporting to a file
+        isn't meaningfully undoable), so it should never occupy an undo slot
+        -- unlike SaveProjectCommand, this class has no other call site that
+        wants it tracked."""
+        return False
+
     def undo(self):
         """
         Undo is not applicable for export operations.
         We could potentially delete the exported file, but that might be unexpected.
         """
         pass
-    
+
     def redo(self):
         """
         Redo the export operation.
@@ -342,3 +350,11 @@ class ExportDatasetCommand(Command):
             bool(self.export_path), bool(self.export_format), self.is_exporting,
         )
         return False
+
+    @override
+    def cleanup(self) -> None:
+        """Release the live project/dataset references held during export
+        once this command is dropped from the stacks for good (see
+        Command.cleanup)."""
+        self.project = None
+        self.dataset = None

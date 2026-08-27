@@ -156,6 +156,55 @@ def test_heatmap_render_draws_colorbar_and_does_not_shrink_on_rerender():
     assert width_after_third_render == width_after_first_render
 
 
+def test_heatmap_contour_render_mode_draws_a_colorbar():
+    """End-to-end (#191): a Heatmap series in a contour render_mode must
+    render through the full ChartEditorWidget pipeline exactly like the
+    original "mesh" mode does -- attaching the shared colorbar and drawing
+    without error."""
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = _heatmap_chart(dataset)
+    chart.data_series[0].style.render_mode = "contour_filled_lines"
+    chart.data_series[0].style.contour_levels = 4
+    editor = _editor_for(project, chart)
+
+    editor.update_chart()
+
+    assert editor._colorbar is not None
+
+
+def test_heatmap_triangulated_contour_handles_a_ragged_domain():
+    """The motivating case from #191: scattered (x, y, z) points over an
+    irregular (e.g. triangular) domain, which "grid"/"binned"/
+    "interpolated" gridding can distort or leave holes in -- "triangulated"
+    (tripcontour/tricontourf, no lattice needed) is the mode meant to
+    handle it, matching examples/datasets/sample_symmetric_breaking_eta.csv."""
+    _qapp()
+    project = Project(name="Triangulated Render Project")
+    # A ragged/triangular domain: y's range narrows as x grows, so a
+    # rectangular grid pivot would leave large NaN regions.
+    rows = [(x, y, x + y) for x in range(10) for y in range(10 - x)]
+    df = pd.DataFrame(rows, columns=["x", "y", "z"])
+    dataset = Dataset(name="ds1", data=df)
+    project.add_item(dataset)
+
+    chart = Chart(name="Triangulated Chart", chart_type="line")
+    chart.set_chart_type(ChartType.HEATMAP)
+    chart.data_series.append(DataSeries(
+        dataset_id=dataset.id, x_column_id=dataset.column_id("x"),
+        y_column_id=dataset.column_id("y"), series_type=SeriesType.HEATMAP,
+        style=HeatmapSeriesStyle(
+            z_column_id=dataset.column_id("z"),
+            heatmap_gridding="triangulated", render_mode="contour_filled_lines",
+        ),
+    ))
+    editor = _editor_for(project, chart)
+
+    editor.update_chart()
+
+    assert editor._colorbar is not None
+
+
 def test_switching_away_from_heatmap_removes_colorbar():
     _qapp()
     project, dataset = _project_and_dataset()

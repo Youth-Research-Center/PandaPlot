@@ -39,14 +39,25 @@ from pandaplot.models.chart.series_style import (
 )
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.project.items.chart import DataSeries, FitData
 from pandaplot.models.state.config import (
     MAX_CHART_HEIGHT_CM,
     MAX_CHART_WIDTH_CM,
     MIN_CHART_HEIGHT_CM,
     MIN_CHART_WIDTH_CM,
+    LengthUnit,
 )
 from pandaplot.services.config.config_manager import ConfigManager
+from pandaplot.utils.length_units import (
+    format_size,
+    from_cm,
+    to_cm,
+    unit_bounds,
+    unit_decimals,
+    unit_step,
+    unit_suffix,
+)
 
 # Preset swatch palette offered by the Style tab's line/marker color pickers.
 STYLE_SWATCH_PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
@@ -76,13 +87,27 @@ COLORMAP_OPTIONS = [
 ]
 
 # Heatmap-only: how scattered (x, y, z) points become a regular grid for
-# pcolormesh (see chart_heatmap.build_heatmap_grid). Colormap (a color-mapped
-# scatter) has no gridding concept -- these controls are hidden for it
-# entirely (see SeriesTypeSpec.supports_gridding).
+# pcolormesh/contour (see chart_heatmap.build_heatmap_grid). "Triangulated"
+# instead skips gridding and renders straight from the scattered points via
+# matplotlib's own Delaunay triangulation (tripcolor/tricontour/tricontourf)
+# -- see series_renderers/heatmap.py. Colormap (a color-mapped scatter) has
+# no gridding concept -- these controls are hidden for it entirely (see
+# SeriesTypeSpec.supports_gridding).
 HEATMAP_GRIDDING_OPTIONS = [
     ("Exact grid", "grid"),
     ("Binned (mean)", "binned"),
     ("Interpolated", "interpolated"),
+    ("Triangulated (scattered)", "triangulated"),
+]
+
+# Heatmap-only: how the Z surface is drawn -- the original flat-shaded
+# pcolormesh/tripcolor "mesh", or a contour surface (lines, a filled band
+# per level, or both together). See series_renderers/heatmap.py.
+HEATMAP_RENDER_MODE_OPTIONS = [
+    ("Mesh", "mesh"),
+    ("Contour lines", "contour_lines"),
+    ("Filled contour", "contour_filled"),
+    ("Filled contour + lines", "contour_filled_lines"),
 ]
 
 
@@ -147,6 +172,7 @@ class StyleTab(QWidget):
         # user toggles back and forth between Custom and a preset.
         self._custom_size_prefilled: bool = False
         self._custom_dpi_prefilled: bool = False
+        self._chart_size_unit: LengthUnit = self._measurement_unit()
 
         layout = QVBoxLayout(self)
 
@@ -304,8 +330,8 @@ class StyleTab(QWidget):
         size_layout.addWidget(SectionHeader("Size"), 0, 0, 1, 2)
 
         self.chart_size_combo = QComboBox()
-        self.chart_size_combo.addItem("15 × 8 cm", (15.0, 8.0))
-        self.chart_size_combo.addItem("20 × 15 cm", (20.0, 15.0))
+        self.chart_size_combo.addItem(format_size(15.0, 8.0, self._chart_size_unit), (15.0, 8.0))
+        self.chart_size_combo.addItem(format_size(20.0, 15.0, self._chart_size_unit), (20.0, 15.0))
         self.chart_size_combo.addItem("Custom", "custom")
         self.chart_size_combo.addItem("Use app default", None)
         _field_row(size_layout, 1, "Size", self.chart_size_combo)
@@ -314,12 +340,10 @@ class StyleTab(QWidget):
         custom_size_layout = QGridLayout(self.custom_size_row)
         custom_size_layout.setContentsMargins(0, 0, 0, 0)
         self.chart_width_spin = QDoubleSpinBox()
-        self.chart_width_spin.setRange(MIN_CHART_WIDTH_CM, MAX_CHART_WIDTH_CM)
-        self.chart_width_spin.setSuffix(" cm")
+        self._configure_size_spin(self.chart_width_spin, MIN_CHART_WIDTH_CM, MAX_CHART_WIDTH_CM)
         _field_row(custom_size_layout, 0, "Width", self.chart_width_spin)
         self.chart_height_spin = QDoubleSpinBox()
-        self.chart_height_spin.setRange(MIN_CHART_HEIGHT_CM, MAX_CHART_HEIGHT_CM)
-        self.chart_height_spin.setSuffix(" cm")
+        self._configure_size_spin(self.chart_height_spin, MIN_CHART_HEIGHT_CM, MAX_CHART_HEIGHT_CM)
         _field_row(custom_size_layout, 1, "Height", self.chart_height_spin)
         size_layout.addWidget(self.custom_size_row, 2, 0, 1, 2)
         self.custom_size_row.setVisible(False)
@@ -643,23 +667,49 @@ class StyleTab(QWidget):
         self.heatmap_gridding_card = Card()
         heatmap_gridding_card = self.heatmap_gridding_card
         heatmap_gridding_layout = QGridLayout(heatmap_gridding_card)
-        heatmap_gridding_layout.addWidget(SectionHeader("Gridding"), 0, 0, 1, 2)
+        heatmap_gridding_layout.addWidget(SectionHeader("Heatmap Rendering"), 0, 0, 1, 2)
+
+        self.heatmap_render_mode_label = QLabel("Render as:")
+        heatmap_gridding_layout.addWidget(self.heatmap_render_mode_label, 1, 0)
+        self.heatmap_render_mode_control = ValueComboBox(HEATMAP_RENDER_MODE_OPTIONS)
+        heatmap_gridding_layout.addWidget(self.heatmap_render_mode_control, 1, 1)
 
         # "Exact grid" mode has no resolution to configure (it uses the
         # data's own lattice, see chart_heatmap.build_heatmap_grid), so the
         # resolution row is additionally hidden while that mode is selected
-        # (see _on_heatmap_gridding_changed).
+        # (see _on_heatmap_gridding_changed). "Triangulated" likewise has no
+        # resolution -- matplotlib's own Delaunay triangulation uses the
+        # points as-is.
         self.heatmap_gridding_label = QLabel("Gridding:")
-        heatmap_gridding_layout.addWidget(self.heatmap_gridding_label, 1, 0)
+        heatmap_gridding_layout.addWidget(self.heatmap_gridding_label, 2, 0)
         self.heatmap_gridding_control = ValueComboBox(HEATMAP_GRIDDING_OPTIONS)
-        heatmap_gridding_layout.addWidget(self.heatmap_gridding_control, 1, 1)
+        heatmap_gridding_layout.addWidget(self.heatmap_gridding_control, 2, 1)
 
         self.heatmap_resolution_label = QLabel("Resolution:")
-        heatmap_gridding_layout.addWidget(self.heatmap_resolution_label, 2, 0)
+        heatmap_gridding_layout.addWidget(self.heatmap_resolution_label, 3, 0)
         self.heatmap_resolution_spin = QSpinBox()
         self.heatmap_resolution_spin.setRange(2, 500)
         self.heatmap_resolution_spin.setValue(50)
-        heatmap_gridding_layout.addWidget(self.heatmap_resolution_spin, 2, 1)
+        heatmap_gridding_layout.addWidget(self.heatmap_resolution_spin, 3, 1)
+
+        # Contour-only (render_mode != "mesh"): level count and, only while
+        # lines are actually drawn, inline value labels on them.
+        self.heatmap_contour_levels_label = QLabel("Contour levels:")
+        heatmap_gridding_layout.addWidget(self.heatmap_contour_levels_label, 4, 0)
+        self.heatmap_contour_levels_spin = QSpinBox()
+        self.heatmap_contour_levels_spin.setRange(2, 100)
+        self.heatmap_contour_levels_spin.setValue(10)
+        heatmap_gridding_layout.addWidget(self.heatmap_contour_levels_spin, 4, 1)
+
+        self.heatmap_contour_line_labels_label = QLabel("Line labels:")
+        heatmap_gridding_layout.addWidget(self.heatmap_contour_line_labels_label, 5, 0)
+        self.heatmap_contour_line_labels_toggle = ToggleSwitch(checked=False)
+        heatmap_gridding_layout.addWidget(self.heatmap_contour_line_labels_toggle, 5, 1)
+
+        self.heatmap_contour_line_width_label = QLabel("Line width:")
+        heatmap_gridding_layout.addWidget(self.heatmap_contour_line_width_label, 6, 0)
+        self.heatmap_contour_line_width_slider = SliderWithSpinbox(minimum=0.5, maximum=10.0, decimals=1)
+        heatmap_gridding_layout.addWidget(self.heatmap_contour_line_width_slider, 6, 1)
 
         layout.addWidget(heatmap_gridding_card)
 
@@ -778,6 +828,10 @@ class StyleTab(QWidget):
         self.color_vmax_spin.valueChanged.connect(self._on_field_changed)
         self.heatmap_gridding_control.currentValueChanged.connect(self._on_heatmap_gridding_changed)
         self.heatmap_resolution_spin.valueChanged.connect(self._on_field_changed)
+        self.heatmap_render_mode_control.currentValueChanged.connect(self._on_heatmap_render_mode_changed)
+        self.heatmap_contour_levels_spin.valueChanged.connect(self._on_field_changed)
+        self.heatmap_contour_line_labels_toggle.toggled.connect(self._on_field_changed)
+        self.heatmap_contour_line_width_slider.valueChanged.connect(self._on_field_changed)
 
         # chart_style_card field connections.
         self.title_font_size_spin.valueChanged.connect(self._on_chart_style_field_changed)
@@ -806,6 +860,47 @@ class StyleTab(QWidget):
         self.figure_bg_transparent_toggle.toggled.connect(self._on_bg_transparent_toggled)
         self.axes_bg_color_row.colorChanged.connect(self._on_chart_style_field_changed)
         self.axes_bg_transparent_toggle.toggled.connect(self._on_bg_transparent_toggled)
+
+        # `StyleTab` is an app-lifetime singleton (built once by
+        # ChartPropertiesPanel), so without this the Size card's displayed
+        # measurement unit only refreshes on the next load_chart_style/
+        # clear_chart_style call (e.g. switching charts) -- it would
+        # otherwise stay stale if the user changes the unit in Settings
+        # while this panel is already visible. Subscribed manually (rather
+        # than via the PWidget/WidgetExtension mixin, which StyleTab does
+        # not inherit) with the same defensive guard `_measurement_unit`
+        # uses, since some existing tests construct StyleTab with
+        # app_context=None or a stand-in lacking `event_bus`.
+        self._config_event_subscribed = False
+        try:
+            event_bus = self.app_context.event_bus if self.app_context else None
+        except AttributeError:
+            event_bus = None
+        if event_bus is not None:
+            event_bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
+            self._config_event_subscribed = True
+            self.destroyed.connect(self._unsubscribe_config_event)
+
+    def _on_config_updated(self, _event_data: dict) -> None:
+        # Guarded like load_chart_style/clear_chart_style: _refresh_size_unit_
+        # display() now sets the custom width/height spin values (converted
+        # to the new unit), which would otherwise fire _on_chart_style_field_
+        # changed and rewrite every chart-style field from the currently
+        # displayed widgets -- redundant at best while nothing else changed.
+        previous_guard = self._updating_controls
+        self._updating_controls = True
+        try:
+            self._refresh_size_unit_display()
+        finally:
+            self._updating_controls = previous_guard
+
+    def _unsubscribe_config_event(self) -> None:
+        if self._config_event_subscribed:
+            try:
+                self.app_context.event_bus.unsubscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
+            except Exception:  # noqa: BLE001 -- best-effort cleanup on teardown
+                pass
+            self._config_event_subscribed = False
 
     # -- Chip selection / target routing -----------------------------------
 
@@ -1039,7 +1134,9 @@ class StyleTab(QWidget):
         color_row.colorChanged.connect(self._on_chart_style_field_changed)
         rotation_spin.valueChanged.connect(self._on_chart_style_field_changed)
         if match_x_toggle is not None:
-            match_x_toggle.toggled.connect(lambda checked, p=prefix: self._on_axis_style_match_x_toggled(p, checked))
+            match_x_toggle.toggled.connect(
+                lambda checked, p=prefix: self._on_axis_style_match_x_toggled(p, checked=checked)
+            )
 
         tick_font_size_spin.valueChanged.connect(self._on_chart_style_field_changed)
         tick_font_family_combo.currentValueChanged.connect(self._on_chart_style_field_changed)
@@ -1052,7 +1149,8 @@ class StyleTab(QWidget):
         minor_tick_color_row.colorChanged.connect(self._on_chart_style_field_changed)
         if match_x_colors_toggle is not None:
             match_x_colors_toggle.toggled.connect(
-                lambda checked, p=prefix: self._on_axis_style_match_x_colors_toggled(p, checked))
+                lambda checked, p=prefix: self._on_axis_style_match_x_colors_toggled(p, checked=checked)
+            )
 
         form_widget.setVisible(False)
         self._axes_style_form_container_layout.addWidget(form_widget)
@@ -1061,7 +1159,7 @@ class StyleTab(QWidget):
         for key, form in self.axes_style_forms.items():
             form["widget"].setVisible(key == prefix)
 
-    def _on_axis_style_match_x_toggled(self, prefix: str, checked: bool):
+    def _on_axis_style_match_x_toggled(self, prefix: str, *, checked: bool):
         """Hide the axis-title color swatch while matching X; pre-fill from
         X's current color the first time it's revealed (mirrors
         AxesTab._on_match_x_label_toggled)."""
@@ -1072,7 +1170,7 @@ class StyleTab(QWidget):
         form["color_row"].setVisible(not checked)
         self._on_chart_style_field_changed()
 
-    def _on_axis_style_match_x_colors_toggled(self, prefix: str, checked: bool):
+    def _on_axis_style_match_x_colors_toggled(self, prefix: str, *, checked: bool):
         """Mirrors AxesTab._on_match_x_colors_toggled, for the Style tab's
         Colors card (spine/major/minor tick colors).
 
@@ -1120,9 +1218,9 @@ class StyleTab(QWidget):
         # toggled unconditionally, and the handler pre-fills from X's
         # *current* color whenever set to "not matching").
         if source["match_x_toggle"] is not None and target["match_x_toggle"] is not None:
-            target["match_x_toggle"].setChecked(source["match_x_toggle"].isChecked())
+            target["match_x_toggle"].setChecked(checked=source["match_x_toggle"].isChecked())
         if source["match_x_colors_toggle"] is not None and target["match_x_colors_toggle"] is not None:
-            target["match_x_colors_toggle"].setChecked(source["match_x_colors_toggle"].isChecked())
+            target["match_x_colors_toggle"].setChecked(checked=source["match_x_colors_toggle"].isChecked())
 
         target["color_row"].setCurrentColor(source["color_row"].currentColor())
         target["tick_color_row"].setCurrentColor(source["tick_color_row"].currentColor())
@@ -1149,7 +1247,7 @@ class StyleTab(QWidget):
             series.y_axis == YAxis.SECONDARY for series in chart.data_series
         )
         current = self.axes_style_selector.currentValue()
-        self.axes_style_selector.blockSignals(True)
+        self.axes_style_selector.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         self.axes_style_selector.clear()
         self.axes_style_selector.addItem("X", "x")
         self.axes_style_selector.addItem("Y₁", "y")
@@ -1157,7 +1255,7 @@ class StyleTab(QWidget):
             self.axes_style_selector.addItem("Y₂", "y2")
         restore_index = self.axes_style_selector.findData(current) if current else -1
         self.axes_style_selector.setCurrentIndex(restore_index if restore_index >= 0 else 0)
-        self.axes_style_selector.blockSignals(False)
+        self.axes_style_selector.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
         # setCurrentIndex() above ran with signals blocked (so rebuilding the
         # combo's items doesn't spuriously emit currentValueChanged), which
         # means _show_axis_style_form never fires if the selection was just
@@ -1258,11 +1356,11 @@ class StyleTab(QWidget):
             index = total_series + fit_offset
             chip_items.append((f"\U0001f527 {fit.label}", index))
 
-        self.style_series_chips.blockSignals(True)
+        self.style_series_chips.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         self.style_series_chips.clear()
         for label, value in chip_items:
             self.style_series_chips.addItem(label, value)
-        self.style_series_chips.blockSignals(False)
+        self.style_series_chips.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
         # Before any real population has happened, `previous_value` is just
         # the ValueComboBox constructor's placeholder ("chart") -- not a
@@ -1312,7 +1410,7 @@ class StyleTab(QWidget):
             self._updating_controls = previous_guard
         self._update_target_cards_visibility()
 
-    def _on_subtitle_match_title_toggled(self, checked: bool):
+    def _on_subtitle_match_title_toggled(self, checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the 'Match title' toggle for subtitle color: hides the
         subtitle color swatch while matching (mirrors
         _update_marker_controls_enabled's hide-not-disable convention), and
@@ -1325,12 +1423,12 @@ class StyleTab(QWidget):
 
     # -- Marker enable/match-line toggles ------------------------------------
 
-    def _on_markers_enabled_toggled(self, _checked: bool):
+    def _on_markers_enabled_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the Markers section's on/off toggle."""
         self._update_marker_controls_enabled()
         self._on_field_changed()
 
-    def _on_marker_match_line_toggled(self, _checked: bool):
+    def _on_marker_match_line_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the 'Match line' toggle for marker color."""
         self._update_marker_controls_enabled()
         self._on_field_changed()
@@ -1394,7 +1492,7 @@ class StyleTab(QWidget):
 
     # -- Color Map controls (Colormap/Heatmap) ------------------------------
 
-    def _on_color_scale_auto_toggled(self, _checked: bool):
+    def _on_color_scale_auto_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the Color Map 'Auto scale' toggle."""
         self._update_color_scale_controls()
         self._on_field_changed()
@@ -1416,28 +1514,53 @@ class StyleTab(QWidget):
         self._update_colormap_gridding_visibility()
         self._on_field_changed()
 
+    def _on_heatmap_render_mode_changed(self, _value):
+        """Handle the Heatmap 'Render as' mode change."""
+        self._update_colormap_gridding_visibility()
+        self._on_field_changed()
+
     def _update_colormap_gridding_visibility(self):
-        """Show the Gridding/Resolution sub-controls only for a series whose
-        type supports gridding (SeriesTypeSpec.supports_gridding -- Heatmap
-        only; Colormap, a plain color-mapped scatter, needs no gridding at
-        all). Resolution is further hidden while gridding mode is "grid"
-        (build_heatmap_grid ignores resolution for that mode -- it pivots
-        the data's own exact lattice instead of binning/interpolating)."""
+        """Show the Render-as/Gridding/Resolution/Contour sub-controls only
+        for a series whose type supports gridding (SeriesTypeSpec.
+        supports_gridding -- Heatmap only; Colormap, a plain color-mapped
+        scatter, needs no gridding at all). Resolution is further hidden
+        while gridding mode is "grid" or "triangulated" (build_heatmap_grid
+        ignores resolution for "grid" -- it pivots the data's own exact
+        lattice instead of binning/interpolating -- and "triangulated"
+        bypasses gridding entirely). Contour levels/line-labels only apply
+        once render_mode actually draws a contour; line-labels and line
+        width further only while lines are actually drawn (not for a
+        lines-less "Filled contour")."""
         kind, obj = self._current_target
         if kind == "series" and isinstance(obj, DataSeries):
             spec = SERIES_TYPE_SPECS[obj.series_type]
         else:
             spec = None
         supports_gridding = spec is not None and spec.supports_gridding
+        self.heatmap_render_mode_label.setVisible(supports_gridding)
+        self.heatmap_render_mode_control.setVisible(supports_gridding)
         self.heatmap_gridding_label.setVisible(supports_gridding)
         self.heatmap_gridding_control.setVisible(supports_gridding)
-        show_resolution = supports_gridding and self.heatmap_gridding_control.currentValue() != "grid"
+        show_resolution = (
+            supports_gridding
+            and self.heatmap_gridding_control.currentValue() not in ("grid", "triangulated")
+        )
         self.heatmap_resolution_label.setVisible(show_resolution)
         self.heatmap_resolution_spin.setVisible(show_resolution)
 
+        render_mode = self.heatmap_render_mode_control.currentValue()
+        show_contour = supports_gridding and render_mode != "mesh"
+        show_line_labels = show_contour and render_mode in ("contour_lines", "contour_filled_lines")
+        self.heatmap_contour_levels_label.setVisible(show_contour)
+        self.heatmap_contour_levels_spin.setVisible(show_contour)
+        self.heatmap_contour_line_labels_label.setVisible(show_line_labels)
+        self.heatmap_contour_line_labels_toggle.setVisible(show_line_labels)
+        self.heatmap_contour_line_width_label.setVisible(show_line_labels)
+        self.heatmap_contour_line_width_slider.setVisible(show_line_labels)
+
     # -- Error-bar match-line toggle ------------------------------------
 
-    def _on_error_match_line_toggled(self, _checked: bool):
+    def _on_error_match_line_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the Error Bars 'Match line' toggle."""
         self._update_error_controls_visibility()
         self._on_field_changed()
@@ -1468,18 +1591,18 @@ class StyleTab(QWidget):
                 continue
             label = other.label or f"Series {idx + 1}"
             items.append((f"↕ {label}", idx))
-        self.fill_to_control.blockSignals(True)
+        self.fill_to_control.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         self.fill_to_control.clear()
         for label, value in items:
             self.fill_to_control.addItem(label, value)
-        self.fill_to_control.blockSignals(False)
+        self.fill_to_control.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
-    def _on_fill_enabled_toggled(self, _checked: bool):
+    def _on_fill_enabled_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the Fill section's on/off toggle."""
         self._update_fill_controls_visibility()
         self._on_field_changed()
 
-    def _on_fill_orientation_toggled(self, _checked: bool):
+    def _on_fill_orientation_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the vertical/horizontal fill switch: only the baseline
         label's axis (X vs Y) changes in the UI."""
         self._update_fill_controls_visibility()
@@ -1507,17 +1630,17 @@ class StyleTab(QWidget):
         self.band_match_line_label.setVisible(enabled)
         self.band_match_line_toggle.setVisible(enabled)
 
-    def _on_band_match_line_toggled(self, _checked: bool):
+    def _on_band_match_line_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the Confidence Band 'Match line' toggle: hide the color
         swatch while it's checked (same convention as Marker/Fill)."""
         self._update_band_controls_visibility()
         self._on_field_changed()
 
-    def _on_band_enabled_toggled(self, _checked: bool):
+    def _on_band_enabled_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the Confidence Band section's on/off toggle."""
         self._update_band_controls_visibility()
 
-    def _on_fill_match_line_toggled(self, _checked: bool):
+    def _on_fill_match_line_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the Fill 'Match line' toggle for fill color."""
         self._update_fill_controls_visibility()
         self._on_field_changed()
@@ -1555,7 +1678,7 @@ class StyleTab(QWidget):
 
     # -- Background transparent toggles ----------------------------------
 
-    def _on_bg_transparent_toggled(self, _checked: bool):
+    def _on_bg_transparent_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Grey out the paired color swatch while its 'Transparent' toggle
         is on; the swatch keeps its last color underneath so re-enabling
         restores it (mirrors _update_marker_controls_enabled's convention)."""
@@ -1597,6 +1720,10 @@ class StyleTab(QWidget):
             if isinstance(style, HeatmapSeriesStyle):
                 style.heatmap_gridding = self.heatmap_gridding_control.currentValue()
                 style.heatmap_resolution = self.heatmap_resolution_spin.value()
+                style.render_mode = self.heatmap_render_mode_control.currentValue()
+                style.contour_levels = self.heatmap_contour_levels_spin.value()
+                style.contour_line_labels = self.heatmap_contour_line_labels_toggle.isChecked()
+                style.contour_line_width = self.heatmap_contour_line_width_slider.value()
                 return
             # ColormapSeriesStyle only: it has no color/line/fill fields of
             # its own (fill color comes from z_data via colormap, not a
@@ -1708,10 +1835,15 @@ class StyleTab(QWidget):
             self.vector_head_length_slider.setValue(getattr(style, "vector_head_length", 5.0))
             self.vector_head_axis_length_slider.setValue(getattr(style, "vector_head_axis_length", 4.5))
 
-            # Heatmap-only gridding fields (colormap/colorbar/scale moved to
-            # the chart-level Color Map card -- see load_colormap_config).
+            # Heatmap-only gridding/render fields (colormap/colorbar/scale
+            # moved to the chart-level Color Map card -- see
+            # load_colormap_config).
             self.heatmap_gridding_control.setCurrentValue(getattr(style, "heatmap_gridding", "grid"))
             self.heatmap_resolution_spin.setValue(getattr(style, "heatmap_resolution", 50))
+            self.heatmap_render_mode_control.setCurrentValue(getattr(style, "render_mode", "mesh"))
+            self.heatmap_contour_levels_spin.setValue(getattr(style, "contour_levels", 10))
+            self.heatmap_contour_line_labels_toggle.setChecked(checked=getattr(style, "contour_line_labels", False))
+            self.heatmap_contour_line_width_slider.setValue(getattr(style, "contour_line_width", 1.5))
             self._update_colormap_gridding_visibility()
 
             color = getattr(style, "color", "#1f77b4")
@@ -1731,9 +1863,9 @@ class StyleTab(QWidget):
             marker = getattr(style, "marker", None)
             marker_style_value = getattr(marker, "marker_style", MarkerType.NONE.value)
             markers_enabled = marker_style_value != MarkerType.NONE.value
-            self.markers_enabled_toggle.blockSignals(True)
-            self.markers_enabled_toggle.setChecked(markers_enabled)
-            self.markers_enabled_toggle.blockSignals(False)
+            self.markers_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.markers_enabled_toggle.setChecked(checked=markers_enabled)
+            self.markers_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
             shape_value = marker_style_value if markers_enabled else MarkerType.CIRCLE.value
             try:
@@ -1758,11 +1890,11 @@ class StyleTab(QWidget):
             marker_edge_color = getattr(marker, "marker_edge_color", "")
             self.marker_color_row.setCurrentColor(marker_color or color)
             self.marker_edge_color_row.setCurrentColor(marker_edge_color or color)
-            self.marker_match_line_toggle.blockSignals(True)
-            self.marker_match_line_toggle.setChecked(
+            self.marker_match_line_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.marker_match_line_toggle.setChecked(checked=
                 marker_edge_color == "" if is_z_driven else marker_color == ""
             )
-            self.marker_match_line_toggle.blockSignals(False)
+            self.marker_match_line_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.marker_edge_width_slider.setValue(getattr(marker, "marker_edge_width", 1.0))
 
             self._update_marker_controls_enabled()
@@ -1778,26 +1910,26 @@ class StyleTab(QWidget):
                 self.error_direction_control.setCurrentValue(ErrorDirection.BOTH)
             error_color = getattr(error_bars, "error_color", "")
             self.error_color_row.setCurrentColor(error_color or color)
-            self.error_match_line_toggle.blockSignals(True)
-            self.error_match_line_toggle.setChecked(error_color == "")
-            self.error_match_line_toggle.blockSignals(False)
+            self.error_match_line_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.error_match_line_toggle.setChecked(checked=error_color == "")
+            self.error_match_line_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self._update_error_controls_visibility()
             self.error_cap_size_slider.setValue(getattr(error_bars, "error_cap_size", 3.0))
 
             self._populate_fill_to_options(series)
-            self.fill_enabled_toggle.blockSignals(True)
-            self.fill_enabled_toggle.setChecked(getattr(style, "fill_enabled", False))
-            self.fill_enabled_toggle.blockSignals(False)
-            self.fill_horizontal_toggle.blockSignals(True)
-            self.fill_horizontal_toggle.setChecked(getattr(style, "fill_orientation", "vertical") == "horizontal")
-            self.fill_horizontal_toggle.blockSignals(False)
+            self.fill_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.fill_enabled_toggle.setChecked(checked=getattr(style, "fill_enabled", False))
+            self.fill_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+            self.fill_horizontal_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.fill_horizontal_toggle.setChecked(checked=getattr(style, "fill_orientation", "vertical") == "horizontal")
+            self.fill_horizontal_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.fill_to_control.setCurrentValue(getattr(style, "fill_to_index", -1))
             self.fill_base_spin.setValue(getattr(style, "fill_base", 0.0))
             fill_color = getattr(style, "fill_color", "")
             self.fill_color_row.setCurrentColor(fill_color or color)
-            self.fill_match_line_toggle.blockSignals(True)
-            self.fill_match_line_toggle.setChecked(fill_color == "")
-            self.fill_match_line_toggle.blockSignals(False)
+            self.fill_match_line_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.fill_match_line_toggle.setChecked(checked=fill_color == "")
+            self.fill_match_line_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.fill_opacity_slider.setValue(getattr(style, "fill_alpha", 0.3))
             self._update_fill_controls_visibility()
         finally:
@@ -1820,17 +1952,17 @@ class StyleTab(QWidget):
             except ValueError:
                 self.line_style_control.setCurrentValue(LineStyleType.SOLID)
 
-            self.band_enabled_toggle.setChecked(style.band_fill_enabled)
+            self.band_enabled_toggle.setChecked(checked=style.band_fill_enabled)
             self.band_color_row.setCurrentColor(style.band_color or style.color)
-            self.band_match_line_toggle.blockSignals(True)
-            self.band_match_line_toggle.setChecked(style.band_color == "")
-            self.band_match_line_toggle.blockSignals(False)
+            self.band_match_line_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.band_match_line_toggle.setChecked(checked=style.band_color == "")
+            self.band_match_line_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.band_opacity_slider.setValue(style.band_fill_alpha)
             self._update_band_controls_visibility()
 
-            self.markers_enabled_toggle.blockSignals(True)
-            self.markers_enabled_toggle.setChecked(False)
-            self.markers_enabled_toggle.blockSignals(False)
+            self.markers_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.markers_enabled_toggle.setChecked(checked=False)
+            self.markers_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.marker_size_slider.setValue(0.0)  # Fit lines typically don't have markers
             self._update_marker_controls_enabled()
         finally:
@@ -1843,6 +1975,7 @@ class StyleTab(QWidget):
         previous_guard = self._updating_controls
         self._updating_controls = True
         try:
+            self._refresh_size_unit_display()
             self.load_colormap_config(chart)
             self.title_font_size_spin.setValue(chart.config.get("title_font_size", 14))
             self.subtitle_font_size_spin.setValue(chart.config.get("subtitle_font_size", 12))
@@ -1862,7 +1995,7 @@ class StyleTab(QWidget):
             self.subtitle_italic_check.setChecked(chart.config.get("subtitle_italic", False))
             self.title_color_row.setCurrentColor(chart.config.get("title_color", "#000000"))
             match_title = chart.config.get("subtitle_match_title_color", True)
-            self.subtitle_match_title_toggle.setChecked(match_title)
+            self.subtitle_match_title_toggle.setChecked(checked=match_title)
             self.subtitle_color_row.setCurrentColor(
                 chart.config.get("title_color", "#000000") if match_title
                 else chart.config.get("subtitle_color", "#000000")
@@ -1870,12 +2003,12 @@ class StyleTab(QWidget):
             self.subtitle_color_row.setVisible(not match_title)
 
             fig_bg = chart.style.get("figure_background_color", "#ffffff")
-            self.figure_bg_transparent_toggle.setChecked(fig_bg is None)
+            self.figure_bg_transparent_toggle.setChecked(checked=fig_bg is None)
             self.figure_bg_color_row.setCurrentColor(fig_bg or "#ffffff")
             self.figure_bg_color_row.setEnabled(fig_bg is not None)
 
             axes_bg = chart.style.get("axes_background_color", "#ffffff")
-            self.axes_bg_transparent_toggle.setChecked(axes_bg is None)
+            self.axes_bg_transparent_toggle.setChecked(checked=axes_bg is None)
             self.axes_bg_color_row.setCurrentColor(axes_bg or "#ffffff")
             self.axes_bg_color_row.setEnabled(axes_bg is not None)
 
@@ -1894,8 +2027,8 @@ class StyleTab(QWidget):
                 self.chart_size_combo.setCurrentIndex(size_index)
             elif target_size[0] is not None and target_size[1] is not None:
                 self.chart_size_combo.setCurrentIndex(self.chart_size_combo.findData("custom"))
-                self.chart_width_spin.setValue(target_size[0])
-                self.chart_height_spin.setValue(target_size[1])
+                self.chart_width_spin.setValue(from_cm(target_size[0], self._chart_size_unit))
+                self.chart_height_spin.setValue(from_cm(target_size[1], self._chart_size_unit))
                 self._custom_size_prefilled = True
             else:
                 self.chart_size_combo.setCurrentIndex(self.chart_size_combo.count() - 1)
@@ -1921,7 +2054,7 @@ class StyleTab(QWidget):
                 match = True
                 if axis_form["match_x_toggle"] is not None:
                     match = chart.config.get(f"{prefix}_match_x_label_color", True)
-                    axis_form["match_x_toggle"].setChecked(match)
+                    axis_form["match_x_toggle"].setChecked(checked=match)
                 axis_form["color_row"].setCurrentColor(chart.config.get(f"{prefix}_label_color", "#000000"))
                 if axis_form["match_x_toggle"] is not None:
                     axis_form["color_label"].setVisible(not match)
@@ -1939,7 +2072,7 @@ class StyleTab(QWidget):
                 match_colors = True
                 if axis_form["match_x_colors_toggle"] is not None:
                     match_colors = chart.config.get(f"{prefix}_match_x_colors", True)
-                    axis_form["match_x_colors_toggle"].setChecked(match_colors)
+                    axis_form["match_x_colors_toggle"].setChecked(checked=match_colors)
                 axis_form["spine_color_row"].setCurrentColor(chart.config.get(f"{prefix}_spine_color", "#000000"))
                 axis_form["major_tick_color_row"].setCurrentColor(
                     chart.config.get(f"{prefix}_major_tick_color", "#000000"))
@@ -2011,6 +2144,7 @@ class StyleTab(QWidget):
         previous_guard = self._updating_controls
         self._updating_controls = True
         try:
+            self._refresh_size_unit_display()
             self.clear_colormap_config()
             self.title_font_size_spin.setValue(14)
             self.subtitle_font_size_spin.setValue(12)
@@ -2027,18 +2161,18 @@ class StyleTab(QWidget):
             self.subtitle_bold_check.setChecked(False)
             self.subtitle_italic_check.setChecked(False)
             self.title_color_row.setCurrentColor("#000000")
-            self.subtitle_match_title_toggle.setChecked(True)
+            self.subtitle_match_title_toggle.setChecked(checked=True)
             self.subtitle_color_row.setCurrentColor("#000000")
             self.subtitle_color_row.setVisible(False)
-            self.figure_bg_transparent_toggle.setChecked(False)
+            self.figure_bg_transparent_toggle.setChecked(checked=False)
             self.figure_bg_color_row.setCurrentColor("#ffffff")
             self.figure_bg_color_row.setEnabled(True)
-            self.axes_bg_transparent_toggle.setChecked(False)
+            self.axes_bg_transparent_toggle.setChecked(checked=False)
             self.axes_bg_color_row.setCurrentColor("#ffffff")
             self.axes_bg_color_row.setEnabled(True)
             self.chart_size_combo.setCurrentIndex(self.chart_size_combo.count() - 1)
-            self.chart_width_spin.setValue(20.0)
-            self.chart_height_spin.setValue(15.0)
+            self.chart_width_spin.setValue(from_cm(20.0, self._chart_size_unit))
+            self.chart_height_spin.setValue(from_cm(15.0, self._chart_size_unit))
             self._custom_size_prefilled = False
             self.chart_dpi_combo.setCurrentIndex(self.chart_dpi_combo.count() - 1)
             self.chart_dpi_spin.setValue(100)
@@ -2052,7 +2186,7 @@ class StyleTab(QWidget):
                 axis_form["italic_check"].setChecked(False)
                 axis_form["color_row"].setCurrentColor("#000000")
                 if axis_form["match_x_toggle"] is not None:
-                    axis_form["match_x_toggle"].setChecked(True)
+                    axis_form["match_x_toggle"].setChecked(checked=True)
                 axis_form["rotation_spin"].setValue(90 if prefix in ("y", "y2") else 0)
                 axis_form["tick_font_size_spin"].setValue(10)
                 axis_form["tick_font_family_combo"].setCurrentValue("DejaVu Sans")
@@ -2064,7 +2198,7 @@ class StyleTab(QWidget):
                 axis_form["major_tick_color_row"].setCurrentColor("#000000")
                 axis_form["minor_tick_color_row"].setCurrentColor("#000000")
                 if axis_form["match_x_colors_toggle"] is not None:
-                    axis_form["match_x_colors_toggle"].setChecked(True)
+                    axis_form["match_x_colors_toggle"].setChecked(checked=True)
             self.refresh_axis_style_selector(None)
         finally:
             self._updating_controls = previous_guard
@@ -2081,15 +2215,15 @@ class StyleTab(QWidget):
         self._updating_controls = True
         try:
             self.colormap_control.setCurrentValue(chart.config.get("colormap", "viridis"))
-            self.colorbar_show_toggle.blockSignals(True)
-            self.colorbar_show_toggle.setChecked(chart.config.get("colorbar_show", True))
-            self.colorbar_show_toggle.blockSignals(False)
-            self.colorbar_label_edit.blockSignals(True)
+            self.colorbar_show_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.colorbar_show_toggle.setChecked(checked=chart.config.get("colorbar_show", True))
+            self.colorbar_show_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+            self.colorbar_label_edit.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             self.colorbar_label_edit.setText(chart.config.get("colorbar_label", ""))
-            self.colorbar_label_edit.blockSignals(False)
-            self.color_scale_auto_toggle.blockSignals(True)
-            self.color_scale_auto_toggle.setChecked(chart.config.get("color_scale_auto", True))
-            self.color_scale_auto_toggle.blockSignals(False)
+            self.colorbar_label_edit.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+            self.color_scale_auto_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.color_scale_auto_toggle.setChecked(checked=chart.config.get("color_scale_auto", True))
+            self.color_scale_auto_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.color_vmin_spin.setValue(chart.config.get("color_vmin", 0.0))
             self.color_vmax_spin.setValue(chart.config.get("color_vmax", 1.0))
             self._update_color_scale_controls()
@@ -2109,9 +2243,9 @@ class StyleTab(QWidget):
         self._updating_controls = True
         try:
             self.colormap_control.setCurrentValue("viridis")
-            self.colorbar_show_toggle.setChecked(True)
+            self.colorbar_show_toggle.setChecked(checked=True)
             self.colorbar_label_edit.setText("")
-            self.color_scale_auto_toggle.setChecked(True)
+            self.color_scale_auto_toggle.setChecked(checked=True)
             self.color_vmin_spin.setValue(0.0)
             self.color_vmax_spin.setValue(1.0)
             self._update_color_scale_controls()
@@ -2119,6 +2253,51 @@ class StyleTab(QWidget):
             self._updating_controls = previous_guard
 
     # -- Chart size/dpi combo helpers -----------------------------------------
+
+    def _measurement_unit(self) -> LengthUnit:
+        """Read the app-wide chart-size display unit from Settings."""
+        try:
+            cfg_manager = self.app_context.get_manager(ConfigManager) if self.app_context else None
+        except AttributeError:
+            cfg_manager = None
+        display_cfg = getattr(getattr(cfg_manager, "config", None), "chart_display", None)
+        unit = getattr(display_cfg, "measurement_unit", LengthUnit.CM) if display_cfg else LengthUnit.CM
+        return unit if isinstance(unit, LengthUnit) else LengthUnit.CM
+
+    def _configure_size_spin(self, spin, min_cm: float, max_cm: float) -> None:
+        lo, hi = unit_bounds(min_cm, max_cm, self._chart_size_unit)
+        spin.setDecimals(unit_decimals(self._chart_size_unit))
+        spin.setRange(lo, hi)
+        spin.setSingleStep(unit_step(self._chart_size_unit))
+        spin.setSuffix(unit_suffix(self._chart_size_unit))
+
+    def _refresh_size_unit_display(self) -> None:
+        """Re-resolve the configured measurement unit and re-apply it to the
+        Size card widgets. `StyleTab` is an app-lifetime singleton, so the
+        unit resolved in `__init__` can go stale if the user changes it in
+        Settings later -- this must be called whenever a chart is loaded or
+        cleared so the Size card always reflects the current setting.
+
+        Converts the custom width/height spin boxes' currently displayed
+        value from the outgoing unit to the new one, so a live unit change
+        (via `_on_config_updated`, with no chart (re)load in between)
+        updates the shown number, not just the suffix/decimals/range --
+        `load_chart_style`/`clear_chart_style` immediately overwrite these
+        values from the chart/default afterward regardless, so this is a
+        no-op in those call sites."""
+        old_unit = self._chart_size_unit
+        self._chart_size_unit = self._measurement_unit()
+        width_cm = to_cm(self.chart_width_spin.value(), old_unit)
+        height_cm = to_cm(self.chart_height_spin.value(), old_unit)
+        self._configure_size_spin(self.chart_width_spin, MIN_CHART_WIDTH_CM, MAX_CHART_WIDTH_CM)
+        self._configure_size_spin(self.chart_height_spin, MIN_CHART_HEIGHT_CM, MAX_CHART_HEIGHT_CM)
+        self.chart_width_spin.setValue(from_cm(width_cm, self._chart_size_unit))
+        self.chart_height_spin.setValue(from_cm(height_cm, self._chart_size_unit))
+        for i in range(self.chart_size_combo.count()):
+            data = self.chart_size_combo.itemData(i)
+            if isinstance(data, tuple) and len(data) == 2:
+                width_cm, height_cm = data
+                self.chart_size_combo.setItemText(i, format_size(width_cm, height_cm, self._chart_size_unit))
 
     def _app_chart_display_defaults(self):
         """Read the app-wide default chart width/height/dpi from Settings."""
@@ -2150,10 +2329,14 @@ class StyleTab(QWidget):
 
     def _size_from_controls(self):
         """Resolve (width_cm, height_cm) from chart_size_combo, reading the
-        dedicated Custom spin boxes when that sentinel is selected."""
+        dedicated Custom spin boxes (in the configured display unit) when
+        that sentinel is selected."""
         data = self.chart_size_combo.currentData()
         if data == "custom":
-            return self.chart_width_spin.value(), self.chart_height_spin.value()
+            return (
+                to_cm(self.chart_width_spin.value(), self._chart_size_unit),
+                to_cm(self.chart_height_spin.value(), self._chart_size_unit),
+            )
         if data is None:
             return None, None
         return data
@@ -2173,8 +2356,8 @@ class StyleTab(QWidget):
         self.custom_size_row.setVisible(is_custom)
         if is_custom and not self._updating_controls and not self._custom_size_prefilled:
             width, height, _ = self._effective_chart_size_dpi()
-            self.chart_width_spin.setValue(width)
-            self.chart_height_spin.setValue(height)
+            self.chart_width_spin.setValue(from_cm(width, self._chart_size_unit))
+            self.chart_height_spin.setValue(from_cm(height, self._chart_size_unit))
             self._custom_size_prefilled = True
         self._on_chart_style_field_changed()
 
@@ -2283,6 +2466,9 @@ class StyleTab(QWidget):
         self.colorbar_show_toggle.set_tokens(tokens)
         self.color_scale_auto_toggle.set_tokens(tokens)
         self.heatmap_gridding_control.set_tokens(tokens)
+        self.heatmap_render_mode_control.set_tokens(tokens)
+        self.heatmap_contour_line_labels_toggle.set_tokens(tokens)
+        self.heatmap_contour_line_width_slider.set_tokens(tokens)
         self.figure_bg_color_row.set_tokens(tokens)
         self.figure_bg_transparent_toggle.set_tokens(tokens)
         self.axes_bg_color_row.set_tokens(tokens)

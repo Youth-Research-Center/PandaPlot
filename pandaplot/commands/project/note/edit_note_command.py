@@ -184,3 +184,9 @@ class EditNoteCommand(Command):
             self.logger.error("EditNoteCommand Redo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
+
+    @override
+    def cleanup(self) -> None:
+        """Release the pre-edit content snapshot held for undo once this
+        command is dropped from the stacks for good (see Command.cleanup)."""
+        self.old_content = None

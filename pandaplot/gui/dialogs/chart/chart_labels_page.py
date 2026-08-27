@@ -130,11 +130,11 @@ class ChartLabelsPage(PWizardPage):
         ):
             if touched:
                 continue
-            edit.blockSignals(True)
+            edit.blockSignals(True)  # noqa: FBT003 - Qt method, no keyword args
             try:
                 edit.setText(value)
             finally:
-                edit.blockSignals(False)
+                edit.blockSignals(False)  # noqa: FBT003 - Qt method, no keyword args
 
     def get_title(self) -> str:
         return self.title_edit.text()

@@ -19,7 +19,7 @@ def test_vector_preview_with_no_series_falls_back_to_sample_quiver():
     _qapp()
     canvas = ChartCanvas(width=4, height=3, dpi=80)
 
-    render_wizard_preview(canvas, None, "vector", [], "Title", "", "X", "Y", True, True)
+    render_wizard_preview(canvas, None, "vector", [], "Title", "", "X", "Y", show_legend=True, show_grid=True)
 
     quivers = [c for c in canvas.axes.collections if isinstance(c, Quiver)]
     assert len(quivers) == 1
@@ -39,7 +39,7 @@ def test_vector_preview_with_a_configured_series_draws_real_data():
         "u_column_id": dataset.column_id("u"), "v_column_id": dataset.column_id("v"),
     }]
 
-    render_wizard_preview(canvas, project, "vector", series_configs, "Title", "", "X", "Y", True, True)
+    render_wizard_preview(canvas, project, "vector", series_configs, "Title", "", "X", "Y", show_legend=True, show_grid=True)
 
     quivers = [c for c in canvas.axes.collections if isinstance(c, Quiver)]
     assert len(quivers) == 1

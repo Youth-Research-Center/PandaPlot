@@ -383,11 +383,11 @@ class TransformPanel(SidebarPanel):
             self.current_dataset = dataset
             self.update_dataset_info()
             self.update_column_list()
-            self.enable_controls(True)
+            self.enable_controls(enabled=True)
         else:
             self.current_dataset = None
             self.clear_dataset_info()
-            self.enable_controls(False)
+            self.enable_controls(enabled=False)
     
     def update_dataset_info(self):
         """Update the dataset information display."""
@@ -430,7 +430,7 @@ class TransformPanel(SidebarPanel):
             except Exception as e:
                 self.logger.error("TransformPanel: error getting columns: %s", e, exc_info=True)
     
-    def enable_controls(self, enabled: bool):
+    def enable_controls(self, *, enabled: bool):
         """Enable or disable all controls based on dataset availability."""
         self.transform_type_combo.setEnabled(enabled)
         self.source_column_list.setEnabled(enabled)

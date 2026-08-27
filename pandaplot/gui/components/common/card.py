@@ -6,7 +6,7 @@ class Card(QFrame):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setProperty("card", True)
+        self.setProperty("card", True)  # noqa: FBT003 -- Qt bound method, positional-only
         self.setContentsMargins(9, 9, 9, 9)
 
     def set_tokens(self, tokens: dict):

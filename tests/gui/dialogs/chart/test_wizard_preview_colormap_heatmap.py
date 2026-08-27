@@ -19,7 +19,7 @@ def test_colormap_preview_with_no_series_falls_back_to_sample_scatter():
     _qapp()
     canvas = ChartCanvas(width=4, height=3, dpi=80)
 
-    render_wizard_preview(canvas, None, "colormap", [], "Title", "", "X", "Y", True, True)
+    render_wizard_preview(canvas, None, "colormap", [], "Title", "", "X", "Y", show_legend=True, show_grid=True)
 
     scatters = [c for c in canvas.axes.collections if isinstance(c, PathCollection)]
     assert len(scatters) == 1
@@ -29,7 +29,7 @@ def test_heatmap_preview_with_no_series_falls_back_to_sample_pcolormesh():
     _qapp()
     canvas = ChartCanvas(width=4, height=3, dpi=80)
 
-    render_wizard_preview(canvas, None, "heatmap", [], "Title", "", "X", "Y", True, True)
+    render_wizard_preview(canvas, None, "heatmap", [], "Title", "", "X", "Y", show_legend=True, show_grid=True)
 
     meshes = [c for c in canvas.axes.collections if isinstance(c, QuadMesh)]
     assert len(meshes) == 1
@@ -58,7 +58,7 @@ def test_colormap_preview_with_a_configured_series_draws_real_data():
         "z_column_id": dataset.column_id("z"),
     }]
 
-    render_wizard_preview(canvas, project, "colormap", series_configs, "Title", "", "X", "Y", True, True)
+    render_wizard_preview(canvas, project, "colormap", series_configs, "Title", "", "X", "Y", show_legend=True, show_grid=True)
 
     scatters = [c for c in canvas.axes.collections if isinstance(c, PathCollection)]
     assert len(scatters) == 1
@@ -76,7 +76,7 @@ def test_heatmap_preview_with_a_configured_series_draws_real_data():
         "z_column_id": dataset.column_id("z"),
     }]
 
-    render_wizard_preview(canvas, project, "heatmap", series_configs, "Title", "", "X", "Y", True, True)
+    render_wizard_preview(canvas, project, "heatmap", series_configs, "Title", "", "X", "Y", show_legend=True, show_grid=True)
 
     meshes = [c for c in canvas.axes.collections if isinstance(c, QuadMesh)]
     assert len(meshes) == 1
@@ -118,7 +118,7 @@ def test_heatmap_preview_second_series_failing_to_grid_does_not_erase_the_first(
 
     render_wizard_preview(
         canvas, project, "heatmap", [good_series, ungriddable_series],
-        "Title", "", "X", "Y", True, True,
+        "Title", "", "X", "Y", show_legend=True, show_grid=True,
     )
 
     meshes = [c for c in canvas.axes.collections if isinstance(c, QuadMesh)]

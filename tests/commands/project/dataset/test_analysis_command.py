@@ -150,3 +150,18 @@ class TestAnalysisCommand:
         arc = dataset.data["arc"]
         assert arc.iloc[0] == pytest.approx(0.0)
         assert (arc.diff().dropna() >= 0).all()
+
+
+def test_cleanup_releases_the_original_data_snapshot():
+    app_context = Mock(spec=AppContext)
+    app_context.get_ui_controller.return_value = Mock()
+
+    command = AnalysisCommand(app_context, "ds-1", {
+        "analysis_type": "derivative", "x_column": "x", "y_column": "y",
+        "new_column_name": "dydx",
+    })
+    command.original_data = pd.Series([1, 2, 3])
+
+    command.cleanup()
+
+    assert command.original_data is None

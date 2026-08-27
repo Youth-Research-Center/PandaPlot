@@ -33,6 +33,7 @@ from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import DataSeries, YAxis
+from pandaplot.models.project.items.dataset import dataset_display_options
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -360,7 +361,7 @@ class DataTab(QWidget):
         button.setToolTip("Remove")
         return button
 
-    def _build_chevron_button(self, index: int, expanded: bool) -> QPushButton:
+    def _build_chevron_button(self, index: int, *, expanded: bool) -> QPushButton:
         """Accordion toggle: purely visual expand/collapse, independent of
         selection (see `_toggle_card_expanded`)."""
         chevron = PButton(
@@ -528,7 +529,7 @@ class DataTab(QWidget):
         it from unselected cards."""
         card = Card()
         card.set_tokens(tokens)
-        card.setProperty("selected", True)
+        card.setProperty("selected", True)  # noqa: FBT003 - Qt bound method, positional-only
         card.style().unpolish(card)
         card.style().polish(card)
         outer = QVBoxLayout(card)
@@ -901,10 +902,10 @@ class DataTab(QWidget):
                 (self.x_error_minus_column_combo, error_bars.x_error_minus_column_id),
                 (self.y_error_minus_column_combo, error_bars.y_error_minus_column_id),
             ):
-                combo.blockSignals(True)
+                combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
                 index = combo.findData(column_id)
                 combo.setCurrentIndex(index if index >= 0 else 0)
-                combo.blockSignals(False)
+                combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
             for combo, column_id in (
                 (self.u_column_combo, getattr(series.style, "u_column_id", "")),
@@ -912,25 +913,25 @@ class DataTab(QWidget):
                 (self.magnitude_column_combo, getattr(series.style, "magnitude_column_id", "")),
                 (self.z_column_combo, getattr(series.style, "z_column_id", "")),
             ):
-                combo.blockSignals(True)
+                combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
                 index = combo.findData(column_id)
                 combo.setCurrentIndex(index if index >= 0 else 0)
-                combo.blockSignals(False)
+                combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
             type_index = self.series_type_combo.findData(series.series_type)
-            self.series_type_combo.blockSignals(True)
+            self.series_type_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             self.series_type_combo.setCurrentIndex(type_index if type_index >= 0 else 0)
-            self.series_type_combo.blockSignals(False)
+            self.series_type_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
-            self.error_asymmetric_check.blockSignals(True)
+            self.error_asymmetric_check.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             self.error_asymmetric_check.setChecked(not error_bars.error_symmetric)
-            self.error_asymmetric_check.blockSignals(False)
+            self.error_asymmetric_check.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self._update_error_bar_mode_controls()
 
             # Set label (block signals while populating)
-            self.series_label_edit.blockSignals(True)
+            self.series_label_edit.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             self.series_label_edit.setText(series.label)
-            self.series_label_edit.blockSignals(False)
+            self.series_label_edit.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self._pending_label = series.label
         finally:
             self._updating_controls = previous_guard
@@ -958,9 +959,9 @@ class DataTab(QWidget):
             self._update_error_bar_mode_controls()
 
             # Show fit info in the label (block signals)
-            self.series_label_edit.blockSignals(True)
+            self.series_label_edit.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             self.series_label_edit.setText(fit.label)
-            self.series_label_edit.blockSignals(False)
+            self.series_label_edit.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self._pending_label = fit.label
         finally:
             self._updating_controls = previous_guard
@@ -1060,19 +1061,20 @@ class DataTab(QWidget):
         whatever landed at the freshly-rebuilt combo's index 0/1 --
         corrupting a series unrelated to the tab switch that triggered it.
         """
-        self.dataset_combo.blockSignals(True)
+        self.dataset_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         try:
             self.dataset_combo.clear()
             self.datasets = []
 
             if self.current_project:
+                display_names = dict(dataset_display_options(self.current_project))
                 # Iterate through all items in the project to find datasets
                 for item in self.current_project.get_all_items():
                     if isinstance(item, Dataset):
-                        self.dataset_combo.addItem(item.name, item.id)
+                        self.dataset_combo.addItem(display_names[item.id], item.id)
                         self.datasets.append(item)
         finally:
-            self.dataset_combo.blockSignals(False)
+            self.dataset_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
     def _column_display_name(self, dataset_id, column_id, fallback_name=""):
         """Resolve a column id to its current name for display, falling back to
@@ -1098,8 +1100,8 @@ class DataTab(QWidget):
         dataset = self.current_project.find_item(dataset_id)
         if isinstance(dataset, Dataset) and dataset.data is not None:
             columns = list(dataset.data.columns)
-            self.x_column_combo.blockSignals(True)
-            self.y_column_combo.blockSignals(True)
+            self.x_column_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.y_column_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             try:
                 self.x_column_combo.clear()
                 self.y_column_combo.clear()
@@ -1108,8 +1110,8 @@ class DataTab(QWidget):
                     self.x_column_combo.addItem(column, column_id)
                     self.y_column_combo.addItem(column, column_id)
             finally:
-                self.x_column_combo.blockSignals(False)
-                self.y_column_combo.blockSignals(False)
+                self.x_column_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+                self.y_column_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             return columns
         return []
 
@@ -1127,7 +1129,7 @@ class DataTab(QWidget):
             self.x_error_minus_column_combo, self.y_error_minus_column_combo,
         )
         for combo in combos:
-            combo.blockSignals(True)
+            combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         try:
             for combo in combos:
                 combo.clear()
@@ -1142,7 +1144,7 @@ class DataTab(QWidget):
                             combo.addItem(column, column_id)
         finally:
             for combo in combos:
-                combo.blockSignals(False)
+                combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
     def _populate_vector_column_combos(self, dataset_id):
         """Fill the U/V/magnitude column combos with the given dataset's
@@ -1157,7 +1159,7 @@ class DataTab(QWidget):
         never chosen."""
         combos = (self.u_column_combo, self.v_column_combo, self.magnitude_column_combo)
         for combo in combos:
-            combo.blockSignals(True)
+            combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         try:
             for combo in combos:
                 combo.clear()
@@ -1172,7 +1174,7 @@ class DataTab(QWidget):
                             combo.addItem(column, column_id)
         finally:
             for combo in combos:
-                combo.blockSignals(False)
+                combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
     def _populate_z_column_combo(self, dataset_id):
         """Fill the Z column combo with the given dataset's columns, preceded
@@ -1181,7 +1183,7 @@ class DataTab(QWidget):
         "" for "None"), since an untouched z_column_id is genuinely "" (e.g.
         right after retyping an existing series to Colormap/Heatmap)."""
         combo = self.z_column_combo
-        combo.blockSignals(True)
+        combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         try:
             combo.clear()
             combo.addItem("None", "")
@@ -1193,7 +1195,7 @@ class DataTab(QWidget):
                         column_id = dataset.column_id(column) or ""
                         combo.addItem(column, column_id)
         finally:
-            combo.blockSignals(False)
+            combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
     def _selected_series_is_vector(self) -> bool:
         """Whether the currently expanded, already-existing series is
@@ -1217,7 +1219,7 @@ class DataTab(QWidget):
         allowed_series_types) -- called on load() and whenever the
         chart's own type changes live (see refresh_vector_fields), since
         the allowed set depends on it."""
-        self.series_type_combo.blockSignals(True)
+        self.series_type_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         try:
             self.series_type_combo.clear()
             if not self.current_chart:
@@ -1228,7 +1230,7 @@ class DataTab(QWidget):
             default_index = self.series_type_combo.findData(spec.default_series_type)
             self.series_type_combo.setCurrentIndex(default_index if default_index >= 0 else 0)
         finally:
-            self.series_type_combo.blockSignals(False)
+            self.series_type_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
     def _update_vector_field_visibility(self):
         """Show the U/V/magnitude rows only when editing a series whose

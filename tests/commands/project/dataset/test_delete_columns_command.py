@@ -1,6 +1,7 @@
 """Tests for DeleteColumnsCommand (column drop + chart-reference cascade)."""
 
 import logging
+from collections import OrderedDict
 from unittest.mock import Mock
 
 import numpy as np
@@ -353,3 +354,24 @@ def test_undo_restores_a_cleared_error_bar_reference(env):
     assert resolve_series_column(
         dataset, series.style.error_bars.y_error_column_id, series.style.error_bars.y_error_column
     ) == "a"
+
+
+def test_cleanup_releases_the_undo_snapshots():
+    app_context = Mock()
+    app_context.get_app_state.return_value = Mock(has_project=True)
+    app_context.get_ui_controller.return_value = Mock()
+
+    command = DeleteColumnsCommand(app_context, "ds-1", ["a"])
+    command.original_data = pd.DataFrame({"a": [1, 2, 3]})
+    command.deleted_columns_data = {"a": pd.Series([1, 2, 3])}
+    command.original_column_ids = OrderedDict({"a": "col-a"})
+    command.removed_chart_refs = {"chart-1": {"series": [(0, Mock())], "fits": []}}
+    command.cleared_error_refs = {"chart-1": [(0, [(Mock(), "y_error_column_id", "col-a")])]}
+
+    command.cleanup()
+
+    assert command.original_data is None
+    assert command.deleted_columns_data is None
+    assert command.original_column_ids is None
+    assert command.removed_chart_refs == {}
+    assert command.cleared_error_refs == {}

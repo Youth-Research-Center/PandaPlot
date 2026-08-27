@@ -17,7 +17,7 @@ def _build() -> StoryDef:
         controls=[
             TextControl("text", "Click me"),
             ChoiceControl("role", "secondary", _ROLES),
-            BoolControl("enabled", True),
+            BoolControl("enabled", default=True),
         ],
         make_widget=make_widget,
     )

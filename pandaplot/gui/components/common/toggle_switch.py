@@ -8,7 +8,7 @@ _KNOB_DIAMETER = 11
 _MARGIN = 2
 
 
-def knob_x_for_state(checked: bool, track_width: int, knob_diameter: int, margin: int) -> int:
+def knob_x_for_state(*, checked: bool, track_width: int, knob_diameter: int, margin: int) -> int:
     """Left-edge x of the knob for a given on/off state."""
     if checked:
         return track_width - knob_diameter - margin
@@ -20,7 +20,7 @@ class ToggleSwitch(QWidget):
 
     toggled = Signal(bool)
 
-    def __init__(self, parent: QWidget | None = None, checked: bool = False):
+    def __init__(self, parent: QWidget | None = None, *, checked: bool = False):
         super().__init__(parent)
         self._checked = checked
         self._tokens: dict = {}
@@ -30,7 +30,7 @@ class ToggleSwitch(QWidget):
     def isChecked(self) -> bool:  # noqa: N802 (Qt naming convention)
         return self._checked
 
-    def setChecked(self, checked: bool):  # noqa: N802
+    def setChecked(self, *, checked: bool):  # noqa: N802
         if checked == self._checked:
             return
         self._checked = checked
@@ -43,7 +43,7 @@ class ToggleSwitch(QWidget):
 
     def mousePressEvent(self, event: QMouseEvent):  # noqa: N802
         if event.button() == Qt.MouseButton.LeftButton:
-            self.setChecked(not self._checked)
+            self.setChecked(checked=not self._checked)
 
     def paintEvent(self, event):  # noqa: N802
         painter = QPainter(self)
@@ -59,7 +59,12 @@ class ToggleSwitch(QWidget):
             QRectF(0, 0, _TRACK_WIDTH, _TRACK_HEIGHT), _TRACK_HEIGHT / 2, _TRACK_HEIGHT / 2
         )
 
-        knob_x = knob_x_for_state(self._checked, _TRACK_WIDTH, _KNOB_DIAMETER, _MARGIN)
+        knob_x = knob_x_for_state(
+            checked=self._checked,
+            track_width=_TRACK_WIDTH,
+            knob_diameter=_KNOB_DIAMETER,
+            margin=_MARGIN,
+        )
         painter.setBrush(QColor("#FFFFFF"))
         painter.drawEllipse(
             QRectF(knob_x, (_TRACK_HEIGHT - _KNOB_DIAMETER) / 2, _KNOB_DIAMETER, _KNOB_DIAMETER)

@@ -12,7 +12,7 @@ import numpy as np
 
 
 def resolve_color_limits(
-    z_data, auto: bool, vmin: float, vmax: float
+    z_data, *, auto: bool, vmin: float, vmax: float
 ) -> tuple[Optional[float], Optional[float]]:
     """Resolve the (vmin, vmax) passed to a colormap normalization.
 
@@ -153,6 +153,29 @@ def interpolate_to_grid(x_data, y_data, z_data, resolution: int, method: str = "
     return xs, ys, grid
 
 
+def filter_finite_xyz(x_data, y_data, z_data):
+    """Drop rows with a non-finite X, Y, or Z, for the triangulation-based
+    renderers (``tripcolor``/``tricontour``/``tricontourf``) that operate
+    directly on scattered points rather than a pivoted/binned/interpolated
+    grid (see :func:`build_heatmap_grid`). Matplotlib's ``Triangulation``
+    needs at least 3 points and raises on non-finite coordinates, so both
+    are checked here up front rather than surfacing as an uncaught error
+    mid-render. Raises ``ValueError`` when fewer than 3 finite points
+    remain.
+    """
+    x = np.asarray(x_data, dtype=float)
+    y = np.asarray(y_data, dtype=float)
+    z = np.asarray(z_data, dtype=float)
+    if x.size == 0 or y.size == 0 or z.size == 0:
+        raise ValueError("no data to triangulate")
+
+    finite = np.isfinite(x) & np.isfinite(y) & np.isfinite(z)
+    x, y, z = x[finite], y[finite], z[finite]
+    if x.size < 3:
+        raise ValueError("not enough points to triangulate")
+    return x, y, z
+
+
 def build_heatmap_grid(x_data, y_data, z_data, mode: str, resolution: int):
     """Turn ``(x, y, z)`` into a regular grid for a heatmap, choosing how by
     ``mode``: "binned" (2-D-histogram means) and "interpolated" (griddata) both
@@ -160,7 +183,12 @@ def build_heatmap_grid(x_data, y_data, z_data, mode: str, resolution: int):
     uses the exact :func:`pivot_to_grid` for data already on a lattice.
     ``resolution`` is the per-axis bin/grid-point count for the scattered modes
     (ignored by "grid"). Returns ``(xs, ys, grid)``; raises ``ValueError`` when
-    there's no data."""
+    there's no data.
+
+    Does NOT handle "triangulated" -- that mode skips gridding entirely and
+    renders straight from :func:`filter_finite_xyz`'s output via
+    matplotlib's own Delaunay triangulation (tripcolor/tricontour/
+    tricontourf), so callers branch on that mode before reaching here."""
     if mode == "binned":
         return bin_to_grid(x_data, y_data, z_data, resolution)
     if mode == "interpolated":

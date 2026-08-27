@@ -170,3 +170,10 @@ class MoveItemCommand(Command):
     def redo(self):
         """Redo the move item command."""
         self.execute()
+
+    @override
+    def cleanup(self) -> None:
+        """No undo-only resource to release -- move_performed is a boolean
+        guard flag, not a held reference, and the item itself is re-looked-up
+        by id on every undo()/redo() call rather than cached."""
+        return

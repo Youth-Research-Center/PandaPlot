@@ -72,6 +72,15 @@ class TestAnalyzeChartSeriesCommand:
         int_col = [c for c in result.data.columns if c != "t"][0]
         assert result.data[int_col].iloc[-1] == pytest.approx(1000 / 3, rel=1e-3)
 
+    def test_cleanup_clears_the_resolved_xy_cache(self, ctx):
+        command = _cmd(ctx, source_kind="series", analysis_type=AnalysisType.DERIVATIVE)
+        command.source_length()  # populates _resolved_xy_cache
+        assert command._resolved_xy_cache is not None
+
+        command.cleanup()
+
+        assert command._resolved_xy_cache is None
+
     def test_arc_length_on_fit_series(self, ctx):
         _, project = ctx
         command = _cmd(ctx, source_kind="fit", analysis_type=AnalysisType.ARC_LENGTH)

@@ -5,7 +5,7 @@ from pandaplot.models.chart.series_style import ScatterSeriesStyle
 
 
 def render_scatter_series(axes, series_data: SeriesData, style: ScatterSeriesStyle,
-                           label: str, alpha: float, visible: bool, extra: dict) -> None:
+                           label: str, alpha: float, *, visible: bool, extra: dict) -> None:
     mfc = style.marker.marker_color or style.color
     mec = style.marker.marker_edge_color or style.color
     axes.scatter(series_data.x_data, series_data.y_data,

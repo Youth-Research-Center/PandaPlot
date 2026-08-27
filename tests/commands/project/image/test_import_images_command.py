@@ -93,6 +93,24 @@ class TestImportImagesCommandCopyMode:
         assert gallery.get_items() == []
 
 
+class TestImportImagesCommandCleanup:
+    def test_cleanup_resets_created_image_ids_and_project(self, app_context_with_project, gallery_id, tmp_path):
+        png_path = tmp_path / "photo.png"
+        _write_test_png(png_path)
+        command = ImportImagesCommand(
+            app_context_with_project, gallery_id=gallery_id,
+            sources=[str(png_path)], copy_into_project=True,
+        )
+        command.execute()
+        assert command.created_image_ids != []
+        assert command.project is not None
+
+        command.cleanup()
+
+        assert command.created_image_ids == []
+        assert command.project is None
+
+
 class TestImportImagesCommandExternalMode:
     def test_execute_creates_external_image_without_bytes(self, app_context_with_project, gallery_id, tmp_path):
         png_path = tmp_path / "linked.png"

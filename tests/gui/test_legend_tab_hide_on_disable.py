@@ -29,12 +29,12 @@ def test_disabling_show_legend_hides_legend_and_frame_sections():
     assert legend_tab.legend_group.isVisible() is True
     assert legend_tab.frame_card.isVisible() is True
 
-    legend_tab.show_legend_toggle.setChecked(False)
+    legend_tab.show_legend_toggle.setChecked(checked=False)
 
     assert legend_tab.legend_group.isVisible() is False
     assert legend_tab.frame_card.isVisible() is False
 
-    legend_tab.show_legend_toggle.setChecked(True)
+    legend_tab.show_legend_toggle.setChecked(checked=True)
 
     assert legend_tab.legend_group.isVisible() is True
     assert legend_tab.frame_card.isVisible() is True
@@ -49,7 +49,7 @@ def test_disabling_show_frame_hides_the_frame_option_rows():
     assert legend_tab.legend_bg_color_row.isVisible() is True
     assert legend_tab.legend_bg_opacity_slider.isVisible() is True
 
-    legend_tab.legend_show_frame_toggle.setChecked(False)
+    legend_tab.legend_show_frame_toggle.setChecked(checked=False)
 
     assert legend_tab.legend_bg_color_row.isVisible() is False
     assert legend_tab.legend_bg_opacity_slider.isVisible() is False
@@ -57,7 +57,7 @@ def test_disabling_show_frame_hides_the_frame_option_rows():
     assert legend_tab.frame_card.isVisible() is True
     assert legend_tab.frame_header.isEnabled() is False
 
-    legend_tab.legend_show_frame_toggle.setChecked(True)
+    legend_tab.legend_show_frame_toggle.setChecked(checked=True)
 
     assert legend_tab.legend_bg_color_row.isVisible() is True
     assert legend_tab.legend_bg_opacity_slider.isVisible() is True

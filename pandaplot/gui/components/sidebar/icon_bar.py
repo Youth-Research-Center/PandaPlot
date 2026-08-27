@@ -195,7 +195,7 @@ class IconBar(PWidget):
         for btn in self.panels.values():
             self._apply_button_theme(btn, is_active=False)
     
-    def _apply_button_theme(self, button: QPushButton, is_active: bool = False) -> None:
+    def _apply_button_theme(self, button: QPushButton, *, is_active: bool = False) -> None:
         """Toggle the button's active/inactive appearance via the shared
         [segment="true"][selected="true"] QSS rule, plus a left-border accent
         indicator (via [navActive="true"]) unique to this vertical icon bar.
@@ -213,7 +213,7 @@ class IconBar(PWidget):
     def add_panel_button(self, name: str, icon: str):
         """Add a new panel button to the icon bar."""
         btn = QPushButton(icon)
-        btn.setProperty("segment", True)
+        btn.setProperty("segment", True)  # noqa: FBT003 - Qt method rejects keyword args
         btn.clicked.connect(lambda: self.panel_requested.emit(name))
         # Remove hardcoded styling - will be applied via theme
 

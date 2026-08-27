@@ -25,6 +25,7 @@ _BADGE_MARGIN = 6
 def build_gallery_tile_icon(
     pixmap: Optional[QPixmap],
     tile_type: TileType,
+    *,
     selected: bool,
     tokens: dict,
     size: QSize = _DEFAULT_SIZE,

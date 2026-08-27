@@ -197,6 +197,14 @@ class SignalAnalysisCommand(Command):
     def redo(self) -> bool:
         return self.execute()
 
+    @override
+    def cleanup(self) -> None:
+        """Release the created-dataset id and analysis-result snapshot held
+        for undo once this command is dropped from the stacks for good (see
+        Command.cleanup)."""
+        self.result_dataset_id = None
+        self.result = None
+
     def _get_source_dataset(self) -> Optional[Dataset]:
         project = self.app_state.current_project
 

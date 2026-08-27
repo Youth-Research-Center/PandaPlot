@@ -23,6 +23,7 @@ from pandaplot.models.events.event_data import (
 )
 from pandaplot.models.events.event_types import DatasetOperationEvents
 from pandaplot.models.project.items import Dataset
+from pandaplot.models.project.items.dataset import dataset_display_options
 from pandaplot.models.state import AppContext, AppState
 
 
@@ -165,12 +166,13 @@ class AddRowsColumnsCommand(Command):
         )
 
         assert self.project is not None
+        display_names = dict(dataset_display_options(self.project))
         options = []
         for item in self.project.get_all_items():
             if not isinstance(item, Dataset):
                 continue
             rows, columns = item.data.shape if item.data is not None else (0, 0)
-            options.append(DatasetSize(id=item.id, name=item.name, rows=rows, columns=columns))
+            options.append(DatasetSize(id=item.id, name=display_names[item.id], rows=rows, columns=columns))
 
         if not options:
             self.logger.warning(
@@ -305,3 +307,9 @@ class AddRowsColumnsCommand(Command):
         # Re-execute with the target resolved on the first run, so redo does
         # not re-open the dialog.
         return self.execute()
+
+    @override
+    def cleanup(self) -> None:
+        """Release the original-data snapshot held for undo once this
+        command is dropped from the stacks for good (see Command.cleanup)."""
+        self.original_data = None

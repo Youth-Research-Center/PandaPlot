@@ -134,6 +134,24 @@ class TestCopyImagesCommandLogging:
         assert "missing-image" in caplog.text
 
 
+class TestCopyImagesCommandCleanup:
+    def test_cleanup_resets_created_image_ids_and_project(self, app_context_with_project, gallery_id):
+        project = app_context_with_project.get_app_state().current_project
+        original = Image(name="Beach", storage_mode="copied", image_ext="png")
+        original.set_bytes(b"data")
+        project.add_item(original, parent_id=gallery_id)
+
+        command = CopyImagesCommand(app_context_with_project, image_ids=[original.id], target_gallery_id=gallery_id)
+        command.execute()
+        assert command.created_image_ids != []
+        assert command.project is project
+
+        command.cleanup()
+
+        assert command.created_image_ids == []
+        assert command.project is None
+
+
 class TestCopyImagesCommandUndo:
     def test_undo_removes_all_created_copies(self, app_context_with_project, gallery_id):
         project = app_context_with_project.get_app_state().current_project

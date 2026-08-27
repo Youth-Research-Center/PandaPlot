@@ -85,3 +85,14 @@ def test_execute_logs_warning_when_dataset_has_no_structure(mock_app_context, sa
     with caplog.at_level(logging.WARNING):
         assert command.execute() is False
     assert "ds-1" in caplog.text and "no structure" in caplog.text.lower()
+
+
+def test_cleanup_releases_the_dataset_and_project_references(mock_app_context):
+    command = EditCommand(mock_app_context, "ds-1", (0, 0), old_value=1, new_value=2)
+    command.dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1]}))
+    command.project = Mock()
+
+    command.cleanup()
+
+    assert command.dataset is None
+    assert command.project is None

@@ -27,30 +27,32 @@ def _sample_pixmap() -> QPixmap:
 
 class TestBuildGalleryTileIcon:
     def test_image_type_returns_non_null_icon(self):
-        icon = build_gallery_tile_icon(_sample_pixmap(), "image", False, _TOKENS)
+        icon = build_gallery_tile_icon(_sample_pixmap(), "image", selected=False, tokens=_TOKENS)
 
         assert not icon.isNull()
 
     def test_album_type_returns_non_null_icon_without_a_pixmap(self):
-        icon = build_gallery_tile_icon(None, "album", False, _TOKENS)
+        icon = build_gallery_tile_icon(None, "album", selected=False, tokens=_TOKENS)
 
         assert not icon.isNull()
 
     def test_broken_type_returns_non_null_icon_without_a_pixmap(self):
-        icon = build_gallery_tile_icon(None, "broken", False, _TOKENS)
+        icon = build_gallery_tile_icon(None, "broken", selected=False, tokens=_TOKENS)
 
         assert not icon.isNull()
 
     def test_selected_and_unselected_icons_differ(self):
-        unselected = build_gallery_tile_icon(_sample_pixmap(), "image", False, _TOKENS)
-        selected = build_gallery_tile_icon(_sample_pixmap(), "image", True, _TOKENS)
+        unselected = build_gallery_tile_icon(_sample_pixmap(), "image", selected=False, tokens=_TOKENS)
+        selected = build_gallery_tile_icon(_sample_pixmap(), "image", selected=True, tokens=_TOKENS)
 
         unselected_pixmap = unselected.pixmap(QSize(120, 120))
         selected_pixmap = selected.pixmap(QSize(120, 120))
         assert unselected_pixmap.toImage() != selected_pixmap.toImage()
 
     def test_respects_custom_size(self):
-        icon = build_gallery_tile_icon(_sample_pixmap(), "image", False, _TOKENS, size=QSize(64, 64))
+        icon = build_gallery_tile_icon(
+            _sample_pixmap(), "image", selected=False, tokens=_TOKENS, size=QSize(64, 64)
+        )
 
         pixmap = icon.pixmap(QSize(64, 64))
         assert pixmap.size() == QSize(64, 64)
@@ -59,8 +61,12 @@ class TestBuildGalleryTileIcon:
 class TestBuildGalleryTileIconCheckmarkPosition:
     def test_checkmark_badge_is_in_top_left_not_bottom_right(self):
         size = QSize(120, 120)
-        unselected = build_gallery_tile_icon(_sample_pixmap(), "image", False, _TOKENS, size=size)
-        selected = build_gallery_tile_icon(_sample_pixmap(), "image", True, _TOKENS, size=size)
+        unselected = build_gallery_tile_icon(
+            _sample_pixmap(), "image", selected=False, tokens=_TOKENS, size=size
+        )
+        selected = build_gallery_tile_icon(
+            _sample_pixmap(), "image", selected=True, tokens=_TOKENS, size=size
+        )
 
         unselected_image = unselected.pixmap(size).toImage()
         selected_image = selected.pixmap(size).toImage()

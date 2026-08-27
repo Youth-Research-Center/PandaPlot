@@ -102,6 +102,25 @@ class Project:
     def get_root_items(self) -> List[Item]:
         """Get items at the root level."""
         return self.root.get_items()
+
+    def get_folder_path(self, item_id: str) -> List[str]:
+        """Names of the folders containing `item_id`, top-level first.
+
+        Empty if the item is unknown or sits directly under the project root.
+        """
+        item = self.find_item(item_id)
+        if item is None:
+            return []
+        path: List[str] = []
+        cursor_parent_id = item.parent_id
+        while cursor_parent_id and cursor_parent_id != self.root.id:
+            parent = self.find_item(cursor_parent_id)
+            if parent is None:
+                break
+            path.append(parent.name)
+            cursor_parent_id = parent.parent_id
+        path.reverse()
+        return path
      
     def accept_visitor(self, visitor, parent_context=None):
         """

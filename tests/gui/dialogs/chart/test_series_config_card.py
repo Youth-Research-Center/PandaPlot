@@ -175,7 +175,7 @@ def test_collapsing_hides_the_form_and_shows_a_summary():
     card = _line_card()
     card.y_column_combo.setCurrentIndex(card.y_column_combo.findData("col-rev"))
 
-    card.set_collapsed(True)
+    card.set_collapsed(collapsed=True)
 
     assert card.is_collapsed() is True
     assert card.dataset_combo.isVisible() is False
@@ -184,9 +184,9 @@ def test_collapsing_hides_the_form_and_shows_a_summary():
 
 def test_expanding_again_restores_the_form():
     card = _line_card()
-    card.set_collapsed(True)
+    card.set_collapsed(collapsed=True)
 
-    card.set_collapsed(False)
+    card.set_collapsed(collapsed=False)
 
     assert card.is_collapsed() is False
     assert card.dataset_combo.isVisible() is True
@@ -195,7 +195,7 @@ def test_expanding_again_restores_the_form():
 def test_collapsed_state_does_not_affect_series_config():
     card = _line_card()
     card.y_column_combo.setCurrentIndex(card.y_column_combo.findData("col-rev"))
-    card.set_collapsed(True)
+    card.set_collapsed(collapsed=True)
 
     assert card.get_series_config()["y_column_id"] == "col-rev"
 
@@ -243,7 +243,7 @@ def test_swatch_color_reflects_the_cards_index():
     card.set_tokens({"series_palette": ["#111111", "#222222", "#333333"]})
     card.set_index(1)
 
-    card.set_collapsed(True)
+    card.set_collapsed(collapsed=True)
 
     assert "#222222" in card._swatch.styleSheet()
 

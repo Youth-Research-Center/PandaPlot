@@ -111,9 +111,9 @@ def test_apply_fit_style_to_writes_band_fields():
 
     fit = _fit_with_confidence()
     style_tab.load_fit_style(fit)
-    style_tab.band_enabled_toggle.setChecked(False)
+    style_tab.band_enabled_toggle.setChecked(checked=False)
     style_tab.band_opacity_slider.setValue(0.5)
-    style_tab.band_match_line_toggle.setChecked(False)
+    style_tab.band_match_line_toggle.setChecked(checked=False)
     style_tab.band_color_row.setCurrentColor("#445566")
 
     style_tab.apply_fit_style_to(fit)

@@ -94,7 +94,9 @@ class ImageLightboxDialog(QDialog):
         target_size = self._content_area_size()
         if pixmap is None:
             tokens = {}
-            icon = build_gallery_tile_icon(None, "broken", False, tokens, size=QSize(300, 300))
+            icon = build_gallery_tile_icon(
+                None, "broken", selected=False, tokens=tokens, size=QSize(300, 300)
+            )
             self.image_label.setPixmap(icon.pixmap(icon.availableSizes()[0]))
         else:
             scaled = pixmap.scaled(

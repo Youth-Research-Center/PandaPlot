@@ -24,14 +24,14 @@ def test_format_status_text_multiple_changes():
 
 def test_set_modified_false_disables_apply_and_revert():
     footer = DirtyFooter()
-    footer.setModified(False, 0)
+    footer.setModified(is_modified=False, change_count=0)
     assert not footer._apply_button.isEnabled()
     assert not footer._revert_button.isEnabled()
 
 
 def test_set_modified_true_enables_apply_and_revert():
     footer = DirtyFooter()
-    footer.setModified(True, 2)
+    footer.setModified(is_modified=True, change_count=2)
     assert footer._apply_button.isEnabled()
     assert footer._revert_button.isEnabled()
     assert footer._status_label.text() == "2 unsaved changes"
@@ -39,7 +39,7 @@ def test_set_modified_true_enables_apply_and_revert():
 
 def test_apply_button_click_emits_apply_clicked():
     footer = DirtyFooter()
-    footer.setModified(True, 1)
+    footer.setModified(is_modified=True, change_count=1)
     seen = []
     footer.applyClicked.connect(lambda: seen.append(True))
     footer._apply_button.click()
@@ -48,7 +48,7 @@ def test_apply_button_click_emits_apply_clicked():
 
 def test_revert_button_click_emits_revert_clicked():
     footer = DirtyFooter()
-    footer.setModified(True, 1)
+    footer.setModified(is_modified=True, change_count=1)
     seen = []
     footer.revertClicked.connect(lambda: seen.append(True))
     footer._revert_button.click()
@@ -57,7 +57,7 @@ def test_revert_button_click_emits_revert_clicked():
 
 def test_set_modified_true_with_zero_changes_disables_buttons():
     footer = DirtyFooter()
-    footer.setModified(True, 0)
+    footer.setModified(is_modified=True, change_count=0)
     assert not footer._apply_button.isEnabled()
     assert not footer._revert_button.isEnabled()
     assert footer._status_label.text() == "No changes"

@@ -126,15 +126,20 @@ class TestConcreteCommand:
     def test_redo_method(self):
         """Test the redo method of concrete command."""
         cmd = ConcreteCommand()
-        
+
         assert not cmd.redone
         assert cmd.redo_count == 0
-        
+
         cmd.redo()
-        
+
         assert cmd.redone
         assert cmd.redo_count == 1
-    
+
+    def test_occupies_undo_slot_defaults_to_true(self):
+        """Test that a command participates in the undo stack by default."""
+        cmd = ConcreteCommand()
+        assert cmd.occupies_undo_slot() is True
+
     def test_multiple_executions(self):
         """Test that commands can be executed multiple times."""
         cmd = ConcreteCommand()
@@ -170,11 +175,16 @@ class TestConcreteCommand:
     def test_inheritance_hierarchy(self):
         """Test that concrete commands properly inherit from Command."""
         cmd = ConcreteCommand()
-        
+
         assert isinstance(cmd, Command)
         assert isinstance(cmd, ABC)
         assert issubclass(ConcreteCommand, Command)
         assert issubclass(ConcreteCommand, ABC)
+
+    def test_cleanup_is_a_no_op_by_default(self):
+        """Test that cleanup() exists and does nothing unless overridden."""
+        cmd = ConcreteCommand()
+        cmd.cleanup()  # must not raise
 
 
 class TestCommandWithExceptions:
@@ -284,14 +294,14 @@ class TestCommandEdgeCases:
     def test_command_method_chaining_compatibility(self):
         """Test that command methods can be called in sequence."""
         cmd = ConcreteCommand()
-        
+
         # Should be able to call methods in any order
         cmd.execute()
         cmd.undo()
         cmd.redo()
         cmd.execute()
         cmd.undo()
-        
+
         assert cmd.execute_count == 2
         assert cmd.undo_count == 2
         assert cmd.redo_count == 1

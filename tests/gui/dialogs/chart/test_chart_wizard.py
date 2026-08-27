@@ -6,6 +6,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QWizard
 
 from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
+from pandaplot.models.events.event_types import DatasetEvents
+from pandaplot.models.project.items import Dataset
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -313,7 +315,7 @@ def test_subtitle_and_toggles_flow_through_to_the_wizards_getters():
     wizard.next()
     wizard.next()
     wizard.labels_page.subtitle_edit.setText("A closer look")
-    wizard.labels_page.show_legend_toggle.setChecked(False)
+    wizard.labels_page.show_legend_toggle.setChecked(checked=False)
 
     assert wizard.get_subtitle() == "A closer look"
     assert wizard.get_show_legend() is False
@@ -433,3 +435,168 @@ def test_editing_title_live_updates_the_preview():
     wizard.labels_page.title_edit.setText("Voltage vs time")
 
     assert wizard.labels_page.preview_canvas.axes.get_title() == "Voltage vs time"
+
+
+def test_next_from_type_goes_to_no_dataset_page_when_the_project_has_no_datasets():
+    wizard = ChartWizard(app_context=_fake_app_context(), datasets=[], columns_provider=lambda _id: [])
+
+    wizard.next()
+
+    assert wizard.currentId() == wizard._no_dataset_page_id
+
+
+def test_next_from_type_still_goes_to_data_page_when_datasets_exist():
+    wizard = _make_wizard()  # datasets=[("ds-1", "Sales")]
+
+    wizard.next()
+
+    assert wizard.currentId() == wizard._data_page_id
+
+
+def test_no_dataset_pages_empty_button_finishes_empty():
+    wizard = ChartWizard(app_context=_fake_app_context(), datasets=[], columns_provider=lambda _id: [])
+    wizard.next()  # Type -> no-dataset page
+
+    wizard.no_dataset_page.emptyRequested.emit()
+
+    assert wizard.is_empty() is True
+    assert wizard.get_chart_type() == "line"
+
+
+def test_import_requested_executes_import_data_command():
+    app_context = _fake_app_context()
+    app_context.get_command_executor.return_value = Mock()
+    wizard = ChartWizard(app_context=app_context, datasets=[], columns_provider=lambda _id: [])
+    wizard.next()  # Type -> no-dataset page
+
+    wizard.no_dataset_page.importRequested.emit()
+
+    executor = app_context.get_command_executor.return_value
+    assert executor.execute_command.call_count == 1
+    from pandaplot.commands.project.dataset.import_data_command import ImportDataCommand
+    assert isinstance(executor.execute_command.call_args.args[0], ImportDataCommand)
+
+
+def test_dataset_created_event_advances_to_data_page_with_the_new_dataset_preselected():
+    app_context = _fake_app_context()
+    project = Mock()
+    dataset = Mock(spec=Dataset)
+    dataset.id = "ds-new"
+    dataset.name = "Imported"
+    dataset.data = None  # short-circuits the columns provider to []
+    project.get_all_items.return_value = [dataset]
+    wizard = ChartWizard(
+        app_context=app_context, datasets=[], columns_provider=lambda _id: [], project=project,
+    )
+    wizard.next()  # Type -> no-dataset page
+
+    subscribed = {
+        event_type: handler
+        for event_type, handler in (call.args for call in app_context.event_bus.subscribe.call_args_list)
+    }
+    assert DatasetEvents.DATASET_CREATED in subscribed
+
+    subscribed[DatasetEvents.DATASET_CREATED]({"dataset_id": "ds-new"})
+    QApplication.processEvents()  # the actual advance is deferred via QTimer.singleShot(0, ...)
+
+    assert wizard.currentId() == wizard._data_page_id
+    assert wizard.data_page.cards[0].dataset_combo.currentData() == "ds-new"
+
+
+def test_dataset_created_event_is_ignored_once_already_out_of_no_dataset_mode():
+    """A second DATASET_CREATED (e.g. a multi-sheet Excel import) must not
+    re-trigger the advance/reset once the wizard already left no-dataset mode."""
+    app_context = _fake_app_context()
+    project = Mock()
+    first = Mock(spec=Dataset)
+    first.id, first.name, first.data = "ds-1", "First", None
+    project.get_all_items.return_value = [first]
+    wizard = ChartWizard(
+        app_context=app_context, datasets=[], columns_provider=lambda _id: [], project=project,
+    )
+    wizard.next()
+
+    subscribed = {
+        event_type: handler
+        for event_type, handler in (call.args for call in app_context.event_bus.subscribe.call_args_list)
+    }
+    subscribed[DatasetEvents.DATASET_CREATED]({"dataset_id": "ds-1"})
+    QApplication.processEvents()  # the actual advance is deferred via QTimer.singleShot(0, ...)
+    assert wizard.currentId() == wizard._data_page_id
+
+    wizard.back()
+    wizard.back()  # -> Type page
+
+    second = Mock(spec=Dataset)
+    second.id, second.name, second.data = "ds-2", "Second", None
+    project.get_all_items.return_value = [first, second]
+    subscribed[DatasetEvents.DATASET_CREATED]({"dataset_id": "ds-2"})  # stray second event
+
+    # Still on the Type page (no forced navigation), untouched by the stray event.
+    assert wizard.currentId() == wizard._type_page_id
+
+
+def test_multi_sheet_import_makes_every_imported_dataset_available_as_an_option():
+    """Regression: ImportDataCommand adds every imported dataset to the project
+    and fires DATASET_CREATED once per dataset, all synchronously, before
+    control returns to the event loop. Reacting to the first event immediately
+    used to snapshot dataset options after only the first sheet had been
+    added; deferring the actual navigation lets the whole import loop finish
+    first, so every sheet ends up selectable."""
+    app_context = _fake_app_context()
+    project = Mock()
+    first = Mock(spec=Dataset)
+    first.id, first.name, first.data = "ds-sheet1", "Sheet1", None
+    second = Mock(spec=Dataset)
+    second.id, second.name, second.data = "ds-sheet2", "Sheet2", None
+    project.get_all_items.return_value = [first]
+    wizard = ChartWizard(
+        app_context=app_context, datasets=[], columns_provider=lambda _id: [], project=project,
+    )
+    wizard.next()  # Type -> no-dataset page
+
+    subscribed = {
+        event_type: handler
+        for event_type, handler in (call.args for call in app_context.event_bus.subscribe.call_args_list)
+    }
+
+    # Sheet 1's dataset is added and its event fires...
+    subscribed[DatasetEvents.DATASET_CREATED]({"dataset_id": "ds-sheet1"})
+    # ...then sheet 2's dataset is added to the project and its event fires,
+    # both still synchronously, before either deferred advance has run.
+    project.get_all_items.return_value = [first, second]
+    subscribed[DatasetEvents.DATASET_CREATED]({"dataset_id": "ds-sheet2"})
+
+    QApplication.processEvents()  # runs the deferred advance(s)
+
+    assert wizard.currentId() == wizard._data_page_id
+    assert wizard.data_page.cards[0].dataset_combo.count() == 2
+
+
+def test_dataset_created_event_after_the_wizard_is_finished_is_ignored():
+    """Regression: the wizard keeps its DATASET_CREATED subscription for its
+    whole lifetime, and a background import can still be in flight (or a
+    completely unrelated import can fire) after the wizard has already
+    finished via "Create Empty Chart". That must not resurrect navigation on
+    a wizard that is done."""
+    app_context = _fake_app_context()
+    project = Mock()
+    wizard = ChartWizard(
+        app_context=app_context, datasets=[], columns_provider=lambda _id: [], project=project,
+    )
+    wizard.next()  # Type -> no-dataset page
+
+    subscribed = {
+        event_type: handler
+        for event_type, handler in (call.args for call in app_context.event_bus.subscribe.call_args_list)
+    }
+
+    wizard.no_dataset_page.emptyRequested.emit()  # "Create Empty Chart" -> accept()
+    assert wizard.is_empty() is True
+
+    # A stray/late DATASET_CREATED must not raise or move the finished wizard.
+    subscribed[DatasetEvents.DATASET_CREATED]({"dataset_id": "ds-late"})
+    QApplication.processEvents()
+
+    assert wizard.currentId() == wizard._no_dataset_page_id
+    assert wizard.is_empty() is True

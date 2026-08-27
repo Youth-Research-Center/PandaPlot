@@ -73,6 +73,16 @@ class TestRenameItemCommandLogging:
             assert command.execute() is False
         assert "missing-item" in caplog.text
 
+    def test_cleanup_releases_old_name(self, mock_app_context):
+        app_context, app_state, ui_controller = mock_app_context
+
+        command = RenameItemCommand(app_context, item_id="item-123", new_name="New Name")
+        command.old_name = "Old Name"
+
+        command.cleanup()
+
+        assert command.old_name is None
+
     def test_undo_logs_a_warning_when_current_project_is_none(self, mock_app_context, caplog):
         app_context, app_state, ui_controller = mock_app_context
         app_state.has_project = True

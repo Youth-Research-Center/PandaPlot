@@ -6,7 +6,7 @@ from pandaplot.models.chart.series_style import VectorSeriesStyle
 
 
 def render_vector_series(axes, series_data: SeriesData, style: VectorSeriesStyle,
-                          label: str, alpha: float, visible: bool, extra: dict) -> None:
+                          label: str, alpha: float, *, visible: bool, extra: dict) -> None:
     quiver_kwargs = {
         "scale": style.vector_scale if style.vector_scale > 0 else None,
         "width": style.vector_width,

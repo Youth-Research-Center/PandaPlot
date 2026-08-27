@@ -233,7 +233,9 @@ class AxesTab(QWidget):
         log_base_custom_spin.valueChanged.connect(self._on_field_changed)
         if side_control is not None:
             side_control.currentValueChanged.connect(self._on_field_changed)
-        auto_toggle.toggled.connect(lambda checked, p=prefix: self._on_axis_auto_limits_toggled(p, checked))
+        auto_toggle.toggled.connect(
+            lambda checked, p=prefix: self._on_axis_auto_limits_toggled(p, checked=checked)
+        )
         min_spin.valueChanged.connect(self._on_field_changed)
         max_spin.valueChanged.connect(self._on_field_changed)
         mode_control.currentValueChanged.connect(lambda _v, p=prefix: self._on_axis_tick_mode_changed(p))
@@ -243,7 +245,9 @@ class AxesTab(QWidget):
         format_custom_edit.textChanged.connect(self._on_field_changed)
         grid_toggle.toggled.connect(self._on_field_changed)
         tick_direction_control.currentValueChanged.connect(self._on_field_changed)
-        minor_ticks_toggle.toggled.connect(lambda checked, p=prefix: self._on_minor_ticks_toggled(p, checked))
+        minor_ticks_toggle.toggled.connect(
+            lambda checked, p=prefix: self._on_minor_ticks_toggled(p, checked=checked)
+        )
         minor_tick_direction_control.currentValueChanged.connect(self._on_field_changed)
         minor_grid_toggle.toggled.connect(self._on_field_changed)
 
@@ -258,7 +262,7 @@ class AxesTab(QWidget):
     def _on_axis_chip_selected(self, prefix: str):
         self._show_axis_form(prefix)
 
-    def _on_axis_auto_limits_toggled(self, prefix: str, checked: bool):
+    def _on_axis_auto_limits_toggled(self, prefix: str, *, checked: bool):
         self._refresh_range_display(prefix)
         self._on_field_changed()
 
@@ -304,7 +308,7 @@ class AxesTab(QWidget):
         form["step_spin"].setVisible(mode == "step")
         self._on_field_changed()
 
-    def _on_minor_ticks_toggled(self, prefix: str, checked: bool):
+    def _on_minor_ticks_toggled(self, prefix: str, *, checked: bool):
         """Show the minor-tick direction control and minor grid toggle only
         once minor ticks are actually enabled -- they have nothing to apply
         to otherwise. (Minor-tick *color* visibility is now owned by
@@ -363,7 +367,7 @@ class AxesTab(QWidget):
         target["log_base_row"].setVisible(target["scale_control"].currentValue() == ScaleType.LOG)
         if source["side_control"] is not None and target["side_control"] is not None:
             target["side_control"].setCurrentValue(source["side_control"].currentValue())
-        target["auto_toggle"].setChecked(source["auto_toggle"].isChecked())
+        target["auto_toggle"].setChecked(checked=source["auto_toggle"].isChecked())
         target["min_spin"].setValue(source["min_spin"].value())
         target["max_spin"].setValue(source["max_spin"].value())
         target["min_spin"].setEnabled(not target["auto_toggle"].isChecked())
@@ -381,13 +385,13 @@ class AxesTab(QWidget):
             target["format_combo"].setCurrentIndex(format_index)
         target["format_custom_edit"].setText(source["format_custom_edit"].text())
         target["format_custom_edit"].setEnabled(target["format_combo"].currentData() == "custom")
-        target["grid_toggle"].setChecked(source["grid_toggle"].isChecked())
+        target["grid_toggle"].setChecked(checked=source["grid_toggle"].isChecked())
         target["tick_direction_control"].setCurrentValue(source["tick_direction_control"].currentValue())
-        target["minor_ticks_toggle"].setChecked(source["minor_ticks_toggle"].isChecked())
+        target["minor_ticks_toggle"].setChecked(checked=source["minor_ticks_toggle"].isChecked())
         target["minor_tick_direction_control"].setCurrentValue(
             source["minor_tick_direction_control"].currentValue()
         )
-        target["minor_grid_toggle"].setChecked(source["minor_grid_toggle"].isChecked())
+        target["minor_grid_toggle"].setChecked(checked=source["minor_grid_toggle"].isChecked())
         target_minor_enabled = target["minor_ticks_toggle"].isChecked()
         target["minor_tick_direction_label"].setVisible(target_minor_enabled)
         target["minor_tick_direction_control"].setVisible(target_minor_enabled)
@@ -468,7 +472,7 @@ class AxesTab(QWidget):
             form["side_control"].setCurrentValue(config.get(f"{prefix}_side", default_side))
 
         auto_limits = config.get(f"{prefix}_auto_limits", True)
-        form["auto_toggle"].setChecked(auto_limits)
+        form["auto_toggle"].setChecked(checked=auto_limits)
         # Auto mode's displayed min/max is owned by `_refresh_range_display`
         # (recomputed from live data whenever it's called). Manual mode has
         # no such recompute on load -- per spec, a Manual axis's value only
@@ -495,17 +499,17 @@ class AxesTab(QWidget):
         form["format_custom_edit"].setText(config.get(f"{prefix}_tick_format_custom", ""))
         form["format_custom_edit"].setEnabled(tick_format == "custom")
 
-        form["grid_toggle"].setChecked(config.get(f"show_grid_{prefix}", True))
+        form["grid_toggle"].setChecked(checked=config.get(f"show_grid_{prefix}", True))
 
         form["tick_direction_control"].setCurrentValue(config.get(f"{prefix}_tick_direction", "out"))
         minor_ticks_enabled = config.get(f"{prefix}_minor_ticks", False)
-        form["minor_ticks_toggle"].setChecked(minor_ticks_enabled)
+        form["minor_ticks_toggle"].setChecked(checked=minor_ticks_enabled)
         form["minor_tick_direction_control"].setCurrentValue(
             config.get(f"{prefix}_minor_tick_direction", "out")
         )
         form["minor_tick_direction_label"].setVisible(minor_ticks_enabled)
         form["minor_tick_direction_control"].setVisible(minor_ticks_enabled)
-        form["minor_grid_toggle"].setChecked(config.get(f"{prefix}_show_minor_grid", False))
+        form["minor_grid_toggle"].setChecked(checked=config.get(f"{prefix}_show_minor_grid", False))
         form["minor_grid_label"].setVisible(minor_ticks_enabled)
         form["minor_grid_toggle"].setVisible(minor_ticks_enabled)
 

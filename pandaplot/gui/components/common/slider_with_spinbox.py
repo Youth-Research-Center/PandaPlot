@@ -69,7 +69,7 @@ class SliderWithSpinbox(QWidget):
             return
         self._set_value(value, emit=True)
 
-    def _set_value(self, value: float, emit: bool):
+    def _set_value(self, value: float, *, emit: bool):
         self._updating = True
         self._spinbox.setValue(value)
         self._slider.setValue(value_to_slider(value, self._minimum, self._maximum, self._steps))

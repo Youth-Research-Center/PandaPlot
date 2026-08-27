@@ -109,3 +109,16 @@ def test_execute_logs_a_warning_when_reference_position_out_of_bounds(mock_app_c
     with caplog.at_level(logging.WARNING):
         assert command.execute() is False
     assert "5" in caplog.text
+
+
+def test_cleanup_releases_the_original_data_snapshot():
+    app_context = Mock(spec=AppContext)
+    app_context.get_app_state.return_value = Mock(spec=AppState)
+    app_context.get_ui_controller.return_value = Mock()
+
+    command = AddRowsCommand(app_context, "ds-1", reference_positions=[0])
+    command.original_data = pd.DataFrame({"a": [1, 2, 3]})
+
+    command.cleanup()
+
+    assert command.original_data is None

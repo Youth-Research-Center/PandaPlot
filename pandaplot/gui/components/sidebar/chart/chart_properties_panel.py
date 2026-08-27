@@ -144,9 +144,9 @@ class ChartPropertiesPanel(SidebarPanel):
 
     def _on_tab_widget_current_changed(self, index):
         if self.tab_selector_combo.currentIndex() != index:
-            self.tab_selector_combo.blockSignals(True)
+            self.tab_selector_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             self.tab_selector_combo.setCurrentIndex(index)
-            self.tab_selector_combo.blockSignals(False)
+            self.tab_selector_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
     def _update_tab_bar_responsive_mode(self):
         """Switch between the native tab bar and `tab_selector_combo` based on
@@ -353,7 +353,7 @@ class ChartPropertiesPanel(SidebarPanel):
     def _update_status_indicator(self):
         """Update the footer to reflect unsaved changes."""
         self.footer.setModified(
-            self._has_unsaved_changes,
+            is_modified=self._has_unsaved_changes,
             change_count=1 if self._has_unsaved_changes else 0,
         )
 

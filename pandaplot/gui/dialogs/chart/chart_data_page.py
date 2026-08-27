@@ -74,8 +74,8 @@ class ChartDataPage(PWizardPage):
         self.empty_button = self.footer.empty_link
         outer.addWidget(self.footer)
 
-        self.completeChanged.connect(lambda: self.footer.set_next_enabled(self.isComplete()))
-        self.footer.set_next_enabled(self.isComplete())
+        self.completeChanged.connect(lambda: self.footer.set_next_enabled(enabled=self.isComplete()))
+        self.footer.set_next_enabled(enabled=self.isComplete())
 
     def _apply_theme(self):
         theme_manager = self.app_context.get_manager(ThemeManager)

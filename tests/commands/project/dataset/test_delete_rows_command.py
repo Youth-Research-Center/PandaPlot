@@ -137,3 +137,18 @@ def test_undo_logs_warning_when_nothing_to_undo(mock_app_context, caplog):
     with caplog.at_level(logging.WARNING):
         command.undo()
     assert "ds-1" in caplog.text
+
+
+def test_cleanup_releases_the_undo_snapshots():
+    app_context = Mock(spec=AppContext)
+    app_context.get_app_state.return_value = Mock(spec=AppState)
+    app_context.get_ui_controller.return_value = Mock()
+
+    command = DeleteRowsCommand(app_context, "ds-1", row_positions=[0])
+    command.original_data = pd.DataFrame({"a": [1, 2, 3]})
+    command.deleted_rows_data = pd.DataFrame({"a": [2]})
+
+    command.cleanup()
+
+    assert command.original_data is None
+    assert command.deleted_rows_data is None

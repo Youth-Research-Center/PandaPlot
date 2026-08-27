@@ -52,16 +52,16 @@ class CustomTabWidget(PTabWidget):
         self.custom_tab_bar.tab_popout_requested.connect(self.tab_popout_requested.emit)
         self.custom_tab_bar.bar_drop_requested.connect(self.bar_drop_requested.emit)
 
-    def set_split_capable(self, can_split: bool):
+    def set_split_capable(self, *, can_split: bool):
         """Whether this pane may still be split further (only when it is the sole pane)."""
         self._split_capable = can_split
         self.custom_tab_bar.can_split = can_split
 
-    def set_merge_capable(self, can_merge: bool):
+    def set_merge_capable(self, *, can_merge: bool):
         """Whether this pane can offer 'Move to Other Pane' / 'Close Split'."""
         self.custom_tab_bar.can_merge = can_merge
 
-    def set_active(self, is_active: bool):
+    def set_active(self, *, is_active: bool):
         """Toggle the visual indicator for which pane currently drives the sidebar."""
         self.setProperty("active_pane", is_active)
         self.style().unpolish(self)

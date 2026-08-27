@@ -90,3 +90,11 @@ class ApplyChartPropertiesCommand(Command):
             return
         restore_chart_state(chart, self.new_snapshot)
         self._emit_update(chart)
+
+    @override
+    def cleanup(self) -> None:
+        """Release the before/after chart-state snapshots held for undo/redo
+        once this command is dropped from the stacks for good (see
+        Command.cleanup)."""
+        self.old_snapshot = None
+        self.new_snapshot = None

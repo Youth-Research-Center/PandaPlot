@@ -467,6 +467,24 @@ class TestCreateFolderCommand:
         command1.created_folder_id = "test-id-1"
         assert command2.created_folder_id is None
 
+    def test_cleanup_releases_cached_project_reference(self, mock_app_context, sample_project):
+        """Test cleanup releases the cached project reference, leaving
+        created_folder/created_folder_id untouched (needed by redo)."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        command = CreateFolderCommand(app_context, "Test Folder")
+        result = command.execute()
+        assert result is True
+        assert command.project is sample_project
+
+        command.cleanup()
+
+        assert command.project is None
+        assert command.created_folder is not None
+        assert command.created_folder_id is not None
+
     def test_event_data_structure(self, mock_app_context, sample_project):
         """Test that events contain all expected data."""
         app_context, app_state, ui_controller = mock_app_context

@@ -133,7 +133,7 @@ class LegendTab(QWidget):
         self.legend_custom_row.setVisible(self.legend_position_combo.currentData() == "custom")
         self._on_field_changed()
 
-    def _on_show_legend_toggled(self, _checked: bool):
+    def _on_show_legend_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         self._update_legend_controls_visibility()
         self._on_field_changed()
 
@@ -166,7 +166,7 @@ class LegendTab(QWidget):
         ):
             widget.setVisible(frame_enabled)
 
-    def _on_frame_enabled_toggled(self, _checked: bool):
+    def _on_frame_enabled_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         self._update_frame_controls_visibility()
 
     def _on_field_changed(self):
@@ -193,7 +193,7 @@ class LegendTab(QWidget):
         self._chart = chart
         try:
             config = chart.config
-            self.show_legend_toggle.setChecked(config.get("show_legend", True))
+            self.show_legend_toggle.setChecked(checked=config.get("show_legend", True))
             legend_position_value = config.get("legend_position", "upper right")
             position_index = self.legend_position_combo.findData(legend_position_value)
             self.legend_position_combo.setCurrentIndex(position_index if position_index >= 0 else 0)
@@ -205,7 +205,7 @@ class LegendTab(QWidget):
             self.legend_font_size_spin.setValue(config.get("legend_font_size", 10))
             self.legend_columns_control.setCurrentValue(config.get("legend_columns", 1))
             self.legend_font_family_combo.setCurrentValue(config.get("legend_font_family", "DejaVu Sans"))
-            self.legend_show_frame_toggle.setChecked(config.get("legend_show_frame", True))
+            self.legend_show_frame_toggle.setChecked(checked=config.get("legend_show_frame", True))
             self.legend_bg_color_row.setCurrentColor(config.get("legend_bg_color", "#ffffff"))
             self.legend_bg_opacity_slider.setValue(config.get("legend_bg_alpha", 1.0))
             self._update_legend_controls_visibility()
@@ -231,10 +231,10 @@ class LegendTab(QWidget):
         previous_guard = self._updating_controls
         self._updating_controls = True
         try:
-            self.show_legend_toggle.setChecked(True)
+            self.show_legend_toggle.setChecked(checked=True)
             self.legend_columns_control.setCurrentValue(1)
             self.legend_font_family_combo.setCurrentValue("DejaVu Sans")
-            self.legend_show_frame_toggle.setChecked(True)
+            self.legend_show_frame_toggle.setChecked(checked=True)
             self.legend_bg_color_row.setCurrentColor("#ffffff")
             self.legend_bg_opacity_slider.setValue(1.0)
             self._update_legend_controls_visibility()

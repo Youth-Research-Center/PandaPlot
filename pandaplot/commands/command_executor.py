@@ -18,19 +18,26 @@ class CommandExecutor:
         self.redo_stack: List[Command] = []
         self.max_undo_levels = 10
     
-    def execute_command(self, command: Command) -> bool:
+    def execute_command(self, command: Command, *, track_undo: bool = True) -> bool:
         """
         Execute a command instance directly.
-        
+
         Args:
             command (Command): Command instance to execute
-            
+            track_undo (bool): When False, forces this specific call off the
+                undo stack regardless of the command class's own
+                occupies_undo_slot() default -- use for an automated/background
+                trigger of a command that IS normally undo-tracked from other
+                call sites (e.g. an autosave tick invoking SaveProjectCommand,
+                which must still occupy an undo slot for the manual Save menu
+                action).
+
         Returns:
             bool: True if command executed successfully
         """
         command_name = command.__class__.__name__
         self.logger.debug("Executing command: %s", command_name)
-        
+
         try:
             success = command.execute()
 
@@ -38,17 +45,20 @@ class CommandExecutor:
                 self.logger.warning("Command execution failed: %s", command_name)
                 return False
 
-            self.undo_stack.append(command)
-            if len(self.undo_stack) > self.max_undo_levels:
-                # TODO(#220): ensure we clean command references properly
-                removed_command = self.undo_stack.pop(0)
-                self.logger.debug("Removed old command from undo stack: %s", removed_command.__class__.__name__)
-                
-            # Clear redo stack since we executed a new command
-            if self.redo_stack:
-                self.logger.debug("Clearing redo stack (%d commands) due to new command execution", len(self.redo_stack))
-                self.redo_stack.clear()
-            
+            if track_undo and command.occupies_undo_slot():
+                self.undo_stack.append(command)
+                if len(self.undo_stack) > self.max_undo_levels:
+                    removed_command = self.undo_stack.pop(0)
+                    self._safe_cleanup(removed_command)
+                    self.logger.debug("Removed old command from undo stack: %s", removed_command.__class__.__name__)
+
+                # Clear redo stack since we executed a new command
+                if self.redo_stack:
+                    self.logger.debug("Clearing redo stack (%d commands) due to new command execution", len(self.redo_stack))
+                    for stale_command in self.redo_stack:
+                        self._safe_cleanup(stale_command)
+                    self.redo_stack.clear()
+
             self.logger.info("Successfully executed command: %s", command_name)
             return True
             
@@ -136,5 +146,21 @@ class CommandExecutor:
     
     def clear_history(self):
         """Clear undo/redo history."""
+        for command in self.undo_stack:
+            self._safe_cleanup(command)
+        for command in self.redo_stack:
+            self._safe_cleanup(command)
         self.undo_stack.clear()
         self.redo_stack.clear()
+
+    def _safe_cleanup(self, command: Command) -> None:
+        """Call command.cleanup(), isolating any exception it raises so it
+        can never corrupt the caller's own control flow (e.g. turning an
+        otherwise-successful execute_command() into a reported failure, or
+        aborting a stack-clearing loop partway through)."""
+        try:
+            command.cleanup()
+        except Exception as e:
+            self.logger.error(
+                "Error cleaning up command '%s': %s",
+                command.__class__.__name__, str(e), exc_info=True)

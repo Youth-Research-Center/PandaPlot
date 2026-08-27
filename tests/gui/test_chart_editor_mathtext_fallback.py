@@ -61,8 +61,8 @@ def test_set_figure_mathtext_parsing_toggles_all_text_artists():
     axes.set_xlabel(r"$x$")
     axes.legend()
 
-    set_figure_mathtext_parsing(fig, False)
+    set_figure_mathtext_parsing(fig, enabled=False)
     assert axes.xaxis.label.get_parse_math() is False
 
-    set_figure_mathtext_parsing(fig, True)
+    set_figure_mathtext_parsing(fig, enabled=True)
     assert axes.xaxis.label.get_parse_math() is True

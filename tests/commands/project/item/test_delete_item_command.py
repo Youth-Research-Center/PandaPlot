@@ -577,6 +577,21 @@ class TestDeleteItemCommand:
         assert event_data["item_name"] == "Test Note"
         assert event_data["item_data"] == command.deleted_item_data
 
+    def test_cleanup_releases_undo_state(self, mock_app_context):
+        """Test cleanup releases the deleted-item snapshot and parent reference."""
+        app_context, app_state, ui_controller = mock_app_context
+
+        command = DeleteItemCommand(app_context, "note-123")
+        command.deleted_item_data = {"id": "note-123", "name": "Test"}
+        command.deleted_item_class = Note
+        command.parent_item = Folder(id="parent-123", name="Parent Folder")
+
+        command.cleanup()
+
+        assert command.deleted_item_data is None
+        assert command.deleted_item_class is None
+        assert command.parent_item is None
+
     def test_command_state_isolation(self, mock_app_context, sample_project):
         """Test that multiple command instances don't interfere with each other."""
         app_context, app_state, ui_controller = mock_app_context

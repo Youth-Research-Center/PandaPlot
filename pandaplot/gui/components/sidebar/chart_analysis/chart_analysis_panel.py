@@ -395,7 +395,7 @@ class ChartAnalysisPanel(PWidget):
         self.result_name.setPlaceholderText(f"{op} — {self.source_combo.currentText()}")
 
     def _populate_sources(self):
-        self.source_combo.blockSignals(True)
+        self.source_combo.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
         self.source_combo.clear()
         chart = self.current_chart
         if chart is not None:
@@ -405,7 +405,7 @@ class ChartAnalysisPanel(PWidget):
             for i, fit in enumerate(chart.fit_data):
                 label = fit.label or f"Fit {i + 1}"
                 self.source_combo.addItem(f"〰 {label}  (fit)", ("fit", i))
-        self.source_combo.blockSignals(False)
+        self.source_combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
 
         has_sources = self.source_combo.count() > 0
         self.apply_btn.setEnabled(has_sources)

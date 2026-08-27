@@ -27,8 +27,8 @@ class FloatingTabWindow(PMainWindow):
 
         # Do not keep the application alive on our own, and clean ourselves up
         # once closed so redocked/closed windows don't leak.
-        self.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, False)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, on=False)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, on=True)
 
         self._initialize()
 

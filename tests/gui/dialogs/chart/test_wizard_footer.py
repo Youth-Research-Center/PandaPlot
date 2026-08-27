@@ -62,6 +62,22 @@ def test_button_clicks_emit_their_signals():
 def test_next_disabled_when_page_incomplete():
     footer = WizardFooter(step_number=1, total_steps=3, show_empty_link=True)
 
-    footer.set_next_enabled(False)
+    footer.set_next_enabled(enabled=False)
 
     assert footer.next_button.isEnabled() is False
+
+
+def test_next_and_finish_both_hidden_when_show_next_is_false():
+    footer = WizardFooter(step_number=2, total_steps=3, show_empty_link=False, show_next=False)
+    footer.show()
+
+    assert footer.next_button.isVisible() is False
+    assert footer.finish_button.isVisible() is False
+    assert footer.back_button.isVisible() is True  # unaffected
+
+
+def test_show_next_defaults_to_true():
+    footer = WizardFooter(step_number=1, total_steps=3, show_empty_link=True)
+    footer.show()
+
+    assert footer.next_button.isVisible() is True

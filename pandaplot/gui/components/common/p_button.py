@@ -21,7 +21,7 @@ _ROLES: tuple[ButtonRole, ...] = ("primary", "secondary", "destructive")
 
 
 class PButton(QPushButton):
-    def __init__(self, text: str = "", role: ButtonRole = "secondary",
+    def __init__(self, text: str = "", role: ButtonRole = "secondary", *,
                  icon: bool = False, on_click: Optional[Callable[..., object]] = None,
                  enabled: bool = True, parent: Optional[QWidget] = None):
         super().__init__(text, parent)

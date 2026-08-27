@@ -310,3 +310,16 @@ class TestAddRowsColumnsCommandPrompt:
         with caplog.at_level(logging.WARNING):
             assert command.execute() is False
         assert "no datasets" in caplog.text.lower()
+
+
+def test_cleanup_releases_the_original_data_snapshot():
+    app_context = Mock(spec=AppContext)
+    app_context.get_app_state.return_value = Mock(spec=AppState)
+    app_context.get_ui_controller.return_value = Mock()
+
+    command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=4, target_columns=3)
+    command.original_data = pd.DataFrame({"a": [1, 2, 3]})
+
+    command.cleanup()
+
+    assert command.original_data is None

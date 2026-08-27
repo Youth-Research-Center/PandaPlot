@@ -6,6 +6,7 @@ from typing import Any, Callable, List, Optional, Tuple, override
 import pandas as pd
 
 from pandaplot.commands.base_command import Command
+from pandaplot.commands.project.require_project import ensure_project_or_offer_create
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
@@ -66,10 +67,13 @@ class ImportDataCommand(Command):
                 return False
 
             # Check if we have a project loaded
-            if not self.app_state.has_project:
+            if not self.app_state.has_project or not self.app_state.current_project:
                 self.logger.warning("ImportDataCommand.execute: no project is currently loaded")
-                self.ui_controller.show_warning_message("Import Data", "Please open or create a project first.")
-                return False
+                if not ensure_project_or_offer_create(
+                    self.app_context, "Import Data",
+                    "Importing data requires a project. Create a new project to continue?",
+                ):
+                    return False
 
             self.project = self.app_state.current_project
             if not self.project:
@@ -407,3 +411,10 @@ class ImportDataCommand(Command):
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
+
+    @override
+    def cleanup(self) -> None:
+        """Release the imported Dataset objects (and their DataFrames) held
+        for undo once this command is dropped from the stacks for good (see
+        Command.cleanup)."""
+        self.imported_datasets = []

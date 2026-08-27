@@ -268,5 +268,8 @@ class DatasetTab(PWidget):
             self.dataset.id
         )
         
-        # Export command doesn't need undo
-        export_command.execute()
+        # ExportDatasetCommand.occupies_undo_slot() returns False, so this
+        # never lands on the undo stack -- but routing it through the
+        # executor keeps logging/exception handling consistent with other
+        # commands.
+        self.app_context.get_command_executor().execute_command(export_command)

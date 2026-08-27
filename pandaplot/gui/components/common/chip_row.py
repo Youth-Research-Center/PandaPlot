@@ -27,7 +27,7 @@ class ChipRow(QWidget):
 
         for label, _ in items:
             button = QPushButton(label, self)
-            button.setProperty("chip", True)
+            button.setProperty("chip", True)  # noqa: FBT003 -- Qt bound method, positional-only
             button.setFlat(True)
             button.clicked.connect(lambda _checked, b=button: self._select_button(b))
             self._layout.addWidget(button)

@@ -145,6 +145,26 @@ class UIController:
         reply = msg_box.exec()
         return reply == QMessageBox.StandardButton.Ok
 
+    def show_action_or_cancel(self, title: str, message: str, action_label: str) -> bool:
+        """
+        Show a warning-style dialog with one custom action button plus Cancel.
+
+        Args:
+            title (str): Dialog title
+            message (str): Message explaining what the action would do
+            action_label (str): Label for the custom action button
+
+        Returns:
+            bool: True if the action button was clicked, False for Cancel
+                (or the dialog being dismissed via Esc/titlebar).
+        """
+        box = QMessageBox(QMessageBox.Icon.Warning, title, message, parent=self.parent_widget)
+        action_button = box.addButton(action_label, QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+        return box.clickedButton() is action_button
+
     def get_text_input(self, title: str, message: str, default_text: str = "") -> Optional[str]:
         """
         Show a text input dialog.

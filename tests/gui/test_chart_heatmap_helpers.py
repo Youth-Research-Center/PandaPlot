@@ -6,6 +6,7 @@ import pytest
 from pandaplot.gui.components.tabs.chart.chart_heatmap import (
     bin_to_grid,
     build_heatmap_grid,
+    filter_finite_xyz,
     interpolate_to_grid,
     pivot_to_grid,
     resolve_color_limits,
@@ -184,6 +185,40 @@ def test_build_heatmap_grid_dispatches_by_mode():
 def test_build_heatmap_grid_unknown_mode_is_exact_grid():
     _, _, grid = build_heatmap_grid([0, 1, 0, 1], [0, 0, 1, 1], [1, 2, 3, 4], "???", 5)
     assert grid.shape == (2, 2)
+
+
+# --- triangulated (scattered, ungridded) rendering: filter_finite_xyz ---
+
+def test_filter_finite_xyz_passes_through_clean_data():
+    x, y, z = filter_finite_xyz([0, 1, 2], [0, 1, 0], [10.0, 20.0, 30.0])
+    np.testing.assert_array_equal(x, [0.0, 1.0, 2.0])
+    np.testing.assert_array_equal(y, [0.0, 1.0, 0.0])
+    np.testing.assert_array_equal(z, [10.0, 20.0, 30.0])
+
+
+def test_filter_finite_xyz_drops_non_finite_triples():
+    x, y, z = filter_finite_xyz(
+        [0, np.nan, 1, 2, 3], [0, 0, np.inf, 1, 2], [10.0, 999.0, 999.0, 30.0, 40.0])
+    np.testing.assert_array_equal(x, [0.0, 2.0, 3.0])
+    np.testing.assert_array_equal(y, [0.0, 1.0, 2.0])
+    np.testing.assert_array_equal(z, [10.0, 30.0, 40.0])
+
+
+def test_filter_finite_xyz_empty_raises():
+    with pytest.raises(ValueError):
+        filter_finite_xyz([], [], [])
+
+
+def test_filter_finite_xyz_fewer_than_3_points_raises():
+    """matplotlib's Triangulation needs at least 3 points -- caught here
+    up front rather than surfacing as an uncaught error mid-render."""
+    with pytest.raises(ValueError):
+        filter_finite_xyz([0, 1], [0, 1], [10.0, 20.0])
+
+
+def test_filter_finite_xyz_exactly_3_points_is_ok():
+    x, y, z = filter_finite_xyz([0, 1, 2], [0, 1, 0], [10.0, 20.0, 30.0])
+    assert len(x) == 3
 
 
 # --- matplotlib API smoke tests: guard the exact calls the renderer makes ---

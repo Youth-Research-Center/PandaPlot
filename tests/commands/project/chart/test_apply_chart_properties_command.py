@@ -109,3 +109,18 @@ def test_redo_logs_a_warning_when_nothing_to_redo(app_context_with_chart, caplog
     with caplog.at_level(logging.WARNING):
         command.redo()
     assert chart.id in caplog.text
+
+
+def test_cleanup_releases_the_old_and_new_snapshots(app_context_with_chart):
+    app_context, chart = app_context_with_chart
+    baseline = snapshot_chart_state(chart)
+
+    command = ApplyChartPropertiesCommand(
+        app_context, chart.id, apply_fn=lambda c: None, old_snapshot=baseline)
+    command.execute()
+    assert command.old_snapshot is not None
+    assert command.new_snapshot is not None
+
+    command.cleanup()
+    assert command.old_snapshot is None
+    assert command.new_snapshot is None

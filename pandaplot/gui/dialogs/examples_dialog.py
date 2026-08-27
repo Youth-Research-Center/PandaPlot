@@ -66,7 +66,7 @@ class ExamplesDialog(PDialog):
         examples = discover_example_projects()
         if not examples:
             placeholder = QLabel("No example projects were found.")
-            placeholder.setProperty("secondary", True)
+            placeholder.setProperty("secondary", True)  # noqa: FBT003 - Qt method, no keyword args
             placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.list_layout.addWidget(placeholder)
         else:
@@ -107,7 +107,7 @@ class ExamplesDialog(PDialog):
 
         if example["description"]:
             desc_label = QLabel(example["description"])
-            desc_label.setProperty("secondary", True)
+            desc_label.setProperty("secondary", True)  # noqa: FBT003 - Qt method, no keyword args
             desc_label.setWordWrap(True)
             desc_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
             desc_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)

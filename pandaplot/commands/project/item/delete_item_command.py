@@ -13,7 +13,7 @@ class DeleteItemCommand(Command):
     This command works with any item type that extends the Item base class.
     """
 
-    def __init__(self, app_context: AppContext, item_id: str, confirm: bool = True):
+    def __init__(self, app_context: AppContext, item_id: str, *, confirm: bool = True):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -209,3 +209,12 @@ class DeleteItemCommand(Command):
             self.logger.error("DeleteItemCommand Redo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
+
+    @override
+    def cleanup(self) -> None:
+        """Release the deleted-item snapshot and parent reference held for
+        undo once this command is dropped from the stacks for good (see
+        Command.cleanup)."""
+        self.deleted_item_data = None
+        self.deleted_item_class = None
+        self.parent_item = None

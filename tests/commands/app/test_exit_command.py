@@ -316,5 +316,12 @@ class TestExitCommandDocumentation:
         assert "not applicable" in exit_command.redo.__doc__.lower()
 
 
+class TestExitCommandCleanup:
+    """Test ExitCommand.cleanup()."""
+
+    def test_cleanup_does_not_raise(self, exit_command):
+        exit_command.cleanup()  # must not raise
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

@@ -527,9 +527,9 @@ def _apply_axis_minor_grid(axes, config, prefix, grid_alpha=0.15):
     rendering.py's apply_background_colors helper)."""
     axis_letter = "x" if prefix == "x" else "y"
     if config.get(f"{prefix}_show_minor_grid", False):
-        axes.grid(True, axis=axis_letter, which="minor", alpha=grid_alpha)
+        axes.grid(visible=True, axis=axis_letter, which="minor", alpha=grid_alpha)
     else:
-        axes.grid(False, axis=axis_letter, which="minor")
+        axes.grid(visible=False, axis=axis_letter, which="minor")
 
 
 def test_show_minor_grid_defaults_to_false_for_all_axes():

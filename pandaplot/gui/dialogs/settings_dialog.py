@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
+    QDoubleSpinBox,
     QFrame,
     QGroupBox,
     QHBoxLayout,
@@ -32,9 +33,19 @@ from pandaplot.models.state.config import (
     MIN_CHART_HEIGHT_CM,
     MIN_CHART_WIDTH_CM,
     ApplicationConfig,
+    LengthUnit,
 )
 from pandaplot.services.config.config_manager import ConfigManager
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.length_units import (
+    from_cm,
+    quantize_cm,
+    to_cm,
+    unit_bounds,
+    unit_decimals,
+    unit_step,
+    unit_suffix,
+)
 
 THEME_DISPLAY = {
     "light": "Light",
@@ -42,6 +53,13 @@ THEME_DISPLAY = {
     "system": "Auto (System)"
 }
 THEME_REVERSE = {v: k for k, v in THEME_DISPLAY.items()}
+
+UNIT_DISPLAY = {
+    "cm": "Centimeters (cm)",
+    "mm": "Millimeters (mm)",
+    "in": "Inches (in)",
+}
+UNIT_REVERSE = {v: k for k, v in UNIT_DISPLAY.items()}
 
 
 class SettingsDialog(PDialog):
@@ -55,6 +73,14 @@ class SettingsDialog(PDialog):
         self.current_settings: Dict[str, Any] = {}
         self._config_manager = self.app_context.get_manager(ConfigManager)
         self._applying = False  # guard to prevent feedback loops
+        self._chart_size_unit = LengthUnit.CM
+        # Exact centimeter defaults as last loaded/saved -- kept separately
+        # from current_settings["chart_width"/"chart_height"], which is
+        # quantized to the display unit's precision (see load_current_settings)
+        # and would otherwise silently degrade these on every Apply, even
+        # when the user never touched the size fields.
+        self._chart_width_raw_cm = 20.0
+        self._chart_height_raw_cm = 15.0
 
         self._initialize()
         self.load_current_settings()
@@ -235,35 +261,77 @@ class SettingsDialog(PDialog):
         dpi_layout.addStretch()
         cd_layout.addLayout(dpi_layout)
         
+        # Measurement unit
+        unit_layout = QHBoxLayout()
+        unit_label = QLabel("Measurement unit:")
+        unit_label.setStyleSheet("color: #495057;")
+        unit_layout.addWidget(unit_label)
+        self.chart_unit_combo = QComboBox()
+        self.chart_unit_combo.addItems(list(UNIT_DISPLAY.values()))
+        self.chart_unit_combo.setToolTip("Unit used to display chart width/height")
+        self.chart_unit_combo.currentTextChanged.connect(self._on_chart_unit_combo_changed)
+        unit_layout.addWidget(self.chart_unit_combo)
+        unit_layout.addStretch()
+        cd_layout.addLayout(unit_layout)
+
         # Default chart size
         size_layout = QHBoxLayout()
         size_label = QLabel("Default size:")
         size_label.setStyleSheet("color: #495057;")
         size_layout.addWidget(size_label)
-        self.chart_width_spin = QSpinBox()
+        self.chart_width_spin = QDoubleSpinBox()
         self.chart_width_spin.setRange(MIN_CHART_WIDTH_CM, MAX_CHART_WIDTH_CM)
+        self.chart_width_spin.setDecimals(1)
         self.chart_width_spin.setValue(20)
         self.chart_width_spin.setSuffix(" cm")
-        self.chart_width_spin.setToolTip("Default chart width in centimeters")
+        self.chart_width_spin.setToolTip("Default chart width")
         size_layout.addWidget(self.chart_width_spin)
 
         multiply_label = QLabel("×")
         multiply_label.setStyleSheet("color: #495057;")
         size_layout.addWidget(multiply_label)
 
-        self.chart_height_spin = QSpinBox()
+        self.chart_height_spin = QDoubleSpinBox()
         self.chart_height_spin.setRange(MIN_CHART_HEIGHT_CM, MAX_CHART_HEIGHT_CM)
+        self.chart_height_spin.setDecimals(1)
         self.chart_height_spin.setValue(15)
         self.chart_height_spin.setSuffix(" cm")
-        self.chart_height_spin.setToolTip("Default chart height in centimeters")
+        self.chart_height_spin.setToolTip("Default chart height")
         size_layout.addWidget(self.chart_height_spin)
         size_layout.addStretch()
         cd_layout.addLayout(size_layout)
-        
+
         layout.addWidget(chart_group)
 
         layout.addStretch()
         self.tab_widget.addTab(tab, "General")
+
+    def _on_chart_unit_combo_changed(self, _text: str):
+        self._apply_chart_size_unit(UNIT_REVERSE.get(self.chart_unit_combo.currentText(), "cm"))
+
+    def _apply_chart_size_unit(self, unit_value: str):
+        """Reconfigure the default-size spin boxes for `unit_value`
+        ("cm"/"mm"/"in"), converting their currently-displayed value from
+        whatever unit they were previously showing so the underlying
+        centimeter quantity doesn't silently change."""
+        new_unit = LengthUnit(unit_value)
+        old_unit = self._chart_size_unit
+        width_cm = to_cm(self.chart_width_spin.value(), old_unit)
+        height_cm = to_cm(self.chart_height_spin.value(), old_unit)
+        self._chart_size_unit = new_unit
+
+        for spin, min_cm, max_cm in (
+            (self.chart_width_spin, MIN_CHART_WIDTH_CM, MAX_CHART_WIDTH_CM),
+            (self.chart_height_spin, MIN_CHART_HEIGHT_CM, MAX_CHART_HEIGHT_CM),
+        ):
+            lo, hi = unit_bounds(min_cm, max_cm, new_unit)
+            spin.setDecimals(unit_decimals(new_unit))
+            spin.setRange(lo, hi)
+            spin.setSingleStep(unit_step(new_unit))
+            spin.setSuffix(unit_suffix(new_unit))
+
+        self.chart_width_spin.setValue(from_cm(width_cm, new_unit))
+        self.chart_height_spin.setValue(from_cm(height_cm, new_unit))
 
     def create_appearance_tab(self):
         """Create the appearance settings tab with scroll area to avoid clipping."""
@@ -419,6 +487,15 @@ class SettingsDialog(PDialog):
         if cfg is None:
             cfg = ApplicationConfig.default()
 
+        display_cfg = getattr(cfg, "chart_display", None)
+        unit = getattr(display_cfg, "measurement_unit", LengthUnit.CM)
+        if not isinstance(unit, LengthUnit):
+            unit = LengthUnit.CM
+        raw_width = getattr(display_cfg, "default_width_cm", 20)
+        raw_height = getattr(display_cfg, "default_height_cm", 15)
+        self._chart_width_raw_cm = raw_width
+        self._chart_height_raw_cm = raw_height
+
         self.original_settings = {
             "auto_save": cfg.auto_save.enabled,
             "auto_save_interval": cfg.auto_save.interval_seconds,
@@ -429,9 +506,10 @@ class SettingsDialog(PDialog):
             "word_wrap": cfg.editor.word_wrap,
             "line_numbers": cfg.editor.line_numbers,
             "tab_size": cfg.editor.tab_size,
-            "chart_dpi": getattr(getattr(cfg, "chart_display", None), "dpi", 100),
-            "chart_width": getattr(getattr(cfg, "chart_display", None), "default_width_cm", 20),
-            "chart_height": getattr(getattr(cfg, "chart_display", None), "default_height_cm", 15),
+            "chart_dpi": getattr(display_cfg, "dpi", 100),
+            "chart_width": quantize_cm(raw_width, unit),
+            "chart_height": quantize_cm(raw_height, unit),
+            "measurement_unit": unit.value,
         }
         self.current_settings = self.original_settings.copy()
 
@@ -464,11 +542,17 @@ class SettingsDialog(PDialog):
         self.tab_size_spin.setValue(self.current_settings["tab_size"])
         if "chart_dpi" in self.current_settings:
             self.chart_dpi_spin.setValue(self.current_settings["chart_dpi"])
+        if "measurement_unit" in self.current_settings:
+            unit_value = self.current_settings["measurement_unit"]
+            self.chart_unit_combo.blockSignals(True)  # noqa: FBT003 - Qt method, no keyword args
+            self.chart_unit_combo.setCurrentText(UNIT_DISPLAY.get(unit_value, UNIT_DISPLAY["cm"]))
+            self.chart_unit_combo.blockSignals(False)  # noqa: FBT003 - Qt method, no keyword args
+            self._apply_chart_size_unit(unit_value)
         if "chart_width" in self.current_settings:
-            self.chart_width_spin.setValue(self.current_settings["chart_width"])
+            self.chart_width_spin.setValue(from_cm(self.current_settings["chart_width"], self._chart_size_unit))
         if "chart_height" in self.current_settings:
-            self.chart_height_spin.setValue(self.current_settings["chart_height"])
-        
+            self.chart_height_spin.setValue(from_cm(self.current_settings["chart_height"], self._chart_size_unit))
+
         # Update accent color button
         color = self.current_settings["accent_color"]
         self.accent_color_btn.setStyleSheet(f"background-color: {color}; border-radius: 4px;")
@@ -486,8 +570,9 @@ class SettingsDialog(PDialog):
             "line_numbers": self.line_numbers_check.isChecked(),
             "tab_size": self.tab_size_spin.value(),
             "chart_dpi": self.chart_dpi_spin.value(),
-            "chart_width": self.chart_width_spin.value(),
-            "chart_height": self.chart_height_spin.value()
+            "chart_width": to_cm(self.chart_width_spin.value(), self._chart_size_unit),
+            "chart_height": to_cm(self.chart_height_spin.value(), self._chart_size_unit),
+            "measurement_unit": UNIT_REVERSE.get(self.chart_unit_combo.currentText(), "cm"),
         }
     
     def choose_accent_color(self):
@@ -521,6 +606,23 @@ class SettingsDialog(PDialog):
         self._applying = True
         try:
             if self._config_manager:
+                # get_current_settings_from_ui() derives chart_width/height by
+                # converting the spin boxes' displayed (unit-rounded) value
+                # back to cm -- lossy for units like inches. When the user
+                # never actually touched the size fields, that round trip
+                # would otherwise silently degrade the stored centimeter
+                # defaults on every Apply. Detect "unchanged" by comparing at
+                # the display unit's own precision, and persist the exact
+                # last-known cm value in that case.
+                width_cm = self.current_settings.get("chart_width", 20)
+                height_cm = self.current_settings.get("chart_height", 15)
+                if quantize_cm(width_cm, self._chart_size_unit) == quantize_cm(
+                        self._chart_width_raw_cm, self._chart_size_unit):
+                    width_cm = self._chart_width_raw_cm
+                if quantize_cm(height_cm, self._chart_size_unit) == quantize_cm(
+                        self._chart_height_raw_cm, self._chart_size_unit):
+                    height_cm = self._chart_height_raw_cm
+
                 # Build mapping for config update
                 mapping = {
                     "auto_save": {
@@ -540,11 +642,14 @@ class SettingsDialog(PDialog):
                     },
                     "chart_display": {
                         "dpi": self.current_settings.get("chart_dpi", 100),
-                        "default_width_cm": self.current_settings.get("chart_width", 20),
-                        "default_height_cm": self.current_settings.get("chart_height", 15),
+                        "default_width_cm": width_cm,
+                        "default_height_cm": height_cm,
+                        "measurement_unit": self.current_settings.get("measurement_unit", "cm"),
                     }
                 }
                 self._config_manager.update(mapping, save=True)
+                self._chart_width_raw_cm = width_cm
+                self._chart_height_raw_cm = height_cm
             self.settings_changed.emit(self.current_settings)
         finally:
             self._applying = False

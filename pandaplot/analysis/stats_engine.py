@@ -98,6 +98,7 @@ class StatsEngine:
         alpha: float = 0.05,
         alternative: str = "two-sided",
         popmean: float = 0.0,
+        *,
         equal_var: bool = True,
     ) -> StatTestResult:
         """
@@ -149,7 +150,7 @@ class StatsEngine:
 
         sample = _clean(columns[0])
         name = str(columns[0].name)
-        StatsEngine._require(len(sample) >= 2, "at least 2 valid observations")
+        StatsEngine._require(condition=len(sample) >= 2, requirement="at least 2 valid observations")
 
         res = stats.ttest_1samp(sample, popmean=popmean, alternative=alternative)
         stat, p = float(res.statistic), float(res.pvalue)
@@ -183,7 +184,7 @@ class StatsEngine:
 
         a, b = _clean(columns[0]), _clean(columns[1])
         na, nb = str(columns[0].name), str(columns[1].name)
-        StatsEngine._require(len(a) >= 2 and len(b) >= 2, "at least 2 valid observations per group")
+        StatsEngine._require(condition=len(a) >= 2 and len(b) >= 2, requirement="at least 2 valid observations per group")
 
         res = stats.ttest_ind(a, b, equal_var=equal_var, alternative=alternative)
         stat, p = float(res.statistic), float(res.pvalue)
@@ -218,7 +219,7 @@ class StatsEngine:
 
         a, b = _clean_pair(columns[0], columns[1])
         na, nb = str(columns[0].name), str(columns[1].name)
-        StatsEngine._require(len(a) >= 2, "at least 2 complete pairs")
+        StatsEngine._require(condition=len(a) >= 2, requirement="at least 2 complete pairs")
 
         res = stats.ttest_rel(a, b, alternative=alternative)
         stat, p = float(res.statistic), float(res.pvalue)
@@ -251,7 +252,7 @@ class StatsEngine:
 
         a, b = _clean(columns[0]), _clean(columns[1])
         na, nb = str(columns[0].name), str(columns[1].name)
-        StatsEngine._require(len(a) >= 1 and len(b) >= 1, "at least 1 valid observation per group")
+        StatsEngine._require(condition=len(a) >= 1 and len(b) >= 1, requirement="at least 1 valid observation per group")
 
         res = stats.mannwhitneyu(a, b, alternative=alternative)
         stat, p = float(res.statistic), float(res.pvalue)
@@ -284,7 +285,7 @@ class StatsEngine:
 
         a, b = _clean_pair(columns[0], columns[1])
         na, nb = str(columns[0].name), str(columns[1].name)
-        StatsEngine._require(len(a) >= 1, "at least 1 complete pair")
+        StatsEngine._require(condition=len(a) >= 1, requirement="at least 1 complete pair")
 
         res = stats.wilcoxon(a, b, alternative=alternative)
         stat, p = float(res.statistic), float(res.pvalue)
@@ -312,8 +313,8 @@ class StatsEngine:
 
         groups = [_clean(c) for c in columns]
         names = [str(c.name) for c in columns]
-        StatsEngine._require(len(groups) >= 2, "at least 2 groups")
-        StatsEngine._require(all(len(g) >= 2 for g in groups), "at least 2 valid observations per group")
+        StatsEngine._require(condition=len(groups) >= 2, requirement="at least 2 groups")
+        StatsEngine._require(condition=all(len(g) >= 2 for g in groups), requirement="at least 2 valid observations per group")
 
         res = stats.f_oneway(*groups)
         stat, p = float(res.statistic), float(res.pvalue)
@@ -349,8 +350,8 @@ class StatsEngine:
 
         groups = [_clean(c) for c in columns]
         names = [str(c.name) for c in columns]
-        StatsEngine._require(len(groups) >= 2, "at least 2 groups")
-        StatsEngine._require(all(len(g) >= 1 for g in groups), "at least 1 valid observation per group")
+        StatsEngine._require(condition=len(groups) >= 2, requirement="at least 2 groups")
+        StatsEngine._require(condition=all(len(g) >= 1 for g in groups), requirement="at least 1 valid observation per group")
 
         res = stats.kruskal(*groups)
         stat, p = float(res.statistic), float(res.pvalue)
@@ -377,7 +378,7 @@ class StatsEngine:
 
         a, b = _clean_pair(columns[0], columns[1])
         na, nb = str(columns[0].name), str(columns[1].name)
-        StatsEngine._require(len(a) >= 3, "at least 3 complete pairs")
+        StatsEngine._require(condition=len(a) >= 3, requirement="at least 3 complete pairs")
 
         res = stats.pearsonr(a, b, alternative=alternative)
         r, p = float(res.statistic), float(res.pvalue)
@@ -406,7 +407,7 @@ class StatsEngine:
 
         a, b = _clean_pair(columns[0], columns[1])
         na, nb = str(columns[0].name), str(columns[1].name)
-        StatsEngine._require(len(a) >= 3, "at least 3 complete pairs")
+        StatsEngine._require(condition=len(a) >= 3, requirement="at least 3 complete pairs")
 
         res = stats.spearmanr(a, b, alternative=alternative)
         rho, p = float(res.statistic), float(res.pvalue)
@@ -434,7 +435,7 @@ class StatsEngine:
 
         sample = _clean(columns[0])
         name = str(columns[0].name)
-        StatsEngine._require(len(sample) >= 3, "at least 3 valid observations")
+        StatsEngine._require(condition=len(sample) >= 3, requirement="at least 3 valid observations")
 
         res = stats.shapiro(sample)
         stat, p = float(res.statistic), float(res.pvalue)
@@ -471,7 +472,7 @@ class StatsEngine:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _require(condition: bool, requirement: str) -> None:
+    def _require(*, condition: bool, requirement: str) -> None:
         if not condition:
             raise ValueError(f"This test requires {requirement}.")
 

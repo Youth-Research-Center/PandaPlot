@@ -100,4 +100,11 @@ class EditCommand(Command):
                     start_index=(self.index[0], self.index[1]),
                     end_index=(self.index[0], self.index[1])
                 ).to_dict())
-        
+
+    @override
+    def cleanup(self) -> None:
+        """Release the live Dataset/project references held for undo once
+        this command is dropped from the stacks for good (see
+        Command.cleanup)."""
+        self.dataset = None
+        self.project = None

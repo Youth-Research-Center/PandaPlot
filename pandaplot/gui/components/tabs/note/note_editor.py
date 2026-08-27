@@ -215,19 +215,19 @@ class NoteEditorWidget(PWidget):
             self.text_edit.setParent(self.edit_container)
             self.edit_layout.addWidget(self.text_edit)
             self.stack.setCurrentIndex(0)
-            self._changePreviewConnection(False)
+            self._changePreviewConnection(shouldBeConnected=False)
 
         elif mode == "preview":
             self.preview.setParent(self.preview_container)
             self.preview_layout.addWidget(self.preview)
             self.update_preview()
             self.stack.setCurrentIndex(1)
-            self._changePreviewConnection(False)
+            self._changePreviewConnection(shouldBeConnected=False)
 
         elif mode == "split":
             self.text_edit.setParent(self.splitter)
             self.preview.setParent(self.splitter)
-            self._changePreviewConnection(True)
+            self._changePreviewConnection(shouldBeConnected=True)
             self.update_preview()
             self.stack.setCurrentIndex(2)
             # Align the freshly rendered preview to where the editor is scrolled.
@@ -236,7 +236,7 @@ class NoteEditorWidget(PWidget):
                 QTimer.singleShot(
                     0, lambda: self._sync_scroll(self.text_edit, self.preview))
 
-    def _changePreviewConnection(self, shouldBeConnected: bool):
+    def _changePreviewConnection(self, *, shouldBeConnected: bool):
         """Change the connection state of the preview."""
         self.logger.debug(
             f"Changing preview connection from {self.preview_connected} to {shouldBeConnected}")
@@ -346,7 +346,7 @@ class NoteEditorWidget(PWidget):
         self.scroll_sync_action.toggled.connect(self._on_scroll_sync_toggled)
         toolbar.addAction(self.scroll_sync_action)
 
-    def _on_scroll_sync_toggled(self, enabled: bool):
+    def _on_scroll_sync_toggled(self, enabled: bool):  # noqa: FBT001 - Qt-invoked callback (signal.connect)
         """Enable/disable split-view scroll syncing and align immediately."""
         self.scroll_sync_enabled = enabled
         if enabled and self.stack.currentIndex() == 2:
@@ -542,10 +542,10 @@ class NoteEditorWidget(PWidget):
             return
         new_content = event_data.get("new_content")
         if new_content is not None and self.text_edit.toPlainText() != new_content:
-            self.text_edit.blockSignals(True)
+            self.text_edit.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
             self.text_edit.setPlainText(new_content)
             self.update_preview()
-            self.text_edit.blockSignals(False)
+            self.text_edit.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
             self.update_statistics()
             self.is_modified = False
             self.update_status("Synced ✓")

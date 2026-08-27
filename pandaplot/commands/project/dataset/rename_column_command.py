@@ -202,3 +202,9 @@ class RenameColumnCommand(Command):
         """Re-apply the rename and reference cascade."""
         if self._applied and self.old_name is not None:
             self._apply_rename(self.old_name, self.new_name)
+
+    @override
+    def cleanup(self) -> None:
+        """Release the live Dataset reference held for undo once this
+        command is dropped from the stacks for good (see Command.cleanup)."""
+        self.dataset = None

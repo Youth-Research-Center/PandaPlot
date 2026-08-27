@@ -89,3 +89,11 @@ class TestMoveItemCommandLogging:
             command.execute()
 
         assert "missing-item" in caplog.text
+
+    def test_cleanup_does_not_raise(self, mock_app_context):
+        app_context, app_state, ui_controller = mock_app_context
+
+        command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
+        command.move_performed = True
+
+        command.cleanup()

@@ -138,7 +138,7 @@ def test_legend_and_grid_default_on():
 def test_legend_and_grid_toggles_are_independent():
     page = ChartLabelsPage(app_context=_fake_app_context())
 
-    page.show_legend_toggle.setChecked(False)
+    page.show_legend_toggle.setChecked(checked=False)
 
     assert page.get_show_legend() is False
     assert page.get_show_grid() is True

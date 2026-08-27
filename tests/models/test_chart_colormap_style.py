@@ -1,5 +1,5 @@
-from pandaplot.models.chart.series_style import ColormapSeriesStyle, HeatmapSeriesStyle
 from pandaplot.models.chart.marker_style import MarkerStyle
+from pandaplot.models.chart.series_style import ColormapSeriesStyle, HeatmapSeriesStyle
 
 
 def test_colormap_series_style_defaults():
@@ -20,6 +20,10 @@ def test_heatmap_series_style_defaults():
     assert style.z_column_id == ""
     assert style.heatmap_gridding == "grid"
     assert style.heatmap_resolution == 50
+    assert style.render_mode == "mesh"
+    assert style.contour_levels == 10
+    assert style.contour_line_labels is False
+    assert style.contour_line_width == 1.5
     assert not hasattr(style, "colormap")
     assert not hasattr(style, "colorbar_show")
     assert not hasattr(style, "colorbar_label")

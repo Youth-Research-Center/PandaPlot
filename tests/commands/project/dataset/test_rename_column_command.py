@@ -221,3 +221,14 @@ def test_events_emitted_for_a_vector_series_referencing_the_column_by_u_v_or_mag
 
     updated = _chart_updated_calls(app_context)
     assert vector_chart.id in {call.args[1]["chart_id"] for call in updated}
+
+
+def test_cleanup_releases_the_dataset_reference(env):
+    app_context, dataset, _, _ = env
+    command = RenameColumnCommand(app_context, dataset.id, 0, "time")
+    command.execute()
+    assert command.dataset is not None
+
+    command.cleanup()
+
+    assert command.dataset is None

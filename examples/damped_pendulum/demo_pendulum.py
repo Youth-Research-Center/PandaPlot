@@ -44,7 +44,7 @@ def demo_pendulum():
     plt.title("Pendulum Angle vs Time")
     plt.xlabel("Time (s)")
     plt.ylabel("Angle (degrees)")
-    plt.grid(True)
+    plt.grid(visible=True)
     
     # Plot 2: Phase portrait
     plt.subplot(2, 2, 2)
@@ -52,7 +52,7 @@ def demo_pendulum():
     plt.title("Phase Portrait")
     plt.xlabel("Angle (rad)")
     plt.ylabel("Angular Velocity (rad/s)")
-    plt.grid(True)
+    plt.grid(visible=True)
     
     # Plot 3: Energy
     plt.subplot(2, 2, 3)
@@ -63,7 +63,7 @@ def demo_pendulum():
     plt.xlabel("Time (s)")
     plt.ylabel("Energy (J)")
     plt.legend()
-    plt.grid(True)
+    plt.grid(visible=True)
     
     # Plot 4: Trajectory
     plt.subplot(2, 2, 4)
@@ -72,7 +72,7 @@ def demo_pendulum():
     plt.xlabel("X Position (m)")
     plt.ylabel("Y Position (m)")
     plt.axis("equal")
-    plt.grid(True)
+    plt.grid(visible=True)
     
     plt.tight_layout()
     

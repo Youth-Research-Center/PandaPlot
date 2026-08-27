@@ -136,7 +136,7 @@ def test_new_cards_start_expanded():
 def test_second_added_card_also_starts_expanded_first_card_untouched():
     page = _make_page()
     page.cards[0].y_column_combo.setCurrentIndex(page.cards[0].y_column_combo.findData("col-rev"))
-    page.cards[0].set_collapsed(True)
+    page.cards[0].set_collapsed(collapsed=True)
 
     page.add_series_button.click()
 
@@ -166,7 +166,7 @@ def test_two_collapsed_cards_show_different_swatch_colors():
     page.add_series_button.click()
     for card in page.cards:
         card.set_tokens({"series_palette": ["#111111", "#222222", "#333333"]})
-        card.set_collapsed(True)
+        card.set_collapsed(collapsed=True)
 
     colors = [card._swatch.styleSheet() for card in page.cards]
 
@@ -185,7 +185,7 @@ def test_removing_a_card_reindexes_remaining_cards_swatch_colors():
 
     remaining = page.cards
     for card in remaining:
-        card.set_collapsed(True)
+        card.set_collapsed(collapsed=True)
     # After removal, remaining cards should be re-indexed 0, 1 (not 1, 2).
     assert remaining[0]._index == 0
     assert remaining[1]._index == 1

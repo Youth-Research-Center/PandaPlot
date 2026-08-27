@@ -80,7 +80,7 @@ class AboutDialog(PDialog):
         self.info_value_labels = []
         for row, (label_text, value_text) in enumerate(environment_rows):
             key_label = QLabel(f"{label_text}:")
-            key_label.setProperty("secondary", True)
+            key_label.setProperty("secondary", True)  # noqa: FBT003 - Qt method, no keyword args
             value_label = QLabel(value_text)
             info_layout.addWidget(key_label, row, 0)
             info_layout.addWidget(value_label, row, 1)

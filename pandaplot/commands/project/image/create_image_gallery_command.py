@@ -153,3 +153,10 @@ class CreateImageGalleryCommand(Command):
             self.logger.error("CreateImageGalleryCommand Redo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return False
+
+    @override
+    def cleanup(self) -> None:
+        """Release the cached project reference held during creation once
+        this command is dropped from the stacks for good (see
+        Command.cleanup)."""
+        self.project = None

@@ -246,6 +246,35 @@ class TestChartSeriesTypeAndStyleRoundTrip:
         assert restored_style.heatmap_gridding == "binned"
         assert restored_style.heatmap_resolution == 64
 
+    def test_heatmap_contour_fields_round_trip_through_to_dict_from_dict(self):
+        """Regression (#191): render_mode/contour_levels/contour_line_labels/
+        contour_line_width must survive a save/load cycle, same as the
+        pre-existing gridding fields."""
+        chart = Chart(name="C", chart_type="heatmap")
+        chart.data_series.append(DataSeries(
+            dataset_id="ds1", x_column_id="x-id", y_column_id="y-id",
+            series_type=SeriesType.HEATMAP,
+            style=HeatmapSeriesStyle(
+                z_column_id="z-id",
+                heatmap_gridding="triangulated",
+                render_mode="contour_filled_lines",
+                contour_levels=15,
+                contour_line_labels=True,
+                contour_line_width=3.0,
+            ),
+        ))
+
+        data = chart.to_dict()
+        restored = Chart.from_dict(data)
+
+        restored_style = restored.data_series[0].style
+        assert isinstance(restored_style, HeatmapSeriesStyle)
+        assert restored_style.heatmap_gridding == "triangulated"
+        assert restored_style.render_mode == "contour_filled_lines"
+        assert restored_style.contour_levels == 15
+        assert restored_style.contour_line_labels is True
+        assert restored_style.contour_line_width == 3.0
+
     def test_colormap_series_round_trips_through_to_dict_from_dict(self):
         chart = Chart(name="C", chart_type="colormap")
         chart.data_series.append(DataSeries(

@@ -179,3 +179,10 @@ class DeleteRowsCommand(Command):
         """Redo the delete rows command."""
         # Re-execute with stored parameters
         return self.execute()
+
+    @override
+    def cleanup(self) -> None:
+        """Release the undo snapshots held for undo once this command is
+        dropped from the stacks for good (see Command.cleanup)."""
+        self.original_data = None
+        self.deleted_rows_data = None

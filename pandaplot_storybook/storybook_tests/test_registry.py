@@ -6,7 +6,7 @@ from pandaplot_storybook.registry import BoolControl, StoryDef, all_story_names,
 def test_story_registers_and_is_retrievable():
     @story("__TestWidget__")
     def _build() -> StoryDef:
-        return StoryDef(controls=[BoolControl("flag", True)], make_widget=lambda values, tokens: None)
+        return StoryDef(controls=[BoolControl("flag", default=True)], make_widget=lambda values, tokens: None)
 
     assert "__TestWidget__" in all_story_names()
     story_def = get_story("__TestWidget__")

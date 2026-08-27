@@ -224,6 +224,35 @@ class TestProjectQueries:
         assert item3 not in root_items  # item3 is in collection1
 
 
+class TestGetFolderPath:
+    """Test Project.get_folder_path -- the parent_id-chain walk used to
+    disambiguate same-named datasets in selection UIs (issue #114)."""
+
+    def test_unknown_item_returns_empty(self, sample_project):
+        assert sample_project.get_folder_path("does-not-exist") == []
+
+    def test_root_level_item_returns_empty(self, sample_project):
+        item = Item(name="Top Level")
+        sample_project.add_item(item)
+        assert sample_project.get_folder_path(item.id) == []
+
+    def test_single_folder_returns_its_name(self, sample_project):
+        folder = ItemCollection(name="Runs")
+        item = Item(name="Reading")
+        sample_project.add_item(folder)
+        sample_project.add_item(item, folder.id)
+        assert sample_project.get_folder_path(item.id) == ["Runs"]
+
+    def test_nested_folders_return_top_level_first(self, sample_project):
+        outer = ItemCollection(name="Runs")
+        inner = ItemCollection(name="Trial 2")
+        item = Item(name="Reading")
+        sample_project.add_item(outer)
+        sample_project.add_item(inner, outer.id)
+        sample_project.add_item(item, inner.id)
+        assert sample_project.get_folder_path(item.id) == ["Runs", "Trial 2"]
+
+
 class TestSerialization:
     """Test project serialization and deserialization."""
     

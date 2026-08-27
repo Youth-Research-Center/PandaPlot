@@ -23,7 +23,7 @@ from pandaplot.models.chart.series_style import ColormapSeriesStyle
 
 
 def render_colormap_series(axes, series_data: SeriesData, style: ColormapSeriesStyle,
-                            label: str, alpha: float, visible: bool, extra: dict):
+                            label: str, alpha: float, *, visible: bool, extra: dict):
     try:
         z_data = np.asarray(series_data.z_data, dtype=float)
     except (ValueError, TypeError):

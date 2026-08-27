@@ -12,12 +12,13 @@ class TabHeaderContextMenu(QMenu):
         tab_index: int,
         tab_count: int,
         tab_close_requested: SignalInstance,
-        can_split: bool,
-        can_merge: bool,
         split_requested: SignalInstance,
         move_to_other_pane_requested: SignalInstance,
         close_split_requested: SignalInstance,
         tab_popout_requested: SignalInstance,
+        *,
+        can_split: bool,
+        can_merge: bool,
     ):
         super().__init__(parent)
         self.tab_close_requested = tab_close_requested
@@ -113,12 +114,12 @@ class CustomTabBar(QTabBar):
                 tab_index,
                 self._get_tab_count(),
                 self.tab_close_requested,
-                self.can_split,
-                self.can_merge,
                 self.split_requested,
                 self.move_to_other_pane_requested,
                 self.close_split_requested,
                 self.tab_popout_requested,
+                can_split=self.can_split,
+                can_merge=self.can_merge,
             )
             menu.exec(self.mapToGlobal(position))
 

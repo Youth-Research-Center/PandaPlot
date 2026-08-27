@@ -91,8 +91,8 @@ class ChartTypePage(PWizardPage):
         self.empty_button = self.footer.empty_link
         outer.addWidget(self.footer)
 
-        self.completeChanged.connect(lambda: self.footer.set_next_enabled(self.isComplete()))
-        self.footer.set_next_enabled(self.isComplete())
+        self.completeChanged.connect(lambda: self.footer.set_next_enabled(enabled=self.isComplete()))
+        self.footer.set_next_enabled(enabled=self.isComplete())
 
         self.type_list.setCurrentRow(0)
 
@@ -169,3 +169,10 @@ class ChartTypePage(PWizardPage):
 
     def isComplete(self) -> bool:
         return self.selected_chart_type() is not None
+
+    def nextId(self) -> int:
+        wizard = self.wizard()
+        no_dataset_page_id = getattr(wizard, "_no_dataset_page_id", None)
+        if no_dataset_page_id is not None and getattr(wizard, "_no_dataset_mode", False):
+            return no_dataset_page_id
+        return super().nextId()

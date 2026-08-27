@@ -118,3 +118,23 @@ def test_undo_logs_a_warning_when_nothing_to_undo(app_context_with_chart, caplog
     with caplog.at_level(logging.WARNING):
         command.undo()
     assert chart.id in caplog.text
+
+
+def test_cleanup_releases_the_removed_series_data_snapshot(app_context_with_chart):
+    app_context, chart = app_context_with_chart
+    chart.data_series.append(
+        DataSeries(
+            dataset_id="ds1",
+            x_column="x",
+            y_column="y",
+            series_type=SeriesType.LINE,
+            style=LineSeriesStyle(),
+        )
+    )
+
+    command = RemoveSeriesCommand(app_context, chart_id=chart.id, series_index=0)
+    command.execute()
+    assert command.removed_series_data is not None
+
+    command.cleanup()
+    assert command.removed_series_data is None

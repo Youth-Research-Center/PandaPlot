@@ -213,7 +213,7 @@ def read_dataframe(file_path: str, options: ImportOptions, nrows: Optional[int] 
     else:
         raise UnsupportedFileError(f"Unsupported file format '{options.file_format}'")
 
-    return _finalize_columns(df, options.has_header)
+    return _finalize_columns(df, has_header=options.has_header)
 
 
 def _read_csv(file_path: str, options: ImportOptions, nrows: Optional[int]) -> pd.DataFrame:
@@ -271,7 +271,7 @@ def _read_json(file_path: str, options: ImportOptions, nrows: Optional[int]) -> 
     return df
 
 
-def _finalize_columns(df: pd.DataFrame, has_header: bool) -> pd.DataFrame:
+def _finalize_columns(df: pd.DataFrame, *, has_header: bool) -> pd.DataFrame:
     """
     Give headerless data friendly ``Column 1..N`` names instead of the integer
     positions pandas assigns, so the imported dataset is readable.

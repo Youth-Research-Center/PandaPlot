@@ -47,10 +47,10 @@ def test_disabling_markers_hides_the_option_rows():
     style_tab.set_chart_type(ChartType.LINE)
     style_tab.set_selected("series", _line_series())
 
-    style_tab.markers_enabled_toggle.setChecked(True)
+    style_tab.markers_enabled_toggle.setChecked(checked=True)
     assert style_tab.marker_shape_control.isVisible() is True
 
-    style_tab.markers_enabled_toggle.setChecked(False)
+    style_tab.markers_enabled_toggle.setChecked(checked=False)
 
     assert style_tab.marker_shape_control.isVisible() is False
     assert style_tab.marker_size_slider.isVisible() is False
@@ -68,11 +68,11 @@ def test_disabling_fill_hides_the_option_rows():
     style_tab.set_chart_type(ChartType.LINE)
     style_tab.set_selected("series", _line_series())
 
-    style_tab.fill_enabled_toggle.setChecked(True)
+    style_tab.fill_enabled_toggle.setChecked(checked=True)
     assert style_tab.fill_horizontal_toggle.isVisible() is True
     assert style_tab.fill_opacity_label.isVisible() is True
 
-    style_tab.fill_enabled_toggle.setChecked(False)
+    style_tab.fill_enabled_toggle.setChecked(checked=False)
 
     assert style_tab.fill_horizontal_toggle.isVisible() is False
     assert style_tab.fill_to_control.isVisible() is False
@@ -95,7 +95,7 @@ def test_disabling_confidence_band_hides_the_option_rows():
 
     assert style_tab.band_color_row.isVisible() is True
 
-    style_tab.band_enabled_toggle.setChecked(False)
+    style_tab.band_enabled_toggle.setChecked(checked=False)
 
     assert style_tab.band_color_row.isVisible() is False
     assert style_tab.band_match_line_toggle.isVisible() is False

@@ -188,14 +188,14 @@ class SearchPanel(SidebarPanel):
 
     def _make_toggle(self, text: str, tooltip: str) -> QPushButton:
         btn = QPushButton(text)
-        btn.setProperty("chip", True)
+        btn.setProperty("chip", True)  # noqa: FBT003 - Qt method rejects keyword args
         btn.setCheckable(True)
         btn.setToolTip(tooltip)
-        btn.toggled.connect(lambda checked, b=btn: self._sync_chip_selected(b, checked))
+        btn.toggled.connect(lambda checked, b=btn: self._sync_chip_selected(b, checked=checked))
         return btn
 
     @staticmethod
-    def _sync_chip_selected(button: QPushButton, checked: bool) -> None:
+    def _sync_chip_selected(button: QPushButton, *, checked: bool) -> None:
         button.setProperty("selected", checked)
         button.style().unpolish(button)
         button.style().polish(button)

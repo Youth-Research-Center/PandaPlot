@@ -5,7 +5,7 @@ from pandaplot_storybook.registry import BoolControl, ChoiceControl, TextControl
 
 
 def test_values_reflect_defaults(qtbot):
-    panel = ControlsPanel([TextControl("text", "hi"), BoolControl("enabled", True)])
+    panel = ControlsPanel([TextControl("text", "hi"), BoolControl("enabled", default=True)])
     qtbot.addWidget(panel)
     assert panel.values() == {"text": "hi", "enabled": True}
 

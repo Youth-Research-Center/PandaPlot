@@ -12,7 +12,7 @@ from pandaplot.commands.project.dataset.descriptive_stats_command import Descrip
 from pandaplot.models.state import AppContext, AppState
 
 
-def _make_app_context(has_project=True, current_project=None):
+def _make_app_context(*, has_project=True, current_project=None):
     app_context = Mock(spec=AppContext)
     app_state = Mock(spec=AppState)
     app_state.has_project = has_project
@@ -52,3 +52,17 @@ def test_execute_surfaces_compute_failure_to_the_user():
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
     _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
     assert "not available" in message
+
+
+def test_cleanup_releases_the_result_ids_and_result_snapshot():
+    app_context, _ = _make_app_context(has_project=True, current_project=Mock())
+    command = DescriptiveStatsCommand(app_context, "ds-1", ["A"])
+    command.result_dataset_id = "result-1"
+    command.report_note_id = "note-1"
+    command.result = Mock()
+
+    command.cleanup()
+
+    assert command.result_dataset_id is None
+    assert command.report_note_id is None
+    assert command.result is None

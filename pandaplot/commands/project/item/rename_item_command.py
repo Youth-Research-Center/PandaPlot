@@ -119,3 +119,9 @@ class RenameItemCommand(Command):
     def redo(self):
         """Redo the rename item command."""
         self.execute()
+
+    @override
+    def cleanup(self) -> None:
+        """Release the pre-rename name snapshot held for undo once this
+        command is dropped from the stacks for good (see Command.cleanup)."""
+        self.old_name = None
