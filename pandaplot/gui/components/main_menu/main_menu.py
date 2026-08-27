@@ -182,23 +182,33 @@ class MainMenu(PMenuBar):
     def _create_edit_menu(self) -> QMenu:
         edit_menu = QMenu("Edit", self)
 
-        # TODO(#206): disable undo/redo when there are no actions to undo/redo
-        # self.undo_button.setEnabled(False)  # start disabled
-        # we need to listen to app event based on command executor
-        undo_action = QAction("Undo", self)
-        undo_action.setShortcut(QKeySequence.StandardKey.Undo)
-        undo_action.triggered.connect(
+        # Enabled state kept in sync with CommandExecutor's stacks via
+        # AppEvents.HISTORY_CHANGED (see setup_event_subscriptions /
+        # _update_undo_redo_actions) rather than re-checked lazily on
+        # menu-open, so the keyboard shortcuts stay correctly enabled too.
+        self.undo_action = QAction("Undo", self)
+        self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
+        self.undo_action.triggered.connect(
             lambda: self.app_context.get_command_executor().undo())
-        edit_menu.addAction(undo_action)
+        edit_menu.addAction(self.undo_action)
 
-        
-
-        redo_action = QAction("Redo", self)
-        redo_action.triggered.connect(
+        self.redo_action = QAction("Redo", self)
+        self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
+        self.redo_action.triggered.connect(
             lambda: self.app_context.get_command_executor().redo())
-        redo_action.setShortcut(QKeySequence.StandardKey.Redo)
-        edit_menu.addAction(redo_action)
+        edit_menu.addAction(self.redo_action)
+
+        self._update_undo_redo_actions()
         return edit_menu
+
+    def _update_undo_redo_actions(self, _event_data: dict | None = None):
+        """Sync the Undo/Redo actions' enabled state with CommandExecutor's
+        stacks. Disabling a QAction also disables its keyboard shortcut, so
+        e.g. Cmd+Z stops doing anything once the undo stack is empty rather
+        than silently no-op'ing via CommandExecutor.undo()'s own guard."""
+        command_executor = self.app_context.get_command_executor()
+        self.undo_action.setEnabled(command_executor.can_undo())
+        self.redo_action.setEnabled(command_executor.can_redo())
 
     def _create_data_menu(self) -> QMenu:
         data_menu = QMenu("Data", self)
@@ -287,11 +297,13 @@ class MainMenu(PMenuBar):
     @override
     def setup_event_subscriptions(self):
         from pandaplot.models.events import ProjectEvents, UIEvents
+        from pandaplot.models.events.event_types import AppEvents
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, lambda _data: self._update_dataset_dependent_actions())
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, lambda _data: self._update_dataset_dependent_actions())
         self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, lambda _data: self._update_dataset_dependent_actions())
         self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, lambda _data: self._update_dataset_dependent_actions())
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
+        self.subscribe_to_event(AppEvents.HISTORY_CHANGED, self._update_undo_redo_actions)
 
     def show_settings_dialog(self):
         """Show the settings dialog."""

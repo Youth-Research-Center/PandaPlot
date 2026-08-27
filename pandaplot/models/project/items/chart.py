@@ -249,7 +249,12 @@ class Chart(Item):
             # docs/superpowers/specs/2026-08-21-shared-chart-level-color-map-design.md.
             "colormap": "viridis",
             "colorbar_show": True,
-            "colorbar_label": "",
+            # None means "not customized" -- the colorbar falls back to the
+            # Z column's own name (see chart_editor.py). Only becomes a
+            # string once the user actually types into the Colorbar label
+            # field; from then on even "" is respected literally (no label),
+            # rather than falling back again.
+            "colorbar_label": None,
             "color_scale_auto": True,
             "color_vmin": 0.0,
             "color_vmax": 1.0,
@@ -372,7 +377,24 @@ class Chart(Item):
             self.update_modified_time()
             return True
         return False
-    
+
+    def move_data_series(self, from_index: int, to_index: int) -> bool:
+        """Move the data series at `from_index` to `to_index`, shifting the
+        others to make room.
+
+        Series later in `data_series` draw on top of earlier ones -- the
+        chart editor's render loop plots them in list order, and matplotlib
+        draws each artist over whatever it already added -- so this list
+        order *is* the z-index, and moving an entry here is how a series is
+        brought to front/back relative to the others (#189).
+        """
+        if not (0 <= from_index < len(self.data_series)) or not (0 <= to_index < len(self.data_series)):
+            return False
+        series = self.data_series.pop(from_index)
+        self.data_series.insert(to_index, series)
+        self.update_modified_time()
+        return True
+
     def update_data_series(self, index: int, **kwargs) -> bool:
         """Update a data series by index."""
         if 0 <= index < len(self.data_series):

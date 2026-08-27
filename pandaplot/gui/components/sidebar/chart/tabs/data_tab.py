@@ -22,6 +22,7 @@ from pandaplot.commands.project.chart import (
     AddSeriesCommand,
     RemoveFitDataCommand,
     RemoveSeriesCommand,
+    ReorderSeriesCommand,
 )
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.p_button import PButton
@@ -361,6 +362,36 @@ class DataTab(QWidget):
         button.setToolTip("Remove")
         return button
 
+    def _build_move_up_button(self, index: int) -> QPushButton:
+        """Move this series one position earlier in the plotting order --
+        i.e. it now draws *under* the series that used to be right before
+        it (#189). Series-only (fit data has no reorder controls: fits
+        always draw after every series regardless of list position -- see
+        chart_editor.py's separate, always-later fit-plotting loop)."""
+        button = PButton(
+            "▲", role="secondary", icon=True,  # ▲
+            on_click=lambda _checked=False, i=index: self._move_series(i, i - 1)
+        )
+        button.setAccessibleName("Move series up")
+        button.setFixedWidth(24)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setToolTip("Move up (draw earlier, further back)")
+        button.setEnabled(index > 0)
+        return button
+
+    def _build_move_down_button(self, index: int, total_series: int) -> QPushButton:
+        """Move this series one position later in the plotting order --
+        drawn *over* the series that used to be right after it (#189)."""
+        button = PButton(
+            "▼", role="secondary", icon=True,  # ▼
+            on_click=lambda _checked=False, i=index: self._move_series(i, i + 1)
+        )
+        button.setFixedWidth(24)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setToolTip("Move down (draw later, further to front)")
+        button.setEnabled(index < total_series - 1)
+        return button
+
     def _build_chevron_button(self, index: int, *, expanded: bool) -> QPushButton:
         """Accordion toggle: purely visual expand/collapse, independent of
         selection (see `_toggle_card_expanded`)."""
@@ -397,6 +428,9 @@ class DataTab(QWidget):
         row.addWidget(name_label, 1)
 
         row.addWidget(self._build_y_axis_badge(series.y_axis, tokens))
+        total_series = len(self.current_chart.data_series)
+        row.addWidget(self._build_move_up_button(index))
+        row.addWidget(self._build_move_down_button(index, total_series))
         row.addWidget(self._build_trash_button(index))
         row.addWidget(self._build_chevron_button(index, expanded=False))
 
@@ -463,6 +497,9 @@ class DataTab(QWidget):
         name_label.setStyleSheet(f"color: {tokens.get('text_primary', '#000')};")
         header.addWidget(name_label, 1)
         header.addWidget(self._build_y_axis_badge(series.y_axis, tokens))
+        total_series = len(self.current_chart.data_series)
+        header.addWidget(self._build_move_up_button(index))
+        header.addWidget(self._build_move_down_button(index, total_series))
         header.addWidget(self._build_trash_button(index))
         header.addWidget(self._build_chevron_button(index, expanded=True))
         outer.addLayout(header)
@@ -559,6 +596,8 @@ class DataTab(QWidget):
             self._expanded_card_y_axis_badge = badge
             self._expanded_card_y_axis_badge_tokens = tokens
             header.addWidget(badge)
+            header.addWidget(self._build_move_up_button(index))
+            header.addWidget(self._build_move_down_button(index, total_series))
         header.addWidget(self._build_trash_button(index))
         chevron = PButton(
             "▾", role="secondary", icon=True, enabled=False
@@ -699,6 +738,39 @@ class DataTab(QWidget):
             shifted_selected = index
         self._expanded_series_index = max(0, min(shifted_selected, max(remaining_items - 1, 0)))
         self._expanded_card_indices.add(self._expanded_series_index)
+        self._rebuild_series_cards()
+
+    def _move_series(self, from_index: int, to_index: int):
+        """Move the data series at `from_index` to `to_index`, reordering
+        its z-index (#189). The move-up/move-down buttons only ever request
+        an adjacent step, and a single-step pop-then-insert is exactly a
+        swap of those two positions, so the expanded/selected-card
+        bookkeeping below just swaps the same two indices rather than
+        needing `_remove_series_at`'s general shift-everything-between."""
+        if not self.current_chart:
+            return
+        total_series = len(self.current_chart.data_series)
+        if not (0 <= from_index < total_series) or not (0 <= to_index < total_series):
+            return
+
+        command = ReorderSeriesCommand(
+            self.app_context,
+            chart_id=self.current_chart.id,
+            from_index=from_index,
+            to_index=to_index,
+        )
+        if not self.command_executor.execute_command(command):
+            return
+
+        def _swap(i):
+            if i == from_index:
+                return to_index
+            if i == to_index:
+                return from_index
+            return i
+
+        self._expanded_card_indices = {_swap(i) for i in self._expanded_card_indices}
+        self._expanded_series_index = _swap(self._expanded_series_index)
         self._rebuild_series_cards()
 
     # -- Live field edits -----------------------------------------------

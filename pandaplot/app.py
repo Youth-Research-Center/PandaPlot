@@ -6,10 +6,12 @@ from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.commands.project.project import LoadProjectCommand
+from pandaplot.gui.components.tabs.tab_factory import TabFactory
 from pandaplot.gui.controllers import UIController
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import EventBus
+from pandaplot.models.events.event_types import AppEvents
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.autosave import AutoSaveManager
@@ -41,10 +43,40 @@ def create_project_data_manager() -> ProjectDataManager:
     return ProjectDataManager(factory)
 
 
+def create_tab_factory() -> TabFactory:
+    """Register tab loaders and build the TabFactory. Each loader lazily
+    imports its tab module so heavy deps (matplotlib via ChartTab, markdown
+    via NoteTab) aren't pulled in until that tab type is actually opened."""
+    factory = TabFactory()
+
+    def _load_note_tab(app_context, item, parent):
+        from pandaplot.gui.components.tabs.note.note_tab import NoteTab
+        return NoteTab(app_context=app_context, note=item, parent=parent)
+
+    def _load_chart_tab(app_context, item, parent):
+        from pandaplot.gui.components.tabs.chart.chart_tab import ChartTab
+        return ChartTab(app_context=app_context, chart=item, parent=parent)
+
+    def _load_dataset_tab(app_context, item, parent):
+        from pandaplot.gui.components.tabs.dataset.dataset_tab import DatasetTab
+        return DatasetTab(app_context=app_context, dataset=item, parent=parent)
+
+    def _load_image_gallery_tab(app_context, item, parent):
+        from pandaplot.gui.components.tabs.image.image_gallery_tab import ImageGalleryTab
+        return ImageGalleryTab(app_context=app_context, gallery=item, parent=parent)
+
+    factory.register(Note, _load_note_tab)
+    factory.register(Chart, _load_chart_tab)
+    factory.register(Dataset, _load_dataset_tab)
+    factory.register(ImageGallery, _load_image_gallery_tab)
+    return factory
+
+
 def build_app_context() -> AppContext:
     """Create and return a fully initialized AppContext (no Qt widgets yet)."""
     event_bus = EventBus()
     project_data_manager = create_project_data_manager()
+    tab_factory = create_tab_factory()
     app_state = AppState(event_bus)
     config_manager = ConfigManager(event_bus)
     config_manager.load()
@@ -52,11 +84,11 @@ def build_app_context() -> AppContext:
     auto_save_manager = AutoSaveManager(event_bus, config_manager, app_state)
     session_manager = SessionPersistenceManager(config_manager)
     ui_controller = UIController()
-    command_executor = CommandExecutor()
+    command_executor = CommandExecutor(on_history_changed=lambda: event_bus.emit(AppEvents.HISTORY_CHANGED))
     task_scheduler = TaskScheduler()
 
     # Create list of managers to pass to AppContext
-    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_data_manager]
+    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_data_manager, tab_factory]
 
     app_context = AppContext(app_state=app_state, event_bus=event_bus, managers=managers)
     # AutoSaveManager needs the AppContext itself (to construct SaveProjectCommand),

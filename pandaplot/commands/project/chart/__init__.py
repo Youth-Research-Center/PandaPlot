@@ -6,6 +6,7 @@ from .create_chart_command import CreateChartCommand
 from .create_chart_from_wizard_command import CreateChartFromWizardCommand
 from .remove_fit_data_command import RemoveFitDataCommand
 from .remove_series_command import RemoveSeriesCommand
+from .reorder_series_command import ReorderSeriesCommand
 
 __all__ = [
     "AddSeriesCommand",
@@ -14,4 +15,5 @@ __all__ = [
     "CreateChartFromWizardCommand",
     "RemoveFitDataCommand",
     "RemoveSeriesCommand",
+    "ReorderSeriesCommand",
 ]

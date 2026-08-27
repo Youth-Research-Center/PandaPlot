@@ -12,7 +12,9 @@ from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.sidebar.chart.tabs.axes_tab import AxesTab
 from pandaplot.models.chart.chart_configuration import ScaleType
-from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.chart.series_style import HeatmapSeriesStyle
+from pandaplot.models.chart.series_type import SeriesType
+from pandaplot.models.project.items.chart import Chart, DataSeries
 from pandaplot.models.project.items.dataset import Dataset
 
 
@@ -276,3 +278,147 @@ def test_switching_linear_to_log_refreshes_auto_range_to_positive_only():
     assert y_form["scale_control"].currentValue() == ScaleType.LOG
     assert y_form["min_spin"].value() == 10.0
     assert y_form["max_spin"].value() == 20.0
+
+
+# -- Color axis (#193: moved here from the Style tab's "Color Map" chip) ----
+
+
+def _heatmap_series():
+    return DataSeries(
+        dataset_id="ds1", series_type=SeriesType.HEATMAP, style=HeatmapSeriesStyle(), label="Heatmap",
+    )
+
+
+def test_color_chip_shown_only_when_chart_has_a_z_driven_series():
+    chart = Chart(name="C", chart_type="line")
+    chart.data_series.append(DataSeries(dataset_id="ds1", series_type=SeriesType.LINE, label="Line"))
+
+    tab = AxesTab(_make_app_context())
+    tab.load(chart)
+
+    assert "color" not in tab.axis_chips._values
+
+    chart.data_series.append(_heatmap_series())
+    tab.refresh_axis_chips(chart)
+
+    assert "color" in tab.axis_chips._values
+
+
+def test_selecting_color_chip_shows_its_form_hides_others():
+    chart = Chart(name="C", chart_type="heatmap")
+    chart.data_series.append(_heatmap_series())
+
+    tab = AxesTab(_make_app_context())
+    tab.load(chart)
+    assert "color" in tab.axis_chips._values
+
+    color_index = tab.axis_chips._values.index("color")
+    tab.axis_chips._buttons[color_index].click()
+
+    assert tab.axes_forms["color"]["widget"].isHidden() is False
+    assert tab.axes_forms["x"]["widget"].isHidden() is True
+    assert tab.axes_forms["y"]["widget"].isHidden() is True
+
+
+def test_apply_and_load_color_axis_config_round_trip():
+    chart = Chart(name="C", chart_type="heatmap")
+    chart.data_series.append(_heatmap_series())
+
+    tab = AxesTab(_make_app_context())
+    tab.load(chart)
+    color_form = tab.axes_forms["color"]
+
+    color_form["colormap_control"].setCurrentValue("plasma")
+    color_form["colorbar_show_toggle"].setChecked(checked=False)
+    color_form["colorbar_label_edit"].setText("Temp (C)")
+    color_form["color_scale_auto_toggle"].setChecked(checked=False)
+    color_form["color_vmin_spin"].setValue(-5.0)
+    color_form["color_vmax_spin"].setValue(42.0)
+
+    tab.apply_to(chart)
+
+    assert chart.config["colormap"] == "plasma"
+    assert chart.config["colorbar_show"] is False
+    assert chart.config["colorbar_label"] == "Temp (C)"
+    assert chart.config["color_scale_auto"] is False
+    assert chart.config["color_vmin"] == -5.0
+    assert chart.config["color_vmax"] == 42.0
+
+    tab2 = AxesTab(_make_app_context())
+    tab2.load(chart)
+    color_form2 = tab2.axes_forms["color"]
+
+    assert color_form2["colormap_control"].currentValue() == "plasma"
+    assert color_form2["colorbar_show_toggle"].isChecked() is False
+    assert color_form2["colorbar_label_edit"].text() == "Temp (C)"
+    assert color_form2["color_scale_auto_toggle"].isChecked() is False
+    assert color_form2["color_vmin_spin"].value() == -5.0
+    assert color_form2["color_vmax_spin"].value() == 42.0
+
+
+def test_changing_a_color_axis_widget_live_writes_to_chart_config():
+    """Mirrors the plain x/y/y2 axis forms' live-write behavior
+    (_on_field_changed): a Color axis widget change must write straight to
+    chart.config immediately, not only on an explicit Apply."""
+    chart = Chart(name="C", chart_type="heatmap")
+    chart.data_series.append(_heatmap_series())
+
+    tab = AxesTab(_make_app_context())
+    tab.load(chart)
+
+    tab.axes_forms["color"]["colorbar_label_edit"].setText("Live Label")
+
+    assert chart.config["colorbar_label"] == "Live Label"
+
+
+def test_colorbar_label_is_not_customized_until_the_field_is_actually_touched():
+    """A freshly loaded chart with no saved colorbar_label must not have one
+    written into config just because some other Color axis widget changed --
+    only touching the label field itself should start tracking it (see
+    AxesTab._colorbar_label_customized)."""
+    chart = Chart(name="C", chart_type="heatmap")
+    chart.data_series.append(_heatmap_series())
+
+    tab = AxesTab(_make_app_context())
+    tab.load(chart)
+    assert chart.config["colorbar_label"] is None
+
+    tab.axes_forms["color"]["colormap_control"].setCurrentValue("plasma")
+
+    assert chart.config["colorbar_label"] is None
+
+
+def test_clearing_a_customized_colorbar_label_writes_an_explicit_empty_string():
+    """Regression: once the user has typed into the label field, clearing it
+    back out must be written as a real "" (rendered with no label), not left
+    indistinguishable from "never customized" (which falls back to the Z
+    column's name -- see chart_editor.py)."""
+    chart = Chart(name="C", chart_type="heatmap")
+    chart.data_series.append(_heatmap_series())
+
+    tab = AxesTab(_make_app_context())
+    tab.load(chart)
+    label_edit = tab.axes_forms["color"]["colorbar_label_edit"]
+
+    label_edit.setText("Temp (C)")
+    assert chart.config["colorbar_label"] == "Temp (C)"
+
+    label_edit.setText("")
+
+    assert chart.config["colorbar_label"] == ""
+
+
+def test_color_scale_auto_toggle_hides_manual_min_max():
+    chart = Chart(name="C", chart_type="heatmap")
+    chart.data_series.append(_heatmap_series())
+
+    tab = AxesTab(_make_app_context())
+    tab.load(chart)
+    color_form = tab.axes_forms["color"]
+
+    assert color_form["color_vmin_spin"].isHidden() is True
+
+    color_form["color_scale_auto_toggle"].setChecked(checked=False)
+
+    assert color_form["color_vmin_spin"].isHidden() is False
+    assert color_form["color_vmax_spin"].isHidden() is False

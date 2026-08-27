@@ -658,6 +658,66 @@ class TestChartAddDataSeriesDefaultsSeriesType:
         assert series.style.vector_color == "#abcdef"
 
 
+class TestChartMoveDataSeries:
+    """move_data_series (#189): data_series list order is the chart's
+    z-index -- a series later in the list draws on top of an earlier one
+    (see chart_editor.py's render loop) -- so reordering this list is how
+    a series is brought to front/back."""
+
+    def _labels(self, chart):
+        return [s.label for s in chart.data_series]
+
+    def _chart_with_series(self, *labels):
+        chart = Chart(name="C", chart_type="line")
+        for label in labels:
+            chart.add_data_series(dataset_id="ds1", x_column_id="x", y_column_id="y", label=label)
+        return chart
+
+    def test_moves_a_series_forward(self):
+        chart = self._chart_with_series("A", "B", "C")
+
+        assert chart.move_data_series(0, 2) is True
+
+        assert self._labels(chart) == ["B", "C", "A"]
+
+    def test_moves_a_series_backward(self):
+        chart = self._chart_with_series("A", "B", "C")
+
+        assert chart.move_data_series(2, 0) is True
+
+        assert self._labels(chart) == ["C", "A", "B"]
+
+    def test_adjacent_move_is_a_pure_swap_and_self_inverse(self):
+        """The move-up/move-down UI actions only ever request an adjacent
+        step -- confirms that calling it again with from/to swapped
+        exactly undoes it, which ReorderSeriesCommand.undo relies on."""
+        chart = self._chart_with_series("A", "B", "C")
+
+        chart.move_data_series(1, 2)
+        assert self._labels(chart) == ["A", "C", "B"]
+
+        chart.move_data_series(2, 1)
+        assert self._labels(chart) == ["A", "B", "C"]
+
+    def test_out_of_range_from_index_returns_false_and_does_not_mutate(self):
+        chart = self._chart_with_series("A", "B", "C")
+
+        assert chart.move_data_series(5, 0) is False
+        assert self._labels(chart) == ["A", "B", "C"]
+
+    def test_out_of_range_to_index_returns_false_and_does_not_mutate(self):
+        chart = self._chart_with_series("A", "B", "C")
+
+        assert chart.move_data_series(0, 5) is False
+        assert self._labels(chart) == ["A", "B", "C"]
+
+    def test_moving_to_the_same_index_is_a_no_op(self):
+        chart = self._chart_with_series("A", "B", "C")
+
+        assert chart.move_data_series(1, 1) is True
+        assert self._labels(chart) == ["A", "B", "C"]
+
+
 class _FakeDataset:
     """Minimal dataset stand-in for assign_series_column_ids tests --
     mirrors the pattern in tests/models/test_data_series_vector_fields.py."""
@@ -723,7 +783,7 @@ class TestChartConfigHasColorMapDefaults:
         chart = Chart(name="C", chart_type="line")
         assert chart.config["colormap"] == "viridis"
         assert chart.config["colorbar_show"] is True
-        assert chart.config["colorbar_label"] == ""
+        assert chart.config["colorbar_label"] is None
         assert chart.config["color_scale_auto"] is True
         assert chart.config["color_vmin"] == 0.0
         assert chart.config["color_vmax"] == 1.0

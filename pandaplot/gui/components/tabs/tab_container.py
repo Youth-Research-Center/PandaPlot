@@ -7,6 +7,7 @@ from pandaplot.commands.project.chart import CreateChartFromWizardCommand
 from pandaplot.commands.project.project import LoadProjectCommand, NewProjectCommand, OpenProjectCommand
 from pandaplot.gui.components.tabs.floating_tab_window import FloatingTabWindow
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
+from pandaplot.gui.components.tabs.tab_factory import TabFactory
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import (
@@ -15,7 +16,6 @@ from pandaplot.models.events import (
     ProjectEvents,
     UIEvents,
 )
-from pandaplot.models.project.items import Chart, Dataset, ImageGallery, Note
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.session import SessionPersistenceManager
 
@@ -34,7 +34,6 @@ class TabContainer(PWidget):
 
     def __init__(self, app_context: AppContext, parent: QWidget):
         super().__init__(app_context=app_context, parent=parent)
-        # TODO(#220): we shouldn't know about these tab types here
         self.tabs = {}
         self.panes: list[CustomTabWidget] = []
         self._pane_registry: dict[int, CustomTabWidget] = {}
@@ -527,24 +526,7 @@ class TabContainer(PWidget):
             self.logger.warning("Failed to persist tab session: %s", e)
 
     def _create_tab(self, item):
-        # TODO(#220): move to a separate factory class
-        if item is None:
-            raise ValueError("Item cannot be None")
-
-        if isinstance(item, Note):
-            from pandaplot.gui.components.tabs.note.note_tab import NoteTab
-            return NoteTab(app_context=self.app_context, note=item, parent=self)
-        elif isinstance(item, Chart):
-            from pandaplot.gui.components.tabs.chart.chart_tab import ChartTab
-            return ChartTab(app_context=self.app_context, chart=item, parent=self)
-        elif isinstance(item, Dataset):
-            from pandaplot.gui.components.tabs.dataset.dataset_tab import DatasetTab
-            return DatasetTab(app_context=self.app_context, dataset=item, parent=self)
-        elif isinstance(item, ImageGallery):
-            from pandaplot.gui.components.tabs.image.image_gallery_tab import ImageGalleryTab
-            return ImageGalleryTab(app_context=self.app_context, gallery=item, parent=self)
-        else:
-            raise ValueError(f"Unsupported item type, item class {item.__class__.__name__}")
+        return self.app_context.get_manager(TabFactory).create_tab(self.app_context, item, parent=self)
 
     def update_tab_title(self, tab_widget, new_title: str):
         """Update the title of a specific tab."""

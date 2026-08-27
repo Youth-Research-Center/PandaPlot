@@ -54,6 +54,12 @@ def _menu_with_palette(palette):
     app_context.get_app_state.return_value = app_state
     app_context.event_bus = Mock()
     app_context.get_manager.return_value = theme_manager
+    # MainMenu queries can_undo()/can_redo() as soon as the Edit menu is
+    # built, and QAction.setEnabled requires an actual bool.
+    command_executor = Mock()
+    command_executor.can_undo.return_value = False
+    command_executor.can_redo.return_value = False
+    app_context.get_command_executor.return_value = command_executor
 
     # The parent is returned so the caller keeps it alive; dropping it takes
     # the C++ side of the menu with it.

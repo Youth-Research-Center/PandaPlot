@@ -337,6 +337,47 @@ def test_manual_color_scale_from_chart_config_reaches_the_colorbar():
     assert editor._colorbar.mappable.get_clim() == (-5.0, 42.0)
 
 
+def test_colorbar_defaults_to_the_z_columns_name_when_label_not_customized():
+    """chart.config["colorbar_label"] starts as None (never customized) --
+    the colorbar falls back to the Z column's own name."""
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = _heatmap_chart(dataset)
+    editor = _editor_for(project, chart)
+
+    editor.update_chart()
+
+    assert editor._colorbar.ax.get_ylabel() == "z"
+
+
+def test_colorbar_uses_the_customized_label_when_set():
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = _heatmap_chart(dataset)
+    chart.config["colorbar_label"] = "Temperature (C)"
+    editor = _editor_for(project, chart)
+
+    editor.update_chart()
+
+    assert editor._colorbar.ax.get_ylabel() == "Temperature (C)"
+
+
+def test_colorbar_shows_no_label_when_customized_label_is_cleared():
+    """Regression: a colorbar_label explicitly cleared back to "" (as
+    AxesTab writes once the user has typed into the field at least once --
+    see AxesTab._colorbar_label_customized) must render with no label at
+    all, not silently fall back to the Z column's name again."""
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = _heatmap_chart(dataset)
+    chart.config["colorbar_label"] = ""
+    editor = _editor_for(project, chart)
+
+    editor.update_chart()
+
+    assert editor._colorbar.ax.get_ylabel() == ""
+
+
 def test_heatmap_chart_can_mix_in_a_scatter_series():
     """A Heatmap chart's allowed_series_types now includes SCATTER/LINE
     (chart_type_spec.py), so a plain, non-color-mapped Scatter series can

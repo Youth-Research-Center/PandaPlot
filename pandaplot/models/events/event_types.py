@@ -28,6 +28,11 @@ class ThemeEvents:
 class AppEvents:
     """Application-wide events."""
     APP_CLOSING = "app.closing"
+    # Emitted whenever CommandExecutor's undo/redo stacks change (a command
+    # executed, was undone/redone, or history was cleared) -- lets the UI
+    # (e.g. the Edit menu's Undo/Redo actions) keep its enabled state in
+    # sync without polling can_undo()/can_redo() on a timer.
+    HISTORY_CHANGED = "app.history_changed"
 
 
 class DatasetEvents:

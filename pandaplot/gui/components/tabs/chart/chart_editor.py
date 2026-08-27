@@ -933,9 +933,15 @@ class ChartEditorWidget(PWidget):
                             and SERIES_TYPE_SPECS[series_type].needs_z_column
                             and self.chart.config.get("colorbar_show", True)):
                         colorbar_mappable = mappable
+                        # None means "not customized" -- fall back to the Z
+                        # column's name. Any other value (including "") is
+                        # the user's explicit choice and is used as-is, so a
+                        # deliberately cleared label renders with no label
+                        # rather than reverting to the column name.
+                        custom_label = self.chart.config.get("colorbar_label")
                         colorbar_label = (
-                            self.chart.config.get("colorbar_label", "")
-                            or self._resolve_z_label(project, series)
+                            custom_label if custom_label is not None
+                            else self._resolve_z_label(project, series)
                         )
 
                 if colorbar_mappable is not None:

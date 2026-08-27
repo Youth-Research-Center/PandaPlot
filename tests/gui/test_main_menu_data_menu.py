@@ -27,6 +27,12 @@ def _fake_app_context(datasets):
     app_context.get_app_state.return_value = app_state
     app_context.event_bus = Mock()
     app_context.get_manager.return_value = Mock()
+    # MainMenu queries can_undo()/can_redo() as soon as the Edit menu is
+    # built, and QAction.setEnabled requires an actual bool.
+    command_executor = Mock()
+    command_executor.can_undo.return_value = False
+    command_executor.can_redo.return_value = False
+    app_context.get_command_executor.return_value = command_executor
     return app_context
 
 

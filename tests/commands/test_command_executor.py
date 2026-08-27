@@ -594,6 +594,81 @@ class TestClearHistory:
         assert not executor.can_redo()
 
 
+class TestHistoryChangedHook:
+    """Regression (#206): the Edit menu's Undo/Redo actions need to know
+    whenever can_undo()/can_redo() may have changed, so they can stay
+    correctly enabled/disabled instead of always being enabled regardless
+    of stack state. on_history_changed is the hook main_menu.py wires up
+    for that (via AppEvents.HISTORY_CHANGED -- see test_main_menu.py)."""
+
+    def test_execute_command_notifies(self):
+        executor = CommandExecutor()
+        calls = []
+        executor.on_history_changed = lambda: calls.append(None)
+
+        executor.execute_command(MockCommand())
+
+        assert len(calls) == 1
+
+    def test_failed_execute_command_does_not_notify(self):
+        executor = CommandExecutor()
+        calls = []
+        executor.on_history_changed = lambda: calls.append(None)
+
+        executor.execute_command(MockCommand(should_fail=True, fail_on="execute"))
+
+        assert calls == []
+
+    def test_undo_notifies(self):
+        executor = CommandExecutor()
+        executor.execute_command(MockCommand())
+        calls = []
+        executor.on_history_changed = lambda: calls.append(None)
+
+        executor.undo()
+
+        assert len(calls) == 1
+
+    def test_undo_on_empty_stack_does_not_notify(self):
+        executor = CommandExecutor()
+        calls = []
+        executor.on_history_changed = lambda: calls.append(None)
+
+        executor.undo()
+
+        assert calls == []
+
+    def test_redo_notifies(self):
+        executor = CommandExecutor()
+        executor.execute_command(MockCommand())
+        executor.undo()
+        calls = []
+        executor.on_history_changed = lambda: calls.append(None)
+
+        executor.redo()
+
+        assert len(calls) == 1
+
+    def test_clear_history_notifies(self):
+        executor = CommandExecutor()
+        executor.execute_command(MockCommand())
+        calls = []
+        executor.on_history_changed = lambda: calls.append(None)
+
+        executor.clear_history()
+
+        assert len(calls) == 1
+
+    def test_no_hook_set_does_not_raise(self):
+        """The hook is optional (None by default) -- every call site must
+        tolerate that, not just the ones under test above."""
+        executor = CommandExecutor()
+        executor.execute_command(MockCommand())
+        executor.undo()
+        executor.redo()
+        executor.clear_history()  # must not raise
+
+
 class TestCleanupOnEviction:
     """Test cases for Command.cleanup() being called when a command is
     dropped from a stack outside the normal undo/redo lifecycle."""

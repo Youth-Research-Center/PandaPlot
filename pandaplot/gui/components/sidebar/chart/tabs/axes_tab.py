@@ -19,11 +19,27 @@ from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.gui.components.common.toggle_switch import ToggleSwitch
+from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 from pandaplot.models.chart.chart_configuration import ScaleType
+from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items.chart import YAxis
 
 # Neutral palette for axis/tick colors (distinct from style_tab's saturated series palette).
 AXES_SWATCH_PALETTE = ["#000000", "#404040", "#808080", "#bfbfbf", "#ffffff"]
+
+# Colormaps offered for Colormap/Heatmap chart types' Z-driven point/cell
+# coloring. Chart-level (not per-series): the colormap/colorbar/scale are
+# shared across every Colormap/Heatmap series on a chart, since there's only
+# ever one physical colorbar drawn.
+COLORMAP_OPTIONS = [
+    ("Viridis", "viridis"),
+    ("Plasma", "plasma"),
+    ("Cool", "cool"),
+    ("Autumn", "autumn"),
+    ("Jet", "jet"),
+    ("Hot", "hot"),
+    ("Coolwarm", "coolwarm"),
+]
 
 
 class AxesTab(QWidget):
@@ -45,6 +61,13 @@ class AxesTab(QWidget):
         self.app_context = app_context
         self._chart = None
         self._updating_controls = False
+        # Whether the user has ever actually typed into the colorbar label
+        # field for the currently loaded chart -- distinguishes "never
+        # customized" (fall back to the Z column's name) from "customized to
+        # empty" (show no label at all). Without this, _write_color_axis_config
+        # writing the field's current (blank) text on every unrelated field
+        # change would be indistinguishable from an explicit clear.
+        self._colorbar_label_customized = False
 
         layout = QVBoxLayout(self)
 
@@ -62,6 +85,7 @@ class AxesTab(QWidget):
         self.axes_forms = {}
         for prefix in ("x", "y", "y2"):
             self._build_axis_form_widgets(prefix)
+        self._build_color_axis_form_widgets()
         self._show_axis_form("x")
 
     def _build_axis_form_widgets(self, prefix: str):
@@ -254,6 +278,143 @@ class AxesTab(QWidget):
         form_widget.setVisible(False)
         self._axis_form_container_layout.addWidget(form_widget)
 
+    def _build_color_axis_form_widgets(self):
+        """Build the "Color" axis form (colormap/colorbar/scale, shared by
+        every Colormap/Heatmap series on the chart) and register it in
+        `self.axes_forms["color"]`, alongside x/y/y2. Unlike those three,
+        it isn't a real matplotlib axis -- no range/ticks/scale-type -- so
+        it gets its own, differently-shaped form rather than going through
+        `_build_axis_form_widgets`. Shown only when the chart has at least
+        one series needing a Z column (see `refresh_axis_chips`), since
+        there's only ever one physical colorbar for the whole chart, not
+        one per series (#193 -- moved here from the Style tab, which is
+        where this used to live as the "Color Map" chip)."""
+        form_widget = QWidget()
+        form_layout = QVBoxLayout(form_widget)
+        form_layout.setContentsMargins(0, 0, 0, 0)
+
+        colormap_card = Card()
+        colormap_layout = QGridLayout(colormap_card)
+        colormap_layout.addWidget(SectionHeader("Color Map"), 0, 0, 1, 2)
+
+        colormap_layout.addWidget(QLabel("Colormap:"), 1, 0)
+        colormap_control = ValueComboBox(COLORMAP_OPTIONS)
+        colormap_layout.addWidget(colormap_control, 1, 1)
+
+        colormap_layout.addWidget(QLabel("Show colorbar:"), 2, 0)
+        colorbar_show_toggle = ToggleSwitch(checked=True)
+        colormap_layout.addWidget(colorbar_show_toggle, 2, 1)
+
+        colormap_layout.addWidget(QLabel("Colorbar label:"), 3, 0)
+        colorbar_label_edit = QLineEdit()
+        colormap_layout.addWidget(colorbar_label_edit, 3, 1)
+
+        colormap_layout.addWidget(QLabel("Auto scale:"), 4, 0)
+        color_scale_auto_toggle = ToggleSwitch(checked=True)
+        colormap_layout.addWidget(color_scale_auto_toggle, 4, 1)
+
+        color_vmin_label = QLabel("Min:")
+        colormap_layout.addWidget(color_vmin_label, 5, 0)
+        color_vmin_spin = QDoubleSpinBox()
+        color_vmin_spin.setRange(-1e9, 1e9)
+        color_vmin_spin.setDecimals(3)
+        colormap_layout.addWidget(color_vmin_spin, 5, 1)
+
+        color_vmax_label = QLabel("Max:")
+        colormap_layout.addWidget(color_vmax_label, 6, 0)
+        color_vmax_spin = QDoubleSpinBox()
+        color_vmax_spin.setRange(-1e9, 1e9)
+        color_vmax_spin.setDecimals(3)
+        color_vmax_spin.setValue(1.0)
+        colormap_layout.addWidget(color_vmax_spin, 6, 1)
+
+        form_layout.addWidget(colormap_card)
+        form_layout.addStretch()
+
+        self.axes_forms["color"] = {
+            "widget": form_widget,
+            "card": colormap_card,
+            "colormap_control": colormap_control,
+            "colorbar_show_toggle": colorbar_show_toggle,
+            "colorbar_label_edit": colorbar_label_edit,
+            "color_scale_auto_toggle": color_scale_auto_toggle,
+            "color_vmin_label": color_vmin_label,
+            "color_vmin_spin": color_vmin_spin,
+            "color_vmax_label": color_vmax_label,
+            "color_vmax_spin": color_vmax_spin,
+        }
+
+        colormap_control.currentValueChanged.connect(self._on_field_changed)
+        colorbar_show_toggle.toggled.connect(self._on_field_changed)
+        colorbar_label_edit.textChanged.connect(self._on_colorbar_label_changed)
+        color_scale_auto_toggle.toggled.connect(self._on_color_scale_auto_toggled)
+        color_vmin_spin.valueChanged.connect(self._on_field_changed)
+        color_vmax_spin.valueChanged.connect(self._on_field_changed)
+
+        form_widget.setVisible(False)
+        self._axis_form_container_layout.addWidget(form_widget)
+
+    def _on_colorbar_label_changed(self, _text: str) -> None:
+        """Marks the colorbar label as user-customized before the normal
+        live-write. `_read_color_axis_config`'s own `setText()` is wrapped in
+        blockSignals, so `textChanged` here always means some other caller
+        (a real edit, or a test driving the widget directly) set the text --
+        never the tab's own load path."""
+        self._colorbar_label_customized = True
+        self._on_field_changed()
+
+    def _on_color_scale_auto_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Color axis' "Auto scale" toggle."""
+        self._update_color_scale_controls()
+        self._on_field_changed()
+
+    def _update_color_scale_controls(self):
+        """Show the manual Min/Max fields only while "Auto scale" is off --
+        while auto, the color scale is derived from the data's own min/max
+        (see chart_heatmap.resolve_color_limits) and the fields have no
+        effect (same hidden-not-disabled convention `_refresh_range_display`
+        uses for a plain axis' manual Min/Max)."""
+        form = self.axes_forms["color"]
+        show_manual = not form["color_scale_auto_toggle"].isChecked()
+        form["color_vmin_label"].setVisible(show_manual)
+        form["color_vmin_spin"].setVisible(show_manual)
+        form["color_vmax_label"].setVisible(show_manual)
+        form["color_vmax_spin"].setVisible(show_manual)
+
+    def _write_color_axis_config(self, config: dict):
+        form = self.axes_forms["color"]
+        config["colormap"] = form["colormap_control"].currentValue()
+        config["colorbar_show"] = form["colorbar_show_toggle"].isChecked()
+        # Only ever written once the user has actually typed into the field
+        # (see _on_colorbar_label_edited) -- this method runs on every field
+        # change on the whole tab, not just this one, so unconditionally
+        # writing the widget's current (possibly still-blank) text here would
+        # make "never customized" indistinguishable from "customized to
+        # empty" the moment any other field changed.
+        if self._colorbar_label_customized:
+            config["colorbar_label"] = form["colorbar_label_edit"].text()
+        config["color_scale_auto"] = form["color_scale_auto_toggle"].isChecked()
+        config["color_vmin"] = form["color_vmin_spin"].value()
+        config["color_vmax"] = form["color_vmax_spin"].value()
+
+    def _read_color_axis_config(self, config: dict):
+        form = self.axes_forms["color"]
+        form["colormap_control"].setCurrentValue(config.get("colormap", "viridis"))
+        form["colorbar_show_toggle"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+        form["colorbar_show_toggle"].setChecked(checked=config.get("colorbar_show", True))
+        form["colorbar_show_toggle"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+        stored_label = config.get("colorbar_label")
+        self._colorbar_label_customized = stored_label is not None
+        form["colorbar_label_edit"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+        form["colorbar_label_edit"].setText(stored_label or "")
+        form["colorbar_label_edit"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+        form["color_scale_auto_toggle"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+        form["color_scale_auto_toggle"].setChecked(checked=config.get("color_scale_auto", True))
+        form["color_scale_auto_toggle"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+        form["color_vmin_spin"].setValue(config.get("color_vmin", 0.0))
+        form["color_vmax_spin"].setValue(config.get("color_vmax", 1.0))
+        self._update_color_scale_controls()
+
     def _show_axis_form(self, prefix: str):
         """Show only the selected axis's form, hiding the other two."""
         for key, form in self.axes_forms.items():
@@ -402,21 +563,27 @@ class AxesTab(QWidget):
 
     def refresh_axis_chips(self, chart):
         """Sync the Axes tab's chip row with whether any series currently
-        uses the secondary Y axis, adding/removing the Y2 chip accordingly.
-        Safe to call whenever the chart or its series may have changed
-        (chart load, series rebuild) - mirrors `_refresh_style_chips`.
+        uses the secondary Y axis or needs a Z column, adding/removing the
+        Y2/Color chips accordingly. Safe to call whenever the chart or its
+        series may have changed (chart load, series rebuild) - mirrors
+        `_refresh_style_chips`.
 
         Public (and takes `chart` explicitly) because the not-yet-migrated
         Data tab (still on `ChartPropertiesPanel`) calls this whenever a
-        series' `y_axis` changes.
+        series' `y_axis` or type changes.
         """
         self._chart = chart
         has_secondary = bool(chart) and any(
             series.y_axis == YAxis.SECONDARY for series in chart.data_series
         )
+        needs_color_axis = bool(chart) and any(
+            SERIES_TYPE_SPECS[series.series_type].needs_z_column for series in chart.data_series
+        )
         items = [("X", "x"), ("Y₁", "y")]
         if has_secondary:
             items.append(("Y₂", "y2"))
+        if needs_color_axis:
+            items.append(("Color", "color"))
         self.axis_chips.setItems(items)
 
     def _write_axis_config(self, prefix: str, config: dict):
@@ -519,6 +686,7 @@ class AxesTab(QWidget):
         config = self._chart.config
         for prefix in ("x", "y", "y2"):
             self._write_axis_config(prefix, config)
+        self._write_color_axis_config(config)
         self.configChanged.emit()
 
     def load(self, chart):
@@ -536,6 +704,7 @@ class AxesTab(QWidget):
                 # _on_axis_auto_limits_toggled).
                 if self.axes_forms[prefix]["auto_toggle"].isChecked():
                     self._refresh_range_display(prefix)
+            self._read_color_axis_config(chart.config)
             self.refresh_axis_chips(chart)
             self._show_axis_form("x")
             self.axis_chips.setCurrentValue("x")
@@ -545,6 +714,7 @@ class AxesTab(QWidget):
     def apply_to(self, chart):
         for prefix in ("x", "y", "y2"):
             self._write_axis_config(prefix, chart.config)
+        self._write_color_axis_config(chart.config)
 
     def clear(self):
         self._chart = None
@@ -553,13 +723,15 @@ class AxesTab(QWidget):
         try:
             for prefix in ("x", "y", "y2"):
                 self._read_axis_config(prefix, {})
+            self._read_color_axis_config({})
             self.refresh_axis_chips(None)
         finally:
             self._updating_controls = previous_guard
 
     def apply_theme(self, tokens: dict):
         self.axis_chips.set_tokens(tokens)
-        for form in self.axes_forms.values():
+        for prefix in ("x", "y", "y2"):
+            form = self.axes_forms[prefix]
             form["scale_control"].set_tokens(tokens)
             if form["side_control"] is not None:
                 form["side_control"].set_tokens(tokens)
@@ -572,3 +744,8 @@ class AxesTab(QWidget):
             form["minor_ticks_toggle"].set_tokens(tokens)
             form["minor_tick_direction_control"].set_tokens(tokens)
             form["minor_grid_toggle"].set_tokens(tokens)
+        color_form = self.axes_forms["color"]
+        color_form["card"].set_tokens(tokens)
+        color_form["colormap_control"].set_tokens(tokens)
+        color_form["colorbar_show_toggle"].set_tokens(tokens)
+        color_form["color_scale_auto_toggle"].set_tokens(tokens)

@@ -78,7 +78,7 @@ class ChartPropertiesPanel(SidebarPanel):
         # Axes tab: constructed before the Data tab (though added to the tab
         # widget after Style, below) because building the Data tab's series
         # cards calls `_rebuild_series_cards`, which calls
-        # `self.axes_tab.refresh_axis_chips` to sync the Y2 chip.
+        # `self.axes_tab.refresh_axis_chips` to sync the Y2/Color chips.
         self.axes_tab = AxesTab(self.app_context, self)
         self.axes_tab.configChanged.connect(self._on_any_tab_config_changed)
 
@@ -325,9 +325,10 @@ class ChartPropertiesPanel(SidebarPanel):
             self.logger.debug("Chart properties panel refreshed for update: %s", update_type)
 
     def _on_axes_refresh_requested(self):
-        """Sync both the Axes tab's chip row and the Style tab's axis-style
-        selector with whether any series currently uses the secondary Y
-        axis (see AxesTab.refresh_axis_chips / StyleTab.refresh_axis_style_selector)."""
+        """Sync both the Axes tab's chip row (Y2/Color chips) and the Style
+        tab's axis-style selector with whether any series currently uses
+        the secondary Y axis or needs a Z column (see AxesTab.
+        refresh_axis_chips / StyleTab.refresh_axis_style_selector)."""
         self.axes_tab.refresh_axis_chips(self.current_chart)
         self.style_tab.refresh_axis_style_selector(self.current_chart)
 
@@ -462,7 +463,6 @@ class ChartPropertiesPanel(SidebarPanel):
 
         # Update basic chart properties
         self.style_tab.apply_chart_style_to(chart)
-        self.style_tab.apply_colormap_config_to(chart)
         self.chart_tab.apply_to(chart)
         self.axes_tab.apply_to(chart)
         self.legend_tab.apply_to(chart)
