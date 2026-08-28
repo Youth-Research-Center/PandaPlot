@@ -63,3 +63,13 @@ class SidebarPanel(PWidget):
             f"font-size: 14px; font-weight: bold; color: {base_fg}; "
             f"padding: 5px; background-color: {card_border}; border-radius: 3px;"
         )
+
+    def _apply_title_theme(self, base_fg: str, card_border: str) -> None:
+        """Apply `title_stylesheet` to `title_label`, for subclasses'
+        `_apply_theme()` to call instead of each repeating the same
+        setStyleSheet line. Guarded since `title_label` is only set once
+        `_set_title()` runs, and `_apply_theme()` can in principle be
+        invoked before that (e.g. via the base ThemeEvents.THEME_CHANGED
+        subscription) depending on subclass init order."""
+        if self.title_label is not None:
+            self.title_label.setStyleSheet(self.title_stylesheet(base_fg, card_border))

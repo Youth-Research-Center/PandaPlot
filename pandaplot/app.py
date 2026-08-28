@@ -33,7 +33,6 @@ from pandaplot.utils.log import setup_logging
 def create_project_data_manager() -> ProjectDataManager:
     """Register item data managers and build the project data manager."""
     factory = ItemDataManagerFactory()
-    # TODO(#220): verify extension usage
     factory.register("note", Note, NoteDataManager(), "note")
     factory.register("folder", Folder, FolderDataManager(), "folder")
     factory.register("chart", Chart, ChartDataManager(), "chart")

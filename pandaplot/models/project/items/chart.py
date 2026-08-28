@@ -243,6 +243,31 @@ class Chart(Item):
             "dpi": None,
             "legend_columns": 1,
             "legend_bg_alpha": 1.0,
+            # Z axis (3-D chart types only -- see ChartTypeSpec.is_3d).
+            # Mirrors the x/y/y2 key families above one-for-one so AxesTab
+            # can drive it through the same prefix-keyed read/write helpers
+            # instead of a parallel Z-only code path. Written for every
+            # chart (2-D charts simply never render them), which is what
+            # keeps a chart that switches 2-D -> 3-D from starting out with
+            # a half-populated Z axis.
+            "z_label": "",
+            "z_scale": "linear",
+            "z_auto_limits": True,
+            "z_min": 0.0,
+            "z_max": 1.0,
+            "z_tick_mode": "auto",
+            "z_tick_count": 5,
+            "z_tick_step": 1.0,
+            "z_tick_format": "auto",
+            "z_tick_format_custom": "",
+            "z_font_size": 12,
+            "show_grid_z": True,
+            # 3-D camera angle, in degrees, passed to Axes3D.view_init.
+            # These are the starting/persisted view: matplotlib's own
+            # interactive drag-to-rotate still moves the camera freely from
+            # here, it just isn't saved back (a re-render resets to this).
+            "view_elev": 30.0,
+            "view_azim": -60.0,
             # Color Map (shared across every Colormap/Heatmap series on this
             # chart -- there is only ever one physical colorbar drawn, so
             # this is chart-level config, not per-series style. See

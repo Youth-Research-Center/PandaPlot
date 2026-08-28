@@ -16,7 +16,7 @@ def ensure_project_or_offer_create(app_context: AppContext, title: str, message:
         return True
 
     ui_controller = app_context.get_ui_controller()
-    if not ui_controller.show_action_or_cancel(title, message, "Create Project"):
+    if not ui_controller.show_action_or_cancel(title=title, message=message, action_label="Create Project"):
         return False
 
     app_context.get_command_executor().execute_command(NewProjectCommand(app_context))

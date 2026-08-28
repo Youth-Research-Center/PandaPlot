@@ -225,7 +225,7 @@ class ChartWizard(PWizard):
             else:
                 x_label = names.get("x", "")
                 y_label = names.get("y", "")
-        self.labels_page.set_defaults(self._initial_title, x_label, y_label)
+        self.labels_page.set_defaults(title=self._initial_title, x_label=x_label, y_label=y_label)
         self.labels_page.refresh_preview(self._project, self.get_chart_type(), self.data_page.series_configs())
 
     def _apply_initial_selection(self) -> None:

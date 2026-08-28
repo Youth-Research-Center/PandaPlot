@@ -64,3 +64,45 @@ def test_reapplying_project_does_not_corrupt_selected_series():
     assert series.dataset_id == dataset_z.id
     assert series.x_column_id == dataset_z.column_id("zx")
     assert series.y_column_id == dataset_z.column_id("zy")
+
+
+def test_reapplying_project_preserves_combo_selection_and_picks_up_new_label():
+    """Regression test: `_update_datasets()` used to clear+repopulate
+    `dataset_combo` without restoring the previously selected entry, so a
+    rename-triggered refresh (ChartPropertiesPanel.PROJECT_ITEM_RENAMED
+    handler) would silently desync the combo's visible selection from the
+    series actually loaded into the form -- it would fall back to whichever
+    dataset landed at index 0 after the rebuild."""
+    _qapp()
+    app_context = build_app_context()
+    project = Project(name="Dataset Refresh Project")
+
+    df_a = pd.DataFrame({"ax": [1, 2], "ay": [3, 4]})
+    dataset_a = Dataset(name="aaa", data=df_a)
+    project.add_item(dataset_a)
+
+    df_z = pd.DataFrame({"zx": [5, 6], "zy": [7, 8]})
+    dataset_z = Dataset(name="zzz", data=df_z)
+    project.add_item(dataset_z)
+
+    chart = Chart(name="Chart", chart_type="line")
+    chart.add_data_series(
+        dataset_z.id,
+        x_column_id=dataset_z.column_id("zx"),
+        y_column_id=dataset_z.column_id("zy"),
+        label="Series on zzz",
+    )
+    project.add_item(chart)
+
+    data_tab = DataTab(app_context=app_context)
+    data_tab.set_project(project)
+    data_tab.load(chart)
+
+    assert data_tab.dataset_combo.currentData() == dataset_z.id
+
+    # Simulate renaming "zzz" while this chart's properties panel is open.
+    dataset_z.update_name("zzz renamed")
+    data_tab.set_project(project)
+
+    assert data_tab.dataset_combo.currentData() == dataset_z.id
+    assert data_tab.dataset_combo.currentText() == "zzz renamed"

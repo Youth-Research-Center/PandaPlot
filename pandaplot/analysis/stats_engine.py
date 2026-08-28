@@ -174,7 +174,8 @@ class StatsEngine:
             ("Significance level", alpha),
         ]
         return StatsEngine._build(
-            StatTestType.ONE_SAMPLE_T, "One-sample t-test", [name], stat, p, alpha, rows,
+            StatTestType.ONE_SAMPLE_T, "One-sample t-test", [name],
+            statistic=stat, p_value=p, alpha=alpha, rows=rows,
             subject=f"the mean of '{name}' differs from {popmean}",
         )
 
@@ -209,7 +210,8 @@ class StatsEngine:
             ("Significance level", alpha),
         ]
         return StatsEngine._build(
-            StatTestType.INDEPENDENT_T, "Independent t-test", [na, nb], stat, p, alpha, rows,
+            StatTestType.INDEPENDENT_T, "Independent t-test", [na, nb],
+            statistic=stat, p_value=p, alpha=alpha, rows=rows,
             subject=f"the means of '{na}' and '{nb}' differ",
         )
 
@@ -242,7 +244,8 @@ class StatsEngine:
             ("Significance level", alpha),
         ]
         return StatsEngine._build(
-            StatTestType.PAIRED_T, "Paired t-test", [na, nb], stat, p, alpha, rows,
+            StatTestType.PAIRED_T, "Paired t-test", [na, nb],
+            statistic=stat, p_value=p, alpha=alpha, rows=rows,
             subject=f"the paired measurements '{na}' and '{nb}' differ",
         )
 
@@ -275,7 +278,8 @@ class StatsEngine:
             ("Significance level", alpha),
         ]
         return StatsEngine._build(
-            StatTestType.MANN_WHITNEY, "Mann-Whitney U test", [na, nb], stat, p, alpha, rows,
+            StatTestType.MANN_WHITNEY, "Mann-Whitney U test", [na, nb],
+            statistic=stat, p_value=p, alpha=alpha, rows=rows,
             subject=f"the distributions of '{na}' and '{nb}' differ",
         )
 
@@ -303,7 +307,8 @@ class StatsEngine:
             ("Significance level", alpha),
         ]
         return StatsEngine._build(
-            StatTestType.WILCOXON, "Wilcoxon signed-rank test", [na, nb], stat, p, alpha, rows,
+            StatTestType.WILCOXON, "Wilcoxon signed-rank test", [na, nb],
+            statistic=stat, p_value=p, alpha=alpha, rows=rows,
             subject=f"the paired measurements '{na}' and '{nb}' differ",
         )
 
@@ -340,7 +345,8 @@ class StatsEngine:
             ("Significance level", alpha),
         ]
         return StatsEngine._build(
-            StatTestType.ONE_WAY_ANOVA, "One-way ANOVA", names, stat, p, alpha, rows,
+            StatTestType.ONE_WAY_ANOVA, "One-way ANOVA", names,
+            statistic=stat, p_value=p, alpha=alpha, rows=rows,
             subject="at least one group mean differs from the others",
         )
 
@@ -368,7 +374,8 @@ class StatsEngine:
             ("Significance level", alpha),
         ]
         return StatsEngine._build(
-            StatTestType.KRUSKAL_WALLIS, "Kruskal-Wallis H test", names, stat, p, alpha, rows,
+            StatTestType.KRUSKAL_WALLIS, "Kruskal-Wallis H test", names,
+            statistic=stat, p_value=p, alpha=alpha, rows=rows,
             subject="at least one group distribution differs from the others",
         )
 
@@ -397,7 +404,8 @@ class StatsEngine:
             ("Significance level", alpha),
         ]
         return StatsEngine._build(
-            StatTestType.PEARSON, "Pearson correlation", [na, nb], r, p, alpha, rows,
+            StatTestType.PEARSON, "Pearson correlation", [na, nb],
+            statistic=r, p_value=p, alpha=alpha, rows=rows,
             subject=f"'{na}' and '{nb}' are linearly correlated",
         )
 
@@ -425,7 +433,8 @@ class StatsEngine:
             ("Significance level", alpha),
         ]
         return StatsEngine._build(
-            StatTestType.SPEARMAN, "Spearman rank correlation", [na, nb], rho, p, alpha, rows,
+            StatTestType.SPEARMAN, "Spearman rank correlation", [na, nb],
+            statistic=rho, p_value=p, alpha=alpha, rows=rows,
             subject=f"'{na}' and '{nb}' are monotonically correlated",
         )
 
@@ -461,7 +470,8 @@ class StatsEngine:
                 f"Fail to reject H0 (p = {_fmt_p(p)} >= {alpha}): no evidence that '{name}' departs from normality."
             )
         result = StatsEngine._build(
-            StatTestType.SHAPIRO, "Shapiro-Wilk normality test", [name], stat, p, alpha, rows, subject="",
+            StatTestType.SHAPIRO, "Shapiro-Wilk normality test", [name],
+            statistic=stat, p_value=p, alpha=alpha, rows=rows, subject="",
         )
         result.conclusion = conclusion
         result.rows.append(("Conclusion", conclusion))

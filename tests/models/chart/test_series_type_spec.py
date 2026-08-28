@@ -20,12 +20,12 @@ from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 
 
-def test_all_seven_series_types_are_registered():
-    assert set(SERIES_TYPE_SPECS.keys()) == {
-        SeriesType.LINE, SeriesType.SCATTER, SeriesType.BAR,
-        SeriesType.HIST, SeriesType.VECTOR,
-        SeriesType.COLORMAP, SeriesType.HEATMAP,
-    }
+def test_every_series_type_is_registered():
+    """Asserted against the SeriesType enum rather than a hardcoded list --
+    a series type with no spec makes every consumer (the renderer dispatch,
+    the Style tab's card visibility, DataSeries.__post_init__) KeyError,
+    and that stays caught without editing this test per new type."""
+    assert set(SERIES_TYPE_SPECS.keys()) == set(SeriesType)
 
 
 def test_line_spec():
@@ -81,6 +81,18 @@ def test_vector_spec():
     assert spec.supports_error_bars is False
     assert spec.needs_x_column is True
     assert spec.needs_secondary_columns is True
+
+
+def test_curve_analysis_is_supported_only_by_line_and_scatter():
+    """Regression (#202): ChartAnalysisPanel's derivative/integral/arc-length/
+    smoothing/interpolation operations assume a single ordered (x, y) curve.
+    Asserted against the full SeriesType enum (not just the two True cases)
+    so a newly added type defaults to being excluded rather than silently
+    inheriting a meaningless analysis option."""
+    curve_types = {SeriesType.LINE, SeriesType.SCATTER}
+    for series_type in SeriesType:
+        expected = series_type in curve_types
+        assert SERIES_TYPE_SPECS[series_type].supports_curve_analysis is expected, series_type
 
 
 def test_style_cls_matches_each_series_type():

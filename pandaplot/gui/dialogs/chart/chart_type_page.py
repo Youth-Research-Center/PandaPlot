@@ -27,11 +27,6 @@ from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
-_SAMPLE_X = [1, 2, 3, 4, 5]
-_SAMPLE_Y = [2, 3, 1, 4, 3]
-_SAMPLE_U = [1.0, 0.5, -1.0, 0.5, -0.5]
-_SAMPLE_V = [0.5, -1.0, 0.5, 1.0, -0.5]
-
 
 class ChartTypePage(PWizardPage):
     emptyRequested = Signal()
@@ -132,7 +127,11 @@ class ChartTypePage(PWizardPage):
         self._apply_tokens(self._tokens)
 
     def _render_preview(self, chart_type: str):
+        # Imported here, not at module scope, for the same reason ChartCanvas
+        # is: wizard_preview pulls in matplotlib (see this module's
+        # docstring and tests/gui/test_main_menu_lazy_imports.py).
         from pandaplot.gui.components.tabs.chart.chart_canvas import ChartCanvas
+        from pandaplot.gui.dialogs.chart.wizard_preview import draw_chart_type_sample
 
         if self._preview_canvas is not None:
             self.preview_container.layout().removeWidget(self._preview_canvas)
@@ -141,23 +140,9 @@ class ChartTypePage(PWizardPage):
 
         canvas = ChartCanvas(width=4, height=3, dpi=80)
         canvas.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        axes = canvas.axes
-        if chart_type == "line":
-            axes.plot(_SAMPLE_X, _SAMPLE_Y)
-        elif chart_type == "scatter":
-            axes.scatter(_SAMPLE_X, _SAMPLE_Y)
-        elif chart_type == "bar":
-            axes.bar(_SAMPLE_X, _SAMPLE_Y)
-        elif chart_type == "hist":
-            axes.hist(_SAMPLE_Y, bins=5)
-        elif chart_type == "vector":
-            axes.quiver(_SAMPLE_X, _SAMPLE_Y, _SAMPLE_U, _SAMPLE_V)
-        elif chart_type == "colormap":
-            axes.scatter(_SAMPLE_X, _SAMPLE_Y, c=_SAMPLE_Y, cmap="viridis")
-        elif chart_type == "heatmap":
-            import numpy as np
-            grid = np.arange(16).reshape(4, 4)
-            axes.pcolormesh(grid, cmap="viridis")
+        # Shared with the Labels step's own sample fallback, so a chart type
+        # can't preview differently in the two steps of one wizard.
+        draw_chart_type_sample(canvas, chart_type)
         canvas.draw()
 
         self.preview_container.layout().addWidget(canvas)

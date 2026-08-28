@@ -13,11 +13,13 @@ from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, get_chart_t
 from pandaplot.models.chart.series_type import SeriesType
 
 
-def test_all_seven_chart_types_are_registered():
-    assert set(CHART_TYPE_SPECS.keys()) == {
-        ChartType.LINE, ChartType.SCATTER, ChartType.BAR, ChartType.HIST, ChartType.VECTOR,
-        ChartType.COLORMAP, ChartType.HEATMAP,
-    }
+def test_every_chart_type_is_registered():
+    """Asserted against the ChartType enum itself rather than a hardcoded
+    list: the bug worth catching is a chart type that exists but has no
+    spec (every consumer of CHART_TYPE_SPECS would KeyError on it), and
+    that stays caught without this test needing an edit each time a type
+    is added."""
+    assert set(CHART_TYPE_SPECS.keys()) == set(ChartType)
 
 
 def test_line_spec_matches_former_chart_role_spec_values():
@@ -67,10 +69,13 @@ def test_allowed_series_types_is_genuinely_immutable():
         spec.allowed_series_types.add(SeriesType.HIST)
 
 
-def test_all_chart_types_allow_fit_except_colormap_and_heatmap():
-    # COLORMAP/HEATMAP are the first chart types with allows_fit=False --
-    # curve fitting doesn't apply to a Z-column (color) series.
-    no_fit = {ChartType.COLORMAP, ChartType.HEATMAP}
+def test_fits_are_allowed_on_every_2d_xy_chart_type_and_nothing_else():
+    # COLORMAP/HEATMAP were the first types with allows_fit=False (a curve
+    # fit doesn't apply to a Z-column colour series); every 3-D type joins
+    # them, since a 2-D curve fit has no meaning on a 3-D chart.
+    no_fit = {ChartType.COLORMAP, ChartType.HEATMAP} | {
+        chart_type for chart_type, spec in CHART_TYPE_SPECS.items() if spec.is_3d
+    }
     for chart_type, spec in CHART_TYPE_SPECS.items():
         assert spec.allows_fit == (chart_type not in no_fit)
 

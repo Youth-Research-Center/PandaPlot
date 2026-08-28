@@ -24,7 +24,10 @@ from pandaplot.models.chart.chart_type_spec import ChartTypeSpec
 _ROLE_LABELS = {
     "x": "X column", "y": "Y column", "values": "Values column",
     "u": "U column", "v": "V column", "magnitude": "Color-by column (optional)",
-    "z": "Z (color) column",
+    # Plain "Z column" rather than "Z (color) column": Z drives point color
+    # on a Colormap/Heatmap chart but is the third spatial axis on every
+    # 3-D one, and one label has to be true of both.
+    "z": "Z column",
 }
 _ROLE_TO_FIELD = {
     "x": "x_column_id", "y": "y_column_id", "values": "y_column_id",

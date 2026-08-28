@@ -10,7 +10,7 @@ from shiboken6 import isValid
 
 from pandaplot.gui.components.tabs.chart.chart_editor import ChartEditorWidget
 from pandaplot.gui.core.widget_extension import PWidget
-from pandaplot.models.events import ChartEvents, UIEvents
+from pandaplot.models.events import ChartEvents
 from pandaplot.models.events.event_types import DatasetEvents, ProjectEvents
 from pandaplot.models.project.items import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -44,8 +44,6 @@ class ChartTab(PWidget):
     def setup_event_subscriptions(self):
         """Set up event subscriptions for tab title changes and chart updates."""
         self.subscribe_to_event(
-            UIEvents.TAB_TITLE_CHANGED, self.on_tab_title_changed)
-        self.subscribe_to_event(
             ProjectEvents.PROJECT_ITEM_RENAMED, self.on_chart_renamed)
         self.subscribe_to_event(
             ChartEvents.CHART_UPDATED, self.on_chart_updated)
@@ -56,11 +54,6 @@ class ChartTab(PWidget):
         # dataset events (see EventHierarchy), so one subscription covers them.
         self.subscribe_to_event(
             DatasetEvents.DATASET_CHANGED, self.on_dataset_changed)
-
-    def on_tab_title_changed(self, event_data: dict):
-        """Handle tab title change events."""
-        if event_data.get("tab_type") == "chart" and event_data.get("chart_id") == self.chart.id:
-            self.refresh_tab_title()
 
     def on_chart_renamed(self, event_data: dict):
         """Update the tab title when the underlying chart item is renamed."""
@@ -112,6 +105,10 @@ class ChartTab(PWidget):
     def get_tab_title(self) -> str:
         """Get the tab title."""
         return f"📈 {self.chart.name}"
+
+    def get_tab_data(self) -> dict:
+        """Identify this tab to TabContainer for session/event bookkeeping."""
+        return {"type": "chart", "id": self.chart.id}
 
     def get_chart(self) -> Chart:
         """Get the chart object."""

@@ -13,6 +13,7 @@ from pandaplot.gui.components.tabs.dataset.dataset_table_view import DatasetTabl
 from pandaplot.gui.components.tabs.dataset.pandas_table_model import PandasTableModel
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import DatasetOperationEvents
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -46,6 +47,26 @@ class DatasetTab(PWidget):
             DatasetOperationEvents.DATASET_ROW_ADDED, self.on_dataset_row_added)
         self.subscribe_to_event(
             DatasetOperationEvents.DATASET_BULK_UPDATE, self.on_dataset_bulk_update)
+        self.subscribe_to_event(
+            ProjectEvents.PROJECT_ITEM_RENAMED, self.on_dataset_renamed)
+
+    def on_dataset_renamed(self, event_data: dict):
+        """Update the tab title when the underlying dataset item is renamed."""
+        if event_data.get("item_id") == self.dataset.id:
+            self.refresh_tab_title()
+
+    def refresh_tab_title(self):
+        """Push the current tab title up to the tab container."""
+        parent_container = self.parent()
+        while parent_container is not None and not hasattr(parent_container, "update_tab_title"):
+            parent_container = parent_container.parent()
+        if parent_container:
+            update_fn = getattr(parent_container, "update_tab_title", None)
+            if callable(update_fn):
+                try:
+                    update_fn(self, self.get_tab_title())
+                except Exception:
+                    pass
 
     @override
     def _apply_theme(self):
@@ -211,6 +232,10 @@ class DatasetTab(PWidget):
         """Get the title for this tab."""
         title = f"📊 {self.dataset.name}"
         return title
+
+    def get_tab_data(self) -> dict:
+        """Identify this tab to TabContainer for session/event bookkeeping."""
+        return {"type": "dataset", "id": self.dataset.id}
 
     def create_chart_from_data(self):
         """Create a chart from this dataset, pre-selecting any columns the

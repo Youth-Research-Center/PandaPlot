@@ -32,9 +32,14 @@ from pandaplot.models.chart.error_direction import ErrorDirection
 from pandaplot.models.chart.series_style import (
     ColormapSeriesStyle,
     HeatmapSeriesStyle,
+    Line3DSeriesStyle,
     LineSeriesStyle,
+    Scatter3DSeriesStyle,
     ScatterSeriesStyle,
+    SurfaceSeriesStyle,
+    TrisurfSeriesStyle,
     VectorSeriesStyle,
+    WireframeSeriesStyle,
 )
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
@@ -1211,18 +1216,23 @@ class StyleTab(QWidget):
 
     def _is_z_driven_series_target(self) -> bool:
         """Whether the current target is a data series whose fill color is
-        driven by its Z column through a colormap (Colormap/Heatmap --
-        SeriesTypeSpec.needs_z_column), rather than by a fixed marker color.
-        For such a series, style.marker.marker_color is read by no renderer
-        (see render_colormap_series/render_heatmap_series), so the Marker
-        card's "Color:" swatch is hidden outright -- showing it would be a
-        silently-ignored control, the exact bug class this feature is meant
-        to eliminate. Edge color/width, marker shape and size still apply
-        and stay visible."""
+        driven by its Z column through a colormap (Colormap/Heatmap/
+        Surface/Trisurf -- SeriesTypeSpec.uses_color_scale), rather than by
+        a fixed marker color. For such a series, style.marker.marker_color
+        is read by no renderer (see render_colormap_series/
+        render_heatmap_series), so the Marker card's "Color:" swatch is
+        hidden outright -- showing it would be a silently-ignored control,
+        the exact bug class this feature is meant to eliminate. Edge
+        color/width, marker shape and size still apply and stay visible.
+
+        Keyed on uses_color_scale, NOT needs_z_column: a Scatter3D series
+        also picks a Z column, but there Z is the third spatial axis and
+        its points really do draw in marker_color -- hiding that swatch
+        would take away the only color control the type has."""
         kind, obj = self._current_target
         if kind != "series" or not isinstance(obj, DataSeries):
             return False
-        return SERIES_TYPE_SPECS[obj.series_type].needs_z_column
+        return SERIES_TYPE_SPECS[obj.series_type].uses_color_scale
 
     def _is_required_marker_target(self) -> bool:
         """Whether the current target's marker can never be turned off --
@@ -1617,26 +1627,47 @@ class StyleTab(QWidget):
             style.vector_head_axis_length = self.vector_head_axis_length_slider.value()
             return
 
-        if isinstance(style, (ColormapSeriesStyle, HeatmapSeriesStyle)):
-            if isinstance(style, HeatmapSeriesStyle):
-                style.heatmap_gridding = self.heatmap_gridding_control.currentValue()
-                style.heatmap_resolution = self.heatmap_resolution_spin.value()
-                style.render_mode = self.heatmap_render_mode_control.currentValue()
-                style.contour_levels = self.heatmap_contour_levels_spin.value()
-                style.contour_line_labels = self.heatmap_contour_line_labels_toggle.isChecked()
-                style.contour_line_width = self.heatmap_contour_line_width_slider.value()
-                return
-            # ColormapSeriesStyle only: it has no color/line/fill fields of
-            # its own (fill color comes from z_data via colormap, not a
-            # fixed style.color), but its marker shape/size/edge fields
-            # still apply (marker_mode == "required") -- fall through
-            # (skipping the style.color/line_style/fill writes above, which
-            # this class doesn't declare) to the shared marker-writing block
-            # below instead of returning.
+        # Gridding mode/resolution, for every style class that declares
+        # them (Heatmap/Surface/Wireframe -- SeriesTypeSpec.supports_
+        # gridding). Written here, before the color branches below, rather
+        # than inside one of them: Heatmap has no other styling at all and
+        # stops right after, but Wireframe additionally has a line color
+        # and width to write, so gridding can't live in either branch.
+        if hasattr(style, "heatmap_gridding"):
+            style.heatmap_gridding = self.heatmap_gridding_control.currentValue()
+            style.heatmap_resolution = self.heatmap_resolution_spin.value()
+
+        if isinstance(style, HeatmapSeriesStyle):
+            # Contour rendering options are Heatmap-only -- Surface/
+            # Wireframe are always solid 3D surfaces with no contour_lines/
+            # contour_filled render mode to configure.
+            style.render_mode = self.heatmap_render_mode_control.currentValue()
+            style.contour_levels = self.heatmap_contour_levels_spin.value()
+            style.contour_line_labels = self.heatmap_contour_line_labels_toggle.isChecked()
+            style.contour_line_width = self.heatmap_contour_line_width_slider.value()
+
+        if isinstance(style, (HeatmapSeriesStyle, SurfaceSeriesStyle, TrisurfSeriesStyle)):
+            # Nothing else on these applies: their color comes from the
+            # chart-level Color Map card (AxesTab's Color chip -- #193) and
+            # they have no marker, line, fill or error-bar fields at all.
+            # Opacity is deliberately not written either -- the Line card
+            # that owns the opacity slider is hidden for these types, so
+            # the slider holds whatever the last *visible* target left in
+            # it, and writing that would silently fade the series.
+            return
+
+        if isinstance(style, ColormapSeriesStyle):
+            # ColormapSeriesStyle: no color/line/fill fields of its own
+            # (fill color comes from z_data via colormap, not a fixed
+            # style.color), but its marker shape/size/edge fields still
+            # apply (marker_mode == "required") -- fall through (skipping
+            # the style.color/line_style writes below, which this class
+            # doesn't declare) to the shared marker-writing block instead
+            # of returning.
             series.alpha = self.line_opacity_slider.value()
         else:
             style.color = self.line_color_row.currentColor()
-            if isinstance(style, LineSeriesStyle):
+            if isinstance(style, (LineSeriesStyle, Line3DSeriesStyle, WireframeSeriesStyle)):
                 style.line_style = self.line_style_control.currentValue().value
                 style.line_width = self.line_width_slider.value()
             series.alpha = self.line_opacity_slider.value()
@@ -1649,9 +1680,11 @@ class StyleTab(QWidget):
         # (rendering falls back to style.color when empty -- see
         # series_renderers/line.py and scatter.py; render_colormap_series
         # falls back to matplotlib's "face" sentinel for marker_edge_color
-        # instead, and never reads marker_color, since fill color always
-        # comes from z_data there).
-        if isinstance(style, (LineSeriesStyle, ScatterSeriesStyle, ColormapSeriesStyle)):
+        # instead, and never reads marker_color at all, since fill color
+        # always comes from z_data there). LineSeriesStyle/ScatterSeriesStyle/
+        # ColormapSeriesStyle declare marker fields.
+        if isinstance(style, (LineSeriesStyle, ScatterSeriesStyle, ColormapSeriesStyle,
+                              Scatter3DSeriesStyle, Line3DSeriesStyle)):
             if self.markers_enabled_toggle.isChecked() or self._is_required_marker_target():
                 style.marker.marker_style = self.marker_shape_control.currentValue().value
                 style.marker.marker_size = self.marker_size_slider.value()
@@ -1786,7 +1819,7 @@ class StyleTab(QWidget):
             # target(), which reads self._current_target and so would be
             # stale if this method is ever called without going through
             # set_selected first, e.g. a direct load in a test).
-            is_z_driven = SERIES_TYPE_SPECS[series.series_type].needs_z_column
+            is_z_driven = SERIES_TYPE_SPECS[series.series_type].uses_color_scale
             marker_color = getattr(marker, "marker_color", "")
             marker_edge_color = getattr(marker, "marker_edge_color", "")
             self.marker_color_row.setCurrentColor(marker_color or color)

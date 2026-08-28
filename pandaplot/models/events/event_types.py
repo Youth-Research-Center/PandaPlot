@@ -109,7 +109,6 @@ class UIEvents:
     """
     TAB_CHANGED = "ui.tab_changed"
     TAB_CLOSED = "ui.tab_closed"
-    TAB_TITLE_CHANGED = "ui.tab_title_changed"
     TAB_OPEN_REQUESTED = "ui.tab_open_requested"
     # Request a note editor to scroll to and select a specific match, used by
     # note search to jump into a result. Payload: note_id, line_number,
@@ -200,8 +199,7 @@ class EventHierarchy:
         # UI events (no hierarchy needed)
         "ui.tab_changed": ["ui.tab_changed"],
         "ui.tab_closed": ["ui.tab_closed"],
-        "ui.tab_title_changed": ["ui.tab_title_changed"],
-        
+
         # Project events (already top-level)
         "project.created": ["project.created"],
         "project.loaded": ["project.loaded"],

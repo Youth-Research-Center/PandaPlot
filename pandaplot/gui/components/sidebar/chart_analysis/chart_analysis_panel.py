@@ -29,6 +29,7 @@ from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
 )
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -398,8 +399,17 @@ class ChartAnalysisPanel(PWidget):
         self.source_combo.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
         self.source_combo.clear()
         chart = self.current_chart
+        any_series_excluded = False
         if chart is not None:
             for i, series in enumerate(chart.data_series):
+                # Derivative/integral/arc-length/smoothing/interpolation all
+                # assume a single ordered (x, y) curve -- meaningless (or
+                # silently wrong) for bar/hist/vector/colormap/heatmap/3-D
+                # series, so those are left off the picker entirely rather
+                # than letting them produce a nonsense result (#202).
+                if not SERIES_TYPE_SPECS[series.series_type].supports_curve_analysis:
+                    any_series_excluded = True
+                    continue
                 label = series.label or f"Series {i + 1}"
                 self.source_combo.addItem(f"📈 {label}", ("series", i))
             for i, fit in enumerate(chart.fit_data):
@@ -411,7 +421,17 @@ class ChartAnalysisPanel(PWidget):
         self.apply_btn.setEnabled(has_sources)
         self.preview_btn.setEnabled(has_sources)
         if not has_sources:
-            self.source_hint.setText("This chart has no data series or fits yet.")
+            if any_series_excluded:
+                self.source_hint.setText(
+                    "This chart's series (bar/hist/vector/colormap/heatmap/3-D) "
+                    "don't support this analysis -- add a line, scatter, or fit."
+                )
+            else:
+                self.source_hint.setText("This chart has no data series or fits yet.")
+        elif any_series_excluded:
+            self.source_hint.setText(
+                "Line/scatter series and fitted curves of this chart -- other series types aren't shown."
+            )
         else:
             self.source_hint.setText("Data series and fitted curves of this chart.")
         self._on_source_changed()
@@ -423,7 +443,7 @@ class ChartAnalysisPanel(PWidget):
 
     def _on_tab_changed(self, event_data):
         if event_data.get("tab_type") == "chart":
-            chart_id = event_data.get("chart_id")
+            chart_id = event_data.get("tab_id")
             self.current_chart_id = chart_id
             project = self.app_context.get_app_state().current_project
             chart = project.find_item(chart_id) if project and chart_id else None

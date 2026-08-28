@@ -250,7 +250,7 @@ class DescriptiveStatsPanel(SidebarPanel):
 
     def on_tab_changed(self, event_data):
         if event_data.get("tab_type") == "dataset":
-            dataset_id = event_data.get("dataset_id")
+            dataset_id = event_data.get("tab_id")
             self.current_dataset_id = dataset_id
             self.current_dataset = None
             if dataset_id:
@@ -311,4 +311,4 @@ class DescriptiveStatsPanel(SidebarPanel):
             }}
         """)
 
-        self.title_label.setStyleSheet(self.title_stylesheet(base_fg, card_border))
+        self._apply_title_theme(base_fg, card_border)

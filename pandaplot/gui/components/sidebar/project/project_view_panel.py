@@ -259,7 +259,7 @@ class ProjectViewPanel(SidebarPanel):
         """)
         
         # Style panel title (like other panels)
-        self.title_label.setStyleSheet(self.title_stylesheet(base_fg, card_border))
+        self._apply_title_theme(base_fg, card_border)
         
         # Apply theme to project title and file labels
         self.project_title_label.setStyleSheet(f"""

@@ -292,7 +292,10 @@ class MainMenu(PMenuBar):
 
     def _on_tab_changed(self, event_data: dict):
         """Track the active tab's dataset so menu dialogs can preselect it."""
-        self.active_dataset_id = event_data.get("dataset_id")
+        if event_data.get("tab_type") == "dataset":
+            self.active_dataset_id = event_data.get("tab_id")
+        else:
+            self.active_dataset_id = None
 
     @override
     def setup_event_subscriptions(self):

@@ -370,7 +370,7 @@ class PreprocessingPanel(SidebarPanel):
     def on_tab_changed(self, event_data):
         """Handle tab changes to track the active dataset."""
         if event_data.get("tab_type") == "dataset":
-            dataset_id = event_data.get("dataset_id")
+            dataset_id = event_data.get("tab_id")
             self.current_dataset_id = dataset_id
             project = self.app_context.get_app_state().current_project
             dataset = project.find_item(dataset_id) if project and dataset_id else None
@@ -414,7 +414,7 @@ class PreprocessingPanel(SidebarPanel):
             }}
         """)
 
-        self.title_label.setStyleSheet(self.title_stylesheet(base_fg, card_border))
+        self._apply_title_theme(base_fg, card_border)
 
         for label in (self.description_label, self.naming_hint):
             label.setStyleSheet(f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}")

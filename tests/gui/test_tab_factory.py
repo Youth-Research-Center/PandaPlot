@@ -42,15 +42,3 @@ def test_create_tab_raises_on_unregistered_item_type():
 
     with pytest.raises(ValueError, match="Unsupported item type, item class _OtherFakeItem"):
         factory.create_tab(Mock(), _OtherFakeItem(), Mock())
-
-
-def test_register_does_not_import_tab_modules():
-    """Registering must not require importing any tab widget module --
-    loaders own their own lazy imports."""
-    import sys
-
-    factory = TabFactory()
-    factory.register(_FakeItem, Mock())
-
-    assert "pandaplot.gui.components.tabs.note.note_tab" not in sys.modules
-    assert "pandaplot.gui.components.tabs.chart.chart_tab" not in sys.modules

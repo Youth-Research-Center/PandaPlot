@@ -44,11 +44,10 @@ def _series_data(**overrides):
     return SeriesData(**defaults)
 
 
-def test_series_renderers_registry_has_all_5_types():
-    assert set(SERIES_RENDERERS.keys()) == {
-        SeriesType.LINE, SeriesType.SCATTER, SeriesType.BAR, SeriesType.HIST, SeriesType.VECTOR,
-        SeriesType.COLORMAP, SeriesType.HEATMAP,
-    }
+def test_every_series_type_has_a_renderer():
+    """Against the SeriesType enum, not a hardcoded list: a type with no
+    entry here raises KeyError mid-render and blanks the whole chart."""
+    assert set(SERIES_RENDERERS.keys()) == set(SeriesType)
     assert SERIES_RENDERERS[SeriesType.LINE] is render_line_series
     assert SERIES_RENDERERS[SeriesType.SCATTER] is render_scatter_series
     assert SERIES_RENDERERS[SeriesType.BAR] is render_bar_series

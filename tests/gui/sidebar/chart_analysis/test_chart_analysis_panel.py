@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QApplication
 from pandaplot.gui.components.sidebar.chart_analysis.chart_analysis_panel import (
     ChartAnalysisPanel,
 )
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
@@ -89,3 +90,54 @@ class TestChartAnalysisPanelRangeLabels:
         panel.end_index.setValue(50)
 
         assert panel._build_parameters()["end_index"] == 51
+
+
+class TestChartAnalysisPanelSeriesFiltering:
+    """Regression (#202): derivative/integral/arc-length/smoothing/
+    interpolation assume a single ordered (x, y) curve -- meaningless for
+    bar/hist/vector/colormap/heatmap/3-D series, so the source picker must
+    leave them off entirely rather than letting them produce nonsense."""
+
+    def _combo_labels(self, panel):
+        return [panel.source_combo.itemText(i) for i in range(panel.source_combo.count())]
+
+    def test_bar_series_is_excluded_from_the_source_picker(self, panel):
+        panel.current_chart.data_series[0].series_type = SeriesType.BAR
+        panel._populate_sources()
+
+        assert self._combo_labels(panel) == []
+        assert panel.apply_btn.isEnabled() is False
+
+    def test_line_and_scatter_series_are_offered(self, panel):
+        assert any("Squared" in label for label in self._combo_labels(panel))
+
+    def test_fit_curves_are_offered_even_when_every_series_is_excluded(self, panel):
+        panel.current_chart.data_series[0].series_type = SeriesType.HEATMAP
+        panel.current_chart.add_fit_data(
+            source_dataset_id="ds-1", fit_type="linear",
+            x_data=[1.0, 2.0, 3.0], y_data=[1.0, 2.0, 3.0], label="Fit 1",
+        )
+
+        panel._populate_sources()
+
+        labels = self._combo_labels(panel)
+        assert any("Fit 1" in label for label in labels)
+        assert len(labels) == 1
+
+    def test_hint_flags_excluded_series_when_other_sources_remain(self, panel):
+        panel.current_chart.add_data_series(
+            dataset_id="ds-1", label="Counts", series_type=SeriesType.HIST,
+        )
+
+        panel._populate_sources()
+
+        assert "aren't shown" in panel.source_hint.text()
+        assert any("Squared" in label for label in self._combo_labels(panel))
+
+    def test_hint_explains_when_every_series_is_excluded(self, panel):
+        panel.current_chart.data_series[0].series_type = SeriesType.VECTOR
+
+        panel._populate_sources()
+
+        assert self._combo_labels(panel) == []
+        assert "don't support this analysis" in panel.source_hint.text()

@@ -23,6 +23,7 @@ import pandas as pd
 from pandaplot.analysis import AnalysisEngine, AnalysisType
 from pandaplot.commands.base_command import Command
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart, resolve_series_column
@@ -92,6 +93,15 @@ class AnalyzeChartSeriesCommand(Command):
         if not (0 <= self.source_index < len(chart.data_series)):
             raise ValueError("Selected series no longer exists.")
         series = chart.data_series[self.source_index]
+        if not SERIES_TYPE_SPECS[series.series_type].supports_curve_analysis:
+            # Belt-and-braces (#202): ChartAnalysisPanel's source picker
+            # already excludes these, but this command can in principle be
+            # invoked directly, and a bar/hist/vector/colormap/heatmap/3-D
+            # series has no meaningful ordered (x, y) curve to analyze.
+            raise ValueError(
+                f"'{series.series_type.value}' series don't support this analysis "
+                "(only line, scatter, and fitted curves do)."
+            )
         dataset = self.app_state.current_project.find_item(series.dataset_id)
         if not isinstance(dataset, Dataset) or dataset.data is None:
             raise ValueError("Series dataset is not available.")

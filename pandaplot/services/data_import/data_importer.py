@@ -180,7 +180,7 @@ def default_options(file_path: str) -> ImportOptions:
         options = replace(
             options,
             delimiter=delimiter,
-            has_header=detect_has_header(file_path, delimiter, options.encoding),
+            has_header=detect_has_header(file_path=file_path, delimiter=delimiter, encoding=options.encoding),
         )
     elif file_format == EXCEL_FORMAT:
         sheets = list_excel_sheets(file_path)

@@ -20,6 +20,7 @@ from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items.chart import restore_chart_state, snapshot_chart_state
+from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
@@ -81,6 +82,13 @@ class ChartPropertiesPanel(SidebarPanel):
         # `self.axes_tab.refresh_axis_chips` to sync the Y2/Color chips.
         self.axes_tab = AxesTab(self.app_context, self)
         self.axes_tab.configChanged.connect(self._on_any_tab_config_changed)
+        # A chart-type change can add or remove the Z axis chip (3-D types
+        # only) and the 3-D camera card, so the Axes tab has to re-sync on
+        # it -- the same reason StyleTab/DataTab listen above. Connected
+        # here rather than beside those two because `self.axes_tab` doesn't
+        # exist yet at that point.
+        self.chart_tab.chartTypeChanged.connect(
+            lambda _value: self.axes_tab.refresh_axis_chips(self.current_chart))
 
         # Data tab: series list + per-series dataset/X/Y/label configuration
         self.data_tab = DataTab(self.app_context, self)
@@ -200,7 +208,7 @@ class ChartPropertiesPanel(SidebarPanel):
         """)
         
         # Title label with improved styling
-        self.title_label.setStyleSheet(self.title_stylesheet(base_fg, card_border))
+        self._apply_title_theme(base_fg, card_border)
         
         # Tab widget with theme-aware colors
         self.tab_widget.setStyleSheet(f"""
@@ -257,6 +265,29 @@ class ChartPropertiesPanel(SidebarPanel):
         self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, self._on_project_loaded)  # may not fire yet
         self.subscribe_to_event("project_loaded", self._on_project_loaded)
         self.subscribe_to_event("first_project_loaded", self._on_project_loaded)
+        # A renamed dataset's display name in the Data tab's dataset combo
+        # otherwise stays stale until the next tab switch re-triggers
+        # set_project(); refresh it live instead.
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_RENAMED, self._on_project_item_renamed)
+
+    def _on_project_item_renamed(self, event_data):
+        """Refresh dataset-name displays in the Data tab after a dataset rename.
+
+        The rename payload doesn't carry an item type, so look the renamed
+        item up to filter out chart/note/folder/etc. renames -- rebuilding
+        is otherwise wasted work on every unrelated rename.
+        """
+        if not self.current_project:
+            return
+        item = self.current_project.find_item(event_data.get("item_id"))
+        if isinstance(item, Dataset):
+            self.data_tab.set_project(self.current_project)
+            # The combo rebuild above doesn't touch the expanded-but-not-
+            # selected series/fit detail rows, which render the dataset's
+            # display name as static QLabel text via _dataset_display_name()
+            # at card-build time -- rebuild those too so they don't go stale.
+            if self.current_chart:
+                self.data_tab._rebuild_series_cards()
 
     def _ensure_datasets_loaded(self):
         """Populate datasets if empty (idempotent)."""
@@ -275,7 +306,7 @@ class ChartPropertiesPanel(SidebarPanel):
     def _on_tab_changed(self, event_data):
         """Handle tab change events to update context."""
         current_tab_type = event_data.get("tab_type")
-        chart_id = event_data.get("chart_id")
+        chart_id = event_data.get("tab_id")
         
         # Check if current tab is a chart tab
         if current_tab_type == "chart" and chart_id:

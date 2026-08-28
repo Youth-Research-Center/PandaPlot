@@ -272,6 +272,33 @@ class TestBreadcrumbSegments:
         names = [w.text() for w in segments]
         assert names == ["Trip", "Day 1", "Morning"]
 
+    def test_renaming_ancestor_gallery_refreshes_breadcrumb(self, app_context):
+        """Regression: breadcrumb segments render each ancestor's name as
+        static QLabel/button text at navigation time (_rebuild_breadcrumb),
+        so renaming an ancestor gallery -- not just the currently displayed
+        one -- left the breadcrumb showing the old name. This isn't covered
+        by _event_concerns_this_gallery (scoped to current_gallery's own
+        id/children), so it needs its own ancestor-chain check."""
+        root = ImageGallery(name="Trip")
+        album = ImageGallery(name="Day 1")
+        root.add_item(album)
+        app_context.get_app_state.return_value.current_project = _project_stub(root, album)
+        tab = ImageGalleryTab(app_context=app_context, gallery=root, parent=None)
+
+        tab._navigate_to(album)
+
+        root.update_name("Trip Renamed")
+        tab._on_project_item_changed({"item_id": root.id, "new_name": "Trip Renamed"})
+
+        segments = [
+            tab.breadcrumb_row_layout.itemAt(i).widget()
+            for i in range(tab.breadcrumb_row_layout.count())
+            if isinstance(tab.breadcrumb_row_layout.itemAt(i).widget(), (PButton, QLabel))
+            and tab.breadcrumb_row_layout.itemAt(i).widget().text().strip() != ">"
+        ]
+        names = [w.text() for w in segments]
+        assert names == ["Trip Renamed", "Day 1"]
+
     def test_clicking_non_last_segment_navigates_and_updates_history(self, app_context):
         root = ImageGallery(name="Trip")
         album = ImageGallery(name="Day 1")
@@ -1088,3 +1115,41 @@ class TestImageGalleryTabLongNameTruncation:
         displayed = row.text(0)
         assert displayed != long_name
         assert row.toolTip(0) == long_name
+
+
+def test_get_tab_data_returns_imagegallery_type_and_id():
+    tab = ImageGalleryTab.__new__(ImageGalleryTab)
+    tab.root_gallery = Mock(id="gal-1")
+
+    assert tab.get_tab_data() == {"type": "imagegallery", "id": "gal-1"}
+
+
+class TestImageGalleryTabTitleRefresh:
+    def test_rename_of_root_gallery_refreshes_tab_title(self, app_context):
+        """Regression: unlike ChartTab/NoteTab/DatasetTab, ImageGalleryTab
+        never called refresh_tab_title() at all, so renaming the gallery
+        shown in an open tab left its tab title stale even though the grid
+        itself did repopulate on the same event."""
+        gallery = ImageGallery(name="Trip")
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.refresh_tab_title = Mock()
+
+        gallery.update_name("Trip Renamed")
+        tab._on_project_item_changed({"item_id": gallery.id, "new_name": "Trip Renamed"})
+
+        tab.refresh_tab_title.assert_called_once()
+
+    def test_rename_of_child_image_does_not_refresh_tab_title(self, app_context):
+        """The tab title only reflects root_gallery.name, so a rename of a
+        child image/sub-gallery (which does still repopulate the grid) has
+        nothing to refresh the title for."""
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.refresh_tab_title = Mock()
+
+        image.update_name("Beach Renamed")
+        tab._on_project_item_changed({"item_id": image.id, "new_name": "Beach Renamed"})
+
+        tab.refresh_tab_title.assert_not_called()

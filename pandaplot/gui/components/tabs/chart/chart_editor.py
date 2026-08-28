@@ -1,3 +1,4 @@
+import warnings
 from typing import Optional, override
 
 import numpy as np
@@ -33,9 +34,13 @@ from pandaplot.gui.components.tabs.chart.chart_canvas import (
 from pandaplot.gui.components.tabs.chart.chart_error_bars import build_error_array
 from pandaplot.gui.components.tabs.chart.chart_heatmap import resolve_color_limits
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData
-from pandaplot.gui.components.tabs.chart.series_renderers import SERIES_RENDERERS
+from pandaplot.gui.components.tabs.chart.series_renderers import (
+    SERIES_RENDERERS,
+    SERIES_RENDERERS_REPORTING_NO_DATA,
+)
 from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import LineSeriesStyle
@@ -288,21 +293,43 @@ def build_legend(
     )
 
 
-def apply_layout_with_legend(fig, tight_layout_kwargs: dict, *, legend_placed_outside: bool) -> None:
+def apply_layout_with_legend(fig, tight_layout_kwargs: dict, *, legend_placed_outside: bool,
+                              is_3d: bool = False) -> None:
     """Run Figure.tight_layout(), re-running it once more when the legend was
     placed outside the axes (`bbox_to_anchor` set). The first pass runs
     before Matplotlib can account for an out-of-axes legend's extent, so
     without the second pass the legend gets clipped by the figure boundary.
 
-    tight_layout() is also where Matplotlib's mathtext parser runs while
-    measuring text extents, so invalid mathtext (e.g. unbalanced `$...$`)
-    raises here instead of when the text was set. Mathtext is re-enabled
-    before each attempt (so a fixed label renders as math again) and only
-    disabled -- falling back to literal text -- if that attempt still
-    fails, so a bad label cannot leave the chart preview stuck mid-update."""
-    run_with_mathtext_fallback(fig, lambda: fig.tight_layout(**tight_layout_kwargs))
+    tight_layout() measures every text artist's extent, which is where
+    Matplotlib's mathtext parser actually runs -- a title/label/tick-label
+    containing invalid mathtext (e.g. `$\\theta_$`, unbalanced `$...$`) raises
+    ValueError/RuntimeError here rather than when the text was set. Mathtext
+    parsing is re-enabled for every text artist before each attempt (so a
+    label the user has since fixed gets rendered as math again), and only
+    disabled -- falling back to literal text -- if that attempt still fails,
+    instead of leaving the layout (and the whole chart preview) stuck
+    mid-update.
+
+    `is_3d` silences tight_layout's "Tight layout not applied" UserWarning.
+    An mplot3d axes reports a decoration extent that routinely can't be fit
+    inside the requested padding (its axis labels sit outside the projected
+    box), so that warning fires on essentially *every* 3-D render -- it is
+    the normal case there, not a signal of anything the user did or could
+    fix, and matplotlib itself documents tight_layout as unsupported for
+    3-D axes. It's suppressed rather than skipped entirely because
+    tight_layout still succeeds for many 3-D figures, and a 3-D axes
+    already insets its own drawing, so the untightened fallback margins
+    stay perfectly readable when it doesn't."""
+    def _layout():
+        with warnings.catch_warnings():
+            if is_3d:
+                warnings.filterwarnings("ignore", message="Tight layout not applied",
+                                        category=UserWarning)
+            fig.tight_layout(**tight_layout_kwargs)
+
+    run_with_mathtext_fallback(fig, _layout)
     if legend_placed_outside:
-        fig.tight_layout(**tight_layout_kwargs)
+        _layout()
 
 
 def _resolve_error_column(df, column_name):
@@ -400,10 +427,12 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
 
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> Optional[tuple[float, float]]:
     """Compute (min, max) across every series plotted against the given
-    axis (`prefix` in "x", "y", "y2"). "x" includes all series; "y"/"y2"
-    are filtered by `series.y_axis`. Returns None when no series have
-    resolvable data for this axis, so callers can fall back to a default
-    range.
+    axis (`prefix` in "x", "y", "y2", "z"). All series contribute to "x"
+    and to "z" (a 3-D chart has no secondary anything to filter by);
+    "y"/"y2" are filtered by `series.y_axis`. Returns None if no series
+    have resolvable data for this axis (no series yet, every reference is
+    broken, or -- for "z" -- no series on the chart carries a Z column at
+    all) -- callers fall back to a fixed default range in that case.
 
     Each series' own `series_type` (not a chart-wide type) governs whether
     it needs an x-column, so mixed-type charts do not apply one series'
@@ -424,7 +453,7 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
         data = resolve_series_data(project, series)
         if data.error:
             continue
-        arr = data.x_data if prefix == "x" else data.y_data
+        arr = {"x": data.x_data, "z": data.z_data}.get(prefix, data.y_data)
         if arr is None:
             continue
         values = np.asarray(arr, dtype=float)
@@ -789,6 +818,14 @@ class ChartEditorWidget(PWidget):
                     self.logger.debug("Failed to remove stale colorbar", exc_info=True)
                 self._colorbar = None
 
+            # Switch the axes' projection if this chart's type needs the
+            # other one. Must come after the colorbar removal above (which
+            # needs the mappable's axes to still exist) and before
+            # axes.clear() below (a 2-D <-> 3-D switch replaces the axes
+            # object outright, so clearing the outgoing one is pointless).
+            is_3d = CHART_TYPE_SPECS[self.chart.chart_type].is_3d
+            self.chart_canvas.set_projection(projection_3d=is_3d)
+
             # Clear the current plot
             self.chart_canvas.axes.clear()
 
@@ -815,8 +852,12 @@ class ChartEditorWidget(PWidget):
             self.chart_canvas.axes.set_facecolor(axes_bg if axes_bg is not None else "none")
 
             # Set up (or tear down) the secondary Y axis depending on whether
-            # any series is currently routed to it.
-            needs_secondary = any(series.y_axis == "secondary" for series in self.chart.data_series)
+            # any series is currently routed to it. Never on a 3-D chart:
+            # twinx() has no mplot3d equivalent, and a series' y_axis
+            # setting simply doesn't apply there (set_projection already
+            # tore down any axes2 left over from a 2-D type).
+            needs_secondary = not is_3d and any(
+                series.y_axis == "secondary" for series in self.chart.data_series)
             if needs_secondary:
                 if self.chart_canvas.axes2 is None:
                     self.chart_canvas.axes2 = self.chart_canvas.axes.twinx()
@@ -854,7 +895,7 @@ class ChartEditorWidget(PWidget):
                 z_arrays: list[np.ndarray] = []
                 if color_scale_auto:
                     for series, data in zip(self.chart.data_series, resolved_data, strict=True):
-                        if not SERIES_TYPE_SPECS[series.series_type].needs_z_column or data.error is not None:
+                        if not SERIES_TYPE_SPECS[series.series_type].uses_color_scale or data.error is not None:
                             continue
                         try:
                             z_arrays.append(np.asarray(data.z_data, dtype=float))
@@ -926,11 +967,11 @@ class ChartEditorWidget(PWidget):
                             "color_limits": color_limits,
                         },
                     )
-                    if mappable is None and series_type in (SeriesType.COLORMAP, SeriesType.HEATMAP):
-                        series_errors.append(f"{series.label or f'Series {i + 1}'}: no data to grid")
+                    if mappable is None and series_type in SERIES_RENDERERS_REPORTING_NO_DATA:
+                        series_errors.append(f"{series.label or f'Series {i + 1}'}: no plottable data")
                         continue
                     if (mappable is not None and colorbar_mappable is None
-                            and SERIES_TYPE_SPECS[series_type].needs_z_column
+                            and SERIES_TYPE_SPECS[series_type].uses_color_scale
                             and self.chart.config.get("colorbar_show", True)):
                         colorbar_mappable = mappable
                         # None means "not customized" -- fall back to the Z
@@ -945,8 +986,14 @@ class ChartEditorWidget(PWidget):
                         )
 
                 if colorbar_mappable is not None:
+                    # A 3-D axes needs a wider gap than matplotlib's 0.05
+                    # default: its Z tick labels are drawn at the right edge
+                    # of the axes box (the projected cube is inset within
+                    # it), so a default-padded colorbar lands on top of
+                    # them.
                     self._colorbar = self.chart_canvas.fig.colorbar(
-                        colorbar_mappable, ax=self.chart_canvas.axes)
+                        colorbar_mappable, ax=self.chart_canvas.axes,
+                        **({"pad": 0.12} if is_3d else {}))
                     if self.chart_canvas.axes2 is not None:
                         # fig.colorbar(..., ax=axes) subdivides *only* the
                         # primary axes' gridspec cell to make room -- axes2
@@ -1093,12 +1140,34 @@ class ChartEditorWidget(PWidget):
             self.chart_canvas.axes.set_yscale(y_scale, **resolve_scale_kwargs(y_scale, config.get("y_log_base", 10.0)))
             self.chart_canvas.axes.xaxis.label.set_size(config.get("x_font_size", 12))
             self.chart_canvas.axes.yaxis.label.set_size(config.get("y_font_size", 12))
-            if config.get("y_side", "left") == "right":
-                self.chart_canvas.axes.yaxis.tick_right()
-                self.chart_canvas.axes.yaxis.set_label_position("right")
-            else:
-                self.chart_canvas.axes.yaxis.tick_left()
-                self.chart_canvas.axes.yaxis.set_label_position("left")
+            if not is_3d:
+                # Which side the Y axis is drawn on is a 2-D concept:
+                # mplot3d's own YAxis has no tick_left/tick_right at all
+                # (calling them raises AttributeError), and the axis's
+                # position on a 3-D chart follows the camera angle instead.
+                if config.get("y_side", "left") == "right":
+                    self.chart_canvas.axes.yaxis.tick_right()
+                    self.chart_canvas.axes.yaxis.set_label_position("right")
+                else:
+                    self.chart_canvas.axes.yaxis.tick_left()
+                    self.chart_canvas.axes.yaxis.set_label_position("left")
+
+            if is_3d:
+                self.chart_canvas.axes.set_zlabel(
+                    config.get("z_label", ""), color=x_label_color,
+                    fontfamily=config.get("z_font_family", "DejaVu Sans"),
+                    fontweight="bold" if config.get("z_title_bold", False) else "normal",
+                    fontstyle="italic" if config.get("z_title_italic", False) else "normal",
+                )
+                z_scale = config.get("z_scale", "linear")
+                self.chart_canvas.axes.set_zscale(
+                    z_scale, **resolve_scale_kwargs(z_scale, config.get("z_log_base", 10.0)))
+                self.chart_canvas.axes.zaxis.label.set_size(config.get("z_font_size", 12))
+                # The camera angle. Matplotlib's interactive drag-to-rotate
+                # still moves it freely from here -- this is the view every
+                # (re-)render starts from, not a lock.
+                self.chart_canvas.axes.view_init(
+                    elev=config.get("view_elev", 30.0), azim=config.get("view_azim", -60.0))
 
             if self.chart_canvas.axes2 is not None:
                 y2_match_label = config.get("y2_match_x_label_color", True)
@@ -1170,6 +1239,8 @@ class ChartEditorWidget(PWidget):
                 self.chart_canvas.axes.set_xlim(config.get("x_min", 0.0), config.get("x_max", 1.0))
             if not config.get("y_auto_limits", True):
                 self.chart_canvas.axes.set_ylim(config.get("y_min", 0.0), config.get("y_max", 1.0))
+            if is_3d and not config.get("z_auto_limits", True):
+                self.chart_canvas.axes.set_zlim(config.get("z_min", 0.0), config.get("z_max", 1.0))
 
             apply_axis_ticks(
                 self.chart_canvas.axes.xaxis,
@@ -1219,6 +1290,32 @@ class ChartEditorWidget(PWidget):
                 rotation=config.get("y_tick_label_rotation", 0),
             )
 
+            if is_3d:
+                # mplot3d's ZAxis is a plain matplotlib Axis subclass, so
+                # the same locator/formatter/tick-params helpers the X and
+                # Y axes go through apply unchanged. Z has no "match X"
+                # color flags of its own (the Style tab's per-axis color
+                # forms are X/Y/Y2 only), so it simply follows X's colors.
+                apply_axis_ticks(
+                    self.chart_canvas.axes.zaxis,
+                    config.get("z_tick_mode", "auto"), config.get("z_tick_count", 5),
+                    config.get("z_tick_step", 1.0), config.get("z_tick_format", "auto"),
+                    config.get("z_tick_format_custom", ""),
+                    direction=config.get("z_tick_direction", "out"),
+                    minor_enabled=config.get("z_minor_ticks", False),
+                    minor_direction=config.get("z_minor_tick_direction", "out"),
+                    major_color=config.get("x_major_tick_color", "#000000"),
+                    minor_color=config.get("x_minor_tick_color", "#000000"),
+                    labelcolor=config.get("x_tick_label_color", "#000000"))
+                apply_tick_label_font(
+                    self.chart_canvas.axes.zaxis,
+                    config.get("x_tick_label_font_size", 10),
+                    config.get("x_tick_label_font_family", "DejaVu Sans"),
+                    bold=config.get("x_tick_label_bold", False),
+                    italic=config.get("x_tick_label_italic", False),
+                    rotation=config.get("x_tick_label_rotation", 0),
+                )
+
             apply_spine_colors(
                 self.chart_canvas.axes, self.chart_canvas.axes2,
                 config.get("x_spine_color", "#000000"),
@@ -1233,22 +1330,35 @@ class ChartEditorWidget(PWidget):
 
             grid_alpha = config.get("grid_alpha", 0.3)
             minor_grid_alpha = config.get("minor_grid_alpha", 0.15)
-            if config.get("show_grid_x", True):
-                self.chart_canvas.axes.grid(visible=True, axis="x", alpha=grid_alpha)
+            if is_3d:
+                # Axes3D.grid() takes no `axis`/`which`/`alpha` -- it draws
+                # the three panes' gridlines as one unit (any kwarg passed
+                # is silently ignored AND forces visible=True, so the 2-D
+                # per-axis calls below would turn the grid permanently on).
+                # Show it when any of the three axes wants a grid.
+                self.chart_canvas.axes.grid(
+                    visible=(
+                        config.get("show_grid_x", True)
+                        or config.get("show_grid_y", True)
+                        or config.get("show_grid_z", True)
+                    ))
             else:
-                self.chart_canvas.axes.grid(visible=False, axis="x")
-            if config.get("x_show_minor_grid", False):
-                self.chart_canvas.axes.grid(visible=True, axis="x", which="minor", alpha=minor_grid_alpha)
-            else:
-                self.chart_canvas.axes.grid(visible=False, axis="x", which="minor")
-            if config.get("show_grid_y", True):
-                self.chart_canvas.axes.grid(visible=True, axis="y", alpha=grid_alpha)
-            else:
-                self.chart_canvas.axes.grid(visible=False, axis="y")
-            if config.get("y_show_minor_grid", False):
-                self.chart_canvas.axes.grid(visible=True, axis="y", which="minor", alpha=minor_grid_alpha)
-            else:
-                self.chart_canvas.axes.grid(visible=False, axis="y", which="minor")
+                if config.get("show_grid_x", True):
+                    self.chart_canvas.axes.grid(visible=True, axis="x", alpha=grid_alpha)
+                else:
+                    self.chart_canvas.axes.grid(visible=False, axis="x")
+                if config.get("x_show_minor_grid", False):
+                    self.chart_canvas.axes.grid(visible=True, axis="x", which="minor", alpha=minor_grid_alpha)
+                else:
+                    self.chart_canvas.axes.grid(visible=False, axis="x", which="minor")
+                if config.get("show_grid_y", True):
+                    self.chart_canvas.axes.grid(visible=True, axis="y", alpha=grid_alpha)
+                else:
+                    self.chart_canvas.axes.grid(visible=False, axis="y")
+                if config.get("y_show_minor_grid", False):
+                    self.chart_canvas.axes.grid(visible=True, axis="y", which="minor", alpha=minor_grid_alpha)
+                else:
+                    self.chart_canvas.axes.grid(visible=False, axis="y", which="minor")
 
             legend = None
             placement_kwargs = {}
@@ -1295,6 +1405,7 @@ class ChartEditorWidget(PWidget):
                 legend_placed_outside=(
                     legend is not None and placement_kwargs.get("bbox_to_anchor") is not None
                 ),
+                is_3d=is_3d,
             )
 
             # Store original limits for zoom reset functionality

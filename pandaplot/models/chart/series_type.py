@@ -1,4 +1,4 @@
-"""The 5 data-series rendering shapes, independent of chart type.
+"""The data-series rendering shapes, independent of chart type.
 
 Distinct from `ChartType` (chart_type.py): a chart's type and a given
 series' type are independent by design (e.g. a Bar chart may contain a
@@ -17,3 +17,9 @@ class SeriesType(str, Enum):
     VECTOR = "vector"
     COLORMAP = "colormap"
     HEATMAP = "heatmap"
+    SCATTER3D = "scatter3d"
+    LINE3D = "line3d"
+    SURFACE = "surface"
+    WIREFRAME = "wireframe"
+    BAR3D = "bar3d"
+    TRISURF = "trisurf"

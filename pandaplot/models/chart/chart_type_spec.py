@@ -30,6 +30,13 @@ class ChartTypeSpec:
     allowed_series_types: frozenset[SeriesType]
     allows_fit: bool
     default_series_type: SeriesType
+    # Whether this chart type renders on a matplotlib mplot3d axes rather
+    # than a plain 2-D one. Owned here (and mirrored per series type on
+    # SeriesTypeSpec) because it decides things no per-series renderer can:
+    # which projection ChartCanvas builds its axes with, whether a
+    # secondary Y axis is even possible (twinx() has no mplot3d
+    # equivalent -- it isn't), and whether the Axes tab offers a Z axis.
+    is_3d: bool = False
 
     @property
     def supports_error_bars(self) -> bool:
@@ -86,6 +93,57 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
         }),
         allows_fit=False, default_series_type=SeriesType.HEATMAP,
     ),
+    # -- 3-D chart types --------------------------------------------------
+    # Every 3-D type takes the same required (x, y, z) column trio, and
+    # none allow fits (a 2-D curve fit has no meaning on a 3-D chart --
+    # explicitly out of scope for v1, see issue #98).
+    #
+    # allowed_series_types deliberately never mixes 2-D and 3-D series
+    # types: the two draw on incompatible axes (a Line2D can't be added to
+    # an Axes3D), so a chart holding both could never render. That also
+    # makes `compatible_chart_types_for_series` refuse every 2-D <-> 3-D
+    # chart-type switch, which is the correct answer -- such a switch would
+    # force-retype (and so silently reconfigure) every series on the chart.
+    # Scatter3D/Line3D are allowed everywhere in 3-D, though, so a point
+    # cloud or a trajectory can be overlaid on a surface.
+    ChartType.SCATTER3D: ChartTypeSpec(
+        display_name="3D Scatter", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
+        allowed_series_types=frozenset({SeriesType.SCATTER3D, SeriesType.LINE3D}),
+        allows_fit=False, default_series_type=SeriesType.SCATTER3D, is_3d=True,
+    ),
+    ChartType.LINE3D: ChartTypeSpec(
+        display_name="3D Line", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
+        allowed_series_types=frozenset({SeriesType.LINE3D, SeriesType.SCATTER3D}),
+        allows_fit=False, default_series_type=SeriesType.LINE3D, is_3d=True,
+    ),
+    ChartType.SURFACE: ChartTypeSpec(
+        display_name="3D Surface", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
+        allowed_series_types=frozenset({
+            SeriesType.SURFACE, SeriesType.WIREFRAME, SeriesType.SCATTER3D, SeriesType.LINE3D,
+        }),
+        allows_fit=False, default_series_type=SeriesType.SURFACE, is_3d=True,
+    ),
+    ChartType.WIREFRAME: ChartTypeSpec(
+        display_name="3D Wireframe", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
+        allowed_series_types=frozenset({
+            SeriesType.WIREFRAME, SeriesType.SURFACE, SeriesType.SCATTER3D, SeriesType.LINE3D,
+        }),
+        allows_fit=False, default_series_type=SeriesType.WIREFRAME, is_3d=True,
+    ),
+    ChartType.BAR3D: ChartTypeSpec(
+        display_name="3D Bar", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
+        allowed_series_types=frozenset({
+            SeriesType.BAR3D, SeriesType.SCATTER3D, SeriesType.LINE3D,
+        }),
+        allows_fit=False, default_series_type=SeriesType.BAR3D, is_3d=True,
+    ),
+    ChartType.TRISURF: ChartTypeSpec(
+        display_name="3D Triangulated Surface", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
+        allowed_series_types=frozenset({
+            SeriesType.TRISURF, SeriesType.SCATTER3D, SeriesType.LINE3D,
+        }),
+        allows_fit=False, default_series_type=SeriesType.TRISURF, is_3d=True,
+    ),
 }
 
 
@@ -136,6 +194,6 @@ def get_chart_type_spec(chart_type: "str | ChartType") -> ChartTypeSpec:
     """Return the spec for `chart_type`.
 
     Raises:
-        ValueError: if `chart_type` is not one of the 5 supported types.
+        ValueError: if `chart_type` isn't a supported chart type.
     """
     return CHART_TYPE_SPECS[ChartType(chart_type)]

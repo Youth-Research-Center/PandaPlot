@@ -123,6 +123,12 @@ def test_heatmap_preview_second_series_failing_to_grid_does_not_erase_the_first(
 
     meshes = [c for c in canvas.axes.collections if isinstance(c, QuadMesh)]
     # Exactly one mesh: the real, successfully-gridded first series --
-    # NOT two (real + sample-data fallback drawn on top of it).
+    # NOT two (real + sample-data fallback drawn on top of it). That count
+    # is the whole assertion now: it was previously paired with a
+    # `get_legend() is not None` check as an indirect proxy for
+    # `any_plotted` staying True, but the preview no longer draws an empty
+    # legend box for a chart type whose artists carry no label (a heatmap's
+    # QuadMesh has no legend handler), so the proxy no longer holds. The
+    # mesh count covers the same ground directly: a reset `any_plotted`
+    # would have drawn the sample fallback here as a second mesh.
     assert len(meshes) == 1
-    assert canvas.axes.get_legend() is not None

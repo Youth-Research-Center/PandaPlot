@@ -118,7 +118,7 @@ class AnalysisPanel(SidebarPanel):
         """)
         
         # Style title label
-        self.title_label.setStyleSheet(self.title_stylesheet(base_fg, card_border))
+        self._apply_title_theme(base_fg, card_border)
 
         self.apply_info_label_theme(self.start_value_label)
         self.apply_info_label_theme(self.end_value_label)
@@ -682,7 +682,7 @@ class AnalysisPanel(SidebarPanel):
     def on_tab_changed(self, event_data):
         """Handle tab change events."""
         if event_data.get("tab_type") == "dataset":
-            new_dataset_id = event_data.get("dataset_id")
+            new_dataset_id = event_data.get("tab_id")
             if new_dataset_id != self.current_dataset_id:
                 self.current_dataset_id = new_dataset_id
                 

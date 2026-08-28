@@ -57,6 +57,30 @@ def test_controller_transform_failed_surfaces_message_in_preview(transform_panel
     )
 
 
+def test_on_dataset_renamed_refreshes_label_for_active_dataset(transform_panel):
+    """Regression: the dataset name label only refreshed on UIEvents.TAB_CHANGED,
+    so renaming the dataset while its Transform panel stayed open (no tab
+    switch) left the label showing the old name."""
+    dataset = Mock(id="dataset-1", data=None)
+    dataset.name = "Renamed Dataset"
+    transform_panel.current_dataset = dataset
+
+    transform_panel.on_dataset_renamed({"item_id": "dataset-1", "new_name": "Renamed Dataset"})
+
+    assert transform_panel.dataset_label.text() == "Renamed Dataset"
+
+
+def test_on_dataset_renamed_ignores_other_items(transform_panel):
+    dataset = Mock(id="dataset-1", data=None)
+    dataset.name = "Original"
+    transform_panel.current_dataset = dataset
+    transform_panel.dataset_label.setText("Original")
+
+    transform_panel.on_dataset_renamed({"item_id": "other-id", "new_name": "Should Not Apply"})
+
+    assert transform_panel.dataset_label.text() == "Original"
+
+
 def test_apply_transform_generic_failure_surfaces_message_when_no_signal_fired(transform_panel, app_context):
     transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
     transform_panel.source_column_list.addItem("a")

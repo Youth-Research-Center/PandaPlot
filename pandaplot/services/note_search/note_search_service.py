@@ -153,7 +153,9 @@ def search_notes(
 
     results: list[NoteSearchResult] = []
     for note in notes:
-        result = search_note(pattern, note.id, note.name, getattr(note, "content", "") or "")
+        result = search_note(
+            pattern, note_id=note.id, note_name=note.name, content=getattr(note, "content", "") or ""
+        )
         if result is not None:
             results.append(result)
 

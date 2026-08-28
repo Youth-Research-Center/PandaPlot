@@ -88,7 +88,9 @@ class TabContainer(PWidget):
         pane.close_split_requested.connect(self._handle_close_split)
         pane.tab_popout_requested.connect(lambda index, p=pane: self.popout_tab(p, index))
         pane.bar_drop_requested.connect(
-            lambda src_id, src_idx, drop_idx, p=pane: self._handle_bar_drop(p, src_id, src_idx, drop_idx)
+            lambda src_id, src_idx, drop_idx, p=pane: self._handle_bar_drop(
+                p, source_pane_id=src_id, source_index=src_idx, drop_index=drop_idx
+            )
         )
         pane.edge_drop_requested.connect(
             lambda src_id, src_idx, p=pane: self._handle_edge_drop(p, src_id, src_idx)
@@ -256,8 +258,14 @@ class TabContainer(PWidget):
         # Remove the tab
         pane.removeTab(index)
 
-        # Clean up the widget
+        # Clean up the widget. Unsubscribe synchronously rather than relying on
+        # the QObject `destroyed` signal (connected in WidgetExtension), since
+        # deleteLater() defers actual C++ destruction -- an event fired on the
+        # event bus in that window would invoke a callback on a widget whose
+        # C++ object may already be gone, raising a shiboken RuntimeError.
         if widget:
+            if hasattr(widget, "unsubscribe_all"):
+                widget.unsubscribe_all()
             widget.deleteLater()
 
         # Publish tab closed event
@@ -278,6 +286,13 @@ class TabContainer(PWidget):
         if item_id in self.floating_windows:
             window = self.floating_windows.pop(item_id)
             self.tabs.pop(item_id, None)
+            # Detach the content first so we can unsubscribe it synchronously
+            # (see _handle_close) before it's deleted along with the window.
+            content = window.take_content()
+            if content is not None:
+                if hasattr(content, "unsubscribe_all"):
+                    content.unsubscribe_all()
+                content.deleteLater()
             window.close_without_redock()
             self._persist_tab_session()
             return
@@ -705,38 +720,18 @@ class TabContainer(PWidget):
             "tab_type": tab_data.get("type"),
             "tab_id": tab_data.get("id"),
             "tab_title": pane.tabText(index) if pane and index >= 0 else "",
-            "dataset_id": tab_data.get("dataset_id"),
-            "chart_id": tab_data.get("chart_id"),
-            "note_id": tab_data.get("note_id")
         })
 
         self._persist_tab_session()
 
     def get_tab_data(self, widget):
-        """Get tab data for a widget."""
-        if hasattr(widget, "dataset") and widget.dataset:
-            return {
-                "type": "dataset",
-                "id": widget.dataset.id,
-                "dataset_id": widget.dataset.id
-            }
-        elif hasattr(widget, "chart") and widget.chart:
-            return {
-                "type": "chart",
-                "id": widget.chart.id,
-                "chart_id": widget.chart.id
-            }
-        elif hasattr(widget, "note") and widget.note:
-            return {
-                "type": "note",
-                "id": widget.note.id,
-                "note_id": widget.note.id
-            }
-        else:
-            return {
-                "type": "other",
-                "id": id(widget)
-            }
+        """Get tab data for a widget, via its own get_tab_data() when it has one."""
+        if hasattr(widget, "get_tab_data"):
+            return widget.get_tab_data()
+        return {
+            "type": "other",
+            "id": id(widget)
+        }
 
     def on_analysis_completed(self, event_data):
         """Handle analysis completion events."""

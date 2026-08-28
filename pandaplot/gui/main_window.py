@@ -6,8 +6,9 @@ from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
 from pandaplot.gui.components import CollapsibleSidebar, TabContainer
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
-from pandaplot.gui.components.sidebar.panels.conditional_panel_manager import ConditionalPanelManager
-from pandaplot.gui.components.sidebar.panels.panel_setup_manager import PanelSetupManager
+from pandaplot.gui.components.sidebar.panels.sidebar_panel_coordinator import (
+    SidebarPanelCoordinator,
+)
 from pandaplot.gui.core.widget_extension import PMainWindow
 from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import AppEvents
@@ -19,6 +20,7 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class PandaMainWindow(PMainWindow):
     def __init__(self, app_context: AppContext):
         super().__init__(app_context=app_context)
+        self._is_closing = False
         self._initialize()
 
     @override
@@ -46,7 +48,6 @@ class PandaMainWindow(PMainWindow):
 
         self.showMaximized()
 
-
     @override
     def _apply_theme(self):
         """Apply theme-specific styling to the main window based on current theme."""
@@ -62,7 +63,7 @@ class PandaMainWindow(PMainWindow):
             
         self.logger.debug("Applied theme")
             
-    def create_widgets(self, main_layout):
+    def create_widgets(self, main_layout: QVBoxLayout):
         # Create menu
         self.main_menu = MainMenu(self, self.app_context)
         self.setMenuBar(self.main_menu)
@@ -70,10 +71,6 @@ class PandaMainWindow(PMainWindow):
         # Create main horizontal splitter
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(self.main_splitter)
-
-        # TODO(#220): move panel setup somewhere else
-        self.panel_setup_manager = PanelSetupManager(self.app_context)
-        self.panel_setup_manager.register_default_panels()
 
         # Resolve the persisted dock side for the sidebar (defaults to left)
         sidebar_position = self._get_sidebar_position()
@@ -98,15 +95,10 @@ class PandaMainWindow(PMainWindow):
             self.main_splitter.addWidget(self.tab_container)
             self.main_splitter.setSizes([250, 1000])
 
-        # Initialize conditional panel manager for dynamic sidebar panels
-        # TODO(#220): move this outside of main window
-        self.conditional_panel_manager = ConditionalPanelManager(
+        # Register default sidebar panels and wire their conditional visibility
+        self.sidebar_panel_coordinator = SidebarPanelCoordinator(self.app_context)
+        self.conditional_panel_manager = self.sidebar_panel_coordinator.setup(
             self.sidebar, self.tab_container)
-        self.panel_setup_manager.add_panels(self.sidebar, self.conditional_panel_manager)
-
-        # Connect tab changes to conditional panel manager (centralized)
-        self.tab_container.active_tab_changed.connect(
-            self.conditional_panel_manager.on_tab_changed)
 
     def _get_sidebar_position(self) -> str:
         """Read the persisted sidebar dock side, defaulting to 'left'."""
@@ -129,6 +121,7 @@ class PandaMainWindow(PMainWindow):
             config_manager.update(
                 {"appearance": {"sidebar_position": position}}, save=True)
 
+    @override
     def setup_event_subscriptions(self):
         """Set up event subscriptions for the main window."""
         self.subscribe_to_event(AppEvents.APP_CLOSING,
@@ -137,11 +130,17 @@ class PandaMainWindow(PMainWindow):
     def on_app_closing_event(self, event_data: dict):
         """Handle app closing event from the internal event bus.
 
-        This should initiate the normal Qt window close sequence which will emit a
-        QCloseEvent and invoke the overridden closeEvent below with a proper event object.
+        This initiates the normal Qt window close sequence via self.close(),
+        which invokes Qt's own default closeEvent handling (there is no
+        custom closeEvent override on this class or its PMainWindow base).
         We avoid doing cleanup work here to prevent duplication and to ensure the
-        correct event type is passed to the Qt closeEvent handler.
+        correct event type is passed to Qt's close handling.
         """
+        if self._is_closing:
+            self.logger.debug(
+                "Ignoring app.closing event; close already in progress")
+            return
+
         self.logger.debug(
             "Received app.closing event via event bus; initiating Qt close()")
 
@@ -160,7 +159,6 @@ class PandaMainWindow(PMainWindow):
 
             # Log cleanup completion
             self.logger.info("Application cleanup completed successfully")
-
         except Exception as e:
             self.logger.error("Error during cleanup: %s",
                               str(e), exc_info=True)
@@ -168,7 +166,13 @@ class PandaMainWindow(PMainWindow):
             self.logger.warning(
                 "Forcing application exit despite cleanup errors")
         finally:
-            # Cleanup flag
-            self._is_closing = False
-        self.close()
+            # close() must run unconditionally, whether cleanup succeeded or
+            # raised, and the guard flag must stay True for its full duration
+            # since it's the call that could re-enter this handler (e.g. via
+            # a synchronous QCloseEvent side effect) -- resetting the flag
+            # first would make the re-entrancy guard above a no-op.
+            try:
+                self.close()
+            finally:
+                self._is_closing = False
 

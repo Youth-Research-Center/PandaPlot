@@ -96,6 +96,7 @@ class ChartCanvas(FigureCanvas):
         self.original_xlim = None
         self.original_ylim = None
         self.original_ylim2 = None
+        self.original_zlim = None
 
     def draw(self):
         """Render the canvas, falling back to literal (non-mathtext) labels
@@ -239,6 +240,43 @@ class ChartCanvas(FigureCanvas):
                             logger.debug(
                                 "Failed to regenerate icon for %s: %s", action_name, e)
 
+    @property
+    def is_3d(self) -> bool:
+        """Whether the main axes is currently an mplot3d axes.
+
+        Read off the live axes object (matplotlib names the 3-D projection
+        "3d") rather than tracked in a separate attribute, so it can never
+        disagree with what was actually built.
+        """
+        return getattr(self.axes, "name", "") == "3d"
+
+    def set_projection(self, *, projection_3d: bool) -> None:
+        """Switch the main axes between the 2-D and 3-D (mplot3d)
+        projection, rebuilding it only when the projection actually
+        changes.
+
+        A matplotlib Axes' projection is fixed at construction -- there is
+        no set_projection() -- so switching chart type between a 2-D and a
+        3-D type means replacing the axes object outright. Any secondary Y
+        axis goes with it: it's a twinx() child of the axes being removed,
+        and mplot3d has no twinx equivalent to recreate it on.
+
+        The stored zoom-reset limits are dropped too, since they describe
+        an axes that no longer exists; the next render's
+        store_original_limits() re-seeds them.
+        """
+        if self.is_3d == projection_3d:
+            return
+        if self.axes2 is not None:
+            self.axes2.remove()
+            self.axes2 = None
+        self.fig.delaxes(self.axes)
+        self.axes = self.fig.add_subplot(111, projection="3d" if projection_3d else None)
+        self.original_xlim = None
+        self.original_ylim = None
+        self.original_ylim2 = None
+        self.original_zlim = None
+
     def store_original_limits(self):
         """Store the current axis limits as the reset-zoom baseline.
 
@@ -247,6 +285,7 @@ class ChartCanvas(FigureCanvas):
         """
         self.original_xlim = self.axes.get_xlim()
         self.original_ylim = self.axes.get_ylim()
+        self.original_zlim = self.axes.get_zlim() if self.is_3d else None
         if self.axes2 is not None:
             self.original_ylim2 = self.axes2.get_ylim()
 
@@ -255,6 +294,8 @@ class ChartCanvas(FigureCanvas):
         if self.original_xlim is not None and self.original_ylim is not None:
             self.axes.set_xlim(self.original_xlim)
             self.axes.set_ylim(self.original_ylim)
+            if self.is_3d and self.original_zlim is not None:
+                self.axes.set_zlim(self.original_zlim)
             if self.axes2 is not None and self.original_ylim2:
                 self.axes2.set_ylim(self.original_ylim2)
             self.draw()

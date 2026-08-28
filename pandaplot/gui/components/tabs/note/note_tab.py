@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.tabs.note.note_editor import NoteEditorWidget
 from pandaplot.gui.core.widget_extension import PWidget
-from pandaplot.models.events import NoteEvents, UIEvents
+from pandaplot.models.events import NoteEvents
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
@@ -49,21 +49,14 @@ class NoteTab(PWidget):
 
     def setup_connections(self):
         """Set up event subscriptions instead of Qt rename signal."""
-        self.subscribe_to_event(
-            UIEvents.TAB_TITLE_CHANGED, self.on_tab_title_changed_event)
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_RENAMED,
                                 self.on_note_renamed_event)
         self.subscribe_to_event(
             NoteEvents.NOTE_CONTENT_CHANGED, self.on_note_content_changed_event)
 
-    def on_tab_title_changed_event(self, event_data: dict):
-        """Update tab title when UI tab title changed event is emitted for this note."""
-        if event_data.get("tab_type") == "note" and event_data.get("note_id") == self.note.id:
-            self.refresh_tab_title()
-
     def on_note_renamed_event(self, event_data: dict):
-        """Fallback in case UI event wasn't published (should be) - ensures title refresh."""
-        if event_data.get("note_id") == self.note.id:
+        """Update the tab title when the underlying note item is renamed."""
+        if event_data.get("item_id") == self.note.id:
             self.refresh_tab_title()
 
     def on_note_content_changed_event(self, event_data: dict):
@@ -89,6 +82,10 @@ class NoteTab(PWidget):
         """Get the title for this tab."""
         modified_indicator = " *" if self.note_editor.has_unsaved_changes() else ""
         return f"📝 {self.note.name}{modified_indicator}"
+
+    def get_tab_data(self) -> dict:
+        """Identify this tab to TabContainer for session/event bookkeeping."""
+        return {"type": "note", "id": self.note.id}
 
     def can_close(self) -> bool:
         """Check if the tab can be closed."""

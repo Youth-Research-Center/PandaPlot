@@ -95,9 +95,9 @@ def test_active_dataset_is_tracked_from_the_active_tab():
     assert menu.active_dataset_id is None
 
     on_tab_changed = _subscribed(app_context)[UIEvents.TAB_CHANGED]
-    on_tab_changed({"tab_type": "dataset", "dataset_id": "ds-7"})
+    on_tab_changed({"tab_type": "dataset", "tab_id": "ds-7"})
     assert menu.active_dataset_id == "ds-7"
 
     # Switching to a non-dataset tab clears it rather than keeping a stale id.
-    on_tab_changed({"tab_type": "chart", "chart_id": "ch-1"})
+    on_tab_changed({"tab_type": "chart", "tab_id": "ch-1"})
     assert menu.active_dataset_id is None

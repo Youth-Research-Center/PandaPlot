@@ -218,7 +218,7 @@ class SearchPanel(SidebarPanel):
             }}
         """)
 
-        self.title_label.setStyleSheet(self.title_stylesheet(base_fg, card_border))
+        self._apply_title_theme(base_fg, card_border)
         self.summary_label.setStyleSheet(f"color: {secondary_fg}; font-size: 11px; background-color: transparent;")
 
         self.search_input.setStyleSheet(f"""

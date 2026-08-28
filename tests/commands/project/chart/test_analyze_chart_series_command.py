@@ -10,6 +10,7 @@ from pandaplot.analysis import AnalysisType
 from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
 )
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
@@ -134,6 +135,21 @@ class TestAnalyzeChartSeriesCommand:
         command = _cmd(ctx, source_kind="fit", source_index=9)
         assert command.execute() is False
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+
+    def test_series_type_that_does_not_support_curve_analysis_fails(self, ctx):
+        """Regression (#202): belt-and-braces check for a series type with no
+        meaningful ordered (x, y) curve (e.g. bar/hist/vector/colormap/
+        heatmap/3-D) -- ChartAnalysisPanel's picker already excludes these,
+        but the command itself must reject them too if invoked directly."""
+        app_context, project = ctx
+        chart = project.find_item("chart-1")
+        chart.data_series[0].series_type = SeriesType.BAR
+        command = _cmd(ctx, source_kind="series", source_index=0)
+
+        assert command.execute() is False
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+        _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
+        assert "bar" in message
 
     def test_execute_surfaces_no_project_loaded_to_the_user(self, ctx):
         app_context, _ = ctx

@@ -126,7 +126,7 @@ class FitPanel(SidebarPanel):
         """)
 
         # Title label with shared styling
-        self.title_label.setStyleSheet(self.title_stylesheet(base_fg, card_border))
+        self._apply_title_theme(base_fg, card_border)
 
         self.update_data_points_display()
 
@@ -389,8 +389,9 @@ class FitPanel(SidebarPanel):
     def _on_tab_changed(self, event_data):
         """Handle tab change events to update context."""
         current_tab_type = event_data.get("tab_type")
-        chart_id = event_data.get("chart_id")
-        dataset_id = event_data.get("dataset_id")
+        tab_id = event_data.get("tab_id")
+        chart_id = tab_id if current_tab_type == "chart" else None
+        dataset_id = tab_id if current_tab_type == "dataset" else None
 
         # Check if current tab is a chart tab
         if current_tab_type == "chart" and chart_id:
