@@ -1,6 +1,6 @@
 from typing import override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import NoteContentChangedData
 from pandaplot.models.events.event_types import NoteEvents
@@ -26,7 +26,7 @@ class EditNoteCommand(Command):
         self.old_content = None
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the edit note command."""
         try:
             # Check if we have a project loaded
@@ -39,14 +39,14 @@ class EditNoteCommand(Command):
                     "Edit Note",
                     "No project is currently loaded."
                 )
-                return False
+                return CommandResult.FAILURE
 
             project = self.app_state.current_project
             if not project:
                 self.logger.warning(
                     "EditNoteCommand.execute: has_project is True but current_project is None"
                 )
-                return False
+                return CommandResult.FAILURE
 
             item = project.find_item(self.note_id)
             if item is None or not isinstance(item, Note):
@@ -58,7 +58,7 @@ class EditNoteCommand(Command):
                     "Edit Note",
                     f"Note '{self.note_id}' not found in the project."
                 )
-                return False
+                return CommandResult.FAILURE
 
             note: Note = item
             # Store old content for undo
@@ -78,15 +78,15 @@ class EditNoteCommand(Command):
             self.logger.info(
                 "Edited content of note '%s'", self.note_id
             )
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to edit note: {e}"
             self.logger.error("EditNoteCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Edit Note Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Undo the edit note command."""
         try:
             if self.old_content is not None and self.app_state.has_project:
@@ -101,7 +101,7 @@ class EditNoteCommand(Command):
                         "Undo Edit Note",
                         "No project is currently loaded."
                     )
-                    return False
+                    return CommandResult.FAILURE
 
                 item = project.find_item(self.note_id)
                 if item is None or not isinstance(item, Note):
@@ -113,7 +113,7 @@ class EditNoteCommand(Command):
                         "Undo Edit Note",
                         f"Note with ID '{self.note_id}' not found in the project."
                     )
-                    return False
+                    return CommandResult.FAILURE
 
                 note: Note = item
                 note.update_content(self.old_content)
@@ -131,15 +131,21 @@ class EditNoteCommand(Command):
                 self.logger.info(
                     "Restored note content for '%s'", self.note_id
                 )
-                return True
+                return CommandResult.SUCCESS
+
+            self.logger.warning(
+                "EditNoteCommand.undo: cannot undo for note '%s' (old_content set=%s, has_project=%s)",
+                self.note_id, self.old_content is not None, self.app_state.has_project,
+            )
+            return CommandResult.FAILURE
 
         except Exception as e:
             error_msg = f"Failed to undo edit note: {e}"
             self.logger.error("EditNoteCommand Undo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo the edit note command."""
         try:
             if self.old_content is not None and self.app_state.has_project:
@@ -149,7 +155,7 @@ class EditNoteCommand(Command):
                         "EditNoteCommand.redo: has_project is True but current_project is None for note '%s'",
                         self.note_id,
                     )
-                    return False
+                    return CommandResult.FAILURE
 
                 item = project.find_item(self.note_id)
                 if item is None or not isinstance(item, Note):
@@ -157,7 +163,7 @@ class EditNoteCommand(Command):
                         "EditNoteCommand.redo: note '%s' not found or not a Note (got %s)",
                         self.note_id, type(item).__name__ if item is not None else None,
                     )
-                    return False
+                    return CommandResult.FAILURE
 
                 note: Note = item
                 note.update_content(self.new_content)
@@ -175,15 +181,15 @@ class EditNoteCommand(Command):
                 self.logger.info(
                     "Redone edit of note '%s'", self.note_id
                 )
-                return True
+                return CommandResult.SUCCESS
             else:
-                return False
+                return CommandResult.FAILURE
 
         except Exception as e:
             error_msg = f"Failed to redo edit note: {e}"
             self.logger.error("EditNoteCommand Redo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     @override
     def cleanup(self) -> None:

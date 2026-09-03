@@ -11,7 +11,7 @@ from typing import Optional, override
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.create_chart_command import CreateChartCommand
 from pandaplot.commands.project.require_project import ensure_project_or_offer_create
 from pandaplot.gui.controllers.ui_controller import UIController
@@ -19,9 +19,9 @@ from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style_builder import build_series_style
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Chart, Dataset
-from pandaplot.models.project.items.dataset import dataset_display_options
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.config.config_manager import ConfigManager
+from pandaplot.utils.item_display_options import dataset_display_options
 
 # Same default palette data_tab.py's "+Add series" cycles through -- keeps
 # wizard-created series visually distinguishable instead of all landing on
@@ -126,7 +126,7 @@ class CreateChartFromWizardCommand(Command):
         return False
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
 
         try:
@@ -138,7 +138,7 @@ class CreateChartFromWizardCommand(Command):
                     self.app_context, "Create Chart",
                     "Creating a chart requires a project. Create a new project to continue?",
                 ):
-                    return False
+                    return CommandResult.FAILURE
             project = self.app_state.current_project
 
             dialog = ChartWizard(
@@ -178,13 +178,13 @@ class CreateChartFromWizardCommand(Command):
             dialog.show()
             dialog.raise_()
             dialog.activateWindow()
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to open chart wizard: {str(e)}"
             self.logger.error(f"CreateChartFromWizardCommand Error: {error_msg}")
             self.ui_controller.show_error_message("Create Chart Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     def _on_wizard_finished(self, result: int, dialog: Optional[QDialog] = None) -> None:
         """Runs once the user actually finishes the wizard (Finish or Cancel).
@@ -306,18 +306,19 @@ class CreateChartFromWizardCommand(Command):
             self._dialog = None
 
     @override
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Unreachable via CommandExecutor: occupies_undo_slot() is False, so
         this command is never pushed onto undo_stack/redo_stack, and the
         executor's undo()/redo() only ever act on stack contents. Undoing
         the chart's creation is CreateChartCommand's job. Kept as a no-op
-        only to satisfy the abstract Command interface."""
-        return
+        only to satisfy the abstract Command interface; SUCCESS is reported
+        since "nothing to undo here" is the expected, correct outcome."""
+        return CommandResult.SUCCESS
 
     @override
-    def redo(self):
+    def redo(self) -> CommandResult:
         """See undo() -- unreachable via CommandExecutor for the same reason."""
-        return
+        return CommandResult.SUCCESS
 
     @override
     def cleanup(self) -> None:

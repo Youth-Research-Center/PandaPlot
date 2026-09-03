@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.item import DeleteItemCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
@@ -73,7 +74,7 @@ class TestDeleteItemCommand:
         command = DeleteItemCommand(app_context, "item-123")
         result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         ui_controller.show_warning_message.assert_called_once_with(
             "Delete Item",
             "No project is currently loaded."
@@ -89,7 +90,7 @@ class TestDeleteItemCommand:
         with caplog.at_level(logging.WARNING):
             result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "DeleteItemCommand.execute" in caplog.text
 
     def test_execute_no_current_project(self, mock_app_context):
@@ -101,7 +102,7 @@ class TestDeleteItemCommand:
         command = DeleteItemCommand(app_context, "item-123")
         result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
 
     def test_execute_no_current_project_logs_a_warning(self, mock_app_context, caplog):
         """Test execute logs a warning when current_project is None."""
@@ -114,7 +115,7 @@ class TestDeleteItemCommand:
         with caplog.at_level(logging.WARNING):
             result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "DeleteItemCommand.execute" in caplog.text
 
     def test_execute_item_not_found(self, mock_app_context, sample_project):
@@ -129,7 +130,7 @@ class TestDeleteItemCommand:
         command = DeleteItemCommand(app_context, "item-123")
         result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         sample_project.find_item.assert_called_once_with("item-123")
         ui_controller.show_warning_message.assert_called_once_with(
             "Delete Item",
@@ -149,7 +150,7 @@ class TestDeleteItemCommand:
         with caplog.at_level(logging.WARNING):
             result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "item-123" in caplog.text
 
     def test_execute_user_cancels_deletion(self, mock_app_context, sample_project, sample_note):
@@ -164,7 +165,7 @@ class TestDeleteItemCommand:
         command = DeleteItemCommand(app_context, "note-123")
         result = command.execute()
         
-        assert result is False
+        assert result is CommandResult.FAILURE
         ui_controller.show_question.assert_called_once_with(
             "Delete Item",
             "Are you sure you want to delete the note 'Test Note'?\nThis action cannot be undone."
@@ -183,7 +184,7 @@ class TestDeleteItemCommand:
         command = DeleteItemCommand(app_context, "note-123")
         result = command.execute()
         
-        assert result is True
+        assert result is CommandResult.SUCCESS
         assert command.deleted_item_class == Note
         assert command.deleted_item_data is not None
         assert command.deleted_item_data["id"] == "note-123"
@@ -213,7 +214,7 @@ class TestDeleteItemCommand:
         command = DeleteItemCommand(app_context, "folder-123")
         result = command.execute()
         
-        assert result is True
+        assert result is CommandResult.SUCCESS
         assert command.deleted_item_class == Folder
         assert command.deleted_item_data is not None
         assert command.deleted_item_data["id"] == "folder-123"
@@ -244,7 +245,7 @@ class TestDeleteItemCommand:
         command = DeleteItemCommand(app_context, "note-123")
         result = command.execute()
         
-        assert result is True
+        assert result is CommandResult.SUCCESS
         assert command.parent_item == parent_folder
 
     def test_execute_with_exception(self, mock_app_context, sample_project, sample_note):
@@ -260,7 +261,7 @@ class TestDeleteItemCommand:
         command = DeleteItemCommand(app_context, "note-123")
         result = command.execute()
         
-        assert result is False
+        assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
         assert "Failed to delete item: Test error" in ui_controller.show_error_message.call_args[0][1]
 
@@ -275,9 +276,9 @@ class TestDeleteItemCommand:
         command.deleted_item_data = sample_note.to_dict()
         
         result = command.undo()
-        
-        assert result is True
-        
+
+        assert result is CommandResult.SUCCESS
+
         # Verify add_item was called with recreated note
         sample_project.add_item.assert_called_once()
         restored_item = sample_project.add_item.call_args[0][0]
@@ -309,9 +310,9 @@ class TestDeleteItemCommand:
         command.parent_item = parent_folder
         
         result = command.undo()
-        
-        assert result is True
-        
+
+        assert result is CommandResult.SUCCESS
+
         # Verify add_item was called with parent_id
         sample_project.add_item.assert_called_once()
         call_args = sample_project.add_item.call_args
@@ -324,8 +325,8 @@ class TestDeleteItemCommand:
         command = DeleteItemCommand(app_context, "item-123")
         # deleted_item_data is None
         result = command.undo()
-        
-        assert result is False
+
+        assert result is CommandResult.FAILURE
 
     def test_undo_no_project(self, mock_app_context):
         """Test undo when no project is loaded."""
@@ -338,7 +339,7 @@ class TestDeleteItemCommand:
 
         result = command.undo()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
 
     def test_undo_logs_a_warning_when_current_project_is_none(self, mock_app_context, caplog):
         """Test undo logs a warning when has_project is True but current_project is None."""
@@ -353,7 +354,7 @@ class TestDeleteItemCommand:
         with caplog.at_level(logging.WARNING):
             result = command.undo()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "DeleteItemCommand.undo" in caplog.text
         assert "note-123" in caplog.text
 
@@ -370,8 +371,8 @@ class TestDeleteItemCommand:
         command.deleted_item_data = sample_note.to_dict()
         
         result = command.undo()
-        
-        assert result is False
+
+        assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
         assert "Failed to undo delete item: Test error" in ui_controller.show_error_message.call_args[0][1]
 
@@ -388,8 +389,8 @@ class TestDeleteItemCommand:
         command.deleted_item_data = sample_note.to_dict()
         
         result = command.redo()
-        
-        assert result is True
+
+        assert result is CommandResult.SUCCESS
         sample_project.remove_item.assert_called_once_with(sample_note)
         
         # Check event emission
@@ -408,8 +409,8 @@ class TestDeleteItemCommand:
         command = DeleteItemCommand(app_context, "item-123")
         # deleted_item_data is None
         result = command.redo()
-        
-        assert result is False
+
+        assert result is CommandResult.FAILURE
 
     def test_redo_item_not_found(self, mock_app_context, sample_project):
         """Test redo when item is not found."""
@@ -425,7 +426,7 @@ class TestDeleteItemCommand:
 
         result = command.redo()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
 
     def test_redo_item_not_found_logs_a_warning(self, mock_app_context, sample_project, caplog):
         """Test redo logs a warning when item is not found."""
@@ -442,7 +443,7 @@ class TestDeleteItemCommand:
         with caplog.at_level(logging.WARNING):
             result = command.redo()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "note-123" in caplog.text
 
     def test_redo_logs_a_warning_when_current_project_is_none(self, mock_app_context, caplog):
@@ -458,7 +459,7 @@ class TestDeleteItemCommand:
         with caplog.at_level(logging.WARNING):
             result = command.redo()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "DeleteItemCommand.redo" in caplog.text
         assert "note-123" in caplog.text
 
@@ -476,8 +477,8 @@ class TestDeleteItemCommand:
         command.deleted_item_data = sample_note.to_dict()
         
         result = command.redo()
-        
-        assert result is False
+
+        assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
         assert "Failed to redo delete item: Test error" in ui_controller.show_error_message.call_args[0][1]
 
@@ -502,7 +503,7 @@ class TestDeleteItemCommand:
             command = DeleteItemCommand(app_context, item.id)
             result = command.execute()
             
-            assert result is True
+            assert result is CommandResult.SUCCESS
             assert command.deleted_item_class is type(item)
             sample_project.remove_item.assert_called_once_with(item)
             
@@ -533,9 +534,9 @@ class TestDeleteItemCommand:
         
         # Simulate undo to recreate the item
         result = command.undo()
-        
-        assert result is True
-        
+
+        assert result is CommandResult.SUCCESS
+
         # Verify the recreated item matches the original
         sample_project.add_item.assert_called_once()
         recreated_item = sample_project.add_item.call_args[0][0]

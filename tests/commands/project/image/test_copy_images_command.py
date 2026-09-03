@@ -2,6 +2,7 @@ import logging
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.image.copy_images_command import CopyImagesCommand
 from pandaplot.commands.project.image.create_image_gallery_command import (
     CreateImageGalleryCommand,
@@ -25,7 +26,7 @@ class TestCopyImagesCommandCopiedMode:
 
         command = CopyImagesCommand(app_context_with_project, image_ids=[original.id], target_gallery_id=gallery_id)
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         gallery = project.find_item(gallery_id)
         images = [c for c in gallery.get_items() if isinstance(c, Image)]
         assert len(images) == 2
@@ -60,7 +61,7 @@ class TestCopyImagesCommandExternalMode:
         project.add_item(original, parent_id=gallery_id)
 
         command = CopyImagesCommand(app_context_with_project, image_ids=[original.id], target_gallery_id=gallery_id)
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
 
         gallery = project.find_item(gallery_id)
         images = [c for c in gallery.get_items() if isinstance(c, Image)]
@@ -81,7 +82,7 @@ class TestCopyImagesCommandBatchAndCrossGallery:
         project.add_item(img2, parent_id=gallery_id)
 
         command = CopyImagesCommand(app_context_with_project, image_ids=[img1.id, img2.id], target_gallery_id=gallery_id)
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         assert len(command.created_image_ids) == 2
 
     def test_copies_to_a_different_gallery(self, app_context_with_project, gallery_id):
@@ -95,7 +96,7 @@ class TestCopyImagesCommandBatchAndCrossGallery:
         other_gallery_id = other_gallery_command.created_gallery_id
 
         command = CopyImagesCommand(app_context_with_project, image_ids=[original.id], target_gallery_id=other_gallery_id)
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
 
         source_gallery = project.find_item(gallery_id)
         target_gallery = project.find_item(other_gallery_id)
@@ -112,7 +113,7 @@ class TestCopyImagesCommandLogging:
         )
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "CopyImagesCommand.execute" in caplog.text
 
     def test_execute_logs_a_warning_when_target_gallery_not_found(self, app_context_with_project, caplog):
@@ -121,7 +122,7 @@ class TestCopyImagesCommandLogging:
         )
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "missing-gallery" in caplog.text
 
     def test_execute_logs_a_warning_when_image_not_found(self, app_context_with_project, gallery_id, caplog):
@@ -130,7 +131,7 @@ class TestCopyImagesCommandLogging:
         )
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "missing-image" in caplog.text
 
 

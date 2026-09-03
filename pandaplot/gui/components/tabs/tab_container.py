@@ -3,13 +3,12 @@ from typing import Optional, override
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QApplication, QSplitter, QVBoxLayout, QWidget
 
-from pandaplot.commands.project.chart import CreateChartFromWizardCommand
-from pandaplot.commands.project.project import LoadProjectCommand, NewProjectCommand, OpenProjectCommand
 from pandaplot.gui.components.tabs.floating_tab_window import FloatingTabWindow
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
+from pandaplot.gui.components.tabs.tab_container_command_manager import TabContainerCommandManager
 from pandaplot.gui.components.tabs.tab_factory import TabFactory
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
-from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.gui.core.widget_extension import PWidget, unsubscribe_widget_tree
 from pandaplot.models.events import (
     AnalysisEvents,
     ChartEvents,
@@ -43,6 +42,7 @@ class TabContainer(PWidget):
         # Popped-out tabs stay tracked in self.tabs too, so lookups by item id
         # keep working while a tab lives outside the panes.
         self.floating_windows: dict[str, FloatingTabWindow] = {}
+        self.command_manager = TabContainerCommandManager(app_context)
 
         self._initialize()
         self.create_default_tabs()
@@ -262,10 +262,13 @@ class TabContainer(PWidget):
         # the QObject `destroyed` signal (connected in WidgetExtension), since
         # deleteLater() defers actual C++ destruction -- an event fired on the
         # event bus in that window would invoke a callback on a widget whose
-        # C++ object may already be gone, raising a shiboken RuntimeError.
+        # C++ object may already be gone, raising a shiboken RuntimeError. This
+        # must cover the whole subtree, not just `widget` itself: a tab like
+        # ChartTab embeds its own independently-subscribed child widgets (e.g.
+        # ChartEditorWidget), which unsubscribe_all() on the parent alone
+        # wouldn't reach.
         if widget:
-            if hasattr(widget, "unsubscribe_all"):
-                widget.unsubscribe_all()
+            unsubscribe_widget_tree(widget)
             widget.deleteLater()
 
         # Publish tab closed event
@@ -290,9 +293,13 @@ class TabContainer(PWidget):
             # (see _handle_close) before it's deleted along with the window.
             content = window.take_content()
             if content is not None:
-                if hasattr(content, "unsubscribe_all"):
-                    content.unsubscribe_all()
+                unsubscribe_widget_tree(content)
                 content.deleteLater()
+            # The window itself (FloatingTabWindow -> PMainWindow) has its own
+            # theme subscription independent of its content's -- close_without_redock()
+            # -> close() defers the window's own destruction the same way, so it
+            # needs the same synchronous unsubscribe before that happens.
+            unsubscribe_widget_tree(window)
             window.close_without_redock()
             self._persist_tab_session()
             return
@@ -552,45 +559,6 @@ class TabContainer(PWidget):
         if tab_index >= 0:
             pane.setTabText(tab_index, new_title)
 
-    def handle_new_project(self):
-        """Handle new project request from welcome tab."""
-        if self.app_context:
-            command = NewProjectCommand(self.app_context)
-            self.app_context.get_command_executor().execute_command(command)
-
-    def handle_open_project(self):
-        """Handle open project request from welcome tab."""
-        if self.app_context:
-            command = OpenProjectCommand(self.app_context)
-            self.app_context.get_command_executor().execute_command(command)
-
-    def handle_recent_project(self, project_path: str):
-        """Handle recent project selection from welcome tab."""
-        if self.app_context:
-            command = LoadProjectCommand(self.app_context, project_path)
-            self.app_context.get_command_executor().execute_command(command)
-
-    def handle_example_project(self, project_path: str):
-        """Handle example project selection from welcome tab."""
-        if self.app_context:
-            command = LoadProjectCommand(self.app_context, project_path)
-            self.app_context.get_command_executor().execute_command(command)
-
-    def handle_import_data(self):
-        """Handle import data request from welcome tab."""
-        if self.app_context:
-            # Import data requires a project to be loaded first
-            if not self.app_context.get_app_state().has_project:
-                # Create a new project first
-                self.handle_new_project()
-
-            # Show file dialog for data import (CSV or single-sheet Excel)
-            from pandaplot.commands.project.dataset.import_data_command import (
-                ImportDataCommand,
-            )
-            command = ImportDataCommand(self.app_context)
-            self.app_context.get_command_executor().execute_command(command)
-
     def create_welcome_tab(self, pane: CustomTabWidget | None = None):
         """Create and add a welcome tab."""
         target_pane = pane or self._active_pane or (self.panes[0] if self.panes else None)
@@ -600,55 +568,69 @@ class TabContainer(PWidget):
         welcome_tab = WelcomeTab(self.app_context, target_pane)
 
         # Connect welcome tab signals
-        welcome_tab.new_project_requested.connect(self.handle_new_project)
-        welcome_tab.open_project_requested.connect(self.handle_open_project)
-        welcome_tab.recent_project_selected.connect(self.handle_recent_project)
-        welcome_tab.import_data_requested.connect(self.handle_import_data)
-        welcome_tab.example_project_selected.connect(self.handle_example_project)
+        welcome_tab.new_project_requested.connect(self.command_manager.handle_new_project)
+        welcome_tab.open_project_requested.connect(self.command_manager.handle_open_project)
+        welcome_tab.recent_project_selected.connect(self.command_manager.handle_recent_project)
+        welcome_tab.import_data_requested.connect(self.command_manager.handle_import_data)
+        welcome_tab.example_project_selected.connect(self.command_manager.handle_example_project)
+        welcome_tab.create_dataset_requested.connect(self.command_manager.handle_create_dataset)
+        welcome_tab.create_chart_requested.connect(self.command_manager.handle_create_chart)
 
         target_pane.addTab(welcome_tab, welcome_tab.get_tab_title())
         return welcome_tab
 
+    def show_welcome_tab(self):
+        """Show the Welcome tab for Help > Welcome: focus one if already open
+        (WelcomeTab instances aren't tracked in `self.tabs`, unlike
+        project-item tabs, so this walks the panes directly), otherwise
+        create one in the active pane and select it.
+
+        create_welcome_tab's own addTab() only auto-selects the new tab when
+        the target pane was empty -- an active pane that already has other
+        tabs open would otherwise gain a Welcome tab in the background.
+        """
+        for pane in self.panes:
+            for index in range(pane.count()):
+                if isinstance(pane.widget(index), WelcomeTab):
+                    pane.setCurrentIndex(index)
+                    self._activate_pane(pane)
+                    return
+
+        target_pane = self._active_pane or (self.panes[0] if self.panes else None)
+        welcome_tab = self.create_welcome_tab(target_pane)
+        if welcome_tab is None or target_pane is None:
+            return
+        target_pane.setCurrentIndex(target_pane.indexOf(welcome_tab))
+        self._activate_pane(target_pane)
+
     def create_chart_from_dataset(self, dataset_id: str, preselected_column_ids: Optional[list[str]] = None):
         """Open the chart creation wizard for a dataset.
 
-        The wizard is non-blocking, so no chart exists when this returns. The
-        resulting chart's tab is opened by this container's
-        `ChartEvents.CHART_CREATED` subscription once the user finishes.
+        Thin pass-through to TabContainerCommandManager, kept on TabContainer
+        because DatasetTab.create_chart_from_data finds this method by walking
+        its Qt ancestor-widget chain rather than looking up a collaborator.
         """
-        if not self.app_context:
-            self.logger.warning("Cannot create chart: No app context provided")
-            return
-
-        app_state = self.app_context.get_app_state()
-        if app_state.has_project and app_state.current_project is None:
-            self.logger.warning("Cannot create chart: No project loaded")
-            return
-
-        project = app_state.current_project
-        if project is None:
-            self.logger.warning("Cannot create chart: No project loaded")
-            return
-        dataset_item = project.find_item(dataset_id)
-        if not dataset_item:
-            self.logger.warning("Cannot create chart: Dataset %s not found", dataset_id)
-            return
-
-        command = CreateChartFromWizardCommand(
-            self.app_context,
-            dataset_id=dataset_id,
-            preselected_column_ids=preselected_column_ids or [],
-        )
-        self.app_context.get_command_executor().execute_command(command)
+        return self.command_manager.create_chart_from_dataset(dataset_id, preselected_column_ids)
 
     def on_project_closed(self):
         """Called when a project is closed - close all project-related tabs and show welcome tab if no tabs are open."""
         self.logger.info("Closing all project-related tabs")
 
         # Close any popped-out tabs (their windows aren't inside the panes).
+        # Detach content first so it can be unsubscribed synchronously (see
+        # _handle_close) before the window's WA_DeleteOnClose defers its
+        # actual destruction.
         for item_id in list(self.floating_windows.keys()):
             window = self.floating_windows.pop(item_id)
             self.tabs.pop(item_id, None)
+            content = window.take_content()
+            if content is not None:
+                unsubscribe_widget_tree(content)
+                content.deleteLater()
+            # The window itself (FloatingTabWindow -> PMainWindow) has its own
+            # theme subscription independent of its content's -- see the same
+            # fix in close_tab_by_item_id.
+            unsubscribe_widget_tree(window)
             window.close_without_redock()
 
         # Close all project-related tabs (tracked in self.tabs dictionary)

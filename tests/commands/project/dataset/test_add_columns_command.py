@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.dataset import Dataset
@@ -50,7 +51,7 @@ class TestAddColumnsCommandDefaultDtype:
         )
         result = command.execute()
 
-        assert result is True
+        assert result is CommandResult.SUCCESS
         assert str(dataset.data["b"].dtype) == "float64"
         assert dataset.data["b"].tolist() == [0.0, 0.0]
 
@@ -72,7 +73,7 @@ class TestAddColumnsCommandDefaultDtype:
         )
         result = command.execute()
 
-        assert result is True
+        assert result is CommandResult.SUCCESS
         assert str(dataset.data["b"].dtype) == "float64"
         assert dataset.data["b"].tolist() == [0.0, 0.0, 0.0]
 
@@ -92,7 +93,7 @@ class TestAddColumnsCommandDefaultDtype:
         )
         result = command.execute()
 
-        assert result is True
+        assert result is CommandResult.SUCCESS
         assert dataset.data["b"].tolist() == ["hello", "hello", "hello"]
 
 
@@ -123,7 +124,7 @@ class TestAddColumnsCommandLogging:
         command = AddColumnsCommand(app_context, "ds-1", column_names=[], reference_positions=[])
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "no column names" in caplog.text.lower()
 
     def test_execute_logs_warning_when_lengths_mismatch(self, mock_app_context, caplog):
@@ -131,7 +132,7 @@ class TestAddColumnsCommandLogging:
         command = AddColumnsCommand(app_context, "ds-1", column_names=["a", "b"], reference_positions=[0])
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "2" in caplog.text and "1" in caplog.text
 
     def test_execute_logs_warning_when_no_project(self, mock_app_context, caplog):
@@ -140,7 +141,7 @@ class TestAddColumnsCommandLogging:
         command = AddColumnsCommand(app_context, "ds-1", column_names=["b"], reference_positions=[0])
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "no project" in caplog.text.lower()
 
     def test_execute_logs_warning_when_current_project_none(self, mock_app_context, caplog):
@@ -150,7 +151,7 @@ class TestAddColumnsCommandLogging:
         command = AddColumnsCommand(app_context, "ds-1", column_names=["b"], reference_positions=[0])
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "current_project is None" in caplog.text
 
     def test_execute_logs_warning_when_dataset_not_found(self, mock_app_context, sample_project, caplog):
@@ -161,7 +162,7 @@ class TestAddColumnsCommandLogging:
         command = AddColumnsCommand(app_context, "missing-ds", column_names=["b"], reference_positions=[0])
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "missing-ds" in caplog.text
 
     def test_execute_logs_warning_when_item_not_a_dataset(self, mock_app_context, sample_project, caplog):
@@ -172,7 +173,7 @@ class TestAddColumnsCommandLogging:
         command = AddColumnsCommand(app_context, "ds-1", column_names=["b"], reference_positions=[0])
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "ds-1" in caplog.text and "not a Dataset" in caplog.text
 
     def test_execute_logs_warning_when_dataset_empty(self, mock_app_context, sample_project, caplog):
@@ -184,7 +185,7 @@ class TestAddColumnsCommandLogging:
         command = AddColumnsCommand(app_context, "ds-1", column_names=["b"], reference_positions=[0])
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "ds-1" in caplog.text and "no data" in caplog.text.lower()
 
     def test_execute_logs_warning_when_reference_position_out_of_bounds(self, mock_app_context, sample_project, caplog):
@@ -196,7 +197,7 @@ class TestAddColumnsCommandLogging:
         command = AddColumnsCommand(app_context, "ds-1", column_names=["b"], reference_positions=[5])
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "5" in caplog.text
 
     def test_execute_logs_warning_when_columns_already_exist(self, mock_app_context, sample_project, caplog):
@@ -208,7 +209,7 @@ class TestAddColumnsCommandLogging:
         command = AddColumnsCommand(app_context, "ds-1", column_names=["a"], reference_positions=[0])
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "already exist" in caplog.text.lower()
 
     def test_execute_logs_warning_when_duplicate_names_in_input(self, mock_app_context, sample_project, caplog):
@@ -220,7 +221,7 @@ class TestAddColumnsCommandLogging:
         command = AddColumnsCommand(app_context, "ds-1", column_names=["b", "b"], reference_positions=[0, 0])
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "duplicate column names" in caplog.text.lower()
 
     def test_undo_logs_warning_when_nothing_to_undo(self, mock_app_context, caplog):
@@ -228,8 +229,9 @@ class TestAddColumnsCommandLogging:
         command = AddColumnsCommand(app_context, "ds-1", column_names=["b"], reference_positions=[0])
 
         with caplog.at_level(logging.WARNING):
-            command.undo()
+            result = command.undo()
         assert "ds-1" in caplog.text
+        assert result is CommandResult.FAILURE
 
 
 def test_cleanup_releases_the_original_data_snapshot():

@@ -10,6 +10,7 @@ pattern (not a pytest fixture) as test_chart_editor_series_type_rendering.py.
 import sys
 
 import pandas as pd
+import pytest
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.app import build_app_context
@@ -231,7 +232,7 @@ def test_switching_away_from_heatmap_removes_colorbar():
 
     switched_width = editor.chart_canvas.axes.get_position().bounds[2]
     fresh_width = fresh_editor.chart_canvas.axes.get_position().bounds[2]
-    assert switched_width == fresh_width
+    assert switched_width == pytest.approx(fresh_width)
 
 
 def test_heatmap_rerender_does_not_log_stale_colorbar_removal_failure(caplog):

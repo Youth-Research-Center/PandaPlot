@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.remove_fit_data_command import RemoveFitDataCommand
 from pandaplot.models.project.items.chart import Chart, FitData
 
@@ -46,7 +47,7 @@ def test_execute_removes_fit_data(app_context_with_chart):
     app_context, chart = app_context_with_chart
     command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     assert len(chart.fit_data) == 0
 
 
@@ -55,7 +56,7 @@ def test_execute_out_of_range_returns_false(app_context_with_chart, caplog):
     command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=5)
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert len(chart.fit_data) == 1
     assert "5" in caplog.text
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
@@ -74,7 +75,7 @@ def test_execute_logs_a_warning_when_chart_not_found(caplog):
     command = RemoveFitDataCommand(app_context, chart_id="missing", fit_index=0)
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "missing" in caplog.text
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 

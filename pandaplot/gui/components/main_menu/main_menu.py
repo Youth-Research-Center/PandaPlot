@@ -24,6 +24,7 @@ from pandaplot.commands.project.project import (
 from pandaplot.gui.core.widget_extension import PMenuBar
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.session.recent_projects import get_recent_projects
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -40,13 +41,19 @@ class MainMenu(PMenuBar):
         """Apply theme-specific styling to the main menu based on current theme."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        
+        tokens = theme_manager.get_design_tokens()
+
         # Get theme-appropriate colors
         card_bg = palette.get("card_bg", "#F0F0F0")
         base_fg = palette.get("base_fg", "#000000")
         card_border = palette.get("card_border", "#D0D0D0")
         accent = palette.get("accent", "#4A90E2")
         card_pressed = palette.get("card_pressed", "#dee2e6")
+        # Standard Qt disabled-item graying is too subtle against this menu's
+        # explicit colors (issue #255) -- use the dedicated disabled-text
+        # token (see #257) rather than the merely-similar-looking text_hint,
+        # which is semantically "hint text", not "disabled".
+        text_disabled = tokens.get("text_disabled", "#9AA0AB")
         
         # Apply dynamic theme-based styling
         self.setStyleSheet(f"""
@@ -87,6 +94,14 @@ class MainMenu(PMenuBar):
             QMenu::item:pressed {{
                 background-color: {card_pressed};
                 color: {base_fg};
+            }}
+            QMenu::item:disabled {{
+                color: {text_disabled};
+                background-color: transparent;
+            }}
+            QMenu::item:disabled:selected {{
+                color: {text_disabled};
+                background-color: transparent;
             }}
             QMenu::separator {{
                 height: 1px;
@@ -130,6 +145,10 @@ class MainMenu(PMenuBar):
         help_menu = QMenu("Help", self)
         self.addMenu(help_menu)
 
+        welcome_action = QAction("Welcome", self)
+        welcome_action.triggered.connect(self.show_welcome_tab)
+        help_menu.addAction(welcome_action)
+
         open_example_project_action = QAction("Open Example Project...", self)
         open_example_project_action.triggered.connect(self.show_examples_dialog)
         help_menu.addAction(open_example_project_action)
@@ -141,7 +160,7 @@ class MainMenu(PMenuBar):
         help_menu.addAction(about_action)
 
     def _create_file_menu(self) -> QMenu:
-        file_menu = QMenu("Project", self)
+        file_menu = QMenu("File", self)
         new_action = QAction("New", self)
         new_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(NewProjectCommand(self.app_context)))
@@ -151,6 +170,11 @@ class MainMenu(PMenuBar):
         open_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(OpenProjectCommand(self.app_context)))
         file_menu.addAction(open_action)
+
+        self.recent_menu = QMenu("Recent", self)
+        self.recent_menu.setToolTipsVisible(True)
+        self._update_recent_menu()
+        file_menu.addMenu(self.recent_menu)
 
         close_action = QAction("Close", self)
         close_action.triggered.connect(lambda: self.app_context.get_command_executor(
@@ -178,7 +202,47 @@ class MainMenu(PMenuBar):
         file_menu.addAction(exit_action)
 
         return file_menu
-    
+
+    def _update_recent_menu(self, _event_data: dict | None = None):
+        """Rebuild the File > Recent submenu from the shared recent-projects
+        lookup -- mirrors WelcomeTab's own CONFIG_UPDATED-triggered refresh."""
+        self.recent_menu.clear()
+
+        recent_projects = get_recent_projects(self.app_context)
+        if not recent_projects:
+            placeholder = QAction("No Recent Projects", self.recent_menu)
+            placeholder.setEnabled(False)
+            self.recent_menu.addAction(placeholder)
+            return
+
+        for project_info in recent_projects:
+            path = project_info.get("path", "")
+            action = QAction(project_info.get("name", "Untitled Project"), self.recent_menu)
+            action.setToolTip(path)
+            action.triggered.connect(
+                lambda _checked=False, p=path: self._load_recent_project(p)
+            )
+            self.recent_menu.addAction(action)
+
+    def _load_recent_project(self, project_path: str):
+        """Load a project chosen from File > Recent.
+
+        Mirrors show_examples_dialog's confirmation: only ask when there's a
+        currently open project to lose, since with none open there's nothing
+        to override.
+        """
+        if self.app_context.get_app_state().has_project:
+            should_continue = self.app_context.get_ui_controller().show_question(
+                "Open Recent Project",
+                "Opening this recent project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
+            )
+            if not should_continue:
+                return
+
+        self.app_context.get_command_executor().execute_command(
+            LoadProjectCommand(self.app_context, project_path)
+        )
+
     def _create_edit_menu(self) -> QMenu:
         edit_menu = QMenu("Edit", self)
 
@@ -247,7 +311,16 @@ class MainMenu(PMenuBar):
         from PySide6.QtWidgets import QDialog
 
         from pandaplot.commands.project.image import CreateImageGalleryCommand, ImportImagesCommand
+        from pandaplot.commands.project.require_project import ensure_project_or_offer_create
         from pandaplot.gui.dialogs.image.image_import_dialog import ImageImportDialog
+
+        # Checked up front, like Create Chart/Import Data, so the user isn't
+        # asked to pick files first only to hit a "no project" dead end.
+        if not ensure_project_or_offer_create(
+            self.app_context, "Import Images",
+            "Importing images requires a project. Create a new project to continue?",
+        ):
+            return
 
         dialog = ImageImportDialog(self.app_context, parent=self)
         if dialog.exec() != QDialog.DialogCode.Accepted:
@@ -300,13 +373,14 @@ class MainMenu(PMenuBar):
     @override
     def setup_event_subscriptions(self):
         from pandaplot.models.events import ProjectEvents, UIEvents
-        from pandaplot.models.events.event_types import AppEvents
+        from pandaplot.models.events.event_types import AppEvents, ConfigEvents
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, lambda _data: self._update_dataset_dependent_actions())
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, lambda _data: self._update_dataset_dependent_actions())
         self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, lambda _data: self._update_dataset_dependent_actions())
         self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, lambda _data: self._update_dataset_dependent_actions())
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(AppEvents.HISTORY_CHANGED, self._update_undo_redo_actions)
+        self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._update_recent_menu)
 
     def show_settings_dialog(self):
         """Show the settings dialog."""
@@ -339,3 +413,10 @@ class MainMenu(PMenuBar):
         from pandaplot.gui.dialogs.about_dialog import AboutDialog
         dialog = AboutDialog(self.app_context, self.parent())
         dialog.exec()
+
+    def show_welcome_tab(self):
+        """Show the Welcome tab from Help > Welcome, focusing one if already
+        open rather than opening a second one."""
+        from pandaplot.gui.components.tabs.tab_container import TabContainer
+        tab_container = self.app_context.get_manager(TabContainer)
+        tab_container.show_welcome_tab()

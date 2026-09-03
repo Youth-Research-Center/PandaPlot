@@ -10,6 +10,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.export_dataset_command import ExportDatasetCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.dataset import Dataset
@@ -43,7 +44,7 @@ def test_execute_logs_warning_when_no_project(mock_app_context, caplog):
     command = ExportDatasetCommand(app_context, "ds-1")
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "no project" in caplog.text.lower()
 
 
@@ -54,7 +55,7 @@ def test_execute_logs_warning_when_current_project_none(mock_app_context, caplog
     command = ExportDatasetCommand(app_context, "ds-1")
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "current_project is None" in caplog.text
 
 
@@ -66,7 +67,7 @@ def test_execute_logs_warning_when_dataset_not_found(mock_app_context, sample_pr
     command = ExportDatasetCommand(app_context, "missing-ds")
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "missing-ds" in caplog.text
 
 
@@ -78,7 +79,7 @@ def test_execute_logs_warning_when_item_not_a_dataset(mock_app_context, sample_p
     command = ExportDatasetCommand(app_context, "ds-1")
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "ds-1" in caplog.text and "not a Dataset" in caplog.text
 
 
@@ -91,7 +92,7 @@ def test_execute_logs_warning_when_dataset_empty(mock_app_context, sample_projec
     command = ExportDatasetCommand(app_context, "ds-1")
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "ds-1" in caplog.text and "no data" in caplog.text.lower()
 
 
@@ -100,7 +101,7 @@ def test_redo_logs_warning_when_nothing_to_redo(mock_app_context, caplog):
     command = ExportDatasetCommand(app_context, "ds-1")
 
     with caplog.at_level(logging.WARNING):
-        assert command.redo() is False
+        assert command.redo() is CommandResult.FAILURE
     assert "cannot redo" in caplog.text.lower()
 
 

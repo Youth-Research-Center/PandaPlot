@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.create_empty_dataset_command import CreateEmptyDatasetCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
@@ -50,7 +51,7 @@ class TestCreateEmptyDatasetCommand:
             command = CreateEmptyDatasetCommand(app_context, dataset_name="Programmatic")
             result = command.execute()
 
-        assert result is True
+        assert result is CommandResult.SUCCESS
         mock_dialog_cls.assert_not_called()
         dataset = sample_project.add_item.call_args[0][0]
         assert list(dataset.data.columns) == ["Column1", "Column2", "Column3"]
@@ -82,7 +83,7 @@ class TestCreateEmptyDatasetCommand:
             command = CreateEmptyDatasetCommand(app_context)
             result = command.execute()
 
-        assert result is True
+        assert result is CommandResult.SUCCESS
         dataset = sample_project.add_item.call_args[0][0]
         assert dataset.name == "My Dataset"
         assert list(dataset.data.columns) == ["Column1", "Column2"]
@@ -109,7 +110,7 @@ class TestCreateEmptyDatasetCommand:
             command = CreateEmptyDatasetCommand(app_context)
             result = command.execute()
 
-        assert result is True
+        assert result is CommandResult.SUCCESS
         dataset = sample_project.add_item.call_args[0][0]
         assert dataset.data.shape == (3, 1)
         assert str(dataset.data["Column1"].dtype) == "float64"
@@ -130,7 +131,7 @@ class TestCreateEmptyDatasetCommand:
             command = CreateEmptyDatasetCommand(app_context)
             result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         sample_project.add_item.assert_not_called()
         app_state.event_bus.emit.assert_not_called()
 
@@ -160,7 +161,7 @@ class TestCreateEmptyDatasetCommand:
             command = CreateEmptyDatasetCommand(app_context)
             result = command.execute()
 
-        assert result is True
+        assert result is CommandResult.SUCCESS
 
         # Undo removes the dataset.
         command.undo()
@@ -172,7 +173,7 @@ class TestCreateEmptyDatasetCommand:
         ) as mock_dialog_cls_on_redo:
             redo_result = command.redo()
 
-        assert redo_result is True
+        assert redo_result is CommandResult.SUCCESS
         mock_dialog_cls_on_redo.assert_not_called()
 
         assert sample_project.add_item.call_count == 2
@@ -195,7 +196,7 @@ class TestCreateEmptyDatasetCommand:
             command = CreateEmptyDatasetCommand(app_context)
             result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         mock_dialog_cls.assert_not_called()
         ui_controller.show_warning_message.assert_called_once_with(
             "Create Dataset", "Please open or create a project first."
@@ -211,7 +212,7 @@ class TestCreateEmptyDatasetCommand:
         with caplog.at_level(logging.WARNING):
             result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "current_project is None" in caplog.text
 
     def test_undo_logs_warning_when_nothing_to_undo(self, mock_app_context, caplog):
@@ -220,16 +221,18 @@ class TestCreateEmptyDatasetCommand:
         command = CreateEmptyDatasetCommand(app_context, dataset_name="Never executed")
 
         with caplog.at_level(logging.WARNING):
-            command.undo()
+            result = command.undo()
         assert "cannot undo" in caplog.text.lower()
+        assert result is CommandResult.FAILURE
 
     def test_redo_logs_warning_when_no_dataset_name(self, mock_app_context, caplog):
         app_context, app_state, ui_controller = mock_app_context
         command = CreateEmptyDatasetCommand(app_context)
 
         with caplog.at_level(logging.WARNING):
-            command.redo()
+            result = command.redo()
         assert "cannot redo" in caplog.text.lower()
+        assert result is CommandResult.FAILURE
 
     def test_cleanup_releases_the_dataset_id_and_project_reference(self, mock_app_context, sample_project):
         app_context, app_state, ui_controller = mock_app_context

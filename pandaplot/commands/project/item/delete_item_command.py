@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, Type, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Item
@@ -28,7 +28,7 @@ class DeleteItemCommand(Command):
         self.parent_item: Optional[Item] = None
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the delete item command."""
         try:
             # Check if we have a project loaded
@@ -38,14 +38,14 @@ class DeleteItemCommand(Command):
                     "Delete Item",
                     "No project is currently loaded."
                 )
-                return False
+                return CommandResult.FAILURE
 
             project = self.app_state.current_project
             if not project:
                 self.logger.warning(
                     "DeleteItemCommand.execute: has_project is True but current_project is None"
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Find the item to delete
             item = project.find_item(self.item_id)
@@ -55,7 +55,7 @@ class DeleteItemCommand(Command):
                     "Delete Item",
                     f"Item '{self.item_id}' not found in the project."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Store the item's class type and serialized data for undo
             self.deleted_item_class = type(item)
@@ -77,7 +77,7 @@ class DeleteItemCommand(Command):
                     f"Are you sure you want to delete the {item_type} '{item_name}'?\nThis action cannot be undone."
                 )
                 if not response:
-                    return False
+                    return CommandResult.FAILURE
 
             # Remove the item from the project
             project.remove_item(item)
@@ -96,22 +96,22 @@ class DeleteItemCommand(Command):
                 item_name,
                 self.item_id
             )
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to delete item: {str(e)}"
             self.logger.error("DeleteItemCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "Delete Item Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
-    def undo(self) -> bool:
+    def undo(self) -> CommandResult:
         """Undo the delete item command."""
         try:
             if (self.deleted_item_data is None or
                 self.deleted_item_class is None or
                     not self.app_state.has_project):
-                return False
+                return CommandResult.FAILURE
 
             project = self.app_state.current_project
             if not project:
@@ -119,7 +119,7 @@ class DeleteItemCommand(Command):
                     "DeleteItemCommand.undo: has_project is True but current_project is None (item_id=%s)",
                     self.item_id,
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Recreate the item from its serialized data
             restored_item = self.deleted_item_class.from_dict(
@@ -151,21 +151,21 @@ class DeleteItemCommand(Command):
                 item_name,
                 self.item_id
             )
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to undo delete item: {str(e)}"
             self.logger.error("DeleteItemCommand Undo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
-    def redo(self) -> bool:
+    def redo(self) -> CommandResult:
         """Redo the delete item command."""
         try:
             if (self.deleted_item_data is None or
                 self.deleted_item_class is None or
                     not self.app_state.has_project):
-                return False
+                return CommandResult.FAILURE
 
             project = self.app_state.current_project
             if not project:
@@ -173,13 +173,13 @@ class DeleteItemCommand(Command):
                     "DeleteItemCommand.redo: has_project is True but current_project is None (item_id=%s)",
                     self.item_id,
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Find the restored item and delete it again
             item = project.find_item(self.item_id)
             if item is None:
                 self.logger.warning("DeleteItemCommand.redo: item '%s' not found", self.item_id)
-                return False
+                return CommandResult.FAILURE
 
             # Remove the item from the project
             project.remove_item(item)
@@ -202,13 +202,13 @@ class DeleteItemCommand(Command):
                 item_name,
                 self.item_id
             )
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to redo delete item: {str(e)}"
             self.logger.error("DeleteItemCommand Redo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     @override
     def cleanup(self) -> None:

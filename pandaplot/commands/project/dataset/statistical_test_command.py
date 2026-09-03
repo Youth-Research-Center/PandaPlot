@@ -7,7 +7,7 @@ import uuid
 from typing import List, Optional, override
 
 from pandaplot.analysis import StatsEngine, StatTestResult, StatTestType
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
@@ -77,14 +77,14 @@ class StatisticalTestCommand(Command):
         )
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         try:
             self.logger.info("Executing StatisticalTestCommand (%s)", self.test_type.value)
             if not self.app_state.has_project or not self.app_state.current_project:
                 message = "No project loaded; cannot run statistical test."
                 self.logger.warning(message)
                 self.ui_controller.show_error_message("Statistical Test Error", message)
-                return False
+                return CommandResult.FAILURE
 
             project = self.app_state.current_project
 
@@ -111,22 +111,22 @@ class StatisticalTestCommand(Command):
             })
 
             self.logger.info("Created results dataset '%s' (%s)", name, self.result_dataset_id)
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             self.logger.error("Statistical test failed: %s", e, exc_info=True)
             self.ui_controller.show_error_message("Statistical Test Error", str(e))
-            return False
+            return CommandResult.FAILURE
 
     @override
-    def undo(self) -> bool:
+    def undo(self) -> CommandResult:
         try:
             if not self.result_dataset_id or not self.app_state.current_project:
                 self.logger.warning(
                     "StatisticalTestCommand.undo: cannot undo (result_dataset_id set=%s, current_project set=%s)",
                     bool(self.result_dataset_id), self.app_state.current_project is not None,
                 )
-                return False
+                return CommandResult.FAILURE
             project = self.app_state.current_project
             dataset = project.find_item(self.result_dataset_id)
             if dataset:
@@ -137,13 +137,13 @@ class StatisticalTestCommand(Command):
                     "dataset_name": dataset.name,
                 })
             self.logger.info("Undone statistical test results dataset '%s'", self.result_dataset_id)
-            return True
+            return CommandResult.SUCCESS
         except Exception as e:
             self.logger.error("Failed to undo statistical test: %s", e, exc_info=True)
-            return False
+            return CommandResult.FAILURE
 
     @override
-    def redo(self) -> bool:
+    def redo(self) -> CommandResult:
         return self.execute()
 
     @override

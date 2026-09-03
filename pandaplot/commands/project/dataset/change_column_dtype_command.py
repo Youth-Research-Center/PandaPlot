@@ -3,7 +3,7 @@ from typing import Any, Dict, Union, override
 import numpy as np
 import pandas as pd
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -38,7 +38,7 @@ class ChangeColumnDtypeCommand(Command):
         self.dataset = None
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the change column dtype command."""
         try:
             self.logger.info(f"Executing ChangeColumnDtypeCommand for column {self.column_index} to {self.target_dtype}")
@@ -49,12 +49,12 @@ class ChangeColumnDtypeCommand(Command):
                     "Change Column Type",
                     "Please open or create a project first."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.project = self.app_state.current_project
             if not self.project:
                 self.logger.warning("ChangeColumnDtypeCommand.execute: has_project is True but current_project is None")
-                return False
+                return CommandResult.FAILURE
 
             # Find the dataset
             found_item = self.project.find_item(self.dataset_id)
@@ -66,7 +66,7 @@ class ChangeColumnDtypeCommand(Command):
                     "Change Column Type",
                     f"Dataset with ID '{self.dataset_id}' not found."
                 )
-                return False
+                return CommandResult.FAILURE
 
             if not isinstance(found_item, Dataset):
                 self.logger.warning(
@@ -77,7 +77,7 @@ class ChangeColumnDtypeCommand(Command):
                     "Change Column Type",
                     "Selected item is not a dataset."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.dataset = found_item
 
@@ -90,7 +90,7 @@ class ChangeColumnDtypeCommand(Command):
                     "Change Column Type",
                     "Cannot change column type in empty dataset."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Validate column index
             if self.column_index < 0 or self.column_index >= len(self.dataset.data.columns):
@@ -102,7 +102,7 @@ class ChangeColumnDtypeCommand(Command):
                     "Change Column Type",
                     f"Column index {self.column_index} is out of range."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Get column information
             self.column_name = self.dataset.data.columns[self.column_index]
@@ -115,7 +115,7 @@ class ChangeColumnDtypeCommand(Command):
                     "Change Column Type", 
                     f"Column '{self.column_name}' is already of type {self.target_dtype}."
                 )
-                return True
+                return CommandResult.NOOP
 
             # Perform the conversion
             conversion_result = self._convert_column_dtype()
@@ -125,7 +125,7 @@ class ChangeColumnDtypeCommand(Command):
                     "ChangeColumnDtypeCommand.execute: conversion to '%s' failed for column '%s' in dataset '%s'",
                     self.target_dtype, self.column_name, self.dataset_id,
                 )
-                return False
+                return CommandResult.FAILURE
                 
             # Apply the converted data
             self.dataset.data[self.column_name] = conversion_result["converted_data"]
@@ -156,13 +156,13 @@ class ChangeColumnDtypeCommand(Command):
                 ).to_dict()
             )
 
-            return True
+            return CommandResult.SUCCESS
             
         except Exception as e:
             error_msg = f"Failed to change column type for column {self.column_index}: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Change Column Type Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     def _convert_column_dtype(self) -> Union[Dict[str, Any], None]:
         """
@@ -239,7 +239,7 @@ class ChangeColumnDtypeCommand(Command):
             self.logger.error(f"Error converting column data: {e}", exc_info=True)
             return None
 
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Restore the original column data and dtype."""
         if (self.original_data is not None and self.dataset and
             self.dataset.data is not None and self.column_name):
@@ -255,14 +255,15 @@ class ChangeColumnDtypeCommand(Command):
                     end_index=(len(self.dataset.data) - 1, self.column_index)
                 ).to_dict()
             )
-            return
+            return CommandResult.SUCCESS
 
         self.logger.warning(
             "ChangeColumnDtypeCommand.undo: cannot undo for dataset '%s' (original_data set=%s, dataset found=%s, column_name set=%s)",
             self.dataset_id, self.original_data is not None, self.dataset is not None, bool(self.column_name),
         )
+        return CommandResult.FAILURE
 
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Reapply the column dtype change."""
         if (self.conversion_report and self.dataset and
             self.dataset.data is not None and self.column_name):
@@ -281,17 +282,18 @@ class ChangeColumnDtypeCommand(Command):
                         end_index=(len(self.dataset.data) - 1, self.column_index)
                     ).to_dict()
                 )
-                return
+                return CommandResult.SUCCESS
             self.logger.warning(
                 "ChangeColumnDtypeCommand.redo: re-conversion to '%s' failed for column '%s' in dataset '%s'",
                 self.target_dtype, self.column_name, self.dataset_id,
             )
-            return
+            return CommandResult.FAILURE
 
         self.logger.warning(
             "ChangeColumnDtypeCommand.redo: cannot redo for dataset '%s' (conversion_report set=%s, dataset found=%s, column_name set=%s)",
             self.dataset_id, bool(self.conversion_report), self.dataset is not None, bool(self.column_name),
         )
+        return CommandResult.FAILURE
 
     @override
     def cleanup(self) -> None:

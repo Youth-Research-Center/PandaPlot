@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
@@ -69,7 +70,7 @@ def test_rename_updates_dataframe_and_series_resolve_via_id(env):
 
     command = RenameColumnCommand(app_context, dataset.id, 0, "time")
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     assert list(dataset.data.columns) == ["time", "b"]
     # The series reference is untouched but resolves to the new name via its id.
     assert s1.x_column_id == x_id_before
@@ -103,7 +104,7 @@ def test_undo_and_redo_round_trip(env):
 def test_duplicate_name_rejected(env):
     app_context, dataset, _, _ = env
     command = RenameColumnCommand(app_context, dataset.id, 0, "b")
-    assert command.execute() is False
+    assert command.execute() is CommandResult.FAILURE
     assert list(dataset.data.columns) == ["a", "b"]
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
@@ -113,7 +114,7 @@ def test_duplicate_name_rejected_logs_a_warning(env, caplog):
     command = RenameColumnCommand(app_context, dataset.id, 0, "b")
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "b" in caplog.text
 
 
@@ -123,7 +124,7 @@ def test_execute_logs_a_warning_when_no_project_open(env, caplog):
     command = RenameColumnCommand(app_context, dataset.id, 0, "time")
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert dataset.id in caplog.text
 
 
@@ -132,7 +133,7 @@ def test_execute_logs_a_warning_when_dataset_not_found(env, caplog):
     command = RenameColumnCommand(app_context, "missing-ds", 0, "time")
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "missing-ds" in caplog.text
 
 
@@ -141,7 +142,7 @@ def test_execute_logs_a_warning_when_column_index_out_of_range(env, caplog):
     command = RenameColumnCommand(app_context, dataset.id, 5, "time")
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "5" in caplog.text
 
 
@@ -150,21 +151,21 @@ def test_execute_logs_a_warning_when_new_name_is_empty(env, caplog):
     command = RenameColumnCommand(app_context, dataset.id, 0, "   ")
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert dataset.id in caplog.text
 
 
 def test_empty_name_rejected(env):
     app_context, dataset, _, _ = env
     command = RenameColumnCommand(app_context, dataset.id, 0, "   ")
-    assert command.execute() is False
+    assert command.execute() is CommandResult.FAILURE
     assert list(dataset.data.columns) == ["a", "b"]
 
 
 def test_unchanged_name_is_silent_noop(env):
     app_context, dataset, _, _ = env
     command = RenameColumnCommand(app_context, dataset.id, 0, "a")
-    assert command.execute() is False
+    assert command.execute() is CommandResult.NOOP
     assert list(dataset.data.columns) == ["a", "b"]
     app_context.get_ui_controller.return_value.show_error_message.assert_not_called()
 
@@ -172,7 +173,7 @@ def test_unchanged_name_is_silent_noop(env):
 def test_undo_after_rejected_execute_is_a_noop(env):
     app_context, dataset, _, chart = env
     command = RenameColumnCommand(app_context, dataset.id, 0, "b")  # duplicate -> rejected
-    assert command.execute() is False
+    assert command.execute() is CommandResult.FAILURE
 
     command.undo()  # CommandExecutor pushes commands even on failure; undo must not corrupt
     assert list(dataset.data.columns) == ["a", "b"]

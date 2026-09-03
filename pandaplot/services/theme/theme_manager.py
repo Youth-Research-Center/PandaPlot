@@ -358,7 +358,7 @@ class ThemeManager:
         if is_dark:
             return {
                 "text_primary": "#E2E2E2", "text_secondary": "#C7CAD1",
-                "text_muted": "#9AA0AB", "text_hint": "#6B7280",
+                "text_muted": "#9AA0AB", "text_hint": "#6B7280", "text_disabled": "#5B6270",
                 "border_panel": "#3A3D40", "border_control": "#4A4D52",
                 "border_subtle": "#33363A",
                 "surface_white": "#2A2C2E", "surface_chrome": "#232527",
@@ -373,7 +373,7 @@ class ThemeManager:
             }
         return {
             "text_primary": "#1C1E26", "text_secondary": "#3F4350",
-            "text_muted": "#6B7280", "text_hint": "#9AA0AB",
+            "text_muted": "#6B7280", "text_hint": "#9AA0AB", "text_disabled": "#AEB2BC",
             "border_panel": "#E5E6EA", "border_control": "#DCDEE4",
             "border_subtle": "#ECEEF2",
             "surface_white": "#FFFFFF", "surface_chrome": "#FBFBFC",

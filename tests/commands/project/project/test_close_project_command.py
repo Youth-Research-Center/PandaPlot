@@ -2,6 +2,7 @@
 
 from unittest.mock import Mock
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.project.close_project_command import CloseProjectCommand
 from pandaplot.models.state import AppContext, AppState
 
@@ -17,7 +18,7 @@ def _make_app_context(*, has_project=True):
 def test_execute_closes_the_project():
     app_context, app_state = _make_app_context()
     command = CloseProjectCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     app_state.close_project.assert_called_once()
 
 
@@ -26,7 +27,7 @@ def test_execute_surfaces_unexpected_failure_to_the_user():
     app_state.close_project.side_effect = RuntimeError("disk error")
 
     command = CloseProjectCommand(app_context)
-    assert command.execute() is False
+    assert command.execute() is CommandResult.FAILURE
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
     _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
     assert "disk error" in message

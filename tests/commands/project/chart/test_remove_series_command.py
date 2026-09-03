@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.remove_series_command import RemoveSeriesCommand
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
@@ -46,7 +47,7 @@ def test_undo_restores_series_with_style_as_dataclass_instance(app_context_with_
     )
 
     command = RemoveSeriesCommand(app_context, chart_id=chart.id, series_index=0)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     assert len(chart.data_series) == 0
 
     command.undo()
@@ -94,7 +95,7 @@ def test_execute_logs_a_warning_when_chart_not_found(caplog):
     command = RemoveSeriesCommand(app_context, chart_id="missing", series_index=0)
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "missing" in caplog.text
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
@@ -105,7 +106,7 @@ def test_execute_logs_a_warning_when_series_index_out_of_range(app_context_with_
     command = RemoveSeriesCommand(app_context, chart_id=chart.id, series_index=5)
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "5" in caplog.text
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 

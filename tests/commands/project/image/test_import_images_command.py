@@ -7,6 +7,7 @@ import pytest
 from PySide6.QtCore import QBuffer, QIODevice
 from PySide6.QtGui import QImage
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.image.create_image_gallery_command import (
     CreateImageGalleryCommand,
 )
@@ -46,7 +47,7 @@ class TestImportImagesCommandCopyMode:
             sources=[str(png_path)], copy_into_project=True,
         )
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         project = app_context_with_project.get_app_state().current_project
         gallery = project.find_item(gallery_id)
         images = gallery.get_items()
@@ -72,7 +73,7 @@ class TestImportImagesCommandCopyMode:
             sources=paths, copy_into_project=True,
         )
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         project = app_context_with_project.get_app_state().current_project
         gallery = project.find_item(gallery_id)
         assert len(gallery.get_items()) == 2
@@ -121,7 +122,7 @@ class TestImportImagesCommandExternalMode:
             sources=[str(png_path)], copy_into_project=False,
         )
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         project = app_context_with_project.get_app_state().current_project
         gallery = project.find_item(gallery_id)
         image = gallery.get_items()[0]
@@ -140,7 +141,7 @@ class TestImportImagesCommandErrors:
             sources=[str(png_path)], copy_into_project=True,
         )
 
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
 
     def test_execute_fails_when_file_missing(self, app_context_with_project, gallery_id):
         command = ImportImagesCommand(
@@ -148,7 +149,7 @@ class TestImportImagesCommandErrors:
             sources=["/no/such/file.png"], copy_into_project=True,
         )
 
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
 
 
 class TestImportImagesCommandLogging:
@@ -160,7 +161,7 @@ class TestImportImagesCommandLogging:
         )
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "ImportImagesCommand.execute" in caplog.text
 
     def test_execute_logs_a_warning_when_gallery_not_found(self, app_context_with_project, tmp_path, caplog):
@@ -173,7 +174,7 @@ class TestImportImagesCommandLogging:
         )
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "does-not-exist" in caplog.text
 
     def test_execute_logs_a_warning_when_no_sources_given(self, app_context_with_project, gallery_id, caplog):
@@ -182,7 +183,7 @@ class TestImportImagesCommandLogging:
         )
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert gallery_id in caplog.text
 
 
@@ -311,7 +312,7 @@ class TestImportImagesCommandUrlSource:
             sources=["https://example.com/pic.png"], copy_into_project=True,
         )
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         project = app_context_with_project.get_app_state().current_project
         image = project.find_item(gallery_id).get_items()[0]
         assert image.storage_mode == "copied"
@@ -333,7 +334,7 @@ class TestImportImagesCommandUrlSource:
             sources=["https://example.com/pic.png"], copy_into_project=False,
         )
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         image = app_context_with_project.get_app_state().current_project.find_item(gallery_id).get_items()[0]
         assert image.storage_mode == "external"
         assert image.source_file == "https://example.com/pic.png"
@@ -349,4 +350,4 @@ class TestImportImagesCommandUrlSource:
             sources=["https://example.com/pic.png"], copy_into_project=True,
         )
 
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE

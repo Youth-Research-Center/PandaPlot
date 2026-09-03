@@ -2,7 +2,7 @@
 
 from typing import List, Optional, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.events.event_data import DatasetColumnRenamedData
@@ -34,7 +34,7 @@ class RenameColumnCommand(Command):
         self._applied: bool = False
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         try:
             if not self.app_state.has_project or not self.app_state.current_project:
                 self.logger.warning(
@@ -43,7 +43,7 @@ class RenameColumnCommand(Command):
                 )
                 self.ui_controller.show_warning_message(
                     "Rename Column", "Please open or create a project first.")
-                return False
+                return CommandResult.FAILURE
             project = self.app_state.current_project
 
             found_item = project.find_item(self.dataset_id)
@@ -54,7 +54,7 @@ class RenameColumnCommand(Command):
                 )
                 self.ui_controller.show_error_message(
                     "Rename Column", f"Dataset with ID '{self.dataset_id}' not found.")
-                return False
+                return CommandResult.FAILURE
             self.dataset = found_item
 
             columns = list(self.dataset.data.columns)
@@ -65,7 +65,7 @@ class RenameColumnCommand(Command):
                 )
                 self.ui_controller.show_error_message(
                     "Rename Column", f"Column index {self.column_index} is out of range.")
-                return False
+                return CommandResult.FAILURE
 
             self.old_name = columns[self.column_index]
             if not self.new_name:
@@ -75,9 +75,10 @@ class RenameColumnCommand(Command):
                 )
                 self.ui_controller.show_error_message(
                     "Rename Column", "Column name cannot be empty.")
-                return False
+                return CommandResult.FAILURE
             if self.new_name == self.old_name:
-                return False
+                # Nothing to rename -- not a failure.
+                return CommandResult.NOOP
             if self.new_name in columns:
                 self.logger.warning(
                     "RenameColumnCommand.execute: column name '%s' already exists in dataset '%s'",
@@ -86,17 +87,17 @@ class RenameColumnCommand(Command):
                 self.ui_controller.show_error_message(
                     "Rename Column",
                     f"A column named '{self.new_name}' already exists in this dataset.")
-                return False
+                return CommandResult.FAILURE
 
             self._apply_rename(self.old_name, self.new_name)
             self._applied = True
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to rename column: {e}"
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Rename Column Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     def _apply_rename(self, from_name: str, to_name: str) -> None:
         """Rename the column and notify; do not rewrite series references.
@@ -192,16 +193,28 @@ class RenameColumnCommand(Command):
         return affected
 
     @override
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Rename back and restore references (same walk, names swapped)."""
         if self._applied and self.old_name is not None:
             self._apply_rename(self.new_name, self.old_name)
+            return CommandResult.SUCCESS
+        self.logger.warning(
+            "RenameColumnCommand.undo: cannot undo for dataset '%s' (applied=%s, old_name set=%s)",
+            self.dataset_id, self._applied, self.old_name is not None,
+        )
+        return CommandResult.FAILURE
 
     @override
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Re-apply the rename and reference cascade."""
         if self._applied and self.old_name is not None:
             self._apply_rename(self.old_name, self.new_name)
+            return CommandResult.SUCCESS
+        self.logger.warning(
+            "RenameColumnCommand.redo: cannot redo for dataset '%s' (applied=%s, old_name set=%s)",
+            self.dataset_id, self._applied, self.old_name is not None,
+        )
+        return CommandResult.FAILURE
 
     @override
     def cleanup(self) -> None:

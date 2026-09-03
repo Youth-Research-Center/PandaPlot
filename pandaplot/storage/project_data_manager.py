@@ -84,15 +84,22 @@ class ProjectDataManager:
             )
 
         items = {}
+        failed_items: list[str] = []
         for item_id, info in project_dict.get("item_files", {}).items():
             curr_item = self._load_item(item_id, info, zip_proxy, schema_version)
             if curr_item is not None:
                 items[item_id] = curr_item
+            else:
+                failed_items.append(item_id)
 
         project_root = project_dict.get("root", {})
         project.root.id = project_root.get("id", project.root.id)
         self._add_items_to_project(project, items, project_root.get("items", []))
         run_cross_item_migrations(project)
+        # Not persisted (see Project.to_dict) -- purely to let callers of
+        # load() surface a warning about items that were silently dropped
+        # instead of the failure disappearing into the log.
+        project.failed_item_ids = failed_items
         return project
 
     def _load_item(self, item_id: str, info, zip_file, schema_version: int) -> Item | None:

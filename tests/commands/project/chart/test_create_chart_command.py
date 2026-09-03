@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart import CreateChartCommand
 from pandaplot.models.project.items import Chart
 
@@ -48,7 +49,7 @@ def test_execute_adds_the_chart_to_the_project(app_context_with_project):
     command = CreateChartCommand(app_context, chart, parent_id="folder-1")
     result = command.execute()
 
-    assert result is True
+    assert result is CommandResult.SUCCESS
     project.add_item.assert_called_once_with(chart, parent_id="folder-1")
 
 
@@ -106,7 +107,7 @@ def test_execute_returns_false_when_add_item_raises(app_context_with_project):
     command = CreateChartCommand(app_context, chart)
     result = command.execute()
 
-    assert result is False
+    assert result is CommandResult.FAILURE
 
 
 def test_cleanup_does_not_raise_and_keeps_chart_for_redo(app_context_with_project):

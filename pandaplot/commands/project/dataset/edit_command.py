@@ -1,6 +1,6 @@
 from typing import Tuple, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -19,8 +19,11 @@ class EditCommand(Command):
         self.new_value = new_value
         self.old_value = old_value
 
+        self.project = None
+        self.dataset = None
+
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         try:
             self.logger.info("Executing EditCommand")
             if not self.app_context.app_state.has_project:
@@ -29,12 +32,12 @@ class EditCommand(Command):
                     "Edit Cell",
                     "Please open or create a project first."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.project = self.app_context.app_state.current_project
             if not self.project:
                 self.logger.warning("EditCommand.execute: has_project is True but current_project is None")
-                return False
+                return CommandResult.FAILURE
 
             # Find the dataset
             found_item = self.project.find_item(self.dataset_id)
@@ -46,7 +49,7 @@ class EditCommand(Command):
                     "Edit Cell",
                     f"Dataset with ID '{self.dataset_id}' not found."
                 )
-                return False
+                return CommandResult.FAILURE
 
             if not isinstance(found_item, Dataset):
                 self.logger.warning(
@@ -57,7 +60,7 @@ class EditCommand(Command):
                     "Edit Cell",
                     "Selected item is not a dataset."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.dataset = found_item
 
@@ -70,7 +73,9 @@ class EditCommand(Command):
                     "Edit Cell",
                     "Cannot edit cell in dataset without structure."
                 )
-                return False
+                self.dataset = None
+                self.project = None
+                return CommandResult.FAILURE
             
             self.dataset.data.iloc[self.index[0], self.index[1]] = self.new_value
             self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, DatasetDataChangedData(
@@ -78,28 +83,46 @@ class EditCommand(Command):
                     start_index=(self.index[0], self.index[1]),
                     end_index=(self.index[0], self.index[1])
                 ).to_dict())
-            return True
+            return CommandResult.SUCCESS
         except Exception as e:
             error_msg = f"Failed to edit cell at index: {self.index} {str(e)}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Edit Error", error_msg)
-            return False
+            self.dataset = None
+            self.project = None
+            return CommandResult.FAILURE
 
-    def undo(self):
+    def undo(self) -> CommandResult:
+        if self.dataset is None or self.dataset.data is None:
+            self.logger.warning(
+                "EditCommand.undo: cannot undo for dataset '%s' (dataset found=%s)",
+                self.dataset_id, self.dataset is not None,
+            )
+            return CommandResult.FAILURE
+
         self.dataset.data.iloc[self.index[0], self.index[1]] = self.old_value
         self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, DatasetDataChangedData(
                     dataset_id=self.dataset_id,
                     start_index=(self.index[0], self.index[1]),
                     end_index=(self.index[0], self.index[1])
                 ).to_dict())
-    
-    def redo(self):
+        return CommandResult.SUCCESS
+
+    def redo(self) -> CommandResult:
+        if self.dataset is None or self.dataset.data is None:
+            self.logger.warning(
+                "EditCommand.redo: cannot redo for dataset '%s' (dataset found=%s)",
+                self.dataset_id, self.dataset is not None,
+            )
+            return CommandResult.FAILURE
+
         self.dataset.data.iloc[self.index[0], self.index[1]] = self.new_value
         self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, DatasetDataChangedData(
                     dataset_id=self.dataset_id,
                     start_index=(self.index[0], self.index[1]),
                     end_index=(self.index[0], self.index[1])
                 ).to_dict())
+        return CommandResult.SUCCESS
 
     @override
     def cleanup(self) -> None:

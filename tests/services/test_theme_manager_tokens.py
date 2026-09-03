@@ -21,7 +21,7 @@ def test_design_tokens_has_all_required_keys(tmp_path):
     tm = _make_manager(tmp_path)
     tokens = tm.get_design_tokens()
     required = [
-        "text_primary", "text_secondary", "text_muted", "text_hint",
+        "text_primary", "text_secondary", "text_muted", "text_hint", "text_disabled",
         "border_panel", "border_control", "border_subtle",
         "surface_white", "surface_chrome", "surface_inset",
         "accent", "accent_active_text", "accent_selected_bg", "accent_disabled",
@@ -44,6 +44,13 @@ def test_design_tokens_light_and_dark_have_different_surfaces(tmp_path):
     dark = _make_manager(tmp_path, theme=Theme.DARK).get_design_tokens()
     assert light["surface_white"] != dark["surface_white"]
     assert light["text_primary"] != dark["text_primary"]
+
+
+def test_design_tokens_text_disabled_is_distinct_from_text_muted(tmp_path):
+    light = _make_manager(tmp_path, theme=Theme.LIGHT).get_design_tokens()
+    dark = _make_manager(tmp_path, theme=Theme.DARK).get_design_tokens()
+    assert light["text_disabled"] != light["text_muted"]
+    assert dark["text_disabled"] != dark["text_muted"]
 
 
 def test_design_tokens_series_palette_is_five_colors(tmp_path):

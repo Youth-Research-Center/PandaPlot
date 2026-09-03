@@ -3,8 +3,9 @@ by dataset-selection combo boxes when two datasets share a name (issue #114).
 """
 
 from pandaplot.models.project import Project
-from pandaplot.models.project.items.dataset import Dataset, dataset_display_options
+from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.items.folder import Folder
+from pandaplot.utils.item_display_options import dataset_display_options
 
 
 def test_unique_names_are_left_plain():

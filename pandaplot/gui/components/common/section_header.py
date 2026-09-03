@@ -10,7 +10,7 @@ class SectionHeader(QLabel):
 
     def set_tokens(self, tokens: dict):
         color = tokens.get("text_muted", "#6B7280")
-        disabled_color = tokens.get("text_hint", "#9AA0AB")
+        disabled_color = tokens.get("text_disabled", "#AEB2BC")
         self.setStyleSheet(
             f"QLabel {{ font-size: 10.5px; font-weight: 700; letter-spacing: 1px; color: {color}; }}"
             f"QLabel:disabled {{ color: {disabled_color}; }}"

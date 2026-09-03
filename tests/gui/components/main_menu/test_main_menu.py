@@ -68,6 +68,30 @@ class TestMainMenuHelpMenu:
 
         assert action is not None
 
+    def test_help_menu_has_welcome_action(self, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+
+        action = _find_help_action(menu, "Welcome")
+
+        assert action is not None
+
+    def test_show_welcome_tab_delegates_to_the_tab_container_manager(self, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+        tab_container = Mock()
+        original_side_effect = app_context.get_manager.side_effect
+
+        def _get_manager(manager_type, *args, **kwargs):
+            from pandaplot.gui.components.tabs.tab_container import TabContainer
+            if manager_type is TabContainer:
+                return tab_container
+            return original_side_effect(manager_type, *args, **kwargs)
+
+        app_context.get_manager.side_effect = _get_manager
+
+        menu.show_welcome_tab()
+
+        tab_container.show_welcome_tab.assert_called_once_with()
+
     def test_open_example_project_loads_selected_example(self, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
         command_executor = Mock()
@@ -200,3 +224,128 @@ class TestMainMenuUndoRedoActions:
         menu.redo_action.trigger()
 
         command_executor.redo.assert_called_once()
+
+
+class TestMainMenuRecentSubmenu:
+    """File > Recent (#221 items 3/4): reuses the same shared
+    get_recent_projects lookup WelcomeTab uses for its recent-projects cards."""
+
+    def test_recent_submenu_lives_under_file_menu(self, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+
+        file_menu = next(m for m in menu.findChildren(type(menu.recent_menu)) if m.title() == "File")
+
+        assert menu.recent_menu in [a.menu() for a in file_menu.actions()]
+
+    def test_recent_submenu_shows_tooltips(self, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+
+        assert menu.recent_menu.toolTipsVisible() is True
+
+    def test_shows_placeholder_when_no_recent_projects(self, app_context):
+        with patch("pandaplot.gui.components.main_menu.main_menu.get_recent_projects", return_value=[]):
+            menu = MainMenu(parent=None, app_context=app_context)
+
+        actions = menu.recent_menu.actions()
+        assert len(actions) == 1
+        assert actions[0].text() == "No Recent Projects"
+        assert actions[0].isEnabled() is False
+
+    def test_lists_one_action_per_recent_project(self, app_context):
+        recent = [
+            {"name": "Project A", "path": "/a/Project A.pplot", "last_opened": "2026-08-31 10:00"},
+            {"name": "Project B", "path": "/b/Project B.pplot", "last_opened": "2026-08-30 10:00"},
+        ]
+        with patch("pandaplot.gui.components.main_menu.main_menu.get_recent_projects", return_value=recent):
+            menu = MainMenu(parent=None, app_context=app_context)
+
+        actions = menu.recent_menu.actions()
+        assert [a.text() for a in actions] == ["Project A", "Project B"]
+        assert [a.toolTip() for a in actions] == ["/a/Project A.pplot", "/b/Project B.pplot"]
+
+    def test_triggering_recent_action_loads_that_project_when_none_is_open(self, app_context):
+        """No project open -> nothing to lose, so it loads without asking."""
+        recent = [{"name": "Project A", "path": "/a/Project A.pplot", "last_opened": "2026-08-31 10:00"}]
+        with patch("pandaplot.gui.components.main_menu.main_menu.get_recent_projects", return_value=recent):
+            menu = MainMenu(parent=None, app_context=app_context)
+
+        command_executor = Mock()
+        app_context.get_command_executor.return_value = command_executor
+        ui_controller = Mock()
+        app_context.get_ui_controller.return_value = ui_controller
+
+        menu.recent_menu.actions()[0].trigger()
+
+        ui_controller.show_question.assert_not_called()
+        command_executor.execute_command.assert_called_once()
+        executed_command = command_executor.execute_command.call_args[0][0]
+        assert executed_command.file_path == "/a/Project A.pplot"
+
+    def test_triggering_recent_action_confirms_when_a_project_is_open(self, app_context):
+        app_context.get_app_state().has_project = True
+        recent = [{"name": "Project A", "path": "/a/Project A.pplot", "last_opened": "2026-08-31 10:00"}]
+        with patch("pandaplot.gui.components.main_menu.main_menu.get_recent_projects", return_value=recent):
+            menu = MainMenu(parent=None, app_context=app_context)
+
+        command_executor = Mock()
+        app_context.get_command_executor.return_value = command_executor
+        ui_controller = Mock()
+        ui_controller.show_question.return_value = True
+        app_context.get_ui_controller.return_value = ui_controller
+
+        menu.recent_menu.actions()[0].trigger()
+
+        ui_controller.show_question.assert_called_once()
+        command_executor.execute_command.assert_called_once()
+        executed_command = command_executor.execute_command.call_args[0][0]
+        assert executed_command.file_path == "/a/Project A.pplot"
+
+    def test_triggering_recent_action_does_not_load_when_confirmation_declined(self, app_context):
+        app_context.get_app_state().has_project = True
+        recent = [{"name": "Project A", "path": "/a/Project A.pplot", "last_opened": "2026-08-31 10:00"}]
+        with patch("pandaplot.gui.components.main_menu.main_menu.get_recent_projects", return_value=recent):
+            menu = MainMenu(parent=None, app_context=app_context)
+
+        command_executor = Mock()
+        app_context.get_command_executor.return_value = command_executor
+        ui_controller = Mock()
+        ui_controller.show_question.return_value = False
+        app_context.get_ui_controller.return_value = ui_controller
+
+        menu.recent_menu.actions()[0].trigger()
+
+        ui_controller.show_question.assert_called_once()
+        command_executor.execute_command.assert_not_called()
+
+    def test_rebuilds_on_config_updated_event(self, app_context):
+        with patch("pandaplot.gui.components.main_menu.main_menu.get_recent_projects", return_value=[]):
+            menu = MainMenu(parent=None, app_context=app_context)
+
+        recent = [{"name": "Project A", "path": "/a/Project A.pplot", "last_opened": "2026-08-31 10:00"}]
+        with patch("pandaplot.gui.components.main_menu.main_menu.get_recent_projects", return_value=recent):
+            menu._update_recent_menu({})
+
+        assert [a.text() for a in menu.recent_menu.actions()] == ["Project A"]
+
+    def test_repeated_rebuilds_do_not_accumulate_stale_actions(self, app_context):
+        """Regression: actions must be parented to recent_menu (not self), so
+        QMenu.clear() actually deletes the previous refresh's QActions rather
+        than merely detaching them while MainMenu keeps them alive forever."""
+        recent = [{"name": "Project A", "path": "/a/Project A.pplot", "last_opened": "2026-08-31 10:00"}]
+        with patch("pandaplot.gui.components.main_menu.main_menu.get_recent_projects", return_value=recent):
+            menu = MainMenu(parent=None, app_context=app_context)
+            menu._update_recent_menu({})
+            menu._update_recent_menu({})
+            menu._update_recent_menu({})
+
+        # findChildren also picks up QMenu's own internal menuAction(); exclude it.
+        child_actions = set(menu.recent_menu.findChildren(QAction)) - {menu.recent_menu.menuAction()}
+        assert len(child_actions) == 1
+
+    def test_subscribes_to_config_updated_event(self, app_context):
+        from pandaplot.models.events.event_types import ConfigEvents
+
+        menu = MainMenu(parent=None, app_context=app_context)
+
+        subscribed_events = [event_type for event_type, _handler in menu._subscriptions]
+        assert ConfigEvents.CONFIG_UPDATED in subscribed_events

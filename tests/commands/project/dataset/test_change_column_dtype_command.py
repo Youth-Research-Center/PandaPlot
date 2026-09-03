@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.change_column_dtype_command import ChangeColumnDtypeCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.dataset import Dataset
@@ -46,8 +47,24 @@ class TestChangeColumnDtypeCommand:
         command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
         result = command.execute()
 
-        assert result is True
+        assert result is CommandResult.SUCCESS
         assert str(dataset.data["a"].dtype) == "float64"
+
+    def test_column_already_of_target_dtype_is_a_noop(self, mock_app_context, sample_project):
+        """Nothing is converted (or pushed onto the undo stack) when the
+        column is already the requested dtype."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1.0, 2.0, 3.0]}))
+        sample_project.find_item.return_value = dataset
+
+        command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
+        result = command.execute()
+
+        assert result is CommandResult.NOOP
+        ui_controller.show_info_message.assert_called_once()
 
 
 class TestChangeColumnDtypeCommandLogging:
@@ -78,7 +95,7 @@ class TestChangeColumnDtypeCommandLogging:
         command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "no project" in caplog.text.lower()
 
     def test_execute_logs_warning_when_current_project_none(self, mock_app_context, caplog):
@@ -88,7 +105,7 @@ class TestChangeColumnDtypeCommandLogging:
         command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "current_project is None" in caplog.text
 
     def test_execute_logs_warning_when_dataset_not_found(self, mock_app_context, sample_project, caplog):
@@ -99,7 +116,7 @@ class TestChangeColumnDtypeCommandLogging:
         command = ChangeColumnDtypeCommand(app_context, "missing-ds", 0, "float64")
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "missing-ds" in caplog.text
 
     def test_execute_logs_warning_when_item_not_a_dataset(self, mock_app_context, sample_project, caplog):
@@ -110,7 +127,7 @@ class TestChangeColumnDtypeCommandLogging:
         command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "ds-1" in caplog.text and "not a Dataset" in caplog.text
 
     def test_execute_logs_warning_when_dataset_empty(self, mock_app_context, sample_project, caplog):
@@ -122,7 +139,7 @@ class TestChangeColumnDtypeCommandLogging:
         command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "ds-1" in caplog.text and "no data" in caplog.text.lower()
 
     def test_execute_logs_warning_when_column_index_out_of_range(self, mock_app_context, sample_project, caplog):
@@ -134,7 +151,7 @@ class TestChangeColumnDtypeCommandLogging:
         command = ChangeColumnDtypeCommand(app_context, "ds-1", 5, "float64")
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "5" in caplog.text
 
     def test_execute_logs_warning_when_conversion_fails(self, mock_app_context, sample_project, caplog):
@@ -146,7 +163,7 @@ class TestChangeColumnDtypeCommandLogging:
         command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "unsupported_type")
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "ds-1" in caplog.text and "conversion" in caplog.text.lower()
 
     def test_undo_logs_warning_when_nothing_to_undo(self, mock_app_context, caplog):

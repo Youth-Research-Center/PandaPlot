@@ -120,6 +120,38 @@ def test_restore_reverts_fit_label():
     assert chart.fit_data[0].label == "Original Fit"
 
 
+def test_restore_reverts_a_manual_fits_source_and_data_edits():
+    """Regression test (PR #309 review): a manually-converted fit's
+    dataset/X/Y/confidence source columns and x_data/y_data are editable
+    from the Data tab (#298 follow-up), same as a data series -- Reset
+    (and ApplyChartPropertiesCommand's own undo/redo) must revert those
+    edits too, not just style/label."""
+    chart = _make_chart()
+    chart.add_fit_data(
+        "ds1", "Custom",
+        np.array([1.0, 2.0]), np.array([3.0, 4.0]),
+        source_x_column_id="x-col", source_y_column_id="y-col",
+        is_manual=True,
+    )
+    snap = snapshot_chart_state(chart)
+
+    fit = chart.fit_data[0]
+    fit.source_dataset_id = "ds2"
+    fit.source_x_column_id = "x-col-2"
+    fit.source_y_column_id = "y-col-2"
+    fit.x_data = np.array([99.0, 98.0])
+    fit.y_data = np.array([97.0, 96.0])
+
+    restore_chart_state(chart, snap)
+
+    restored = chart.fit_data[0]
+    assert restored.source_dataset_id == "ds1"
+    assert restored.source_x_column_id == "x-col"
+    assert restored.source_y_column_id == "y-col"
+    np.testing.assert_array_equal(restored.x_data, np.array([1.0, 2.0]))
+    np.testing.assert_array_equal(restored.y_data, np.array([3.0, 4.0]))
+
+
 def test_restore_reverts_fit_line_style():
     """Regression test for a bug that survived until this phase: only
     color/line_width/alpha were snapshotted, so line_style silently kept

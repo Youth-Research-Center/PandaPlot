@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMenu,
     QTextEdit,
     QToolButton,
@@ -211,7 +212,7 @@ class TransformPanel(SidebarPanel):
         self.source_column_list.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
         self.source_column_list.setMaximumHeight(80)  # Compact height for sidebar
         form_layout.addRow("Source Columns:", self.source_column_list)
-        
+
         # New column name
         self.new_column_name = QLineEdit()
         self.new_column_name.setPlaceholderText("new_column")
@@ -252,7 +253,8 @@ class TransformPanel(SidebarPanel):
         self.function_text = QTextEdit()
         self.function_text.setMaximumHeight(100)  # Keep compact
         self.function_text.setPlaceholderText(
-            "Use 'x' for the selected column, e.g.\n"
+            "Use 'x' for the selected column (highlighted in the list\n"
+            "above) -- or cols['name'] by its real name -- e.g.\n"
             "  x * 2            (double the values)\n"
             "  (x - x.mean()) / x.std()   (z-score)\n"
             "  np.sqrt(x)       (square root)\n"
@@ -290,7 +292,10 @@ class TransformPanel(SidebarPanel):
         """Human-readable list of the variables and functions available."""
         return (
             "<b>Variables</b>: <code>x</code> (also <code>value</code>, "
-            "<code>column</code>, <code>data</code>) = the selected column.<br>"
+            "<code>column</code>, <code>data</code>, and "
+            "<code>cols['name']</code> by the column's own real name) = "
+            "the selected column -- see the highlighted entry in the list "
+            "above for exactly which one.<br>"
             "<b>Math</b>: <code>np.sqrt</code>, <code>np.log</code>, "
             "<code>np.log10</code>, <code>np.exp</code>, <code>np.abs</code>, "
             "<code>np.sin/cos/tan</code>, <code>np.sign</code>.<br>"
@@ -412,25 +417,41 @@ class TransformPanel(SidebarPanel):
         """Clear dataset information display."""
         self.dataset_label.setText("No dataset selected")
         self.row_count_label.setText("")
-    
+        self.update_column_list()
+
     def get_selected_columns(self):
-        """Get list of currently selected column names."""
+        """Get list of currently selected column names.
+
+        Reads each item's stored real name (Qt.UserRole), not its displayed
+        text -- _update_source_column_markers decorates the text of
+        whichever item(s) are selected (#203), and that decoration must
+        never leak into the actual column name used for the transform."""
         selected_items = self.source_column_list.selectedItems()
-        return [item.text() for item in selected_items]
-    
+        return [item.data(Qt.ItemDataRole.UserRole) for item in selected_items]
+
+    def _populate_column_list(self, columns: list):
+        """(Re)build source_column_list from `columns`, one QListWidgetItem
+        per column with its real name stashed in Qt.UserRole (see
+        get_selected_columns)."""
+        self.source_column_list.clear()
+        for name in columns:
+            item = QListWidgetItem(name)
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            self.source_column_list.addItem(item)
+        self._update_source_column_markers()
+
     def update_column_list(self):
         """Update the available columns list."""
-        self.source_column_list.clear()
         self.available_columns = []
-        
+
         if self.current_dataset and hasattr(self.current_dataset, "data") and self.current_dataset.data is not None:
             try:
                 df = self.current_dataset.data
                 self.available_columns = list(df.columns)
-                self.source_column_list.addItems(self.available_columns)
             except Exception as e:
                 self.logger.error("TransformPanel: error getting columns: %s", e, exc_info=True)
-    
+        self._populate_column_list(self.available_columns)
+
     def enable_controls(self, *, enabled: bool):
         """Enable or disable all controls based on dataset availability."""
         self.transform_type_combo.setEnabled(enabled)
@@ -468,7 +489,35 @@ class TransformPanel(SidebarPanel):
                 self.new_column_name.setText(f"{selected_columns[0]}_transformed")
             else:
                 self.new_column_name.setText("combined_transformed")
-    
+        self._update_source_column_markers()
+
+    def _update_source_column_markers(self):
+        """Mark, directly on the source_column_list items (#203), which
+        column the expression's `x` currently refers to -- only the first
+        selected column is ever actually used (_execute_column_operation),
+        regardless of how many are highlighted, so any further selections
+        are marked as having no effect rather than silently ignored. Marking
+        the list items themselves (rather than a separate summary label)
+        keeps the mapping visible right next to the selection it describes.
+        """
+        selected_columns = self.get_selected_columns()
+        used_column = selected_columns[0] if selected_columns else None
+        extra_columns = set(selected_columns[1:])
+        for i in range(self.source_column_list.count()):
+            item = self.source_column_list.item(i)
+            name = item.data(Qt.ItemDataRole.UserRole)
+            font = item.font()
+            if name == used_column:
+                item.setText(f"{name}  →  x")
+                font.setBold(True)
+            elif name in extra_columns:
+                item.setText(f"{name}  (not used)")
+                font.setBold(False)
+            else:
+                item.setText(name)
+                font.setBold(False)
+            item.setFont(font)
+
     def insert_function_code(self, function_text: str):
         """Insert a ready-made function at the cursor, replacing any selection."""
         # If the box is empty, just set it; otherwise insert at the cursor so the
@@ -612,9 +661,10 @@ class TransformPanel(SidebarPanel):
         # Reset to first column if available
         if self.source_column_list.count() > 0:
             self.source_column_list.setCurrentRow(0)
-        
+
         # Reset to default transform type
         self.transform_type_combo.setCurrentText("Custom Function")
+        self._update_source_column_markers()
     
     def get_available_columns(self) -> list:
         """Get column names from current active dataset."""
@@ -676,5 +726,4 @@ class TransformPanel(SidebarPanel):
         """Refresh the column list from current dataset."""
         if self.current_dataset and hasattr(self.current_dataset, "data") and self.current_dataset.data is not None:
             self.available_columns = list(self.current_dataset.data.columns)
-            self.source_column_list.clear()
-            self.source_column_list.addItems(self.available_columns)
+            self._populate_column_list(self.available_columns)

@@ -32,6 +32,13 @@ class PandasTableModel(QAbstractTableModel):
 
         self.app_context = app_context
         self._dataset = dataset
+        # (event_type, handler) pairs this model has subscribed, so
+        # unsubscribe_all() can remove exactly these -- mirrors
+        # WidgetExtension's own tracking, since this model isn't one (it's a
+        # QAbstractTableModel, not a widget) but needs the same "unsubscribe
+        # before this gets torn down" support unsubscribe_widget_tree() gives
+        # actual WidgetExtension descendants.
+        self._subscriptions: list[tuple[str, Any]] = []
         self.setup_event_subscriptions()
     
     @override
@@ -105,12 +112,28 @@ class PandasTableModel(QAbstractTableModel):
         self.endRemoveRows()
 
     def setup_event_subscriptions(self):
-        self.app_context.event_bus.subscribe(DatasetEvents.DATASET_DATA_CHANGED, self.on_dataset_changed)
-        self.app_context.event_bus.subscribe(DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_add_column_event)
-        self.app_context.event_bus.subscribe(DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_remove_column_event)
-        self.app_context.event_bus.subscribe(DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_rename_column_event)
-        self.app_context.event_bus.subscribe(DatasetOperationEvents.DATASET_ROW_ADDED, self.on_add_row_event)
-        self.app_context.event_bus.subscribe(DatasetOperationEvents.DATASET_ROW_REMOVED, self.on_remove_row_event)
+        subscriptions = (
+            (DatasetEvents.DATASET_DATA_CHANGED, self.on_dataset_changed),
+            (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_add_column_event),
+            (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_remove_column_event),
+            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_rename_column_event),
+            (DatasetOperationEvents.DATASET_ROW_ADDED, self.on_add_row_event),
+            (DatasetOperationEvents.DATASET_ROW_REMOVED, self.on_remove_row_event),
+        )
+        for event_type, handler in subscriptions:
+            self.app_context.event_bus.subscribe(event_type, handler)
+            self._subscriptions.append((event_type, handler))
+
+    def unsubscribe_all(self) -> None:
+        """Unsubscribe from every event this model subscribed to in
+        setup_event_subscriptions(). Called by unsubscribe_widget_tree() when
+        the owning tab (e.g. DatasetTab) is torn down -- without this, a
+        dataset event firing after the tab closes would still invoke this
+        model's handlers (dataChanged.emit() etc.) against a model whose
+        owning view/tab may already be gone."""
+        for event_type, handler in self._subscriptions:
+            self.app_context.event_bus.unsubscribe(event_type, handler)
+        self._subscriptions.clear()
 
     def setData(self, index: QModelIndex, value: Any, role: int = Qt.ItemDataRole.EditRole) -> bool:
         """

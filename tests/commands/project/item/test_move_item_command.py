@@ -10,6 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.item.move_item_command import MoveItemCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.state import AppContext, AppState
@@ -49,9 +50,10 @@ class TestMoveItemCommandLogging:
         command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
 
         with caplog.at_level(logging.WARNING):
-            command.execute()
+            result = command.execute()
 
         assert "MoveItemCommand.execute" in caplog.text
+        assert result is CommandResult.FAILURE
 
     def test_execute_logs_a_warning_when_current_project_is_none(self, mock_app_context, caplog):
         app_context, app_state, ui_controller = mock_app_context
@@ -61,9 +63,10 @@ class TestMoveItemCommandLogging:
         command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
 
         with caplog.at_level(logging.WARNING):
-            command.execute()
+            result = command.execute()
 
         assert "MoveItemCommand.execute" in caplog.text
+        assert result is CommandResult.FAILURE
 
     def test_execute_logs_a_warning_when_no_item_id_specified(self, mock_app_context, sample_project, caplog):
         app_context, app_state, ui_controller = mock_app_context
@@ -73,9 +76,10 @@ class TestMoveItemCommandLogging:
         command = MoveItemCommand(app_context, item_id=None, target_folder_id="root")
 
         with caplog.at_level(logging.WARNING):
-            command.execute()
+            result = command.execute()
 
         assert "MoveItemCommand.execute" in caplog.text
+        assert result is CommandResult.FAILURE
 
     def test_execute_logs_a_warning_when_item_not_found(self, mock_app_context, sample_project, caplog):
         app_context, app_state, ui_controller = mock_app_context
@@ -86,9 +90,89 @@ class TestMoveItemCommandLogging:
         command = MoveItemCommand(app_context, item_id="missing-item", target_folder_id="root")
 
         with caplog.at_level(logging.WARNING):
-            command.execute()
+            result = command.execute()
 
         assert "missing-item" in caplog.text
+        assert result is CommandResult.FAILURE
+
+    def test_execute_returns_failure_when_target_folder_does_not_exist(self, mock_app_context, sample_project):
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+
+        def find_item(item_id):
+            if item_id == "item-123":
+                return item
+            return None  # target folder lookup misses
+
+        sample_project.find_item.side_effect = find_item
+        sample_project.items_index = {"item-123": item}
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", target_folder_id="missing-folder"
+        )
+
+        result = command.execute()
+
+        assert result is CommandResult.FAILURE
+        sample_project.remove_item.assert_not_called()
+        sample_project.add_item.assert_not_called()
+
+    def test_execute_returns_success_when_move_succeeds(self, mock_app_context, sample_project):
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="root", target_folder_id="root"
+        )
+
+        result = command.execute()
+
+        assert result is CommandResult.SUCCESS
+        assert command.move_performed is True
+        sample_project.remove_item.assert_called_once_with(item)
+        sample_project.add_item.assert_called_once_with(item, parent_id=None)
+
+    def test_undo_returns_noop_when_move_was_never_performed(self, mock_app_context):
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+
+        command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
+        # move_performed defaults to False -- execute() never succeeded.
+
+        assert command.undo() is CommandResult.NOOP
+
+    def test_undo_returns_success_after_a_successful_move(self, mock_app_context, sample_project):
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="root", target_folder_id="root"
+        )
+        assert command.execute() is CommandResult.SUCCESS
+
+        assert command.undo() is CommandResult.SUCCESS
+
+    def test_redo_delegates_to_execute(self, mock_app_context):
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = False
+
+        command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
+
+        assert command.redo() is CommandResult.FAILURE
 
     def test_cleanup_does_not_raise(self, mock_app_context):
         app_context, app_state, ui_controller = mock_app_context

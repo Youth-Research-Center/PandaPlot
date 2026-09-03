@@ -1,7 +1,8 @@
 import uuid
 from typing import Optional, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.require_project import ensure_project_or_offer_create
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import ImageGallery
@@ -29,23 +30,24 @@ class CreateImageGalleryCommand(Command):
         self.project = None
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the create image gallery command."""
         try:
             self.logger.info("Executing CreateImageGalleryCommand")
-            if not self.app_state.has_project:
-                self.ui_controller.show_warning_message(
-                    "Create Image Gallery",
-                    "Please open or create a project first."
-                )
-                return False
+            if not self.app_state.has_project or not self.app_state.current_project:
+                self.logger.warning("CreateImageGalleryCommand.execute: no project is currently loaded")
+                if not ensure_project_or_offer_create(
+                    self.app_context, "Create Image Gallery",
+                    "Creating an image gallery requires a project. Create a new project to continue?",
+                ):
+                    return CommandResult.FAILURE
 
             self.project = self.app_state.current_project
             if not self.project:
                 self.logger.warning(
                     "CreateImageGalleryCommand.execute: has_project is True but current_project is None"
                 )
-                return False
+                return CommandResult.FAILURE
 
             if not self.gallery_name:
                 existing_galleries = [item for item in self.project.get_all_items()
@@ -63,7 +65,7 @@ class CreateImageGalleryCommand(Command):
                     "Create Image Gallery",
                     "Gallery name cannot be empty."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.created_gallery_id = str(uuid.uuid4())
             self.created_gallery = ImageGallery(
@@ -84,43 +86,60 @@ class CreateImageGalleryCommand(Command):
                 "CreateImageGalleryCommand: Created gallery '%s' (id=%s) under parent %s",
                 gallery_name, self.created_gallery_id, self.parent_id or "root"
             )
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to create image gallery: {str(e)}"
             self.logger.error("CreateImageGalleryCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Create Image Gallery Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     @override
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Undo the create image gallery command."""
         try:
             if self.created_gallery_id and self.app_state.has_project:
                 project = self.app_state.current_project
-                if project:
-                    gallery = project.find_item(self.created_gallery_id)
-                    if gallery is not None:
-                        project.remove_item(gallery)
-
-                    self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
-                        "project": project,
-                        "gallery_id": self.created_gallery_id,
-                        "gallery": self.created_gallery
-                    })
-                    self.logger.info(
-                        "CreateImageGalleryCommand: Undo creation of gallery id=%s (name=%s)",
+                if not project:
+                    self.logger.warning(
+                        "CreateImageGalleryCommand.undo: has_project is True but current_project is None (gallery id=%s)",
                         self.created_gallery_id,
-                        getattr(self.created_gallery, "name", "<unknown>")
                     )
+                    return CommandResult.FAILURE
+
+                gallery = project.find_item(self.created_gallery_id)
+                if gallery is None:
+                    self.logger.warning(
+                        "CreateImageGalleryCommand.undo: gallery '%s' not found", self.created_gallery_id
+                    )
+                    return CommandResult.FAILURE
+
+                project.remove_item(gallery)
+
+                self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
+                    "project": project,
+                    "gallery_id": self.created_gallery_id,
+                    "gallery": self.created_gallery
+                })
+                self.logger.info(
+                    "CreateImageGalleryCommand: Undo creation of gallery id=%s (name=%s)",
+                    self.created_gallery_id,
+                    getattr(self.created_gallery, "name", "<unknown>")
+                )
+                return CommandResult.SUCCESS
+            else:
+                # The gallery was never actually created (execute() failed or
+                # was never called), so there's nothing to undo.
+                return CommandResult.NOOP
 
         except Exception as e:
             error_msg = f"Failed to undo create image gallery: {str(e)}"
             self.logger.error("CreateImageGalleryCommand Undo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
+            return CommandResult.FAILURE
 
     @override
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo the create image gallery command."""
         try:
             if self.created_gallery_id and self.created_gallery is not None and self.app_state.has_project:
@@ -129,7 +148,7 @@ class CreateImageGalleryCommand(Command):
                     self.logger.warning(
                         "CreateImageGalleryCommand.redo: has_project is True but current_project is None"
                     )
-                    return False
+                    return CommandResult.FAILURE
 
                 project.add_item(self.created_gallery, parent_id=self.parent_id)
 
@@ -144,15 +163,15 @@ class CreateImageGalleryCommand(Command):
                     "CreateImageGalleryCommand: Redo creation of gallery '%s' (id=%s) under parent %s",
                     self.created_gallery.name, self.created_gallery_id, self.parent_id or "root"
                 )
-                return True
+                return CommandResult.SUCCESS
             else:
-                return False
+                return CommandResult.FAILURE
 
         except Exception as e:
             error_msg = f"Failed to redo create image gallery: {str(e)}"
             self.logger.error("CreateImageGalleryCommand Redo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     @override
     def cleanup(self) -> None:

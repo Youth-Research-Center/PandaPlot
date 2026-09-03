@@ -2,7 +2,7 @@
 
 from typing import Optional, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import ChartEvents
 from pandaplot.models.project.items.chart import Chart
@@ -29,7 +29,7 @@ class ReorderSeriesCommand(Command):
             return None
         return app_state.current_project.find_item(self.chart_id)
 
-    def _move(self, from_index: int, to_index: int) -> bool:
+    def _move(self, from_index: int, to_index: int) -> CommandResult:
         chart = self._find_chart()
         if not chart or not isinstance(chart, Chart):
             self.logger.warning(
@@ -39,7 +39,7 @@ class ReorderSeriesCommand(Command):
             self.ui_controller.show_error_message(
                 "Reorder Series Error", f"Chart '{self.chart_id}' not found."
             )
-            return False
+            return CommandResult.FAILURE
 
         if not chart.move_data_series(from_index, to_index):
             self.logger.warning(
@@ -49,22 +49,22 @@ class ReorderSeriesCommand(Command):
             self.ui_controller.show_error_message(
                 "Reorder Series Error", "Series index out of range."
             )
-            return False
+            return CommandResult.FAILURE
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
             "chart_id": self.chart_id,
             "update_type": "series_reordered",
             "chart": chart,
         })
-        return True
+        return CommandResult.SUCCESS
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         return self._move(self.from_index, self.to_index)
 
     @override
-    def undo(self):
-        self._move(self.to_index, self.from_index)
+    def undo(self) -> CommandResult:
+        return self._move(self.to_index, self.from_index)
 
     @override
     def redo(self):

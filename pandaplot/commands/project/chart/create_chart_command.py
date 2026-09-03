@@ -10,7 +10,7 @@ Chart, independent of how that Chart was built.
 
 from typing import Optional, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.models.events import ChartEvents, ProjectEvents
 from pandaplot.models.events.event_data import ChartCreatedData
 from pandaplot.models.project.items import Chart
@@ -29,10 +29,10 @@ class CreateChartCommand(Command):
         self.parent_id = parent_id
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         if not self.app_state.has_project or not self.app_state.current_project:
             self.logger.warning("CreateChartCommand.execute: no project is currently loaded")
-            return False
+            return CommandResult.FAILURE
         try:
             project = self.app_state.current_project
             project.add_item(self.chart, parent_id=self.parent_id)
@@ -40,15 +40,16 @@ class CreateChartCommand(Command):
                 chart_id=self.chart_id
             ).to_dict())
             self.logger.info("CreateChartCommand: created chart '%s'", self.chart_id)
-            return True
+            return CommandResult.SUCCESS
         except Exception as e:
             self.logger.error("CreateChartCommand Execute Error: %s", str(e))
-            return False
+            return CommandResult.FAILURE
 
     @override
-    def undo(self):
+    def undo(self) -> CommandResult:
         if not self.app_state.has_project or not self.app_state.current_project:
-            return
+            self.logger.warning("CreateChartCommand.undo: no project is currently loaded")
+            return CommandResult.FAILURE
         try:
             project = self.app_state.current_project
             project.remove_item_by_id(self.chart_id)
@@ -57,12 +58,14 @@ class CreateChartCommand(Command):
                 "item_type": "chart",
             })
             self.logger.info("CreateChartCommand: undid creation of chart '%s'", self.chart_id)
+            return CommandResult.SUCCESS
         except Exception as e:
             self.logger.error("CreateChartCommand Undo Error: %s", str(e))
+            return CommandResult.FAILURE
 
     @override
-    def redo(self):
-        self.execute()
+    def redo(self) -> CommandResult:
+        return self.execute()
 
     @override
     def cleanup(self) -> None:

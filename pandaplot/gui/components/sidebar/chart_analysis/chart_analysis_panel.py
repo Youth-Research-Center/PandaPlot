@@ -28,8 +28,11 @@ from pandaplot.analysis import AnalysisType
 from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
 )
+from pandaplot.gui.components.sidebar.chart.series_source_picker import (
+    populate_series_fit_sources,
+    series_source_hint,
+)
 from pandaplot.gui.core.widget_extension import PWidget
-from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -396,44 +399,12 @@ class ChartAnalysisPanel(PWidget):
         self.result_name.setPlaceholderText(f"{op} — {self.source_combo.currentText()}")
 
     def _populate_sources(self):
-        self.source_combo.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
-        self.source_combo.clear()
-        chart = self.current_chart
-        any_series_excluded = False
-        if chart is not None:
-            for i, series in enumerate(chart.data_series):
-                # Derivative/integral/arc-length/smoothing/interpolation all
-                # assume a single ordered (x, y) curve -- meaningless (or
-                # silently wrong) for bar/hist/vector/colormap/heatmap/3-D
-                # series, so those are left off the picker entirely rather
-                # than letting them produce a nonsense result (#202).
-                if not SERIES_TYPE_SPECS[series.series_type].supports_curve_analysis:
-                    any_series_excluded = True
-                    continue
-                label = series.label or f"Series {i + 1}"
-                self.source_combo.addItem(f"📈 {label}", ("series", i))
-            for i, fit in enumerate(chart.fit_data):
-                label = fit.label or f"Fit {i + 1}"
-                self.source_combo.addItem(f"〰 {label}  (fit)", ("fit", i))
-        self.source_combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
-
-        has_sources = self.source_combo.count() > 0
+        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
         self.apply_btn.setEnabled(has_sources)
         self.preview_btn.setEnabled(has_sources)
-        if not has_sources:
-            if any_series_excluded:
-                self.source_hint.setText(
-                    "This chart's series (bar/hist/vector/colormap/heatmap/3-D) "
-                    "don't support this analysis -- add a line, scatter, or fit."
-                )
-            else:
-                self.source_hint.setText("This chart has no data series or fits yet.")
-        elif any_series_excluded:
-            self.source_hint.setText(
-                "Line/scatter series and fitted curves of this chart -- other series types aren't shown."
-            )
-        else:
-            self.source_hint.setText("Data series and fitted curves of this chart.")
+        self.source_hint.setText(
+            series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
+        )
         self._on_source_changed()
 
     @override

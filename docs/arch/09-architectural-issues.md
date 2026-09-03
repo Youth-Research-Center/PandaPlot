@@ -81,11 +81,13 @@ The class is 9 lines, has no `execute()`, `undo()`, or `redo()`, and stores a re
 
 ---
 
-## MEDIUM: Analysis operations block the Qt main thread
+## RESOLVED: Analysis operations blocked the Qt main thread
 
-**Files:** [commands/project/dataset/analysis_command.py](../../pandaplot/commands/project/dataset/analysis_command.py), [analysis/analysis_engine.py](../../pandaplot/analysis/analysis_engine.py)
+**Files:** [commands/project/dataset/analysis_command.py](../../pandaplot/commands/project/dataset/analysis_command.py), [commands/project/dataset/signal_analysis_command.py](../../pandaplot/commands/project/dataset/signal_analysis_command.py), [commands/project/fit/perform_fit_command.py](../../pandaplot/commands/project/fit/perform_fit_command.py)
 
-`AnalysisCommand.execute()` calls `AnalysisEngine` methods (scipy cubic splines, Savitzky-Golay filters, cumulative integrals) synchronously, with no offloading to `TaskScheduler`. By contrast, `ImportCsvCommand`, `SaveProjectCommand`, `LoadProjectCommand`, and `ExportDatasetCommand` all use `task_scheduler.run_task()` for their I/O. The threading strategy is inconsistent and will freeze the UI on large datasets.
+`AnalysisCommand`, `SignalAnalysisCommand`, and `PerformFitCommand` used to call `AnalysisEngine`/`SignalEngine`/`FitService` synchronously inside `execute()`, freezing the UI on large datasets (#283).
+
+Each now validates inputs synchronously, then dispatches the actual computation to `TaskScheduler.run_task()`. `AnalysisCommand` and `SignalAnalysisCommand` (which mutate project state) split into a dispatcher (`occupies_undo_slot() -> False`) and a separate `Apply*ResultCommand`, constructed and pushed onto the undo stack only once the background result is back — the same pattern `CreateChartFromWizardCommand` established for #185/#186. `PerformFitCommand` computes a preview only, so it needed no such split. All three panels (`AnalysisPanel`, `SignalPanel`, `FitPanel`) show a `BusySpinner` while their dispatched task runs.
 
 ---
 
@@ -141,7 +143,7 @@ Commands store snapshots of data for undo (e.g., full DataFrame copies in `Impor
 | 3 | Command popped before `undo()`/`redo()` runs — stack corrupted on exception | **HIGH** | `command_executor.py:74,102` |
 | 4 | `EditCommand.undo()` no error handling, assumes `self.dataset` set | **MEDIUM** | `edit_command.py`, `edit_batch_command.py`, `change_column_dtype_command.py` |
 | 5 | `PerformFitCommand` is not a Command, no logic, no undo | **MEDIUM** | `perform_fit_command.py` |
-| 6 | Analysis operations block Qt main thread | **MEDIUM** | `analysis_command.py`, `analysis_engine.py` |
+| 6 | ~~Analysis operations blocked Qt main thread~~ (resolved: dispatched to TaskScheduler with BusySpinner UI) | **RESOLVED** | `analysis_command.py`, `signal_analysis_command.py`, `perform_fit_command.py` |
 | 7 | ~~`CreateChartCommand` double dataset lookup + TODO dead code~~ (resolved: replaced by `CreateChartFromWizardCommand`) | **RESOLVED** | `create_chart_from_wizard_command.py` |
 | 8 | Inconsistent `set_data()` vs direct DataFrame mutation | **LOW** | `edit_command.py`, `change_column_dtype_command.py` |
 | 9 | Undo stack eviction leaves command data in memory | **LOW** | `command_executor.py:39` |

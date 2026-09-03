@@ -14,6 +14,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart import CreateChartFromWizardCommand
 from pandaplot.models.project.items import Dataset
 
@@ -116,7 +117,7 @@ def test_execute_shows_the_wizard_without_blocking(mock_wizard_cls, app_context_
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     wizard.show.assert_called_once_with()
     wizard.exec.assert_not_called()
     wizard.finished.connect.assert_called_once()
@@ -135,7 +136,7 @@ def test_execute_sets_delete_on_close_so_the_dialog_isnt_leaked(mock_wizard_cls,
     mock_wizard_cls.return_value = wizard
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
 
     wizard.setAttribute.assert_called_once_with(Qt.WidgetAttribute.WA_DeleteOnClose)
 
@@ -146,7 +147,7 @@ def test_wizard_is_constructed_with_the_current_project(mock_wizard_cls, app_con
     mock_wizard_cls.return_value = _fake_wizard()
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
 
     assert mock_wizard_cls.call_args.kwargs["project"] is project
 
@@ -157,7 +158,7 @@ def test_execute_passes_the_default_chart_name_as_initial_title(mock_wizard_cls,
     mock_wizard_cls.return_value = _fake_wizard()
 
     command = CreateChartFromWizardCommand(app_context, dataset_id="ds-1")
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
 
     assert mock_wizard_cls.call_args.kwargs["initial_title"] == "Chart from ds"
 
@@ -174,7 +175,7 @@ def test_wizard_title_and_axis_labels_are_applied_to_the_chart(mock_wizard_cls, 
     mock_wizard_cls.return_value = wizard
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -199,7 +200,7 @@ def test_a_blank_title_from_the_wizard_does_not_blank_out_the_default_name(
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line")
 
     command = CreateChartFromWizardCommand(app_context, dataset_id="ds-1")
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -216,7 +217,7 @@ def test_subtitle_and_legend_and_grid_are_applied_to_the_chart(mock_wizard_cls, 
     mock_wizard_cls.return_value = wizard
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -233,7 +234,7 @@ def test_empty_path_never_reads_subtitle_or_legend_or_grid(mock_wizard_cls, app_
     mock_wizard_cls.return_value = wizard
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     wizard.get_subtitle.assert_not_called()
@@ -248,7 +249,7 @@ def test_empty_path_never_reads_the_wizards_labels(mock_wizard_cls, app_context_
     mock_wizard_cls.return_value = wizard
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     wizard.get_title.assert_not_called()
@@ -275,7 +276,7 @@ def test_finished_is_connected_to_a_closure_not_a_bound_method(mock_wizard_cls, 
     mock_wizard_cls.return_value = wizard
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
 
     callback = wizard.finished.connect.call_args[0][0]
     assert not isinstance(callback, MethodType), (
@@ -299,7 +300,7 @@ def test_the_connected_callback_still_works_after_the_command_is_dropped(
     mock_wizard_cls.return_value = wizard
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     callback = wizard.finished.connect.call_args[0][0]
 
     del command
@@ -323,7 +324,7 @@ def test_the_connected_callback_uses_its_own_wizard(mock_wizard_cls, app_context
     mock_wizard_cls.return_value = first
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     first_callback = first.finished.connect.call_args[0][0]
 
     # Simulate `self._dialog` having been replaced by a newer wizard.
@@ -342,7 +343,7 @@ def test_execute_succeeds_before_the_wizard_has_finished(mock_wizard_cls, app_co
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     app_context.get_command_executor.return_value.execute_command.assert_not_called()
     assert command.created_chart_id is None
     assert command.created_chart is None
@@ -383,7 +384,7 @@ def test_execute_fails_without_a_loaded_project(mock_wizard_cls, app_context_wit
     command = CreateChartFromWizardCommand(app_context)
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     mock_wizard_cls.assert_not_called()
     assert "no project" in caplog.text.lower()
     app_context.get_ui_controller.return_value.show_action_or_cancel.assert_called_once()
@@ -406,7 +407,7 @@ def test_execute_continues_after_the_user_creates_a_project(mock_wizard_cls, app
     command = CreateChartFromWizardCommand(app_context)
     result = command.execute()
 
-    assert result is True
+    assert result is CommandResult.SUCCESS
     mock_wizard_cls.assert_called_once()
 
 
@@ -418,7 +419,7 @@ def test_cancelled_wizard_creates_nothing(mock_wizard_cls, app_context_with_proj
     command = CreateChartFromWizardCommand(app_context)
 
     # Opening the wizard succeeded even though the user then cancelled it.
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Rejected)
 
     app_context.get_command_executor.return_value.execute_command.assert_not_called()
@@ -432,7 +433,7 @@ def test_empty_path_creates_a_line_chart_with_no_series(mock_wizard_cls, app_con
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -462,7 +463,7 @@ def test_wizard_created_chart_gets_explicit_default_size(mock_wizard_cls, app_co
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", is_empty=True)
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -485,7 +486,7 @@ def test_series_configs_become_data_series(mock_wizard_cls, app_context_with_pro
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -514,7 +515,7 @@ def test_multiple_series_get_distinct_default_colors(mock_wizard_cls, app_contex
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -535,7 +536,7 @@ def test_series_gets_a_default_label_from_dataset_and_y_column(mock_wizard_cls, 
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", series_configs=series_configs)
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -556,7 +557,7 @@ def test_series_label_falls_back_to_dataset_name_when_y_column_unresolved(
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", series_configs=series_configs)
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -575,7 +576,7 @@ def test_chart_is_named_after_its_dataset_at_construction_time(mock_wizard_cls, 
 
     command = CreateChartFromWizardCommand(app_context, dataset_id="ds-1")
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -590,7 +591,7 @@ def test_chart_without_an_originating_dataset_falls_back_to_new_chart(mock_wizar
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -610,7 +611,7 @@ def test_create_chart_command_failure_is_reported_and_resets_created_chart(
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", is_empty=True)
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     assert command.created_chart is None
@@ -627,7 +628,7 @@ def test_an_exception_is_reported_and_does_not_propagate(mock_wizard_cls, app_co
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)  # must not raise
 
     app_context.get_command_executor.return_value.execute_command.assert_not_called()
@@ -641,7 +642,7 @@ def test_a_failure_to_open_the_wizard_is_reported(mock_wizard_cls, app_context_w
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is False
+    assert command.execute() is CommandResult.FAILURE
     app_context.get_command_executor.return_value.execute_command.assert_not_called()
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
@@ -658,7 +659,7 @@ def test_chart_goes_in_its_single_datasets_folder(mock_wizard_cls, app_context_w
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", series_configs=series_configs)
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     assert _created_parent_id(app_context) == "folder-1"
@@ -679,7 +680,7 @@ def test_chart_goes_in_the_shared_folder_of_multiple_datasets(mock_wizard_cls, a
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", series_configs=series_configs)
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     assert _created_parent_id(app_context) == "folder-1"
@@ -700,7 +701,7 @@ def test_chart_goes_to_root_when_datasets_are_in_different_folders(mock_wizard_c
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", series_configs=series_configs)
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     assert _created_parent_id(app_context) is None
@@ -714,7 +715,7 @@ def test_empty_plot_uses_the_originating_datasets_folder(mock_wizard_cls, app_co
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", is_empty=True)
 
     command = CreateChartFromWizardCommand(app_context, dataset_id="ds-1")
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     assert _created_parent_id(app_context) == "folder-1"
@@ -726,7 +727,7 @@ def test_empty_plot_with_no_originating_dataset_goes_to_root(mock_wizard_cls, ap
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", is_empty=True)
 
     command = CreateChartFromWizardCommand(app_context)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     assert _created_parent_id(app_context) is None
@@ -745,7 +746,7 @@ def test_vector_series_config_passes_through_u_v_magnitude(mock_wizard_cls, app_
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -769,7 +770,7 @@ def test_error_bar_series_config_passes_through_to_style(mock_wizard_cls, app_co
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -796,7 +797,7 @@ def test_colormap_and_heatmap_series_config_passes_through_z_column(
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     created_chart = _created_chart(app_context)
@@ -818,7 +819,7 @@ def test_non_vector_series_config_leaves_u_v_magnitude_empty(mock_wizard_cls, ap
 
     command = CreateChartFromWizardCommand(app_context)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     command._on_wizard_finished(QDialog.DialogCode.Accepted)
 
     series = _created_chart(app_context).data_series[0]

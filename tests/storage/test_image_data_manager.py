@@ -127,6 +127,7 @@ class TestDeleteUndoSaveDoesNotCorruptProject:
         from unittest.mock import Mock
 
         from pandaplot.app import create_project_data_manager
+        from pandaplot.commands.base_command import CommandResult
         from pandaplot.commands.project.item import DeleteItemCommand
         from pandaplot.models.project import Project
         from pandaplot.models.project.items import Image
@@ -149,10 +150,10 @@ class TestDeleteUndoSaveDoesNotCorruptProject:
         app_context.get_ui_controller.return_value = ui_controller
 
         command = DeleteItemCommand(app_context, item_id="img-del-1")
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         assert project.find_item("img-del-1") is None
 
-        assert command.undo() is True
+        assert command.undo() is CommandResult.SUCCESS
         restored = project.find_item("img-del-1")
         assert restored is not None
         assert restored.get_bytes() is None  # bytes are genuinely gone

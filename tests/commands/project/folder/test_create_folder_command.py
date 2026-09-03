@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.folder import CreateFolderCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
@@ -73,10 +74,10 @@ class TestCreateFolderCommand:
         
         command = CreateFolderCommand(app_context)
         result = command.execute()
-        
-        assert result is False
+
+        assert result is CommandResult.FAILURE
         ui_controller.show_warning_message.assert_called_once_with(
-            "Create Folder", 
+            "Create Folder",
             "Please open or create a project first."
         )
 
@@ -89,7 +90,7 @@ class TestCreateFolderCommand:
         command = CreateFolderCommand(app_context)
         result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
 
     def test_execute_no_current_project_logs_a_warning(self, mock_app_context, caplog):
         """Test execute logs a warning when has_project is True but current_project is None."""
@@ -102,7 +103,7 @@ class TestCreateFolderCommand:
         with caplog.at_level(logging.WARNING):
             result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "CreateFolderCommand.execute" in caplog.text
 
     def test_execute_with_default_name_generation(self, mock_app_context, sample_project):
@@ -113,8 +114,8 @@ class TestCreateFolderCommand:
         
         command = CreateFolderCommand(app_context)
         result = command.execute()
-        
-        assert result is True
+
+        assert result is CommandResult.SUCCESS
         assert command.created_folder_id is not None
         assert command.created_folder is not None
         assert command.created_folder.name == "New Folder 1"
@@ -139,8 +140,8 @@ class TestCreateFolderCommand:
         
         command = CreateFolderCommand(app_context)
         result = command.execute()
-        
-        assert result is True
+
+        assert result is CommandResult.SUCCESS
         assert command.created_folder is not None
         assert command.created_folder.name == "New Folder 3"  # Should be 3rd folder
 
@@ -153,11 +154,11 @@ class TestCreateFolderCommand:
         folder_name = "Custom Folder Name"
         command = CreateFolderCommand(app_context, folder_name)
         result = command.execute()
-        
-        assert result is True
+
+        assert result is CommandResult.SUCCESS
         assert command.created_folder is not None
         assert command.created_folder.name == folder_name
-        
+
         # Check event emission
         event_bus = app_state.event_bus
         event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
@@ -181,8 +182,8 @@ class TestCreateFolderCommand:
         folder_name = "Child Folder"
         command = CreateFolderCommand(app_context, folder_name, parent_folder.id)
         result = command.execute()
-        
-        assert result is True
+
+        assert result is CommandResult.SUCCESS
         assert command.parent_id == parent_folder.id
         
         # Check that the child folder has the correct parent
@@ -197,8 +198,8 @@ class TestCreateFolderCommand:
         
         command = CreateFolderCommand(app_context, "   ")  # Only whitespace
         result = command.execute()
-        
-        assert result is False
+
+        assert result is CommandResult.FAILURE
         ui_controller.show_warning_message.assert_called_once_with(
             "Create Folder", 
             "Folder name cannot be empty."
@@ -213,8 +214,8 @@ class TestCreateFolderCommand:
         folder_name = "  Valid Folder Name  "
         command = CreateFolderCommand(app_context, folder_name)
         result = command.execute()
-        
-        assert result is True        
+
+        assert result is CommandResult.SUCCESS
         assert command.created_folder is not None
         assert command.created_folder.name == "Valid Folder Name"  # Stripped
 
@@ -229,8 +230,8 @@ class TestCreateFolderCommand:
         
         command = CreateFolderCommand(app_context, "Test Folder")
         result = command.execute()
-        
-        assert result is False
+
+        assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
         error_call = ui_controller.show_error_message.call_args
         assert error_call[0][0] == "Create Folder Error"
@@ -246,7 +247,7 @@ class TestCreateFolderCommand:
         
         # First execute the command
         result = command.execute()
-        assert result is True
+        assert result is CommandResult.SUCCESS
         
         # Verify folder was added
         assert command.created_folder_id in sample_project.items_index
@@ -298,8 +299,8 @@ class TestCreateFolderCommand:
         
         # Execute first
         result = command.execute()
-        assert result is True
-        
+        assert result is CommandResult.SUCCESS
+
         # Mock remove_item to raise an exception
         sample_project.remove_item = Mock(side_effect=Exception("Undo test exception"))
         
@@ -320,7 +321,7 @@ class TestCreateFolderCommand:
         
         # Execute, undo, then redo
         result = command.execute()
-        assert result is True
+        assert result is CommandResult.SUCCESS
         
         original_folder_id = command.created_folder_id
         assert command.created_folder is not None
@@ -330,7 +331,7 @@ class TestCreateFolderCommand:
         assert sample_project.find_item(original_folder_id) is None
         
         result = command.redo()
-        assert result is True
+        assert result is CommandResult.SUCCESS
         
         # Check that the same folder object was re-added (not a new one)
         assert command.created_folder_id == original_folder_id
@@ -347,7 +348,7 @@ class TestCreateFolderCommand:
         # Don't execute first, just try to redo
         result = command.redo()
         
-        assert result is False  # redo returns False when conditions not met
+        assert result is CommandResult.FAILURE  # redo returns FAILURE when conditions not met
 
     def test_redo_no_project(self, mock_app_context):
         """Test redo when no project is loaded."""
@@ -360,7 +361,7 @@ class TestCreateFolderCommand:
         
         result = command.redo()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
 
     def test_redo_no_current_project_logs_a_warning(self, mock_app_context, sample_project, caplog):
         """Test redo logs a warning when has_project is True but current_project is None."""
@@ -370,7 +371,7 @@ class TestCreateFolderCommand:
 
         command = CreateFolderCommand(app_context, "Test Folder")
         result = command.execute()
-        assert result is True
+        assert result is CommandResult.SUCCESS
 
         # Now current_project disappears (has_project still True) before redo runs.
         app_state.current_project = None
@@ -378,7 +379,7 @@ class TestCreateFolderCommand:
         with caplog.at_level(logging.WARNING):
             result = command.redo()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "CreateFolderCommand.redo" in caplog.text
         assert command.created_folder_id in caplog.text
 
@@ -392,14 +393,14 @@ class TestCreateFolderCommand:
         
         # Execute first
         result = command.execute()
-        assert result is True
-        
+        assert result is CommandResult.SUCCESS
+
         # Mock add_item to raise an exception on redo
         sample_project.add_item = Mock(side_effect=Exception("Redo test exception"))
         
         result = command.redo()
         
-        assert result is False
+        assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called()
         error_call = ui_controller.show_error_message.call_args
         assert error_call[0][0] == "Redo Error"
@@ -414,9 +415,9 @@ class TestCreateFolderCommand:
         folder_name = "Test Properties Folder"
         command = CreateFolderCommand(app_context, folder_name)
         result = command.execute()
-        
-        assert result is True
-        
+
+        assert result is CommandResult.SUCCESS
+
         # Get the created folder
         folder = sample_project.find_item(command.created_folder_id)
         assert isinstance(folder, Folder)
@@ -440,8 +441,8 @@ class TestCreateFolderCommand:
         
         command = CreateFolderCommand(app_context, "Test Folder")
         result = command.execute()
-        
-        assert result is True
+
+        assert result is CommandResult.SUCCESS
         assert command.created_folder_id == test_uuid
         
         # Verify the folder exists with the expected ID
@@ -476,7 +477,7 @@ class TestCreateFolderCommand:
 
         command = CreateFolderCommand(app_context, "Test Folder")
         result = command.execute()
-        assert result is True
+        assert result is CommandResult.SUCCESS
         assert command.project is sample_project
 
         command.cleanup()
@@ -496,8 +497,8 @@ class TestCreateFolderCommand:
         command = CreateFolderCommand(app_context, folder_name, parent_id)
         
         result = command.execute()
-        assert result is True
-        
+        assert result is CommandResult.SUCCESS
+
         # Check the event data structure
         event_bus = app_state.event_bus
         event_call = event_bus.emit.call_args

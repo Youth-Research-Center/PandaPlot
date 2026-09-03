@@ -1,6 +1,6 @@
 from typing import List, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetRowsAddedData, DatasetRowsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
@@ -30,7 +30,7 @@ class DeleteRowsCommand(Command):
         self.dataset = None
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the delete rows command."""
         try:
             self.logger.info(f"Executing DeleteRowsBatchCommand for {len(self.row_positions)} rows")
@@ -42,7 +42,7 @@ class DeleteRowsCommand(Command):
                     "Delete Rows",
                     "No rows specified for deletion."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Check if we have a project loaded
             if not self.app_state.has_project:
@@ -51,12 +51,12 @@ class DeleteRowsCommand(Command):
                     "Delete Rows",
                     "Please open or create a project first."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.project = self.app_state.current_project
             if not self.project:
                 self.logger.warning("DeleteRowsCommand.execute: has_project is True but current_project is None")
-                return False
+                return CommandResult.FAILURE
 
             # Find the dataset
             found_item = self.project.find_item(self.dataset_id)
@@ -68,7 +68,7 @@ class DeleteRowsCommand(Command):
                     "Delete Rows",
                     f"Dataset with ID '{self.dataset_id}' not found."
                 )
-                return False
+                return CommandResult.FAILURE
 
             if not isinstance(found_item, Dataset):
                 self.logger.warning(
@@ -79,7 +79,7 @@ class DeleteRowsCommand(Command):
                     "Delete Rows",
                     "Selected item is not a dataset."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.dataset = found_item
 
@@ -92,7 +92,7 @@ class DeleteRowsCommand(Command):
                     "Delete Rows",
                     "Cannot delete rows from empty dataset."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Validate row positions
             max_row = len(self.dataset.data) - 1
@@ -106,7 +106,7 @@ class DeleteRowsCommand(Command):
                     "Delete Rows",
                     f"Invalid row positions: {invalid_positions}. Dataset has {len(self.dataset.data)} rows (0-{max_row})."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Check for duplicate positions
             if len(set(self.row_positions)) != len(self.row_positions):
@@ -117,7 +117,7 @@ class DeleteRowsCommand(Command):
                     "Delete Rows",
                     "Duplicate row positions found in the deletion list."
                 )
-                return False
+                return CommandResult.FAILURE
             
             # Store original data for undo
             self.original_data = self.dataset.data.copy()
@@ -143,21 +143,21 @@ class DeleteRowsCommand(Command):
             )
 
             self.logger.info(f"Deleted {len(self.row_positions)} rows from dataset '{self.dataset.name}' (ID: {self.dataset_id})")
-            return True
+            return CommandResult.SUCCESS
             
         except Exception as e:
             error_msg = f"Failed to delete {len(self.row_positions) if self.row_positions else 0} rows: {str(e)}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Delete Rows Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Undo the delete rows command by restoring the original data."""
         try:
             if self.dataset and self.original_data is not None:
                 # Restore original data
                 self.dataset.set_data(self.original_data)
-                
+
                 # Emit event
                 self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_ADDED, DatasetRowsAddedData(
                     dataset_id=self.dataset_id,
@@ -165,15 +165,16 @@ class DeleteRowsCommand(Command):
                 ).to_dict())
 
                 self.logger.info(f"Undid deleting {len(self.row_positions)} rows from dataset '{self.dataset.name}'")
-                return True
+                return CommandResult.SUCCESS
 
             self.logger.warning(
                 "DeleteRowsCommand.undo: cannot undo for dataset '%s' (dataset found=%s, original_data set=%s)",
                 self.dataset_id, self.dataset is not None, self.original_data is not None,
             )
+            return CommandResult.FAILURE
         except Exception as e:
             self.logger.error(f"DeleteRowsBatchCommand Undo Error: {e}")
-            return False
+            return CommandResult.FAILURE
 
     def redo(self):
         """Redo the delete rows command."""

@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.commands.app.change_settings_command import ChangeSettingsCommand
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.config import (
@@ -597,7 +598,22 @@ class SettingsDialog(PDialog):
         
         if reply == QMessageBox.StandardButton.Yes:
             if self._config_manager:
-                self._config_manager.reset(save=True)
+                # Route through the same undoable command Apply/OK use,
+                # instead of ConfigManager.reset() directly, so "Reset to
+                # Defaults" is itself undoable and doesn't strand a
+                # then-unrecoverable pre-reset state. Only the sections
+                # reset_defaults() actually touches -- recent_projects and
+                # session/window state are deliberately left alone by both.
+                defaults = ApplicationConfig.default().to_dict()
+                mapping = {
+                    section: defaults[section]
+                    for section in ("auto_save", "appearance", "editor", "chart_display")
+                }
+                self.app_context.get_command_executor().execute_command(
+                    ChangeSettingsCommand(
+                        self.app_context, mapping, config_manager=self._config_manager
+                    )
+                )
             self.load_current_settings()
     
     def apply_settings(self):
@@ -647,7 +663,11 @@ class SettingsDialog(PDialog):
                         "measurement_unit": self.current_settings.get("measurement_unit", "cm"),
                     }
                 }
-                self._config_manager.update(mapping, save=True)
+                self.app_context.get_command_executor().execute_command(
+                    ChangeSettingsCommand(
+                        self.app_context, mapping, config_manager=self._config_manager
+                    )
+                )
                 self._chart_width_raw_cm = width_cm
                 self._chart_height_raw_cm = height_cm
             self.settings_changed.emit(self.current_settings)

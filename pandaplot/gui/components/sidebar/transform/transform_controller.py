@@ -6,15 +6,13 @@ and transformation logic for the transform panel.
 """
 
 import logging
-import re
 from typing import Any, Dict, List, Optional
 
-import numpy as np
-import pandas as pd
 from PySide6.QtCore import QObject, Signal
 
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.transform import expression_engine
 
 
 class TransformController(QObject):
@@ -33,90 +31,19 @@ class TransformController(QObject):
         super().__init__(parent)
         self.app_context = app_context
         self.logger = logging.getLogger(self.__class__.__name__)
-        
-        # Safe execution environment
-        self.safe_globals = {
-            "pd": pd,
-            "np": np,
-            "abs": abs,
-            "min": min,
-            "max": max,
-            "sum": sum,
-            "len": len,
-            "round": round,
-            "int": int,
-            "float": float,
-            "str": str,
-            "bool": bool,
-            "list": list,
-            "dict": dict,
-            "range": range,
-            "enumerate": enumerate,
-            "zip": zip,
-        }
-        
-        # Add pandas and numpy functions commonly used in transformations
-        self._add_pandas_functions()
-        self._add_numpy_functions()
-    
-    def _add_pandas_functions(self):
-        """Add commonly used pandas functions to safe globals."""
-        pandas_functions = [
-            "to_datetime", "to_numeric", "isna", "notna", "cut", "qcut",
-            "concat", "merge", "pivot_table", "crosstab"
-        ]
-        
-        for func_name in pandas_functions:
-            if hasattr(pd, func_name):
-                self.safe_globals[func_name] = getattr(pd, func_name)
-    
-    def _add_numpy_functions(self):
-        """Add commonly used numpy functions to safe globals."""
-        numpy_functions = [
-            "sqrt", "log", "log10", "exp", "sin", "cos", "tan",
-            "mean", "median", "std", "var", "percentile", "quantile",
-            "floor", "ceil", "round", "absolute", "sign"
-        ]
-        
-        for func_name in numpy_functions:
-            if hasattr(np, func_name):
-                self.safe_globals[func_name] = getattr(np, func_name)
-    
+        self.safe_globals = expression_engine.build_safe_globals()
+
     def validate_function_code(self, function_code: str) -> tuple[bool, str]:
         """
         Validate the function code for safety and syntax.
-        
+
         Args:
             function_code: The transformation function code
-            
+
         Returns:
             Tuple of (is_valid, error_message)
         """
-        if not function_code.strip():
-            return False, "Function code cannot be empty"
-        
-        # Check for dangerous operations
-        dangerous_patterns = [
-            r"\bimport\b", r"\bexec\b", r"\beval\b", r"\b__.*__\b",
-            r"\bopen\b", r"\bfile\b", r"\bwith\b.*open",
-            r"\bos\.\b", r"\bsys\.\b", r"\bsubprocess\b",
-            r"\bglobals\b", r"\blocals\b", r"\bvars\b",
-            r"\bdir\b", r"\bgetattr\b", r"\bsetattr\b", r"\bdelattr\b"
-        ]
-        
-        for pattern in dangerous_patterns:
-            if re.search(pattern, function_code, re.IGNORECASE):
-                return False, f"Potentially unsafe operation detected: {pattern}"
-        
-        # Try to compile the code
-        try:
-            compile(function_code, "<transform>", "eval")
-        except SyntaxError as e:
-            return False, f"Syntax error: {e}"
-        except Exception as e:
-            return False, f"Code validation error: {e}"
-        
-        return True, ""
+        return expression_engine.validate_expression(function_code)
     
     def create_preview(self, dataset_id: str, source_column: str, 
                       function_code: str, preview_rows: int = 5) -> Optional[Dict[str, Any]]:
@@ -152,10 +79,10 @@ class TransformController(QObject):
             
             # Get preview data
             preview_data = df[source_column].head(preview_rows)
-            
+
             # Apply transformation to preview data
             local_vars = {"x": preview_data}
-            result = eval(function_code, self.safe_globals, local_vars)
+            result = expression_engine.evaluate_expression(function_code, local_vars, self.safe_globals)
             
             # Create preview result
             preview_result = {
@@ -285,40 +212,11 @@ class TransformController(QObject):
     def get_transformation_templates(self) -> Dict[str, List[Dict[str, str]]]:
         """
         Get predefined transformation templates by category.
-        
+
         Returns:
             Dictionary of transformation templates
         """
-        return {
-            "Math Operations": [
-                {"name": "Multiply by 2", "code": "x * 2", "description": "Double the values"},
-                {"name": "Square", "code": "x ** 2", "description": "Square the values"},
-                {"name": "Square Root", "code": "np.sqrt(x)", "description": "Square root of values"},
-                {"name": "Logarithm", "code": "np.log(x)", "description": "Natural logarithm"},
-                {"name": "Normalize (Z-score)", "code": "(x - x.mean()) / x.std()", "description": "Standardize to mean=0, std=1"},
-            ],
-            "String Operations": [
-                {"name": "Uppercase", "code": "x.str.upper()", "description": "Convert to uppercase"},
-                {"name": "Lowercase", "code": "x.str.lower()", "description": "Convert to lowercase"},
-                {"name": "Strip whitespace", "code": "x.str.strip()", "description": "Remove leading/trailing whitespace"},
-                {"name": "Extract numbers", "code": "x.str.extract(r'(\\d+)').astype(float)", "description": "Extract numeric values"},
-                {"name": "String length", "code": "x.str.len()", "description": "Length of each string"},
-            ],
-            "Date/Time Operations": [
-                {"name": "Parse datetime", "code": "pd.to_datetime(x)", "description": "Convert to datetime"},
-                {"name": "Extract year", "code": "pd.to_datetime(x).dt.year", "description": "Extract year component"},
-                {"name": "Extract month", "code": "pd.to_datetime(x).dt.month", "description": "Extract month component"},
-                {"name": "Day of week", "code": "pd.to_datetime(x).dt.dayofweek", "description": "Day of week (0=Monday)"},
-                {"name": "Format date", "code": "pd.to_datetime(x).dt.strftime('%Y-%m-%d')", "description": "Format as YYYY-MM-DD"},
-            ],
-            "Statistical Operations": [
-                {"name": "Rank", "code": "x.rank()", "description": "Rank values (1 = smallest)"},
-                {"name": "Percentile rank", "code": "x.rank(pct=True)", "description": "Percentile rank (0-1)"},
-                {"name": "Rolling mean", "code": "x.rolling(3).mean()", "description": "3-period rolling average"},
-                {"name": "Cumulative sum", "code": "x.cumsum()", "description": "Cumulative sum"},
-                {"name": "Lag/Shift", "code": "x.shift(1)", "description": "Shift values by 1 period"},
-            ]
-        }
+        return expression_engine.get_transformation_templates()
     
     def _get_dataset(self, dataset_id: str):
         """Get dataset from app context."""

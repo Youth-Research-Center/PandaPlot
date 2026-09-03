@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.delete_columns_command import DeleteColumnsCommand
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
@@ -64,7 +65,7 @@ def test_delete_removes_column_and_cascades_referencing_series_and_fits(env):
     app_context, dataset, other, chart, untouched_chart = env
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     assert list(dataset.data.columns) == ["b", "c", "d"]
     assert len(chart.data_series) == 1  # s1 (column 'a') removed, s2 (other dataset) kept
     assert chart.data_series[0].label == "s2"
@@ -79,7 +80,7 @@ def test_delete_with_no_chart_references_skips_confirmation(env):
     ui_controller = app_context.get_ui_controller.return_value
     command = DeleteColumnsCommand(app_context, dataset.id, ["d"])
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     ui_controller.show_confirmation.assert_not_called()
     s3 = untouched_chart.data_series[0]  # unaffected
     assert resolve_series_column(dataset, s3.x_column_id, s3.x_column) == "c"
@@ -91,7 +92,7 @@ def test_delete_declined_confirmation_aborts(env):
     ui_controller.show_confirmation.return_value = False
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
 
-    assert command.execute() is False
+    assert command.execute() is CommandResult.FAILURE
     assert list(dataset.data.columns) == ["a", "b", "c", "d"]
     assert len(chart.data_series) == 2
 
@@ -101,7 +102,7 @@ def test_undo_restores_data_and_chart_references(env):
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
     command.execute()
 
-    assert command.undo() is True
+    assert command.undo() is CommandResult.SUCCESS
     assert list(dataset.data.columns) == ["a", "b", "c", "d"]
     assert len(chart.data_series) == 2
     # After undo, the restored column keeps its id so the series resolves again.
@@ -116,7 +117,7 @@ def test_redo_reapplies_deletion_and_removes_references_again(env):
     command.execute()
     command.undo()
 
-    assert command.redo() is True
+    assert command.redo() is CommandResult.SUCCESS
     assert list(dataset.data.columns) == ["b", "c", "d"]
     assert len(chart.data_series) == 1
     assert chart.data_series[0].label == "s2"
@@ -135,7 +136,7 @@ def test_redo_failure_surfaces_error_message(env):
     # redo's _perform_deletion raises instead of silently succeeding.
     dataset.set_data(dataset.data.drop(columns=["a"]))
 
-    assert command.redo() is False
+    assert command.redo() is CommandResult.FAILURE
     ui_controller.show_error_message.assert_called_once()
 
 
@@ -167,7 +168,7 @@ def test_delete_u_column_removes_vector_series(env):
 
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     assert vector_chart.data_series == []
 
 
@@ -188,7 +189,7 @@ def test_delete_magnitude_column_clears_reference_but_keeps_series(env):
 
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     assert len(vector_chart.data_series) == 1
     series = vector_chart.data_series[0]
     assert series.style.magnitude_column_id == ""
@@ -210,7 +211,7 @@ def test_undo_restores_a_cleared_magnitude_reference(env):
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
     command.execute()
 
-    assert command.undo() is True
+    assert command.undo() is CommandResult.SUCCESS
     series = vector_chart.data_series[0]
     assert resolve_series_column(dataset, series.style.magnitude_column_id, series.style.magnitude_column) == "a"
 
@@ -229,11 +230,90 @@ def test_delete_error_bar_column_clears_reference_but_keeps_series(env):
 
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     assert len(line_chart.data_series) == 1
     series = line_chart.data_series[0]
     assert series.style.error_bars.y_error_column_id == ""
     assert series.style.error_bars.y_error_column == ""
+
+
+def test_delete_confidence_column_clears_reference_but_keeps_manual_fit(env):
+    """Confidence-band columns are optional (#298 follow-up) -- a
+    manually-converted fit still renders without one, so deleting the
+    referenced column only clears the confidence reference (id AND the
+    cached array) instead of removing the whole fit."""
+    app_context, dataset, _, _, _ = env
+    fit_chart = Chart(name="fc")
+    fit_chart.add_fit_data(
+        dataset.id, "Custom", np.array([1.0]), np.array([2.0]),
+        source_x_column_id=dataset.column_id("c"),
+        source_y_column_id=dataset.column_id("c"),
+        confidence_lower_column_id=dataset.column_id("a"),
+        confidence_lower=np.array([0.5]),
+        is_manual=True,
+    )
+    app_context.get_app_state.return_value.current_project.add_item(fit_chart)
+
+    command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert len(fit_chart.fit_data) == 1
+    fit = fit_chart.fit_data[0]
+    assert fit.confidence_lower_column_id == ""
+    assert fit.confidence_lower is None
+    assert fit.source_x_column_id == dataset.column_id("c")
+
+
+def test_confirmation_details_mention_fits_losing_confidence_bands(env):
+    """Regression test (PR #309 review): a chart whose ONLY match is a
+    fit's optional confidence-band column used to produce a blank
+    detail line (none of series_indices/fit_indices/error_only_indices
+    was truthy) and a confirmation message that only talked about
+    curves being removed, even though nothing is actually removed for
+    this case -- just an optional band cleared."""
+    app_context, dataset, _, _, _ = env
+    fit_chart = Chart(name="fc")
+    fit_chart.add_fit_data(
+        dataset.id, "Custom", np.array([1.0]), np.array([2.0]),
+        source_x_column_id=dataset.column_id("c"),
+        source_y_column_id=dataset.column_id("c"),
+        confidence_lower_column_id=dataset.column_id("a"),
+        confidence_lower=np.array([0.5]),
+        is_manual=True,
+    )
+    app_context.get_app_state.return_value.current_project.add_item(fit_chart)
+    ui_controller = app_context.get_ui_controller.return_value
+
+    command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
+    command.execute()
+
+    details = ui_controller.show_confirmation.call_args.kwargs["details"]
+    assert "fc: 1 fit(s) losing confidence bands" in details
+    message = ui_controller.show_confirmation.call_args.args[1]
+    assert "confidence band" in message
+
+
+def test_undo_restores_a_cleared_confidence_reference(env):
+    app_context, dataset, _, _, _ = env
+    fit_chart = Chart(name="fc")
+    fit_chart.add_fit_data(
+        dataset.id, "Custom", np.array([1.0]), np.array([2.0]),
+        source_x_column_id=dataset.column_id("c"),
+        source_y_column_id=dataset.column_id("c"),
+        confidence_lower_column_id=dataset.column_id("a"),
+        confidence_lower=np.array([0.5]),
+        is_manual=True,
+    )
+    app_context.get_app_state.return_value.current_project.add_item(fit_chart)
+    original_confidence_lower_column_id = dataset.column_id("a")
+
+    command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
+    command.execute()
+    command.undo()
+
+    fit = fit_chart.fit_data[0]
+    assert fit.confidence_lower_column_id == original_confidence_lower_column_id
+    np.testing.assert_array_equal(fit.confidence_lower, np.array([0.5]))
 
 
 def test_execute_logs_a_warning_when_no_column_specs(env, caplog):
@@ -241,7 +321,7 @@ def test_execute_logs_a_warning_when_no_column_specs(env, caplog):
     command = DeleteColumnsCommand(app_context, dataset.id, [])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "no column specs" in caplog.text.lower()
 
 
@@ -251,7 +331,7 @@ def test_execute_logs_a_warning_when_no_project_open(env, caplog):
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "no project" in caplog.text.lower()
 
 
@@ -260,7 +340,7 @@ def test_execute_logs_a_warning_when_dataset_not_found(env, caplog):
     command = DeleteColumnsCommand(app_context, "missing-ds", ["a"])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "missing-ds" in caplog.text
 
 
@@ -271,7 +351,7 @@ def test_execute_logs_a_warning_when_item_is_not_a_dataset(env, caplog):
     command = DeleteColumnsCommand(app_context, chart.id, ["a"])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert chart.id in caplog.text
 
 
@@ -286,7 +366,7 @@ def test_execute_logs_a_warning_when_dataset_is_empty(env, caplog):
     command = DeleteColumnsCommand(app_context, empty_ds.id, ["a"])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert empty_ds.id in caplog.text
 
 
@@ -295,7 +375,7 @@ def test_execute_logs_a_warning_when_no_valid_columns_resolved(env, caplog):
     command = DeleteColumnsCommand(app_context, dataset.id, [999])  # out-of-range position
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert dataset.id in caplog.text
 
 
@@ -315,7 +395,7 @@ def test_execute_logs_a_warning_when_columns_missing(env, caplog, monkeypatch):
     monkeypatch.setattr(command, "_resolve_columns", _fake_resolve)
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "ghost" in caplog.text
 
 
@@ -324,7 +404,7 @@ def test_execute_logs_a_warning_when_duplicate_column_names(env, caplog):
     command = DeleteColumnsCommand(app_context, dataset.id, ["a", "a"])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert dataset.id in caplog.text
 
 
@@ -333,7 +413,7 @@ def test_execute_logs_a_warning_when_deleting_all_columns(env, caplog):
     command = DeleteColumnsCommand(app_context, dataset.id, ["a", "b", "c", "d"])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert dataset.id in caplog.text
 
 
@@ -349,11 +429,24 @@ def test_undo_restores_a_cleared_error_bar_reference(env):
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
     command.execute()
 
-    assert command.undo() is True
+    assert command.undo() is CommandResult.SUCCESS
     series = line_chart.data_series[0]
     assert resolve_series_column(
         dataset, series.style.error_bars.y_error_column_id, series.style.error_bars.y_error_column
     ) == "a"
+
+
+def test_undo_logs_warning_when_nothing_to_undo(caplog):
+    app_context = Mock()
+    app_context.get_app_state.return_value = Mock(has_project=True)
+    app_context.get_ui_controller.return_value = Mock()
+
+    command = DeleteColumnsCommand(app_context, "ds-1", ["a"])
+
+    with caplog.at_level(logging.WARNING):
+        result = command.undo()
+    assert "ds-1" in caplog.text
+    assert result is CommandResult.FAILURE
 
 
 def test_cleanup_releases_the_undo_snapshots():
@@ -367,6 +460,7 @@ def test_cleanup_releases_the_undo_snapshots():
     command.original_column_ids = OrderedDict({"a": "col-a"})
     command.removed_chart_refs = {"chart-1": {"series": [(0, Mock())], "fits": []}}
     command.cleared_error_refs = {"chart-1": [(0, [(Mock(), "y_error_column_id", "col-a")])]}
+    command.cleared_confidence_refs = {"chart-1": [(0, [(Mock(), "confidence_lower_column_id", "col-a")])]}
 
     command.cleanup()
 
@@ -375,3 +469,4 @@ def test_cleanup_releases_the_undo_snapshots():
     assert command.original_column_ids is None
     assert command.removed_chart_refs == {}
     assert command.cleared_error_refs == {}
+    assert command.cleared_confidence_refs == {}

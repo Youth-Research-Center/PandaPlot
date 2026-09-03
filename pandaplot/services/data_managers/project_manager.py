@@ -1,19 +1,25 @@
-import json
 import logging
 import os
 from pathlib import Path
 
 from pandaplot.models.project import Project
+from pandaplot.storage.project_data_manager import ProjectDataManager
 
 
 class ProjectManager:
     """
     Service responsible for project file operations.
-    Handles loading, saving, and creating projects.
+
+    Callers go through this rather than reaching into ProjectDataManager
+    directly, so the on-disk project file format (currently a zip archive
+    with per-item files, see ProjectDataManager) stays an implementation
+    detail behind file-level concerns (extension/existence validation)
+    that would otherwise be duplicated at every call site.
     """
-    
-    def __init__(self):
+
+    def __init__(self, project_data_manager: ProjectDataManager):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self._project_data_manager = project_data_manager
         self.supported_extensions = [".pplot"]
         self.logger.debug("ProjectManager initialized with supported extensions: %s", self.supported_extensions)
         
@@ -32,103 +38,65 @@ class ProjectManager:
     def load_project(self, file_path: str) -> Project:
         """
         Load a project from a file.
-        
+
         Args:
             file_path (str): Path to the project file
-            
+
         Returns:
             Project: The loaded project
-            
+
         Raises:
             FileNotFoundError: If the file doesn't exist
             ValueError: If the file format is invalid
         """
         self.logger.info("Attempting to load project from: %s", file_path)
-        
+
         if not os.path.exists(file_path):
             error_msg = f"Project file not found: {file_path}"
             self.logger.error(error_msg)
             raise FileNotFoundError(error_msg)
-        
+
         path = Path(file_path)
         if path.suffix not in self.supported_extensions:
             error_msg = f"Unsupported file format: {path.suffix}. Supported: {self.supported_extensions}"
             self.logger.error(error_msg)
             raise ValueError(error_msg)
-        
-        try:
-            self.logger.debug("Reading project file: %s", file_path)
-            with open(file_path, "r", encoding="utf-8") as file:
-                data = json.load(file)
-                
-            # Validate required fields
-            if not isinstance(data, dict):
-                error_msg = "Project file must contain a JSON object"
-                self.logger.error("Invalid project file format in %s: %s", file_path, error_msg)
-                raise ValueError(error_msg)
-                
-            self.logger.debug("Parsing project data from %s", file_path)
-            project: Project = Project.from_dict(data)
-            
-            item_count = len(project.get_all_items())
-            self.logger.info("Successfully loaded project '%s' with %d items from %s", 
-                           project.name, item_count, file_path)
-            
-            return project
-            
-        except json.JSONDecodeError as e:
-            error_msg = f"Invalid JSON in project file: {str(e)}"
-            self.logger.error("JSON decode error in %s: %s", file_path, error_msg)
-            raise ValueError(error_msg) from e
-        except Exception as e:
-            error_msg = f"Error loading project: {str(e)}"
-            self.logger.error("Unexpected error loading project from %s: %s", file_path, error_msg)
-            raise ValueError(error_msg) from e
+
+        project = self._project_data_manager.load(file_path)
+
+        self.logger.info(
+            "Successfully loaded project '%s' with %d items from %s",
+            project.name, len(project.get_all_items()), file_path,
+        )
+        return project
 
     def save_project(self, project: Project, file_path: str) -> bool:
         """
         Save a project to a file.
-        
+
         Args:
             project (Project): The project to save
             file_path (str): Path where to save the project
-            
+
         Returns:
             bool: True if successful
-            
+
         Raises:
             ValueError: If the file format is not supported
-            IOError: If writing fails
         """
         self.logger.info("Saving project '%s' to: %s", project.name, file_path)
-        
+
         path = Path(file_path)
         if path.suffix not in self.supported_extensions:
             error_msg = f"Unsupported file format: {path.suffix}. Supported: {self.supported_extensions}"
             self.logger.error(error_msg)
             raise ValueError(error_msg)
-        
-        try:
-            # Ensure directory exists
-            self.logger.debug("Creating directory structure for: %s", file_path)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            
-            # Convert project to dictionary
-            self.logger.debug("Converting project '%s' to dictionary format", project.name)
-            data = project.to_dict()
-            
-            # Save to file
-            self.logger.debug("Writing project data to file: %s", file_path)
-            with open(file_path, "w", encoding="utf-8") as file:
-                json.dump(data, file, indent=2, ensure_ascii=False)
-                
-            self.logger.info("Successfully saved project '%s' to: %s", project.name, file_path)
-            return True
-            
-        except Exception as e:
-            error_msg = f"Error saving project: {str(e)}"
-            self.logger.error("Failed to save project '%s' to %s: %s", project.name, file_path, error_msg)
-            raise IOError(error_msg) from e
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._project_data_manager.save(project, file_path)
+
+        self.logger.info("Successfully saved project '%s' to: %s", project.name, file_path)
+        return True
     
     def get_recent_projects(self) -> list:
         """Get list of recently opened projects."""

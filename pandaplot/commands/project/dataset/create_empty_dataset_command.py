@@ -8,7 +8,7 @@ from typing import Optional, override
 import pandas as pd
 from PySide6.QtWidgets import QDialog
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.gui.dialogs.dataset.new_dataset_dialog import NewDatasetDialog
 from pandaplot.models.events.event_types import DatasetEvents
@@ -41,7 +41,7 @@ class CreateEmptyDatasetCommand(Command):
         self.fill_value = None
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the create empty dataset command."""
         try:
             self.logger.info("Executing CreateEmptyDatasetCommand")
@@ -52,18 +52,18 @@ class CreateEmptyDatasetCommand(Command):
                     "Create Dataset",
                     "Please open or create a project first."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.project = self.app_state.current_project
             if not self.project:
                 self.logger.warning("CreateEmptyDatasetCommand.execute: has_project is True but current_project is None")
-                return False
+                return CommandResult.FAILURE
 
             # Get dataset shape/name from the dialog if not provided programmatically
             if self.dataset_name is None:
                 dialog = NewDatasetDialog(self.ui_controller.parent_widget)
                 if dialog.exec() != QDialog.DialogCode.Accepted:
-                    return False  # User cancelled
+                    return CommandResult.FAILURE  # User cancelled
 
                 self.dataset_name = dialog.get_dataset_name()
                 self.rows = dialog.get_rows()
@@ -76,7 +76,7 @@ class CreateEmptyDatasetCommand(Command):
             # the values chosen the first time this command ran; reuse them as-is.
 
             if not self.dataset_name:
-                return False  # User cancelled
+                return CommandResult.FAILURE  # User cancelled
 
             assert self.rows is not None and self.cols is not None
             rows, cols = self.rows, self.cols
@@ -118,16 +118,16 @@ class CreateEmptyDatasetCommand(Command):
                     dataset.data.shape[1],
                 )
 
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to create empty dataset: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message(
                 "Create Dataset Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Undo the create empty dataset command."""
         try:
             if self.dataset_id and self.app_state.has_project:
@@ -147,18 +147,20 @@ class CreateEmptyDatasetCommand(Command):
                     self.logger.info(
                         "Undone creation of dataset '%s'", self.dataset_id
                     )
-                    return
+                    return CommandResult.SUCCESS
             self.logger.warning(
                 "CreateEmptyDatasetCommand.undo: cannot undo (dataset_id set=%s, has_project=%s)",
                 bool(self.dataset_id), self.app_state.has_project,
             )
+            return CommandResult.FAILURE
 
         except Exception as e:
             error_msg = f"Failed to undo dataset creation: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
+            return CommandResult.FAILURE
 
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo the create empty dataset command."""
         try:
             if self.dataset_name:
@@ -166,11 +168,12 @@ class CreateEmptyDatasetCommand(Command):
             self.logger.warning(
                 "CreateEmptyDatasetCommand.redo: cannot redo, no dataset_name recorded (execute() likely never succeeded)"
             )
+            return CommandResult.FAILURE
         except Exception as e:
             error_msg = f"Failed to redo dataset creation: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Redo Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     @override
     def cleanup(self) -> None:

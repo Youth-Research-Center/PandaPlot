@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.reorder_series_command import ReorderSeriesCommand
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
@@ -42,7 +43,7 @@ def test_execute_moves_the_series_to_the_new_position(app_context_with_chart):
     app_context, chart = app_context_with_chart
 
     command = ReorderSeriesCommand(app_context, chart_id=chart.id, from_index=0, to_index=2)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
 
     assert _labels(chart) == ["B", "C", "A"]
 
@@ -109,7 +110,7 @@ def test_execute_logs_a_warning_when_chart_not_found(caplog):
     command = ReorderSeriesCommand(app_context, chart_id="missing", from_index=0, to_index=1)
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "missing" in caplog.text
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
@@ -120,6 +121,6 @@ def test_execute_logs_a_warning_when_index_out_of_range(app_context_with_chart, 
     command = ReorderSeriesCommand(app_context, chart_id=chart.id, from_index=0, to_index=5)
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert _labels(chart) == ["A", "B", "C"]
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()

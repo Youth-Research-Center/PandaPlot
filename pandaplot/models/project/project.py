@@ -31,6 +31,12 @@ class Project:
         self.schema_version: int = CURRENT_SCHEMA_VERSION
         self.project_file_path: Optional[str] = None
 
+        # IDs of items that ProjectDataManager.load() failed to deserialize
+        # and silently dropped from the hierarchy. Not persisted (see
+        # to_dict/from_dict) -- runtime-only so callers of load() can warn
+        # the user instead of the failure only showing up in the log.
+        self.failed_item_ids: List[str] = []
+
     def add_item(self, item: Item, parent_id: Optional[str] = None):
         """Add an item to the project hierarchy."""
         if parent_id is None:

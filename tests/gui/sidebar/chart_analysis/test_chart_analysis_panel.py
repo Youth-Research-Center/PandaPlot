@@ -140,4 +140,4 @@ class TestChartAnalysisPanelSeriesFiltering:
         panel._populate_sources()
 
         assert self._combo_labels(panel) == []
-        assert "don't support this analysis" in panel.source_hint.text()
+        assert "aren't supported here" in panel.source_hint.text()

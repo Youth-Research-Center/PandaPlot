@@ -1,7 +1,7 @@
 import logging
 from typing import Callable, List, Optional
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 
 
 class CommandExecutor:
@@ -29,6 +29,25 @@ class CommandExecutor:
         if self.on_history_changed:
             self.on_history_changed()
 
+    def _warn_if_not_command_result(self, result, command_name: str, method_name: str) -> None:
+        """Surface a command whose `execute()`/`undo()`/`redo()` hasn't been
+        migrated to return `CommandResult` yet -- some overrides still
+        implicitly return `None` on every path (a known, tracked gap, not
+        this call's job to fix). Such a value is neither CommandResult.NOOP
+        nor CommandResult.FAILURE, so it's silently treated as success below,
+        same as it would have been under the old bool contract -- this only
+        makes that fact loud instead of invisible, so remaining stragglers
+        are easy to find and migrate incrementally instead of a single
+        all-or-nothing conversion that would risk breaking every one of them
+        at once.
+        """
+        if not isinstance(result, CommandResult):
+            self.logger.warning(
+                "%s.%s() returned %r instead of a CommandResult -- treating as "
+                "success for backward compatibility. This command needs migrating.",
+                command_name, method_name, result,
+            )
+
     def execute_command(self, command: Command, *, track_undo: bool = True) -> bool:
         """
         Execute a command instance directly.
@@ -39,9 +58,7 @@ class CommandExecutor:
                 undo stack regardless of the command class's own
                 occupies_undo_slot() default -- use for an automated/background
                 trigger of a command that IS normally undo-tracked from other
-                call sites (e.g. an autosave tick invoking SaveProjectCommand,
-                which must still occupy an undo slot for the manual Save menu
-                action).
+                call sites.
 
         Returns:
             bool: True if command executed successfully
@@ -50,9 +67,14 @@ class CommandExecutor:
         self.logger.debug("Executing command: %s", command_name)
 
         try:
-            success = command.execute()
+            result = command.execute()
+            self._warn_if_not_command_result(result, command_name, "execute")
 
-            if success is False:
+            if result is CommandResult.NOOP:
+                self.logger.debug("Command execution was a no-op: %s", command_name)
+                return False
+
+            if result is CommandResult.FAILURE:
                 self.logger.warning("Command execution failed: %s", command_name)
                 return False
 
@@ -97,14 +119,20 @@ class CommandExecutor:
         
         try:
             command = self.undo_stack.pop()
-            command.undo()
+            result = command.undo()
+            self._warn_if_not_command_result(result, command_name, "undo")
             self.redo_stack.append(command)
-            self.logger.info("Successfully undid command: %s", command_name)
+            if result is CommandResult.FAILURE:
+                self.logger.warning("Command undo reported failure: %s", command_name)
+            elif result is CommandResult.NOOP:
+                self.logger.debug("Command undo was a no-op: %s", command_name)
+            else:
+                self.logger.info("Successfully undid command: %s", command_name)
             self._notify_history_changed()
             return True
-            
+
         except Exception as e:
-            self.logger.error("Error undoing command '%s': %s", 
+            self.logger.error("Error undoing command '%s': %s",
                             command.__class__.__name__ if command else "Unknown", str(e), exc_info=True)
             self.logger.debug("Undo operation failed for command: %s", repr(command) if command else "None")
             return False
@@ -126,14 +154,20 @@ class CommandExecutor:
         
         try:
             command = self.redo_stack.pop()
-            command.redo()
+            result = command.redo()
+            self._warn_if_not_command_result(result, command_name, "redo")
             self.undo_stack.append(command)
-            self.logger.info("Successfully redid command: %s", command_name)
+            if result is CommandResult.FAILURE:
+                self.logger.warning("Command redo reported failure: %s", command_name)
+            elif result is CommandResult.NOOP:
+                self.logger.debug("Command redo was a no-op: %s", command_name)
+            else:
+                self.logger.info("Successfully redid command: %s", command_name)
             self._notify_history_changed()
             return True
-            
+
         except Exception as e:
-            self.logger.error("Error redoing command '%s': %s", 
+            self.logger.error("Error redoing command '%s': %s",
                             command.__class__.__name__ if command else "Unknown", str(e), exc_info=True)
             self.logger.debug("Redo operation failed for command: %s", repr(command) if command else "None")
             return False

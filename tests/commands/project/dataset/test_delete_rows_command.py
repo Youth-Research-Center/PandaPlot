@@ -10,6 +10,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.delete_rows_command import DeleteRowsCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.dataset import Dataset
@@ -42,7 +43,7 @@ def test_execute_logs_warning_when_no_row_positions(mock_app_context, caplog):
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "no row positions" in caplog.text.lower()
 
 
@@ -52,7 +53,7 @@ def test_execute_logs_warning_when_no_project(mock_app_context, caplog):
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[0])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "no project" in caplog.text.lower()
 
 
@@ -63,7 +64,7 @@ def test_execute_logs_warning_when_current_project_none(mock_app_context, caplog
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[0])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "current_project is None" in caplog.text
 
 
@@ -75,7 +76,7 @@ def test_execute_logs_warning_when_dataset_not_found(mock_app_context, sample_pr
     command = DeleteRowsCommand(app_context, "missing-ds", row_positions=[0])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "missing-ds" in caplog.text
 
 
@@ -87,7 +88,7 @@ def test_execute_logs_warning_when_item_not_a_dataset(mock_app_context, sample_p
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[0])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "ds-1" in caplog.text and "not a Dataset" in caplog.text
 
 
@@ -100,7 +101,7 @@ def test_execute_logs_warning_when_dataset_empty(mock_app_context, sample_projec
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[0])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "ds-1" in caplog.text and "no data" in caplog.text.lower()
 
 
@@ -113,7 +114,7 @@ def test_execute_logs_warning_when_row_positions_invalid(mock_app_context, sampl
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[5])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "5" in caplog.text
 
 
@@ -126,7 +127,7 @@ def test_execute_logs_warning_when_duplicate_positions(mock_app_context, sample_
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[0, 0])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "duplicate row positions" in caplog.text.lower()
 
 
@@ -135,8 +136,9 @@ def test_undo_logs_warning_when_nothing_to_undo(mock_app_context, caplog):
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[0])
 
     with caplog.at_level(logging.WARNING):
-        command.undo()
+        result = command.undo()
     assert "ds-1" in caplog.text
+    assert result is CommandResult.FAILURE
 
 
 def test_cleanup_releases_the_undo_snapshots():

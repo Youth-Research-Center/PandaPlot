@@ -16,6 +16,7 @@ from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageG
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.autosave import AutoSaveManager
 from pandaplot.services.config import ConfigManager
+from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.session import SessionPersistenceManager
 from pandaplot.services.theme import ThemeManager
@@ -75,6 +76,7 @@ def build_app_context() -> AppContext:
     """Create and return a fully initialized AppContext (no Qt widgets yet)."""
     event_bus = EventBus()
     project_data_manager = create_project_data_manager()
+    project_manager = ProjectManager(project_data_manager)
     tab_factory = create_tab_factory()
     app_state = AppState(event_bus)
     config_manager = ConfigManager(event_bus)
@@ -86,8 +88,10 @@ def build_app_context() -> AppContext:
     command_executor = CommandExecutor(on_history_changed=lambda: event_bus.emit(AppEvents.HISTORY_CHANGED))
     task_scheduler = TaskScheduler()
 
-    # Create list of managers to pass to AppContext
-    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_data_manager, tab_factory]
+    # Create list of managers to pass to AppContext. ProjectDataManager is
+    # intentionally not registered here -- it's an implementation detail
+    # owned by ProjectManager, not something commands should fetch directly.
+    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_manager, tab_factory]
 
     app_context = AppContext(app_state=app_state, event_bus=event_bus, managers=managers)
     # AutoSaveManager needs the AppContext itself (to construct SaveProjectCommand),
@@ -186,8 +190,8 @@ def _flush_save_on_quit(app_context: AppContext) -> None:
         # Never-saved project: nothing to silently write to.
         return
     try:
-        project_data_manager = app_context.get_manager(ProjectDataManager)
-        project_data_manager.save(project, file_path)
+        project_manager = app_context.get_manager(ProjectManager)
+        project_manager.save_project(project, file_path)
         logging.getLogger(__name__).info("Flushed project save on quit: %s", file_path)
     except Exception:
         logging.getLogger(__name__).exception("Failed to flush project save on quit")

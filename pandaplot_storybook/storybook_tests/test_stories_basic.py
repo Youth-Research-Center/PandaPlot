@@ -18,6 +18,7 @@ EXPECTED_STORY_NAMES = [
     "LineStyleIcons",
     "FontFamilyOptions",
     "ImageGalleryTile",
+    "BusySpinner",
 ]
 
 

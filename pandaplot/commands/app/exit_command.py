@@ -3,7 +3,7 @@
 
 from typing import override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.models.events import AppEvents
 from pandaplot.models.state.app_context import AppContext
 
@@ -18,12 +18,13 @@ class ExitCommand(Command):
         self.app_context = app_context
 
     @override
-    def execute(self):
+    def execute(self) -> CommandResult:
         """
         Execute the exit command.
         """
         self.logger.info("Executing ExitCommand")
         self.app_context.event_bus.emit(AppEvents.APP_CLOSING)
+        return CommandResult.SUCCESS
 
     @override
     def undo(self):

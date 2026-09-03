@@ -5,10 +5,10 @@ from typing import Any, Callable, List, Optional, Tuple, override
 
 import pandas as pd
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.dataset.add_imported_datasets_command import AddImportedDatasetsCommand
 from pandaplot.commands.project.require_project import ensure_project_or_offer_create
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.data_import import ImportOptions, data_importer
@@ -28,6 +28,12 @@ class ImportDataCommand(Command):
     (:class:`ImportWizardDialog`), which handles format detection, parse
     options, and preview. Once the user confirms, the full file is read on a
     background thread using the chosen :class:`ImportOptions`.
+
+    This command itself never occupies an undo slot (see
+    occupies_undo_slot()) -- execute() only dispatches the background read.
+    Once the read completes, its own result callback constructs and executes
+    an :class:`AddImportedDatasetsCommand`, which is what actually lands on
+    the undo stack.
     """
 
     def __init__(self, app_context: AppContext, folder_id: Optional[str] = None):
@@ -46,8 +52,10 @@ class ImportDataCommand(Command):
         # wizard. None for CSV/TSV/JSON or until the wizard has run.
         self.selected_sheets: Optional[List[str]] = None
 
-        # Store state for undo
-        self.dataset_ids: List[str] = []
+        # Datasets read by the background task, kept alive for
+        # test/introspection purposes; the real, undo-tracked effect of
+        # adding them to the project happens via AddImportedDatasetsCommand
+        # (see _on_import_result and occupies_undo_slot()).
         self.imported_datasets: List[Dataset] = []
         self.project = None
 
@@ -55,7 +63,18 @@ class ImportDataCommand(Command):
         self.is_importing = False
 
     @override
-    def execute(self) -> bool:
+    def occupies_undo_slot(self) -> bool:
+        """This command only dispatches the background read; the real,
+        undoable effect is AddImportedDatasetsCommand, executed separately
+        once the read completes (see _on_import_result). Exempting this
+        command from the stacks fixes #301: an Undo triggered while the
+        import is still running used to pop this command off undo_stack
+        (and onto redo_stack) despite nothing having actually happened yet,
+        since its own undo() found dataset_ids still empty."""
+        return False
+
+    @override
+    def execute(self) -> CommandResult:
         """Execute the import data command."""
         try:
             self.logger.info("Executing ImportDataCommand")
@@ -64,7 +83,7 @@ class ImportDataCommand(Command):
             if self.is_importing:
                 self.logger.warning("Import operation already in progress")
                 self.ui_controller.show_info_message("Import In Progress", "A data import is already in progress.")
-                return False
+                return CommandResult.FAILURE
 
             # Check if we have a project loaded
             if not self.app_state.has_project or not self.app_state.current_project:
@@ -73,23 +92,23 @@ class ImportDataCommand(Command):
                     self.app_context, "Import Data",
                     "Importing data requires a project. Create a new project to continue?",
                 ):
-                    return False
+                    return CommandResult.FAILURE
 
             self.project = self.app_state.current_project
             if not self.project:
                 self.logger.warning("ImportDataCommand.execute: has_project is True but current_project is None")
-                return False
+                return CommandResult.FAILURE
 
             # Collect the file, parse options, and dataset name via the wizard.
             if not self._collect_import_settings():
-                return False  # User cancelled
+                return CommandResult.FAILURE  # User cancelled
 
             # Preflight check: validate file still exists before starting import
             if not self.file_path or not os.path.exists(self.file_path):
                 error_msg = f"Selected file does not exist: {self.file_path}"
                 self.ui_controller.show_error_message("Import Data Error", error_msg)
                 self.logger.error(error_msg)
-                return False
+                return CommandResult.FAILURE
 
             # Preflight check: validate the file extension is supported
             extension = os.path.splitext(self.file_path)[1].lower()
@@ -98,7 +117,7 @@ class ImportDataCommand(Command):
                 error_msg = f"Unsupported file type '{extension}'. Supported types: {supported}"
                 self.ui_controller.show_error_message("Import Data Error", error_msg)
                 self.logger.error(error_msg)
-                return False
+                return CommandResult.FAILURE
 
             # Start background import operation
             self.is_importing = True
@@ -113,14 +132,14 @@ class ImportDataCommand(Command):
                 on_progress=self._on_import_progress,
             )
 
-            return True  # Command initiated successfully
+            return CommandResult.SUCCESS  # Command initiated successfully
 
         except Exception as e:
             error_msg = f"Failed to initiate data import: {e}"
             self.logger.error("ImportDataCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Import Data Error", error_msg)
             self.is_importing = False  # Reset flag on error
-            return False
+            return CommandResult.FAILURE
 
     def _collect_import_settings(self) -> bool:
         """
@@ -278,25 +297,20 @@ class ImportDataCommand(Command):
                         )
                         return
 
-                    # Add each dataset to the project
-                    for dataset in datasets:
-                        self.project.add_item(dataset, parent_id=self.folder_id)
-                        self.dataset_ids.append(dataset.id)
-
-                        # Emit event
-                        # TODO(#219): migrate to item created and create data class
-                        self.app_state.event_bus.emit(
-                            DatasetEvents.DATASET_CREATED,
-                            {
-                                "project": self.project,
-                                "dataset_id": dataset.id,
-                                "dataset_name": dataset.name,
-                                "folder_id": self.folder_id,
-                                "dataset_data": dataset.data,
-                                "file_path": file_path,
-                                "dataframe": dataset.data,
-                            },
+                    # Add the dataset(s) to the project via a separate,
+                    # undo-tracked command -- this is the command that
+                    # actually lands on the undo stack for this import (see
+                    # occupies_undo_slot()).
+                    added = self.app_context.get_command_executor().execute_command(
+                        AddImportedDatasetsCommand(
+                            self.app_context, datasets, folder_id=self.folder_id, file_path=file_path
                         )
+                    )
+                    if not added:
+                        error_msg = "Failed to add imported dataset(s) to project"
+                        self.ui_controller.show_error_message("Import Failed", error_msg)
+                        self.logger.error(error_msg)
+                        return
 
                     self.logger.info("%d dataset(s) successfully added to project", len(datasets))
 
@@ -359,62 +373,25 @@ class ImportDataCommand(Command):
         except Exception as e:
             self.logger.error(f"Error handling import progress: {e}", exc_info=True)
 
-    def undo(self):
-        """Undo the import data command."""
-        try:
-            if self.dataset_ids and self.app_state.has_project:
-                project = self.app_state.current_project
-                if project:
-                    for dataset_id in self.dataset_ids:
-                        dataset = project.find_item(dataset_id)
-                        if dataset:
-                            project.remove_item(dataset)
+    @override
+    def undo(self) -> CommandResult:
+        """Unreachable via CommandExecutor: occupies_undo_slot() is False, so
+        this command is never pushed onto undo_stack/redo_stack, and the
+        executor's undo()/redo() only ever act on stack contents. Undoing
+        the added dataset(s) is AddImportedDatasetsCommand's job. Kept as a
+        no-op only to satisfy the abstract Command interface; SUCCESS is
+        reported since "nothing to undo here" is the expected, correct
+        outcome."""
+        return CommandResult.SUCCESS
 
-                        # Emit event
-                        self.app_state.event_bus.emit(
-                            DatasetEvents.DATASET_DELETED, {"project": project, "dataset_id": dataset_id, "dataset_data": None}
-                        )
-
-                    self.logger.info("Undone import of %d dataset(s)", len(self.dataset_ids))
-                    return
-
-            self.logger.warning(
-                "ImportDataCommand.undo: cannot undo (dataset_ids set=%s, has_project=%s)",
-                bool(self.dataset_ids), self.app_state.has_project,
-            )
-
-        except Exception as e:
-            error_msg = f"Failed to undo data import: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
-
-    def redo(self):
-        """
-        Redo the import by re-running it through the wizard.
-
-        The cached dataset ids are cleared so ``execute()`` performs a clean
-        re-import rather than colliding with the undone datasets.
-        """
-        try:
-            if self.is_importing:
-                self.logger.warning("Cannot redo import command while import is in progress")
-                return False
-
-            if self.dataset_ids and self.imported_datasets and self.app_state.has_project:
-                self.dataset_ids = []
-                return self.execute()
-
-            self.logger.warning("Cannot redo: no cached import data available")
-            return False
-        except Exception as e:
-            error_msg = f"Failed to redo data import: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
-            self.ui_controller.show_error_message("Redo Error", error_msg)
-            return False
+    @override
+    def redo(self) -> CommandResult:
+        """See undo() -- unreachable via CommandExecutor for the same reason."""
+        return CommandResult.SUCCESS
 
     @override
     def cleanup(self) -> None:
-        """Release the imported Dataset objects (and their DataFrames) held
-        for undo once this command is dropped from the stacks for good (see
-        Command.cleanup)."""
-        self.imported_datasets = []
+        """Unreachable via CommandExecutor: occupies_undo_slot() is False, so
+        this command is never pushed onto a stack for cleanup() to apply to.
+        Kept as a documented no-op only to complete the Command interface."""
+        return

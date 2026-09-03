@@ -1,4 +1,5 @@
 from pandaplot_storybook.stories import (
+    busy_spinner_story,
     card_story,
     chip_row_story,
     color_swatch_row_story,
@@ -16,6 +17,7 @@ from pandaplot_storybook.stories import (
 )
 
 __all__ = [
+    "busy_spinner_story",
     "card_story",
     "chip_row_story",
     "color_swatch_row_story",

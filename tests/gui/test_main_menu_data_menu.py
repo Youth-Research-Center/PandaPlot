@@ -1,5 +1,5 @@
 """Tests for the main menu's Data menu."""
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from PySide6.QtWidgets import QApplication, QWidget
@@ -85,6 +85,26 @@ def test_add_rows_columns_action_is_refreshed_when_the_project_is_closed():
     _subscribed(app_context)[ProjectEvents.PROJECT_CLOSED]({})
 
     assert menu.add_rows_columns_action.isEnabled() is False
+
+
+@patch("pandaplot.gui.dialogs.image.image_import_dialog.ImageImportDialog")
+def test_import_images_offers_to_create_a_project_before_opening_the_picker(mock_dialog_cls):
+    """Matches Create Chart: the "no project" gate must run before the file
+    picker opens, not after -- declining it must not even construct the
+    dialog."""
+    app_context = _fake_app_context(datasets=[])
+    app_state = app_context.get_app_state.return_value
+    app_state.has_project = False
+    app_state.current_project = None
+    ui_controller = app_context.get_ui_controller.return_value
+    ui_controller.show_action_or_cancel.return_value = False
+
+    parent = QWidget()
+    menu = MainMenu(parent=parent, app_context=app_context)
+    menu._on_import_images_from_menu()
+
+    ui_controller.show_action_or_cancel.assert_called_once()
+    mock_dialog_cls.assert_not_called()
 
 
 def test_active_dataset_is_tracked_from_the_active_tab():

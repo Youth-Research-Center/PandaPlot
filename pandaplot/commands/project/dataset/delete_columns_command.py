@@ -2,7 +2,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import List, Union, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
@@ -19,6 +19,7 @@ class ChartReferenceMatch:
     series_indices: List[int]
     fit_indices: List[int]
     error_only_indices: List[int]
+    confidence_only_indices: List[int]
 
 
 def _error_field_targets(series):
@@ -39,6 +40,20 @@ def _error_field_targets(series):
     if isinstance(series.style, VectorSeriesStyle):
         targets.append((series.style, "magnitude_column_id", "magnitude_column"))
     return targets
+
+
+def _confidence_field_targets(fit):
+    """Return (container, id_field) pairs for a manually-converted fit's
+    optional confidence-band column references (#298 follow-up) --
+    like a series' error-bar columns, these are optional metadata whose
+    absence doesn't invalidate the fit, so a delete should clear them
+    rather than remove the whole fit. Unlike the error-bar fields, these
+    have no separate legacy name-fallback field (added after stable ids
+    became the norm), so there's no name_field to pair with."""
+    return [
+        (fit, "confidence_lower_column_id"),
+        (fit, "confidence_upper_column_id"),
+    ]
 
 
 class DeleteColumnsCommand(Command):
@@ -78,8 +93,15 @@ class DeleteColumnsCommand(Command):
         # instead of being removed entirely
         self.cleared_error_refs = {}
 
+        # chart_id -> [(fit_index, [(field, old_value), ...])]
+        # populated when a deleted column is only referenced as a manually-
+        # converted fit's (optional) confidence-band column (#298 follow-up),
+        # so the fit survives with its confidence band cleared instead of
+        # being removed entirely -- mirrors cleared_error_refs above.
+        self.cleared_confidence_refs = {}
+
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the delete columns command."""
         try:
             self.logger.info(f"Executing DeleteColumnsCommand for {len(self.column_specs)} column specifications")
@@ -93,7 +115,7 @@ class DeleteColumnsCommand(Command):
                     "Delete Columns",
                     "No columns specified for deletion."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Check if we have a project loaded
             if not self.app_state.has_project:
@@ -104,14 +126,14 @@ class DeleteColumnsCommand(Command):
                     "Delete Columns",
                     "Please open or create a project first."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.project = self.app_state.current_project
             if not self.project:
                 self.logger.warning(
                     "DeleteColumnsCommand.execute: has_project is True but current_project is None"
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Find the dataset
             found_item = self.project.find_item(self.dataset_id)
@@ -123,7 +145,7 @@ class DeleteColumnsCommand(Command):
                     "Delete Columns",
                     f"Dataset with ID '{self.dataset_id}' not found."
                 )
-                return False
+                return CommandResult.FAILURE
 
             if not isinstance(found_item, Dataset):
                 self.logger.warning(
@@ -134,7 +156,7 @@ class DeleteColumnsCommand(Command):
                     "Delete Columns",
                     "Selected item is not a dataset."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.dataset = found_item
 
@@ -148,7 +170,7 @@ class DeleteColumnsCommand(Command):
                     "Delete Columns",
                     "Cannot delete columns from empty dataset."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Resolve column names and positions based on input type
             self._resolve_columns()
@@ -163,7 +185,7 @@ class DeleteColumnsCommand(Command):
                     "Delete Columns",
                     "No valid columns found for deletion."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Check if all resolved columns exist
             existing_columns = set(self.dataset.data.columns)
@@ -177,7 +199,7 @@ class DeleteColumnsCommand(Command):
                     "Delete Columns",
                     f"The following columns do not exist: {', '.join(missing_columns)}"
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Check for duplicate column names
             if len(set(self.column_names)) != len(self.column_names):
@@ -189,7 +211,7 @@ class DeleteColumnsCommand(Command):
                     "Delete Columns",
                     "Duplicate column names found in the deletion list."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Check if we're trying to delete all columns
             remaining_columns = len(self.dataset.data.columns) - len(self.column_names)
@@ -202,7 +224,7 @@ class DeleteColumnsCommand(Command):
                     "Delete Columns",
                     "Cannot delete all columns from dataset. Dataset must have at least one column."
                 )
-                return False
+                return CommandResult.FAILURE
             
             # Warn if any chart depends on the columns being deleted, since those
             # series/fit curves will be removed from the chart as part of this action
@@ -213,6 +235,8 @@ class DeleteColumnsCommand(Command):
                         ([f"{len(match.series_indices)} series"] if match.series_indices else [])
                         + ([f"{len(match.fit_indices)} fit curve(s)"] if match.fit_indices else [])
                         + ([f"{len(match.error_only_indices)} series losing error bars"] if match.error_only_indices else [])
+                        + ([f"{len(match.confidence_only_indices)} fit(s) losing confidence bands"]
+                           if match.confidence_only_indices else [])
                     )
                     for match in references
                 )
@@ -221,11 +245,12 @@ class DeleteColumnsCommand(Command):
                     f"{len(self.column_names)} column(s) are used by {len(references)} "
                     "chart(s). Deleting them will remove the dependent series/fit "
                     "curves from those charts (series only using the column for "
-                    "error bars will keep plotting, with error bars removed). Continue?",
+                    "error bars, or fits only using it for a confidence band, will "
+                    "keep plotting with that optional data cleared). Continue?",
                     details=details
                 )
                 if not proceed:
-                    return False
+                    return CommandResult.FAILURE
 
             # Store original data + column-id registry for undo. Restoring the
             # registry keeps deleted columns' ids stable across delete/undo, so
@@ -242,13 +267,13 @@ class DeleteColumnsCommand(Command):
             self._perform_deletion(references)
 
             self.logger.info(f"Deleted {len(self.column_names)} columns from dataset '{self.dataset.name}' (ID: {self.dataset_id})")
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to delete {len(self.column_specs) if self.column_specs else 0} columns: {str(e)}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Delete Columns Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     def _find_chart_references(
         self, column_names: List[str]
@@ -256,12 +281,17 @@ class DeleteColumnsCommand(Command):
         """Find charts whose series/fits reference this dataset's columns.
 
         Returns a list of (chart, data_series indices, fit_data indices,
-        error-only data_series indices) for every chart with at least one
-        matching reference. A series lands in error-only indices (instead of
-        data_series indices) when the only matching reference is one of its
-        optional columns (x_error_column/y_error_column/magnitude_column),
-        since that series still
-        renders fine without error bars and shouldn't be removed.
+        error-only data_series indices, confidence-only fit_data indices)
+        for every chart with at least one matching reference. A series
+        lands in error-only indices (instead of data_series indices) when
+        the only matching reference is one of its optional columns
+        (x_error_column/y_error_column/magnitude_column), since that
+        series still renders fine without error bars and shouldn't be
+        removed. Likewise, a manually-converted fit lands in
+        confidence-only indices (instead of fit_data indices) when the
+        only matching reference is one of its optional confidence-band
+        columns (#298 follow-up) -- the fit's curve is still valid
+        without a confidence band.
         """
         if not self.project:
             return []
@@ -302,8 +332,16 @@ class DeleteColumnsCommand(Command):
                 and (refs(fit.source_x_column_id, fit.source_x_column)
                      or refs(fit.source_y_column_id, fit.source_y_column))
             ]
-            if series_idx or fit_idx or error_only_idx:
-                matches.append(ChartReferenceMatch(item, series_idx, fit_idx, error_only_idx))
+            confidence_only_idx = [
+                i for i, fit in enumerate(item.fit_data)
+                if i not in fit_idx and fit.source_dataset_id == self.dataset_id
+                and any(refs(getattr(container, id_field), "")
+                        for container, id_field in _confidence_field_targets(fit))
+            ]
+            if series_idx or fit_idx or error_only_idx or confidence_only_idx:
+                matches.append(
+                    ChartReferenceMatch(item, series_idx, fit_idx, error_only_idx, confidence_only_idx)
+                )
         return matches
 
     def _perform_deletion(
@@ -332,11 +370,13 @@ class DeleteColumnsCommand(Command):
         column_set = set(self.column_names)
         self.removed_chart_refs = {}
         self.cleared_error_refs = {}
+        self.cleared_confidence_refs = {}
         for match in references:
             chart = match.chart
             series_idx = match.series_indices
             fit_idx = match.fit_indices
             error_only_idx = match.error_only_indices
+            confidence_only_idx = match.confidence_only_indices
             removed_series = [(i, chart.data_series[i]) for i in series_idx]
             removed_fits = [(i, chart.fit_data[i]) for i in fit_idx]
 
@@ -361,12 +401,37 @@ class DeleteColumnsCommand(Command):
                         setattr(container, name_field, "")
                 cleared_series.append((i, old_values))
 
+            # Clear confidence-only references the same way, before fit_idx
+            # deletion shifts the list -- clears the stale id AND the cached
+            # confidence_lower/confidence_upper array together, since a
+            # dangling id with no matching column would otherwise make the
+            # NEXT manual-fit edit reject outright (an unresolvable non-empty
+            # confidence id blocks the whole edit, see
+            # DataTab._apply_manual_fit_edits) instead of the fit simply
+            # having no confidence band, which is what actually happened here.
+            cleared_fits = []
+            for i in confidence_only_idx:
+                fit = chart.fit_data[i]
+                old_values = [
+                    (fit, "confidence_lower_column_id", fit.confidence_lower_column_id),
+                    (fit, "confidence_upper_column_id", fit.confidence_upper_column_id),
+                    (fit, "confidence_lower", fit.confidence_lower),
+                    (fit, "confidence_upper", fit.confidence_upper),
+                ]
+                if fit.confidence_lower_column_id and fit.confidence_lower_column_id in deleted_ids:
+                    fit.confidence_lower_column_id = ""
+                    fit.confidence_lower = None
+                if fit.confidence_upper_column_id and fit.confidence_upper_column_id in deleted_ids:
+                    fit.confidence_upper_column_id = ""
+                    fit.confidence_upper = None
+                cleared_fits.append((i, old_values))
+
             for i in sorted(series_idx, reverse=True):
                 del chart.data_series[i]
             for i in sorted(fit_idx, reverse=True):
                 del chart.fit_data[i]
 
-            if removed_series or removed_fits or cleared_series:
+            if removed_series or removed_fits or cleared_series or cleared_fits:
                 chart.update_modified_time()
                 if removed_series or removed_fits:
                     self.removed_chart_refs[chart.id] = {
@@ -375,6 +440,8 @@ class DeleteColumnsCommand(Command):
                     }
                 if cleared_series:
                     self.cleared_error_refs[chart.id] = cleared_series
+                if cleared_fits:
+                    self.cleared_confidence_refs[chart.id] = cleared_fits
                 self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, {
                     "chart_id": chart.id,
                     "chart": chart,
@@ -382,9 +449,15 @@ class DeleteColumnsCommand(Command):
 
     def _restore_chart_references(self) -> None:
         """Re-insert chart series/fits removed by _perform_deletion, for undo."""
-        if not self.project or not (self.removed_chart_refs or self.cleared_error_refs):
+        if not self.project or not (
+            self.removed_chart_refs or self.cleared_error_refs or self.cleared_confidence_refs
+        ):
             return
-        chart_ids = set(self.removed_chart_refs) | set(self.cleared_error_refs)
+        chart_ids = (
+            set(self.removed_chart_refs)
+            | set(self.cleared_error_refs)
+            | set(self.cleared_confidence_refs)
+        )
         for chart_id in chart_ids:
             chart = self.project.find_item(chart_id)
             if not isinstance(chart, Chart):
@@ -400,7 +473,20 @@ class DeleteColumnsCommand(Command):
                     for container, field, value in old_values:
                         setattr(container, field, value)
 
-            if removed["series"] or removed["fits"] or chart_id in self.cleared_error_refs:
+            # Restore confidence-only clears -- reached only after fit
+            # reinsertion above, so `i` (an original, pre-deletion index)
+            # once again points at the right fit in the fully-reconstructed
+            # list, same as the error-refs restore just above.
+            for i, old_values in self.cleared_confidence_refs.get(chart_id, []):
+                if 0 <= i < len(chart.fit_data):
+                    for container, field, value in old_values:
+                        setattr(container, field, value)
+
+            if (
+                removed["series"] or removed["fits"]
+                or chart_id in self.cleared_error_refs
+                or chart_id in self.cleared_confidence_refs
+            ):
                 chart.update_modified_time()
                 self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, {
                     "chart_id": chart.id,
@@ -408,6 +494,7 @@ class DeleteColumnsCommand(Command):
                 })
         self.removed_chart_refs = {}
         self.cleared_error_refs = {}
+        self.cleared_confidence_refs = {}
 
     def _resolve_columns(self):
         """
@@ -441,7 +528,7 @@ class DeleteColumnsCommand(Command):
             else:
                 self.logger.warning(f"Invalid column specification: {spec}")
 
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Undo the delete columns command by restoring the original data and chart refs."""
         try:
             if self.dataset and self.original_data is not None and self.column_positions:
@@ -458,25 +545,30 @@ class DeleteColumnsCommand(Command):
                     DatasetColumnsAddedData(dataset_id=self.dataset_id, column_positions=self.column_positions).to_dict())
 
                 self.logger.info(f"Undid deleting {len(self.column_names)} columns from dataset '{self.dataset.name}'")
-                return True
+                return CommandResult.SUCCESS
+            self.logger.warning(
+                "DeleteColumnsCommand.undo: cannot undo for dataset '%s' (dataset found=%s, original_data set=%s, column_positions set=%s)",
+                self.dataset_id, self.dataset is not None, self.original_data is not None, bool(self.column_positions),
+            )
+            return CommandResult.FAILURE
         except Exception as e:
             self.logger.error(f"DeleteColumnsCommand Undo Error: {e}")
-            return False
+            return CommandResult.FAILURE
 
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo the delete columns command using the already-confirmed parameters."""
         try:
             if not (self.dataset and self.original_data is not None and self.column_names):
-                return False
+                return CommandResult.FAILURE
             references = self._find_chart_references(self.column_names)
             self._perform_deletion(references)
             self.logger.info(f"Redid deleting {len(self.column_names)} columns from dataset '{self.dataset.name}'")
-            return True
+            return CommandResult.SUCCESS
         except Exception as e:
             error_msg = f"Failed to redo deleting {len(self.column_names)} columns: {e}"
             self.logger.error(f"DeleteColumnsCommand Redo Error: {error_msg}")
             self.ui_controller.show_error_message("Delete Columns Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     @override
     def cleanup(self) -> None:
@@ -487,3 +579,4 @@ class DeleteColumnsCommand(Command):
         self.deleted_columns_data = None
         self.removed_chart_refs = {}
         self.cleared_error_refs = {}
+        self.cleared_confidence_refs = {}

@@ -3,7 +3,7 @@
 import copy
 from typing import Optional, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import ChartEvents
 from pandaplot.models.project.items.chart import Chart, FitData
@@ -28,7 +28,7 @@ class RemoveFitDataCommand(Command):
         return app_state.current_project.find_item(self.chart_id)
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         chart = self._find_chart()
         if not chart or not isinstance(chart, Chart):
             self.logger.warning(
@@ -38,7 +38,7 @@ class RemoveFitDataCommand(Command):
             self.ui_controller.show_error_message(
                 "Remove Fit Error", f"Chart '{self.chart_id}' not found."
             )
-            return False
+            return CommandResult.FAILURE
 
         if self.fit_index < 0 or self.fit_index >= len(chart.fit_data):
             self.logger.warning(
@@ -48,7 +48,7 @@ class RemoveFitDataCommand(Command):
             self.ui_controller.show_error_message(
                 "Remove Fit Error", f"Fit index {self.fit_index} is out of range."
             )
-            return False
+            return CommandResult.FAILURE
 
         # Snapshot the fit data before removing
         fit = chart.fit_data[self.fit_index]
@@ -61,17 +61,17 @@ class RemoveFitDataCommand(Command):
             "update_type": "fit_removed",
             "chart": chart,
         })
-        return True
+        return CommandResult.SUCCESS
 
     @override
-    def undo(self):
+    def undo(self) -> CommandResult:
         chart = self._find_chart()
         if not chart or self.removed_fit_data is None:
             self.logger.warning(
                 "RemoveFitDataCommand.undo: cannot undo for chart '%s' (chart found=%s, removed_fit_data set=%s)",
                 self.chart_id, chart is not None, self.removed_fit_data is not None,
             )
-            return
+            return CommandResult.FAILURE
 
         # Re-create and insert at original position
         fit = copy.deepcopy(self.removed_fit_data)
@@ -83,10 +83,11 @@ class RemoveFitDataCommand(Command):
             "update_type": "fit_added",
             "chart": chart,
         })
+        return CommandResult.SUCCESS
 
     @override
-    def redo(self):
-        self.execute()
+    def redo(self) -> CommandResult:
+        return self.execute()
 
     @override
     def cleanup(self) -> None:

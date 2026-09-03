@@ -23,7 +23,9 @@ class AppContext:
         
         # Create managers dictionary mapping type to instance
         self._managers: dict[type, Any] = {}
-        for manager in managers:
+        for index, manager in enumerate(managers):
+            if manager is None:
+                raise ValueError(f"managers[{index}] is None; AppContext does not accept None managers")
             self._managers[type(manager)] = manager
         
         # Keep backward compatibility by storing individual references

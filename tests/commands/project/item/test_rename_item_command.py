@@ -10,6 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.item.rename_item_command import RenameItemCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.state import AppContext, AppState
@@ -47,7 +48,7 @@ class TestRenameItemCommandLogging:
         command = RenameItemCommand(app_context, item_id="item-123", new_name="New Name")
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "RenameItemCommand.execute" in caplog.text
 
     def test_execute_logs_a_warning_when_current_project_is_none(self, mock_app_context, caplog):
@@ -58,7 +59,7 @@ class TestRenameItemCommandLogging:
         command = RenameItemCommand(app_context, item_id="item-123", new_name="New Name")
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "RenameItemCommand.execute" in caplog.text
 
     def test_execute_logs_a_warning_when_item_not_found(self, mock_app_context, sample_project, caplog):
@@ -70,7 +71,7 @@ class TestRenameItemCommandLogging:
         command = RenameItemCommand(app_context, item_id="missing-item", new_name="New Name")
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "missing-item" in caplog.text
 
     def test_cleanup_releases_old_name(self, mock_app_context):

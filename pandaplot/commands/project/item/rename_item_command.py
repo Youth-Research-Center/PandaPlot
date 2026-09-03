@@ -1,6 +1,6 @@
 from typing import override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state import AppContext, AppState
@@ -24,7 +24,7 @@ class RenameItemCommand(Command):
         self.old_name = None
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the rename item command."""
         try:
             # Check if we have a project loaded
@@ -34,14 +34,14 @@ class RenameItemCommand(Command):
                     "Rename Item",
                     "No project is currently loaded."
                 )
-                return False
+                return CommandResult.FAILURE
 
             project = self.app_state.current_project
             if not project:
                 self.logger.warning(
                     "RenameItemCommand.execute: has_project is True but current_project is None"
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Check in metadata notes
             item = project.find_item(self.item_id)
@@ -52,7 +52,7 @@ class RenameItemCommand(Command):
                     "Rename Item",
                     f"Item with ID '{self.item_id}' not found."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.old_name = item.name
             item.update_name(self.new_name)
@@ -68,7 +68,7 @@ class RenameItemCommand(Command):
             self.logger.info(
                 "Renamed item '%s' -> '%s' (id=%s)", self.old_name, self.new_name, self.item_id
             )
-            return True
+            return CommandResult.SUCCESS
         except Exception as e:
             error_msg = f"Failed to rename item: {e}"
             self.logger.error(error_msg, exc_info=True)
@@ -76,7 +76,7 @@ class RenameItemCommand(Command):
                 "Rename Item Error", error_msg)
             raise
 
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Undo the rename item command."""
         try:
             if self.old_name and self.app_state.has_project:
@@ -85,7 +85,7 @@ class RenameItemCommand(Command):
                     self.logger.warning(
                         "RenameItemCommand.undo: has_project is True but current_project is None"
                     )
-                    return
+                    return CommandResult.FAILURE
 
                 item = project.find_item(self.item_id)
                 if item is None:
@@ -94,7 +94,7 @@ class RenameItemCommand(Command):
                         "Undo Rename Item",
                         f"Item with ID '{self.item_id}' not found."
                     )
-                    return
+                    return CommandResult.FAILURE
 
                 # Perform restore
                 item.update_name(self.old_name)
@@ -110,15 +110,21 @@ class RenameItemCommand(Command):
                 self.logger.info(
                     "Restored item name to '%s' (id=%s)", self.old_name, self.item_id
                 )
+                return CommandResult.SUCCESS
+            else:
+                # The rename never actually happened (execute() failed or was
+                # never called), so there's nothing to undo.
+                return CommandResult.NOOP
 
         except Exception as e:
             error_msg = f"Failed to undo rename item: {e}"
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
+            return CommandResult.FAILURE
 
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo the rename item command."""
-        self.execute()
+        return self.execute()
 
     @override
     def cleanup(self) -> None:

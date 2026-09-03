@@ -4,6 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart import AddSeriesCommand
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
 from pandaplot.models.chart.series_style.scatter import ScatterSeriesStyle
@@ -49,7 +50,7 @@ def test_execute_appends_the_passed_series(app_context_with_chart):
     )
     command = AddSeriesCommand(app_context, chart_id=chart.id, series=series)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     assert chart.data_series[-1] is series
     assert command.added_index == 0
     assert series.style.u_column_id == "col-u"
@@ -67,7 +68,7 @@ def test_execute_with_line_series_style(app_context_with_line_chart):
     )
     command = AddSeriesCommand(app_context, chart_id=chart.id, series=series)
 
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
     assert chart.data_series[-1] is series
     assert series.style.color == "#112233"
     assert not hasattr(series.style, "vector_color")
@@ -87,7 +88,7 @@ def test_execute_returns_false_when_chart_not_found(caplog):
     command = AddSeriesCommand(app_context, chart_id="missing", series=series)
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert command.added_index is None
     assert "missing" in caplog.text
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()

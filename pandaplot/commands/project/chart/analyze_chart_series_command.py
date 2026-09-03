@@ -14,22 +14,21 @@ This command unifies both so the Chart Analysis panel can offer the full set of
 analysis operations regardless of which kind of series the user picked.
 """
 
-import uuid
-from typing import Literal, Optional, override
+from typing import Optional, override
 
-import numpy as np
 import pandas as pd
 
 from pandaplot.analysis import AnalysisEngine, AnalysisType
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.chart.series_xy import (
+    SourceKind,
+    create_result_dataset,
+    remove_result_dataset,
+    resolve_series_xy,
+)
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
-from pandaplot.models.events.event_types import DatasetEvents
-from pandaplot.models.project.items import Dataset
-from pandaplot.models.project.items.chart import Chart, resolve_series_column
+from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext, AppState
-
-SourceKind = Literal["series", "fit"]
 
 
 class AnalyzeChartSeriesCommand(Command):
@@ -78,55 +77,7 @@ class AnalyzeChartSeriesCommand(Command):
 
     def _resolve_xy(self, chart: Chart) -> tuple[pd.Series, pd.Series, str, str]:
         """Return (x, y, x_label, y_label) for the selected chart series."""
-        if self.source_kind == "fit":
-            if not (0 <= self.source_index < len(chart.fit_data)):
-                raise ValueError("Selected fit no longer exists.")
-            fit = chart.fit_data[self.source_index]
-            dataset = self.app_state.current_project.find_item(fit.source_dataset_id)
-            if not isinstance(dataset, Dataset):
-                dataset = None
-            x_label = resolve_series_column(dataset, fit.source_x_column_id, fit.source_x_column) or "x"
-            x = pd.Series(np.asarray(fit.x_data), dtype="float64")
-            y = pd.Series(np.asarray(fit.y_data), dtype="float64")
-            return x, y, x_label, fit.label
-
-        if not (0 <= self.source_index < len(chart.data_series)):
-            raise ValueError("Selected series no longer exists.")
-        series = chart.data_series[self.source_index]
-        if not SERIES_TYPE_SPECS[series.series_type].supports_curve_analysis:
-            # Belt-and-braces (#202): ChartAnalysisPanel's source picker
-            # already excludes these, but this command can in principle be
-            # invoked directly, and a bar/hist/vector/colormap/heatmap/3-D
-            # series has no meaningful ordered (x, y) curve to analyze.
-            raise ValueError(
-                f"'{series.series_type.value}' series don't support this analysis "
-                "(only line, scatter, and fitted curves do)."
-            )
-        dataset = self.app_state.current_project.find_item(series.dataset_id)
-        if not isinstance(dataset, Dataset) or dataset.data is None:
-            raise ValueError("Series dataset is not available.")
-
-        x_name = resolve_series_column(dataset, series.x_column_id, series.x_column)
-        y_name = resolve_series_column(dataset, series.y_column_id, series.y_column)
-        df = dataset.data
-        if y_name is None or y_name not in df.columns:
-            raise ValueError("Series y column not found.")
-
-        if x_name and x_name in df.columns:
-            x_full = df[x_name]
-            x_label = x_name
-        else:
-            # No x column configured: analyze against the row index.
-            x_full = pd.Series(np.arange(len(df)), index=df.index)
-            x_label = "index"
-        y_full = df[y_name]
-
-        # Drop rows where either coordinate is missing so the maths is clean.
-        mask = ~(pd.isna(x_full) | pd.isna(y_full))
-        x = pd.to_numeric(x_full[mask], errors="coerce").reset_index(drop=True)
-        y = pd.to_numeric(y_full[mask], errors="coerce").reset_index(drop=True)
-        label = series.label or y_name
-        return x, y, x_label, label
+        return resolve_series_xy(self.app_state, chart, self.source_kind, self.source_index)
 
     def _resolve_xy_cached(self, chart: Chart) -> tuple[pd.Series, pd.Series, str, str]:
         """``_resolve_xy``, memoized for the lifetime of this command.
@@ -238,63 +189,41 @@ class AnalyzeChartSeriesCommand(Command):
     # -- command ----------------------------------------------------------
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         try:
             if not self.app_state.has_project or not self.app_state.current_project:
                 message = "No project loaded; cannot analyze chart series."
                 self.logger.warning(message)
                 self.ui_controller.show_error_message("Chart Analysis Error", message)
-                return False
+                return CommandResult.FAILURE
 
-            project = self.app_state.current_project
             results_df, default_name = self.run_analysis()
-            name = self.result_name or default_name
-
-            self.result_dataset_id = str(uuid.uuid4())
-            dataset = Dataset(
-                id=self.result_dataset_id,
-                name=name,
-                data=results_df,
-                source_file=None,
+            dataset = create_result_dataset(
+                self.app_state, self.folder_id, self.result_name or default_name, results_df,
             )
-            project.add_item(dataset, parent_id=self.folder_id)
+            self.result_dataset_id = dataset.id
 
-            self.app_state.event_bus.emit(DatasetEvents.DATASET_CREATED, {
-                "project": project,
-                "dataset_id": self.result_dataset_id,
-                "dataset_name": name,
-                "folder_id": self.folder_id,
-                "dataset_data": dataset.data,
-            })
-            self.logger.info("Created chart-analysis dataset '%s' (%s)", name, self.result_dataset_id)
-            return True
+            self.logger.info("Created chart-analysis dataset '%s' (%s)", dataset.name, self.result_dataset_id)
+            return CommandResult.SUCCESS
 
         except Exception as e:
             self.logger.error("Analyze-chart-series failed: %s", e, exc_info=True)
             self.ui_controller.show_error_message("Chart Analysis Error", str(e))
-            return False
+            return CommandResult.FAILURE
 
     @override
-    def undo(self) -> bool:
+    def undo(self) -> CommandResult:
         try:
             if not self.result_dataset_id or not self.app_state.current_project:
-                return False
-            project = self.app_state.current_project
-            dataset = project.find_item(self.result_dataset_id)
-            if dataset:
-                project.remove_item(dataset)
-                self.app_state.event_bus.emit(DatasetEvents.DATASET_DELETED, {
-                    "project": project,
-                    "dataset_id": self.result_dataset_id,
-                    "dataset_name": dataset.name,
-                })
-            return True
+                return CommandResult.FAILURE
+            remove_result_dataset(self.app_state, self.result_dataset_id)
+            return CommandResult.SUCCESS
         except Exception as e:
             self.logger.error("Failed to undo analyze-chart-series: %s", e, exc_info=True)
-            return False
+            return CommandResult.FAILURE
 
     @override
-    def redo(self) -> bool:
+    def redo(self) -> CommandResult:
         return self.execute()
 
     @override

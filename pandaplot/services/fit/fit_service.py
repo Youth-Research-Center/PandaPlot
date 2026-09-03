@@ -157,6 +157,8 @@ class FitService:
             custom_function: str | None = None,
             custom_parameters: str | None = None,
             fixed_parameters: str | None = None,
+            x_min: float | None = None,
+            x_max: float | None = None,
     ) -> FitResult | None:
 
         from scipy.optimize import curve_fit
@@ -230,7 +232,11 @@ class FitService:
                     r_squared = 1 - (ss_res / ss_tot)
 
             # Generate fit data for plotting
-            x_fit = np.linspace(x_data.min(), x_data.max(), fit_points)
+            x_fit = np.linspace(
+                x_min if x_min is not None else x_data.min(),
+                x_max if x_max is not None else x_data.max(),
+                fit_points,
+            )
             y_fit = fit_func(x_fit, *popt)
 
             confidence_lower = None

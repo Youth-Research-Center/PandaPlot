@@ -9,7 +9,7 @@ import pandas as pd
 
 from pandaplot.analysis import PreprocessingEngine, PreprocessingMethod
 from pandaplot.analysis.preprocessing_types import PREPROCESSING_METHODS
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
@@ -63,7 +63,7 @@ class PreprocessColumnCommand(Command):
         return f"{source_column}_{suffix}"
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Apply the transformation and add/replace the result columns."""
         try:
             self.logger.info(
@@ -76,10 +76,10 @@ class PreprocessColumnCommand(Command):
                 self.ui_controller.show_error_message(
                     "Preprocessing Error", f"Dataset '{self.dataset_id}' not found."
                 )
-                return False
+                return CommandResult.FAILURE
 
             if not self._validate_inputs():
-                return False
+                return CommandResult.FAILURE
 
             df = self.dataset.data.copy()
             self._undo_state = []
@@ -108,15 +108,15 @@ class PreprocessColumnCommand(Command):
                 "Preprocessing applied: %s columns transformed with '%s'",
                 len(self.source_columns), self.method.value,
             )
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             self.logger.error("Preprocessing execution failed: %s", e)
             self.ui_controller.show_error_message("Preprocessing Error", str(e))
-            return False
+            return CommandResult.FAILURE
 
     @override
-    def undo(self) -> bool:
+    def undo(self) -> CommandResult:
         """Restore replaced columns and drop newly created ones."""
         try:
             if not isinstance(self.dataset, Dataset) or self.dataset.data is None:
@@ -124,7 +124,7 @@ class PreprocessColumnCommand(Command):
                     "PreprocessColumnCommand.undo: cannot undo for dataset '%s' (dataset found=%s)",
                     self.dataset_id, isinstance(self.dataset, Dataset),
                 )
-                return False
+                return CommandResult.FAILURE
 
             df = self.dataset.data.copy()
             removed_positions: List[int] = []
@@ -141,11 +141,11 @@ class PreprocessColumnCommand(Command):
             self.dataset.set_data(df)
             self._emit_undo_events(removed_positions, restored_columns)
             self.logger.info("Preprocessing undone (%s)", self.method.value)
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             self.logger.error("Preprocessing undo failed: %s", e)
-            return False
+            return CommandResult.FAILURE
 
     def _emit_undo_events(self, removed_positions, restored_columns) -> None:
         """Refresh the table after an undo (columns dropped / values restored)."""
@@ -182,7 +182,7 @@ class PreprocessColumnCommand(Command):
                 )
 
     @override
-    def redo(self) -> bool:
+    def redo(self) -> CommandResult:
         """Re-apply the transformation."""
         return self.execute()
 

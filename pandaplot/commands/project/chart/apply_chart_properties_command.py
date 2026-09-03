@@ -2,7 +2,7 @@
 
 from typing import Any, Callable, Dict, Optional, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import ChartEvents
 from pandaplot.models.project.items.chart import (
@@ -43,7 +43,7 @@ class ApplyChartPropertiesCommand(Command):
         })
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         chart = self._find_chart()
         if not chart or not isinstance(chart, Chart):
             self.logger.warning(
@@ -53,7 +53,7 @@ class ApplyChartPropertiesCommand(Command):
             self.ui_controller.show_error_message(
                 "Apply Chart Properties Error", f"Chart '{self.chart_id}' not found."
             )
-            return False
+            return CommandResult.FAILURE
 
         if self.old_snapshot is None:
             self.old_snapshot = snapshot_chart_state(chart)
@@ -65,31 +65,33 @@ class ApplyChartPropertiesCommand(Command):
         self.new_snapshot = snapshot_chart_state(chart)
 
         self._emit_update(chart)
-        return True
+        return CommandResult.SUCCESS
 
     @override
-    def undo(self):
+    def undo(self) -> CommandResult:
         chart = self._find_chart()
         if not chart or self.old_snapshot is None:
             self.logger.warning(
                 "ApplyChartPropertiesCommand.undo: cannot undo for chart '%s' (chart found=%s, old_snapshot set=%s)",
                 self.chart_id, chart is not None, self.old_snapshot is not None,
             )
-            return
+            return CommandResult.FAILURE
         restore_chart_state(chart, self.old_snapshot)
         self._emit_update(chart)
+        return CommandResult.SUCCESS
 
     @override
-    def redo(self):
+    def redo(self) -> CommandResult:
         chart = self._find_chart()
         if not chart or self.new_snapshot is None:
             self.logger.warning(
                 "ApplyChartPropertiesCommand.redo: cannot redo for chart '%s' (chart found=%s, new_snapshot set=%s)",
                 self.chart_id, chart is not None, self.new_snapshot is not None,
             )
-            return
+            return CommandResult.FAILURE
         restore_chart_state(chart, self.new_snapshot)
         self._emit_update(chart)
+        return CommandResult.SUCCESS
 
     @override
     def cleanup(self) -> None:

@@ -2,7 +2,7 @@
 
 from typing import Optional, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
@@ -27,7 +27,7 @@ class RenameProjectCommand(Command):
         self._applied: bool = False
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         try:
             if not self.app_state.has_project or not self.app_state.current_project:
                 self.logger.warning(
@@ -36,7 +36,7 @@ class RenameProjectCommand(Command):
                 )
                 self.ui_controller.show_warning_message(
                     "Rename Project", "Please open or create a project first.")
-                return False
+                return CommandResult.FAILURE
             project = self.app_state.current_project
 
             self.old_name = project.name
@@ -47,19 +47,19 @@ class RenameProjectCommand(Command):
                 )
                 self.ui_controller.show_error_message(
                     "Rename Project", "Project name cannot be empty.")
-                return False
+                return CommandResult.FAILURE
             if self.new_name == self.old_name:
-                return False
+                return CommandResult.NOOP
 
             self._apply_rename(self.new_name)
             self._applied = True
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to rename project: {e}"
             self.logger.error(error_msg, exc_info=True)
             self.ui_controller.show_error_message("Rename Project Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     def _apply_rename(self, name: str) -> None:
         project = self.app_state.current_project
@@ -70,14 +70,22 @@ class RenameProjectCommand(Command):
             ProjectEvents.PROJECT_CHANGED, {"project": project})
 
     @override
-    def undo(self):
+    def undo(self) -> CommandResult:
         if self._applied and self.old_name is not None:
             self._apply_rename(self.old_name)
+            return CommandResult.SUCCESS
+        # The rename was never actually applied (execute() failed or was a
+        # NOOP), so there's nothing to undo.
+        return CommandResult.NOOP
 
     @override
-    def redo(self):
+    def redo(self) -> CommandResult:
         if self._applied and self.old_name is not None:
             self._apply_rename(self.new_name)
+            return CommandResult.SUCCESS
+        # The rename was never actually applied (execute() failed or was a
+        # NOOP), so there's nothing to redo.
+        return CommandResult.NOOP
 
     @override
     def cleanup(self) -> None:

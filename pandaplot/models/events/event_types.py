@@ -181,6 +181,15 @@ class EventHierarchy:
         "dataset.imported": ["dataset.imported", "dataset.changed"],
         "dataset.exported": ["dataset.exported"],
         "dataset.created": ["dataset.created", "project.item_added", "project.changed"],
+        # Bubbles only to project.changed, NOT project.item_removed: every
+        # dataset.deleted emitter's payload carries "dataset_id", but
+        # PROJECT_ITEM_REMOVED subscribers (e.g. TabContainer's tab closer)
+        # expect the generic "item_id" key -- promoting the unchanged
+        # payload to that event would call them with no usable id. The tree
+        # refresh this mapping exists for only needs project.changed, whose
+        # only subscriber (ProjectViewPanel) ignores the payload and just
+        # reloads the whole tree.
+        "dataset.deleted": ["dataset.deleted", "project.changed"],
         
         # Analysis events
         "analysis.completed": ["analysis.completed", "dataset.column_added", "dataset.structure_changed", "dataset.changed"],

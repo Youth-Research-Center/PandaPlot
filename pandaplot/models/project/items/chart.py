@@ -9,6 +9,7 @@ from enum import StrEnum
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import pandas as pd
 
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
@@ -117,6 +118,9 @@ class FitData:
     fit_stats: Optional[Dict[str, Any]] = None
     confidence_lower: np.ndarray | None = None
     confidence_upper: np.ndarray | None = None
+    confidence_lower_column_id: str = ""
+    confidence_upper_column_id: str = ""
+    is_manual: bool = False
     style: Optional[FitStyle] = None
 
     def __post_init__(self):
@@ -602,6 +606,9 @@ class Chart(Item):
                     "fit_stats": fit.fit_stats,
                     "confidence_lower": fit.confidence_lower.tolist() if fit.confidence_lower is not None else None,
                     "confidence_upper": fit.confidence_upper.tolist() if fit.confidence_upper is not None else None,
+                    "confidence_lower_column_id": fit.confidence_lower_column_id,
+                    "confidence_upper_column_id": fit.confidence_upper_column_id,
+                    "is_manual": fit.is_manual,
                     "style": asdict(fit.style) if fit.style is not None else None,
                 } for fit in self.fit_data
             ],
@@ -677,6 +684,9 @@ class Chart(Item):
                     np.array(fit_dict["confidence_upper"])
                     if fit_dict.get("confidence_upper") is not None else None
                 ),
+                confidence_lower_column_id=fit_dict.get("confidence_lower_column_id", ""),
+                confidence_upper_column_id=fit_dict.get("confidence_upper_column_id", ""),
+                is_manual=fit_dict.get("is_manual", False),
                 style=style,
             )
             chart.fit_data.append(fit)
@@ -703,6 +713,40 @@ def resolve_series_column(dataset: Any, column_id: str,
         if name is not None:
             return name
     return fallback_name or None
+
+
+def resolve_numeric_column(dataset: Any, column_id: str) -> Optional[np.ndarray]:
+    """Resolve a column id to a JSON-safe numeric numpy array snapshot.
+
+    Used for fit data (FitData.x_data/y_data/confidence_lower/
+    confidence_upper), which is always treated as purely numeric --
+    unlike a live DataSeries reference. Non-numeric values coerce to NaN
+    (pandas.to_numeric(errors="coerce")) rather than raising, and the
+    dtype is always JSON-serializable, since Chart.to_dict() later calls
+    .tolist() on it for json.dumps() during project save with no custom
+    encoder (a non-numeric dtype like datetime64 would otherwise fail
+    that save -- and since ProjectDataManager.save() truncates the
+    project's zip before writing, a failed save can destroy the
+    previously-saved project file). Returns None if the column can't be
+    resolved at all (missing dataset, unknown id, or the id resolves to
+    a name no longer present in the DataFrame) -- also None when every
+    value coerces to NaN (e.g. a genuinely non-numeric string/categorical
+    column): a column that resolves but has no usable numeric data at
+    all is treated the same as an unresolvable one, so callers don't
+    silently build/update a fit whose curve is entirely NaN with no
+    feedback that anything went wrong. A column with only SOME
+    unconvertible values still returns normally (NaN mixed with real
+    data), only a wholly-unusable column is rejected.
+    """
+    if dataset is None or not column_id:
+        return None
+    name = resolve_series_column(dataset, column_id, "")
+    if not name or dataset.data is None or name not in dataset.data.columns:
+        return None
+    array = pd.to_numeric(dataset.data[name], errors="coerce").to_numpy(copy=True)
+    if array.size > 0 and np.issubdtype(array.dtype, np.floating) and np.all(np.isnan(array)):
+        return None
+    return array
 
 
 def assign_series_column_ids(series: "DataSeries", dataset: Any) -> None:
@@ -780,9 +824,10 @@ def assign_fit_column_ids(fit: "FitData", dataset: Any) -> None:
 def snapshot_chart_state(chart: "Chart") -> Dict[str, Any]:
     """Capture the mutable chart state that the properties panel can change.
 
-    Fit data x/y arrays are intentionally not snapshotted — only their
-    editable style/label fields — because the arrays are immutable in the
-    panel and can be large.
+    The whole fit_data list is deep-copied, same as data_series -- a
+    manually-converted fit's source dataset/columns and x_data/y_data are
+    genuinely editable from the Data tab (#298 follow-up), not just its
+    style/label, so Reset/undo needs to be able to revert those too.
     """
     return {
         "config": copy.deepcopy(chart.config),
@@ -790,8 +835,7 @@ def snapshot_chart_state(chart: "Chart") -> Dict[str, Any]:
         "chart_type": chart.chart_type,
         "name": chart.name,
         "data_series": [copy.deepcopy(s) for s in chart.data_series],
-        "fit_data_styles": [copy.deepcopy(f.style) for f in chart.fit_data],
-        "fit_data_labels": [f.label for f in chart.fit_data],
+        "fit_data": [copy.deepcopy(f) for f in chart.fit_data],
     }
 
 
@@ -802,11 +846,6 @@ def restore_chart_state(chart: "Chart", snapshot: Dict[str, Any]) -> None:
     chart.chart_type = snapshot["chart_type"]
     chart.name = snapshot["name"]
     chart.data_series = [copy.deepcopy(s) for s in snapshot["data_series"]]
-    fit_data_labels = snapshot.get("fit_data_labels", [])
-    for i, fit_style in enumerate(snapshot["fit_data_styles"]):
-        if i < len(chart.fit_data):
-            chart.fit_data[i].style = copy.deepcopy(fit_style)
-            if i < len(fit_data_labels):
-                chart.fit_data[i].label = fit_data_labels[i]
+    chart.fit_data = [copy.deepcopy(f) for f in snapshot["fit_data"]]
     chart.update_modified_time()
 

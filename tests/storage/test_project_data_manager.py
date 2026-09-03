@@ -103,6 +103,43 @@ def test_freshly_saved_project_round_trips_schema_version(tmp_path, manager):
     assert loaded.schema_version == CURRENT_SCHEMA_VERSION
 
 
+def test_load_records_failed_item_ids_instead_of_dropping_them_silently(tmp_path, manager, factory):
+    """When one item's data fails to deserialize, load() must still return the
+    project (with the other items intact) but record the failing item id on
+    it, so callers can warn the user instead of the item just vanishing (#288)."""
+    dataset = Dataset(id="ds-1", name="Data", data=pd.DataFrame({"x": [1, 2]}))
+
+    project_dict = {
+        "name": "Partially Broken Project",
+        "description": "",
+        "root": {"id": "root", "items": [
+            {"id": "ds-1", "parent_id": None, "items": []},
+            {"id": "ds-missing", "parent_id": None, "items": []},
+        ]},
+        "metadata": {},
+        "version": "1.0",
+        "schema_version": CURRENT_SCHEMA_VERSION,
+        "path": None,
+        "item_files": {
+            "ds-1": {"type": "dataset", "path": "items/ds-1"},
+            # References a path never written to the zip -- forces _load_item
+            # to raise inside manager.load(), exercising the failure path.
+            "ds-missing": {"type": "dataset", "path": "items/ds-missing"},
+        },
+    }
+
+    zip_path = tmp_path / "partial.pplot"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        factory.get_manager("dataset").save(dataset, zf, "items/ds-1")
+        zf.writestr("project.json", json.dumps(project_dict))
+
+    project = manager.load(str(zip_path))
+
+    assert project.failed_item_ids == ["ds-missing"]
+    assert project.find_item("ds-1") is not None
+    assert project.find_item("ds-missing") is None
+
+
 def test_a_schema_version_newer_than_current_is_rejected(tmp_path, manager):
     """Migration dispatchers loop `while schema_version < CURRENT_SCHEMA_VERSION`,
     so a version newer than this app understands would silently skip migration,

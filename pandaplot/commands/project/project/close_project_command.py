@@ -1,7 +1,7 @@
 """Command to close the current project."""
 from typing import override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.session import SessionPersistenceManager
@@ -16,15 +16,15 @@ class CloseProjectCommand(Command):
         self.ui_controller: UIController = app_context.get_ui_controller()
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Close the current project if one is loaded."""
         try:
             app_state = self.app_context.get_app_state()
-            
+
             if not app_state.has_project:
                 self.logger.info("No project is currently loaded")
-                return True
-            
+                return CommandResult.SUCCESS
+
             project_name = app_state.current_project.name if app_state.current_project else "Unknown"
             self.logger.info(f"Closing project: {project_name}")
             
@@ -39,24 +39,24 @@ class CloseProjectCommand(Command):
                 self.logger.warning("Failed to clear session state: %s", e)
 
             self.logger.info("Project closed successfully")
-            return True
-            
+            return CommandResult.SUCCESS
+
         except Exception as e:
             self.logger.error(f"Failed to close project: {e}")
             self.ui_controller.show_error_message("Close Project Error", str(e))
-            return False
+            return CommandResult.FAILURE
 
     @override
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Undo is not supported for project closing."""
         self.logger.warning("Cannot undo project close operation")
-        return False
+        return CommandResult.FAILURE
 
     @override
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo is not supported for project closing."""
         self.logger.warning("Cannot redo project close operation")
-        return False
+        return CommandResult.FAILURE
 
     @override
     def occupies_undo_slot(self) -> bool:

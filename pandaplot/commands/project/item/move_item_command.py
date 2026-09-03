@@ -1,6 +1,6 @@
 from typing import Optional, override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state import AppContext, AppState
@@ -28,7 +28,7 @@ class MoveItemCommand(Command):
         self.move_performed = False
 
     @override
-    def execute(self):
+    def execute(self) -> CommandResult:
         """Execute the move item command."""
         # Initialize item_name for error messages
         item_name = self.item_id  # Fallback to ID if name is not available
@@ -45,14 +45,14 @@ class MoveItemCommand(Command):
                     "Move Item",
                     "No project is currently loaded."
                 )
-                return
+                return CommandResult.FAILURE
 
             project = self.app_state.current_project
             if project is None:
                 self.logger.warning(
                     "MoveItemCommand.execute: has_project is True but current_project is None"
                 )
-                return
+                return CommandResult.FAILURE
 
             # Find the item in the hierarchical structure
             if not self.item_id:
@@ -61,7 +61,7 @@ class MoveItemCommand(Command):
                     "Move Item Error",
                     "No item ID specified."
                 )
-                return
+                return CommandResult.FAILURE
 
             item = project.find_item(self.item_id)
             if item is None:
@@ -70,7 +70,7 @@ class MoveItemCommand(Command):
                     "Move Item Error",
                     f"Item '{self.item_id}' not found."
                 )
-                return
+                return CommandResult.FAILURE
 
             # Store item name for better error messages
             item_name = getattr(item, "name", "Unnamed Item")
@@ -88,7 +88,7 @@ class MoveItemCommand(Command):
                         "Move Item Error",
                         f"Cannot move '{item_name}' - target folder '{self.target_folder_id}' does not exist."
                     )
-                    return
+                    return CommandResult.FAILURE
                 else:
                     self.logger.debug(f"Found target folder: {target_folder.name} (type: {type(target_folder).__name__})")
 
@@ -114,13 +114,15 @@ class MoveItemCommand(Command):
 
             self.logger.info(f"Moved {self.item_type} '{item_name}' (ID: {self.item_id}) from '{self.source_folder_id}' to '{self.target_folder_id}'")
 
+            return CommandResult.SUCCESS
+
         except Exception as e:
             error_msg = f"Failed to move item '{item_name}': {str(e)}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Move Item Error", error_msg)
             raise
 
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Undo the move item command."""
         try:
             if self.move_performed and self.app_state.has_project:
@@ -152,6 +154,17 @@ class MoveItemCommand(Command):
                         })
 
                         self.logger.info(f"Undid move of {self.item_type} '{item_name}' (ID: {self.item_id})")
+                        return CommandResult.SUCCESS
+                    else:
+                        self.logger.warning("MoveItemCommand.undo: item '%s' not found", self.item_id)
+                        return CommandResult.FAILURE
+                else:
+                    self.logger.warning("MoveItemCommand.undo: no project or item_id available")
+                    return CommandResult.FAILURE
+            else:
+                # The original move never actually happened (execute() failed
+                # or was never called), so there's nothing to undo.
+                return CommandResult.NOOP
 
         except Exception as e:
             # Try to get item name for error message
@@ -166,10 +179,11 @@ class MoveItemCommand(Command):
             error_msg = f"Failed to undo move of '{item_name}': {str(e)}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
+            return CommandResult.FAILURE
 
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo the move item command."""
-        self.execute()
+        return self.execute()
 
     @override
     def cleanup(self) -> None:

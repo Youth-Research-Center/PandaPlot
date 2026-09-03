@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.add_rows_columns_command import (
     AddRowsColumnsCommand,
 )
@@ -56,7 +57,7 @@ class TestAddRowsColumnsCommand:
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=4, target_columns=3)
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         assert dataset.data.shape == (4, 3)
         assert list(dataset.data.columns) == ["a", "Column2", "Column3"]
 
@@ -68,7 +69,7 @@ class TestAddRowsColumnsCommand:
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=2, target_columns=5)
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         added_row = dataset.data.iloc[1]
         assert added_row["i"] == 0
         assert added_row["f"] == 0.0
@@ -85,7 +86,7 @@ class TestAddRowsColumnsCommand:
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=5, target_columns=1)
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         assert dataset.data.shape == (5, 1)
         emitted = _emitted(app_state)
         assert DatasetOperationEvents.DATASET_ROW_ADDED in emitted
@@ -99,7 +100,7 @@ class TestAddRowsColumnsCommand:
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=2, target_columns=3)
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         emitted = _emitted(app_state)
         assert DatasetOperationEvents.DATASET_ROW_ADDED not in emitted
         assert emitted[DatasetOperationEvents.DATASET_COLUMN_ADDED]["column_positions"] == [1, 2]
@@ -111,7 +112,7 @@ class TestAddRowsColumnsCommand:
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=1, target_columns=1)
 
-        assert command.execute() is False
+        assert command.execute() is CommandResult.NOOP
         assert dataset.data.shape == (3, 2)
         ui_controller.show_info_message.assert_called_once()
 
@@ -122,7 +123,7 @@ class TestAddRowsColumnsCommand:
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=1, target_columns=4)
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         assert len(set(dataset.data.columns)) == 4
         assert list(dataset.data.columns)[:2] == ["Column2", "Column3"]
 
@@ -133,7 +134,7 @@ class TestAddRowsColumnsCommand:
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=3, target_columns=2)
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         assert dataset.data.shape == (3, 2)
 
     def test_undo_restores_the_original_data(self, mock_app_context, project_with):
@@ -143,8 +144,8 @@ class TestAddRowsColumnsCommand:
         project_with(dataset)
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=4, target_columns=2)
-        assert command.execute() is True
-        assert command.undo() is True
+        assert command.execute() is CommandResult.SUCCESS
+        assert command.undo() is CommandResult.SUCCESS
 
         pd.testing.assert_frame_equal(dataset.data, original)
         emitted = _emitted(app_state)
@@ -157,7 +158,7 @@ class TestAddRowsColumnsCommand:
         project_with(dataset)
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=1, target_columns=1)
-        assert command.execute() is False
+        assert command.execute() is CommandResult.NOOP
         command.undo()
 
         assert dataset.data.shape == (2, 1)
@@ -168,9 +169,9 @@ class TestAddRowsColumnsCommand:
         project_with(dataset)
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=4, target_columns=2)
-        assert command.execute() is True
-        assert command.undo() is True
-        assert command.redo() is True
+        assert command.execute() is CommandResult.SUCCESS
+        assert command.undo() is CommandResult.SUCCESS
+        assert command.redo() is CommandResult.SUCCESS
 
         assert dataset.data.shape == (4, 2)
 
@@ -180,7 +181,7 @@ class TestAddRowsColumnsCommand:
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=4, target_columns=2)
 
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
         ui_controller.show_warning_message.assert_called_once()
 
     def test_requires_an_open_project_logs_a_warning(self, mock_app_context, caplog):
@@ -190,7 +191,7 @@ class TestAddRowsColumnsCommand:
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=4, target_columns=2)
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "no project" in caplog.text.lower()
 
     def test_current_project_none_logs_a_warning(self, mock_app_context, caplog):
@@ -201,7 +202,7 @@ class TestAddRowsColumnsCommand:
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=4, target_columns=2)
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "current_project is none" in caplog.text.lower()
 
     def test_reports_a_missing_dataset(self, mock_app_context, project_with):
@@ -211,7 +212,7 @@ class TestAddRowsColumnsCommand:
 
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=4, target_columns=2)
 
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
 
     def test_reports_a_missing_dataset_logs_a_warning(self, mock_app_context, project_with, caplog):
@@ -222,7 +223,7 @@ class TestAddRowsColumnsCommand:
         command = AddRowsColumnsCommand(app_context, "missing-ds", target_rows=4, target_columns=2)
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "missing-ds" in caplog.text
 
     def test_no_dataset_selected_logs_a_warning(self, mock_app_context, project_with, caplog):
@@ -232,7 +233,7 @@ class TestAddRowsColumnsCommand:
         command = AddRowsColumnsCommand(app_context, dataset_id=None, target_rows=4, target_columns=2)
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "no dataset selected" in caplog.text.lower()
 
     def test_item_not_a_dataset_logs_a_warning(self, mock_app_context, project_with, caplog):
@@ -242,8 +243,17 @@ class TestAddRowsColumnsCommand:
         command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=4, target_columns=2)
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "ds-1" in caplog.text
+
+    def test_undo_logs_warning_when_nothing_to_undo(self, mock_app_context, caplog):
+        app_context, _, _ = mock_app_context
+        command = AddRowsColumnsCommand(app_context, "ds-1", target_rows=4, target_columns=2)
+
+        with caplog.at_level(logging.WARNING):
+            result = command.undo()
+        assert "ds-1" in caplog.text
+        assert result is CommandResult.FAILURE
 
 
 class TestAddRowsColumnsCommandPrompt:
@@ -265,7 +275,7 @@ class TestAddRowsColumnsCommandPrompt:
 
         command = AddRowsColumnsCommand(app_context)
 
-        assert command.execute() is True
+        assert command.execute() is CommandResult.SUCCESS
         assert dataset.data.shape == (5, 2)
         # The dialog is offered the datasets in the project, with their sizes.
         options = dialog_cls.call_args.args[0]
@@ -285,7 +295,7 @@ class TestAddRowsColumnsCommandPrompt:
 
         command = AddRowsColumnsCommand(app_context)
 
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
         assert dataset.data.shape == (2, 1)
 
     def test_warns_when_the_project_has_no_datasets(self, mock_app_context):
@@ -296,7 +306,7 @@ class TestAddRowsColumnsCommandPrompt:
 
         command = AddRowsColumnsCommand(app_context)
 
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
         ui_controller.show_warning_message.assert_called_once()
 
     def test_warns_when_the_project_has_no_datasets_logs_a_warning(self, mock_app_context, caplog):
@@ -308,7 +318,7 @@ class TestAddRowsColumnsCommandPrompt:
         command = AddRowsColumnsCommand(app_context)
 
         with caplog.at_level(logging.WARNING):
-            assert command.execute() is False
+            assert command.execute() is CommandResult.FAILURE
         assert "no datasets" in caplog.text.lower()
 
 

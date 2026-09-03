@@ -1,34 +1,23 @@
-"""Tests for TabContainer.create_chart_from_dataset routing through the wizard."""
-from unittest.mock import Mock, patch
+"""Tests for TabContainer.create_chart_from_dataset delegating to TabContainerCommandManager.
+
+The command-construction logic itself moved to TabContainerCommandManager (see
+tests/gui/components/tabs/test_tab_container_command_manager.py) as part of
+issue #251's "TabContainer also carries command-dispatch logic" cleanup. This
+thin pass-through stays on TabContainer only because DatasetTab.create_chart_from_data
+looks up `create_chart_from_dataset` by walking its Qt parent-widget chain.
+"""
+from unittest.mock import create_autospec
 
 from pandaplot.gui.components.tabs.tab_container import TabContainer
+from pandaplot.gui.components.tabs.tab_container_command_manager import TabContainerCommandManager
 
 
-@patch("pandaplot.gui.components.tabs.tab_container.CreateChartFromWizardCommand")
-def test_create_chart_from_dataset_builds_the_wizard_command(mock_command_cls):
-    dataset_item = Mock()
-    dataset_item.parent_id = "folder-1"
-
-    project = Mock()
-    project.find_item.return_value = dataset_item
-
-    app_state = Mock()
-    app_state.has_project = True
-    app_state.current_project = project
-
-    app_context = Mock()
-    app_context.get_app_state.return_value = app_state
-
+def test_create_chart_from_dataset_delegates_to_the_command_manager():
     container = TabContainer.__new__(TabContainer)
-    container.app_context = app_context
-    container.logger = Mock()
-    # open_tab isn't under test here and requires state __new__ doesn't set up
-    # (e.g. self.tabs); stub it so the wizard-command assertion below isn't
-    # obscured by an unrelated AttributeError.
-    container.open_tab = Mock()
+    container.command_manager = create_autospec(TabContainerCommandManager)
 
     container.create_chart_from_dataset("ds-1", preselected_column_ids=["col-rev"])
 
-    mock_command_cls.assert_called_once_with(
-        app_context, dataset_id="ds-1", preselected_column_ids=["col-rev"]
+    container.command_manager.create_chart_from_dataset.assert_called_once_with(
+        "ds-1", ["col-rev"]
     )

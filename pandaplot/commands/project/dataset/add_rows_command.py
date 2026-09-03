@@ -12,7 +12,7 @@ from typing import Any, List, Literal, override
 
 import pandas as pd
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetRowsAddedData, DatasetRowsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
@@ -62,7 +62,7 @@ class AddRowsCommand(Command):
         self.final_insertion_positions = []  # Store actual positions where rows were inserted
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the add multiple rows command."""
         try:
             self.logger.info(f"Executing AddRowsCommand: adding {len(self.reference_positions)} rows {self.side.value}")
@@ -76,7 +76,7 @@ class AddRowsCommand(Command):
                     "Add Rows",
                     "No reference positions provided."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Check if we have a project loaded
             if not self.app_state.has_project:
@@ -87,14 +87,14 @@ class AddRowsCommand(Command):
                     "Add Rows",
                     "Please open or create a project first."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.project = self.app_state.current_project
             if not self.project:
                 self.logger.warning(
                     "AddRowsCommand.execute: has_project is True but current_project is None"
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Find the dataset
             found_item = self.project.find_item(self.dataset_id)
@@ -106,7 +106,7 @@ class AddRowsCommand(Command):
                     "Add Rows",
                     f"Dataset with ID '{self.dataset_id}' not found."
                 )
-                return False
+                return CommandResult.FAILURE
 
             if not isinstance(found_item, Dataset):
                 self.logger.warning(
@@ -117,7 +117,7 @@ class AddRowsCommand(Command):
                     "Add Rows",
                     "Selected item is not a dataset."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.dataset = found_item
 
@@ -131,7 +131,7 @@ class AddRowsCommand(Command):
                     "Add Rows",
                     "Cannot add rows to dataset without structure."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Store original data for undo
             self.original_data = self.dataset.data.copy()
@@ -148,7 +148,7 @@ class AddRowsCommand(Command):
                         "Add Rows",
                         f"Reference position {pos} is out of bounds (0-{num_rows-1})."
                     )
-                    return False
+                    return CommandResult.FAILURE
             
             # Insert rows using the new logic
             new_data = self._insert_rows_with_new_logic(self.dataset.data)
@@ -163,13 +163,13 @@ class AddRowsCommand(Command):
             ).to_dict())
 
             self.logger.info(f"Added {len(self.reference_positions)} rows to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
-            return True
+            return CommandResult.SUCCESS
             
         except Exception as e:
             error_msg = f"Failed to add rows: {str(e)}"
             self.logger.error(f"AddRowsCommand Error: {error_msg}")
             self.ui_controller.show_error_message("Add Rows Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     def _insert_rows_with_new_logic(self, data: pd.DataFrame) -> pd.DataFrame:
         """
@@ -294,13 +294,13 @@ class AddRowsCommand(Command):
         else:
             return ""
 
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Undo the add rows command."""
         try:
             if self.dataset and self.original_data is not None:
                 # Restore original data
                 self.dataset.set_data(self.original_data)
-                
+
                 # Emit event
                 self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_ROW_REMOVED, DatasetRowsRemovedData(
                     dataset_id=self.dataset_id,
@@ -308,10 +308,15 @@ class AddRowsCommand(Command):
                 ).to_dict())
 
                 self.logger.info(f"Undid adding {len(self.reference_positions)} rows to dataset '{self.dataset.name}'")
-                return True
+                return CommandResult.SUCCESS
+            self.logger.warning(
+                "AddRowsCommand.undo: cannot undo for dataset '%s' (dataset found=%s, original_data set=%s)",
+                self.dataset_id, self.dataset is not None, self.original_data is not None,
+            )
+            return CommandResult.FAILURE
         except Exception as e:
             self.logger.error(f"AddRowsCommand Undo Error: {e}")
-            return False
+            return CommandResult.FAILURE
 
     def redo(self):
         """Redo the add rows command."""

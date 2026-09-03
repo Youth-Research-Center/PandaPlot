@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, override
 
 import pandas as pd
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -54,7 +54,7 @@ class TransformColumnCommand(Command):
         self.replace_existing = transform_config.get("replace_existing", False)
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the transformation and add new column to dataset."""
         try:
             self.logger.info("Executing TransformColumnCommand")
@@ -63,23 +63,23 @@ class TransformColumnCommand(Command):
             if not self.dataset:
                 self.error_message = f"Dataset {self.dataset_id} not found"
                 self.logger.warning(self.error_message)
-                return False
+                return CommandResult.FAILURE
 
             # Ensure we have a Dataset object
             if not isinstance(self.dataset, Dataset):
                 self.error_message = f"Retrieved item is not a Dataset: {type(self.dataset)}"
                 self.logger.warning(self.error_message)
-                return False
+                return CommandResult.FAILURE
 
             # Validate inputs
             if not self._validate_inputs():
-                return False
+                return CommandResult.FAILURE
 
             # Get current dataframe
             if not hasattr(self.dataset, "data") or self.dataset.data is None:
                 self.error_message = "Dataset has no data"
                 self.logger.warning(self.error_message)
-                return False
+                return CommandResult.FAILURE
 
             df = self.dataset.data.copy()  # Work with a copy
 
@@ -89,7 +89,7 @@ class TransformColumnCommand(Command):
             # Execute transformation
             result_series = self._execute_transform_logic(df)
             if result_series is None:
-                return False
+                return CommandResult.FAILURE
 
             # Apply result to dataframe
             df[self.new_column_name] = result_series
@@ -106,15 +106,15 @@ class TransformColumnCommand(Command):
 
             self.logger.info(
                 f"Transform applied: '{self.new_column_name}' created from {self.source_columns}")
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             self.error_message = str(e)
             self.logger.error(f"Transform execution failed: {e}")
-            return False
+            return CommandResult.FAILURE
 
     @override
-    def undo(self) -> bool:
+    def undo(self) -> CommandResult:
         """Remove the added column from dataset or restore original data."""
         try:
             if not self.dataset or not isinstance(self.dataset, Dataset):
@@ -122,14 +122,14 @@ class TransformColumnCommand(Command):
                     "TransformColumnCommand.undo: cannot undo for dataset '%s' (dataset found=%s)",
                     self.dataset_id, self.dataset is not None,
                 )
-                return False
+                return CommandResult.FAILURE
 
             if not hasattr(self.dataset, "data") or self.dataset.data is None:
                 self.logger.warning(
                     "TransformColumnCommand.undo: dataset '%s' has no data to restore",
                     self.dataset_id,
                 )
-                return False
+                return CommandResult.FAILURE
 
             df = self.dataset.data.copy()
 
@@ -173,14 +173,14 @@ class TransformColumnCommand(Command):
                     )
 
             self.logger.info(f"Transform undone: '{self.new_column_name}' reverted")
-            return True
+            return CommandResult.SUCCESS
 
         except Exception as e:
             self.logger.error(f"Transform undo failed: {e}")
-            return False
+            return CommandResult.FAILURE
 
     @override
-    def redo(self) -> bool:
+    def redo(self) -> CommandResult:
         """Re-execute the transformation."""
         return self.execute()
 
@@ -297,7 +297,15 @@ class TransformColumnCommand(Command):
             "value": source_data,
             "x": source_data,  # Alternative name
             "column": source_data,
-            "data": source_data
+            "data": source_data,
+            # Look up the column by its own real name (#203), e.g.
+            # cols["t"] for a column named "t" -- a dict subscript rather
+            # than binding "t" as a bare local variable, so it works for
+            # ANY column name (spaces, leading digits, ...) and can never
+            # shadow a Python keyword or one of safe_globals' bare names
+            # (sqrt/log/mean/std/... -- see _create_safe_execution_environment)
+            # the way a same-named bound identifier would.
+            "cols": {source_column: source_data},
         }
 
         # Execute expression

@@ -7,7 +7,7 @@ from typing import Any, List, Literal, Optional, override
 
 import pandas as pd
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
@@ -62,7 +62,7 @@ class AddColumnsCommand(Command):
         self.final_insertion_positions = []  # Store actual positions where columns were inserted
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the add multiple columns command."""
         try:
             self.logger.info(f"Executing AddColumnsCommand: adding {len(self.column_names)} columns {self.side.value}")
@@ -74,7 +74,7 @@ class AddColumnsCommand(Command):
                     "Add Columns",
                     "No column names provided."
                 )
-                return False
+                return CommandResult.FAILURE
 
             if len(self.column_names) != len(self.reference_positions):
                 self.logger.warning(
@@ -85,7 +85,7 @@ class AddColumnsCommand(Command):
                     "Add Columns",
                     "Number of column names must match number of reference positions."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Check if we have a project loaded
             if not self.app_state.has_project:
@@ -94,12 +94,12 @@ class AddColumnsCommand(Command):
                     "Add Columns",
                     "Please open or create a project first."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.project = self.app_state.current_project
             if not self.project:
                 self.logger.warning("AddColumnsCommand.execute: has_project is True but current_project is None")
-                return False
+                return CommandResult.FAILURE
 
             # Find the dataset
             found_item = self.project.find_item(self.dataset_id)
@@ -111,7 +111,7 @@ class AddColumnsCommand(Command):
                     "Add Columns",
                     f"Dataset with ID '{self.dataset_id}' not found."
                 )
-                return False
+                return CommandResult.FAILURE
 
             if not isinstance(found_item, Dataset):
                 self.logger.warning(
@@ -122,7 +122,7 @@ class AddColumnsCommand(Command):
                     "Add Columns",
                     "Selected item is not a dataset."
                 )
-                return False
+                return CommandResult.FAILURE
 
             self.dataset = found_item
 
@@ -135,7 +135,7 @@ class AddColumnsCommand(Command):
                     "Add Columns",
                     "Cannot add columns to empty dataset."
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Store original data for undo
             self.original_data = self.dataset.data.copy()
@@ -152,7 +152,7 @@ class AddColumnsCommand(Command):
                         "Add Columns",
                         f"Reference position {pos} for column '{self.column_names[i]}' is out of bounds (0-{num_cols-1})."
                     )
-                    return False
+                    return CommandResult.FAILURE
 
             # Check for duplicate column names
             existing_columns = set(self.dataset.data.columns)
@@ -166,7 +166,7 @@ class AddColumnsCommand(Command):
                     "Add Columns",
                     f"The following columns already exist: {', '.join(duplicate_columns)}"
                 )
-                return False
+                return CommandResult.FAILURE
 
             # Check for duplicate names within the new columns
             if len(set(self.column_names)) != len(self.column_names):
@@ -177,7 +177,7 @@ class AddColumnsCommand(Command):
                     "Add Columns",
                     "Duplicate column names found in the list of new columns."
                 )
-                return False
+                return CommandResult.FAILURE
             
             # Insert columns using the new logic
             new_data = self._insert_columns_with_new_logic(self.dataset.data)
@@ -192,13 +192,13 @@ class AddColumnsCommand(Command):
             ).to_dict())
 
             self.logger.info(f"Added {len(self.column_names)} columns to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
-            return True
+            return CommandResult.SUCCESS
             
         except Exception as e:
             error_msg = f"Failed to add columns: {str(e)}"
             self.logger.error(f"AddColumnsCommand Error: {error_msg}")
             self.ui_controller.show_error_message("Add Columns Error", error_msg)
-            return False
+            return CommandResult.FAILURE
 
     def _insert_columns_with_new_logic(self, data: pd.DataFrame) -> pd.DataFrame:
         """
@@ -334,13 +334,13 @@ class AddColumnsCommand(Command):
         
         return result
 
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Undo the add columns command."""
         try:
             if self.dataset and self.original_data is not None:
                 # Restore original data
                 self.dataset.set_data(self.original_data)
-                
+
                 # Emit event
                 self.app_state.event_bus.emit(DatasetOperationEvents.DATASET_COLUMN_REMOVED, DatasetColumnsRemovedData(
                     dataset_id=self.dataset_id,
@@ -348,15 +348,16 @@ class AddColumnsCommand(Command):
                 ).to_dict())
 
                 self.logger.info(f"Undid adding {len(self.column_names)} columns to dataset '{self.dataset.name}'")
-                return True
+                return CommandResult.SUCCESS
 
             self.logger.warning(
                 "AddColumnsCommand.undo: cannot undo for dataset '%s' (dataset found=%s, original_data set=%s)",
                 self.dataset_id, self.dataset is not None, self.original_data is not None,
             )
+            return CommandResult.FAILURE
         except Exception as e:
             self.logger.error(f"AddColumnsCommand Undo Error: {e}")
-            return False
+            return CommandResult.FAILURE
 
     def redo(self):
         """Redo the add columns command."""

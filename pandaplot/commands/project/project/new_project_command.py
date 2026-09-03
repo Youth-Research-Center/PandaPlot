@@ -1,6 +1,6 @@
 from typing import override
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
 from pandaplot.models.state import AppContext, AppState
@@ -24,7 +24,7 @@ class NewProjectCommand(Command):
         self.previous_file_path = None
 
     @override
-    def execute(self) -> bool:
+    def execute(self) -> CommandResult:
         """Execute the new project command."""
         try:
             # Check if there's a current project - for now we'll just create new project
@@ -35,7 +35,7 @@ class NewProjectCommand(Command):
                     "This will replace the current project.\nDo you want to continue?"
                 )
                 if not response:
-                    return False  # User cancelled
+                    return CommandResult.FAILURE  # User cancelled
 
             # Store current state for undo
             if self.app_state.has_project:
@@ -60,7 +60,7 @@ class NewProjectCommand(Command):
             self.logger.info(
                 "Created new project '%s'", new_project.name
             )
-            return True
+            return CommandResult.SUCCESS
         except Exception as e:
             error_msg = f"Failed to create new project: {e}"
             self.logger.error("NewProjectCommand Error: %s", error_msg, exc_info=True)
@@ -68,7 +68,7 @@ class NewProjectCommand(Command):
                 "New Project Error", error_msg)
             raise
 
-    def undo(self):
+    def undo(self) -> CommandResult:
         """Undo the new project command by restoring the previous project."""
         try:
             if self.previous_project:
@@ -83,15 +83,17 @@ class NewProjectCommand(Command):
                 self.logger.info(
                     "Closed project (no previous project to restore)"
                 )
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to undo new project: {e}"
             self.logger.error("NewProjectCommand Undo Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Undo Error", error_msg)
+            return CommandResult.FAILURE
 
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo the new project command."""
-        self.execute()
+        return self.execute()
 
     @override
     def cleanup(self) -> None:

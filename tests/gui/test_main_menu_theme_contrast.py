@@ -40,9 +40,14 @@ def qapp():
     yield app
 
 
-def _menu_with_palette(palette):
+LIGHT_TOKENS = {"text_disabled": "#AEB2BC"}
+DARK_TOKENS = {"text_disabled": "#5B6270"}
+
+
+def _menu_with_palette(palette, tokens=None):
     theme_manager = Mock()
     theme_manager.get_surface_palette.return_value = palette
+    theme_manager.get_design_tokens.return_value = tokens or {}
 
     project = Mock()
     project.get_all_items.return_value = []
@@ -102,3 +107,25 @@ def test_pressed_menu_items_are_readable(palette, selector):
     assert rule["color"] == palette["base_fg"]
     assert rule["background-color"] == palette["card_pressed"]
     assert _contrast_ratio(rule["color"], rule["background-color"]) >= 4.5
+
+
+@pytest.mark.parametrize(
+    "palette,tokens", [(LIGHT_PALETTE, LIGHT_TOKENS), (DARK_PALETTE, DARK_TOKENS)],
+    ids=["light", "dark"],
+)
+def test_disabled_menu_items_are_visibly_muted_without_hovering(palette, tokens):
+    """Issue #255: a disabled Undo/Redo action must look different from an
+    enabled one at rest, not only once hovered/selected."""
+    menu, _parent = _menu_with_palette(palette, tokens)
+
+    disabled_rule = _rule(menu.styleSheet(), "QMenu::item:disabled")
+    enabled_rule = _rule(menu.styleSheet(), "QMenu::item")
+
+    assert disabled_rule["color"] == tokens["text_disabled"]
+    assert disabled_rule["color"] != enabled_rule.get("color", palette["base_fg"])
+    assert disabled_rule["color"] != palette["base_fg"]
+
+    # Hovering a disabled item must not light it up as if it were enabled.
+    disabled_selected_rule = _rule(menu.styleSheet(), "QMenu::item:disabled:selected")
+    assert disabled_selected_rule["color"] == tokens["text_disabled"]
+    assert disabled_selected_rule["background-color"] == "transparent"

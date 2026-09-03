@@ -11,6 +11,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.dataset import Dataset
@@ -50,7 +51,7 @@ def test_execute_logs_a_warning_when_no_reference_positions(mock_app_context, ca
     command = AddRowsCommand(app_context, "ds-1", reference_positions=[])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "no reference positions" in caplog.text.lower()
 
 
@@ -60,7 +61,7 @@ def test_execute_logs_a_warning_when_no_project_open(mock_app_context, caplog):
     command = AddRowsCommand(app_context, "ds-1", reference_positions=[0])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "no project" in caplog.text.lower()
 
 
@@ -71,7 +72,7 @@ def test_execute_logs_a_warning_when_dataset_not_found(mock_app_context, project
     command = AddRowsCommand(app_context, "missing-ds", reference_positions=[0])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "missing-ds" in caplog.text
 
 
@@ -82,7 +83,7 @@ def test_execute_logs_a_warning_when_item_is_not_a_dataset(mock_app_context, pro
     command = AddRowsCommand(app_context, "ds-1", reference_positions=[0])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "ds-1" in caplog.text
 
 
@@ -95,7 +96,7 @@ def test_execute_logs_a_warning_when_dataset_has_no_structure(mock_app_context, 
     command = AddRowsCommand(app_context, "ds-1", reference_positions=[0])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "ds-1" in caplog.text
 
 
@@ -107,8 +108,18 @@ def test_execute_logs_a_warning_when_reference_position_out_of_bounds(mock_app_c
     command = AddRowsCommand(app_context, "ds-1", reference_positions=[5])
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "5" in caplog.text
+
+
+def test_undo_logs_warning_when_nothing_to_undo(mock_app_context, caplog):
+    app_context, _, _ = mock_app_context
+    command = AddRowsCommand(app_context, "ds-1", reference_positions=[0])
+
+    with caplog.at_level(logging.WARNING):
+        result = command.undo()
+    assert "ds-1" in caplog.text
+    assert result is CommandResult.FAILURE
 
 
 def test_cleanup_releases_the_original_data_snapshot():

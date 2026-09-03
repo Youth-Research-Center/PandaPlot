@@ -3,16 +3,13 @@ Dataset model for managing data table items in the project.
 """
 
 import uuid
-from collections import Counter, OrderedDict
+from collections import OrderedDict
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
 from pandaplot.models.project.items.item import Item
-
-if TYPE_CHECKING:
-    from pandaplot.models.project.project import Project
 
 
 class Dataset(Item):
@@ -128,26 +125,3 @@ class Dataset(Item):
             dataset.column_ids = OrderedDict(saved_ids)
 
         return dataset
-
-
-def dataset_display_options(project: "Project") -> List[Tuple[str, str]]:
-    """(id, display_name) for every dataset in `project`, in `get_all_items()`
-    order.
-
-    Plain names disambiguate datasets almost everywhere, but two datasets in
-    different folders can share a name -- name-only selectors (dataset
-    combo boxes) then can't tell them apart. When a name collides, the
-    display name is suffixed with the dataset's folder path so it still
-    reads as unique; unambiguous names are left untouched.
-    """
-    datasets = [item for item in project.get_all_items() if isinstance(item, Dataset)]
-    name_counts = Counter(dataset.name for dataset in datasets)
-    options: List[Tuple[str, str]] = []
-    for dataset in datasets:
-        if name_counts[dataset.name] <= 1:
-            options.append((dataset.id, dataset.name))
-            continue
-        folder_path = project.get_folder_path(dataset.id)
-        location = " / ".join(folder_path) if folder_path else "project root"
-        options.append((dataset.id, f"{dataset.name}  ({location})"))
-    return options

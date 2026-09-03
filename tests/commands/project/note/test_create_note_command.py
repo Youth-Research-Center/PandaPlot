@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.note import CreateNoteCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
@@ -66,18 +67,39 @@ class TestCreateNoteCommand:
         assert command.folder_id == "folder-123"
 
     def test_execute_no_project_loaded(self, mock_app_context):
-        """Test execute when no project is loaded."""
+        """Test execute when no project is loaded: offers to create one and
+        bails out cleanly when the user declines."""
         app_context, app_state, ui_controller = mock_app_context
         app_state.has_project = False
-        
+        ui_controller.show_action_or_cancel.return_value = False
+
         command = CreateNoteCommand(app_context, "Test Note")
         result = command.execute()
-        
-        assert result is False
-        ui_controller.show_warning_message.assert_called_once_with(
-            "New Note", 
-            "Please open or create a project first."
-        )
+
+        assert result is CommandResult.FAILURE
+        ui_controller.show_action_or_cancel.assert_called_once()
+
+    def test_execute_continues_after_the_user_creates_a_project(self, mock_app_context):
+        """Matches Create Chart/Import Data: accepting the "create a project"
+        offer must let note creation proceed instead of still bailing out."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = False
+        ui_controller.show_action_or_cancel.return_value = True
+
+        project = Project("Test Project")
+
+        def _execute_command(_command):
+            app_state.has_project = True
+            app_state.current_project = project
+
+        app_context.get_command_executor.return_value.execute_command.side_effect = _execute_command
+
+        command = CreateNoteCommand(app_context, "Test Note")
+        result = command.execute()
+
+        assert result is CommandResult.SUCCESS
+        assert command.created_note_id is not None
+        assert project.find_item(command.created_note_id) is command.created_note
 
     def test_execute_no_current_project(self, mock_app_context):
         """Test execute when current project is None."""
@@ -88,7 +110,7 @@ class TestCreateNoteCommand:
         command = CreateNoteCommand(app_context, "Test Note")
         result = command.execute()
         
-        assert result is False
+        assert result is CommandResult.FAILURE
 
     def test_execute_logs_warning_when_no_project_loaded(self, mock_app_context, caplog):
         """Test execute logs a warning when no project is loaded."""
@@ -99,7 +121,7 @@ class TestCreateNoteCommand:
         with caplog.at_level(logging.WARNING):
             result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "Test Note" in caplog.text
 
     def test_execute_logs_warning_when_current_project_none(self, mock_app_context, caplog):
@@ -112,7 +134,7 @@ class TestCreateNoteCommand:
         with caplog.at_level(logging.WARNING):
             result = command.execute()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "CreateNoteCommand.execute" in caplog.text
 
     def test_redo_logs_warning_when_current_project_none(self, mock_app_context, caplog):
@@ -128,7 +150,7 @@ class TestCreateNoteCommand:
         with caplog.at_level(logging.WARNING):
             result = command.redo()
 
-        assert result is False
+        assert result is CommandResult.FAILURE
         assert "test-id" in caplog.text
 
     def test_execute_with_default_name(self, mock_app_context, sample_project):
@@ -145,7 +167,7 @@ class TestCreateNoteCommand:
             
             result = command.execute()
         
-        assert result is True
+        assert result is CommandResult.SUCCESS
         assert command.created_note_id == "test-uuid"
         assert command.created_note is not None
         assert command.created_note.name == "New Note"
@@ -173,7 +195,7 @@ class TestCreateNoteCommand:
             
             result = command.execute()
         
-        assert result is True
+        assert result is CommandResult.SUCCESS
         assert command.created_note is not None
         assert command.created_note.name == "Custom Note"
         assert command.created_note.content == "Custom content"
@@ -193,7 +215,7 @@ class TestCreateNoteCommand:
             
             result = command.execute()
         
-        assert result is True
+        assert result is CommandResult.SUCCESS
         sample_project.add_item.assert_called_once_with(command.created_note, parent_id="parent-folder")
         
         # Check event data
@@ -213,7 +235,7 @@ class TestCreateNoteCommand:
         command = CreateNoteCommand(app_context, "Test Note")
         result = command.execute()
         
-        assert result is False
+        assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
         assert "Failed to create note: Test error" in ui_controller.show_error_message.call_args[0][1]
 
@@ -311,7 +333,7 @@ class TestCreateNoteCommand:
         
         result = command.redo()
         
-        assert result is True
+        assert result is CommandResult.SUCCESS
         sample_project.add_item.assert_called_once_with(mock_note, parent_id="parent-folder")
         app_state.event_bus.emit.assert_called_once_with(ProjectEvents.PROJECT_ITEM_ADDED, {
             "project": sample_project,
@@ -331,7 +353,7 @@ class TestCreateNoteCommand:
         # Don't execute first, just try to redo
         result = command.redo()
         
-        assert result is False  # redo returns False when conditions not met
+        assert result is CommandResult.FAILURE  # redo returns FAILURE when conditions not met
 
     def test_redo_no_project(self, mock_app_context):
         """Test redo when no project is loaded."""
@@ -341,7 +363,7 @@ class TestCreateNoteCommand:
         command.created_note_id = "test-id"
         command.created_note = Mock(spec=Note)
         result = command.redo()
-        assert result is False
+        assert result is CommandResult.FAILURE
 
     def test_redo_with_exception(self, mock_app_context, sample_project):
         """Test redo when an exception occurs."""
@@ -361,7 +383,7 @@ class TestCreateNoteCommand:
         
         result = command.redo()
         
-        assert result is False
+        assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
         assert "Failed to redo create note: Test error" in ui_controller.show_error_message.call_args[0][1]
 

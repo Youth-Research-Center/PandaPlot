@@ -1,6 +1,3 @@
-import datetime
-import os
-from pathlib import Path
 from typing import override
 
 from PySide6.QtCore import Qt, Signal
@@ -18,10 +15,19 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.gui.dialogs.create_or_open_project_dialog import (
+    ACTION_BROWSE_EXAMPLES,
+    ACTION_NEW_PROJECT,
+    ACTION_OPEN_PROJECT,
+    CreateOrOpenProjectDialog,
+)
+from pandaplot.gui.dialogs.create_visualization_dialog import CreateVisualizationDialog
 from pandaplot.gui.dialogs.examples_dialog import ExamplesDialog
+from pandaplot.gui.dialogs.explore_data_dialog import ExploreDataDialog
+from pandaplot.gui.dialogs.getting_started_step_dialog import GettingStartedStepDialog
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.services.config.config_manager import ConfigManager
+from pandaplot.services.session.recent_projects import get_recent_projects
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -36,6 +42,8 @@ class WelcomeTab(PWidget):
     recent_project_selected = Signal(str)  # project file path
     import_data_requested = Signal()  # importing data
     example_project_selected = Signal(str)  # example project file path
+    create_dataset_requested = Signal()  # creating a blank dataset
+    create_chart_requested = Signal()  # creating a chart via the wizard
 
     def __init__(self, app_context:AppContext, parent:QWidget):
         super().__init__(app_context=app_context, parent=parent)
@@ -262,8 +270,35 @@ class WelcomeTab(PWidget):
     def show_examples_dialog(self):
         """Open the examples dialog and emit the chosen project's path, if any."""
         dialog = ExamplesDialog(self.app_context, self)
-        if dialog.exec() and dialog.selected_path:
-            self.example_project_selected.emit(dialog.selected_path)
+        if not dialog.exec() or not dialog.selected_path:
+            return
+        if not self._confirm_replace_current_project(
+            "Open Example Project",
+            "Opening the example project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
+        ):
+            return
+        self.example_project_selected.emit(dialog.selected_path)
+
+    def _confirm_replace_current_project(self, title: str, message: str) -> bool:
+        """Ask before an action would close the currently open project.
+
+        Mirrors MainMenu's show_examples_dialog/_load_recent_project: only
+        ask when there's a currently open project to lose, since with none
+        open there's nothing to override.
+        """
+        if not self.app_context.get_app_state().has_project:
+            return True
+        return self.app_context.get_ui_controller().show_question(title, message)
+
+    def _on_recent_project_clicked(self, project_path: str):
+        """Handle a click on a recent-project item, confirming first if it
+        would close a currently open project."""
+        if not self._confirm_replace_current_project(
+            "Open Recent Project",
+            "Opening this recent project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
+        ):
+            return
+        self.recent_project_selected.emit(project_path)
 
     def create_recent_projects_section(self, layout):
         """Create the recent projects section."""
@@ -304,21 +339,92 @@ class WelcomeTab(PWidget):
         content_layout.setSpacing(8)
         content_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Step items
+        # Step items: (title, description, click handler)
         steps = [
-            ("1. Create or Open a Project", "Start by creating a new project or opening an existing one"),
-            ("2. Import Your Data", "Import CSV, Excel, or other data files into your project"),
-            ("3. Explore Data", "Use the data view to examine and understand your dataset"),
-            ("4. Create Visualizations", "Generate charts and plots from your data"),
-            ("5. Customize and Export", "Customize your plots and export them for presentations")
+            (
+                "1. Create or Open a Project",
+                "Start by creating a new project or opening an existing one",
+                self.show_create_or_open_dialog,
+            ),
+            (
+                "2. Import Your Data",
+                "Import CSV, Excel, or other data files into your project",
+                self.import_data_requested.emit,
+            ),
+            (
+                "3. Explore Data",
+                "Use the data view to examine and understand your dataset",
+                self.show_explore_data_dialog,
+            ),
+            (
+                "4. Create Visualizations",
+                "Generate charts and plots from your data",
+                self.show_create_visualization_dialog,
+            ),
+            (
+                "5. Customize and Export",
+                "Customize your plots and export them for presentations",
+                lambda: self.show_step_info(
+                    "🎨",
+                    "Customize and Export",
+                    "Polish a chart once it's created, then share it.",
+                    [
+                        "Use the chart's style panel to adjust colors, axes, "
+                        "labels, and legends.",
+                        "Add a fit or trendline to highlight patterns in the data.",
+                        "Export the chart as an image for reports or presentations.",
+                    ],
+                ),
+            ),
         ]
-        
-        for step_title, step_desc in steps:
-            step_widget = self.create_step_item(step_title, step_desc)
+
+        for step_title, step_desc, on_click in steps:
+            step_widget = self.create_step_item(step_title, step_desc, on_click)
             content_layout.addWidget(step_widget)
-        
+
         layout.addLayout(content_layout)
-    
+
+    def show_create_or_open_dialog(self):
+        """Show a dialog for step 1, offering the ways to get a project open."""
+        dialog = CreateOrOpenProjectDialog(self.app_context, self)
+        if dialog.exec():
+            self.dispatch_create_or_open_action(dialog.selected_action)
+
+    def dispatch_create_or_open_action(self, action: str):
+        """Run the effect of a chosen step-1 dialog option."""
+        if action == ACTION_NEW_PROJECT:
+            self.new_project_requested.emit()
+        elif action == ACTION_OPEN_PROJECT:
+            self.open_project_requested.emit()
+        elif action == ACTION_BROWSE_EXAMPLES:
+            self.show_examples_dialog()
+
+    def show_explore_data_dialog(self):
+        """Show step 3's dialog: jump to an existing dataset, or offer to
+        import/create one when the open project (if any) has none yet."""
+        dialog = ExploreDataDialog(
+            self.app_context,
+            on_import_data=self.import_data_requested.emit,
+            on_create_dataset=self.create_dataset_requested.emit,
+            parent=self,
+        )
+        dialog.exec()
+
+    def show_create_visualization_dialog(self):
+        """Show step 4's dialog: jump to an existing chart, or open the chart
+        wizard to create a new one."""
+        dialog = CreateVisualizationDialog(
+            self.app_context,
+            on_create_chart=self.create_chart_requested.emit,
+            parent=self,
+        )
+        dialog.exec()
+
+    def show_step_info(self, icon: str, title: str, intro: str, tips: list[str]):
+        """Show a richer informational dialog for a getting-started step."""
+        dialog = GettingStartedStepDialog(self.app_context, icon, title, intro, tips, self)
+        dialog.exec()
+
     def create_action_button(self, title, description, callback):
         """Create a styled action button."""
         button = QPushButton()
@@ -364,7 +470,7 @@ class WelcomeTab(PWidget):
         
         return button
     
-    def create_step_item(self, title, description):
+    def create_step_item(self, title, description, on_click):
         """Create a step item for the getting started section."""
         button = QPushButton()
         button.setMinimumHeight(65)
@@ -400,8 +506,7 @@ class WelcomeTab(PWidget):
         button_layout.addWidget(title_label)
         button_layout.addWidget(desc_label)
         # No inline stylesheet; themed globally
-        # Connect to a placeholder action (logging only)
-        button.clicked.connect(lambda: self.logger.info("Getting started step clicked: %s", title))  # TODO(#221): not implemented
+        button.clicked.connect(on_click)
         return button
     
     def create_recent_project_item(self, project_name, project_path, last_opened):
@@ -473,17 +578,16 @@ class WelcomeTab(PWidget):
         button_layout.addWidget(icon_label)
 
         # Connect to the signal
-        button.clicked.connect(lambda: self.recent_project_selected.emit(project_path))
+        button.clicked.connect(lambda: self._on_recent_project_clicked(project_path))
 
         return button
     
     def update_recent_projects(self):
         """Update the recent projects list."""
-        # TODO(#221): this probably shouldn't be here, but somewhere else as we can update it in multiple places
         if not hasattr(self, "recent_projects_layout"):
             return
 
-        recent_projects = self.get_recent_projects()
+        recent_projects = get_recent_projects(self.app_context)
 
         # Dedupe by path while preserving order
         seen = set()
@@ -533,53 +637,7 @@ class WelcomeTab(PWidget):
                 project_info.get("last_opened", "Unknown")
             )
             self.recent_projects_layout.addWidget(project_item)
-    
-    def get_recent_projects(self):
-        """Return a list of recent projects from app configuration.
 
-        Expected config structure (if present):
-            app_context.get_app_state().config.recent_projects -> List[str]
-        Falls back to empty list if unavailable.
-        Each returned entry is dict: { name, path, last_opened }
-        """
-        # TODO(#221): this shouldn't be here as we might need recent projects in multiple places
-        try:
-            if not self.app_context:
-                return []
-            # Prefer ConfigManager (source of truth) instead of AppState (which currently has no config attr)
-            cfg_manager = self.app_context.get_manager(ConfigManager)
-            cfg = cfg_manager.config
-            if not cfg:
-                return []
-            recent_paths = cfg.recent_projects
-            if not recent_paths:
-                return []
-            results = []
-            for p in recent_paths:
-                if not p:
-                    continue
-                try:
-                    path_obj = Path(p)
-                    if not path_obj.exists():
-                        continue
-                    name = path_obj.stem
-                    # Use file modified time as last_opened fallback
-                    ts = os.path.getmtime(p)
-                    last_opened = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
-                    results.append({
-                        "name": name,
-                        "path": str(path_obj),
-                        "last_opened": last_opened
-                    })
-                except Exception:
-                    continue
-            # Sort newest first by last_opened timestamp string descending
-            results.sort(key=lambda x: x["last_opened"], reverse=True)
-            return results
-        except Exception as e:
-            self.logger.warning("Failed to load recent projects: %s", e)
-            return []
-    
     def get_tab_title(self):
         """Get the title for this tab."""
         return "🏠 Welcome"

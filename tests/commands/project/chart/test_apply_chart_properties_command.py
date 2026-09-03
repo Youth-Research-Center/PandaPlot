@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart import ApplyChartPropertiesCommand
 from pandaplot.models.chart.series_style import LineSeriesStyle
 from pandaplot.models.project.items.chart import Chart, snapshot_chart_state
@@ -38,7 +39,7 @@ def test_undo_restores_provided_baseline_snapshot(app_context_with_chart):
 
     command = ApplyChartPropertiesCommand(
         app_context, chart.id, apply_fn=lambda c: None, old_snapshot=baseline)
-    assert command.execute() is True
+    assert command.execute() is CommandResult.SUCCESS
 
     command.undo()
     assert chart.config["x_label"] == ""
@@ -86,7 +87,7 @@ def test_execute_logs_a_warning_when_chart_not_found(caplog):
     command = ApplyChartPropertiesCommand(app_context, "missing", apply_fn=lambda c: None)
 
     with caplog.at_level(logging.WARNING):
-        assert command.execute() is False
+        assert command.execute() is CommandResult.FAILURE
     assert "missing" in caplog.text
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
