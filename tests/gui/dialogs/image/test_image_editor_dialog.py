@@ -84,6 +84,24 @@ class TestImageEditorDialogFormatPreservation:
         assert dialog.get_result_ext() == "png"
         assert len(dialog.get_result_bytes()) > 0
 
+    def test_preserves_a_writable_extension_not_in_the_alias_map(self, qapp, monkeypatch):
+        from PySide6.QtGui import QImageWriter
+
+        # tiff isn't jpg/jpeg, so it's not in _EXT_ALIASES -- it should still
+        # be preserved (derived as "TIFF" from the extension itself) as long
+        # as the local Qt build can actually write it, rather than being
+        # forced to png just for being absent from a fixed alias list.
+        monkeypatch.setattr(
+            QImageWriter, "supportedImageFormats",
+            staticmethod(lambda: [b"png", b"jpeg", b"bmp", b"tiff"]),
+        )
+        app_context = build_app_context()
+        image = Image(id="fmt-tiff", name="Photo", width=10, height=10, image_ext="tiff")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(10, 10))
+
+        assert dialog.get_result_ext() == "tiff"
+        assert len(dialog.get_result_bytes()) > 0
+
 
 class TestImageEditorDialogCropClamping:
     def test_out_of_bounds_crop_spinbox_values_are_clamped_back(self, qapp):
@@ -96,6 +114,24 @@ class TestImageEditorDialogCropClamping:
 
         assert dialog.spin_crop_w.value() == 10  # clamped to what actually fits: 100 - 90
         assert dialog.spin_crop_x.value() == 90
+
+    def test_resize_spinboxes_raise_their_ceiling_for_an_oversized_image(self, qapp):
+        # An image wider than the spinboxes' fixed 20000px construction-time
+        # maximum must not have that width silently clamped down by
+        # setValue() itself when _sync_control_values() reports it -- that
+        # would show the wrong size and shrink the image on the next Apply
+        # Resize. Kept 1px tall so the QImage allocation stays tiny.
+        from PySide6.QtGui import QImage
+
+        app_context = build_app_context()
+        image = Image(id="oversized-1", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        dialog.working_qimage = QImage(20005, 1, QImage.Format.Format_RGB32)
+        dialog._sync_control_values()
+
+        assert dialog.spin_width.value() == 20005
+        assert dialog.spin_width.maximum() >= 20005
 
     def test_sync_control_values_does_not_trigger_reentrant_crop_clamping(self, qapp):
         from PySide6.QtCore import QRect

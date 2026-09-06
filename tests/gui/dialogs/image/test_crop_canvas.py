@@ -1,12 +1,9 @@
 import pytest
-from PySide6.QtCore import QPoint, QRect
-from PySide6.QtGui import QImage
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect
+from PySide6.QtGui import QImage, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.dialogs.image.crop_canvas import CropCanvas
-
-from PySide6.QtCore import QEvent, QPointF
-from PySide6.QtGui import QMouseEvent
 
 
 def _mouse_event(event_type: QEvent.Type, pos: QPoint) -> QMouseEvent:

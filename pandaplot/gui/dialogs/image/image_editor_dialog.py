@@ -23,10 +23,12 @@ from pandaplot.gui.dialogs.image.crop_canvas import CropCanvas, clamp_rect_to_bo
 from pandaplot.models.project.items import Image
 from pandaplot.models.state.app_context import AppContext
 
-_EXT_TO_QT_FORMAT = {
-    "png": "PNG", "jpg": "JPEG", "jpeg": "JPEG",
-    "bmp": "BMP", "gif": "GIF", "webp": "WEBP",
-}
+# Only extensions whose Qt format name isn't just their own uppercase form
+# (i.e. real aliases) need an entry here -- anything else (bmp, gif, webp,
+# tiff/tif, ...) is derived directly from the extension in
+# _resolve_output_format, so a writable format never gets forced to PNG
+# just because it's missing from a fixed list.
+_EXT_ALIASES = {"jpg": "JPEG", "jpeg": "JPEG"}
 
 
 class ImageEditorDialog(PDialog):
@@ -215,6 +217,12 @@ class ImageEditorDialog(PDialog):
         self.aspect_ratio = w / h if h > 0 else 1.0
 
         self._updating_resize_spinboxes = True
+        # Raise the ceiling to at least the current dimension first -- an
+        # image wider/taller than the spinboxes' fixed 20000px maximum would
+        # otherwise get silently clamped by setValue() itself, showing the
+        # wrong size and shrinking the image on the next Apply Resize.
+        self.spin_width.setRange(1, max(20000, w))
+        self.spin_height.setRange(1, max(20000, h))
         self.spin_width.setValue(w)
         self.spin_height.setValue(h)
         self._updating_resize_spinboxes = False
@@ -420,7 +428,7 @@ class ImageEditorDialog(PDialog):
         if self._resolved_format is not None:
             return self._resolved_format
 
-        qt_format = _EXT_TO_QT_FORMAT.get(self.image_ext)
+        qt_format = _EXT_ALIASES.get(self.image_ext, self.image_ext.upper())
         supported = {bytes(fmt).decode().upper() for fmt in QImageWriter.supportedImageFormats()}
         if qt_format and qt_format in supported:
             self._resolved_format = (qt_format, self.image_ext)
