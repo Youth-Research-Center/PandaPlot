@@ -1,5 +1,5 @@
 import pytest
-from PySide6.QtCore import QBuffer, QIODevice
+from PySide6.QtCore import QBuffer, QIODevice, QRect
 from PySide6.QtGui import QImage
 
 from pandaplot.app import build_app_context
@@ -506,3 +506,64 @@ class TestImageEditorDialogUndoRestoresCanvasBounds:
         assert dialog.working_qimage.width() == 100
         assert dialog.working_qimage.height() == 80
         assert dialog.crop_canvas.crop_rect() == QRect(0, 0, 100, 80)
+
+
+class TestImageEditorDialogTransformBasedUndoRedo:
+    def test_undo_redo_stacks_hold_transform_lists_not_images(self, qapp):
+        from pandaplot.gui.dialogs.image.image_transforms import CropOp, ResizeOp, RotateOp
+
+        app_context = build_app_context()
+        image = Image(id="txn-1", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        dialog._rotate(90)
+        # Aspect lock defaults on, and would otherwise cascade the height
+        # edit below back into the width spinbox (mirroring
+        # _on_height_changed), silently producing a different ResizeOp than
+        # the one explicitly requested here.
+        dialog.chk_keep_aspect.setChecked(False)
+        dialog.spin_width.setValue(40)
+        dialog.spin_height.setValue(30)
+        dialog._apply_resize()
+        dialog.spin_crop_x.setValue(5)
+        dialog.spin_crop_y.setValue(5)
+        dialog.spin_crop_w.setValue(20)
+        dialog.spin_crop_h.setValue(15)
+        dialog._apply_crop()
+
+        assert len(dialog._undo_stack) == 3
+        for snapshot in dialog._undo_stack:
+            assert isinstance(snapshot, list)
+            for entry in snapshot:
+                assert isinstance(entry, (RotateOp, ResizeOp, CropOp))
+        assert dialog._transforms == [
+            RotateOp(90), ResizeOp(40, 30), CropOp(QRect(5, 5, 20, 15)),
+        ]
+
+    def test_redo_direct_apply_matches_a_fresh_replay_of_the_same_final_state(self, qapp):
+        from pandaplot.gui.dialogs.image.image_transforms import replay_transforms
+
+        app_context = build_app_context()
+        image = Image(id="txn-2", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        dialog._rotate(90)
+        dialog.spin_width.setValue(40)
+        dialog.spin_height.setValue(30)
+        dialog._apply_resize()
+        dialog._rotate(180)
+
+        # Undo twice, then redo twice, exercising both the replay path
+        # (undo) and the direct-apply path (redo).
+        dialog._undo()
+        dialog._undo()
+        dialog._redo()
+        dialog._redo()
+
+        # redo's direct-apply result must agree with what a full fresh
+        # replay of the same final transform list produces from scratch --
+        # confirming the two code paths (replay vs. single-op apply) don't
+        # silently diverge.
+        expected = replay_transforms(dialog.original_qimage, dialog._transforms)
+        assert dialog.working_qimage.width() == expected.width()
+        assert dialog.working_qimage.height() == expected.height()

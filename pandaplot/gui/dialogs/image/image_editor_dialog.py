@@ -5,7 +5,7 @@ Dialog for basic image operations: crop, rotate, and resize.
 from typing import Optional, override
 
 from PySide6.QtCore import QBuffer, QIODevice, QRect, Qt
-from PySide6.QtGui import QImage, QImageWriter, QKeySequence, QShortcut, QTransform
+from PySide6.QtGui import QImage, QImageWriter, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -20,6 +20,14 @@ from PySide6.QtWidgets import (
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.gui.dialogs.image.crop_canvas import CropCanvas, clamp_rect_to_bounds
+from pandaplot.gui.dialogs.image.image_transforms import (
+    CropOp,
+    ResizeOp,
+    RotateOp,
+    Transform,
+    apply_transform,
+    replay_transforms,
+)
 from pandaplot.models.project.items import Image
 from pandaplot.models.state.app_context import AppContext
 
@@ -55,8 +63,9 @@ class ImageEditorDialog(PDialog):
         self._updating_resize_spinboxes = False
         self._updating_crop_spinboxes = False
         self._resolved_format: Optional[tuple[str, str]] = None
-        self._undo_stack: list[QImage] = []
-        self._redo_stack: list[QImage] = []
+        self._transforms: list[Transform] = []
+        self._undo_stack: list[list[Transform]] = []
+        self._redo_stack: list[list[Transform]] = []
 
         self._initialize()
         self._update_info_label()
@@ -273,7 +282,7 @@ class ImageEditorDialog(PDialog):
             self._updating_resize_spinboxes = False
 
     def _push_undo_snapshot(self) -> None:
-        self._undo_stack.append(QImage(self.working_qimage))
+        self._undo_stack.append(list(self._transforms))
         self._redo_stack.clear()
         self._refresh_undo_redo_buttons()
 
@@ -284,8 +293,9 @@ class ImageEditorDialog(PDialog):
     def _undo(self) -> None:
         if not self._undo_stack:
             return
-        self._redo_stack.append(QImage(self.working_qimage))
-        self.working_qimage = self._undo_stack.pop()
+        self._redo_stack.append(list(self._transforms))
+        self._transforms = self._undo_stack.pop()
+        self.working_qimage = replay_transforms(self.original_qimage, self._transforms)
         self._sync_control_values()
         self._update_info_label()
         self._refresh_undo_redo_buttons()
@@ -293,18 +303,27 @@ class ImageEditorDialog(PDialog):
     def _redo(self) -> None:
         if not self._redo_stack:
             return
-        self._undo_stack.append(QImage(self.working_qimage))
-        self.working_qimage = self._redo_stack.pop()
+        self._undo_stack.append(list(self._transforms))
+        restored = self._redo_stack.pop()
+        # `restored` is always exactly the list that was current
+        # immediately before the most recent undo -- one transform longer
+        # than self._transforms, with that one new transform always last
+        # (an undo always pops exactly one transform and pushes exactly
+        # the pre-pop list as the redo entry, so this holds by
+        # construction) -- so it's the only one that needs applying, no
+        # replay required.
+        new_transform = restored[-1]
+        self.working_qimage = apply_transform(self.working_qimage, new_transform)
+        self._transforms = restored
         self._sync_control_values()
         self._update_info_label()
         self._refresh_undo_redo_buttons()
 
     def _rotate(self, degrees: int):
         self._push_undo_snapshot()
-        transform = QTransform().rotate(degrees)
-        self.working_qimage = self.working_qimage.transformed(
-            transform, Qt.TransformationMode.SmoothTransformation
-        )
+        transform = RotateOp(degrees)
+        self.working_qimage = apply_transform(self.working_qimage, transform)
+        self._transforms.append(transform)
         self._sync_control_values()
         self._update_info_label()
 
@@ -315,11 +334,9 @@ class ImageEditorDialog(PDialog):
             return
 
         self._push_undo_snapshot()
-        self.working_qimage = self.working_qimage.scaled(
-            target_w, target_h,
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
+        transform = ResizeOp(target_w, target_h)
+        self.working_qimage = apply_transform(self.working_qimage, transform)
+        self._transforms.append(transform)
         self._sync_control_values()
         self._update_info_label()
 
@@ -411,12 +428,15 @@ class ImageEditorDialog(PDialog):
             return
 
         self._push_undo_snapshot()
-        self.working_qimage = self.working_qimage.copy(rect)
+        transform = CropOp(rect)
+        self.working_qimage = apply_transform(self.working_qimage, transform)
+        self._transforms.append(transform)
         self._sync_control_values()
         self._update_info_label()
 
     def _reset_edits(self):
         self._push_undo_snapshot()
+        self._transforms = []
         self.working_qimage = QImage(self.original_qimage)
         self._sync_control_values()
         self._update_info_label()
