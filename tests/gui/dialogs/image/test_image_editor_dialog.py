@@ -540,7 +540,7 @@ class TestImageEditorDialogTransformBasedUndoRedo:
             RotateOp(90), ResizeOp(40, 30), CropOp(QRect(5, 5, 20, 15)),
         ]
 
-    def test_redo_direct_apply_matches_a_fresh_replay_of_the_same_final_state(self, qapp):
+    def test_redo_after_undo_matches_a_fresh_replay_of_the_same_final_state(self, qapp):
         from pandaplot.gui.dialogs.image.image_transforms import replay_transforms
 
         app_context = build_app_context()
@@ -553,17 +553,39 @@ class TestImageEditorDialogTransformBasedUndoRedo:
         dialog._apply_resize()
         dialog._rotate(180)
 
-        # Undo twice, then redo twice, exercising both the replay path
-        # (undo) and the direct-apply path (redo).
+        # Undo twice, then redo twice. Both undo and redo rebuild via
+        # replay_transforms (redo no longer takes a "direct apply the last
+        # transform" shortcut -- that shortcut assumed the popped redo
+        # entry was always exactly one transform longer than the current
+        # list, which doesn't hold once a reset is in the history; see
+        # test_redo_after_undoing_a_reset_does_not_crash).
         dialog._undo()
         dialog._undo()
         dialog._redo()
         dialog._redo()
 
-        # redo's direct-apply result must agree with what a full fresh
-        # replay of the same final transform list produces from scratch --
-        # confirming the two code paths (replay vs. single-op apply) don't
-        # silently diverge.
+        # The undo/redo round-trip must land bit-identical to a fresh
+        # from-scratch replay of the same final transform list.
         expected = replay_transforms(dialog.original_qimage, dialog._transforms)
-        assert dialog.working_qimage.width() == expected.width()
-        assert dialog.working_qimage.height() == expected.height()
+        assert dialog.working_qimage == expected
+
+    def test_redo_after_undoing_a_reset_does_not_crash(self, qapp):
+        """Finding #1: rotate -> reset -> undo -> redo used to raise
+        IndexError. _reset_edits pushes the pre-reset transform list (here,
+        [RotateOp(90)]) onto the undo stack and sets self._transforms = [].
+        Undoing pops that back and pushes [] onto the redo stack. Redoing
+        then used to assume the popped redo entry ([]) was always exactly
+        one transform longer than the current list, with the new transform
+        last -- and reached for restored[-1] on the empty list."""
+        app_context = build_app_context()
+        image = Image(id="txn-reset-1", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        dialog._rotate(90)
+        dialog._reset_edits()
+        dialog._undo()
+        dialog._redo()  # must not raise IndexError
+
+        assert dialog._transforms == []
+        assert dialog.working_qimage.width() == 100
+        assert dialog.working_qimage.height() == 80

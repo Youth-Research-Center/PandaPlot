@@ -230,6 +230,13 @@ class ImageEditorDialog(PDialog):
         # image wider/taller than the spinboxes' fixed 20000px maximum would
         # otherwise get silently clamped by setValue() itself, showing the
         # wrong size and shrinking the image on the next Apply Resize.
+        # This ceiling is intentionally monotonic (it only ever grows, even
+        # after a later resize/crop shrinks the image back down) -- it's a
+        # permissive upper bound, not meant to track the image size exactly.
+        # The spinbox's *value* is always overwritten to the correct current
+        # size right below, so a stale/oversized ceiling is harmless. This is
+        # unlike the crop spinboxes' ranges just below, which the
+        # surrounding code does compute exactly from the current dimensions.
         self.spin_width.setRange(1, max(20000, w))
         self.spin_height.setRange(1, max(20000, h))
         self.spin_width.setValue(w)
@@ -304,17 +311,18 @@ class ImageEditorDialog(PDialog):
         if not self._redo_stack:
             return
         self._undo_stack.append(list(self._transforms))
-        restored = self._redo_stack.pop()
-        # `restored` is always exactly the list that was current
-        # immediately before the most recent undo -- one transform longer
-        # than self._transforms, with that one new transform always last
-        # (an undo always pops exactly one transform and pushes exactly
-        # the pre-pop list as the redo entry, so this holds by
-        # construction) -- so it's the only one that needs applying, no
-        # replay required.
-        new_transform = restored[-1]
-        self.working_qimage = apply_transform(self.working_qimage, new_transform)
-        self._transforms = restored
+        # Rebuilt via a full replay from the original image, exactly like
+        # _undo -- an earlier version applied only the last transform of
+        # `restored` directly to the current working image, assuming
+        # `restored` is always exactly one transform longer than
+        # self._transforms with that one transform last. That assumption
+        # doesn't hold once _reset_edits is in the history: a
+        # rotate -> reset -> undo -> redo sequence pops an empty list as
+        # `restored` (the pre-reset state, which was []), so `restored[-1]`
+        # raised IndexError. Replaying from scratch has no such invariant
+        # to violate.
+        self._transforms = self._redo_stack.pop()
+        self.working_qimage = replay_transforms(self.original_qimage, self._transforms)
         self._sync_control_values()
         self._update_info_label()
         self._refresh_undo_redo_buttons()
@@ -450,7 +458,7 @@ class ImageEditorDialog(PDialog):
 
         qt_format = _EXT_ALIASES.get(self.image_ext, self.image_ext.upper())
         supported = {bytes(fmt).decode().upper() for fmt in QImageWriter.supportedImageFormats()}
-        if qt_format and qt_format in supported:
+        if qt_format in supported:
             self._resolved_format = (qt_format, self.image_ext)
         else:
             self._resolved_format = ("PNG", "png")

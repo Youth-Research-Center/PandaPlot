@@ -34,9 +34,15 @@ class TestCollapseTransforms:
         transforms = [RotateOp(90), RotateOp(90), RotateOp(-90)]
         assert collapse_transforms(transforms) == [RotateOp(90)]
 
-    def test_consecutive_resizes_collapse_to_the_last_one(self):
+    def test_consecutive_resizes_are_not_collapsed(self):
+        # Resize runs are deliberately left uncollapsed -- QImage.scaled()
+        # is lossy, so undo must be able to replay the actual down-then-up
+        # scaling round-trip rather than silently skipping the information
+        # loss it caused (see collapse_transforms's docstring).
         transforms = [ResizeOp(50, 50), ResizeOp(200, 100), ResizeOp(10, 10)]
-        assert collapse_transforms(transforms) == [ResizeOp(10, 10)]
+        assert collapse_transforms(transforms) == [
+            ResizeOp(50, 50), ResizeOp(200, 100), ResizeOp(10, 10),
+        ]
 
     def test_crop_interrupts_a_run_producing_two_segments(self):
         transforms = [
@@ -49,6 +55,14 @@ class TestCollapseTransforms:
             CropOp(QRect(0, 0, 10, 10)),
             RotateOp(-180),
         ]
+
+    def test_crop_interrupts_a_resize_run_leaving_both_segments_uncollapsed(self):
+        transforms = [
+            ResizeOp(50, 50), ResizeOp(10, 10),
+            CropOp(QRect(0, 0, 5, 5)),
+            ResizeOp(20, 20), ResizeOp(15, 15),
+        ]
+        assert collapse_transforms(transforms) == transforms
 
     def test_alternating_types_are_not_merged(self):
         transforms = [RotateOp(90), ResizeOp(50, 50), RotateOp(-90)]
@@ -99,14 +113,18 @@ class TestReplayTransforms:
         replayed = replay_transforms(original, transforms)
 
         # Manually apply the same (uncollapsed) sequence step by step and
-        # confirm the final dimensions agree -- collapsing must never change
-        # the final result, only how many passes it takes to get there.
+        # confirm the result is pixel-identical, not just same-sized --
+        # collapsing must never change the final result at all, only how
+        # many passes it takes to get there. This holds because the only
+        # collapsing that happens here is the rotate run (90+90 -> 180),
+        # which is lossless for exact 90-degree multiples; resizes are
+        # never collapsed, so both paths apply the identical resize/crop
+        # operations in the identical order.
         manual = QImage(original)
         for t in transforms:
             manual = apply_transform(manual, t)
 
-        assert replayed.width() == manual.width()
-        assert replayed.height() == manual.height()
+        assert replayed == manual
 
     def test_does_not_mutate_the_original_image(self):
         original = _blank_image(100, 80)
