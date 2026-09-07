@@ -151,6 +151,7 @@ class ProjectEvents:
     PROJECT_ITEM_ADDED = "project.item_added"  # Generic item added - use when type doesn't matter
     PROJECT_ITEM_REMOVED = "project.item_removed"  # Generic item removed
     PROJECT_ITEM_RENAMED = "project.item_renamed"  # Generic item renamed
+    PROJECT_ITEM_CONTENT_CHANGED = "project.item_content_changed"  # Generic item content edit (not a rename)
     PROJECT_ITEM_MOVED = "project.item_moved"  # Generic item moved
     PROJECT_STRUCTURE_CHANGED = "project.structure_changed"  # Structure change - folders/items reorganized
 
@@ -231,6 +232,7 @@ class EventHierarchy:
         "project.item_added": ["project.item_added", "project.changed"],
         "project.item_removed": ["project.item_removed", "project.changed"],
         "project.item_renamed": ["project.item_renamed", "project.changed"],
+        "project.item_content_changed": ["project.item_content_changed", "project.changed"],
         "project.item_moved": ["project.item_moved", "project.changed"],
         "project.structure_changed": ["project.structure_changed", "project.changed"],
 

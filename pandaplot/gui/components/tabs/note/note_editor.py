@@ -728,6 +728,8 @@ class NoteEditorWidget(PWidget):
         self.subscribe_to_event(
             ProjectEvents.PROJECT_ITEM_RENAMED, self.on_project_item_changed_event)
         self.subscribe_to_event(
+            ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED, self.on_project_item_changed_event)
+        self.subscribe_to_event(
             ProjectEvents.PROJECT_ITEM_MOVED, self.on_project_item_changed_event)
 
     def on_project_item_changed_event(self, event_data: dict):
