@@ -347,6 +347,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             return None
 
         chart_id, kind, index, analysis_type, sampling_rate, parameters = params
+        folder_id = self.current_chart.parent_id if self.current_chart else None
         return ChartSignalAnalysisCommand(
             self.app_context,
             chart_id=chart_id,
@@ -355,6 +356,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             analysis_type=analysis_type,
             sampling_rate=sampling_rate,
             parameters=parameters,
+            folder_id=folder_id,
         )
 
     # -- async run/apply dispatch (mirrors SignalPanel) ------------------------
@@ -435,10 +437,11 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # commit self.last_result directly without re-computing on a
         # background thread.
         if self.last_result is not None and self._last_run_params == current_params:
+            folder_id = self.current_chart.parent_id if self.current_chart else None
             apply_command = ApplySignalAnalysisResultCommand(
                 app_context=self.app_context,
                 result_name=None,
-                folder_id=None,
+                folder_id=folder_id,
                 result=self.last_result,
             )
             executor = self.app_context.get_command_executor()
