@@ -61,6 +61,37 @@ class TestCropCanvasHitTest:
         assert canvas.hit_test(QPoint(5, 5)) is None
 
 
+class TestCropCanvasIndependentXYScale:
+    # CropCanvas enforces a 200x200 minimum size (see __init__), so the
+    # widget's actual size stays 200x200 regardless of resize() -- these
+    # cases use that as the effective widget size.
+    #
+    # QSize.scaled(..., KeepAspectRatio) picks one scale factor but rounds
+    # width/height to integers independently, so the fitted display size
+    # isn't always exactly proportional to the image -- verified
+    # empirically: a 1x7 image fit into a 200x200 widget displays at
+    # 28x200 (scale_x=28/1=28.0, scale_y=200/7=28.571, genuinely
+    # different). Using a single width-derived scale for both axes would
+    # place image row 7 (the bottom edge) at widget y=round(7*28)=196,
+    # four pixels short of the true bottom (y=200).
+
+    def test_narrow_tall_image_uses_separate_x_and_y_scale_factors(self):
+        canvas = _make_canvas(widget_size=(200, 200), image_size=(1, 7))
+
+        bottom_right = canvas._image_to_widget(QPoint(1, 7))
+
+        # display is centered: x-offset (200-28)//2=86, y-offset (200-200)//2=0
+        assert bottom_right == QPoint(86 + 28, 200)
+
+    def test_widget_to_image_round_trips_through_independent_scales(self):
+        canvas = _make_canvas(widget_size=(200, 200), image_size=(1, 7))
+
+        # The widget point exactly at the display's bottom-right corner
+        # must map back to the image's bottom-right corner (1, 7), not an
+        # off-by-a-few-pixels value from a single shared scale factor.
+        assert canvas._widget_to_image(QPoint(86 + 28, 200)) == QPoint(1, 7)
+
+
 class TestCropCanvasResizeFromHandle:
     def test_br_handle_no_aspect_lock_resizes_freely(self):
         canvas = _make_canvas(image_size=(100, 100))
@@ -202,6 +233,34 @@ class TestCropCanvasWidgetRectExclusiveConvention:
         for handle_rect in canvas._handle_widget_rects().values():
             assert not handle_rect.contains(QPoint(120, 55))
         assert canvas.hit_test(QPoint(120, 55)) is None
+
+    def test_overlay_strips_cover_up_to_the_true_display_edge(self):
+        """The bottom/right overlay strips used to be built from
+        crop_widget_rect.bottom()/.right() -- Qt's *inclusive* accessors
+        (left+width-1, top+height-1) -- even though crop_widget_rect
+        itself follows this file's exclusive convention. That darkened the
+        crop rect's own last row/column and left the display's actual
+        last row/column uncovered by any overlay.
+
+        100x100 image in a 200x200 widget -> 2x scale, filling the widget
+        exactly (display = (0,0,200,200), so its true bottom/right edge is
+        at the exclusive y=200/x=200). A crop rect of (20,20)-(60,60) in
+        image space maps to widget rect (40,40,80,80) -- exclusive
+        bottom-right at (120,120). The bottom strip must start exactly at
+        y=120 (not 119) and reach all the way to y=199 inclusive (the
+        display's last row); the right strip must start exactly at
+        x=120 (not 119) and reach x=199 inclusive."""
+        canvas = _make_canvas(widget_size=(200, 200), image_size=(100, 100))
+        canvas.set_crop_rect(QRect(20, 20, 40, 40))
+
+        display = canvas._display_rect()
+        crop_widget_rect = canvas._crop_widget_rect()
+        top, bottom, left, right = canvas._overlay_strip_rects(display, crop_widget_rect)
+
+        assert bottom.top() == 120
+        assert bottom.top() + bottom.height() - 1 == display.bottom()  # reaches the true last row
+        assert right.left() == 120
+        assert right.left() + right.width() - 1 == display.right()  # reaches the true last column
 
 
 class TestCropCanvasDegenerateClamp:

@@ -287,6 +287,12 @@ class ImageEditorDialog(PDialog):
         if self.aspect_ratio > 0:
             new_height = max(1, round(new_width / self.aspect_ratio))
             self._updating_resize_spinboxes = True
+            # For an extreme-aspect image, the derived height can exceed
+            # spin_height's current maximum -- without raising the ceiling
+            # first, setValue() would silently clamp it, producing a
+            # distorted (non-aspect-locked) target despite "Maintain aspect
+            # ratio" being checked.
+            self.spin_height.setRange(1, max(self.spin_height.maximum(), new_height))
             self.spin_height.setValue(new_height)
             self._updating_resize_spinboxes = False
 
@@ -296,6 +302,8 @@ class ImageEditorDialog(PDialog):
         if self.aspect_ratio > 0:
             new_width = max(1, round(new_height * self.aspect_ratio))
             self._updating_resize_spinboxes = True
+            # Symmetric to _on_width_changed's guard above.
+            self.spin_width.setRange(1, max(self.spin_width.maximum(), new_width))
             self.spin_width.setValue(new_width)
             self._updating_resize_spinboxes = False
 

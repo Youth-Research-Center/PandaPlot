@@ -116,23 +116,40 @@ class CropCanvas(QWidget):
         y = (self.height() - scaled.height()) // 2
         return QRect(x, y, scaled.width(), scaled.height())
 
-    def _scale(self) -> float:
+    def _scale_x(self) -> float:
         display = self._display_rect()
         if display.isEmpty() or self._image.width() == 0:
             return 1.0
         return display.width() / self._image.width()
 
-    def _image_to_widget(self, point: QPoint) -> QPoint:
+    def _scale_y(self) -> float:
         display = self._display_rect()
-        scale = self._scale()
-        return QPoint(display.x() + round(point.x() * scale), display.y() + round(point.y() * scale))
+        if display.isEmpty() or self._image.height() == 0:
+            return 1.0
+        return display.height() / self._image.height()
+
+    def _image_to_widget(self, point: QPoint) -> QPoint:
+        # QSize.scaled(..., KeepAspectRatio) picks one scale factor but then
+        # rounds width and height to integers independently, so the fitted
+        # display size isn't always exactly proportional to the image (most
+        # visible for narrow/tall images) -- using a single width-derived
+        # scale for both axes would drift image-space Y coordinates outside
+        # the painted display. X and Y need their own scale factors.
+        display = self._display_rect()
+        return QPoint(
+            display.x() + round(point.x() * self._scale_x()),
+            display.y() + round(point.y() * self._scale_y()),
+        )
 
     def _widget_to_image(self, point: QPoint) -> QPoint:
         display = self._display_rect()
-        scale = self._scale()
-        if scale == 0:
+        scale_x, scale_y = self._scale_x(), self._scale_y()
+        if scale_x == 0 or scale_y == 0:
             return QPoint(0, 0)
-        raw = QPoint(round((point.x() - display.x()) / scale), round((point.y() - display.y()) / scale))
+        raw = QPoint(
+            round((point.x() - display.x()) / scale_x),
+            round((point.y() - display.y()) / scale_y),
+        )
         return self._clamp_point_to_image(raw)
 
     def _clamp_point_to_image(self, point: QPoint) -> QPoint:
@@ -366,6 +383,28 @@ class CropCanvas(QWidget):
         super().resizeEvent(event)
         self.update()
 
+    def _overlay_strip_rects(self, display: QRect, crop_widget_rect: QRect) -> tuple[QRect, QRect, QRect, QRect]:
+        """The four dimming-overlay strips (top/bottom/left/right) that
+        surround crop_widget_rect within display, in widget coordinates.
+
+        crop_widget_rect follows this file's exclusive right/bottom
+        convention (right = left + width, bottom = top + height), but
+        QRect.right()/.bottom() are always Qt's *inclusive* accessors
+        (left+width-1, top+height-1) regardless of how the rect was
+        constructed -- using those directly here would darken the crop
+        rect's own last row/column and leave the display's actual last
+        row/column uncovered. Computes the true exclusive edges explicitly
+        instead, and pulled out as its own pure method (rather than inlined
+        in paintEvent) so this geometry is unit-testable without rendering."""
+        crop_right = crop_widget_rect.left() + crop_widget_rect.width()
+        crop_bottom = crop_widget_rect.top() + crop_widget_rect.height()
+
+        top = QRect(display.left(), display.top(), display.width(), crop_widget_rect.top() - display.top())
+        bottom = QRect(display.left(), crop_bottom, display.width(), display.bottom() - crop_bottom + 1)
+        left = QRect(display.left(), crop_widget_rect.top(), crop_widget_rect.left() - display.left(), crop_widget_rect.height())
+        right = QRect(crop_right, crop_widget_rect.top(), display.right() - crop_right + 1, crop_widget_rect.height())
+        return top, bottom, left, right
+
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.fillRect(self.rect(), QColor("#202020"))
@@ -378,10 +417,8 @@ class CropCanvas(QWidget):
         crop_widget_rect = self._crop_widget_rect()
 
         overlay = QColor(0, 0, 0, 140)
-        painter.fillRect(QRect(display.left(), display.top(), display.width(), crop_widget_rect.top() - display.top()), overlay)
-        painter.fillRect(QRect(display.left(), crop_widget_rect.bottom(), display.width(), display.bottom() - crop_widget_rect.bottom()), overlay)
-        painter.fillRect(QRect(display.left(), crop_widget_rect.top(), crop_widget_rect.left() - display.left(), crop_widget_rect.height()), overlay)
-        painter.fillRect(QRect(crop_widget_rect.right(), crop_widget_rect.top(), display.right() - crop_widget_rect.right(), crop_widget_rect.height()), overlay)
+        for strip in self._overlay_strip_rects(display, crop_widget_rect):
+            painter.fillRect(strip, overlay)
 
         painter.setPen(QPen(QColor("white"), 1))
         painter.drawRect(crop_widget_rect)

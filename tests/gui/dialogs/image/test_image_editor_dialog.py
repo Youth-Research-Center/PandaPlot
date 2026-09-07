@@ -444,6 +444,37 @@ class TestImageEditorDialogNoOpResizeSkipsUndo:
         assert dialog.working_qimage is original_qimage
 
 
+class TestImageEditorDialogMaintainAspectRaisesCompanionCeiling:
+    def test_width_edit_raises_height_ceiling_for_extreme_aspect_image(self, qapp):
+        """For an extreme-aspect image, the derived companion dimension can
+        exceed the other spinbox's current maximum -- without raising that
+        ceiling first, setValue() would silently clamp it, producing a
+        distorted (non-aspect-locked) target despite "Maintain aspect
+        ratio" being checked. A 1x20000 image changed to width=2 derives
+        height=40000, which must not get clamped down to spin_height's
+        prior 20000 maximum."""
+        app_context = build_app_context()
+        image = Image(id="extreme-aspect-w", name="Photo", width=1, height=20000, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(1, 20000))
+
+        dialog.chk_keep_aspect.setChecked(True)
+        dialog.spin_width.setValue(2)
+
+        assert dialog.spin_height.value() == 40000
+
+    def test_height_edit_raises_width_ceiling_for_extreme_aspect_image(self, qapp):
+        """Symmetric to the width-edit case above: a 20000x1 image changed
+        to height=2 derives width=40000."""
+        app_context = build_app_context()
+        image = Image(id="extreme-aspect-h", name="Photo", width=20000, height=1, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(20000, 1))
+
+        dialog.chk_keep_aspect.setChecked(True)
+        dialog.spin_height.setValue(2)
+
+        assert dialog.spin_width.value() == 40000
+
+
 class TestImageEditorDialogNoOpResetSkipsUndo:
     def test_reset_with_no_prior_edits_is_a_no_op(self, qapp):
         """Resetting an already-original image must not push an undo

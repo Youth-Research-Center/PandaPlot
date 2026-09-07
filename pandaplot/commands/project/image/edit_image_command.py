@@ -134,3 +134,11 @@ class EditImageCommand(Command):
     @override
     def redo(self) -> CommandResult:
         return self.execute()
+
+    @override
+    def cleanup(self) -> None:
+        """Release the pre-edit/post-edit image byte buffers held for undo
+        once this command is dropped from the stacks for good (see
+        Command.cleanup)."""
+        self.old_bytes = None
+        self.new_bytes = b""

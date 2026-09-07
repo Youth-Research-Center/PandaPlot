@@ -83,3 +83,33 @@ class TestEditImageCommand:
         emitted_types = [call.args[0] for call in event_bus.emit.call_args_list]
         assert emitted_types.count(ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED) == 2
         assert ProjectEvents.PROJECT_ITEM_RENAMED not in emitted_types
+
+    def test_cleanup_releases_the_held_byte_buffers(self, app_context_with_project):
+        """Commands that retain undo snapshots must override cleanup() to
+        release large held resources when dropped from the stacks outside
+        the normal undo/redo lifecycle (see Command.cleanup) -- otherwise
+        an evicted/cleared command keeps both image byte buffers alive
+        through any remaining reference to it."""
+        gallery_cmd = CreateImageGalleryCommand(app_context_with_project, gallery_name="Gallery")
+        gallery_cmd.execute()
+        gallery_id = gallery_cmd.created_gallery_id
+        project = app_context_with_project.get_app_state().current_project
+
+        old_data = _make_png_bytes(20, 20)
+        image = Image(id="img-edit-3", name="Original", width=20, height=20, storage_mode="external")
+        image.set_bytes(old_data)
+        project.add_item(image, parent_id=gallery_id)
+
+        new_data = _make_png_bytes(10, 15)
+        edit_cmd = EditImageCommand(
+            app_context_with_project, image_id="img-edit-3",
+            new_bytes=new_data, new_width=10, new_height=15, new_ext="png"
+        )
+        edit_cmd.execute()
+        assert edit_cmd.old_bytes == old_data
+        assert edit_cmd.new_bytes == new_data
+
+        edit_cmd.cleanup()
+
+        assert edit_cmd.old_bytes is None
+        assert edit_cmd.new_bytes == b""
