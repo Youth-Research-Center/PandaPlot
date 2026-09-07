@@ -33,8 +33,8 @@ class ImageLightboxDialog(QDialog):
 
     def __init__(self, images: List[Image], start_index: int,
                  load_pixmap: Callable[[Image], Optional[QPixmap]],
-                 on_edit: Optional[Callable[[Image], None]] = None,
-                 parent: Optional[QWidget] = None):
+                 parent: Optional[QWidget] = None, *,
+                 on_edit: Optional[Callable[[Image], None]] = None):
         super().__init__(parent)
         self._images = images
         self._index = start_index

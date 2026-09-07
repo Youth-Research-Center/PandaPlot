@@ -5,7 +5,7 @@ Dialog for basic image operations: crop, rotate, and resize.
 from typing import Optional, override
 
 from PySide6.QtCore import QBuffer, QIODevice, QRect, Qt
-from PySide6.QtGui import QImage, QImageWriter, QKeySequence, QShortcut
+from PySide6.QtGui import QImage, QImageReader, QImageWriter, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -38,6 +38,13 @@ from pandaplot.models.state.app_context import AppContext
 # _resolve_output_format, so a writable format never gets forced to PNG
 # just because it's missing from a fixed list.
 _EXT_ALIASES = {"jpg": "JPEG", "jpeg": "JPEG"}
+
+# Reverse of _EXT_ALIASES, used when the detected format overrides a wrong
+# image_ext (see _resolve_output_format) -- only needed for formats whose
+# canonical extension isn't just their own lowercase form. "jpg" (not
+# "jpeg") matches import_images_command's own default extension for a
+# URL with no extension in its path.
+_FORMAT_TO_EXT = {"JPEG": "jpg"}
 
 # The width/height spinboxes each independently allow up to 20000px, but
 # their *product* is what actually matters for memory: a 20000x20000 resize
@@ -495,17 +502,43 @@ class ImageEditorDialog(PDialog):
         self._sync_control_values()
         self._update_info_label()
 
+    def _detect_actual_format(self) -> Optional[str]:
+        """The Qt format name (e.g. "PNG", "JPEG") QImageReader detects
+        from original_bytes' own header/magic, independent of whatever
+        self.image_ext claims. Needed because image_ext can be wrong: a
+        URL-imported image with no extension in its path is defaulted to
+        "jpg" by import_images_command regardless of what format the
+        downloaded bytes actually are (see _read_url_bytes_and_size).
+        Editing such an image would otherwise silently re-encode e.g. a
+        transparent PNG as JPEG, permanently losing the alpha channel,
+        despite this dialog's format-preservation guarantee. Returns None
+        if the format can't be detected (e.g. corrupt data -- callers
+        should fall back to the claimed image_ext in that case)."""
+        buffer = QBuffer()
+        buffer.setData(self.original_bytes)
+        buffer.open(QIODevice.OpenModeFlag.ReadOnly)
+        detected = bytes(QImageReader(buffer).format()).decode().upper()
+        return detected or None
+
     def _resolve_output_format(self) -> tuple[str, str]:
         """Returns (qt_format_name, result_ext). Falls back to PNG if the
-        image's original extension isn't in the Qt build's writable-formats
-        list, so we never mislabel bytes with a format they aren't."""
+        resolved format isn't in the Qt build's writable-formats list, so
+        we never mislabel bytes with a format they aren't."""
         if self._resolved_format is not None:
             return self._resolved_format
 
-        qt_format = _EXT_ALIASES.get(self.image_ext, self.image_ext.upper())
+        claimed_format = _EXT_ALIASES.get(self.image_ext, self.image_ext.upper())
+        detected_format = self._detect_actual_format()
+        if detected_format and detected_format != claimed_format:
+            qt_format = detected_format
+            ext = _FORMAT_TO_EXT.get(detected_format, detected_format.lower())
+        else:
+            qt_format = claimed_format
+            ext = self.image_ext
+
         supported = {bytes(fmt).decode().upper() for fmt in QImageWriter.supportedImageFormats()}
         if qt_format in supported:
-            self._resolved_format = (qt_format, self.image_ext)
+            self._resolved_format = (qt_format, ext)
         else:
             self._resolved_format = ("PNG", "png")
         return self._resolved_format

@@ -10,11 +10,15 @@ from pandaplot.models.project.items import Image
 
 
 def _make_test_image_bytes(width: int = 100, height: int = 80) -> bytes:
+    return _make_image_bytes(width, height, "PNG")
+
+
+def _make_image_bytes(width: int, height: int, qt_format: str) -> bytes:
     buffer = QBuffer()
     buffer.open(QIODevice.OpenModeFlag.WriteOnly)
     img = QImage(width, height, QImage.Format.Format_RGB32)
     img.fill(0x00FF00)
-    img.save(buffer, "PNG")
+    img.save(buffer, qt_format)
     return bytes(buffer.data())
 
 
@@ -65,9 +69,14 @@ class TestImageEditorDialog:
 
 class TestImageEditorDialogFormatPreservation:
     def test_preserves_supported_bmp_extension(self, qapp):
+        # Real bmp-encoded bytes -- image_ext must actually match the
+        # bytes' own detected format for this "preserve, no override"
+        # path to be what's under test (see
+        # TestImageEditorDialogFormatDetectionOverridesWrongExt below for
+        # the mismatched case).
         app_context = build_app_context()
         image = Image(id="fmt-bmp", name="Photo", width=10, height=10, image_ext="bmp")
-        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(10, 10))
+        dialog = ImageEditorDialog(app_context, image, _make_image_bytes(10, 10, "BMP"))
 
         assert dialog.get_result_ext() == "bmp"
         assert len(dialog.get_result_bytes()) > 0
@@ -82,6 +91,13 @@ class TestImageEditorDialogFormatPreservation:
         app_context = build_app_context()
         image = Image(id="fmt-webp", name="Photo", width=10, height=10, image_ext="webp")
         dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(10, 10))
+        # Simulate "claimed and detected formats agree (both webp), but
+        # webp isn't in this build's writable-formats list" -- decoupled
+        # from whether this host's real Qt install can actually encode
+        # webp, so the test exercises only the fallback-to-png branch,
+        # not real codec availability (see the TIFF test's comment for
+        # why relying on genuine codec support makes a test flaky).
+        monkeypatch.setattr(dialog, "_detect_actual_format", lambda: "WEBP")
 
         assert dialog.get_result_ext() == "png"
         assert len(dialog.get_result_bytes()) > 0
@@ -91,17 +107,62 @@ class TestImageEditorDialogFormatPreservation:
 
         # tiff isn't jpg/jpeg, so it's not in _EXT_ALIASES -- it should still
         # be preserved (derived as "TIFF" from the extension itself) as long
-        # as the local Qt build can actually write it, rather than being
-        # forced to png just for being absent from a fixed alias list.
+        # as the build's *advertised* writable-formats list claims it's
+        # supported, rather than being forced to png just for being absent
+        # from a fixed alias list. Also mock the actual save() call: this
+        # test is about the format-resolution logic (_resolve_output_format
+        # reading supportedImageFormats()), not about whether the real
+        # local Qt install happens to have a working TIFF plugin -- mocking
+        # supportedImageFormats() alone doesn't make save(buffer, "TIFF")
+        # succeed on a build that lacks the plugin, which would make this
+        # test's outcome depend on the host's codecs.
         monkeypatch.setattr(
             QImageWriter, "supportedImageFormats",
             staticmethod(lambda: [b"png", b"jpeg", b"bmp", b"tiff"]),
         )
+        monkeypatch.setattr(QImage, "save", lambda self, *args, **kwargs: True)
         app_context = build_app_context()
         image = Image(id="fmt-tiff", name="Photo", width=10, height=10, image_ext="tiff")
         dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(10, 10))
+        # The real bytes above are actually PNG-encoded (a plain test
+        # fixture, not a real tiff file), which would otherwise trip the
+        # claimed-vs-detected mismatch override this dialog now applies
+        # (see TestImageEditorDialogFormatDetectionOverridesWrongExt) --
+        # mock detection to agree with image_ext so this test stays
+        # focused on the alias-map/supported-formats resolution alone.
+        monkeypatch.setattr(dialog, "_detect_actual_format", lambda: "TIFF")
 
         assert dialog.get_result_ext() == "tiff"
+        # save() is mocked to succeed without writing real data -- this
+        # only confirms get_result_bytes() takes the success path (doesn't
+        # raise, per the RuntimeError-on-save-failure check) using "TIFF"
+        # as the format, not that the bytes are a valid TIFF image.
+        assert isinstance(dialog.get_result_bytes(), bytes)
+
+
+class TestImageEditorDialogFormatDetectionOverridesWrongExt:
+    def test_extensionless_url_import_defaulting_to_jpg_is_corrected_to_the_real_png_format(self, qapp):
+        """import_images_command defaults image_ext to "jpg" for a
+        URL with no extension in its path, regardless of what format the
+        downloaded bytes actually are. Editing such an image must not
+        trust that wrong claimed extension and silently re-encode a real
+        PNG (with alpha) as JPEG -- the actual bytes' own detected format
+        must win when it disagrees with image_ext."""
+        app_context = build_app_context()
+        image = Image(id="url-no-ext", name="Photo", width=10, height=10, image_ext="jpg")
+        dialog = ImageEditorDialog(app_context, image, _make_image_bytes(10, 10, "PNG"))
+
+        assert dialog.get_result_ext() == "png"
+        assert len(dialog.get_result_bytes()) > 0
+
+    def test_matching_claimed_and_detected_format_is_unaffected(self, qapp):
+        """The override only kicks in on an actual mismatch -- a
+        correctly-labeled jpg stays jpg."""
+        app_context = build_app_context()
+        image = Image(id="real-jpg", name="Photo", width=10, height=10, image_ext="jpg")
+        dialog = ImageEditorDialog(app_context, image, _make_image_bytes(10, 10, "JPEG"))
+
+        assert dialog.get_result_ext() == "jpg"
         assert len(dialog.get_result_bytes()) > 0
 
 

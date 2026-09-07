@@ -186,3 +186,29 @@ class TestImageLightboxDialogEdit:
         # fetch the image to display, so one more call after the edit
         # confirms a real re-render happened, not just the callback firing.
         assert load_calls == [images[1]]
+
+
+class TestImageLightboxDialogSignatureOrder:
+    def test_parent_can_still_be_passed_positionally_in_its_original_slot(self, qapp):
+        """on_edit was added as a new parameter after load_pixmap in an
+        earlier revision, ahead of the pre-existing parent parameter --
+        which would silently break any positional caller expecting the
+        4th positional argument to be parent (a QWidget passed there would
+        instead be bound to on_edit, an Optional[Callable]). parent must
+        stay in its original positional slot, with on_edit moved after it
+        and made keyword-only."""
+        from PySide6.QtWidgets import QWidget
+
+        images = [Image(name="First")]
+        host = QWidget()
+        try:
+            dialog = ImageLightboxDialog(images, 0, lambda img: _colored_pixmap("red"), host)
+            assert dialog.parent() is host
+            assert dialog._on_edit is None
+        finally:
+            host.deleteLater()
+
+    def test_on_edit_is_keyword_only(self, qapp):
+        images = [Image(name="First")]
+        with pytest.raises(TypeError):
+            ImageLightboxDialog(images, 0, lambda img: _colored_pixmap("red"), None, lambda img: None)
