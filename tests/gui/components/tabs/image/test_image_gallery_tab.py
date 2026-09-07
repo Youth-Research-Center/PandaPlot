@@ -1465,3 +1465,40 @@ class TestImageGalleryTabEditImage:
 
         executor = tab.app_context.get_command_executor.return_value
         assert executor.execute_command.call_count == 0
+
+
+class TestImageGalleryTabLightboxLoadResilience:
+    def test_lightbox_load_pixmap_returns_none_instead_of_raising_on_external_load_failure(
+        self, app_context, monkeypatch
+    ):
+        """The lightbox's load_pixmap callback is reused for every render
+        (initial open, Next/Previous navigation, and the rerender after an
+        edit session) -- it must not let an external-load exception
+        escape, since ImageLightboxDialog already has a "broken image"
+        placeholder path for a None result."""
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach", storage_mode="external", source_file="https://example.com/beach.png")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+
+        def _raise(*_a, **_kw):
+            raise ConnectionError("network is unreachable")
+
+        monkeypatch.setattr(tab, "_load_external_bytes", _raise)
+
+        captured = {}
+
+        class _FakeLightbox:
+            def __init__(self, images, start_index, load_pixmap, **kwargs):
+                captured["load_pixmap"] = load_pixmap
+            def exec(self):
+                return None
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageLightboxDialog",
+            _FakeLightbox,
+        )
+
+        tab._open_lightbox_for(image)
+
+        assert captured["load_pixmap"](image) is None

@@ -364,12 +364,18 @@ class ImageEditorDialog(PDialog):
             # -- skip the undo push and the lossy re-encode, both wasted for a
             # resize that changes nothing.
             return
-        if target_w * target_h > _MAX_RESIZE_PIXELS:
+        target_pixels = target_w * target_h
+        if target_pixels > _MAX_RESIZE_PIXELS:
+            # Report exact pixel counts rather than a megapixel figure
+            # rounded to 0 decimals -- e.g. 100,010,000 target pixels
+            # rounds to "100 megapixels", which would read as a
+            # self-contradictory "100 megapixels exceeds ... 100
+            # megapixels" against the (exactly round) 100-megapixel limit.
             QMessageBox.warning(
                 self, "Resize Too Large",
-                f"{target_w} × {target_h} ({target_w * target_h / 1_000_000:.0f} megapixels) "
-                f"exceeds the maximum supported resize of {_MAX_RESIZE_PIXELS // 1_000_000} "
-                "megapixels. Choose a smaller target size."
+                f"{target_w} × {target_h} = {target_pixels:,} pixels exceeds the maximum "
+                f"supported resize of {_MAX_RESIZE_PIXELS:,} pixels "
+                f"({_MAX_RESIZE_PIXELS // 1_000_000} megapixels). Choose a smaller target size."
             )
             return
 

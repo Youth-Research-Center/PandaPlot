@@ -914,7 +914,19 @@ class ImageGalleryTab(PWidget):
 
         def _load(img: Image) -> Optional[QPixmap]:
             pixmap = QPixmap()
-            data = img.get_bytes() or self._load_external_bytes(img.source_file)
+            try:
+                data = img.get_bytes() or self._load_external_bytes(img.source_file)
+            except Exception:
+                # _load_external_bytes can raise (a network error for a URL
+                # source, an unreadable/removed local file) -- this loader
+                # is reused for every render in the lightbox (initial open,
+                # Next/Previous navigation, and the rerender after an edit
+                # session), and ImageLightboxDialog already renders the
+                # standard "broken image" placeholder for a None result, so
+                # falling through to that is preferable to letting the
+                # exception escape and crash whichever Qt slot triggered
+                # this render.
+                data = None
             if data and pixmap.loadFromData(data):
                 return pixmap
             return None
