@@ -733,6 +733,11 @@ class ImageGalleryTab(PWidget):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
+        if not dialog.has_edits():
+            # No effective change was made (opened and saved immediately, or reset
+            # back to the original) — avoid re-encoding/copying the image needlessly.
+            return
+
         try:
             new_bytes = dialog.get_result_bytes()
         except Exception as exc:

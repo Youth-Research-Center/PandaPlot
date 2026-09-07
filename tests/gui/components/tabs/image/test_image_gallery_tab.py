@@ -1311,6 +1311,8 @@ class TestImageGalleryTabEditImage:
                 pass
             def exec(self):
                 return QDialog.DialogCode.Accepted
+            def has_edits(self):
+                return True
             def get_result_bytes(self):
                 return b"new-bytes"
             def get_result_width(self):
@@ -1337,6 +1339,44 @@ class TestImageGalleryTabEditImage:
         assert command.new_width == 42
         assert command.new_height == 24
         assert command.new_ext == "png"
+
+    def test_edit_image_accepted_with_no_edits_does_not_execute_command(self, app_context, monkeypatch):
+        from PySide6.QtWidgets import QDialog
+        from unittest.mock import Mock
+
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(_real_png_bytes())
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        class _FakeEditorDialog:
+            def __init__(self, *a, **kw):
+                pass
+            def exec(self):
+                return QDialog.DialogCode.Accepted
+            def has_edits(self):
+                return False
+            get_result_bytes = Mock()
+            get_result_width = Mock()
+            get_result_height = Mock()
+            get_result_ext = Mock()
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog",
+            _FakeEditorDialog,
+        )
+
+        tab._on_edit_image_clicked()
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 0
+        assert _FakeEditorDialog.get_result_bytes.call_count == 0
+        assert _FakeEditorDialog.get_result_width.call_count == 0
+        assert _FakeEditorDialog.get_result_height.call_count == 0
+        assert _FakeEditorDialog.get_result_ext.call_count == 0
 
     def test_edit_image_clicked_does_nothing_on_cancel(self, app_context, monkeypatch):
         from PySide6.QtWidgets import QDialog

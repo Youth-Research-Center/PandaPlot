@@ -9,9 +9,17 @@ tested independently of CropCanvas's paint/mouse-event code.
 
 ImageEditorDialog stores the *actual* sequence of committed transforms
 (self._transforms) and snapshots of that list for undo/redo, rather than
-decoded QImage copies -- history entries are a few dozen bytes each instead
-of full images, so no cap or eviction policy is needed regardless of how
-many edits a session accumulates.
+decoded QImage copies. Each undo/redo-stack entry is a full copy of the
+transform list at that point (`list(self._transforms)`), so after N
+committed edits the two stacks together retain O(N^2) list-cell references,
+not a fixed cost per entry -- this is not a flat "a few dozen bytes each"
+history. It is still many orders of magnitude cheaper than the previous
+per-step full-QImage snapshot design: a single QImage can be tens of
+megabytes, whereas even a long editing session's worth of small dataclass
+references stays in the range of kilobytes to at most a few megabytes for
+realistic edit counts. No cap or eviction policy is applied; a pathologically
+long session could in principle grow this further, but that trade-off is
+accepted rather than mitigated here.
 """
 from dataclasses import dataclass
 from typing import Union

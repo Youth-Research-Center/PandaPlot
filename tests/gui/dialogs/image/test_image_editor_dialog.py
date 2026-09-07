@@ -398,6 +398,57 @@ class TestImageEditorDialogNoOpCropSkipsUndoAndCopy:
         assert dialog.working_qimage is original_qimage
 
 
+class TestImageEditorDialogNoOpResizeSkipsUndo:
+    def test_apply_resize_with_unchanged_dimensions_is_a_no_op(self, qapp):
+        """Applying the current dimensions as a resize target must not push
+        an undo snapshot or append a (lossy) ResizeOp -- it changes no
+        pixels."""
+        app_context = build_app_context()
+        image = Image(id="noop-resize", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        original_qimage = dialog.working_qimage
+        assert dialog.btn_undo.isEnabled() is False
+
+        dialog.chk_keep_aspect.setChecked(False)
+        dialog.spin_width.setValue(dialog.working_qimage.width())
+        dialog.spin_height.setValue(dialog.working_qimage.height())
+        dialog._apply_resize()
+
+        assert dialog.btn_undo.isEnabled() is False
+        assert dialog.working_qimage is original_qimage
+
+
+class TestImageEditorDialogHasEdits:
+    def test_fresh_dialog_has_no_edits(self, qapp):
+        app_context = build_app_context()
+        image = Image(id="has-edits-fresh", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        assert dialog.has_edits() is False
+
+    def test_dialog_has_edits_after_a_rotate(self, qapp):
+        app_context = build_app_context()
+        image = Image(id="has-edits-rotate", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        dialog._rotate(90)
+
+        assert dialog.has_edits() is True
+
+    def test_dialog_has_no_edits_after_reset(self, qapp):
+        app_context = build_app_context()
+        image = Image(id="has-edits-reset", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        dialog._rotate(90)
+        assert dialog.has_edits() is True
+
+        dialog._reset_edits()
+
+        assert dialog.has_edits() is False
+
+
 class TestImageEditorDialogGetResultBytesSaveFailure:
     def test_get_result_bytes_raises_when_save_fails(self, qapp, monkeypatch):
         """Finding #13: a failed QImage.save() must not silently yield empty

@@ -340,6 +340,11 @@ class ImageEditorDialog(PDialog):
         target_h = self.spin_height.value()
         if target_w <= 0 or target_h <= 0:
             return
+        if target_w == self.working_qimage.width() and target_h == self.working_qimage.height():
+            # No-op resize (target dimensions already match the working image)
+            # -- skip the undo push and the lossy re-encode, both wasted for a
+            # resize that changes nothing.
+            return
 
         self._push_undo_snapshot()
         transform = ResizeOp(target_w, target_h)
@@ -488,3 +493,10 @@ class ImageEditorDialog(PDialog):
     def get_result_ext(self) -> str:
         _, ext = self._resolve_output_format()
         return ext
+
+    def has_edits(self) -> bool:
+        """True if the user has made at least one effective edit (a
+        committed transform still present in the list). Callers should use
+        this to skip re-encoding/persisting the image on a no-op save (e.g.
+        opened and immediately accepted, or edited and then reset)."""
+        return bool(self._transforms)
