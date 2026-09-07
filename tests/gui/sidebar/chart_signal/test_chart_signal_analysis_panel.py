@@ -294,6 +294,66 @@ class TestRunAnalysisAsyncDispatch:
         assert "boom" in panel.results_text.toPlainText()
 
 
+class TestResultFolderMatchesChart:
+    """Regression (#347): the result dataset should land in the chart's own
+    folder instead of always at the project root."""
+
+    def test_build_command_uses_the_chart_parent_folder(self, app_context, project):
+        from pandaplot.models.project.items.folder import Folder
+
+        folder = Folder(id="folder-1", name="F")
+        project.add_item(folder)
+        chart = project.find_item("chart-1")
+        project.root.remove_item(chart)
+        project.add_item(chart, parent_id="folder-1")
+
+        panel = ChartSignalAnalysisPanel(app_context)
+        panel.current_chart = chart
+        panel.current_chart_id = "chart-1"
+        panel._populate_sources()
+
+        index = panel.analysis_combo.findData(SignalAnalysisType.FFT)
+        panel.analysis_combo.setCurrentIndex(index)
+
+        command = panel._build_command()
+
+        assert command.folder_id == "folder-1"
+
+    def test_cached_add_to_project_uses_the_chart_parent_folder(self, app_context, project, monkeypatch):
+        from pandaplot.models.project.items.folder import Folder
+
+        folder = Folder(id="folder-1", name="F")
+        project.add_item(folder)
+        chart = project.find_item("chart-1")
+        project.root.remove_item(chart)
+        project.add_item(chart, parent_id="folder-1")
+
+        panel = ChartSignalAnalysisPanel(app_context)
+        panel.current_chart = chart
+        panel.current_chart_id = "chart-1"
+        panel._populate_sources()
+
+        current_params = panel._get_dispatch_params()
+        panel.last_result = Mock()
+        panel._last_run_params = current_params
+
+        captured = {}
+
+        class _FakeApplyCommand:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.sidebar.chart_signal.chart_signal_analysis_panel.ApplySignalAnalysisResultCommand",
+            _FakeApplyCommand,
+        )
+        panel.app_context.get_command_executor.return_value.execute_command = lambda command: True
+
+        panel.add_results_to_project()
+
+        assert captured["folder_id"] == "folder-1"
+
+
 class TestRunAndAddMutualExclusion:
     """Regression coverage (mirrors SignalPanel's): Run and Add to Project
     share one busy spinner and one _pending_command slot."""
