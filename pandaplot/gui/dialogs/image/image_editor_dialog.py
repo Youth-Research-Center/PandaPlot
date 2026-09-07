@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -37,6 +38,16 @@ from pandaplot.models.state.app_context import AppContext
 # _resolve_output_format, so a writable format never gets forced to PNG
 # just because it's missing from a fixed list.
 _EXT_ALIASES = {"jpg": "JPEG", "jpeg": "JPEG"}
+
+# The width/height spinboxes each independently allow up to 20000px, but
+# their *product* is what actually matters for memory: a 20000x20000 resize
+# would ask QImage.scaled() to allocate ~1.6GB of 32-bit pixel storage
+# synchronously on the UI thread, which can freeze or crash the app. This
+# caps the resize target's total pixel count (independent of the aspect
+# ratio between width and height) rather than either dimension alone. 100
+# megapixels (e.g. 10000x10000) is generous for any realistic photo while
+# keeping the worst case around 400MB.
+_MAX_RESIZE_PIXELS = 100_000_000
 
 
 class ImageEditorDialog(PDialog):
@@ -344,6 +355,14 @@ class ImageEditorDialog(PDialog):
             # No-op resize (target dimensions already match the working image)
             # -- skip the undo push and the lossy re-encode, both wasted for a
             # resize that changes nothing.
+            return
+        if target_w * target_h > _MAX_RESIZE_PIXELS:
+            QMessageBox.warning(
+                self, "Resize Too Large",
+                f"{target_w} × {target_h} ({target_w * target_h / 1_000_000:.0f} megapixels) "
+                f"exceeds the maximum supported resize of {_MAX_RESIZE_PIXELS // 1_000_000} "
+                "megapixels. Choose a smaller target size."
+            )
             return
 
         self._push_undo_snapshot()

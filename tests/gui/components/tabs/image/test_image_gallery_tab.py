@@ -1432,3 +1432,35 @@ class TestImageGalleryTabEditImage:
 
         executor = tab.app_context.get_command_executor.return_value
         assert executor.execute_command.call_count == 0
+
+    def test_edit_image_warns_instead_of_opening_dialog_on_undecodable_data(
+        self, app_context, monkeypatch
+    ):
+        """A non-empty payload isn't necessarily a decodable image -- an
+        external URL can return an HTML error page or otherwise-corrupt
+        data. That must be caught before the editor dialog opens, not
+        silently produce a null-image dialog with bogus 0/1-sized
+        controls."""
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(b"not a real image, just some bytes")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        dialog_constructed = []
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog",
+            lambda *a, **kw: dialog_constructed.append(True),
+        )
+
+        with patch.object(QMessageBox, "warning") as mock_warning:
+            tab._on_edit_image_clicked()
+
+        mock_warning.assert_called_once()
+        assert "Beach" in mock_warning.call_args.args[2]
+        assert dialog_constructed == []
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 0

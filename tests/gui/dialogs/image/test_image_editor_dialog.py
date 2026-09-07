@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from PySide6.QtCore import QBuffer, QIODevice, QRect
 from PySide6.QtGui import QImage
@@ -415,6 +417,29 @@ class TestImageEditorDialogNoOpResizeSkipsUndo:
         dialog.spin_height.setValue(dialog.working_qimage.height())
         dialog._apply_resize()
 
+        assert dialog.btn_undo.isEnabled() is False
+        assert dialog.working_qimage is original_qimage
+
+    def test_apply_resize_over_the_pixel_budget_warns_and_does_not_apply(self, qapp, monkeypatch):
+        """A resize target whose *product* of width and height exceeds the
+        pixel budget must be rejected with an actionable warning, even
+        though each dimension individually fits the spinboxes' own
+        20000px maximum (e.g. 15000x15000 = 225 megapixels)."""
+        from PySide6.QtWidgets import QMessageBox
+
+        app_context = build_app_context()
+        image = Image(id="oversized-resize", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        original_qimage = dialog.working_qimage
+        dialog.chk_keep_aspect.setChecked(False)
+        dialog.spin_width.setValue(15000)
+        dialog.spin_height.setValue(15000)
+
+        with patch.object(QMessageBox, "warning") as mock_warning:
+            dialog._apply_resize()
+
+        mock_warning.assert_called_once()
         assert dialog.btn_undo.isEnabled() is False
         assert dialog.working_qimage is original_qimage
 

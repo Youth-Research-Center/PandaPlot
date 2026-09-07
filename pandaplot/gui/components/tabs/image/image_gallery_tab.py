@@ -7,7 +7,7 @@ multi-select rename/delete/group-into-album and a double-click lightbox.
 from typing import Optional, override
 
 from PySide6.QtCore import QMimeData, QSize, Qt
-from PySide6.QtGui import QDrag, QPixmap
+from PySide6.QtGui import QDrag, QImage, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -738,6 +738,17 @@ class ImageGalleryTab(PWidget):
             return
         if not data:
             QMessageBox.warning(self, "Edit Image Error", f"Unable to load image data for '{image.name}'.")
+            return
+
+        # A non-empty payload isn't necessarily a decodable image -- an
+        # external URL can return an HTML error page or otherwise-corrupt
+        # data. Decode it here, before opening the dialog, rather than
+        # letting ImageEditorDialog silently end up with a null working
+        # image and bogus 0/1-sized controls.
+        if not QImage().loadFromData(data):
+            QMessageBox.warning(
+                self, "Edit Image Error", f"'{image.name}' could not be decoded as an image."
+            )
             return
 
         dialog = ImageEditorDialog(self.app_context, image, data, parent=parent or self)
