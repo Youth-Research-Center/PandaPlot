@@ -99,7 +99,15 @@ class MoveItemCommand(Command):
             # Add item to new parent
             # Convert 'root' string to None for project.add_item()
             parent_id_for_add = None if self.target_folder_id == "root" else self.target_folder_id
-            project.add_item(item, parent_id=parent_id_for_add)
+            try:
+                project.add_item(item, parent_id=parent_id_for_add)
+            except Exception:
+                # Don't leave the item orphaned (absent from both the source
+                # and target folder) if adding to the target fails -- put it
+                # back where it came from so the move is all-or-nothing.
+                rollback_parent_id = None if self.source_folder_id == "root" else self.source_folder_id
+                project.add_item(item, parent_id=rollback_parent_id)
+                raise
 
             self.move_performed = True
 
@@ -141,7 +149,16 @@ class MoveItemCommand(Command):
                         # Add item back to original location
                         # Convert 'root' string to None for project.add_item()
                         parent_id_for_add = None if self.source_folder_id == "root" else self.source_folder_id
-                        project.add_item(item, parent_id=parent_id_for_add)
+                        try:
+                            project.add_item(item, parent_id=parent_id_for_add)
+                        except Exception:
+                            # Don't leave the item orphaned if re-adding it to
+                            # its original folder fails -- put it back where
+                            # undo() found it (the target folder) so the undo
+                            # is all-or-nothing, same as execute()/redo().
+                            rollback_parent_id = None if self.target_folder_id == "root" else self.target_folder_id
+                            project.add_item(item, parent_id=rollback_parent_id)
+                            raise
 
                         # Emit event
                         self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_MOVED, {

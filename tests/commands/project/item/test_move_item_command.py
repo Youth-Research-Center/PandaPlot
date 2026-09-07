@@ -141,6 +141,34 @@ class TestMoveItemCommandLogging:
         sample_project.remove_item.assert_called_once_with(item)
         sample_project.add_item.assert_called_once_with(item, parent_id=None)
 
+    def test_execute_restores_item_to_source_when_add_to_target_fails(self, mock_app_context, sample_project):
+        """If add_item() to the target raises after remove_item() already
+        succeeded, the item must be re-added to its original parent rather
+        than left orphaned, and move_performed must stay False so undo()
+        correctly no-ops instead of silently doing nothing about a lost item."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+        sample_project.add_item.side_effect = [RuntimeError("boom"), None]
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="source-folder", target_folder_id="root"
+        )
+
+        with pytest.raises(RuntimeError):
+            command.execute()
+
+        assert command.move_performed is False
+        sample_project.remove_item.assert_called_once_with(item)
+        assert sample_project.add_item.call_args_list == [
+            ((item,), {"parent_id": None}),
+            ((item,), {"parent_id": "source-folder"}),
+        ]
+
     def test_undo_returns_noop_when_move_was_never_performed(self, mock_app_context):
         app_context, app_state, ui_controller = mock_app_context
         app_state.has_project = True
@@ -165,6 +193,37 @@ class TestMoveItemCommandLogging:
         assert command.execute() is CommandResult.SUCCESS
 
         assert command.undo() is CommandResult.SUCCESS
+
+    def test_undo_restores_item_to_target_when_re_add_to_source_fails(self, mock_app_context, sample_project):
+        """Mirrors the execute() rollback: if re-adding the item to its
+        original folder raises during undo(), the item must go back to the
+        folder undo() found it in (the move's target) rather than being
+        orphaned."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="source-folder", target_folder_id="root"
+        )
+        assert command.execute() is CommandResult.SUCCESS
+
+        sample_project.remove_item.reset_mock()
+        sample_project.add_item.reset_mock()
+        sample_project.add_item.side_effect = [RuntimeError("boom"), None]
+
+        result = command.undo()
+
+        assert result is CommandResult.FAILURE
+        sample_project.remove_item.assert_called_once_with(item)
+        assert sample_project.add_item.call_args_list == [
+            ((item,), {"parent_id": "source-folder"}),
+            ((item,), {"parent_id": None}),
+        ]
 
     def test_redo_delegates_to_execute(self, mock_app_context):
         app_context, app_state, ui_controller = mock_app_context
