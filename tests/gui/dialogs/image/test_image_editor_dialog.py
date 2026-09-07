@@ -548,7 +548,7 @@ class TestImageEditorDialogGetResultBytesSaveFailure:
 
         monkeypatch.setattr(QImage, "save", lambda self, *args, **kwargs: False)
 
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             dialog.get_result_bytes()
 
 

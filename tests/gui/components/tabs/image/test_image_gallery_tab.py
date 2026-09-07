@@ -1341,8 +1341,9 @@ class TestImageGalleryTabEditImage:
         assert command.new_ext == "png"
 
     def test_edit_image_accepted_with_no_edits_does_not_execute_command(self, app_context, monkeypatch):
-        from PySide6.QtWidgets import QDialog
         from unittest.mock import Mock
+
+        from PySide6.QtWidgets import QDialog
 
         gallery = ImageGallery(name="Trip")
         image = Image(name="Beach")
