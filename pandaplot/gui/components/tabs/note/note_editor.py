@@ -27,9 +27,9 @@ from PySide6.QtWidgets import (
 from pandaplot.commands.project.note import EditNoteCommand
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePickerDialog
-from pandaplot.models.events import NoteEvents, UIEvents
+from pandaplot.models.events import ChartEvents, DatasetEvents, NoteEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.project.items import Image, ImageGallery, ItemCollection, Note
+from pandaplot.models.project.items import Chart, Image, ImageGallery, ItemCollection, Note
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.note_render.latex_markdown_renderer import (
     is_escaped_at,
@@ -86,6 +86,47 @@ def get_image_gallery_path(project, image_item: Image) -> str:
     if folder_path:
         return "/".join(folder_path) + "/" + image_item.name
     return image_item.name
+
+
+def get_chart_gallery_path(project, chart_item: Chart) -> str:
+    """Get folder-relative path for a Chart item (e.g. 'Folder/Chart' or 'Chart')."""
+    if project is None or chart_item is None:
+        return ""
+    folder_path = project.get_folder_path(chart_item.id)
+    if folder_path:
+        return "/".join(folder_path) + "/" + chart_item.name
+    return chart_item.name
+
+
+def load_qimage_for_chart(app_context: AppContext, chart_item: Chart) -> Optional[QImage]:
+    """Render a Chart item to a QImage using ChartEditorWidget/matplotlib."""
+    try:
+        import io
+
+        from pandaplot.gui.components.tabs.chart.chart_editor import ChartEditorWidget
+        editor = ChartEditorWidget(app_context=app_context, chart=chart_item, parent=None)
+        editor.update_chart()
+        buf = io.BytesIO()
+        editor.chart_canvas.fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
+        editor.deleteLater()
+        qimg = QImage()
+        if qimg.loadFromData(buf.getvalue()):
+            return qimg
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).debug("Failed to load QImage for chart %s: %s", chart_item.id, e)
+    return None
+
+
+def get_cached_qimage_for_chart(
+    app_context: AppContext, chart_item: Chart, cache: Dict[str, Optional[QImage]]
+) -> Optional[QImage]:
+    """Load a Chart item's QImage, memoised by id in cache."""
+    if chart_item.id in cache:
+        return cache[chart_item.id]
+    qimg = load_qimage_for_chart(app_context, chart_item)
+    cache[chart_item.id] = qimg
+    return qimg
 
 
 def load_qimage_for_item(image_item: Image) -> Optional[QImage]:
@@ -245,6 +286,29 @@ def register_project_image_resources(
                     if local_path and os.path.isfile(local_path):
                         continue
                     document.addResource(QTextDocument.ResourceType.ImageResource, url, qimg)
+
+        all_charts = [item for item in project.get_all_items() if isinstance(item, Chart)]
+        for chart_item in all_charts:
+            chart_path = get_chart_gallery_path(project, chart_item)
+            keys = {chart_item.id, chart_path, chart_item.name, f"{chart_item.name}.png"}
+
+            if referenced_keys is not None and keys.isdisjoint(referenced_keys):
+                continue
+
+            qimg = get_cached_qimage_for_chart(app_context, chart_item, cache)
+            if qimg is None or qimg.isNull():
+                continue
+
+            for key in keys:
+                if not key:
+                    continue
+                raw_url = QUrl(key)
+                resolved_url = base_url.resolved(raw_url)
+                for url in (raw_url, resolved_url):
+                    local_path = url.toLocalFile()
+                    if local_path and os.path.isfile(local_path):
+                        continue
+                    document.addResource(QTextDocument.ResourceType.ImageResource, url, qimg)
     except Exception:
         pass
 
@@ -307,6 +371,20 @@ class NotePreviewBrowser(QTextBrowser):
                 match = img_item.id == ref_str or (gallery_path and gallery_path in (ref_str, rel_path))
                 if match:
                     qimg = get_cached_qimage(img_item, self.image_cache)
+                    if qimg is not None and not qimg.isNull():
+                        return qimg
+
+            all_charts = [item for item in project.get_all_items() if isinstance(item, Chart)]
+            for chart_item in all_charts:
+                chart_path = get_chart_gallery_path(project, chart_item)
+                match = (
+                    chart_item.id == ref_str
+                    or chart_item.name == ref_str
+                    or f"{chart_item.name}.png" == ref_str
+                    or (chart_path and chart_path in (ref_str, rel_path))
+                )
+                if match:
+                    qimg = get_cached_qimage_for_chart(self.app_context, chart_item, self.image_cache)
                     if qimg is not None and not qimg.isNull():
                         return qimg
         except Exception:
@@ -623,6 +701,18 @@ class NoteEditorWidget(PWidget):
         insert_image_action.triggered.connect(self.insert_image_from_picker)
         toolbar.addAction(insert_image_action)
 
+        # Insert Chart action
+        insert_chart_action = QAction("📊 Insert Chart", self)
+        insert_chart_action.setToolTip("Insert a chart from the project")
+        insert_chart_action.triggered.connect(self.insert_chart_from_picker)
+        toolbar.addAction(insert_chart_action)
+
+        # Insert Table action
+        insert_table_action = QAction("📋 Insert Table", self)
+        insert_table_action.setToolTip("Insert a table or dataset into the note")
+        insert_table_action.triggered.connect(self.insert_table_from_picker)
+        toolbar.addAction(insert_table_action)
+
         toolbar.addSeparator()
         self.edit_mode_action = QAction("✍ Edit", self)
         self.edit_mode_action.triggered.connect(lambda: self.set_mode("edit"))
@@ -646,6 +736,41 @@ class NoteEditorWidget(PWidget):
             "Keep the source and preview scrolled to the same place in split view")
         self.scroll_sync_action.toggled.connect(self._on_scroll_sync_toggled)
         toolbar.addAction(self.scroll_sync_action)
+
+    def insert_chart_from_picker(self):
+        """Open the chart picker dialog and insert markdown for the selected chart."""
+        from pandaplot.gui.dialogs.note import NoteChartPickerDialog
+        app_state = self.app_context.get_app_state() if self.app_context else None
+        project = app_state.current_project if app_state else None
+        dialog = NoteChartPickerDialog(self.app_context, project, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            chart = dialog.get_selected_chart()
+            if chart is not None:
+                cursor = self.text_edit.textCursor()
+                alt_text = chart.name.replace("[", "(").replace("]", ")")
+                chart_ref = chart.id
+                markdown_ref = f"![{alt_text}]({chart_ref} =500x)"
+                cursor.insertText(markdown_ref)
+                self.text_edit.setTextCursor(cursor)
+                self.text_edit.setFocus()
+                if self.stack.currentIndex() == 1:
+                    self.update_preview()
+
+    def insert_table_from_picker(self):
+        """Open the table picker dialog and insert markdown for the table."""
+        from pandaplot.gui.dialogs.note import NoteTablePickerDialog
+        app_state = self.app_context.get_app_state() if self.app_context else None
+        project = app_state.current_project if app_state else None
+        dialog = NoteTablePickerDialog(self.app_context, project, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            table_md = dialog.get_markdown_table()
+            if table_md:
+                cursor = self.text_edit.textCursor()
+                cursor.insertText("\n" + table_md + "\n")
+                self.text_edit.setTextCursor(cursor)
+                self.text_edit.setFocus()
+                if self.stack.currentIndex() == 1:
+                    self.update_preview()
 
     def insert_image_from_picker(self):
         """Open the image picker dialog and insert markdown for the selected gallery image."""
@@ -729,6 +854,18 @@ class NoteEditorWidget(PWidget):
             ProjectEvents.PROJECT_ITEM_RENAMED, self.on_project_item_changed_event)
         self.subscribe_to_event(
             ProjectEvents.PROJECT_ITEM_MOVED, self.on_project_item_changed_event)
+
+        # Subscribe to chart and dataset events to update chart/table previews
+        self.subscribe_to_event(
+            ChartEvents.CHART_UPDATED, self.on_chart_or_dataset_changed_event)
+        self.subscribe_to_event(
+            DatasetEvents.DATASET_CHANGED, self.on_chart_or_dataset_changed_event)
+
+    def on_chart_or_dataset_changed_event(self, event_data: dict):
+        """Refresh note preview when a chart or dataset changes in the project."""
+        self.preview.image_cache.clear()
+        if self.stack.currentIndex() != 0:
+            self.update_preview()
 
     def on_project_item_changed_event(self, event_data: dict):
         """Refresh preview if images in the project change.

@@ -18,7 +18,7 @@ from pandaplot.gui.components.tabs.note.note_editor import (
 )
 from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePickerDialog
 from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.project.items import Folder, Image, ImageGallery, Note
+from pandaplot.models.project.items import Chart, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
 from pandaplot.services.qtasks import TaskScheduler
 
@@ -774,3 +774,77 @@ def test_note_editor_insert_image_refreshes_preview_only_mode(qapp):
         with patch.object(editor, "update_preview") as mock_update:
             editor.insert_image_from_picker()
             mock_update.assert_called_once()
+
+
+def test_note_editor_insert_chart_action(qapp):
+    """Test inserting markdown for a selected chart via NoteChartPickerDialog."""
+    chart = Chart(name="Sample Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    mock_dialog = MagicMock()
+    mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
+    mock_dialog.get_selected_chart.return_value = chart
+
+    with patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog):
+        editor.insert_chart_from_picker()
+
+    content = editor.text_edit.toPlainText()
+    assert content == f"![Sample Plot]({chart.id} =500x)"
+
+
+def test_note_editor_insert_table_action(qapp):
+    """Test inserting markdown table via NoteTablePickerDialog."""
+    project = Project(name="Test Project")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    table_md = "| A | B |\n| --- | --- |\n| 1 | 2 |"
+    mock_dialog = MagicMock()
+    mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
+    mock_dialog.get_markdown_table.return_value = table_md
+
+    with patch("pandaplot.gui.dialogs.note.NoteTablePickerDialog", return_value=mock_dialog):
+        editor.insert_table_from_picker()
+
+    content = editor.text_edit.toPlainText()
+    assert "| A | B |" in content
+
+
+def test_note_editor_registers_chart_resources(qapp):
+    """Test registering chart images as resources for note documents."""
+    chart = Chart(name="Chart 1")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    doc = QTextDocument()
+    mock_qimg = QImage(20, 20, QImage.Format.Format_RGB32)
+
+    with patch("pandaplot.gui.components.tabs.note.note_editor.load_qimage_for_chart", return_value=mock_qimg):
+        register_project_image_resources(
+            doc, app_context, referenced_keys={chart.id}
+        )
+
+    res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl(chart.id))
+    assert res is not None
