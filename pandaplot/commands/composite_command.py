@@ -26,6 +26,17 @@ class CompositeCommand(Command):
     rather than risk it re-applying or re-reversing something that was
     never actually touched.
 
+    `undo()`/`redo()` treat a sub-command's ABORTED result differently from
+    FAILURE: ABORTED means that sub-command made no net change at all --
+    it already put itself back exactly where it was (see CommandResult's
+    docstring) -- so once the prefix undone/redone earlier in *this* call is
+    rolled back, the composite as a whole is back in its pre-call state, not
+    a possibly-inconsistent one. The composite reports ABORTED itself
+    (instead of FAILURE) so CommandExecutor puts it back on the stack it
+    came from rather than moving it to the opposite one, and -- unlike a
+    FAILURE -- leaves the replay set untouched instead of going inert, since
+    nothing about it actually needs to change.
+
     `execute()` rejects (raises `ValueError`, before running any sub-command)
     any sub-command whose `occupies_undo_slot()` is False. Such a
     sub-command's real effect isn't synchronous within execute() -- it
@@ -132,6 +143,24 @@ class CompositeCommand(Command):
                     self._executed = []
                     return CommandResult.FAILURE
 
+                if res is CommandResult.ABORTED:
+                    # Unlike FAILURE, ABORTED means cmd made no net change at
+                    # all -- it already put itself back exactly where it was
+                    # (see CommandResult docstring). So the composite as a
+                    # whole is still fully applied once the prefix undone
+                    # earlier in this call is rolled back (re-applied); leave
+                    # _executed untouched (not inert) so a retry sees the
+                    # same replay set, and report ABORTED ourselves so
+                    # CommandExecutor puts this composite back on the undo
+                    # stack instead of moving it to the redo stack.
+                    self.logger.warning(
+                        "Sub-command %s aborted (no changes made) during undo(); rolling back "
+                        "%d undone sub-commands",
+                        cmd.__class__.__name__, len(undone),
+                    )
+                    self._rollback_undo(undone)
+                    return CommandResult.ABORTED
+
                 if res is not CommandResult.NOOP:
                     undone.append(cmd)
             except Exception as e:
@@ -168,6 +197,23 @@ class CompositeCommand(Command):
                     # are already back in their undone state.
                     self._executed = []
                     return CommandResult.FAILURE
+
+                if res is CommandResult.ABORTED:
+                    # Unlike FAILURE, ABORTED means cmd made no net change --
+                    # it already put itself back exactly where it was (see
+                    # CommandResult docstring). Rolling back the redone
+                    # prefix restores the composite to fully undone, exactly
+                    # where it was before this call, so leave _executed
+                    # untouched (not inert) and report ABORTED ourselves so
+                    # CommandExecutor puts this composite back on the redo
+                    # stack instead of moving it to the undo stack.
+                    self.logger.warning(
+                        "Sub-command %s aborted (no changes made) during redo(); rolling back "
+                        "%d redone sub-commands",
+                        cmd.__class__.__name__, len(redone),
+                    )
+                    self._rollback(redone)
+                    return CommandResult.ABORTED
 
                 if res is not CommandResult.NOOP:
                     redone.append(cmd)

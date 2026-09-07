@@ -198,7 +198,11 @@ class TestMoveItemCommandLogging:
         """Mirrors the execute() rollback: if re-adding the item to its
         original folder raises during undo(), the item must go back to the
         folder undo() found it in (the move's target) rather than being
-        orphaned."""
+        orphaned. Since that rollback succeeds, no net project-state change
+        occurred, so the result must be ABORTED (retryable) rather than
+        FAILURE -- FAILURE would make CommandExecutor.undo() move this
+        command to the redo stack as if it had actually been undone, even
+        though the item never left the target folder (see PR #373 review)."""
         app_context, app_state, ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
@@ -218,12 +222,78 @@ class TestMoveItemCommandLogging:
 
         result = command.undo()
 
-        assert result is CommandResult.FAILURE
+        assert result is CommandResult.ABORTED
         sample_project.remove_item.assert_called_once_with(item)
         assert sample_project.add_item.call_args_list == [
             ((item,), {"parent_id": "source-folder"}),
             ((item,), {"parent_id": None}),
         ]
+
+    def test_undo_returns_failure_when_rollback_itself_also_fails(self, mock_app_context, sample_project):
+        """If the compensating add_item() back to the target *also* raises,
+        the item's state is genuinely uncertain (unlike the recovered case
+        above), so this must stay a hard FAILURE, not ABORTED."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="source-folder", target_folder_id="root"
+        )
+        assert command.execute() is CommandResult.SUCCESS
+
+        sample_project.add_item.reset_mock()
+        sample_project.add_item.side_effect = RuntimeError("boom")
+
+        assert command.undo() is CommandResult.FAILURE
+
+    def test_redo_returns_aborted_when_add_to_target_fails_but_rollback_succeeds(self, mock_app_context, sample_project):
+        """redo() delegates to execute(); when execute()'s own rollback
+        recovers (item put back in the source folder, no net change), redo()
+        must report ABORTED instead of letting the exception propagate --
+        otherwise CommandExecutor.redo() would invalidate the entire
+        undo/redo history for what was actually a no-op (see PR #373
+        review)."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+        sample_project.add_item.side_effect = [RuntimeError("boom"), None]
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="source-folder", target_folder_id="root"
+        )
+
+        assert command.redo() is CommandResult.ABORTED
+        assert command.move_performed is False
+
+    def test_redo_reraises_when_rollback_itself_also_fails(self, mock_app_context, sample_project):
+        """If the recovery add_item() also raises, the item's state is
+        genuinely uncertain, so redo() must let the exception propagate
+        (letting CommandExecutor invalidate history) rather than report
+        ABORTED."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+        sample_project.add_item.side_effect = RuntimeError("boom")
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="source-folder", target_folder_id="root"
+        )
+
+        with pytest.raises(RuntimeError):
+            command.redo()
 
     def test_redo_delegates_to_execute(self, mock_app_context):
         app_context, app_state, ui_controller = mock_app_context

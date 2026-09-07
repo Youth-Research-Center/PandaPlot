@@ -28,11 +28,19 @@ class MoveItemCommand(Command):
         # Store state for undo
         self.move_performed = False
 
+        # Set (by execute()/undo()) just before re-raising an add_item()
+        # failure that was itself successfully rolled back -- i.e. the item
+        # is back exactly where this call found it, so no net project-state
+        # change occurred. redo()/undo() check this to report ABORTED
+        # instead of a hard failure for that recovered, no-op case.
+        self._rolled_back = False
+
     @override
     def execute(self) -> CommandResult:
         """Execute the move item command."""
         # Initialize item_name for error messages
         item_name = self.item_id  # Fallback to ID if name is not available
+        self._rolled_back = False
 
         try:
             # Debug logging
@@ -107,6 +115,7 @@ class MoveItemCommand(Command):
                 # back where it came from so the move is all-or-nothing.
                 rollback_parent_id = None if self.source_folder_id == "root" else self.source_folder_id
                 project.add_item(item, parent_id=rollback_parent_id)
+                self._rolled_back = True
                 raise
 
             self.move_performed = True
@@ -133,6 +142,7 @@ class MoveItemCommand(Command):
 
     def undo(self) -> CommandResult:
         """Undo the move item command."""
+        self._rolled_back = False
         try:
             if self.move_performed and self.app_state.has_project:
                 project = get_current_project(self.app_context)
@@ -158,6 +168,7 @@ class MoveItemCommand(Command):
                             # is all-or-nothing, same as execute()/redo().
                             rollback_parent_id = None if self.target_folder_id == "root" else self.target_folder_id
                             project.add_item(item, parent_id=rollback_parent_id)
+                            self._rolled_back = True
                             raise
 
                         # Emit event
@@ -197,11 +208,28 @@ class MoveItemCommand(Command):
             error_msg = f"Failed to undo move of '{item_name}': {str(e)}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
+            if self._rolled_back:
+                # Re-adding to the source folder failed, but the item was
+                # successfully put back where undo() found it (the target
+                # folder) -- no net change, so this is retryable rather than
+                # a hard failure that CommandExecutor would move to the redo
+                # stack as if the item had actually been undone.
+                return CommandResult.ABORTED
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
         """Redo the move item command."""
-        return self.execute()
+        try:
+            return self.execute()
+        except Exception:
+            if self._rolled_back:
+                # add_item() to the target failed but the rollback restored
+                # the item to where undo() had put it -- no net change, so
+                # report ABORTED rather than letting the exception propagate
+                # and have CommandExecutor.redo() invalidate the entire
+                # undo/redo history over what was actually a no-op.
+                return CommandResult.ABORTED
+            raise
 
     @override
     def cleanup(self) -> None:

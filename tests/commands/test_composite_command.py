@@ -350,6 +350,57 @@ def test_composite_command_redo_failure_leaves_composite_inert_not_re_undoable()
     assert cmd2.undone_count == 0
 
 
+def test_composite_command_undo_stops_and_rolls_back_on_aborted():
+    """ABORTED means the sub-command made no net change and put itself back
+    exactly where it was (see CommandResult docstring) -- unlike FAILURE, it
+    isn't a broken/uncertain state, so the composite must roll back what it
+    already undid this call and report ABORTED itself, while leaving
+    _executed untouched so a later retry sees the exact same sub-commands
+    (see PR #373 review, prompted by MoveItemCommand.undo() now returning
+    ABORTED after a recovered rollback)."""
+    cmd1 = SimpleCommand("c1")
+    cmd2 = SimpleCommand("c2", undo_result=CommandResult.ABORTED)
+    cmd3 = SimpleCommand("c3")
+
+    composite = CompositeCommand([cmd1, cmd2, cmd3])
+    composite.execute()
+
+    assert composite.undo() is CommandResult.ABORTED
+    assert cmd3.undone_count == 1
+    assert cmd3.redone_count == 1  # rolled back: re-applied after cmd2 aborted
+    assert cmd2.undone_count == 1
+    assert cmd1.undone_count == 0  # never reached
+
+    # Unlike FAILURE, the composite must stay retryable: _executed keeps its
+    # full pre-call membership rather than going inert.
+    assert composite._executed == [cmd1, cmd2, cmd3]
+
+
+def test_composite_command_redo_stops_and_rolls_back_on_aborted():
+    """Mirrors the undo() case: an ABORTED sub-command during redo() means no
+    net change, so the composite rolls back the redone prefix, reports
+    ABORTED, and leaves _executed as the still-undone set rather than going
+    inert."""
+    cmd1 = SimpleCommand("c1")
+    cmd2 = SimpleCommand("c2", redo_result=CommandResult.ABORTED)
+
+    composite = CompositeCommand([cmd1, cmd2])
+    composite.execute()
+    composite.undo()
+
+    cmd1.undone_count = 0
+    cmd2.undone_count = 0
+
+    assert composite.redo() is CommandResult.ABORTED
+    assert cmd1.redone_count == 1
+    assert cmd1.undone_count == 1  # rolled back: undone again after cmd2 aborted
+    assert cmd2.redone_count == 1
+
+    # Composite stays retryable: nothing net changed, so _executed must still
+    # be the same pending-redo set as before this call, not go inert (empty).
+    assert composite._executed == [cmd1, cmd2]
+
+
 def test_composite_command_redo_forward_order():
     call_order: List[str] = []
 
