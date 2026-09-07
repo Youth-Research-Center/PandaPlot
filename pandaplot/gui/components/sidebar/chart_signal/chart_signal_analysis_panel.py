@@ -724,6 +724,10 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         secondary_fg = palette.get("secondary_fg", "#666666")
 
         self.setStyleSheet(f"""
+            ChartSignalAnalysisPanel {{
+                background-color: {card_bg};
+                color: {base_fg};
+            }}
             QGroupBox {{
                 font-weight: bold;
                 font-size: 9pt;
@@ -734,11 +738,10 @@ class ChartSignalAnalysisPanel(SidebarPanel):
                 border: 1px solid {card_border};
                 border-radius: 4px;
             }}
-
             QGroupBox::title {{
                 subcontrol-origin: margin;
                 left: 10px;
-                padding: 0 5px;
+                padding: 0 5px 0 5px;
                 background-color: {card_bg};
             }}
         """)
