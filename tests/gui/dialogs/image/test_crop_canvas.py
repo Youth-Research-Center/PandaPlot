@@ -207,7 +207,7 @@ class TestCropCanvasClampAspectLockedRectFinalBoundsClamp:
 
 
 class TestCropCanvasWidgetRectExclusiveConvention:
-    def test_hit_test_body_includes_pixel_at_exclusive_bottom_right_boundary(self):
+    def test_hit_test_excludes_pixel_at_exclusive_bottom_right_boundary(self):
         """Finding #4 (re-review): hit_test's body-rect (and paintEvent's
         overlay, same construction) used to build the widget-space crop
         rect via the two-QPoint QRect(topLeft, bottomRight) constructor,

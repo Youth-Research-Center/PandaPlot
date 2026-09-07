@@ -113,3 +113,55 @@ class TestEditImageCommand:
 
         assert edit_cmd.old_bytes is None
         assert edit_cmd.new_bytes == b""
+
+    def test_redo_after_a_failed_undo_does_not_lose_the_original_bytes(self, app_context_with_project):
+        """CommandExecutor pushes a command onto the redo stack even when
+        undo() returns FAILURE (not just on success) -- undo()'s failure
+        branches all return before restoring the item, so the item can
+        still be in its edited (new) state when redo() runs next. redo()
+        re-entering execute() must not recapture old_bytes at that point,
+        or the true pre-edit snapshot would be silently replaced with the
+        already-edited bytes, making the original permanently
+        unrecoverable."""
+        gallery_cmd = CreateImageGalleryCommand(app_context_with_project, gallery_name="Gallery")
+        gallery_cmd.execute()
+        gallery_id = gallery_cmd.created_gallery_id
+        project = app_context_with_project.get_app_state().current_project
+
+        old_data = _make_png_bytes(20, 20)
+        image = Image(id="img-edit-4", name="Original", width=20, height=20, storage_mode="external")
+        image.set_bytes(old_data)
+        project.add_item(image, parent_id=gallery_id)
+
+        new_data = _make_png_bytes(10, 15)
+        edit_cmd = EditImageCommand(
+            app_context_with_project, image_id="img-edit-4",
+            new_bytes=new_data, new_width=10, new_height=15, new_ext="png"
+        )
+        edit_cmd.execute()
+        assert edit_cmd.old_bytes == old_data
+
+        # Simulate the item's undo failing without raising (e.g. the
+        # project was momentarily unavailable) -- the image stays in its
+        # edited state, exactly as CommandExecutor would leave it after
+        # pushing this command onto the redo stack despite the FAILURE.
+        app_state = app_context_with_project.get_app_state()
+        app_state.has_project = False
+        undo_res = edit_cmd.undo()
+        assert undo_res is CommandResult.FAILURE
+        assert image.get_bytes() == new_data  # unchanged -- undo bailed out early
+
+        # Recovery: the project becomes available again, and the user
+        # triggers redo (CommandExecutor already moved this command to
+        # the redo stack despite the failed undo).
+        app_state.has_project = True
+        redo_res = edit_cmd.redo()
+        assert redo_res is CommandResult.SUCCESS
+
+        # The critical assertion: old_bytes must still be the TRUE
+        # original, not overwritten with the already-edited new_data.
+        assert edit_cmd.old_bytes == old_data
+
+        # And a subsequent undo must actually be able to restore it.
+        assert edit_cmd.undo() is CommandResult.SUCCESS
+        assert image.get_bytes() == old_data

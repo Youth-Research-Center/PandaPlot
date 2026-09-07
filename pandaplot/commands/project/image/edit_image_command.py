@@ -40,6 +40,17 @@ class EditImageCommand(Command):
         self.old_storage_mode: str = "copied"
         self.old_image_ext: str = ""
         self.old_modified_at: str = ""
+        # True once the old_* fields above have been captured. redo()
+        # re-enters execute(), which must NOT recapture them a second
+        # time: CommandExecutor pushes a command onto the redo stack even
+        # when undo() returns FAILURE (not just on success), and
+        # EditImageCommand.undo()'s failure branches all return before
+        # restoring the item -- so the item can still be in its edited
+        # (new) state when a later redo() runs. Recapturing old_bytes at
+        # that point would silently replace the true pre-edit snapshot
+        # with the already-edited bytes, permanently losing the ability
+        # to restore the original on any future undo.
+        self._old_state_captured = False
 
     @override
     def execute(self) -> CommandResult:
@@ -60,14 +71,17 @@ class EditImageCommand(Command):
                 self.ui_controller.show_error_message("Edit Image Error", f"Image '{self.image_id}' not found.")
                 return CommandResult.FAILURE
 
-            # Save state for undo
-            self.old_bytes = item.get_bytes()
-            self.old_width = item.width
-            self.old_height = item.height
-            self.old_size_bytes = item.size_bytes
-            self.old_storage_mode = item.storage_mode
-            self.old_image_ext = item.image_ext
-            self.old_modified_at = item.modified_at
+            # Save state for undo -- only the first time this command
+            # actually applies (see _old_state_captured's docstring).
+            if not self._old_state_captured:
+                self.old_bytes = item.get_bytes()
+                self.old_width = item.width
+                self.old_height = item.height
+                self.old_size_bytes = item.size_bytes
+                self.old_storage_mode = item.storage_mode
+                self.old_image_ext = item.image_ext
+                self.old_modified_at = item.modified_at
+                self._old_state_captured = True
 
             # Apply edit
             item.set_bytes(self.new_bytes)
