@@ -1404,3 +1404,31 @@ class TestImageGalleryTabEditImage:
 
         executor = tab.app_context.get_command_executor.return_value
         assert executor.execute_command.call_count == 0
+
+    def test_edit_image_shows_warning_instead_of_crashing_when_external_load_raises(
+        self, app_context, monkeypatch
+    ):
+        """_load_external_bytes can raise (a network error for a URL source,
+        an unreadable/removed local file) -- that must surface as the same
+        load-error message a missing/empty result already gets, not escape
+        the Qt slot as an unhandled exception."""
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach", storage_mode="external", source_file="https://example.com/beach.png")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        def _raise(*_a, **_kw):
+            raise ConnectionError("network is unreachable")
+
+        monkeypatch.setattr(tab, "_load_external_bytes", _raise)
+
+        with patch.object(QMessageBox, "warning") as mock_warning:
+            tab._on_edit_image_clicked()
+
+        mock_warning.assert_called_once()
+        assert "Beach" in mock_warning.call_args.args[2]
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 0

@@ -448,6 +448,14 @@ class ImageEditorDialog(PDialog):
         self._update_info_label()
 
     def _reset_edits(self):
+        if not self._transforms:
+            # No-op reset (already showing the original, unedited image) --
+            # skip the undo push, mirroring the crop/resize no-op guards.
+            # Without this, Reset on a fresh dialog would enable Undo for
+            # an operation that changed nothing, and Undo/Redo would just
+            # move two identical empty transform lists between the stacks.
+            return
+
         self._push_undo_snapshot()
         self._transforms = []
         self.working_qimage = QImage(self.original_qimage)

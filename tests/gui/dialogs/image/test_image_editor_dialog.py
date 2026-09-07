@@ -419,6 +419,39 @@ class TestImageEditorDialogNoOpResizeSkipsUndo:
         assert dialog.working_qimage is original_qimage
 
 
+class TestImageEditorDialogNoOpResetSkipsUndo:
+    def test_reset_with_no_prior_edits_is_a_no_op(self, qapp):
+        """Resetting an already-original image must not push an undo
+        snapshot -- it changes no pixels and there's nothing to undo back
+        to, unlike a reset that follows real edits."""
+        app_context = build_app_context()
+        image = Image(id="noop-reset", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        original_qimage = dialog.working_qimage
+        assert dialog.btn_undo.isEnabled() is False
+
+        dialog._reset_edits()
+
+        assert dialog.btn_undo.isEnabled() is False
+        assert dialog.working_qimage is original_qimage
+
+    def test_reset_after_real_edits_still_pushes_undo(self, qapp):
+        """A reset that actually discards edits must remain undoable --
+        only a reset with nothing to discard is skipped."""
+        app_context = build_app_context()
+        image = Image(id="noop-reset-2", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        dialog._rotate(90)
+        dialog._reset_edits()
+
+        assert dialog.btn_undo.isEnabled() is True
+        dialog._undo()
+        assert dialog.working_qimage.width() == 80
+        assert dialog.working_qimage.height() == 100
+
+
 class TestImageEditorDialogHasEdits:
     def test_fresh_dialog_has_no_edits(self, qapp):
         app_context = build_app_context()

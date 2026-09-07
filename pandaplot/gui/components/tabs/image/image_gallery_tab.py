@@ -724,7 +724,18 @@ class ImageGalleryTab(PWidget):
         self._edit_image(selected[0])
 
     def _edit_image(self, image: Image, parent: Optional[QWidget] = None):
-        data = image.get_bytes() or self._load_external_bytes(image.source_file)
+        try:
+            data = image.get_bytes() or self._load_external_bytes(image.source_file)
+        except Exception as exc:
+            # _load_external_bytes can raise (a network error for a URL
+            # source, an unreadable/removed local file) -- without this
+            # guard that exception would escape this Qt slot instead of
+            # showing the same load-error message a missing/empty result
+            # already gets below.
+            QMessageBox.warning(
+                self, "Edit Image Error", f"Unable to load image data for '{image.name}': {exc}"
+            )
+            return
         if not data:
             QMessageBox.warning(self, "Edit Image Error", f"Unable to load image data for '{image.name}'.")
             return
