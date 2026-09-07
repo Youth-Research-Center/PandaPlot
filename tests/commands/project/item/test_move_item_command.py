@@ -141,6 +141,34 @@ class TestMoveItemCommandLogging:
         sample_project.remove_item.assert_called_once_with(item)
         sample_project.add_item.assert_called_once_with(item, parent_id=None)
 
+    def test_execute_restores_item_to_source_when_add_to_target_fails(self, mock_app_context, sample_project):
+        """If add_item() to the target raises after remove_item() already
+        succeeded, the item must be re-added to its original parent rather
+        than left orphaned, and move_performed must stay False so undo()
+        correctly no-ops instead of silently doing nothing about a lost item."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+        sample_project.add_item.side_effect = [RuntimeError("boom"), None]
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="source-folder", target_folder_id="root"
+        )
+
+        with pytest.raises(RuntimeError):
+            command.execute()
+
+        assert command.move_performed is False
+        sample_project.remove_item.assert_called_once_with(item)
+        assert sample_project.add_item.call_args_list == [
+            ((item,), {"parent_id": None}),
+            ((item,), {"parent_id": "source-folder"}),
+        ]
+
     def test_undo_returns_noop_when_move_was_never_performed(self, mock_app_context):
         app_context, app_state, ui_controller = mock_app_context
         app_state.has_project = True
@@ -166,13 +194,128 @@ class TestMoveItemCommandLogging:
 
         assert command.undo() is CommandResult.SUCCESS
 
-    def test_redo_delegates_to_execute(self, mock_app_context):
+    def test_undo_restores_item_to_target_when_re_add_to_source_fails(self, mock_app_context, sample_project):
+        """Mirrors the execute() rollback: if re-adding the item to its
+        original folder raises during undo(), the item must go back to the
+        folder undo() found it in (the move's target) rather than being
+        orphaned. Since that rollback succeeds, no net project-state change
+        occurred, so the result must be ABORTED (retryable) rather than
+        FAILURE -- FAILURE would make CommandExecutor.undo() move this
+        command to the redo stack as if it had actually been undone, even
+        though the item never left the target folder (see PR #373 review)."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="source-folder", target_folder_id="root"
+        )
+        assert command.execute() is CommandResult.SUCCESS
+
+        sample_project.remove_item.reset_mock()
+        sample_project.add_item.reset_mock()
+        sample_project.add_item.side_effect = [RuntimeError("boom"), None]
+
+        result = command.undo()
+
+        assert result is CommandResult.ABORTED
+        sample_project.remove_item.assert_called_once_with(item)
+        assert sample_project.add_item.call_args_list == [
+            ((item,), {"parent_id": "source-folder"}),
+            ((item,), {"parent_id": None}),
+        ]
+
+    def test_undo_reraises_when_rollback_itself_also_fails(self, mock_app_context, sample_project):
+        """If the compensating add_item() back to the target *also* raises,
+        the item is genuinely orphaned (removed from its old location, never
+        successfully re-added anywhere) -- a real uncertain state, unlike the
+        recovered case above. Swallowing this as an ordinary FAILURE would
+        let CommandExecutor.undo() move the command to the redo stack and
+        leave the rest of history untouched, even though only an exception
+        triggers the history invalidation this uncertain state actually
+        needs -- so undo() must re-raise here, matching what redo() already
+        does for the equivalent double-failure (see PR #373 review)."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="source-folder", target_folder_id="root"
+        )
+        assert command.execute() is CommandResult.SUCCESS
+
+        sample_project.add_item.reset_mock()
+        sample_project.add_item.side_effect = RuntimeError("boom")
+
+        with pytest.raises(RuntimeError):
+            command.undo()
+
+    def test_redo_returns_aborted_when_add_to_target_fails_but_rollback_succeeds(self, mock_app_context, sample_project):
+        """redo() delegates to execute(); when execute()'s own rollback
+        recovers (item put back in the source folder, no net change), redo()
+        must report ABORTED instead of letting the exception propagate --
+        otherwise CommandExecutor.redo() would invalidate the entire
+        undo/redo history for what was actually a no-op (see PR #373
+        review)."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+        sample_project.add_item.side_effect = [RuntimeError("boom"), None]
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="source-folder", target_folder_id="root"
+        )
+
+        assert command.redo() is CommandResult.ABORTED
+        assert command.move_performed is False
+
+    def test_redo_reraises_when_rollback_itself_also_fails(self, mock_app_context, sample_project):
+        """If the recovery add_item() also raises, the item's state is
+        genuinely uncertain, so redo() must let the exception propagate
+        (letting CommandExecutor invalidate history) rather than report
+        ABORTED."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        sample_project.find_item.return_value = item
+        sample_project.add_item.side_effect = RuntimeError("boom")
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="source-folder", target_folder_id="root"
+        )
+
+        with pytest.raises(RuntimeError):
+            command.redo()
+
+    def test_redo_returns_aborted_when_execute_fails_validation_without_mutating(self, mock_app_context):
+        """redo() delegates to execute(); a FAILURE returned (not raised) by
+        execute() means one of its early guard checks refused before
+        remove_item() ever ran -- nothing was mutated. redo() must translate
+        that to ABORTED so CommandExecutor keeps the still-undone command on
+        the redo stack, instead of forwarding a bare FAILURE that
+        CommandExecutor would move to the undo stack as if it had actually
+        been redone (see PR #373 review)."""
         app_context, app_state, ui_controller = mock_app_context
         app_state.has_project = False
 
         command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
 
-        assert command.redo() is CommandResult.FAILURE
+        assert command.redo() is CommandResult.ABORTED
 
     def test_cleanup_does_not_raise(self, mock_app_context):
         app_context, app_state, ui_controller = mock_app_context
