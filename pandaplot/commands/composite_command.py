@@ -129,40 +129,6 @@ class CompositeCommand(Command):
         for cmd in reversed(self._executed):
             try:
                 res = cmd.undo()
-                if res is CommandResult.FAILURE:
-                    self.logger.warning(
-                        "Sub-command %s failed during undo(); rolling back %d undone sub-commands",
-                        cmd.__class__.__name__, len(undone),
-                    )
-                    self._rollback_undo(undone)
-                    # Nothing net changed (still fully applied), but
-                    # CommandExecutor moves this composite to the redo stack
-                    # regardless of this FAILURE. Go inert rather than risk a
-                    # later redo() re-applying sub-commands that were never
-                    # actually undone.
-                    self._executed = []
-                    return CommandResult.FAILURE
-
-                if res is CommandResult.ABORTED:
-                    # Unlike FAILURE, ABORTED means cmd made no net change at
-                    # all -- it already put itself back exactly where it was
-                    # (see CommandResult docstring). So the composite as a
-                    # whole is still fully applied once the prefix undone
-                    # earlier in this call is rolled back (re-applied); leave
-                    # _executed untouched (not inert) so a retry sees the
-                    # same replay set, and report ABORTED ourselves so
-                    # CommandExecutor puts this composite back on the undo
-                    # stack instead of moving it to the redo stack.
-                    self.logger.warning(
-                        "Sub-command %s aborted (no changes made) during undo(); rolling back "
-                        "%d undone sub-commands",
-                        cmd.__class__.__name__, len(undone),
-                    )
-                    self._rollback_undo(undone)
-                    return CommandResult.ABORTED
-
-                if res is not CommandResult.NOOP:
-                    undone.append(cmd)
             except Exception as e:
                 self.logger.error(
                     "Sub-command %s raised exception during undo(): %s; rolling back %d undone sub-commands",
@@ -171,6 +137,55 @@ class CompositeCommand(Command):
                 self._rollback_undo(undone)
                 self._executed = []
                 return CommandResult.FAILURE
+
+            if res is CommandResult.FAILURE:
+                self.logger.warning(
+                    "Sub-command %s failed during undo(); rolling back %d undone sub-commands",
+                    cmd.__class__.__name__, len(undone),
+                )
+                self._rollback_undo(undone)
+                # Nothing net changed (still fully applied), but
+                # CommandExecutor moves this composite to the redo stack
+                # regardless of this FAILURE. Go inert rather than risk a
+                # later redo() re-applying sub-commands that were never
+                # actually undone.
+                self._executed = []
+                return CommandResult.FAILURE
+
+            if res is CommandResult.ABORTED:
+                # Unlike FAILURE, ABORTED means cmd made no net change at
+                # all -- it already put itself back exactly where it was
+                # (see CommandResult docstring). So the composite as a
+                # whole is still fully applied once the prefix undone
+                # earlier in this call is rolled back (re-applied); leave
+                # _executed untouched (not inert) so a retry sees the
+                # same replay set, and report ABORTED ourselves so
+                # CommandExecutor puts this composite back on the undo
+                # stack instead of moving it to the redo stack.
+                self.logger.warning(
+                    "Sub-command %s aborted (no changes made) during undo(); rolling back "
+                    "%d undone sub-commands",
+                    cmd.__class__.__name__, len(undone),
+                )
+                if not self._rollback_undo(undone):
+                    # The compensating re-apply of an earlier sibling failed
+                    # too, so the composite may now be partially undone -- a
+                    # genuinely uncertain state, not the "nothing net
+                    # changed" ABORTED promises. Escalate like every other
+                    # unrecoverable failure in this class: raise (deliberately
+                    # not caught by this loop's own except above, so it
+                    # propagates out of undo() itself) so CommandExecutor
+                    # invalidates history instead of trusting a partial
+                    # rollback.
+                    raise RuntimeError(
+                        f"CompositeCommand.undo(): failed to fully roll back after "
+                        f"{cmd.__class__.__name__} aborted -- composite may be left in a "
+                        "partially-undone state"
+                    )
+                return CommandResult.ABORTED
+
+            if res is not CommandResult.NOOP:
+                undone.append(cmd)
 
         self._executed = list(reversed(undone))
         if not self._executed:
@@ -183,40 +198,6 @@ class CompositeCommand(Command):
         for cmd in self._executed:
             try:
                 res = cmd.redo()
-                if res is CommandResult.FAILURE:
-                    self.logger.warning(
-                        "Sub-command %s failed during redo(); rolling back %d redone sub-commands",
-                        cmd.__class__.__name__, len(redone),
-                    )
-                    self._rollback(redone)
-                    # The rolled-back prefix is undone again and the
-                    # never-reached remainder was already undone, but
-                    # CommandExecutor.redo() moves this composite to the
-                    # undo stack regardless of this FAILURE. Go inert rather
-                    # than risk a later undo() re-undoing sub-commands that
-                    # are already back in their undone state.
-                    self._executed = []
-                    return CommandResult.FAILURE
-
-                if res is CommandResult.ABORTED:
-                    # Unlike FAILURE, ABORTED means cmd made no net change --
-                    # it already put itself back exactly where it was (see
-                    # CommandResult docstring). Rolling back the redone
-                    # prefix restores the composite to fully undone, exactly
-                    # where it was before this call, so leave _executed
-                    # untouched (not inert) and report ABORTED ourselves so
-                    # CommandExecutor puts this composite back on the redo
-                    # stack instead of moving it to the undo stack.
-                    self.logger.warning(
-                        "Sub-command %s aborted (no changes made) during redo(); rolling back "
-                        "%d redone sub-commands",
-                        cmd.__class__.__name__, len(redone),
-                    )
-                    self._rollback(redone)
-                    return CommandResult.ABORTED
-
-                if res is not CommandResult.NOOP:
-                    redone.append(cmd)
             except Exception as e:
                 self.logger.error(
                     "Sub-command %s raised exception during redo(): %s; rolling back %d redone sub-commands",
@@ -225,6 +206,55 @@ class CompositeCommand(Command):
                 self._rollback(redone)
                 self._executed = []
                 return CommandResult.FAILURE
+
+            if res is CommandResult.FAILURE:
+                self.logger.warning(
+                    "Sub-command %s failed during redo(); rolling back %d redone sub-commands",
+                    cmd.__class__.__name__, len(redone),
+                )
+                self._rollback(redone)
+                # The rolled-back prefix is undone again and the
+                # never-reached remainder was already undone, but
+                # CommandExecutor.redo() moves this composite to the
+                # undo stack regardless of this FAILURE. Go inert rather
+                # than risk a later undo() re-undoing sub-commands that
+                # are already back in their undone state.
+                self._executed = []
+                return CommandResult.FAILURE
+
+            if res is CommandResult.ABORTED:
+                # Unlike FAILURE, ABORTED means cmd made no net change --
+                # it already put itself back exactly where it was (see
+                # CommandResult docstring). Rolling back the redone
+                # prefix restores the composite to fully undone, exactly
+                # where it was before this call, so leave _executed
+                # untouched (not inert) and report ABORTED ourselves so
+                # CommandExecutor puts this composite back on the redo
+                # stack instead of moving it to the undo stack.
+                self.logger.warning(
+                    "Sub-command %s aborted (no changes made) during redo(); rolling back "
+                    "%d redone sub-commands",
+                    cmd.__class__.__name__, len(redone),
+                )
+                if not self._rollback(redone):
+                    # The compensating undo() of an earlier sibling failed
+                    # too, so the composite may now be partially redone -- a
+                    # genuinely uncertain state, not the "nothing net
+                    # changed" ABORTED promises. Escalate like every other
+                    # unrecoverable failure in this class: raise
+                    # (deliberately not caught by this loop's own except
+                    # above, so it propagates out of redo() itself) so
+                    # CommandExecutor invalidates history instead of
+                    # trusting a partial rollback.
+                    raise RuntimeError(
+                        f"CompositeCommand.redo(): failed to fully roll back after "
+                        f"{cmd.__class__.__name__} aborted -- composite may be left in a "
+                        "partially-redone state"
+                    )
+                return CommandResult.ABORTED
+
+            if res is not CommandResult.NOOP:
+                redone.append(cmd)
 
         self._executed = redone
         if not redone:
@@ -241,7 +271,14 @@ class CompositeCommand(Command):
                     cmd.__class__.__name__, e, exc_info=True,
                 )
 
-    def _rollback(self, executed: List[Command]) -> None:
+    def _rollback(self, executed: List[Command]) -> bool:
+        """Returns whether every compensating undo() call fully succeeded
+        (reported SUCCESS, didn't raise). The FAILURE/exception callers below
+        log-and-move-on regardless (see class caveat), but the ABORTED
+        callers need this to know whether it's still true that nothing net
+        changed -- a partial rollback is a genuinely uncertain state, not the
+        no-op ABORTED promises."""
+        all_succeeded = True
         for cmd in reversed(executed):
             try:
                 res = cmd.undo()
@@ -255,17 +292,23 @@ class CompositeCommand(Command):
                         "applied outside this composite's undo/redo tracking from here on",
                         cmd.__class__.__name__, res,
                     )
+                    all_succeeded = False
             except Exception as e:
                 self.logger.error(
                     "Error rolling back sub-command %s: %s",
                     cmd.__class__.__name__, e, exc_info=True,
                 )
+                all_succeeded = False
+        return all_succeeded
 
-    def _rollback_undo(self, undone: List[Command]) -> None:
+    def _rollback_undo(self, undone: List[Command]) -> bool:
         """Re-apply sub-commands already undone earlier in this same undo()
         call, so a failure partway through never leaves a partial mutation
         in place. Mirrors _rollback(), but redo()es instead of undo()ing
-        since it's reversing an undo rather than an execute()/redo()."""
+        since it's reversing an undo rather than an execute()/redo().
+        Returns whether every compensating redo() call fully succeeded --
+        see _rollback()'s docstring."""
+        all_succeeded = True
         for cmd in reversed(undone):
             try:
                 res = cmd.redo()
@@ -275,11 +318,14 @@ class CompositeCommand(Command):
                         "it may remain undone outside this composite's undo/redo tracking from here on",
                         cmd.__class__.__name__, res,
                     )
+                    all_succeeded = False
             except Exception as e:
                 self.logger.error(
                     "Error rolling back (re-applying) sub-command %s: %s",
                     cmd.__class__.__name__, e, exc_info=True,
                 )
+                all_succeeded = False
+        return all_succeeded
 
     def __repr__(self):
         return f"{self.__class__.__name__}(count={len(self.commands)})"

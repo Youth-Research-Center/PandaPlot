@@ -229,10 +229,16 @@ class TestMoveItemCommandLogging:
             ((item,), {"parent_id": None}),
         ]
 
-    def test_undo_returns_failure_when_rollback_itself_also_fails(self, mock_app_context, sample_project):
+    def test_undo_reraises_when_rollback_itself_also_fails(self, mock_app_context, sample_project):
         """If the compensating add_item() back to the target *also* raises,
-        the item's state is genuinely uncertain (unlike the recovered case
-        above), so this must stay a hard FAILURE, not ABORTED."""
+        the item is genuinely orphaned (removed from its old location, never
+        successfully re-added anywhere) -- a real uncertain state, unlike the
+        recovered case above. Swallowing this as an ordinary FAILURE would
+        let CommandExecutor.undo() move the command to the redo stack and
+        leave the rest of history untouched, even though only an exception
+        triggers the history invalidation this uncertain state actually
+        needs -- so undo() must re-raise here, matching what redo() already
+        does for the equivalent double-failure (see PR #373 review)."""
         app_context, app_state, ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
@@ -249,7 +255,8 @@ class TestMoveItemCommandLogging:
         sample_project.add_item.reset_mock()
         sample_project.add_item.side_effect = RuntimeError("boom")
 
-        assert command.undo() is CommandResult.FAILURE
+        with pytest.raises(RuntimeError):
+            command.undo()
 
     def test_redo_returns_aborted_when_add_to_target_fails_but_rollback_succeeds(self, mock_app_context, sample_project):
         """redo() delegates to execute(); when execute()'s own rollback
@@ -295,13 +302,20 @@ class TestMoveItemCommandLogging:
         with pytest.raises(RuntimeError):
             command.redo()
 
-    def test_redo_delegates_to_execute(self, mock_app_context):
+    def test_redo_returns_aborted_when_execute_fails_validation_without_mutating(self, mock_app_context):
+        """redo() delegates to execute(); a FAILURE returned (not raised) by
+        execute() means one of its early guard checks refused before
+        remove_item() ever ran -- nothing was mutated. redo() must translate
+        that to ABORTED so CommandExecutor keeps the still-undone command on
+        the redo stack, instead of forwarding a bare FAILURE that
+        CommandExecutor would move to the undo stack as if it had actually
+        been redone (see PR #373 review)."""
         app_context, app_state, ui_controller = mock_app_context
         app_state.has_project = False
 
         command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
 
-        assert command.redo() is CommandResult.FAILURE
+        assert command.redo() is CommandResult.ABORTED
 
     def test_cleanup_does_not_raise(self, mock_app_context):
         app_context, app_state, ui_controller = mock_app_context

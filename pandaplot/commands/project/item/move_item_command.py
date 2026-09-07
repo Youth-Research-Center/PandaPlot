@@ -35,6 +35,15 @@ class MoveItemCommand(Command):
         # instead of a hard failure for that recovered, no-op case.
         self._rolled_back = False
 
+        # Set (by undo()) as soon as its compensating add_item() rollback is
+        # attempted, before knowing whether it succeeds. undo()'s outer
+        # exception handler uses this to tell "the rollback attempt itself
+        # also failed" (item potentially left genuinely orphaned -- must
+        # propagate, matching redo()'s equivalent double-failure) apart from
+        # any other, unrelated exception in undo() (kept as an ordinary
+        # FAILURE, undo()'s existing behavior).
+        self._recovery_attempted = False
+
     @override
     def execute(self) -> CommandResult:
         """Execute the move item command."""
@@ -143,6 +152,7 @@ class MoveItemCommand(Command):
     def undo(self) -> CommandResult:
         """Undo the move item command."""
         self._rolled_back = False
+        self._recovery_attempted = False
         try:
             if self.move_performed and self.app_state.has_project:
                 project = get_current_project(self.app_context)
@@ -166,6 +176,7 @@ class MoveItemCommand(Command):
                             # its original folder fails -- put it back where
                             # undo() found it (the target folder) so the undo
                             # is all-or-nothing, same as execute()/redo().
+                            self._recovery_attempted = True
                             rollback_parent_id = None if self.target_folder_id == "root" else self.target_folder_id
                             project.add_item(item, parent_id=rollback_parent_id)
                             self._rolled_back = True
@@ -215,12 +226,22 @@ class MoveItemCommand(Command):
                 # a hard failure that CommandExecutor would move to the redo
                 # stack as if the item had actually been undone.
                 return CommandResult.ABORTED
+            if self._recovery_attempted:
+                # The compensating add_item() rollback was attempted but
+                # failed too -- the item may now be genuinely orphaned
+                # (removed from the target, never successfully re-added
+                # anywhere), a real uncertain state. Match redo()'s behavior
+                # for the same double-failure: propagate rather than
+                # swallow as an ordinary FAILURE, so CommandExecutor
+                # invalidates history instead of treating this as safe to
+                # retry.
+                raise
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
         """Redo the move item command."""
         try:
-            return self.execute()
+            result = self.execute()
         except Exception:
             if self._rolled_back:
                 # add_item() to the target failed but the rollback restored
@@ -230,6 +251,16 @@ class MoveItemCommand(Command):
                 # undo/redo history over what was actually a no-op.
                 return CommandResult.ABORTED
             raise
+
+        if result is CommandResult.FAILURE:
+            # Every FAILURE execute() returns (rather than raises) happens
+            # before remove_item() ever runs -- i.e. nothing was mutated --
+            # so this redo() attempt is itself a no-op. Report ABORTED so
+            # CommandExecutor keeps this still-undone command on the redo
+            # stack instead of moving it to the undo stack as if it had
+            # actually been redone.
+            return CommandResult.ABORTED
+        return result
 
     @override
     def cleanup(self) -> None:

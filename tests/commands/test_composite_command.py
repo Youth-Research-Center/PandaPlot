@@ -401,6 +401,59 @@ def test_composite_command_redo_stops_and_rolls_back_on_aborted():
     assert composite._executed == [cmd1, cmd2]
 
 
+def test_composite_command_undo_raises_when_rollback_after_aborted_also_fails():
+    """If the compensating redo() (re-applying an earlier sibling after cmd2
+    aborted) itself fails, the composite may be left partially undone -- a
+    genuinely uncertain state, not the no-op ABORTED promises. Must raise
+    (not silently return ABORTED) so CommandExecutor invalidates history
+    instead of trusting a partial rollback (see PR #373 review)."""
+    cmd1 = SimpleCommand("c1")
+    cmd2 = SimpleCommand("c2", undo_result=CommandResult.ABORTED)
+    cmd3 = SimpleCommand("c3", redo_exception=RuntimeError("compensation failed"))
+
+    composite = CompositeCommand([cmd1, cmd2, cmd3])
+    composite.execute()
+
+    with pytest.raises(RuntimeError, match="partially-undone"):
+        composite.undo()
+
+    assert cmd3.undone_count == 1
+    assert cmd3.redone_count == 1  # compensation attempted (and failed)
+    assert cmd2.undone_count == 1
+    assert cmd1.undone_count == 0  # never reached
+
+
+def test_composite_command_redo_raises_when_rollback_after_aborted_also_fails():
+    """Mirrors the undo() case: if the compensating undo() during a redo()
+    rollback also fails, the composite may be partially redone, so it must
+    raise rather than return ABORTED."""
+
+    class FlakyUndoAfterRedo(SimpleCommand):
+        """undo() succeeds the first time (the setup undo() below) but fails
+        once the command has actually been redone -- i.e. specifically
+        during the compensating rollback this test is targeting."""
+
+        def undo(self) -> CommandResult:
+            if self.redone_count > 0:
+                self.undone_count += 1
+                raise RuntimeError("compensation failed")
+            return super().undo()
+
+    cmd1 = FlakyUndoAfterRedo("c1")
+    cmd2 = SimpleCommand("c2", redo_result=CommandResult.ABORTED)
+
+    composite = CompositeCommand([cmd1, cmd2])
+    composite.execute()
+    assert composite.undo() is CommandResult.SUCCESS
+
+    with pytest.raises(RuntimeError, match="partially-redone"):
+        composite.redo()
+
+    assert cmd1.redone_count == 1
+    assert cmd1.undone_count == 2  # compensation attempted (and failed)
+    assert cmd2.redone_count == 1
+
+
 def test_composite_command_redo_forward_order():
     call_order: List[str] = []
 
