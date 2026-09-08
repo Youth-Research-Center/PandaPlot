@@ -14,6 +14,7 @@ from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.project import Project
 
 
@@ -126,3 +127,21 @@ class TestPopulateChartTargetCombo:
         populate_chart_target_combo(combo, None)
         assert combo.count() == 1
         assert combo.itemData(0) is None
+
+    def test_same_named_charts_get_disambiguated_labels(self):
+        project = Project(name="P")
+        folder_a = Folder(id="fa", name="A")
+        project.add_item(folder_a)
+        folder_b = Folder(id="fb", name="B")
+        project.add_item(folder_b)
+        project.add_item(Chart(id="c1", name="Signal", chart_type=ChartType.LINE), parent_id="fa")
+        project.add_item(Chart(id="c2", name="Signal", chart_type=ChartType.LINE), parent_id="fb")
+
+        combo = QComboBox()
+        populate_chart_target_combo(combo, project)
+
+        labels = [combo.itemText(i) for i in range(combo.count())]
+        assert labels[0] == "➕ New chart"
+        assert "A" in labels[1] and "Signal" in labels[1]
+        assert "B" in labels[2] and "Signal" in labels[2]
+        assert labels[1] != labels[2]
