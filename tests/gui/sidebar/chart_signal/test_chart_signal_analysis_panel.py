@@ -898,7 +898,7 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert command.plot_result is True
         assert command.plot_target_chart_id == "chart-2"
 
-    def test_tab_changed_is_suppressed_during_an_in_flight_new_chart_quick_plot(self, panel):
+    def test_tab_changed_is_deferred_during_an_in_flight_new_chart_quick_plot(self, panel):
         """Regression: CreateChartCommand (run when the "New chart"
         destination is used) emits CHART_CREATED synchronously, and
         TabContainer reacts to that by auto-opening and activating the new
@@ -906,7 +906,14 @@ class TestChartSignalAnalysisPanelQuickPlot:
         on_complete runs. _on_tab_changed() used to unconditionally
         reassign current_chart_id to that just-created chart and bump
         _generation via _populate_sources(), which made on_complete's own
-        staleness check discard its own successful result."""
+        staleness check discard its own successful result.
+
+        The fix defers the tab change instead of dropping it: on_complete
+        must still see its own untouched dispatch-time context (so the
+        success message displays), but once it has made its display
+        decision, the deferred tab change should be replayed so the panel
+        ends up bound to the chart the app's active tab actually switched
+        to, rather than staying stuck on the old context indefinitely."""
         command = Mock()
         command.result = Mock()
         command.plot_result = True
@@ -917,15 +924,62 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert panel._pending_quick_plot is True
 
         # Simulate TabContainer auto-opening the newly created chart's tab,
-        # reentrantly, before on_complete runs. With the fix this is a
-        # complete no-op -- it doesn't even need "new-chart-id" to exist in
-        # the project fixture.
+        # reentrantly, before on_complete runs. With the fix this is
+        # deferred rather than dropped or applied immediately -- it doesn't
+        # even need "new-chart-id" to exist in the project fixture.
         panel._on_tab_changed({"tab_type": "chart", "tab_id": "new-chart-id"})
+        assert panel.current_chart_id == "chart-1"  # not yet applied
 
         command.on_complete(CommandResult.SUCCESS)
 
         assert "added to project" in panel.results_text.toPlainText()
-        assert panel.current_chart_id == "chart-1"  # unchanged by the reentrant tab switch
+        assert panel.current_chart_id == "new-chart-id"  # replayed after on_complete settled
+        assert panel._deferred_tab_change is None  # consumed
+
+    def test_deferred_tab_change_replays_after_a_stale_discarded_completion(self, panel):
+        """The deferred-replay mechanism must fire even when on_complete
+        discards its own result as stale -- not only on the success path."""
+        command = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = None
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+
+        panel._on_tab_changed({"tab_type": "chart", "tab_id": "new-chart-id"})
+        assert panel._deferred_tab_change is not None
+
+        # Make the dispatch parameters change mid-flight so on_complete
+        # takes the "stale, discard" branch instead of the success branch.
+        peaks_index = panel.analysis_combo.findData(SignalAnalysisType.PEAKS)
+        panel.analysis_combo.setCurrentIndex(peaks_index)
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert panel._deferred_tab_change is None
+        assert panel.current_chart_id == "new-chart-id"
+
+    def test_deferred_tab_change_replays_after_synchronous_dispatch_failure(self, panel):
+        """A tab change arriving reentrantly during execute_command() itself
+        (mirroring the CreateChartCommand/CHART_CREATED reentrancy the
+        success-path test above exercises) -- before execute_command()
+        returns False -- must still be replayed once the failure branch
+        clears _pending_quick_plot, not dropped."""
+        command = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = None
+
+        def _fail(cmd):
+            panel._on_tab_changed({"tab_type": "chart", "tab_id": "new-chart-id"})
+            return False
+
+        panel.app_context.get_command_executor.return_value.execute_command = _fail
+        panel._build_command = lambda: command
+
+        panel.add_results_to_project()
+
+        assert panel._deferred_tab_change is None
+        assert panel.current_chart_id == "new-chart-id"
 
     def test_destination_combo_refreshes_when_a_different_chart_is_renamed(self, panel, project):
         other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)

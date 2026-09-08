@@ -95,6 +95,13 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # must still invalidate normally.
         self._pending_plot_target_chart_id: Optional[str] = None
 
+        # A tab-changed event arriving while _pending_quick_plot suppresses
+        # _on_tab_changed() (see there) is queued here instead of dropped,
+        # and replayed once add_results_to_project()'s _on_complete has made
+        # its display decision against the untouched dispatch-time context
+        # -- see both sites below.
+        self._deferred_tab_change: Optional[dict] = None
+
         # Cache for _range_command(): a fresh ChartSignalAnalysisCommand
         # per call would re-run NaN-drop/to_numeric series resolution on
         # every call even though the underlying series hasn't changed --
@@ -543,14 +550,17 @@ class ChartSignalAnalysisPanel(SidebarPanel):
                 self.logger.info(
                     "Not displaying chart signal analysis commit result: dispatch parameters changed."
                 )
-                return
-
-            if result is CommandResult.SUCCESS:
+            elif result is CommandResult.SUCCESS:
                 self.last_result = command.result
                 self._last_run_params = current_params
                 self.results_text.append("\n\n✅ Results added to project")
             else:
                 self.add_btn.setEnabled(True)  # let the user retry
+
+            if self._deferred_tab_change is not None:
+                deferred = self._deferred_tab_change
+                self._deferred_tab_change = None
+                self._on_tab_changed(deferred)
 
         command.on_complete = _on_complete
         executor = self.app_context.get_command_executor()
@@ -566,6 +576,10 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             self._pending_command = None
             self._pending_quick_plot = False
             self._pending_plot_target_chart_id = None
+            if self._deferred_tab_change is not None:
+                deferred = self._deferred_tab_change
+                self._deferred_tab_change = None
+                self._on_tab_changed(deferred)
 
     def clear(self):
         if hasattr(self, "results_text"):
@@ -758,13 +772,18 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             # CreateChartCommand emits CHART_CREATED, which TabContainer
             # reacts to by auto-opening and activating the new chart's tab --
             # synchronously, before this dispatch's own on_complete runs).
-            # Reassigning current_chart_id here (to the just-created chart)
-            # or bumping _generation via _populate_sources() would make
-            # on_complete's own staleness check discard its own successful
-            # result. Skip entirely for the duration of the pending dispatch --
-            # any genuine concurrent tab switch by the user is deferred until
-            # the next tab change or _populate_sources() trigger once the
-            # dispatch completes and clears this flag.
+            # Applying it now (reassigning current_chart_id, bumping
+            # _generation via _populate_sources()) would corrupt
+            # on_complete's own staleness check against a context it
+            # captured before dispatch. Defer instead of dropping it
+            # outright: replay once on_complete has made its display
+            # decision, so a genuine tab switch -- self-caused or a real
+            # concurrent one by the user -- still lands, just after the
+            # pending dispatch settles rather than mid-flight. Only the
+            # most recent tab change while pending needs to survive; an
+            # earlier one superseded by a later one before completion
+            # doesn't need separate replay.
+            self._deferred_tab_change = event_data
             return
         if event_data.get("tab_type") == "chart":
             chart_id = event_data.get("tab_id")
