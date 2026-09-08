@@ -1,3 +1,4 @@
+import re
 from unittest.mock import Mock, call
 
 from pandaplot.models.events.event_bus import EventBus
@@ -536,6 +537,54 @@ class TestEventBus:
             expected_data = {"data": f"data_for_{event_name}",
                              "event_type": event_name, "original_event": event_name}
             callback.assert_called_once_with(expected_data)
+
+    def test_pattern_subscribers_are_keyed_by_compiled_pattern(self):
+        """subscribe() should store a compiled re.Pattern, not a raw string, as the key."""
+        event_bus = EventBus()
+        callback = Mock()
+
+        event_bus.subscribe("dataset.*", callback)
+
+        keys = list(event_bus._pattern_subscribers.keys())
+        assert len(keys) == 1
+        assert isinstance(keys[0], re.Pattern)
+        assert callback in event_bus._pattern_subscribers[keys[0]]
+
+    def test_emit_calls_matching_pattern_subscriber(self):
+        """A pattern subscriber whose glob matches the emitted event should be called."""
+        event_bus = EventBus()
+        callback = Mock()
+
+        event_bus.subscribe("dataset.*", callback)
+        event_bus.emit("dataset.changed", {"key": "value"})
+
+        expected_data = {
+            "key": "value",
+            "event_type": "dataset.changed",
+            "original_event": "dataset.changed",
+        }
+        callback.assert_called_once_with(expected_data)
+
+    def test_emit_does_not_call_non_matching_pattern_subscriber(self):
+        """A pattern subscriber whose glob does not match the emitted event should not be called."""
+        event_bus = EventBus()
+        callback = Mock()
+
+        event_bus.subscribe("dataset.*", callback)
+        event_bus.emit("other.event")
+
+        callback.assert_not_called()
+
+    def test_unsubscribe_pattern_callback(self):
+        """unsubscribe() should remove a pattern callback so it no longer receives events."""
+        event_bus = EventBus()
+        callback = Mock()
+
+        event_bus.subscribe("dataset.*", callback)
+        event_bus.unsubscribe("dataset.*", callback)
+        event_bus.emit("dataset.changed")
+
+        callback.assert_not_called()
 
     def test_real_world_usage_scenario(self):
         """Test a realistic usage scenario."""

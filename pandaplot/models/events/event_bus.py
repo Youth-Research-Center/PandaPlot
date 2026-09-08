@@ -27,9 +27,11 @@ class EventBus:
         self.logger.debug("Subscribing to event pattern: %s", event_pattern)
         
         if "*" in event_pattern:
-            # Convert glob pattern to regex
+            # Convert glob pattern to regex, compiling once so emit() doesn't
+            # re-match against a raw string on every call.
             regex_pattern = event_pattern.replace(".", r"\.").replace("*", ".*")
-            self._pattern_subscribers[regex_pattern].append(callback)
+            compiled_pattern = re.compile(regex_pattern)
+            self._pattern_subscribers[compiled_pattern].append(callback)
             self.logger.debug("Added pattern subscriber for: %s (regex: %s)", event_pattern, regex_pattern)
         else:
             self._subscribers[event_pattern].append(callback)
@@ -46,8 +48,9 @@ class EventBus:
         
         if "*" in event_pattern:
             regex_pattern = event_pattern.replace(".", r"\.").replace("*", ".*")
-            if callback in self._pattern_subscribers.get(regex_pattern, []):
-                self._pattern_subscribers[regex_pattern].remove(callback)
+            compiled_pattern = re.compile(regex_pattern)
+            if callback in self._pattern_subscribers.get(compiled_pattern, []):
+                self._pattern_subscribers[compiled_pattern].remove(callback)
                 self.logger.debug("Removed pattern subscriber for: %s", event_pattern)
             else:
                 self.logger.warning("Callback not found in pattern subscribers for: %s", event_pattern)
@@ -95,7 +98,7 @@ class EventBus:
             # Emit to pattern subscribers
             pattern_matches = 0
             for pattern, callbacks in self._pattern_subscribers.items():
-                if re.match(pattern, event_level):
+                if pattern.match(event_level):
                     pattern_matches += len(callbacks)
                     for callback in callbacks:
                         try:
