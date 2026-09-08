@@ -818,3 +818,20 @@ class TestChartSignalAnalysisPanelQuickPlot:
 
         assert panel.last_result is None
         assert "added to project" not in panel.results_text.toPlainText()
+
+    def test_pending_quick_plot_cleared_on_synchronous_dispatch_failure(self, panel):
+        """Regression: on_complete never runs for a dispatch that fails
+        synchronous validation (execute_command() returns False before any
+        computation starts), so it never got a chance to clear
+        _pending_quick_plot either -- leaving a stale True that would make
+        the next, genuinely unrelated series_added event skip invalidation
+        as if it belonged to this (failed, never-actually-dispatched)
+        commit."""
+        command = Mock()
+        command.plot_result = True
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: False
+        panel._build_command = lambda: command
+
+        panel.add_results_to_project()
+
+        assert panel._pending_quick_plot is False

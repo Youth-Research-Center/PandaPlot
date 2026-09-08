@@ -528,11 +528,16 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         command.on_complete = _on_complete
         executor = self.app_context.get_command_executor()
         if not executor.execute_command(command):
-            # Synchronous validation failure -- on_complete never fires.
+            # Synchronous validation failure -- on_complete never fires, so
+            # it never gets a chance to clear _pending_quick_plot either;
+            # do it here or a later, genuinely unrelated series_added would
+            # be mistaken for this (failed, never-dispatched) commit's own
+            # event and wrongly skip invalidation.
             self.busy_spinner.stop()
             self.run_btn.setEnabled(True)
             self.add_btn.setEnabled(True)
             self._pending_command = None
+            self._pending_quick_plot = False
 
     def clear(self):
         if hasattr(self, "results_text"):
