@@ -820,6 +820,7 @@ class TestChartSignalAnalysisPanelQuickPlot:
         command = Mock()
         command.result = Mock()
         command.plot_result = True
+        command.plot_target_chart_id = panel.current_chart_id  # plotting on the current chart
         panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
         panel._build_command = lambda: command
         panel.add_results_to_project()
@@ -879,3 +880,73 @@ class TestChartSignalAnalysisPanelQuickPlot:
 
         assert command.plot_result is True
         assert command.plot_target_chart_id is None
+
+    def test_build_command_forwards_an_existing_chart_destination(self, panel, project):
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        command = panel._build_command()
+
+        assert command.plot_result is True
+        assert command.plot_target_chart_id == "chart-2"
+
+    def test_tab_changed_is_suppressed_during_an_in_flight_new_chart_quick_plot(self, panel):
+        """Regression: CreateChartCommand (run when the "New chart"
+        destination is used) emits CHART_CREATED synchronously, and
+        TabContainer reacts to that by auto-opening and activating the new
+        chart's tab -- synchronously, before this dispatch's own
+        on_complete runs. _on_tab_changed() used to unconditionally
+        reassign current_chart_id to that just-created chart and bump
+        _generation via _populate_sources(), which made on_complete's own
+        staleness check discard its own successful result."""
+        command = Mock()
+        command.result = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = None  # "New chart"
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+        assert panel._pending_quick_plot is True
+
+        # Simulate TabContainer auto-opening the newly created chart's tab,
+        # reentrantly, before on_complete runs. With the fix this is a
+        # complete no-op -- it doesn't even need "new-chart-id" to exist in
+        # the project fixture.
+        panel._on_tab_changed({"tab_type": "chart", "tab_id": "new-chart-id"})
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert "added to project" in panel.results_text.toPlainText()
+        assert panel.current_chart_id == "chart-1"  # unchanged by the reentrant tab switch
+
+    def test_chart_updated_on_current_chart_still_invalidates_when_destination_is_a_different_chart(
+        self, panel, project
+    ):
+        """Regression: the _pending_quick_plot leniency in _on_chart_updated()
+        used to apply to ANY series_added on the current chart while a
+        quick-plot dispatch was in flight, regardless of which chart the
+        dispatch actually targets. If the dispatch's real destination is a
+        different existing chart, an unrelated series_added landing on the
+        current chart (e.g. another panel adding a series concurrently)
+        must still invalidate normally instead of being swallowed as if it
+        were this dispatch's own expected event."""
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+
+        command = Mock()
+        command.result = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = "chart-2"  # NOT the current chart ("chart-1")
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+        assert panel._pending_quick_plot is True
+
+        generation_before = panel._generation
+        # An unrelated series_added lands on the CURRENT chart, not chart-2.
+        panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+
+        assert panel._generation > generation_before  # normal invalidation still ran

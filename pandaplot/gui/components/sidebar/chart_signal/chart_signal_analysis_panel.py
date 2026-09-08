@@ -83,6 +83,17 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # chart edit. See _on_chart_updated()'s docstring.
         self._pending_quick_plot = False
 
+        # The actual destination chart id of the in-flight
+        # add_results_to_project() dispatch tracked by _pending_quick_plot
+        # above (mirrors command.plot_target_chart_id), or None for the
+        # "new chart" destination. Lets _on_chart_updated() only treat a
+        # series_added on the *current* chart as this dispatch's own
+        # expected event when the current chart is actually that dispatch's
+        # target -- an unrelated series_added landing on the current chart
+        # while a dispatch targeting some other existing chart is in flight
+        # must still invalidate normally.
+        self._pending_plot_target_chart_id: Optional[str] = None
+
         # Cache for _range_command(): a fresh ChartSignalAnalysisCommand
         # per call would re-run NaN-drop/to_numeric series resolution on
         # every call even though the underlying series hasn't changed --
@@ -510,6 +521,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.busy_spinner.start()
         self._pending_command = command
         self._pending_quick_plot = command.plot_result
+        self._pending_plot_target_chart_id = command.plot_target_chart_id
 
         def _on_complete(result):
             self.busy_spinner.stop()
@@ -524,6 +536,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             # arrive at all; either way, don't let a stale True suppress
             # invalidation for some later, unrelated series_added.
             self._pending_quick_plot = False
+            self._pending_plot_target_chart_id = None
 
             if self._generation != dispatch_generation or self._get_dispatch_params() != current_params:
                 self.logger.info(
@@ -551,6 +564,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             self.add_btn.setEnabled(True)
             self._pending_command = None
             self._pending_quick_plot = False
+            self._pending_plot_target_chart_id = None
 
     def clear(self):
         if hasattr(self, "results_text"):
@@ -734,6 +748,20 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             self.source_combo.setCurrentIndex(combo_index)
 
     def _on_tab_changed(self, event_data):
+        if self._pending_quick_plot:
+            # An in-flight add_results_to_project() dispatch with quick-plot
+            # enabled can itself trigger this (see the "New chart" case: its
+            # CreateChartCommand emits CHART_CREATED, which TabContainer
+            # reacts to by auto-opening and activating the new chart's tab --
+            # synchronously, before this dispatch's own on_complete runs).
+            # Reassigning current_chart_id here (to the just-created chart)
+            # or bumping _generation via _populate_sources() would make
+            # on_complete's own staleness check discard its own successful
+            # result. Skip entirely for the duration of the pending dispatch --
+            # any genuine concurrent tab switch by the user is deferred until
+            # the next tab change or _populate_sources() trigger once the
+            # dispatch completes and clears this flag.
+            return
         if event_data.get("tab_type") == "chart":
             chart_id = event_data.get("tab_id")
             self.current_chart_id = chart_id
@@ -752,7 +780,11 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         if isinstance(chart, Chart):
             self.current_chart = chart
             self.current_chart_id = chart.id
-            if self._pending_quick_plot and event_data.get("update_type") == "series_added":
+            if (
+                self._pending_quick_plot
+                and self._pending_plot_target_chart_id == self.current_chart_id
+                and event_data.get("update_type") == "series_added"
+            ):
                 # The composite command an in-flight add_results_to_project()
                 # dispatched (with quick-plot enabled) fires this very event
                 # -- via AddAnalysisSeriesCommand's AddSeriesCommand -- as
