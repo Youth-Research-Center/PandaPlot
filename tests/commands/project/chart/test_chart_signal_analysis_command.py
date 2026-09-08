@@ -50,6 +50,7 @@ def ctx():
     app_state.has_project = True
     app_state.current_project = project
     app_state.event_bus = Mock()
+    app_context.event_bus = app_state.event_bus
 
     app_context.get_app_state.return_value = app_state
     app_context.get_task_scheduler.return_value = SyncTaskScheduler()
@@ -353,6 +354,46 @@ class TestResolveSegmentX:
         command = _cmd(ctx, source_kind="series")
         command.chart_id = "not-a-real-chart"
         assert command.resolve_segment_x() is None
+
+
+class TestChartSignalAnalysisCommandPlotResult:
+    def test_plot_result_with_no_target_creates_a_new_chart(self, ctx):
+        _, project = ctx
+        command = _cmd(ctx, plot_result=True)
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        original_chart = project.find_item("chart-1")
+        assert len(original_chart.data_series) == 1  # untouched
+
+        new_charts = [
+            item for item in project.get_all_items()
+            if isinstance(item, Chart) and item.id != "chart-1"
+        ]
+        assert len(new_charts) == 1
+        assert len(new_charts[0].data_series) == 1
+        assert new_charts[0].data_series[0].dataset_id == command.result_dataset_id
+
+    def test_plot_result_with_target_chart_id_plots_on_that_chart(self, ctx):
+        _, project = ctx
+        other_chart = Chart(id="chart-2", name="Other")
+        project.add_item(other_chart)
+
+        command = _cmd(ctx, plot_result=True, plot_target_chart_id="chart-2")
+
+        assert command.execute() is CommandResult.SUCCESS
+        assert len(other_chart.data_series) == 1
+        assert other_chart.data_series[0].dataset_id == command.result_dataset_id
+
+    def test_plot_result_false_plots_nowhere(self, ctx):
+        _, project = ctx
+        command = _cmd(ctx, plot_result=False)
+
+        assert command.execute() is CommandResult.SUCCESS
+        assert all(
+            isinstance(item, Chart) is False or item.id == "chart-1"
+            for item in project.get_all_items()
+        )
 
 
 class TestChartSignalAnalysisCommandRealTaskScheduler:
