@@ -24,18 +24,20 @@ from PySide6.QtWidgets import (
 
 from pandaplot.analysis import AnalysisType
 from pandaplot.commands.composite_command import CompositeCommand
-from pandaplot.commands.project.chart import AddAnalysisSeriesCommand
 from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
+)
+from pandaplot.commands.project.chart.create_chart_with_analysis_series_command import (
+    build_quick_plot_command,
 )
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     find_series_fit_combo_index,
+    populate_chart_target_combo,
     populate_series_fit_sources,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
-from pandaplot.models.chart.chart_type_spec import get_chart_type_spec, quick_plot_compatible
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -134,9 +136,16 @@ class ChartAnalysisPanel(SidebarPanel):
         self.result_name = QLineEdit()
         self.result_name.setPlaceholderText("Auto-named from operation and series")
         form.addRow("Dataset name:", self.result_name)
-        self.plot_result_cb = QCheckBox("Plot result on this chart")
+        self.plot_result_cb = QCheckBox("Plot result")
         self.plot_result_cb.setChecked(True)
         form.addRow("", self.plot_result_cb)
+        self.plot_target_row = QWidget()
+        target_row_layout = QHBoxLayout(self.plot_target_row)
+        target_row_layout.setContentsMargins(0, 0, 0, 0)
+        target_row_layout.addWidget(QLabel("Plot on:"))
+        self.plot_target_combo = QComboBox()
+        target_row_layout.addWidget(self.plot_target_combo)
+        form.addRow("", self.plot_target_row)
         layout.addWidget(group)
 
     def _create_preview_section(self, layout):
@@ -165,6 +174,7 @@ class ChartAnalysisPanel(SidebarPanel):
         self.source_combo.currentIndexChanged.connect(self._on_source_changed)
         self.start_index.valueChanged.connect(self._update_range_labels)
         self.end_index.valueChanged.connect(self._update_range_labels)
+        self.plot_result_cb.toggled.connect(self._update_plot_target_visibility)
 
     # -- dynamic parameters ----------------------------------------------
 
@@ -317,19 +327,21 @@ class ChartAnalysisPanel(SidebarPanel):
         executor = self.app_context.get_command_executor()
         plot_result = self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled()
         if plot_result:
-            add_series_cmd = AddAnalysisSeriesCommand(
-                app_context=self.app_context,
-                chart_id=self.current_chart_id,
-                dataset_command=command,
+            folder_id = self.current_chart.parent_id if self.current_chart else None
+            plot_command = build_quick_plot_command(
+                self.app_context,
+                command,
+                target_chart_id=self.plot_target_combo.currentData(),
+                folder_id=folder_id,
             )
-            success = executor.execute_command(CompositeCommand([command, add_series_cmd]))
+            success = executor.execute_command(CompositeCommand([command, plot_command]))
         else:
             success = executor.execute_command(command)
 
         if success:
             message = "✅ Created a new dataset from the analysis. Find it in the project explorer."
             if plot_result:
-                message += " Plotted on this chart."
+                message += " Plotted the result."
             self.preview_text.setText(message)
         else:
             self.preview_text.setText(
@@ -407,12 +419,12 @@ class ChartAnalysisPanel(SidebarPanel):
         # Leave any user-entered name untouched; only fill the placeholder.
         self.result_name.setPlaceholderText(f"{op} — {self.source_combo.currentText()}")
 
+    def _update_plot_target_visibility(self):
+        self.plot_target_row.setVisible(self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled())
+
     def _update_quick_plot_compatibility(self, *, has_sources: bool):
-        if not has_sources or self.current_chart is None:
-            self.plot_result_cb.setEnabled(False)
-            return
-        spec = get_chart_type_spec(self.current_chart.chart_type)
-        self.plot_result_cb.setEnabled(quick_plot_compatible(spec))
+        self.plot_result_cb.setEnabled(has_sources)
+        self._update_plot_target_visibility()
 
     def _populate_sources(self):
         has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
@@ -421,6 +433,8 @@ class ChartAnalysisPanel(SidebarPanel):
         self.source_hint.setText(
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
+        project = self.app_context.get_app_state().current_project
+        populate_chart_target_combo(self.plot_target_combo, project)
         self._update_quick_plot_compatibility(has_sources=has_sources)
         self._on_source_changed()
 

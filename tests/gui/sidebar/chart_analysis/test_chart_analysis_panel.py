@@ -7,7 +7,7 @@ import pytest
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.composite_command import CompositeCommand
-from pandaplot.commands.project.chart import AddAnalysisSeriesCommand
+from pandaplot.commands.project.chart import AddAnalysisSeriesCommand, CreateChartWithAnalysisSeriesCommand
 from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
 )
@@ -206,17 +206,41 @@ class TestChartAnalysisPanelSeriesSelectedEvent:
 class TestChartAnalysisPanelQuickPlot:
     def test_quick_plot_checkbox_is_present_and_checked_by_default(self, panel):
         assert hasattr(panel, "plot_result_cb")
-        assert panel.plot_result_cb.text() == "Plot result on this chart"
+        assert panel.plot_result_cb.text() == "Plot result"
         assert panel.plot_result_cb.isChecked() is True
         assert panel.plot_result_cb.isEnabled() is True
 
-    def test_quick_plot_disabled_for_3d_charts(self, panel):
+    def test_destination_combo_defaults_to_new_chart(self, panel):
+        assert panel.plot_target_combo.itemText(0) == "New chart"
+        assert panel.plot_target_combo.currentData() is None
+
+    def test_quick_plot_stays_enabled_for_3d_charts(self, panel):
+        """A 3-D current chart has no valid LINE/SCATTER series type of its
+        own, but "New chart" is always a valid destination -- the checkbox
+        no longer needs to disable itself based on the current chart's
+        type at all (see the design spec's "enablement no longer depends
+        on the current chart" section)."""
         panel.current_chart.chart_type = ChartType.SCATTER3D
         panel._populate_sources()
 
-        assert panel.plot_result_cb.isEnabled() is False
+        assert panel.plot_result_cb.isEnabled() is True
 
-    def test_apply_executes_composite_command_when_quick_plot_checked(self, panel, app_context):
+    def test_3d_current_chart_is_excluded_from_the_destination_combo(self, panel):
+        panel.current_chart.chart_type = ChartType.SCATTER3D
+        panel._populate_sources()
+
+        labels = [panel.plot_target_combo.itemText(i) for i in range(panel.plot_target_combo.count())]
+        assert labels == ["New chart"]
+
+    def test_compatible_other_chart_is_offered_in_the_destination_combo(self, panel, project):
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+
+        labels = [panel.plot_target_combo.itemText(i) for i in range(panel.plot_target_combo.count())]
+        assert "Other" in labels
+
+    def test_apply_creates_a_new_chart_when_new_chart_is_selected(self, panel, app_context):
         executor = Mock()
         app_context.get_command_executor.return_value = executor
         executor.execute_command.return_value = True
@@ -228,7 +252,26 @@ class TestChartAnalysisPanelQuickPlot:
         assert isinstance(cmd, CompositeCommand)
         assert len(cmd.commands) == 2
         assert isinstance(cmd.commands[0], AnalyzeChartSeriesCommand)
-        assert isinstance(cmd.commands[1], AddAnalysisSeriesCommand)
+        assert isinstance(cmd.commands[1], CreateChartWithAnalysisSeriesCommand)
+
+    def test_apply_plots_on_the_selected_existing_chart(self, panel, app_context, project):
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        executor = Mock()
+        app_context.get_command_executor.return_value = executor
+        executor.execute_command.return_value = True
+
+        panel.apply()
+
+        cmd = executor.execute_command.call_args[0][0]
+        assert isinstance(cmd, CompositeCommand)
+        add_series_cmd = cmd.commands[1]
+        assert isinstance(add_series_cmd, AddAnalysisSeriesCommand)
+        assert add_series_cmd.chart_id == "chart-2"
 
     def test_apply_executes_single_command_when_quick_plot_unchecked(self, panel, app_context):
         executor = Mock()
