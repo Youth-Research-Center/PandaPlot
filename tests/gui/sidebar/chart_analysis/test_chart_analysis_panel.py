@@ -278,6 +278,31 @@ class TestChartAnalysisPanelQuickPlot:
         assert isinstance(add_series_cmd, AddAnalysisSeriesCommand)
         assert add_series_cmd.chart_id == "chart-2"
 
+    def test_destination_combo_refreshes_when_a_different_chart_is_renamed(self, panel, project):
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        other_chart.name = "Renamed"
+        panel._on_chart_list_changed({"item_id": "chart-2"})
+
+        assert panel.plot_target_combo.currentData() == "chart-2"
+        assert panel.plot_target_combo.currentText() == "Renamed"
+
+    def test_destination_combo_falls_back_to_new_chart_when_selected_destination_is_removed(self, panel, project):
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        project.remove_item_by_id("chart-2")
+        panel._on_chart_list_changed({"item_id": "chart-2"})
+
+        assert panel.plot_target_combo.currentData() is None
+
     def test_apply_executes_single_command_when_quick_plot_unchecked(self, panel, app_context):
         executor = Mock()
         app_context.get_command_executor.return_value = executor

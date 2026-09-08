@@ -84,6 +84,24 @@ def populate_chart_target_combo(combo: QComboBox, project: "Optional[Project]") 
     combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
 
 
+def refresh_chart_target_combo_preserving_selection(combo: QComboBox, project: "Optional[Project]") -> None:
+    """Like populate_chart_target_combo(), but keeps the current selection
+    if it's still a valid entry afterward, instead of always resetting to
+    "New chart". Use this for a refresh triggered by an unrelated
+    background change (a different chart renamed/retyped/removed/added
+    elsewhere) rather than the user's own chart/source context changing --
+    populate_chart_target_combo() is still what _populate_sources() uses
+    for the latter, where resetting to "New chart" is the documented,
+    deliberate behavior (see the design spec).
+    """
+    previous = combo.currentData()
+    populate_chart_target_combo(combo, project)
+    if previous is not None:
+        index = combo.findData(previous)
+        if index >= 0:
+            combo.setCurrentIndex(index)
+
+
 def series_source_hint(*, has_sources: bool, any_series_excluded: bool) -> str:
     """Hint label text for the outcome of populate_series_fit_sources()."""
     if not has_sources:

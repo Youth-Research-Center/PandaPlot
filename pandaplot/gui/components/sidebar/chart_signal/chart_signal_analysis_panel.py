@@ -49,6 +49,7 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     find_series_fit_combo_index,
     populate_chart_target_combo,
     populate_series_fit_sources,
+    refresh_chart_target_combo_preserving_selection,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -56,7 +57,7 @@ from pandaplot.gui.components.sidebar.signal.signal_panel import SignalPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
     build_signal_parameter_widgets,
 )
-from pandaplot.models.events import ChartEvents, DatasetEvents, UIEvents
+from pandaplot.models.events import ChartEvents, DatasetEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -730,6 +731,9 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # of all those specific dataset events.
         self.subscribe_to_event(DatasetEvents.DATASET_CHANGED, self._on_dataset_changed)
         self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, self._on_chart_list_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, self._on_chart_list_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_RENAMED, self._on_chart_list_changed)
 
     def _on_series_selected_event(self, event_data):
         """Clicking a series/fit on the chart canvas or its legend also
@@ -776,6 +780,14 @@ class ChartSignalAnalysisPanel(SidebarPanel):
     def _on_chart_updated(self, event_data):
         chart = event_data.get("chart")
         if not chart or (self.current_chart_id and chart.id != self.current_chart_id):
+            # A different chart's own update (rename/retype/etc.) doesn't
+            # change this panel's context, but can change whether that chart
+            # belongs in the destination combo or how it's labeled -- refresh
+            # without disturbing the user's current destination pick (unlike
+            # _populate_sources(), which resets it to "New chart").
+            if isinstance(chart, Chart):
+                project = self.app_context.get_app_state().current_project
+                refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
             return
         if isinstance(chart, Chart):
             self.current_chart = chart
@@ -812,6 +824,13 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # mirrors ChartTab.on_dataset_changed's own filter.
         if changed_dataset_id in self.current_chart.get_all_datasets():
             self._populate_sources()
+
+    def _on_chart_list_changed(self, event_data):
+        """A chart added/renamed/removed anywhere in the project can
+        change the destination combo's entries or their labels -- refresh
+        without disturbing the user's current destination pick."""
+        project = self.app_context.get_app_state().current_project
+        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
 
     @override
     def showEvent(self, event):
