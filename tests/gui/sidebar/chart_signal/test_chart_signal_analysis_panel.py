@@ -12,9 +12,15 @@ from PySide6.QtWidgets import QApplication
 
 from pandaplot.analysis import SIGNAL_ANALYSES, SignalAnalysisType
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.commands.composite_command import CompositeCommand
+from pandaplot.commands.project.chart import AddAnalysisSeriesCommand
+from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
+    ApplySignalAnalysisResultCommand,
+)
 from pandaplot.gui.components.sidebar.chart_signal.chart_signal_analysis_panel import (
     ChartSignalAnalysisPanel,
 )
+from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -714,3 +720,55 @@ class TestChartSignalAnalysisPanelSeriesSelectedEvent:
         )
 
         assert panel.source_combo.currentIndex() == 0
+
+
+class TestChartSignalAnalysisPanelQuickPlot:
+    def test_quick_plot_checkbox_is_present_and_checked_by_default(self, panel):
+        assert hasattr(panel, "plot_result_cb")
+        assert panel.plot_result_cb.text() == "Plot result on this chart"
+        assert panel.plot_result_cb.isChecked() is True
+        assert panel.plot_result_cb.isEnabled() is True
+
+    def test_quick_plot_disabled_for_stft(self, panel):
+        index = panel.analysis_combo.findData(SignalAnalysisType.STFT)
+        panel.analysis_combo.setCurrentIndex(index)
+
+        assert panel.plot_result_cb.isEnabled() is False
+
+    def test_quick_plot_disabled_for_3d_charts(self, panel):
+        panel.current_chart.chart_type = ChartType.SCATTER3D
+        panel._populate_sources()
+
+        assert panel.plot_result_cb.isEnabled() is False
+
+    def test_cached_add_results_executes_composite_command_when_quick_plot_checked(self, panel, app_context):
+        executor = Mock()
+        app_context.get_command_executor.return_value = executor
+        executor.execute_command.return_value = True
+
+        panel.last_result = Mock()
+        panel._last_run_params = panel._get_dispatch_params()
+
+        panel.add_results_to_project()
+
+        assert executor.execute_command.called
+        cmd = executor.execute_command.call_args[0][0]
+        assert isinstance(cmd, CompositeCommand)
+        assert len(cmd.commands) == 2
+        assert isinstance(cmd.commands[0], ApplySignalAnalysisResultCommand)
+        assert isinstance(cmd.commands[1], AddAnalysisSeriesCommand)
+
+    def test_cached_add_results_executes_single_command_when_quick_plot_unchecked(self, panel, app_context):
+        executor = Mock()
+        app_context.get_command_executor.return_value = executor
+        executor.execute_command.return_value = True
+
+        panel.last_result = Mock()
+        panel._last_run_params = panel._get_dispatch_params()
+        panel.plot_result_cb.setChecked(False)
+
+        panel.add_results_to_project()
+
+        assert executor.execute_command.called
+        cmd = executor.execute_command.call_args[0][0]
+        assert isinstance(cmd, ApplySignalAnalysisResultCommand)

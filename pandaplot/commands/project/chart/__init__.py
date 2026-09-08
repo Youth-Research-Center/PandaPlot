@@ -1,5 +1,6 @@
 """Chart command package."""
 
+from .add_analysis_series_command import AddAnalysisSeriesCommand
 from .add_series_command import AddSeriesCommand
 from .apply_chart_properties_command import ApplyChartPropertiesCommand
 from .convert_series_to_fit_command import ConvertSeriesToFitCommand
@@ -10,6 +11,7 @@ from .remove_series_command import RemoveSeriesCommand
 from .reorder_series_command import ReorderSeriesCommand
 
 __all__ = [
+    "AddAnalysisSeriesCommand",
     "AddSeriesCommand",
     "ApplyChartPropertiesCommand",
     "ConvertSeriesToFitCommand",

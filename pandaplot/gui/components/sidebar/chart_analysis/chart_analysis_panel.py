@@ -9,6 +9,7 @@ series or a fitted curve — and stores the result as a new dataset.
 from typing import Optional, override
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFormLayout,
     QGroupBox,
@@ -22,6 +23,8 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.analysis import AnalysisType
+from pandaplot.commands.composite_command import CompositeCommand
+from pandaplot.commands.project.chart import AddAnalysisSeriesCommand
 from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
 )
@@ -29,9 +32,11 @@ from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     find_series_fit_combo_index,
     populate_series_fit_sources,
+    quick_plot_compatible,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -130,6 +135,9 @@ class ChartAnalysisPanel(SidebarPanel):
         self.result_name = QLineEdit()
         self.result_name.setPlaceholderText("Auto-named from operation and series")
         form.addRow("Dataset name:", self.result_name)
+        self.plot_result_cb = QCheckBox("Plot result on this chart")
+        self.plot_result_cb.setChecked(True)
+        form.addRow("", self.plot_result_cb)
         layout.addWidget(group)
 
     def _create_preview_section(self, layout):
@@ -268,6 +276,7 @@ class ChartAnalysisPanel(SidebarPanel):
             return None
         kind, index = source
         name = self.result_name.text().strip() or None
+        folder_id = self.current_chart.parent_id if self.current_chart else None
         return AnalyzeChartSeriesCommand(
             self.app_context,
             chart_id=self.current_chart_id,
@@ -276,6 +285,7 @@ class ChartAnalysisPanel(SidebarPanel):
             analysis_type=self.operation_combo.currentData(),
             parameters=self._build_parameters(),
             result_name=name,
+            folder_id=folder_id,
         )
 
     # -- actions ----------------------------------------------------------
@@ -304,10 +314,24 @@ class ChartAnalysisPanel(SidebarPanel):
         if command is None:
             self.preview_text.setText("❌ Select a series to analyze.")
             return
-        if self.app_context.get_command_executor().execute_command(command):
-            self.preview_text.setText(
-                "✅ Created a new dataset from the analysis. Find it in the project explorer."
+
+        executor = self.app_context.get_command_executor()
+        plot_result = self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled()
+        if plot_result:
+            add_series_cmd = AddAnalysisSeriesCommand(
+                app_context=self.app_context,
+                chart_id=self.current_chart_id,
+                dataset_command=command,
             )
+            success = executor.execute_command(CompositeCommand([command, add_series_cmd]))
+        else:
+            success = executor.execute_command(command)
+
+        if success:
+            message = "✅ Created a new dataset from the analysis. Find it in the project explorer."
+            if plot_result:
+                message += " Plotted on this chart."
+            self.preview_text.setText(message)
         else:
             self.preview_text.setText(
                 "❌ Could not analyze the series. See the log for details."
@@ -384,6 +408,13 @@ class ChartAnalysisPanel(SidebarPanel):
         # Leave any user-entered name untouched; only fill the placeholder.
         self.result_name.setPlaceholderText(f"{op} — {self.source_combo.currentText()}")
 
+    def _update_quick_plot_compatibility(self, *, has_sources: bool):
+        if not has_sources or self.current_chart is None:
+            self.plot_result_cb.setEnabled(False)
+            return
+        spec = get_chart_type_spec(self.current_chart.chart_type)
+        self.plot_result_cb.setEnabled(quick_plot_compatible(spec))
+
     def _populate_sources(self):
         has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
         self.apply_btn.setEnabled(has_sources)
@@ -391,6 +422,7 @@ class ChartAnalysisPanel(SidebarPanel):
         self.source_hint.setText(
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
+        self._update_quick_plot_compatibility(has_sources=has_sources)
         self._on_source_changed()
 
     @override
@@ -474,3 +506,4 @@ class ChartAnalysisPanel(SidebarPanel):
         value_label_style = f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
         self.start_value_label.setStyleSheet(value_label_style)
         self.end_value_label.setStyleSheet(value_label_style)
+        self.plot_result_cb.setStyleSheet(f"QCheckBox {{ color: {base_fg}; background-color: transparent; }}")

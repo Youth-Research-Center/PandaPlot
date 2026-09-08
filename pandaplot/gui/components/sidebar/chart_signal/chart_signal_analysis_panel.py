@@ -19,6 +19,7 @@ from typing import Optional, override
 
 import numpy as np
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFormLayout,
     QGroupBox,
@@ -32,6 +33,8 @@ from PySide6.QtWidgets import (
 
 from pandaplot.analysis import SIGNAL_ANALYSES, SignalAnalysisResult, SignalAnalysisType
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.commands.composite_command import CompositeCommand
+from pandaplot.commands.project.chart import AddAnalysisSeriesCommand
 from pandaplot.commands.project.chart.chart_signal_analysis_command import (
     ChartSignalAnalysisCommand,
 )
@@ -43,6 +46,7 @@ from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     find_series_fit_combo_index,
     populate_series_fit_sources,
+    quick_plot_compatible,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -50,6 +54,7 @@ from pandaplot.gui.components.sidebar.signal.signal_panel import SignalPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
     build_signal_parameter_widgets,
 )
+from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
 from pandaplot.models.events import ChartEvents, DatasetEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -185,6 +190,10 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         layout.addWidget(group)
 
     def _create_action_buttons(self, layout):
+        self.plot_result_cb = QCheckBox("Plot result on this chart")
+        self.plot_result_cb.setChecked(True)
+        layout.addWidget(self.plot_result_cb)
+
         row = QHBoxLayout()
         self.add_btn = PButton(
             "Add to Project", role="primary", on_click=self.add_results_to_project, enabled=False
@@ -212,6 +221,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
 
         self._build_parameter_widgets(info)
         self._refresh_sampling_rate_default()
+        self._update_quick_plot_compatibility(has_sources=self.source_combo.count() > 0)
         self.clear()
 
     def _build_parameter_widgets(self, info):
@@ -348,6 +358,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
 
         chart_id, kind, index, analysis_type, sampling_rate, parameters = params
         folder_id = self.current_chart.parent_id if self.current_chart else None
+        plot_result = self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled()
         return ChartSignalAnalysisCommand(
             self.app_context,
             chart_id=chart_id,
@@ -357,6 +368,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             sampling_rate=sampling_rate,
             parameters=parameters,
             folder_id=folder_id,
+            plot_result=plot_result,
         )
 
     # -- async run/apply dispatch (mirrors SignalPanel) ------------------------
@@ -445,7 +457,17 @@ class ChartSignalAnalysisPanel(SidebarPanel):
                 result=self.last_result,
             )
             executor = self.app_context.get_command_executor()
-            if executor.execute_command(apply_command):
+            if self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled():
+                add_series_cmd = AddAnalysisSeriesCommand(
+                    app_context=self.app_context,
+                    chart_id=self.current_chart_id,
+                    dataset_command=apply_command,
+                )
+                success = executor.execute_command(CompositeCommand([apply_command, add_series_cmd]))
+            else:
+                success = executor.execute_command(apply_command)
+
+            if success:
                 self.results_text.append("\n\n✅ Results added to project")
                 self.add_btn.setEnabled(False)
             else:
@@ -591,6 +613,18 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.start_value_label.setText(self._format_point(command.resolve_point(self.start_index.value())))
         self.end_value_label.setText(self._format_point(command.resolve_point(self.end_index.value())))
 
+    def _update_quick_plot_compatibility(self, *, has_sources: bool):
+        if not has_sources or self.current_chart is None:
+            self.plot_result_cb.setEnabled(False)
+            return
+        # STFT results are 3-column (time, frequency, magnitude) -- not a
+        # single (x, y) curve, so there's nothing sensible to overlay.
+        if self._current_analysis_type() == SignalAnalysisType.STFT:
+            self.plot_result_cb.setEnabled(False)
+            return
+        spec = get_chart_type_spec(self.current_chart.chart_type)
+        self.plot_result_cb.setEnabled(quick_plot_compatible(spec))
+
     def _populate_sources(self):
         # Force _range_command() to build a fresh command even if the
         # (chart, source) key is unchanged: this runs on every
@@ -628,6 +662,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.source_hint.setText(
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
+        self._update_quick_plot_compatibility(has_sources=has_sources)
         self._on_source_changed()
 
     @override
@@ -754,6 +789,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         value_label_style = f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
         self.start_value_label.setStyleSheet(value_label_style)
         self.end_value_label.setStyleSheet(value_label_style)
+        self.plot_result_cb.setStyleSheet(f"QCheckBox {{ color: {base_fg}; background-color: transparent; }}")
 
         self.results_text.setStyleSheet(f"""
             QTextEdit {{

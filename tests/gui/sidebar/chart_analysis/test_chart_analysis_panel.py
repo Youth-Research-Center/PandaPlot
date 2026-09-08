@@ -6,9 +6,15 @@ import pandas as pd
 import pytest
 from PySide6.QtWidgets import QApplication
 
+from pandaplot.commands.composite_command import CompositeCommand
+from pandaplot.commands.project.chart import AddAnalysisSeriesCommand
+from pandaplot.commands.project.chart.analyze_chart_series_command import (
+    AnalyzeChartSeriesCommand,
+)
 from pandaplot.gui.components.sidebar.chart_analysis.chart_analysis_panel import (
     ChartAnalysisPanel,
 )
+from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -195,3 +201,43 @@ class TestChartAnalysisPanelSeriesSelectedEvent:
         )
 
         assert panel.source_combo.currentIndex() == 0
+
+
+class TestChartAnalysisPanelQuickPlot:
+    def test_quick_plot_checkbox_is_present_and_checked_by_default(self, panel):
+        assert hasattr(panel, "plot_result_cb")
+        assert panel.plot_result_cb.text() == "Plot result on this chart"
+        assert panel.plot_result_cb.isChecked() is True
+        assert panel.plot_result_cb.isEnabled() is True
+
+    def test_quick_plot_disabled_for_3d_charts(self, panel):
+        panel.current_chart.chart_type = ChartType.SCATTER3D
+        panel._populate_sources()
+
+        assert panel.plot_result_cb.isEnabled() is False
+
+    def test_apply_executes_composite_command_when_quick_plot_checked(self, panel, app_context):
+        executor = Mock()
+        app_context.get_command_executor.return_value = executor
+        executor.execute_command.return_value = True
+
+        panel.apply()
+
+        assert executor.execute_command.called
+        cmd = executor.execute_command.call_args[0][0]
+        assert isinstance(cmd, CompositeCommand)
+        assert len(cmd.commands) == 2
+        assert isinstance(cmd.commands[0], AnalyzeChartSeriesCommand)
+        assert isinstance(cmd.commands[1], AddAnalysisSeriesCommand)
+
+    def test_apply_executes_single_command_when_quick_plot_unchecked(self, panel, app_context):
+        executor = Mock()
+        app_context.get_command_executor.return_value = executor
+        executor.execute_command.return_value = True
+
+        panel.plot_result_cb.setChecked(False)
+        panel.apply()
+
+        assert executor.execute_command.called
+        cmd = executor.execute_command.call_args[0][0]
+        assert isinstance(cmd, AnalyzeChartSeriesCommand)
