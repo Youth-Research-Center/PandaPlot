@@ -34,9 +34,11 @@ from PySide6.QtWidgets import (
 from pandaplot.analysis import SIGNAL_ANALYSES, SignalAnalysisResult, SignalAnalysisType
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.composite_command import CompositeCommand
-from pandaplot.commands.project.chart import AddAnalysisSeriesCommand
 from pandaplot.commands.project.chart.chart_signal_analysis_command import (
     ChartSignalAnalysisCommand,
+)
+from pandaplot.commands.project.chart.create_chart_with_analysis_series_command import (
+    build_quick_plot_command,
 )
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
@@ -45,6 +47,7 @@ from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     find_series_fit_combo_index,
+    populate_chart_target_combo,
     populate_series_fit_sources,
     series_source_hint,
 )
@@ -53,7 +56,6 @@ from pandaplot.gui.components.sidebar.signal.signal_panel import SignalPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
     build_signal_parameter_widgets,
 )
-from pandaplot.models.chart.chart_type_spec import get_chart_type_spec, quick_plot_compatible
 from pandaplot.models.events import ChartEvents, DatasetEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -197,9 +199,17 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         layout.addWidget(group)
 
     def _create_action_buttons(self, layout):
-        self.plot_result_cb = QCheckBox("Plot result on this chart")
+        self.plot_result_cb = QCheckBox("Plot result")
         self.plot_result_cb.setChecked(True)
         layout.addWidget(self.plot_result_cb)
+
+        self.plot_target_row = QWidget()
+        target_row_layout = QHBoxLayout(self.plot_target_row)
+        target_row_layout.setContentsMargins(0, 0, 0, 0)
+        target_row_layout.addWidget(QLabel("Plot on:"))
+        self.plot_target_combo = QComboBox()
+        target_row_layout.addWidget(self.plot_target_combo)
+        layout.addWidget(self.plot_target_row)
 
         row = QHBoxLayout()
         self.add_btn = PButton(
@@ -215,6 +225,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.source_combo.currentIndexChanged.connect(self._on_source_changed)
         self.start_index.valueChanged.connect(self._on_segment_changed)
         self.end_index.valueChanged.connect(self._on_segment_changed)
+        self.plot_result_cb.toggled.connect(self._update_plot_target_visibility)
 
     # -- dynamic parameters ---------------------------------------------------
 
@@ -376,6 +387,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             parameters=parameters,
             folder_id=folder_id,
             plot_result=plot_result,
+            plot_target_chart_id=self.plot_target_combo.currentData() if plot_result else None,
         )
 
     # -- async run/apply dispatch (mirrors SignalPanel) ------------------------
@@ -465,12 +477,13 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             )
             executor = self.app_context.get_command_executor()
             if self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled():
-                add_series_cmd = AddAnalysisSeriesCommand(
-                    app_context=self.app_context,
-                    chart_id=self.current_chart_id,
-                    dataset_command=apply_command,
+                plot_command = build_quick_plot_command(
+                    self.app_context,
+                    apply_command,
+                    target_chart_id=self.plot_target_combo.currentData(),
+                    folder_id=folder_id,
                 )
-                success = executor.execute_command(CompositeCommand([apply_command, add_series_cmd]))
+                success = executor.execute_command(CompositeCommand([apply_command, plot_command]))
             else:
                 success = executor.execute_command(apply_command)
 
@@ -632,17 +645,18 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.start_value_label.setText(self._format_point(command.resolve_point(self.start_index.value())))
         self.end_value_label.setText(self._format_point(command.resolve_point(self.end_index.value())))
 
+    def _update_plot_target_visibility(self):
+        self.plot_target_row.setVisible(self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled())
+
     def _update_quick_plot_compatibility(self, *, has_sources: bool):
-        if not has_sources or self.current_chart is None:
+        if not has_sources:
             self.plot_result_cb.setEnabled(False)
-            return
-        # STFT results are 3-column (time, frequency, magnitude) -- not a
-        # single (x, y) curve, so there's nothing sensible to overlay.
-        if self._current_analysis_type() == SignalAnalysisType.STFT:
-            self.plot_result_cb.setEnabled(False)
-            return
-        spec = get_chart_type_spec(self.current_chart.chart_type)
-        self.plot_result_cb.setEnabled(quick_plot_compatible(spec))
+        else:
+            # STFT results are 3-column (time, frequency, magnitude) -- not
+            # a single (x, y) curve, so there's nothing sensible to overlay,
+            # regardless of destination.
+            self.plot_result_cb.setEnabled(self._current_analysis_type() != SignalAnalysisType.STFT)
+        self._update_plot_target_visibility()
 
     def _populate_sources(self, *, invalidate: bool = True):
         # Force _range_command() to build a fresh command even if the
@@ -685,6 +699,8 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.source_hint.setText(
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
+        project = self.app_context.get_app_state().current_project
+        populate_chart_target_combo(self.plot_target_combo, project)
         self._update_quick_plot_compatibility(has_sources=has_sources)
         self._on_source_changed()
 

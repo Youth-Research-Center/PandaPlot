@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QApplication
 from pandaplot.analysis import SIGNAL_ANALYSES, SignalAnalysisType
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.composite_command import CompositeCommand
-from pandaplot.commands.project.chart import AddAnalysisSeriesCommand
+from pandaplot.commands.project.chart import AddAnalysisSeriesCommand, CreateChartWithAnalysisSeriesCommand
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
 )
@@ -725,9 +725,13 @@ class TestChartSignalAnalysisPanelSeriesSelectedEvent:
 class TestChartSignalAnalysisPanelQuickPlot:
     def test_quick_plot_checkbox_is_present_and_checked_by_default(self, panel):
         assert hasattr(panel, "plot_result_cb")
-        assert panel.plot_result_cb.text() == "Plot result on this chart"
+        assert panel.plot_result_cb.text() == "Plot result"
         assert panel.plot_result_cb.isChecked() is True
         assert panel.plot_result_cb.isEnabled() is True
+
+    def test_destination_combo_defaults_to_new_chart(self, panel):
+        assert panel.plot_target_combo.itemText(0) == "New chart"
+        assert panel.plot_target_combo.currentData() is None
 
     def test_quick_plot_disabled_for_stft(self, panel):
         index = panel.analysis_combo.findData(SignalAnalysisType.STFT)
@@ -735,13 +739,23 @@ class TestChartSignalAnalysisPanelQuickPlot:
 
         assert panel.plot_result_cb.isEnabled() is False
 
-    def test_quick_plot_disabled_for_3d_charts(self, panel):
+    def test_quick_plot_stays_enabled_for_3d_charts(self, panel):
+        """See the matching ChartAnalysisPanel test/comment: "New chart" is
+        always a valid destination, so the checkbox no longer disables
+        based on the current chart's type."""
         panel.current_chart.chart_type = ChartType.SCATTER3D
         panel._populate_sources()
 
-        assert panel.plot_result_cb.isEnabled() is False
+        assert panel.plot_result_cb.isEnabled() is True
 
-    def test_cached_add_results_executes_composite_command_when_quick_plot_checked(self, panel, app_context):
+    def test_3d_current_chart_is_excluded_from_the_destination_combo(self, panel):
+        panel.current_chart.chart_type = ChartType.SCATTER3D
+        panel._populate_sources()
+
+        labels = [panel.plot_target_combo.itemText(i) for i in range(panel.plot_target_combo.count())]
+        assert labels == ["New chart"]
+
+    def test_cached_add_results_creates_a_new_chart_by_default(self, panel, app_context):
         executor = Mock()
         app_context.get_command_executor.return_value = executor
         executor.execute_command.return_value = True
@@ -756,7 +770,28 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert isinstance(cmd, CompositeCommand)
         assert len(cmd.commands) == 2
         assert isinstance(cmd.commands[0], ApplySignalAnalysisResultCommand)
-        assert isinstance(cmd.commands[1], AddAnalysisSeriesCommand)
+        assert isinstance(cmd.commands[1], CreateChartWithAnalysisSeriesCommand)
+
+    def test_cached_add_results_plots_on_the_selected_existing_chart(self, panel, app_context, project):
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        executor = Mock()
+        app_context.get_command_executor.return_value = executor
+        executor.execute_command.return_value = True
+
+        panel.last_result = Mock()
+        panel._last_run_params = panel._get_dispatch_params()
+
+        panel.add_results_to_project()
+
+        cmd = executor.execute_command.call_args[0][0]
+        add_series_cmd = cmd.commands[1]
+        assert isinstance(add_series_cmd, AddAnalysisSeriesCommand)
+        assert add_series_cmd.chart_id == "chart-2"
 
     def test_cached_add_results_executes_single_command_when_quick_plot_unchecked(self, panel, app_context):
         executor = Mock()
@@ -835,3 +870,12 @@ class TestChartSignalAnalysisPanelQuickPlot:
         panel.add_results_to_project()
 
         assert panel._pending_quick_plot is False
+
+    def test_build_command_forwards_selected_destination(self, panel):
+        index = panel.plot_target_combo.findData(None)  # "New chart" (already selected, but explicit)
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        command = panel._build_command()
+
+        assert command.plot_result is True
+        assert command.plot_target_chart_id is None
