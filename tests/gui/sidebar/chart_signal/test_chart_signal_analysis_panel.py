@@ -733,6 +733,11 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert panel.plot_target_combo.itemText(0) == "New chart"
         assert panel.plot_target_combo.currentData() is None
 
+    def test_plot_target_row_hides_when_checkbox_unchecked(self, panel):
+        assert panel.plot_target_row.isVisibleTo(panel) is True
+        panel.plot_result_cb.setChecked(False)
+        assert panel.plot_target_row.isVisibleTo(panel) is False
+
     def test_quick_plot_disabled_for_stft(self, panel):
         index = panel.analysis_combo.findData(SignalAnalysisType.STFT)
         panel.analysis_combo.setCurrentIndex(index)

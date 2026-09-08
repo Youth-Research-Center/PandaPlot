@@ -390,8 +390,8 @@ class TestChartSignalAnalysisCommandPlotResult:
         command = _cmd(ctx, plot_result=False)
 
         assert command.execute() is CommandResult.SUCCESS
-        assert all(
-            isinstance(item, Chart) is False or item.id == "chart-1"
+        assert not any(
+            isinstance(item, Chart) and item.id != "chart-1"
             for item in project.get_all_items()
         )
 

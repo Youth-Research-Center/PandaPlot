@@ -202,12 +202,12 @@ def get_chart_type_spec(chart_type: "str | ChartType") -> ChartTypeSpec:
 def quick_plot_compatible(spec: ChartTypeSpec) -> bool:
     """Whether a chart of this type can host a quick-plotted analysis result.
 
-    Shared by ChartAnalysisPanel/ChartSignalAnalysisPanel's "Plot result on
-    this chart" checkbox and AddAnalysisSeriesCommand's own execution-time
-    check: an analysis result is a 2-column (x, y) curve, so it only makes
-    sense to overlay it on a chart type that can actually display an
-    ordered line/scatter curve, never a 3-D chart. This only reports "a
-    reasonable overlay exists" -- AddAnalysisSeriesCommand separately picks
-    LINE over SCATTER when both are allowed.
+    Shared by ChartAnalysisPanel/ChartSignalAnalysisPanel's "Plot result"
+    checkbox (and its destination-chart picker) and AddAnalysisSeriesCommand's
+    own execution-time check: an analysis result is a 2-column (x, y) curve,
+    so it only makes sense to overlay it on a chart type that can actually
+    display an ordered line/scatter curve, never a 3-D chart. This only
+    reports "a reasonable overlay exists" -- AddAnalysisSeriesCommand
+    separately picks LINE over SCATTER when both are allowed.
     """
     return not spec.is_3d and bool(spec.allowed_series_types & {SeriesType.LINE, SeriesType.SCATTER})

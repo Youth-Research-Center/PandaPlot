@@ -48,11 +48,12 @@ class AddAnalysisSeriesCommand(Command):
 
         spec = get_chart_type_spec(chart.chart_type)
         if not quick_plot_compatible(spec):
-            # The UI only offers this command's caller (the "Plot result on
-            # this chart" checkbox) when the chart was compatible at the
-            # time the analysis was dispatched -- but for the async signal
-            # path, the chart's type can still change before this command
-            # actually runs. Re-checking here (rather than trusting that
+            # The UI only offers this command's caller (the "Plot result"
+            # checkbox, with this chart selected as its destination) when
+            # the chart was compatible at the time the analysis was
+            # dispatched -- but for the async signal path, the chart's type
+            # can still change before this command actually runs.
+            # Re-checking here (rather than trusting that
             # snapshot) matters because there's no series type that would be
             # semantically correct to fall back to: a chart with neither
             # LINE nor SCATTER allowed can't sensibly host a 2-column (x, y)

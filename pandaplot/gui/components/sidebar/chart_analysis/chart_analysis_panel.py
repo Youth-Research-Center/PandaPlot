@@ -326,13 +326,14 @@ class ChartAnalysisPanel(SidebarPanel):
 
         executor = self.app_context.get_command_executor()
         plot_result = self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled()
+        target_chart_id = self.plot_target_combo.currentData() if plot_result else None
+        target_chart_name = self.plot_target_combo.currentText() if plot_result else None
         if plot_result:
-            folder_id = self.current_chart.parent_id if self.current_chart else None
             plot_command = build_quick_plot_command(
                 self.app_context,
                 command,
-                target_chart_id=self.plot_target_combo.currentData(),
-                folder_id=folder_id,
+                target_chart_id=target_chart_id,
+                folder_id=command.folder_id,
             )
             success = executor.execute_command(CompositeCommand([command, plot_command]))
         else:
@@ -341,7 +342,10 @@ class ChartAnalysisPanel(SidebarPanel):
         if success:
             message = "✅ Created a new dataset from the analysis. Find it in the project explorer."
             if plot_result:
-                message += " Plotted the result."
+                if target_chart_id is None:
+                    message += " Plotted on a new chart."
+                else:
+                    message += f" Plotted on '{target_chart_name}'."
             self.preview_text.setText(message)
         else:
             self.preview_text.setText(
