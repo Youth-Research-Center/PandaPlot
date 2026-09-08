@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, Optional, override
 import pandas as pd
 
 from pandaplot.analysis import AnalysisEngine, AnalysisType
-from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.base_command import BackgroundTaskCommand, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.apply_analysis_result_command import ApplyAnalysisResultCommand
 from pandaplot.gui.controllers.ui_controller import UIController
@@ -24,7 +24,7 @@ from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 
-class AnalysisCommand(Command):
+class AnalysisCommand(BackgroundTaskCommand):
     """
     Validates analysis inputs and dispatches the computation to a background
     thread. See module docstring for the undo-tracking split with
@@ -57,26 +57,17 @@ class AnalysisCommand(Command):
                 (e.g. AnalysisPanel) react to completion instead of reading
                 execute()'s return value, which now only means "dispatched".
         """
-        super().__init__()
+        super().__init__(on_complete=on_complete)
         self.app_context = app_context
         self.ui_controller: UIController = app_context.get_ui_controller()
         self.task_scheduler = app_context.get_task_scheduler()
         self.dataset_id = dataset_id
         self.analysis_config = analysis_config
-        self.on_complete = on_complete
 
         # State captured at dispatch time, needed once the result is back.
         self.dataset: Optional[Dataset] = None
         self.column_existed_before = False
         self.original_data = None
-        self._is_running = False
-        # The project active at dispatch time, so a project switch (e.g. to
-        # another copy of a project persisting the same dataset id) while
-        # the computation runs in the background can be detected and the
-        # result rejected instead of silently applying it to whatever
-        # project happens to be current when the background thread
-        # finishes. Mirrors SignalAnalysisCommand._on_commit_computed().
-        self._dispatch_project = None
 
         # Extract config
         self.analysis_type = AnalysisType(analysis_config["analysis_type"])
@@ -85,22 +76,6 @@ class AnalysisCommand(Command):
         self.new_column_name = analysis_config["new_column_name"]
         self.replace_existing = analysis_config.get("replace_existing", False)
         self.parameters = analysis_config.get("parameters", {})
-
-    @override
-    def marks_project_modified(self) -> bool:
-        """execute() only dispatches the computation -- it returns SUCCESS
-        before anything has actually mutated the project, and the
-        dispatched computation may yet fail or be discarded (see
-        _on_analysis_computed). The real mutation, and the real "unsaved
-        changes" flag, belongs to ApplyAnalysisResultCommand alone."""
-        return False
-
-    @override
-    def occupies_undo_slot(self) -> bool:
-        """The real, undoable effect is ApplyAnalysisResultCommand (see module
-        docstring). Kept False so this dispatcher never sits on the undo
-        stack in an incomplete state."""
-        return False
 
     @override
     def execute(self) -> CommandResult:
@@ -145,14 +120,13 @@ class AnalysisCommand(Command):
             needed_columns = list(dict.fromkeys([self.x_column, self.y_column]))
             analysis_df = df[needed_columns].copy()
 
-            self._dispatch_project = self.app_context.get_app_state().current_project
-            self._is_running = True
-            self.task_scheduler.run_task(
+            self._capture_dispatch_project(self.app_context)
+            self._dispatch_task(
+                self.task_scheduler,
                 task=self._compute_analysis_task,
                 task_arguments={"df": analysis_df},
                 on_result=self._on_analysis_computed,
                 on_error=self._on_analysis_error,
-                on_finished=self._on_analysis_finished,
             )
             return CommandResult.SUCCESS
 
@@ -169,14 +143,7 @@ class AnalysisCommand(Command):
         computation failure (bad parameters, scipy errors); returns a plain
         dict instead, since that's what safely crosses back via Qt's `result`
         signal (a single `object`)."""
-        try:
-            result = self._execute_analysis(df)
-            if result is None:
-                return {"success": False, "error": "Analysis returned no result", "result": None}
-            return {"success": True, "error": None, "result": result}
-        except Exception as e:
-            self.logger.error(f"Analysis computation failed: {e}")
-            return {"success": False, "error": str(e), "result": None}
+        return self._run_task_safely(self._execute_analysis, df)
 
     def _on_analysis_computed(self, outcome: dict) -> None:
         """Runs on the main thread (Worker signals are queued back to it)."""
@@ -186,7 +153,7 @@ class AnalysisCommand(Command):
                 self._notify_complete(CommandResult.FAILURE)
                 return
 
-            if self.app_context.get_app_state().current_project is not self._dispatch_project:
+            if self._is_project_stale(self.app_context):
                 # The project changed (or was closed) while this computation
                 # was running in the background -- re-resolving the dataset
                 # now would look it up in whatever project happens to be
@@ -237,31 +204,6 @@ class AnalysisCommand(Command):
         self.logger.error(error_traceback)
         self.ui_controller.show_error_message("Analysis Error", message)
         self._notify_complete(CommandResult.FAILURE)
-
-    def _on_analysis_finished(self) -> None:
-        self._is_running = False
-
-    def _notify_complete(self, result: CommandResult) -> None:
-        if self.on_complete:
-            self.on_complete(result)
-
-    @override
-    def undo(self) -> CommandResult:
-        """Unreachable via CommandExecutor: occupies_undo_slot() is False.
-        Undoing the applied column is ApplyAnalysisResultCommand's job. Kept
-        as a no-op only to satisfy the abstract Command interface."""
-        return CommandResult.SUCCESS
-
-    @override
-    def redo(self) -> CommandResult:
-        """See undo() -- unreachable via CommandExecutor for the same reason."""
-        return CommandResult.SUCCESS
-
-    @override
-    def cleanup(self) -> None:
-        """Unreachable via CommandExecutor: occupies_undo_slot() is False, so
-        this command is never pushed onto a stack for cleanup() to apply to."""
-        return
 
     def _get_dataset(self) -> Dataset | None:
         """Get dataset from app context."""
