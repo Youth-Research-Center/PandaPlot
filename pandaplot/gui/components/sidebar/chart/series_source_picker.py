@@ -68,7 +68,10 @@ def populate_chart_target_combo(combo: QComboBox, project: "Optional[Project]") 
     """
     combo.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
     combo.clear()
-    combo.addItem("New chart", None)
+    # "➕" distinguishes this as an action (create a chart), not the name of
+    # an existing chart called "New chart" -- easy to misread as the latter
+    # sitting plainly alongside real chart names below it.
+    combo.addItem("➕ New chart", None)
     if project is not None:
         for item in project.get_all_items():
             if not isinstance(item, Chart):

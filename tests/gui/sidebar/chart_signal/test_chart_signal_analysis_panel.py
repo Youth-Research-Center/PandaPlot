@@ -730,7 +730,7 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert panel.plot_result_cb.isEnabled() is True
 
     def test_destination_combo_defaults_to_new_chart(self, panel):
-        assert panel.plot_target_combo.itemText(0) == "New chart"
+        assert panel.plot_target_combo.itemText(0) == "➕ New chart"
         assert panel.plot_target_combo.currentData() is None
 
     def test_plot_target_row_hides_when_checkbox_unchecked(self, panel):
@@ -758,7 +758,7 @@ class TestChartSignalAnalysisPanelQuickPlot:
         panel._populate_sources()
 
         labels = [panel.plot_target_combo.itemText(i) for i in range(panel.plot_target_combo.count())]
-        assert labels == ["New chart"]
+        assert labels == ["➕ New chart"]
 
     def test_cached_add_results_creates_a_new_chart_by_default(self, panel, app_context):
         executor = Mock()

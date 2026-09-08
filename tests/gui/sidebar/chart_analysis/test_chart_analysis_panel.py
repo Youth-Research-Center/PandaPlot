@@ -211,7 +211,7 @@ class TestChartAnalysisPanelQuickPlot:
         assert panel.plot_result_cb.isEnabled() is True
 
     def test_destination_combo_defaults_to_new_chart(self, panel):
-        assert panel.plot_target_combo.itemText(0) == "New chart"
+        assert panel.plot_target_combo.itemText(0) == "➕ New chart"
         assert panel.plot_target_combo.currentData() is None
 
     def test_plot_target_row_hides_when_checkbox_unchecked(self, panel):
@@ -235,7 +235,7 @@ class TestChartAnalysisPanelQuickPlot:
         panel._populate_sources()
 
         labels = [panel.plot_target_combo.itemText(i) for i in range(panel.plot_target_combo.count())]
-        assert labels == ["New chart"]
+        assert labels == ["➕ New chart"]
 
     def test_compatible_other_chart_is_offered_in_the_destination_combo(self, panel, project):
         other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)

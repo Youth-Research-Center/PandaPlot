@@ -105,7 +105,7 @@ class TestPopulateChartTargetCombo:
     def test_new_chart_is_always_first_and_selected_by_default(self, project_with_charts):
         combo = QComboBox()
         populate_chart_target_combo(combo, project_with_charts)
-        assert combo.itemText(0) == "New chart"
+        assert combo.itemText(0) == "➕ New chart"
         assert combo.itemData(0) is None
         assert combo.currentIndex() == 0
 
