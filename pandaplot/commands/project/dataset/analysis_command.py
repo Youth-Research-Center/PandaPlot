@@ -16,7 +16,8 @@ from typing import Any, Callable, Dict, Optional, override
 import pandas as pd
 
 from pandaplot.analysis import AnalysisEngine, AnalysisType
-from pandaplot.commands.base_command import BackgroundTaskCommand, CommandResult
+from pandaplot.commands.background_task_command import BackgroundTaskCommand
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.apply_analysis_result_command import ApplyAnalysisResultCommand
 from pandaplot.gui.controllers.ui_controller import UIController

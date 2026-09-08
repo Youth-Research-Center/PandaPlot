@@ -12,7 +12,8 @@ was never a meaningful undoable user action.
 
 from typing import Callable, Optional, override
 
-from pandaplot.commands.base_command import BackgroundTaskCommand, CommandResult
+from pandaplot.commands.background_task_command import BackgroundTaskCommand
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.services.fit.fit_service import FitResult, FitService
 from pandaplot.services.qtasks.task_scheduler import TaskScheduler
 

@@ -2,7 +2,8 @@
 
 from unittest.mock import Mock
 
-from pandaplot.commands.base_command import BackgroundTaskCommand, CommandResult
+from pandaplot.commands.background_task_command import BackgroundTaskCommand
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
 from tests.commands.project.conftest import SyncTaskScheduler
