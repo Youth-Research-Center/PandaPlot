@@ -32,11 +32,10 @@ from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     find_series_fit_combo_index,
     populate_series_fit_sources,
-    quick_plot_compatible,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
-from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
+from pandaplot.models.chart.chart_type_spec import get_chart_type_spec, quick_plot_compatible
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext

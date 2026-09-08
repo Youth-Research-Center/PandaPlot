@@ -772,3 +772,49 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert executor.execute_command.called
         cmd = executor.execute_command.call_args[0][0]
         assert isinstance(cmd, ApplySignalAnalysisResultCommand)
+
+    def test_async_add_completes_when_its_own_quick_plot_fires_chart_updated(self, panel):
+        """Regression: the composite command an in-flight (non-cached)
+        add_results_to_project() dispatch executes -- when quick-plot is
+        enabled -- fires CHART_UPDATED("series_added") synchronously via
+        AddAnalysisSeriesCommand's AddSeriesCommand, strictly before
+        on_complete runs (see ChartSignalAnalysisCommand._on_commit_computed()).
+        That used to bump _generation like any other chart update, so the
+        completion's own staleness check always saw a moved-on generation
+        and silently discarded its own successful result."""
+        command = Mock()
+        command.result = Mock()
+        command.plot_result = True
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+        assert panel._pending_quick_plot is True
+
+        panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+        assert panel._pending_quick_plot is False  # consumed, not left dangling
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert panel.last_result is command.result
+        assert "added to project" in panel.results_text.toPlainText()
+
+    def test_async_add_still_discards_an_unrelated_series_added_mid_flight(self, panel):
+        """The suppression above must not swallow a genuinely unrelated
+        series_added (e.g. another panel adding a series, or an undo of an
+        earlier removal) that happens to arrive while a plot_result=False
+        dispatch is in flight -- only a dispatch that actually enabled
+        quick-plot gets this leniency."""
+        command = Mock()
+        command.result = Mock()
+        command.plot_result = False
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+        assert panel._pending_quick_plot is False
+
+        panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert panel.last_result is None
+        assert "added to project" not in panel.results_text.toPlainText()

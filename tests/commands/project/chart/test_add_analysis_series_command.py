@@ -130,6 +130,39 @@ class TestAddAnalysisSeriesCommand:
 
         assert chart.data_series[1].series_type == SeriesType.SCATTER
 
+    def test_fails_atomically_when_chart_has_no_line_or_scatter(self, ctx):
+        """A Histogram chart allows neither LINE nor SCATTER -- there's no
+        series type that would sensibly render a 2-column analysis result,
+        so the command must fail rather than fall back to the chart's own
+        default_series_type (HIST). Composed via CompositeCommand, that
+        failure must roll back the dataset AnalyzeChartSeriesCommand just
+        created too, rather than leave it orphaned in the project with
+        nothing plotted."""
+        app_context, project, chart = ctx
+        chart.chart_type = ChartType.HIST
+        executor = CommandExecutor(app_context)
+
+        analyze_cmd = AnalyzeChartSeriesCommand(
+            app_context,
+            chart_id="chart-1",
+            source_kind="series",
+            source_index=0,
+            analysis_type=AnalysisType.DERIVATIVE,
+            folder_id=chart.parent_id,
+        )
+        add_series_cmd = AddAnalysisSeriesCommand(
+            app_context,
+            chart_id="chart-1",
+            dataset_command=analyze_cmd,
+        )
+        composite = CompositeCommand([analyze_cmd, add_series_cmd])
+
+        assert executor.execute_command(composite) is False
+
+        assert len(chart.data_series) == 1
+        assert analyze_cmd.result_dataset_id is not None
+        assert project.find_item(analyze_cmd.result_dataset_id) is None
+
     def test_add_analysis_series_with_signal_apply_command(self, ctx):
         app_context, project, chart = ctx
         executor = CommandExecutor(app_context)

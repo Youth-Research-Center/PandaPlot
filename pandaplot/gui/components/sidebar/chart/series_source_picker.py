@@ -10,8 +10,6 @@ from typing import Optional
 
 from PySide6.QtWidgets import QComboBox
 
-from pandaplot.models.chart.chart_type_spec import ChartTypeSpec
-from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items.chart import Chart
 
@@ -56,20 +54,6 @@ def find_series_fit_combo_index(combo: QComboBox, kind: str, index: int) -> int:
         if combo.itemData(i) == target:
             return i
     return -1
-
-
-def quick_plot_compatible(spec: ChartTypeSpec) -> bool:
-    """Whether a chart of this type can host a quick-plotted analysis result.
-
-    Shared by ChartAnalysisPanel and ChartSignalAnalysisPanel's "Plot result
-    on this chart" checkbox: an analysis result is a 2-column (x, y) curve,
-    so it only makes sense to overlay it on a chart type that can actually
-    display an ordered line/scatter curve, never a 3-D chart. Must agree
-    with AddAnalysisSeriesCommand's own LINE-then-SCATTER-then-default
-    fallback -- this only reports "no reasonable overlay exists", not which
-    series type will be picked.
-    """
-    return not spec.is_3d and bool(spec.allowed_series_types & {SeriesType.LINE, SeriesType.SCATTER})
 
 
 def series_source_hint(*, has_sources: bool, any_series_excluded: bool) -> str:

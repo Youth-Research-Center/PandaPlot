@@ -46,7 +46,6 @@ from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     find_series_fit_combo_index,
     populate_series_fit_sources,
-    quick_plot_compatible,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -54,7 +53,7 @@ from pandaplot.gui.components.sidebar.signal.signal_panel import SignalPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
     build_signal_parameter_widgets,
 )
-from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
+from pandaplot.models.chart.chart_type_spec import get_chart_type_spec, quick_plot_compatible
 from pandaplot.models.events import ChartEvents, DatasetEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -73,6 +72,14 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.last_result: Optional[SignalAnalysisResult] = None
         self._last_run_params = None
         self._pending_command = None
+
+        # Set while an in-flight add_results_to_project() dispatch has
+        # quick-plot enabled, so _on_chart_updated() can recognize the
+        # CHART_UPDATED("series_added") that dispatch's own composite
+        # command (apply + AddAnalysisSeriesCommand) fires as it completes,
+        # and not mistake its own result for an external, invalidating
+        # chart edit. See _on_chart_updated()'s docstring.
+        self._pending_quick_plot = False
 
         # Cache for _range_command(): a fresh ChartSignalAnalysisCommand
         # per call would re-run NaN-drop/to_numeric series resolution on
@@ -489,6 +496,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.add_btn.setEnabled(False)
         self.busy_spinner.start()
         self._pending_command = command
+        self._pending_quick_plot = command.plot_result
 
         def _on_complete(result):
             self.busy_spinner.stop()
@@ -497,6 +505,12 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             # run_analysis().
             self.run_btn.setEnabled(self.source_combo.count() > 0)
             self._pending_command = None
+            # The one benign self-caused CHART_UPDATED this dispatch could
+            # produce (see _on_chart_updated()) has either already arrived
+            # and been consumed, or -- on failure -- was never going to
+            # arrive at all; either way, don't let a stale True suppress
+            # invalidation for some later, unrelated series_added.
+            self._pending_quick_plot = False
 
             if self._generation != dispatch_generation or self._get_dispatch_params() != current_params:
                 self.logger.info(
@@ -625,7 +639,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         spec = get_chart_type_spec(self.current_chart.chart_type)
         self.plot_result_cb.setEnabled(quick_plot_compatible(spec))
 
-    def _populate_sources(self):
+    def _populate_sources(self, *, invalidate: bool = True):
         # Force _range_command() to build a fresh command even if the
         # (chart, source) key is unchanged: this runs on every
         # UIEvents.TAB_CHANGED/ChartEvents.CHART_UPDATED/dataset change, and
@@ -640,18 +654,22 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # the panel's lifetime.
         self._range_command_key = None
         self._range_command_cache = None
-        # A previously computed last_result may have been resolved from
-        # data that just changed underneath it (same chart/source/method/
-        # segment, different underlying values) -- discard it rather than
-        # let Add to Project's cached-result fast path commit a stale
-        # analysis. Also bump _generation so an in-flight preview/commit
-        # dispatched before this update discards its result on arrival even
-        # when its own dispatch parameters still compare equal.
-        self.last_result = None
-        self._last_run_params = None
-        self._generation += 1
-        if hasattr(self, "add_btn"):
-            self.add_btn.setEnabled(False)
+        if invalidate:
+            # A previously computed last_result may have been resolved from
+            # data that just changed underneath it (same chart/source/
+            # method/segment, different underlying values) -- discard it
+            # rather than let Add to Project's cached-result fast path
+            # commit a stale analysis. Also bump _generation so an
+            # in-flight preview/commit dispatched before this update
+            # discards its result on arrival even when its own dispatch
+            # parameters still compare equal. Skipped when this refresh is
+            # itself the plotted result of an in-flight commit -- see
+            # _on_chart_updated().
+            self.last_result = None
+            self._last_run_params = None
+            self._generation += 1
+            if hasattr(self, "add_btn"):
+                self.add_btn.setEnabled(False)
         has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
         # A tab switch while a Run/Add-to-Project computation is still in
         # flight (for whatever chart/source was previously selected) must
@@ -713,7 +731,25 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         if isinstance(chart, Chart):
             self.current_chart = chart
             self.current_chart_id = chart.id
-            self._populate_sources()
+            if self._pending_quick_plot and event_data.get("update_type") == "series_added":
+                # The composite command an in-flight add_results_to_project()
+                # dispatched (with quick-plot enabled) fires this very event
+                # -- via AddAnalysisSeriesCommand's AddSeriesCommand -- as
+                # part of successfully completing *this* dispatch, strictly
+                # before its on_complete callback runs (see
+                # ChartSignalAnalysisCommand._on_commit_computed()). Treat it
+                # as expected progress, not an external edit that
+                # invalidates the very analysis it's the result of --
+                # otherwise on_complete's generation check below would
+                # always see a moved-on generation and silently discard its
+                # own successful result. Only the one event a given dispatch
+                # can produce is consumed this way (the flag is cleared
+                # here, and again unconditionally once on_complete runs) --
+                # any other series_added still invalidates normally.
+                self._pending_quick_plot = False
+                self._populate_sources(invalidate=False)
+            else:
+                self._populate_sources()
 
     def _on_dataset_changed(self, event_data):
         changed_dataset_id = event_data.get("dataset_id")

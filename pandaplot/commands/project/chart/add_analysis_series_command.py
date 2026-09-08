@@ -5,7 +5,7 @@ from typing import Optional, override
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.add_series_command import AddSeriesCommand
 from pandaplot.commands.project.current_project import get_current_project
-from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
+from pandaplot.models.chart.chart_type_spec import get_chart_type_spec, quick_plot_compatible
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart, DataSeries
 from pandaplot.models.project.items.dataset import Dataset
@@ -46,6 +46,27 @@ class AddAnalysisSeriesCommand(Command):
             self.logger.warning("AddAnalysisSeriesCommand: chart '%s' not found or invalid", self.chart_id)
             return CommandResult.FAILURE
 
+        spec = get_chart_type_spec(chart.chart_type)
+        if not quick_plot_compatible(spec):
+            # The UI only offers this command's caller (the "Plot result on
+            # this chart" checkbox) when the chart was compatible at the
+            # time the analysis was dispatched -- but for the async signal
+            # path, the chart's type can still change before this command
+            # actually runs. Re-checking here (rather than trusting that
+            # snapshot) matters because there's no series type that would be
+            # semantically correct to fall back to: a chart with neither
+            # LINE nor SCATTER allowed can't sensibly host a 2-column (x, y)
+            # analysis result at all (e.g. a histogram would plot the
+            # result's y values as a distribution, not the curve itself).
+            # Failing lets the composite roll back the dataset it just
+            # created too, rather than leave an orphaned, unplotted dataset
+            # sitting in the project with no way back to "nothing happened".
+            self.logger.warning(
+                "AddAnalysisSeriesCommand: chart '%s' (%s) has no LINE/SCATTER series type to plot the "
+                "analysis result as", self.chart_id, chart.chart_type,
+            )
+            return CommandResult.FAILURE
+
         cols = list(dataset.data.columns)
         if len(cols) >= 2:
             x_name, y_name = cols[0], cols[1]
@@ -58,13 +79,11 @@ class AddAnalysisSeriesCommand(Command):
         x_id = dataset.column_id(x_name) if x_name else ""
         y_id = dataset.column_id(y_name) if y_name else ""
 
-        spec = get_chart_type_spec(chart.chart_type)
-        if SeriesType.LINE in spec.allowed_series_types:
-            series_type = SeriesType.LINE
-        elif SeriesType.SCATTER in spec.allowed_series_types:
-            series_type = SeriesType.SCATTER
-        else:
-            series_type = spec.default_series_type
+        # quick_plot_compatible() above guarantees at least one of these is
+        # allowed; LINE is preferred as the more common curve rendering.
+        series_type = (
+            SeriesType.LINE if SeriesType.LINE in spec.allowed_series_types else SeriesType.SCATTER
+        )
 
         series = DataSeries(
             dataset_id=dataset.id,
