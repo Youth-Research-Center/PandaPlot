@@ -32,6 +32,7 @@ class NoteTab(PWidget):
 
         self._initialize()
         self.setup_connections()
+        self.register_unsaved_changes_source()
         
     @override
     def _init_ui(self):
@@ -95,12 +96,27 @@ class NoteTab(PWidget):
         return True
 
     def save(self) -> bool:
-        """Save the note."""
+        """Save the note for UnsavedChangesRegistry's flush. Returns whether
+        the save actually committed (see NoteEditorWidget.save_content) --
+        False means the note is still dirty and must not be treated as
+        safely persisted.
+
+        Commits without occupying an undo slot (track_undo=False) -- this
+        is a forced, infrastructure-triggered commit (a project-lifecycle
+        guard, or another command's own undo()/redo() swapping the current
+        project out from under this note), not a user-initiated Save
+        action, so it must not interleave with a command that already
+        occupies a stack slot for an operation that hasn't finished yet
+        (see PR #352 review)."""
         try:
-            self.note_editor.save_content()
-            return True
+            return self.note_editor.save_content(track_undo=False)
         except Exception:
             return False
+
+    def has_unsaved_changes(self) -> bool:
+        """Whether this tab's note editor has an edit not yet committed to the
+        project model (see NoteEditorWidget.has_unsaved_changes)."""
+        return self.note_editor.has_unsaved_changes()
 
     def get_note(self) -> Note:
         """Get the note associated with this tab."""

@@ -400,6 +400,27 @@ def test_note_editor_ignores_unrelated_project_item_events(qapp, tmp_path):
         mock_update.assert_not_called()
 
 
+def test_note_editor_subscribes_to_project_item_content_changed(qapp, tmp_path):
+    """EditImageCommand emits PROJECT_ITEM_CONTENT_CHANGED (not
+    PROJECT_ITEM_RENAMED) for a content edit -- the editor must subscribe to
+    it too, or a note's preview goes stale after the user edits (crop/
+    rotate/resize) a gallery image it references."""
+    project = Project(name="Test Project")
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content="")
+    NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    subscribed_events = [
+        call.args[0] for call in app_context.event_bus.subscribe.call_args_list
+    ]
+    assert ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED in subscribed_events
+
+
 def test_note_editor_refreshes_for_folder_containing_gallery(qapp, tmp_path):
     """A generic Folder isn't itself an image, but renaming/moving one that
     contains an ImageGallery (galleries can be created beneath ordinary

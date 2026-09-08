@@ -1,6 +1,7 @@
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.project.unsaved_changes import flush_pending_edits
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
 from pandaplot.models.state import AppContext, AppState
@@ -30,6 +31,11 @@ class NewProjectCommand(Command):
         # restore that exact object instead of calling execute() again --
         # see redo().
         self.created_project: Optional[Project] = None
+        # Whether created_project had unsaved changes when undo() last swapped
+        # away from it (e.g. a note edit flushed during that same undo()),
+        # so redo() can restore that dirty state rather than letting
+        # load_project() reset it to "no changes" -- see undo()/redo().
+        self.created_project_was_modified = False
 
     @override
     def marks_project_modified(self) -> bool:
@@ -41,6 +47,13 @@ class NewProjectCommand(Command):
     def execute(self) -> CommandResult:
         """Execute the new project command."""
         try:
+            if not flush_pending_edits(self.app_context):
+                self.ui_controller.show_error_message(
+                    "Create New Project",
+                    "One or more open notes could not be saved. Save them manually before continuing.",
+                )
+                return CommandResult.FAILURE
+
             # Only prompt if closing the current project would actually
             # discard something -- an unmodified project has nothing to lose.
             if self.app_state.has_project and self.app_state.is_modified:
@@ -91,7 +104,29 @@ class NewProjectCommand(Command):
 
     def undo(self) -> CommandResult:
         """Undo the new project command by restoring the previous project."""
+        # A note edited in the newly-created project, right before this
+        # undo, can still be mid-debounce -- no EditNoteCommand has run yet
+        # to invalidate anything, so nothing else protects this swap (see
+        # PR #352 review).
+        if not flush_pending_edits(self.app_context):
+            self.ui_controller.show_error_message(
+                "Create New Project",
+                "One or more open notes could not be saved. Save them manually before undoing.",
+            )
+            # ABORTED, not FAILURE: CommandExecutor.undo() moves the command
+            # to the redo stack regardless of result, so FAILURE would
+            # record this creation as undone (and installable via a later
+            # Redo) even though nothing actually changed (see PR #352 review).
+            return CommandResult.ABORTED
+
         try:
+            # Capture created_project's dirty state (the flush above may
+            # have just set it) before swapping away from it -- otherwise a
+            # later redo() would reinstall this exact project via
+            # load_project(), which unconditionally reports it as clean,
+            # silently discarding that it actually has unsaved content.
+            self.created_project_was_modified = self.app_state.is_modified
+
             if self.previous_project:
                 # Restore previous project. load_project() unconditionally
                 # resets is_modified to False (correct for a fresh disk
@@ -133,8 +168,28 @@ class NewProjectCommand(Command):
                 "never completed successfully)"
             )
             return CommandResult.FAILURE
+
+        # Same race as undo() -- a note edited in the project that's about
+        # to be replaced (by redoing the creation) must be flushed first
+        # (see PR #352 review).
+        if not flush_pending_edits(self.app_context):
+            self.ui_controller.show_error_message(
+                "Create New Project",
+                "One or more open notes could not be saved. Save them manually before redoing.",
+            )
+            # ABORTED, not FAILURE -- see the matching undo() comment above.
+            return CommandResult.ABORTED
+
         try:
+            # Refresh previous_was_modified in case this flush just dirtied
+            # whatever project is currently active -- otherwise a later
+            # undo() of this redo would restore a stale (pre-flush) dirty
+            # flag instead of the current one.
+            self.previous_was_modified = self.app_state.is_modified
+
             self.app_state.load_project(self.created_project)
+            if self.created_project_was_modified:
+                self.app_state.mark_modified()
 
             # A brand new project has no file yet; don't restore the previous
             # project's path next launch until this one is saved (mirrors

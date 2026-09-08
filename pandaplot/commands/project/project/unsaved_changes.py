@@ -7,8 +7,18 @@ discard edits. This is the single implementation; callers that need it
 (CloseProjectCommand, ExitCommand, PandaMainWindow.closeEvent) all go
 through it rather than each re-implementing the confirmation dialog.
 """
+from pandaplot.models.state import UnsavedChangesRegistry
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.data_managers.project_manager import ProjectManager
+
+
+def flush_pending_edits(app_context: AppContext) -> bool:
+    """Commit every registered UnsavedChangesSource's pending edit before a
+    lifecycle guard reads/acts on AppState.is_modified (see
+    WidgetExtension.register_unsaved_changes_source and
+    UnsavedChangesRegistry.flush_all for the aggregate success/failure
+    contract this delegates to)."""
+    return app_context.get_manager(UnsavedChangesRegistry).flush_all()
 
 
 def confirm_discard_unsaved_changes(app_context: AppContext, *, will_autosave: bool = False) -> bool:
@@ -36,6 +46,13 @@ def confirm_discard_unsaved_changes(app_context: AppContext, *, will_autosave: b
     just promised to keep. Doing it here means a failure can still cancel
     the shutdown and leave the project (and its unsaved state) intact.
     """
+    if not flush_pending_edits(app_context):
+        app_context.get_ui_controller().show_error_message(
+            "Unsaved Changes",
+            "One or more open notes could not be saved. Save them manually before continuing.",
+        )
+        return False
+
     app_state = app_context.get_app_state()
     if not app_state.has_project or not app_state.is_modified:
         return True

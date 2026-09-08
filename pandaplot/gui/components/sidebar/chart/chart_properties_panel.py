@@ -259,6 +259,7 @@ class ChartPropertiesPanel(SidebarPanel):
         """Set up event subscriptions for tab changes."""
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
+        self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
         # Ensure datasets populate after a project is loaded from file. AppState emits
         # 'project_loaded' (underscore) and 'first_project_loaded'. Also subscribe to the
         # canonical constant for forward compatibility.
@@ -328,6 +329,17 @@ class ChartPropertiesPanel(SidebarPanel):
             self.load_chart_object(None)
             self.logger.debug("Chart properties panel context cleared")
     
+    def _on_series_selected_event(self, event_data):
+        """Handle series selection event triggered by clicking on a chart or legend."""
+        chart_id = event_data.get("chart_id")
+        series_index = event_data.get("series_index")
+        if not self.current_chart or chart_id != self.current_chart.id or series_index is None:
+            return
+
+        total_items = len(self.current_chart.data_series) + len(self.current_chart.fit_data)
+        if 0 <= series_index < total_items:
+            self.data_tab._expand_series(series_index)
+
     def _on_chart_updated(self, event_data):
         """Handle chart updated events to refresh the panel."""
         chart_id = event_data.get("chart_id")

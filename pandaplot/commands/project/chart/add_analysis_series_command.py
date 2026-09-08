@@ -59,7 +59,12 @@ class AddAnalysisSeriesCommand(Command):
         y_id = dataset.column_id(y_name) if y_name else ""
 
         spec = get_chart_type_spec(chart.chart_type)
-        series_type = SeriesType.LINE if SeriesType.LINE in spec.allowed_series_types else spec.default_series_type
+        if SeriesType.LINE in spec.allowed_series_types:
+            series_type = SeriesType.LINE
+        elif SeriesType.SCATTER in spec.allowed_series_types:
+            series_type = SeriesType.SCATTER
+        else:
+            series_type = spec.default_series_type
 
         series = DataSeries(
             dataset_id=dataset.id,

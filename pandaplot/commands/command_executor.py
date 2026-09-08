@@ -108,7 +108,11 @@ class CommandExecutor:
                 undo stack regardless of the command class's own
                 occupies_undo_slot() default -- use for an automated/background
                 trigger of a command that IS normally undo-tracked from other
-                call sites.
+                call sites. Does NOT affect whether the redo stack is
+                cleared: a command that occupies_undo_slot() still
+                invalidates any stale redo-stack entry by actually changing
+                project state, whether or not this particular execution is
+                itself undo-tracked.
 
         Returns:
             bool: True if command executed successfully
@@ -128,14 +132,18 @@ class CommandExecutor:
                 self.logger.warning("Command execution failed: %s", command_name)
                 return False
 
-            if track_undo and command.occupies_undo_slot():
-                self.undo_stack.append(command)
-                if len(self.undo_stack) > self.max_undo_levels:
-                    removed_command = self.undo_stack.pop(0)
-                    self._safe_cleanup(removed_command)
-                    self.logger.debug("Removed old command from undo stack: %s", removed_command.__class__.__name__)
+            if command.occupies_undo_slot():
+                if track_undo:
+                    self.undo_stack.append(command)
+                    if len(self.undo_stack) > self.max_undo_levels:
+                        removed_command = self.undo_stack.pop(0)
+                        self._safe_cleanup(removed_command)
+                        self.logger.debug("Removed old command from undo stack: %s", removed_command.__class__.__name__)
 
-                # Clear redo stack since we executed a new command
+                # Clear redo stack since we executed a new command -- even
+                # one not itself pushed onto the undo stack (track_undo=False)
+                # still changed project state, so a stale redo-stack entry
+                # recorded before it may no longer be valid to replay.
                 if self.redo_stack:
                     self.logger.debug("Clearing redo stack (%d commands) due to new command execution", len(self.redo_stack))
                     for stale_command in self.redo_stack:
@@ -184,6 +192,15 @@ class CommandExecutor:
             return False
 
         self._warn_if_not_command_result(result, command_name, "undo")
+
+        if result is CommandResult.ABORTED:
+            # Nothing happened -- put it back exactly where it was, don't
+            # touch the redo stack or notify project-modified.
+            self.undo_stack.append(command)
+            self.logger.debug("Command undo aborted (no changes made): %s", command_name)
+            self._notify_history_changed()
+            return False
+
         self.redo_stack.append(command)
         if result is CommandResult.FAILURE:
             self.logger.warning("Command undo reported failure: %s", command_name)
@@ -222,6 +239,15 @@ class CommandExecutor:
             return False
 
         self._warn_if_not_command_result(result, command_name, "redo")
+
+        if result is CommandResult.ABORTED:
+            # Nothing happened -- put it back exactly where it was, don't
+            # touch the undo stack or notify project-modified.
+            self.redo_stack.append(command)
+            self.logger.debug("Command redo aborted (no changes made): %s", command_name)
+            self._notify_history_changed()
+            return False
+
         self.undo_stack.append(command)
         if result is CommandResult.FAILURE:
             self.logger.warning("Command redo reported failure: %s", command_name)

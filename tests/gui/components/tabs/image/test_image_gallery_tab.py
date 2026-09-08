@@ -501,6 +501,17 @@ class TestImageGalleryTabMovedEvent:
         assert tab.grid.count() == 0
 
 
+class TestImageGalleryTabContentChangedEvent:
+    def test_subscribes_to_project_item_content_changed(self, app_context):
+        from pandaplot.models.events.event_types import ProjectEvents
+
+        gallery = ImageGallery(name="Trip")
+        ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+
+        subscribed_events = [call.args[0] for call in app_context.event_bus.subscribe.call_args_list]
+        assert ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED in subscribed_events
+
+
 class TestImageGalleryTabListViewSelection:
     """Regression coverage for the toolbar/context-menu acting on stale grid
     selection after the user has switched to (and selected in) list view."""
@@ -1265,3 +1276,229 @@ class TestImageGalleryTabTitleRefresh:
         tab._on_project_item_changed({"item_id": image.id, "new_name": "Beach Renamed"})
 
         tab.refresh_tab_title.assert_not_called()
+
+
+class TestImageGalleryTabEditImage:
+    def test_edit_button_disabled_without_single_image_selection(self, app_context):
+        gallery = ImageGallery(name="Trip")
+        gallery.add_item(Image(name="Beach"))
+        gallery.add_item(Image(name="Mountain"))
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+
+        assert tab.edit_image_button.isEnabled() is False
+
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+        assert tab.edit_image_button.isEnabled() is True
+
+        tab.grid.item(1).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+        assert tab.edit_image_button.isEnabled() is False
+
+    def test_edit_image_clicked_opens_dialog_and_executes_command_on_accept(self, app_context, monkeypatch):
+        from PySide6.QtWidgets import QDialog
+
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(_real_png_bytes())
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        class _FakeEditorDialog:
+            def __init__(self, *a, **kw):
+                pass
+            def exec(self):
+                return QDialog.DialogCode.Accepted
+            def has_edits(self):
+                return True
+            def get_result_bytes(self):
+                return b"new-bytes"
+            def get_result_width(self):
+                return 42
+            def get_result_height(self):
+                return 24
+            def get_result_ext(self):
+                return "png"
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog",
+            _FakeEditorDialog,
+        )
+
+        tab._on_edit_image_clicked()
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 1
+        command = executor.execute_command.call_args.args[0]
+        from pandaplot.commands.project.image.edit_image_command import EditImageCommand
+        assert isinstance(command, EditImageCommand)
+        assert command.image_id == image.id
+        assert command.new_bytes == b"new-bytes"
+        assert command.new_width == 42
+        assert command.new_height == 24
+        assert command.new_ext == "png"
+
+    def test_edit_image_accepted_with_no_edits_does_not_execute_command(self, app_context, monkeypatch):
+        from unittest.mock import Mock
+
+        from PySide6.QtWidgets import QDialog
+
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(_real_png_bytes())
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        class _FakeEditorDialog:
+            def __init__(self, *a, **kw):
+                pass
+            def exec(self):
+                return QDialog.DialogCode.Accepted
+            def has_edits(self):
+                return False
+            get_result_bytes = Mock()
+            get_result_width = Mock()
+            get_result_height = Mock()
+            get_result_ext = Mock()
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog",
+            _FakeEditorDialog,
+        )
+
+        tab._on_edit_image_clicked()
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 0
+        assert _FakeEditorDialog.get_result_bytes.call_count == 0
+        assert _FakeEditorDialog.get_result_width.call_count == 0
+        assert _FakeEditorDialog.get_result_height.call_count == 0
+        assert _FakeEditorDialog.get_result_ext.call_count == 0
+
+    def test_edit_image_clicked_does_nothing_on_cancel(self, app_context, monkeypatch):
+        from PySide6.QtWidgets import QDialog
+
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(_real_png_bytes())
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        class _FakeEditorDialog:
+            def __init__(self, *a, **kw):
+                pass
+            def exec(self):
+                return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog",
+            _FakeEditorDialog,
+        )
+
+        tab._on_edit_image_clicked()
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 0
+
+    def test_edit_image_shows_warning_instead_of_crashing_when_external_load_raises(
+        self, app_context, monkeypatch
+    ):
+        """_load_external_bytes can raise (a network error for a URL source,
+        an unreadable/removed local file) -- that must surface as the same
+        load-error message a missing/empty result already gets, not escape
+        the Qt slot as an unhandled exception."""
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach", storage_mode="external", source_file="https://example.com/beach.png")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        def _raise(*_a, **_kw):
+            raise ConnectionError("network is unreachable")
+
+        monkeypatch.setattr(tab, "_load_external_bytes", _raise)
+
+        with patch.object(QMessageBox, "warning") as mock_warning:
+            tab._on_edit_image_clicked()
+
+        mock_warning.assert_called_once()
+        assert "Beach" in mock_warning.call_args.args[2]
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 0
+
+    def test_edit_image_warns_instead_of_opening_dialog_on_undecodable_data(
+        self, app_context, monkeypatch
+    ):
+        """A non-empty payload isn't necessarily a decodable image -- an
+        external URL can return an HTML error page or otherwise-corrupt
+        data. That must be caught before the editor dialog opens, not
+        silently produce a null-image dialog with bogus 0/1-sized
+        controls."""
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(b"not a real image, just some bytes")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        dialog_constructed = []
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog",
+            lambda *a, **kw: dialog_constructed.append(True),
+        )
+
+        with patch.object(QMessageBox, "warning") as mock_warning:
+            tab._on_edit_image_clicked()
+
+        mock_warning.assert_called_once()
+        assert "Beach" in mock_warning.call_args.args[2]
+        assert dialog_constructed == []
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 0
+
+
+class TestImageGalleryTabLightboxLoadResilience:
+    def test_lightbox_load_pixmap_returns_none_instead_of_raising_on_external_load_failure(
+        self, app_context, monkeypatch
+    ):
+        """The lightbox's load_pixmap callback is reused for every render
+        (initial open, Next/Previous navigation, and the rerender after an
+        edit session) -- it must not let an external-load exception
+        escape, since ImageLightboxDialog already has a "broken image"
+        placeholder path for a None result."""
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach", storage_mode="external", source_file="https://example.com/beach.png")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+
+        def _raise(*_a, **_kw):
+            raise ConnectionError("network is unreachable")
+
+        monkeypatch.setattr(tab, "_load_external_bytes", _raise)
+
+        captured = {}
+
+        class _FakeLightbox:
+            def __init__(self, images, start_index, load_pixmap, **kwargs):
+                captured["load_pixmap"] = load_pixmap
+            def exec(self):
+                return None
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageLightboxDialog",
+            _FakeLightbox,
+        )
+
+        tab._open_lightbox_for(image)
+
+        assert captured["load_pixmap"](image) is None

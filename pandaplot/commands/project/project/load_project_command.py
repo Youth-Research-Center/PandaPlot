@@ -2,6 +2,7 @@ import os
 from typing import Any, Callable, Optional, Tuple, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.project.unsaved_changes import flush_pending_edits
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
 from pandaplot.models.state.app_context import AppContext
@@ -50,6 +51,11 @@ class LoadProjectCommand(Command):
         # it to "no changes" -- see undo().
         self.previous_was_modified = False
         self.loaded_project: Optional[Project] = None
+        # Whether loaded_project had unsaved changes when undo() last swapped
+        # away from it (e.g. a note edit flushed during that same undo()),
+        # so redo()'s cached fast path can restore that dirty state rather
+        # than letting load_project() reset it to "no changes".
+        self.loaded_project_was_modified = False
         # AppState.modification_revision as of the moment the background
         # load task was kicked off -- see _on_load_result.
         self._dispatch_revision: int = 0
@@ -87,6 +93,13 @@ class LoadProjectCommand(Command):
             if self.app_state.has_project and _same_path(self.app_state.project_file_path, self.file_path):
                 self.logger.info("'%s' is already open; skipping reload", self.file_path)
                 return CommandResult.NOOP
+
+            if not flush_pending_edits(self.app_context):
+                self.ui_controller.show_error_message(
+                    "Open Project",
+                    "One or more open notes could not be saved. Save them manually before continuing.",
+                )
+                return CommandResult.FAILURE
 
             if self.app_state.has_project and self.app_state.is_modified:
                 should_continue = self.ui_controller.show_question(
@@ -194,6 +207,25 @@ class LoadProjectCommand(Command):
                 file_path = result.get("file_path")
 
                 if project and file_path:
+                    # A note left mid-debounce when this callback fires would
+                    # otherwise read as an unchanged modification_revision
+                    # below, the same race execute()'s own pre-dispatch check
+                    # needed flushing for (see flush_pending_edits). A
+                    # flush failure here means that edit is still stuck
+                    # unsaved -- must not install the loaded project over it.
+                    if not flush_pending_edits(self.app_context):
+                        self.ui_controller.show_error_message(
+                            "Open Project",
+                            "One or more open notes could not be saved. "
+                            "Save them manually before opening a different project.",
+                        )
+                        self.logger.warning(
+                            "Discarding loaded project '%s': a pending note edit could "
+                            "not be flushed during the load",
+                            project.name,
+                        )
+                        return
+
                     # A command executed against the still-active old project
                     # while this load ran in the background bumps
                     # modification_revision -- an edit the confirmation
@@ -315,6 +347,28 @@ class LoadProjectCommand(Command):
 
     def undo(self) -> CommandResult:
         """Undo the load project command."""
+        # A note edited in the currently-installed project, right before
+        # this undo, can still be mid-debounce -- no EditNoteCommand has run
+        # yet to invalidate anything, so nothing else protects this swap
+        # (see PR #352 review).
+        if not flush_pending_edits(self.app_context):
+            self.ui_controller.show_error_message(
+                "Open Project",
+                "One or more open notes could not be saved. Save them manually before undoing.",
+            )
+            # ABORTED, not FAILURE: CommandExecutor.undo() moves the command
+            # to the redo stack regardless of result, so FAILURE would
+            # record this load as undone (and installable via a later Redo)
+            # even though nothing actually changed (see PR #352 review).
+            return CommandResult.ABORTED
+
+        # Capture loaded_project's dirty state (the flush above may have
+        # just set it) before swapping away from it -- otherwise a later
+        # redo() would reinstall this exact project via load_project(),
+        # which unconditionally reports it as clean, silently discarding
+        # that it actually has unsaved content.
+        self.loaded_project_was_modified = self.app_state.is_modified
+
         if self.previous_project is not None:
             # load_project() unconditionally resets is_modified to False
             # (correct for a fresh disk load), so restore the dirty state
@@ -329,17 +383,36 @@ class LoadProjectCommand(Command):
 
     def redo(self) -> CommandResult:
         """Redo the load project command."""
-        if not self.is_loading:
-            if self.loaded_project is not None:
-                # We have a cached project, load it directly without file I/O
-                self.app_state.load_project(self.loaded_project)
-                return CommandResult.SUCCESS
-            else:
-                # Re-execute if we don't have the loaded project cached
-                return self.execute()
-        else:
+        if self.is_loading:
             self.logger.warning("Cannot redo load command while load is in progress")
             return CommandResult.FAILURE
+
+        # Same race as undo(), on the cached-loaded_project fast path below
+        # -- a note edited in the project that's about to be replaced must
+        # be flushed first (see PR #352 review).
+        if not flush_pending_edits(self.app_context):
+            self.ui_controller.show_error_message(
+                "Open Project",
+                "One or more open notes could not be saved. Save them manually before redoing.",
+            )
+            # ABORTED, not FAILURE -- see the matching undo() comment above.
+            return CommandResult.ABORTED
+
+        # Refresh previous_was_modified in case this flush just dirtied
+        # whatever project is currently active -- otherwise a later undo()
+        # of this redo would restore a stale (pre-flush) dirty flag instead
+        # of the current one.
+        self.previous_was_modified = self.app_state.is_modified
+
+        if self.loaded_project is not None:
+            # We have a cached project, load it directly without file I/O
+            self.app_state.load_project(self.loaded_project)
+            if self.loaded_project_was_modified:
+                self.app_state.mark_modified()
+            return CommandResult.SUCCESS
+        else:
+            # Re-execute if we don't have the loaded project cached
+            return self.execute()
 
     @override
     def cleanup(self) -> None:

@@ -149,6 +149,48 @@ class TestChartAnalysisPanelSeriesFiltering:
         assert "aren't supported here" in panel.source_hint.text()
 
 
+class TestChartAnalysisPanelSeriesSelectedEvent:
+    """Clicking a series/fit on the chart canvas or its legend (#341, #107)
+    should also select it here, so switching to "analyze it" doesn't
+    require re-finding the same entry in this combo."""
+
+    def test_series_click_selects_matching_combo_row(self, panel):
+        panel.current_chart.add_data_series(
+            dataset_id="ds-1", label="Second", series_type=SeriesType.LINE,
+        )
+        panel._populate_sources()
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "chart-1", "kind": "series", "index": 1}
+        )
+
+        assert panel.source_combo.currentData() == ("series", 1)
+
+    def test_fit_click_selects_matching_combo_row(self, panel):
+        panel.current_chart.add_fit_data(
+            source_dataset_id="ds-1", fit_type="linear",
+            x_data=[1.0, 2.0, 3.0], y_data=[1.0, 2.0, 3.0], label="Fit 1",
+        )
+        panel._populate_sources()
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "chart-1", "kind": "fit", "index": 0}
+        )
+
+        assert panel.source_combo.currentData() == ("fit", 0)
+
+    def test_ignores_event_for_a_different_chart(self, panel):
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "some-other-chart", "kind": "series", "index": 0}
+        )
+
+        assert panel.source_combo.currentIndex() == 0
+
+
 class TestChartAnalysisPanelQuickPlot:
     def test_quick_plot_checkbox_is_present_and_checked_by_default(self, panel):
         assert hasattr(panel, "plot_result_cb")
@@ -187,3 +229,15 @@ class TestChartAnalysisPanelQuickPlot:
         assert executor.execute_command.called
         cmd = executor.execute_command.call_args[0][0]
         assert isinstance(cmd, AnalyzeChartSeriesCommand)
+
+    def test_ignores_selection_of_a_series_excluded_from_this_combo(self, panel):
+        """A click on a bar/hist/vector/... series has no matching combo
+        row (see TestChartAnalysisPanelSeriesFiltering) -- must not raise
+        or change the current selection."""
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "chart-1", "kind": "series", "index": 5}
+        )
+
+        assert panel.source_combo.currentIndex() == 0

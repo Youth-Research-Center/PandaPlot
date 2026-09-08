@@ -6,10 +6,13 @@ excluding series types with no meaningful ordered (x, y) curve (bar/hist/
 vector/colormap/heatmap/3-D) -- and want the same combo item shape.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from PySide6.QtWidgets import QComboBox
 
+from pandaplot.analysis import SignalAnalysisType
+from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items.chart import Chart
 
@@ -36,6 +39,40 @@ def populate_series_fit_sources(combo: QComboBox, chart: Optional[Chart]) -> tup
             combo.addItem(f"〰 {label}  (fit)", ("fit", i))
     combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
     return combo.count() > 0, any_series_excluded
+
+
+def find_series_fit_combo_index(combo: QComboBox, kind: str, index: int) -> int:
+    """Row in `combo` (as populated by :func:`populate_series_fit_sources`)
+    whose item data is ``(kind, index)``, or -1 if there isn't one (e.g. the
+    chart-canvas click was on a series type excluded from this combo, like
+    bar/hist/vector/colormap/heatmap/3-D).
+
+    `QComboBox.findData()` is unreliable for tuple-valued itemData (Qt's
+    QVariant comparison doesn't match Python tuple equality), so this scans
+    itemData manually -- see style_tab.py's chart_size_combo for the same
+    workaround.
+    """
+    target = (kind, index)
+    for i in range(combo.count()):
+        if combo.itemData(i) == target:
+            return i
+    return -1
+
+
+def is_quick_plot_compatible(
+    chart: Optional[Chart],
+    *,
+    has_sources: bool,
+    analysis_type: Optional[Any] = None,
+) -> bool:
+    """Return whether an analysis result is compatible with quick-plotting
+    as a series on `chart`."""
+    if not has_sources or chart is None:
+        return False
+    if analysis_type == SignalAnalysisType.STFT:
+        return False
+    spec = get_chart_type_spec(chart.chart_type)
+    return not spec.is_3d and bool(spec.allowed_series_types & {SeriesType.LINE, SeriesType.SCATTER})
 
 
 def series_source_hint(*, has_sources: bool, any_series_excluded: bool) -> str:

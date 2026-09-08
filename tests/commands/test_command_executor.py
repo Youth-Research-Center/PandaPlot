@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.command_executor import CommandExecutor
 
 
@@ -230,6 +230,115 @@ class TestTrackUndoOptOut:
 
         assert result is True
         assert len(executor.undo_stack) == 0
+
+    def test_track_undo_false_still_clears_the_redo_stack(self):
+        """Regression (PR #352 review): a flush-triggered commit (e.g. a
+        note force-saved before a project-lifecycle transition) still
+        genuinely changes project state even though it isn't itself pushed
+        onto the undo stack -- a stale redo-stack entry recorded before that
+        change must not survive it, or a later Redo could replay an
+        unrelated future state on top of what was just committed."""
+        executor = CommandExecutor()
+        tracked = MockCommand("Tracked")
+        executor.execute_command(tracked)
+        executor.undo()
+        assert len(executor.redo_stack) == 1
+
+        flushed = MockCommand("Flushed")
+        result = executor.execute_command(flushed, track_undo=False)
+
+        assert result is True
+        assert len(executor.redo_stack) == 0
+        assert len(executor.undo_stack) == 0  # flushed itself still isn't pushed
+
+
+class ResultCommand(MockCommand):
+    """A MockCommand whose undo()/redo() return a caller-specified
+    CommandResult, to test CommandExecutor's per-result stack handling
+    (e.g. CommandResult.ABORTED)."""
+
+    def __init__(self, name="ResultCommand", *, undo_result=None, redo_result=None):
+        super().__init__(name)
+        self._undo_result = undo_result
+        self._redo_result = redo_result
+
+    def undo(self):
+        self.undo_count += 1
+        return self._undo_result
+
+    def redo(self):
+        self.redo_count += 1
+        return self._redo_result
+
+
+class TestAbortedUndoRedo:
+    """Test cases for CommandResult.ABORTED (PR #352 review): a precondition
+    guard inside undo()/redo() (e.g. a failed flush) refused to make any
+    change at all -- unlike FAILURE/NOOP, which still move the command to
+    the opposite stack regardless (see CommandResult's docstring), ABORTED
+    puts it back exactly where CommandExecutor found it, as if this call
+    never happened."""
+
+    def test_aborted_undo_puts_the_command_back_on_the_undo_stack(self):
+        executor = CommandExecutor()
+        command = ResultCommand("Aborted", undo_result=CommandResult.ABORTED)
+        executor.execute_command(command)
+
+        result = executor.undo()
+
+        assert result is False
+        assert len(executor.undo_stack) == 1
+        assert executor.undo_stack[0] is command
+        assert len(executor.redo_stack) == 0
+
+    def test_aborted_undo_does_not_call_the_project_modified_hook(self):
+        hook_calls = []
+        executor = CommandExecutor(on_project_modified=lambda: hook_calls.append(1))
+        command = ResultCommand("Aborted", undo_result=CommandResult.ABORTED)
+        executor.execute_command(command)
+        hook_calls.clear()
+
+        executor.undo()
+
+        assert hook_calls == []
+
+    def test_aborted_undo_still_notifies_history_changed(self):
+        """Even though nothing moved, can_undo()/can_redo() consumers (e.g.
+        toolbar buttons) may care that an undo attempt just happened."""
+        calls = []
+        executor = CommandExecutor(on_history_changed=lambda: calls.append(1))
+        command = ResultCommand("Aborted", undo_result=CommandResult.ABORTED)
+        executor.execute_command(command)
+        calls.clear()
+
+        executor.undo()
+
+        assert calls == [1]
+
+    def test_aborted_redo_puts_the_command_back_on_the_redo_stack(self):
+        executor = CommandExecutor()
+        command = ResultCommand("Aborted", redo_result=CommandResult.ABORTED)
+        executor.execute_command(command)
+        executor.undo()
+
+        result = executor.redo()
+
+        assert result is False
+        assert len(executor.redo_stack) == 1
+        assert executor.redo_stack[0] is command
+        assert len(executor.undo_stack) == 0
+
+    def test_aborted_redo_does_not_call_the_project_modified_hook(self):
+        hook_calls = []
+        executor = CommandExecutor(on_project_modified=lambda: hook_calls.append(1))
+        command = ResultCommand("Aborted", redo_result=CommandResult.ABORTED)
+        executor.execute_command(command)
+        executor.undo()
+        hook_calls.clear()
+
+        executor.redo()
+
+        assert hook_calls == []
 
 
 class TestUndoFunctionality:

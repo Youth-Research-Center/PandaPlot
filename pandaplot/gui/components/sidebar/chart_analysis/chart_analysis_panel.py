@@ -8,7 +8,6 @@ series or a fitted curve — and stores the result as a new dataset.
 
 from typing import Optional, override
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -17,8 +16,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
-    QScrollArea,
     QSpinBox,
     QTextEdit,
     QVBoxLayout,
@@ -31,20 +28,21 @@ from pandaplot.commands.project.chart import AddAnalysisSeriesCommand
 from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
 )
+from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
+    find_series_fit_combo_index,
+    is_quick_plot_compatible,
     populate_series_fit_sources,
     series_source_hint,
 )
-from pandaplot.gui.core.widget_extension import PWidget
-from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
-from pandaplot.models.chart.series_type import SeriesType
+from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
-class ChartAnalysisPanel(PWidget):
+class ChartAnalysisPanel(SidebarPanel):
     """Side panel for analysis operations on chart data/fit series."""
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
@@ -58,17 +56,8 @@ class ChartAnalysisPanel(PWidget):
 
     @override
     def _init_ui(self):
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(8)
-
-        self.title_label = QLabel("🧮 Chart Analysis")
-        main_layout.addWidget(self.title_label)
-
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._init_panel_layout()
+        self._set_title("🧮 Chart Analysis")
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
@@ -84,8 +73,7 @@ class ChartAnalysisPanel(PWidget):
         self._create_action_buttons(content_layout)
         content_layout.addStretch()
 
-        scroll_area.setWidget(content)
-        main_layout.addWidget(scroll_area)
+        self._set_content(content, scrollable=True)
 
     # -- sections ---------------------------------------------------------
 
@@ -154,8 +142,7 @@ class ChartAnalysisPanel(PWidget):
     def _create_preview_section(self, layout):
         group = QGroupBox("Preview")
         vbox = QVBoxLayout(group)
-        self.preview_btn = QPushButton("🔍 Preview")
-        self.preview_btn.clicked.connect(self.preview)
+        self.preview_btn = PButton("Preview", role="secondary", on_click=self.preview)
         self.preview_text = QTextEdit()
         self.preview_text.setReadOnly(True)
         self.preview_text.setMaximumHeight(140)
@@ -166,10 +153,8 @@ class ChartAnalysisPanel(PWidget):
 
     def _create_action_buttons(self, layout):
         row = QHBoxLayout()
-        self.apply_btn = QPushButton("✅ Analyze → New Dataset")
-        self.apply_btn.clicked.connect(self.apply)
-        self.clear_btn = QPushButton("🔄 Clear")
-        self.clear_btn.clicked.connect(self.clear_inputs)
+        self.apply_btn = PButton("Apply", role="primary", on_click=self.apply)
+        self.clear_btn = PButton("Clear", role="secondary", on_click=self.clear_inputs)
         row.addWidget(self.apply_btn)
         row.addWidget(self.clear_btn)
         layout.addLayout(row)
@@ -421,17 +406,6 @@ class ChartAnalysisPanel(PWidget):
         # Leave any user-entered name untouched; only fill the placeholder.
         self.result_name.setPlaceholderText(f"{op} — {self.source_combo.currentText()}")
 
-    def _update_quick_plot_compatibility(self, *, has_sources: bool):
-        if not hasattr(self, "plot_result_cb"):
-            return
-        if not has_sources or self.current_chart is None:
-            self.plot_result_cb.setEnabled(False)
-            return
-
-        spec = get_chart_type_spec(self.current_chart.chart_type)
-        is_compatible = not spec.is_3d and bool(spec.allowed_series_types & {SeriesType.LINE, SeriesType.SCATTER})
-        self.plot_result_cb.setEnabled(is_compatible)
-
     def _populate_sources(self):
         has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
         self.apply_btn.setEnabled(has_sources)
@@ -439,13 +413,32 @@ class ChartAnalysisPanel(PWidget):
         self.source_hint.setText(
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
-        self._update_quick_plot_compatibility(has_sources=has_sources)
+        if hasattr(self, "plot_result_cb"):
+            self.plot_result_cb.setEnabled(
+                is_quick_plot_compatible(self.current_chart, has_sources=has_sources)
+            )
         self._on_source_changed()
 
     @override
     def setup_event_subscriptions(self):
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
+        self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
+
+    def _on_series_selected_event(self, event_data):
+        """Clicking a series/fit on the chart canvas or its legend also
+        selects it here, so switching from "look at it" to "analyze it"
+        doesn't require re-finding the same entry in this combo."""
+        chart_id = event_data.get("chart_id")
+        if self.current_chart_id is None or chart_id != self.current_chart_id:
+            return
+        kind = event_data.get("kind")
+        index = event_data.get("index")
+        if kind is None or index is None:
+            return
+        combo_index = find_series_fit_combo_index(self.source_combo, kind, index)
+        if combo_index >= 0:
+            self.source_combo.setCurrentIndex(combo_index)
 
     def _on_tab_changed(self, event_data):
         if event_data.get("tab_type") == "chart":
@@ -477,8 +470,6 @@ class ChartAnalysisPanel(PWidget):
         card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#333333")
         secondary_fg = palette.get("secondary_fg", "#666666")
-        accent = palette.get("accent", "#4CAF50")
-        card_hover = palette.get("card_hover", "#e5f3ff")
 
         self.setStyleSheet(f"""
             ChartAnalysisPanel {{
@@ -502,16 +493,7 @@ class ChartAnalysisPanel(PWidget):
                 background-color: {card_bg};
             }}
         """)
-        self.title_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 14px;
-                font-weight: bold;
-                color: {base_fg};
-                padding: 5px;
-                background-color: {card_border};
-                border-radius: 3px;
-            }}
-        """)
+        self._apply_title_theme(base_fg, card_border)
         self.source_hint.setStyleSheet(
             f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
         )
@@ -520,26 +502,3 @@ class ChartAnalysisPanel(PWidget):
         self.end_value_label.setStyleSheet(value_label_style)
         if hasattr(self, "plot_result_cb"):
             self.plot_result_cb.setStyleSheet(f"QCheckBox {{ color: {base_fg}; background-color: transparent; }}")
-        self.apply_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {accent};
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px 16px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: {card_hover}; color: {base_fg}; }}
-            QPushButton:disabled {{ background-color: {secondary_fg}; color: #999999; }}
-        """)
-        self.clear_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {secondary_fg};
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px 16px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #7f8c8d; }}
-        """)

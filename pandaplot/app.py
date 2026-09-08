@@ -13,7 +13,7 @@ from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import EventBus
 from pandaplot.models.events.event_types import AppEvents
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
-from pandaplot.models.state import AppContext, AppState
+from pandaplot.models.state import AppContext, AppState, UnsavedChangesRegistry
 from pandaplot.services.autosave import AutoSaveManager
 from pandaplot.services.config import ConfigManager
 from pandaplot.services.data_managers.project_manager import ProjectManager
@@ -105,7 +105,8 @@ def build_app_context() -> AppContext:
     # Create list of managers to pass to AppContext. ProjectDataManager is
     # intentionally not registered here -- it's an implementation detail
     # owned by ProjectManager, not something commands should fetch directly.
-    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_manager, tab_factory]
+    unsaved_changes_registry = UnsavedChangesRegistry()
+    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_manager, tab_factory, unsaved_changes_registry]
 
     app_context = AppContext(app_state=app_state, event_bus=event_bus, managers=managers)
     # AutoSaveManager needs the AppContext itself (to construct SaveProjectCommand),

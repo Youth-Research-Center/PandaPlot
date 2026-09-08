@@ -190,3 +190,31 @@ class TestChartTransformPanelButtons:
     def test_preview_button_is_secondary_and_simply_labeled(self, panel):
         assert panel.preview_btn.text() == "Preview"
         assert panel.preview_btn.property("secondary") is True
+
+
+class TestChartTransformPanelSeriesSelectedEvent:
+    """Clicking a series/fit on the chart canvas or its legend (#341, #107)
+    should also select it here, so switching to "transform it" doesn't
+    require re-finding the same entry in this combo."""
+
+    def test_series_click_selects_matching_combo_row(self, panel):
+        panel.current_chart.add_data_series(
+            dataset_id="ds-1", label="Second", series_type=SeriesType.LINE,
+        )
+        panel._populate_sources()
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "chart-1", "kind": "series", "index": 1}
+        )
+
+        assert panel.source_combo.currentData() == ("series", 1)
+
+    def test_ignores_event_for_a_different_chart(self, panel):
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "some-other-chart", "kind": "series", "index": 0}
+        )
+
+        assert panel.source_combo.currentIndex() == 0

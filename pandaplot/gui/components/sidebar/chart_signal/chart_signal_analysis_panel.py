@@ -44,6 +44,8 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
+    find_series_fit_combo_index,
+    is_quick_plot_compatible,
     populate_series_fit_sources,
     series_source_hint,
 )
@@ -52,8 +54,6 @@ from pandaplot.gui.components.sidebar.signal.signal_panel import SignalPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
     build_signal_parameter_widgets,
 )
-from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
-from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events import ChartEvents, DatasetEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -220,7 +220,14 @@ class ChartSignalAnalysisPanel(SidebarPanel):
 
         self._build_parameter_widgets(info)
         self._refresh_sampling_rate_default()
-        self._update_quick_plot_compatibility(has_sources=self.source_combo.count() > 0)
+        if hasattr(self, "plot_result_cb"):
+            self.plot_result_cb.setEnabled(
+                is_quick_plot_compatible(
+                    self.current_chart,
+                    has_sources=self.source_combo.count() > 0,
+                    analysis_type=analysis_type,
+                )
+            )
         self.clear()
 
     def _build_parameter_widgets(self, info):
@@ -614,22 +621,6 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.start_value_label.setText(self._format_point(command.resolve_point(self.start_index.value())))
         self.end_value_label.setText(self._format_point(command.resolve_point(self.end_index.value())))
 
-    def _update_quick_plot_compatibility(self, *, has_sources: bool):
-        if not hasattr(self, "plot_result_cb"):
-            return
-        if not has_sources or self.current_chart is None:
-            self.plot_result_cb.setEnabled(False)
-            return
-
-        spec = get_chart_type_spec(self.current_chart.chart_type)
-        analysis_type = self._current_analysis_type()
-        is_compatible = (
-            analysis_type != SignalAnalysisType.STFT
-            and not spec.is_3d
-            and bool(spec.allowed_series_types & {SeriesType.LINE, SeriesType.SCATTER})
-        )
-        self.plot_result_cb.setEnabled(is_compatible)
-
     def _populate_sources(self):
         # Force _range_command() to build a fresh command even if the
         # (chart, source) key is unchanged: this runs on every
@@ -667,7 +658,14 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.source_hint.setText(
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
-        self._update_quick_plot_compatibility(has_sources=has_sources)
+        if hasattr(self, "plot_result_cb"):
+            self.plot_result_cb.setEnabled(
+                is_quick_plot_compatible(
+                    self.current_chart,
+                    has_sources=has_sources,
+                    analysis_type=self._current_analysis_type(),
+                )
+            )
         self._on_source_changed()
 
     @override
@@ -681,6 +679,23 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # reason (see chart_tab.py). DATASET_CHANGED is the generic parent
         # of all those specific dataset events.
         self.subscribe_to_event(DatasetEvents.DATASET_CHANGED, self._on_dataset_changed)
+        self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
+
+    def _on_series_selected_event(self, event_data):
+        """Clicking a series/fit on the chart canvas or its legend also
+        selects it here, so switching from "look at it" to "run signal
+        analysis on it" doesn't require re-finding the same entry in this
+        combo."""
+        chart_id = event_data.get("chart_id")
+        if self.current_chart_id is None or chart_id != self.current_chart_id:
+            return
+        kind = event_data.get("kind")
+        index = event_data.get("index")
+        if kind is None or index is None:
+            return
+        combo_index = find_series_fit_combo_index(self.source_combo, kind, index)
+        if combo_index >= 0:
+            self.source_combo.setCurrentIndex(combo_index)
 
     def _on_tab_changed(self, event_data):
         if event_data.get("tab_type") == "chart":
@@ -747,6 +762,10 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         secondary_fg = palette.get("secondary_fg", "#666666")
 
         self.setStyleSheet(f"""
+            ChartSignalAnalysisPanel {{
+                background-color: {card_bg};
+                color: {base_fg};
+            }}
             QGroupBox {{
                 font-weight: bold;
                 font-size: 9pt;
@@ -757,11 +776,10 @@ class ChartSignalAnalysisPanel(SidebarPanel):
                 border: 1px solid {card_border};
                 border-radius: 4px;
             }}
-
             QGroupBox::title {{
                 subcontrol-origin: margin;
                 left: 10px;
-                padding: 0 5px;
+                padding: 0 5px 0 5px;
                 background-color: {card_bg};
             }}
         """)

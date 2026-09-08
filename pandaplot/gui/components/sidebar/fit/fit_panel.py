@@ -397,6 +397,25 @@ class FitPanel(SidebarPanel):
         """Set up event subscriptions for tab changes."""
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
+        self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
+
+    def _on_series_selected_event(self, event_data):
+        """Clicking a data series on the chart canvas or its legend also
+        selects it here as the source to fit -- a fitted-curve click is
+        ignored, since a fit isn't itself a valid source for a new fit.
+        """
+        if not self.isVisible() or self.current_chart is None:
+            return
+        chart_id = event_data.get("chart_id")
+        if chart_id != self.current_chart.id or event_data.get("kind") != "series":
+            return
+        index = event_data.get("index")
+        # series_combo mirrors chart.data_series 1:1, in order, followed by
+        # a trailing "Custom..." entry -- so the series' own index in the
+        # chart is also its row here.
+        if index is None or not (0 <= index < len(self.current_chart.data_series)):
+            return
+        self.series_combo.setCurrentIndex(index)
 
     def _show_scipy_warning(self):
         """Show warning if scipy is not available."""

@@ -300,6 +300,66 @@ class TestRunAnalysisAsyncDispatch:
         assert "boom" in panel.results_text.toPlainText()
 
 
+class TestResultFolderMatchesChart:
+    """Regression (#347): the result dataset should land in the chart's own
+    folder instead of always at the project root."""
+
+    def test_build_command_uses_the_chart_parent_folder(self, app_context, project):
+        from pandaplot.models.project.items.folder import Folder
+
+        folder = Folder(id="folder-1", name="F")
+        project.add_item(folder)
+        chart = project.find_item("chart-1")
+        project.root.remove_item(chart)
+        project.add_item(chart, parent_id="folder-1")
+
+        panel = ChartSignalAnalysisPanel(app_context)
+        panel.current_chart = chart
+        panel.current_chart_id = "chart-1"
+        panel._populate_sources()
+
+        index = panel.analysis_combo.findData(SignalAnalysisType.FFT)
+        panel.analysis_combo.setCurrentIndex(index)
+
+        command = panel._build_command()
+
+        assert command.folder_id == "folder-1"
+
+    def test_cached_add_to_project_uses_the_chart_parent_folder(self, app_context, project, monkeypatch):
+        from pandaplot.models.project.items.folder import Folder
+
+        folder = Folder(id="folder-1", name="F")
+        project.add_item(folder)
+        chart = project.find_item("chart-1")
+        project.root.remove_item(chart)
+        project.add_item(chart, parent_id="folder-1")
+
+        panel = ChartSignalAnalysisPanel(app_context)
+        panel.current_chart = chart
+        panel.current_chart_id = "chart-1"
+        panel._populate_sources()
+
+        current_params = panel._get_dispatch_params()
+        panel.last_result = Mock()
+        panel._last_run_params = current_params
+
+        captured = {}
+
+        class _FakeApplyCommand:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.sidebar.chart_signal.chart_signal_analysis_panel.ApplySignalAnalysisResultCommand",
+            _FakeApplyCommand,
+        )
+        panel.app_context.get_command_executor.return_value.execute_command = lambda command: True
+
+        panel.add_results_to_project()
+
+        assert captured["folder_id"] == "folder-1"
+
+
 class TestRunAndAddMutualExclusion:
     """Regression coverage (mirrors SignalPanel's): Run and Add to Project
     share one busy spinner and one _pending_command slot."""
@@ -611,6 +671,48 @@ class TestShowEventRefresh:
         assert panel._generation == generation_before
 
 
+class TestChartSignalAnalysisPanelSeriesSelectedEvent:
+    """Clicking a series/fit on the chart canvas or its legend (#341, #107)
+    should also select it here, so switching to "analyze it" doesn't
+    require re-finding the same entry in this combo."""
+
+    def test_series_click_selects_matching_combo_row(self, panel):
+        panel.current_chart.add_data_series(
+            dataset_id="ds-1", label="Second", series_type=SeriesType.LINE,
+        )
+        panel._populate_sources()
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "chart-1", "kind": "series", "index": 1}
+        )
+
+        assert panel.source_combo.currentData() == ("series", 1)
+
+    def test_fit_click_selects_matching_combo_row(self, panel):
+        panel.current_chart.add_fit_data(
+            source_dataset_id="ds-1", fit_type="linear",
+            x_data=[1.0, 2.0, 3.0], y_data=[1.0, 2.0, 3.0], label="Fit 1",
+        )
+        panel._populate_sources()
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "chart-1", "kind": "fit", "index": 0}
+        )
+
+        assert panel.source_combo.currentData() == ("fit", 0)
+
+    def test_ignores_event_for_a_different_chart(self, panel):
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "some-other-chart", "kind": "series", "index": 0}
+        )
+
+        assert panel.source_combo.currentIndex() == 0
+
+
 class TestChartSignalAnalysisPanelQuickPlot:
     def test_quick_plot_checkbox_is_present_and_checked_by_default(self, panel):
         assert hasattr(panel, "plot_result_cb")
@@ -661,3 +763,12 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert executor.execute_command.called
         cmd = executor.execute_command.call_args[0][0]
         assert isinstance(cmd, ApplySignalAnalysisResultCommand)
+
+    def test_ignores_selection_of_a_series_excluded_from_this_combo(self, panel):
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "chart-1", "kind": "series", "index": 5}
+        )
+
+        assert panel.source_combo.currentIndex() == 0

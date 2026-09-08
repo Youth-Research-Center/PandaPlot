@@ -11,7 +11,7 @@ class CommandResult(StrEnum):
     warning, debug respectively) and, for `execute()`, whether the command is
     pushed onto the undo stack (SUCCESS only; FAILURE and NOOP are not).
     `undo()`/`redo()` always move the command between stacks regardless of
-    result.
+    result -- EXCEPT for ABORTED (see below).
 
     Always compare explicitly (`if command.execute() is
     CommandResult.SUCCESS:`) -- every member is truthy, so `if
@@ -20,6 +20,13 @@ class CommandResult(StrEnum):
     SUCCESS = "success"
     FAILURE = "failure"
     NOOP = "noop"
+    # undo()/redo() only: a precondition guard refused to make any change at
+    # all (e.g. a note edit couldn't be flushed first) -- unlike
+    # FAILURE/NOOP, which still move the command to the opposite stack,
+    # ABORTED puts it back exactly where CommandExecutor found it (undo_stack
+    # for undo(), redo_stack for redo()), as if this call never happened.
+    # Must not be returned from execute().
+    ABORTED = "aborted"
 
 
 class Command(ABC):
