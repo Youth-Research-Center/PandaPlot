@@ -10,8 +10,10 @@ from typing import Optional
 
 from PySide6.QtWidgets import QComboBox
 
+from pandaplot.models.chart.chart_type_spec import get_chart_type_spec, quick_plot_compatible
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.project import Project
 
 
 def populate_series_fit_sources(combo: QComboBox, chart: Optional[Chart]) -> tuple[bool, bool]:
@@ -54,6 +56,29 @@ def find_series_fit_combo_index(combo: QComboBox, kind: str, index: int) -> int:
         if combo.itemData(i) == target:
             return i
     return -1
+
+
+def populate_chart_target_combo(combo: QComboBox, project: "Optional[Project]") -> None:
+    """(Re)fill `combo` with the "Plot result" destination choices:
+    "New chart" (data=None, always first and selected by default) followed
+    by every chart in the project whose type allows a plotted analysis
+    result (quick_plot_compatible) -- including the chart the analyzed
+    series came from, now just one entry among others rather than an
+    implicit default.
+    """
+    combo.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
+    combo.clear()
+    combo.addItem("New chart", None)
+    if project is not None:
+        for item in project.get_all_items():
+            if not isinstance(item, Chart):
+                continue
+            spec = get_chart_type_spec(item.chart_type)
+            if not quick_plot_compatible(spec):
+                continue
+            combo.addItem(item.name, item.id)
+    combo.setCurrentIndex(0)
+    combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
 
 
 def series_source_hint(*, has_sources: bool, any_series_excluded: bool) -> str:
