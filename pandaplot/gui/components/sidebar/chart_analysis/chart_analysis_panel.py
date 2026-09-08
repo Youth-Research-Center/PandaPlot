@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QTextEdit,
     QVBoxLayout,
-    QWidget,
+    QWidget, QCheckBox,
 )
 
 from pandaplot.analysis import AnalysisType
@@ -127,6 +127,9 @@ class ChartAnalysisPanel(SidebarPanel):
     def _create_result_section(self, layout):
         group = QGroupBox("Result")
         form = QFormLayout(group)
+        self.show_on_chart_checkbox = QCheckBox("Show result on chart")
+        self.show_on_chart_checkbox.setChecked(False)
+        form.addRow(self.show_on_chart_checkbox)
         self.result_name = QLineEdit()
         self.result_name.setPlaceholderText("Auto-named from operation and series")
         form.addRow("Dataset name:", self.result_name)
@@ -276,6 +279,7 @@ class ChartAnalysisPanel(SidebarPanel):
             analysis_type=self.operation_combo.currentData(),
             parameters=self._build_parameters(),
             result_name=name,
+            show_on_chart=self.show_on_chart_checkbox.isChecked(),
         )
 
     # -- actions ----------------------------------------------------------
@@ -305,8 +309,14 @@ class ChartAnalysisPanel(SidebarPanel):
             self.preview_text.setText("❌ Select a series to analyze.")
             return
         if self.app_context.get_command_executor().execute_command(command):
-            self.preview_text.setText(
-                "✅ Created a new dataset from the analysis. Find it in the project explorer."
+            if self.show_on_chart_checkbox.isChecked():
+                self.preview_text.setText(
+                    "✅ Analysis result created and added to the chart."
+                )
+            else:
+                self.preview_text.setText(
+                    "✅ Created a new dataset from the analysis. "
+                    "Find it in the project explorer."
             )
         else:
             self.preview_text.setText(

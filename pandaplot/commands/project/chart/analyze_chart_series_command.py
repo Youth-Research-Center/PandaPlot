@@ -17,6 +17,7 @@ analysis operations regardless of which kind of series the user picked.
 from typing import Optional, override
 
 import pandas as pd
+import copy
 
 from pandaplot.analysis import AnalysisEngine, AnalysisType
 from pandaplot.commands.base_command import Command, CommandResult
@@ -31,6 +32,7 @@ from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.models.events import ChartEvents
 
 
 class AnalyzeChartSeriesCommand(Command):
@@ -46,6 +48,7 @@ class AnalyzeChartSeriesCommand(Command):
         parameters: Optional[dict] = None,
         result_name: Optional[str] = None,
         folder_id: Optional[str] = None,
+        show_on_chart: bool = False,
     ):
         super().__init__()
         self.app_context = app_context
@@ -59,9 +62,11 @@ class AnalyzeChartSeriesCommand(Command):
         self.parameters = parameters or {}
         self.result_name = result_name
         self.folder_id = folder_id
+        self.show_on_chart = show_on_chart
 
         # State for undo/redo.
         self.result_dataset_id: Optional[str] = None
+        self.added_series_index: Optional[int] = None
 
         # Cache for _resolve_xy_cached: the resolved series don't change over
         # the command's lifetime, and the UI calls it repeatedly (once per
@@ -122,6 +127,37 @@ class AnalyzeChartSeriesCommand(Command):
             return float(x.iloc[index]), float(y.iloc[index])
         except (ValueError, AttributeError):
             return None
+
+    def _resolve_result_series_type(self, chart: Chart):
+        """Return a series type that can represent the analysis result as X/Y."""
+        if self.source_kind == "series":
+            if not (0 <= self.source_index < len(chart.data_series)):
+                raise ValueError("Selected series no longer exists.")
+            return chart.data_series[self.source_index].series_type
+
+        from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
+        from pandaplot.models.chart.series_type import SeriesType
+        from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+
+        allowed = CHART_TYPE_SPECS[chart.chart_type].allowed_series_types
+
+        for candidate in (SeriesType.LINE, SeriesType.SCATTER):
+            if (
+                    candidate in allowed
+                    and SERIES_TYPE_SPECS[candidate].supports_curve_analysis
+            ):
+                return candidate
+
+        raise ValueError(f"'{chart.chart_type.value}' charts can't display an analysis result as an X/Y series.")
+
+    @staticmethod
+    def _copied_style_without_stale_error_columns(style):
+        """Copy source styling without bindings to columns from the old dataset."""
+        new_style = copy.deepcopy(style)
+        error_bars = getattr(new_style, "error_bars", None)
+        if error_bars is not None:
+            new_style.error_bars = error_bars.without_column_bindings()
+        return new_style
 
     # -- analysis ---------------------------------------------------------
 
@@ -196,11 +232,59 @@ class AnalyzeChartSeriesCommand(Command):
                 self.ui_controller.show_error_message("Chart Analysis Error", message)
                 return CommandResult.FAILURE
 
+            chart = self._get_chart()
+            if chart is None:
+                message = "Chart is not available."
+                self.ui_controller.show_error_message("Chart Analysis Error", message)
+                return CommandResult.FAILURE
+
+            result_series_type = None
+            source_series = None
+
+            if self.show_on_chart:
+                result_series_type = self._resolve_result_series_type(chart)
+                if self.source_kind == "series":
+                    source_series = chart.data_series[self.source_index]
+
             results_df, default_name = self.run_analysis()
             dataset = create_result_dataset(
                 self.app_state, self.folder_id, self.result_name or default_name, results_df,
             )
             self.result_dataset_id = dataset.id
+            if self.show_on_chart:
+                x_column = results_df.columns[0]
+                y_column = results_df.columns[1]
+
+                style_kwargs = {"series_type": result_series_type,}
+
+                if source_series is not None:
+                    style_kwargs.update({
+                        "style": self._copied_style_without_stale_error_columns(
+                            source_series.style
+                        ),
+                        "alpha": source_series.alpha,
+                        "y_axis": source_series.y_axis,
+                    })
+
+                chart.add_data_series(
+                    dataset_id=dataset.id,
+                    x_column_id=dataset.column_id(x_column) or "",
+                    y_column_id=dataset.column_id(y_column) or "",
+                    x_column=x_column,
+                    y_column=y_column,
+                    label=dataset.name,
+                    **style_kwargs,
+                )
+
+                self.added_series_index = len(chart.data_series) - 1
+                self.app_state.event_bus.emit(
+                    ChartEvents.CHART_UPDATED,
+                    {
+                        "chart_id": self.chart_id,
+                        "update_type": "series_added",
+                        "chart": chart,
+                    },
+                )
 
             self.logger.info("Created chart-analysis dataset '%s' (%s)", dataset.name, self.result_dataset_id)
             return CommandResult.SUCCESS
@@ -215,7 +299,21 @@ class AnalyzeChartSeriesCommand(Command):
         try:
             if not self.result_dataset_id or get_current_project(self.app_context) is None:
                 return CommandResult.FAILURE
-            remove_result_dataset(self.app_state, self.result_dataset_id)
+
+            chart = self._get_chart()
+            if chart is not None and self.added_series_index is not None:
+                if chart.remove_data_series(self.added_series_index):
+                    self.app_state.event_bus.emit(
+                        ChartEvents.CHART_UPDATED,
+                        {
+                            "chart_id": self.chart_id,
+                            "update_type": "series_removed",
+                            "chart": chart,
+                        },
+                    )
+
+            remove_result_dataset(self.app_state, self.result_dataset_id,)
+            self.added_series_index = None
             return CommandResult.SUCCESS
         except Exception as e:
             self.logger.error("Failed to undo analyze-chart-series: %s", e, exc_info=True)
