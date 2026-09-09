@@ -99,19 +99,33 @@ def get_chart_gallery_path(project, chart_item: Chart) -> str:
 
 
 def load_qimage_for_chart(app_context: AppContext, chart_item: Chart) -> Optional[QImage]:
-    """Render a Chart item to a QImage using ChartEditorWidget/matplotlib."""
+    """Render a Chart item to a QImage using ChartEditorWidget/matplotlib.
+
+    Rendering happens on the GUI thread and can't move to a worker thread
+    (unlike image thumbnail decoding) because ChartEditorWidget is a QWidget
+    -- Qt widgets can only be constructed on the GUI thread. The widget is
+    throwaway (never shown/parented), but as a PWidget it still subscribes to
+    the event bus in __init__; unsubscribe_widget_tree() must run before
+    deleteLater() so that subscription doesn't stay live until Qt's deferred
+    destruction actually happens (see tests/gui/core/test_unsubscribe_widget_tree.py
+    for the same leak previously found on this exact widget).
+    """
     try:
         import io
 
         from pandaplot.gui.components.tabs.chart.chart_editor import ChartEditorWidget
+        from pandaplot.gui.core.widget_extension import unsubscribe_widget_tree
         editor = ChartEditorWidget(app_context=app_context, chart=chart_item, parent=None)
-        editor.update_chart()
-        buf = io.BytesIO()
-        editor.chart_canvas.fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
-        editor.deleteLater()
-        qimg = QImage()
-        if qimg.loadFromData(buf.getvalue()):
-            return qimg
+        try:
+            editor.update_chart()
+            buf = io.BytesIO()
+            editor.chart_canvas.fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
+            qimg = QImage()
+            if qimg.loadFromData(buf.getvalue()):
+                return qimg
+        finally:
+            unsubscribe_widget_tree(editor)
+            editor.deleteLater()
     except Exception as e:
         import logging
         logging.getLogger(__name__).debug("Failed to load QImage for chart %s: %s", chart_item.id, e)

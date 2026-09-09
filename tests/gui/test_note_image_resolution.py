@@ -5,10 +5,12 @@ Tests for note image path resolution and insert-image picker dialog.
 import os
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QImage, QTextDocument
 from PySide6.QtWidgets import QDialog
 
+from pandaplot.app import build_app_context
 from pandaplot.gui.components.tabs.note.note_editor import (
     NoteEditorWidget,
     NotePreviewBrowser,
@@ -17,8 +19,8 @@ from pandaplot.gui.components.tabs.note.note_editor import (
     register_project_image_resources,
 )
 from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePickerDialog
-from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.project.items import Chart, Folder, Image, ImageGallery, Note
+from pandaplot.models.events.event_types import ProjectEvents, ThemeEvents
+from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
 from pandaplot.services.qtasks import TaskScheduler
 
@@ -846,6 +848,40 @@ def test_note_editor_insert_table_action(qapp):
 
     content = editor.text_edit.toPlainText()
     assert "| A | B |" in content
+
+
+def test_load_qimage_for_chart_renders_real_chart(qapp):
+    """load_qimage_for_chart must actually rasterize a real chart, and must
+    not leave the throwaway ChartEditorWidget's event-bus subscription live
+    past the call (see tests/gui/core/test_unsubscribe_widget_tree.py for the
+    documented historical bug this guards against)."""
+    from pandaplot.gui.components.tabs.note.note_editor import load_qimage_for_chart
+
+    project = Project(name="Test Project")
+    df = pd.DataFrame({"x": [1, 2, 3], "y": [10, 20, 30]})
+    dataset = Dataset(name="Data 1", data=df)
+    project.add_item(dataset)
+
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+    )
+    project.add_item(chart)
+
+    app_context = build_app_context()
+    app_context.app_state.load_project(project)
+    theme_subscribers_before = list(app_context.event_bus._subscribers.get(ThemeEvents.THEME_CHANGED, []))
+
+    qimg = load_qimage_for_chart(app_context, chart)
+
+    assert qimg is not None
+    assert not qimg.isNull()
+    assert qimg.width() > 0
+    assert qimg.height() > 0
+
+    qapp.processEvents()  # let the deferred deleteLater() actually run
+    theme_subscribers_after = app_context.event_bus._subscribers.get(ThemeEvents.THEME_CHANGED, [])
+    assert theme_subscribers_after == theme_subscribers_before
 
 
 def test_note_editor_insert_chart_uses_shared_width_constant(qapp):
