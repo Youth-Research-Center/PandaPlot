@@ -200,14 +200,19 @@ def get_chart_type_spec(chart_type: "str | ChartType") -> ChartTypeSpec:
 
 
 def quick_plot_compatible(spec: ChartTypeSpec) -> bool:
-    """Whether a chart of this type can host a quick-plotted analysis result.
+    """Whether a chart of this type can host a plotted (x, y) curve at all --
+    i.e. it allows LINE or SCATTER series and isn't 3-D.
 
-    Shared by ChartAnalysisPanel/ChartSignalAnalysisPanel's "Plot result"
-    checkbox (and its destination-chart picker) and AddAnalysisSeriesCommand's
-    own execution-time check: an analysis result is a 2-column (x, y) curve,
-    so it only makes sense to overlay it on a chart type that can actually
-    display an ordered line/scatter curve, never a 3-D chart. This only
-    reports "a reasonable overlay exists" -- AddAnalysisSeriesCommand
-    separately picks LINE over SCATTER when both are allowed.
+    This is a chart-type check only, not a result-shape one: it decides
+    whether a *destination* chart could ever take a quick-plotted analysis
+    result, not whether a given result is actually plottable (some signal
+    analyses, like STFT, produce a result with no single (x, y) curve at
+    all -- and others, like Peak Detection, can have several columns beyond
+    the (x, y) pair -- but neither is this function's concern; see
+    AddAnalysisSeriesCommand for that). Used to filter which existing
+    charts appear in the "Plot result" destination combo
+    (populate_chart_target_combo/refresh_chart_target_combo_preserving_selection)
+    and, again, by AddAnalysisSeriesCommand at execution time, since the
+    combo's snapshot can go stale before the command actually runs.
     """
     return not spec.is_3d and bool(spec.allowed_series_types & {SeriesType.LINE, SeriesType.SCATTER})
