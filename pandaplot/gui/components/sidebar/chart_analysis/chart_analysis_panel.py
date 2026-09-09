@@ -9,6 +9,7 @@ series or a fitted curve — and stores the result as a new dataset.
 from typing import Optional, override
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFormLayout,
     QGroupBox,
@@ -22,17 +23,23 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.analysis import AnalysisType
+from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
+)
+from pandaplot.commands.project.chart.create_chart_with_analysis_series_command import (
+    build_quick_plot_command,
 )
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     find_series_fit_combo_index,
+    populate_chart_target_combo,
     populate_series_fit_sources,
+    refresh_chart_target_combo_preserving_selection,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
-from pandaplot.models.events import ChartEvents, UIEvents
+from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -130,6 +137,16 @@ class ChartAnalysisPanel(SidebarPanel):
         self.result_name = QLineEdit()
         self.result_name.setPlaceholderText("Auto-named from operation and series")
         form.addRow("Dataset name:", self.result_name)
+        self.plot_result_cb = QCheckBox("Plot result")
+        self.plot_result_cb.setChecked(True)
+        form.addRow("", self.plot_result_cb)
+        self.plot_target_row = QWidget()
+        target_row_layout = QHBoxLayout(self.plot_target_row)
+        target_row_layout.setContentsMargins(0, 0, 0, 0)
+        target_row_layout.addWidget(QLabel("Plot on:"))
+        self.plot_target_combo = QComboBox()
+        target_row_layout.addWidget(self.plot_target_combo)
+        form.addRow("", self.plot_target_row)
         layout.addWidget(group)
 
     def _create_preview_section(self, layout):
@@ -158,6 +175,7 @@ class ChartAnalysisPanel(SidebarPanel):
         self.source_combo.currentIndexChanged.connect(self._on_source_changed)
         self.start_index.valueChanged.connect(self._update_range_labels)
         self.end_index.valueChanged.connect(self._update_range_labels)
+        self.plot_result_cb.toggled.connect(self._update_plot_target_visibility)
 
     # -- dynamic parameters ----------------------------------------------
 
@@ -268,6 +286,7 @@ class ChartAnalysisPanel(SidebarPanel):
             return None
         kind, index = source
         name = self.result_name.text().strip() or None
+        folder_id = self.current_chart.parent_id if self.current_chart else None
         return AnalyzeChartSeriesCommand(
             self.app_context,
             chart_id=self.current_chart_id,
@@ -276,6 +295,7 @@ class ChartAnalysisPanel(SidebarPanel):
             analysis_type=self.operation_combo.currentData(),
             parameters=self._build_parameters(),
             result_name=name,
+            folder_id=folder_id,
         )
 
     # -- actions ----------------------------------------------------------
@@ -304,10 +324,30 @@ class ChartAnalysisPanel(SidebarPanel):
         if command is None:
             self.preview_text.setText("❌ Select a series to analyze.")
             return
-        if self.app_context.get_command_executor().execute_command(command):
-            self.preview_text.setText(
-                "✅ Created a new dataset from the analysis. Find it in the project explorer."
+
+        executor = self.app_context.get_command_executor()
+        plot_result = self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled()
+        target_chart_id = self.plot_target_combo.currentData() if plot_result else None
+        target_chart_name = self.plot_target_combo.currentText() if plot_result else None
+        if plot_result:
+            plot_command = build_quick_plot_command(
+                self.app_context,
+                command,
+                target_chart_id=target_chart_id,
+                folder_id=command.folder_id,
             )
+            success = executor.execute_command(CompositeCommand([command, plot_command]))
+        else:
+            success = executor.execute_command(command)
+
+        if success:
+            message = "✅ Created a new dataset from the analysis. Find it in the project explorer."
+            if plot_result:
+                if target_chart_id is None:
+                    message += " Plotted on a new chart."
+                else:
+                    message += f" Plotted on '{target_chart_name}'."
+            self.preview_text.setText(message)
         else:
             self.preview_text.setText(
                 "❌ Could not analyze the series. See the log for details."
@@ -384,6 +424,13 @@ class ChartAnalysisPanel(SidebarPanel):
         # Leave any user-entered name untouched; only fill the placeholder.
         self.result_name.setPlaceholderText(f"{op} — {self.source_combo.currentText()}")
 
+    def _update_plot_target_visibility(self):
+        self.plot_target_row.setVisible(self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled())
+
+    def _update_quick_plot_compatibility(self, *, has_sources: bool):
+        self.plot_result_cb.setEnabled(has_sources)
+        self._update_plot_target_visibility()
+
     def _populate_sources(self):
         has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
         self.apply_btn.setEnabled(has_sources)
@@ -391,6 +438,9 @@ class ChartAnalysisPanel(SidebarPanel):
         self.source_hint.setText(
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
+        project = self.app_context.get_app_state().current_project
+        populate_chart_target_combo(self.plot_target_combo, project)
+        self._update_quick_plot_compatibility(has_sources=has_sources)
         self._on_source_changed()
 
     @override
@@ -398,6 +448,10 @@ class ChartAnalysisPanel(SidebarPanel):
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
         self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, self._on_chart_list_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, self._on_chart_list_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_RENAMED, self._on_chart_list_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_MOVED, self._on_chart_list_changed)
 
     def _on_series_selected_event(self, event_data):
         """Clicking a series/fit on the chart canvas or its legend also
@@ -428,12 +482,38 @@ class ChartAnalysisPanel(SidebarPanel):
 
     def _on_chart_updated(self, event_data):
         chart = event_data.get("chart")
+        if chart is None:
+            # Some emitters (e.g. ChartPropertiesPanel's live-edit publish,
+            # which fires on every properties-tab change including a
+            # chart-type retype) only send chart_id, not the Chart object
+            # itself -- resolve it from the project so this handler (and
+            # its combo-refresh branch below) still fires for those.
+            chart_id = event_data.get("chart_id")
+            if chart_id:
+                project = self.app_context.get_app_state().current_project
+                found = project.find_item(chart_id) if project else None
+                chart = found if isinstance(found, Chart) else None
         if not chart or (self.current_chart_id and chart.id != self.current_chart_id):
+            # A different chart's own update (rename/retype/etc.) doesn't
+            # change this panel's context, but can change whether that chart
+            # belongs in the destination combo or how it's labeled -- refresh
+            # without disturbing the user's current destination pick (unlike
+            # _populate_sources(), which resets it to "New chart").
+            if isinstance(chart, Chart):
+                project = self.app_context.get_app_state().current_project
+                refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
             return
         if isinstance(chart, Chart):
             self.current_chart = chart
             self.current_chart_id = chart.id
             self._populate_sources()
+
+    def _on_chart_list_changed(self, event_data):
+        """A chart added/renamed/removed anywhere in the project can
+        change the destination combo's entries or their labels -- refresh
+        without disturbing the user's current destination pick."""
+        project = self.app_context.get_app_state().current_project
+        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
 
     @override
     def _apply_theme(self):
@@ -474,3 +554,4 @@ class ChartAnalysisPanel(SidebarPanel):
         value_label_style = f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
         self.start_value_label.setStyleSheet(value_label_style)
         self.end_value_label.setStyleSheet(value_label_style)
+        self.plot_result_cb.setStyleSheet(f"QCheckBox {{ color: {base_fg}; background-color: transparent; }}")

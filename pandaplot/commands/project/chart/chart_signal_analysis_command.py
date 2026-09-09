@@ -26,7 +26,11 @@ from pandaplot.analysis import (
     SignalEngine,
 )
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
+from pandaplot.commands.project.chart.create_chart_with_analysis_series_command import (
+    build_quick_plot_command,
+)
 from pandaplot.commands.project.chart.series_xy import SourceKind, resolve_series_xy
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
@@ -55,6 +59,9 @@ class ChartSignalAnalysisCommand(Command):
         parameters: Optional[Dict[str, Any]] = None,
         result_name: Optional[str] = None,
         folder_id: Optional[str] = None,
+        *,
+        plot_result: bool = False,
+        plot_target_chart_id: Optional[str] = None,
         on_complete: Optional[Callable[[CommandResult], None]] = None,
     ):
         super().__init__()
@@ -73,6 +80,8 @@ class ChartSignalAnalysisCommand(Command):
 
         self.result_name = result_name
         self.folder_id = folder_id
+        self.plot_result = plot_result
+        self.plot_target_chart_id = plot_target_chart_id
         self.on_complete = on_complete
 
         self.result_dataset_id: Optional[str] = None
@@ -325,7 +334,20 @@ class ChartSignalAnalysisCommand(Command):
             self.app_context, self.result_name, self.folder_id, outcome["result"],
         )
         executor = self.app_context.get_command_executor()
-        if executor.execute_command(apply_command):
+
+        if self.plot_result:
+            plot_command = build_quick_plot_command(
+                self.app_context,
+                apply_command,
+                target_chart_id=self.plot_target_chart_id,
+                folder_id=self.folder_id,
+            )
+            composite = CompositeCommand([apply_command, plot_command])
+            success = executor.execute_command(composite)
+        else:
+            success = executor.execute_command(apply_command)
+
+        if success:
             self.result = outcome["result"]
             self.result_dataset_id = apply_command.result_dataset_id
             self._notify_complete(CommandResult.SUCCESS)

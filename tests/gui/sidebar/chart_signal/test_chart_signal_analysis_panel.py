@@ -12,9 +12,15 @@ from PySide6.QtWidgets import QApplication
 
 from pandaplot.analysis import SIGNAL_ANALYSES, SignalAnalysisType
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.commands.composite_command import CompositeCommand
+from pandaplot.commands.project.chart import AddAnalysisSeriesCommand, CreateChartWithAnalysisSeriesCommand
+from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
+    ApplySignalAnalysisResultCommand,
+)
 from pandaplot.gui.components.sidebar.chart_signal.chart_signal_analysis_panel import (
     ChartSignalAnalysisPanel,
 )
+from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -714,3 +720,467 @@ class TestChartSignalAnalysisPanelSeriesSelectedEvent:
         )
 
         assert panel.source_combo.currentIndex() == 0
+
+
+class TestChartSignalAnalysisPanelQuickPlot:
+    def test_quick_plot_checkbox_is_present_and_checked_by_default(self, panel):
+        assert hasattr(panel, "plot_result_cb")
+        assert panel.plot_result_cb.text() == "Plot result"
+        assert panel.plot_result_cb.isChecked() is True
+        assert panel.plot_result_cb.isEnabled() is True
+
+    def test_destination_combo_defaults_to_new_chart(self, panel):
+        assert panel.plot_target_combo.itemText(0) == "➕ New chart"
+        assert panel.plot_target_combo.currentData() is None
+
+    def test_plot_target_row_hides_when_checkbox_unchecked(self, panel):
+        assert panel.plot_target_row.isVisibleTo(panel) is True
+        panel.plot_result_cb.setChecked(False)
+        assert panel.plot_target_row.isVisibleTo(panel) is False
+
+    def test_quick_plot_disabled_for_stft(self, panel):
+        index = panel.analysis_combo.findData(SignalAnalysisType.STFT)
+        panel.analysis_combo.setCurrentIndex(index)
+
+        assert panel.plot_result_cb.isEnabled() is False
+
+    def test_quick_plot_stays_enabled_for_3d_charts(self, panel):
+        """See the matching ChartAnalysisPanel test/comment: "New chart" is
+        always a valid destination, so the checkbox no longer disables
+        based on the current chart's type."""
+        panel.current_chart.chart_type = ChartType.SCATTER3D
+        panel._populate_sources()
+
+        assert panel.plot_result_cb.isEnabled() is True
+
+    def test_3d_current_chart_is_excluded_from_the_destination_combo(self, panel):
+        panel.current_chart.chart_type = ChartType.SCATTER3D
+        panel._populate_sources()
+
+        labels = [panel.plot_target_combo.itemText(i) for i in range(panel.plot_target_combo.count())]
+        assert labels == ["➕ New chart"]
+
+    def test_cached_add_results_creates_a_new_chart_by_default(self, panel, app_context):
+        executor = Mock()
+        app_context.get_command_executor.return_value = executor
+        executor.execute_command.return_value = True
+
+        panel.last_result = Mock()
+        panel._last_run_params = panel._get_dispatch_params()
+
+        panel.add_results_to_project()
+
+        assert executor.execute_command.called
+        cmd = executor.execute_command.call_args[0][0]
+        assert isinstance(cmd, CompositeCommand)
+        assert len(cmd.commands) == 2
+        assert isinstance(cmd.commands[0], ApplySignalAnalysisResultCommand)
+        assert isinstance(cmd.commands[1], CreateChartWithAnalysisSeriesCommand)
+
+    def test_cached_add_results_plots_on_the_selected_existing_chart(self, panel, app_context, project):
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        executor = Mock()
+        app_context.get_command_executor.return_value = executor
+        executor.execute_command.return_value = True
+
+        panel.last_result = Mock()
+        panel._last_run_params = panel._get_dispatch_params()
+
+        panel.add_results_to_project()
+
+        cmd = executor.execute_command.call_args[0][0]
+        add_series_cmd = cmd.commands[1]
+        assert isinstance(add_series_cmd, AddAnalysisSeriesCommand)
+        assert add_series_cmd.chart_id == "chart-2"
+
+    def test_cached_add_results_executes_single_command_when_quick_plot_unchecked(self, panel, app_context):
+        executor = Mock()
+        app_context.get_command_executor.return_value = executor
+        executor.execute_command.return_value = True
+
+        panel.last_result = Mock()
+        panel._last_run_params = panel._get_dispatch_params()
+        panel.plot_result_cb.setChecked(False)
+
+        panel.add_results_to_project()
+
+        assert executor.execute_command.called
+        cmd = executor.execute_command.call_args[0][0]
+        assert isinstance(cmd, ApplySignalAnalysisResultCommand)
+
+    def test_async_add_completes_when_its_own_quick_plot_fires_chart_updated(self, panel):
+        """Regression: the composite command an in-flight (non-cached)
+        add_results_to_project() dispatch executes -- when quick-plot is
+        enabled -- fires CHART_UPDATED("series_added") synchronously via
+        AddAnalysisSeriesCommand's AddSeriesCommand, strictly before
+        on_complete runs (see ChartSignalAnalysisCommand._on_commit_computed()).
+        That used to bump _generation like any other chart update, so the
+        completion's own staleness check always saw a moved-on generation
+        and silently discarded its own successful result."""
+        command = Mock()
+        command.result = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = panel.current_chart_id  # plotting on the current chart
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+        assert panel._pending_quick_plot is True
+
+        panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+        assert panel._pending_quick_plot is True  # deferred, not consumed yet
+        assert len(panel._deferred_chart_updates) == 1
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        # on_complete's own success branch runs first and displays the
+        # result, but the queued event is then replayed for real (the new
+        # mechanism can no longer special-case "this was our own event" --
+        # see _on_chart_updated()) -- so the replay's own _populate_sources()
+        # call invalidates last_result again immediately afterwards. The
+        # success message it left behind is unaffected, and nothing is left
+        # dangling in the queue.
+        assert panel.last_result is None
+        assert "added to project" in panel.results_text.toPlainText()
+        assert panel._deferred_chart_updates == []
+
+    def test_async_add_still_discards_an_unrelated_series_added_mid_flight(self, panel):
+        """The suppression above must not swallow a genuinely unrelated
+        series_added (e.g. another panel adding a series, or an undo of an
+        earlier removal) that happens to arrive while a plot_result=False
+        dispatch is in flight -- only a dispatch that actually enabled
+        quick-plot gets this leniency."""
+        command = Mock()
+        command.result = Mock()
+        command.plot_result = False
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+        assert panel._pending_quick_plot is False
+
+        panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert panel.last_result is None
+        assert "added to project" not in panel.results_text.toPlainText()
+
+    def test_pending_quick_plot_cleared_on_synchronous_dispatch_failure(self, panel):
+        """Regression: on_complete never runs for a dispatch that fails
+        synchronous validation (execute_command() returns False before any
+        computation starts), so it never got a chance to clear
+        _pending_quick_plot either -- leaving a stale True that would make
+        the next, genuinely unrelated series_added event skip invalidation
+        as if it belonged to this (failed, never-actually-dispatched)
+        commit."""
+        command = Mock()
+        command.plot_result = True
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: False
+        panel._build_command = lambda: command
+
+        panel.add_results_to_project()
+
+        assert panel._pending_quick_plot is False
+
+    def test_build_command_forwards_selected_destination(self, panel):
+        index = panel.plot_target_combo.findData(None)  # "New chart" (already selected, but explicit)
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        command = panel._build_command()
+
+        assert command.plot_result is True
+        assert command.plot_target_chart_id is None
+
+    def test_build_command_forwards_an_existing_chart_destination(self, panel, project):
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        command = panel._build_command()
+
+        assert command.plot_result is True
+        assert command.plot_target_chart_id == "chart-2"
+
+    def test_tab_changed_is_deferred_during_an_in_flight_new_chart_quick_plot(self, panel):
+        """Regression: CreateChartCommand (run when the "New chart"
+        destination is used) emits CHART_CREATED synchronously, and
+        TabContainer reacts to that by auto-opening and activating the new
+        chart's tab -- synchronously, before this dispatch's own
+        on_complete runs. _on_tab_changed() used to unconditionally
+        reassign current_chart_id to that just-created chart and bump
+        _generation via _populate_sources(), which made on_complete's own
+        staleness check discard its own successful result.
+
+        The fix defers the tab change instead of dropping it: on_complete
+        must still see its own untouched dispatch-time context (so the
+        success message displays), but once it has made its display
+        decision, the deferred tab change should be replayed so the panel
+        ends up bound to the chart the app's active tab actually switched
+        to, rather than staying stuck on the old context indefinitely."""
+        command = Mock()
+        command.result = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = None  # "New chart"
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+        assert panel._pending_quick_plot is True
+
+        # Simulate TabContainer auto-opening the newly created chart's tab,
+        # reentrantly, before on_complete runs. With the fix this is
+        # deferred rather than dropped or applied immediately -- it doesn't
+        # even need "new-chart-id" to exist in the project fixture.
+        panel._on_tab_changed({"tab_type": "chart", "tab_id": "new-chart-id"})
+        assert panel.current_chart_id == "chart-1"  # not yet applied
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert "added to project" in panel.results_text.toPlainText()
+        assert panel.current_chart_id == "new-chart-id"  # replayed after on_complete settled
+        assert panel._deferred_tab_change is None  # consumed
+
+    def test_deferred_tab_change_replays_after_a_stale_discarded_completion(self, panel):
+        """The deferred-replay mechanism must fire even when on_complete
+        discards its own result as stale -- not only on the success path."""
+        command = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = None
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+
+        panel._on_tab_changed({"tab_type": "chart", "tab_id": "new-chart-id"})
+        assert panel._deferred_tab_change is not None
+
+        # Make the dispatch parameters change mid-flight so on_complete
+        # takes the "stale, discard" branch instead of the success branch.
+        peaks_index = panel.analysis_combo.findData(SignalAnalysisType.PEAKS)
+        panel.analysis_combo.setCurrentIndex(peaks_index)
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert panel._deferred_tab_change is None
+        assert panel.current_chart_id == "new-chart-id"
+
+    def test_deferred_tab_change_replays_after_synchronous_dispatch_failure(self, panel):
+        """A tab change arriving reentrantly during execute_command() itself
+        (mirroring the CreateChartCommand/CHART_CREATED reentrancy the
+        success-path test above exercises) -- before execute_command()
+        returns False -- must still be replayed once the failure branch
+        clears _pending_quick_plot, not dropped."""
+        command = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = None
+
+        def _fail(cmd):
+            panel._on_tab_changed({"tab_type": "chart", "tab_id": "new-chart-id"})
+            return False
+
+        panel.app_context.get_command_executor.return_value.execute_command = _fail
+        panel._build_command = lambda: command
+
+        panel.add_results_to_project()
+
+        assert panel._deferred_tab_change is None
+        assert panel.current_chart_id == "new-chart-id"
+
+    def test_destination_combo_refreshes_when_a_different_chart_is_renamed(self, panel, project):
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        other_chart.name = "Renamed"
+        panel._on_chart_list_changed({"item_id": "chart-2"})
+
+        assert panel.plot_target_combo.currentData() == "chart-2"
+        assert panel.plot_target_combo.currentText() == "Renamed"
+
+    def test_chart_updated_with_only_chart_id_refreshes_destination_combo_for_a_different_chart(
+        self, panel, project
+    ):
+        """ChartPropertiesPanel's live-edit publish (e.g. retyping a chart
+        via the Properties panel) sends only chart_id, not the Chart object
+        itself -- must still resolve it from the project so a different
+        chart's retype is reflected in the destination combo."""
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        other_chart.chart_type = ChartType.HIST  # retyped to an incompatible type
+        panel._on_chart_updated({"chart_id": "chart-2", "update_type": "config_updated"})
+
+        assert panel.plot_target_combo.currentData() is None
+
+    def test_chart_updated_with_only_chart_id_still_refreshes_the_current_chart(self, panel):
+        """Same chart_id-only payload shape, but for the panel's own
+        current chart -- must still trigger the normal refresh path."""
+        calls = []
+        original = panel._populate_sources
+
+        def _spy(*, invalidate=True):
+            calls.append(invalidate)
+            original(invalidate=invalidate)
+
+        panel._populate_sources = _spy
+
+        panel._on_chart_updated({"chart_id": "chart-1", "update_type": "config_updated"})
+
+        assert calls == [True]
+
+    def test_destination_combo_refreshes_when_a_different_chart_is_moved(self, panel, project):
+        from pandaplot.models.project.items.folder import Folder
+        source_folder = Folder(id="f-src", name="Src")
+        project.add_item(source_folder)
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart, parent_id="f-src")
+        # A same-named sibling elsewhere forces disambiguated_display_options
+        # to suffix both charts' labels with their folder path -- without a
+        # collision, neither label would ever include a path that could go
+        # stale, and this test wouldn't actually exercise the bug.
+        colliding_chart = Chart(id="chart-3", name="Other", chart_type=ChartType.LINE)
+        project.add_item(colliding_chart)
+
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+        assert "Src" in panel.plot_target_combo.currentText()
+
+        dest_folder = Folder(id="f-dest", name="Dest")
+        project.add_item(dest_folder)
+        project.remove_item(other_chart)
+        project.add_item(other_chart, parent_id="f-dest")
+        panel._on_chart_list_changed({"item_id": "chart-2"})
+
+        assert panel.plot_target_combo.currentData() == "chart-2"
+        assert "Dest" in panel.plot_target_combo.currentText()
+        assert "Src" not in panel.plot_target_combo.currentText()
+
+    def test_destination_combo_falls_back_to_new_chart_when_selected_destination_is_removed(self, panel, project):
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        project.remove_item_by_id("chart-2")
+        panel._on_chart_list_changed({"item_id": "chart-2"})
+
+        assert panel.plot_target_combo.currentData() is None
+
+    def test_chart_updated_on_current_chart_is_deferred_and_still_invalidates_when_destination_is_a_different_chart(
+        self, panel, project
+    ):
+        """The dispatch's real destination is a different existing chart
+        (chart-2), but an unrelated CHART_UPDATED lands on the current
+        chart (chart-1) while the dispatch is in flight. The new mechanism
+        can't distinguish "this dispatch's own event" from a genuinely
+        unrelated one once more than one such event for the same chart can
+        arrive in the same window, so it defers ALL of them -- nothing is
+        lost, and normal invalidation still runs, just after on_complete
+        has made its own display decision instead of immediately."""
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+
+        command = Mock()
+        command.result = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = "chart-2"  # NOT the current chart ("chart-1")
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+        assert panel._pending_quick_plot is True
+
+        generation_before = panel._generation
+        # An unrelated series_added lands on the CURRENT chart, not chart-2.
+        panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+
+        assert panel._generation == generation_before  # deferred, not yet applied
+        assert len(panel._deferred_chart_updates) == 1
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert panel._generation > generation_before  # replayed -- invalidation still ran
+        assert panel._deferred_chart_updates == []
+
+    def test_deferred_chart_update_replays_after_a_stale_discarded_completion(self, panel):
+        """The deferred-chart-update replay must fire even when on_complete
+        discards its own result as stale -- not only when it displays it."""
+        command = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = panel.current_chart_id
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+
+        panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+        assert len(panel._deferred_chart_updates) == 1
+
+        # Make the dispatch parameters change mid-flight so on_complete
+        # takes the "stale, discard" branch instead of the success branch.
+        peaks_index = panel.analysis_combo.findData(SignalAnalysisType.PEAKS)
+        panel.analysis_combo.setCurrentIndex(peaks_index)
+
+        generation_before = panel._generation
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert panel._deferred_chart_updates == []
+        assert panel._generation > generation_before
+
+    def test_deferred_chart_update_replays_after_synchronous_dispatch_failure(self, panel):
+        command = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = panel.current_chart_id
+
+        def _fail(cmd):
+            panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+            return False
+
+        panel.app_context.get_command_executor.return_value.execute_command = _fail
+        panel._build_command = lambda: command
+
+        generation_before = panel._generation
+        panel.add_results_to_project()
+
+        assert panel._deferred_chart_updates == []
+        assert panel._generation > generation_before
+
+    def test_tab_change_replay_wins_over_a_stale_deferred_chart_update(self, panel):
+        """Regression: quick-plotting onto the current chart queues a
+        CHART_UPDATED for it, but the user can separately switch to a
+        non-chart tab (note, dataset, ...) in the same pending window --
+        an unrelated action, not caused by this dispatch. Replaying the
+        stale chart-update *after* the tab change would rebind
+        current_chart_id back to the chart that update refers to, even
+        though the tab change is the more recent, more authoritative
+        signal of where the user actually is now. Chart updates must
+        replay first, tab change last, so the tab change's context wins."""
+        command = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = panel.current_chart_id
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+
+        panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+        assert len(panel._deferred_chart_updates) == 1
+
+        # The user switches away to a non-chart tab, unrelated to this dispatch.
+        panel._on_tab_changed({"tab_type": "note"})
+        assert panel._deferred_tab_change is not None
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert panel._deferred_chart_updates == []
+        assert panel._deferred_tab_change is None
+        assert panel.current_chart is None
+        assert panel.current_chart_id is None

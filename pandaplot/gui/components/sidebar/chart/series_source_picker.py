@@ -10,8 +10,11 @@ from typing import Optional
 
 from PySide6.QtWidgets import QComboBox
 
+from pandaplot.models.chart.chart_type_spec import get_chart_type_spec, quick_plot_compatible
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.project import Project
+from pandaplot.utils.item_display_options import disambiguated_display_options
 
 
 def populate_series_fit_sources(combo: QComboBox, chart: Optional[Chart]) -> tuple[bool, bool]:
@@ -54,6 +57,50 @@ def find_series_fit_combo_index(combo: QComboBox, kind: str, index: int) -> int:
         if combo.itemData(i) == target:
             return i
     return -1
+
+
+def populate_chart_target_combo(combo: QComboBox, project: "Optional[Project]") -> None:
+    """(Re)fill `combo` with the "Plot result" destination choices:
+    "➕ New chart" (data=None, always first and selected by default) followed
+    by every chart in the project whose type allows a plotted analysis
+    result (quick_plot_compatible) -- including the chart the analyzed
+    series came from, now just one entry among others rather than an
+    implicit default. Labels are disambiguated (folder-suffixed) when two
+    compatible charts share a name, via disambiguated_display_options.
+    """
+    combo.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
+    combo.clear()
+    # "➕" distinguishes this as an action (create a chart), not the name of
+    # an existing chart called "New chart" -- easy to misread as the latter
+    # sitting plainly alongside real chart names below it.
+    combo.addItem("➕ New chart", None)
+    if project is not None:
+        compatible_charts = [
+            item for item in project.get_all_items()
+            if isinstance(item, Chart) and quick_plot_compatible(get_chart_type_spec(item.chart_type))
+        ]
+        for chart_id, display_name in disambiguated_display_options(compatible_charts, project):
+            combo.addItem(display_name, chart_id)
+    combo.setCurrentIndex(0)
+    combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
+
+
+def refresh_chart_target_combo_preserving_selection(combo: QComboBox, project: "Optional[Project]") -> None:
+    """Like populate_chart_target_combo(), but keeps the current selection
+    if it's still a valid entry afterward, instead of always resetting to
+    "New chart". Use this for a refresh triggered by an unrelated
+    background change (a different chart renamed/retyped/removed/added
+    elsewhere) rather than the user's own chart/source context changing --
+    populate_chart_target_combo() is still what _populate_sources() uses
+    for the latter, where resetting to "New chart" is the documented,
+    deliberate behavior (see the design spec).
+    """
+    previous = combo.currentData()
+    populate_chart_target_combo(combo, project)
+    if previous is not None:
+        index = combo.findData(previous)
+        if index >= 0:
+            combo.setCurrentIndex(index)
 
 
 def series_source_hint(*, has_sources: bool, any_series_excluded: bool) -> str:

@@ -14,6 +14,7 @@ This command unifies both so the Chart Analysis panel can offer the full set of
 analysis operations regardless of which kind of series the user picked.
 """
 
+import uuid
 from typing import Optional, override
 
 import pandas as pd
@@ -23,12 +24,14 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.commands.project.chart.series_xy import (
     SourceKind,
-    create_result_dataset,
     remove_result_dataset,
     resolve_series_xy,
+    unique_sibling_name,
 )
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext, AppState
 
@@ -62,6 +65,7 @@ class AnalyzeChartSeriesCommand(Command):
 
         # State for undo/redo.
         self.result_dataset_id: Optional[str] = None
+        self._dataset: Optional[Dataset] = None
 
         # Cache for _resolve_xy_cached: the resolved series don't change over
         # the command's lifetime, and the UI calls it repeatedly (once per
@@ -190,17 +194,42 @@ class AnalyzeChartSeriesCommand(Command):
     @override
     def execute(self) -> CommandResult:
         try:
-            if get_current_project(self.app_context) is None:
+            project = get_current_project(self.app_context)
+            if project is None:
                 message = "No project loaded; cannot analyze chart series."
                 self.logger.warning(message)
                 self.ui_controller.show_error_message("Chart Analysis Error", message)
                 return CommandResult.FAILURE
 
-            results_df, default_name = self.run_analysis()
-            dataset = create_result_dataset(
-                self.app_state, self.folder_id, self.result_name or default_name, results_df,
+            if self._dataset is None:
+                results_df, default_name = self.run_analysis()
+                unique_name = unique_sibling_name(project, self.folder_id, self.result_name or default_name)
+                self.result_dataset_id = str(uuid.uuid4())
+                self._dataset = Dataset(
+                    id=self.result_dataset_id,
+                    name=unique_name,
+                    data=results_df,
+                    source_file=None,
+                )
+            dataset = self._dataset
+
+            project.add_item(dataset, parent_id=self.folder_id)
+            reported_folder_id = (
+                self.folder_id
+                if self.folder_id is not None and project.find_item(self.folder_id) is not None
+                else None
             )
-            self.result_dataset_id = dataset.id
+            self.app_state.event_bus.emit(
+                ProjectEvents.PROJECT_ITEM_ADDED,
+                {
+                    "project": project,
+                    "item_id": dataset.id,
+                    "item_type": "dataset",
+                    "item_name": dataset.name,
+                    "item": dataset,
+                    "folder_id": reported_folder_id,
+                },
+            )
 
             self.logger.info("Created chart-analysis dataset '%s' (%s)", dataset.name, self.result_dataset_id)
             return CommandResult.SUCCESS
@@ -230,3 +259,5 @@ class AnalyzeChartSeriesCommand(Command):
         """Release the cached resolved x/y series once this command is
         dropped from the stacks for good (see Command.cleanup)."""
         self._resolved_xy_cache = None
+        self.result_dataset_id = None
+        self._dataset = None

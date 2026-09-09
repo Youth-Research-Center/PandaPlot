@@ -19,6 +19,7 @@ from typing import Optional, override
 
 import numpy as np
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFormLayout,
     QGroupBox,
@@ -32,8 +33,12 @@ from PySide6.QtWidgets import (
 
 from pandaplot.analysis import SIGNAL_ANALYSES, SignalAnalysisResult, SignalAnalysisType
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.commands.project.chart.chart_signal_analysis_command import (
     ChartSignalAnalysisCommand,
+)
+from pandaplot.commands.project.chart.create_chart_with_analysis_series_command import (
+    build_quick_plot_command,
 )
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
@@ -42,7 +47,9 @@ from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     find_series_fit_combo_index,
+    populate_chart_target_combo,
     populate_series_fit_sources,
+    refresh_chart_target_combo_preserving_selection,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -50,7 +57,7 @@ from pandaplot.gui.components.sidebar.signal.signal_panel import SignalPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
     build_signal_parameter_widgets,
 )
-from pandaplot.models.events import ChartEvents, DatasetEvents, UIEvents
+from pandaplot.models.events import ChartEvents, DatasetEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -68,6 +75,28 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.last_result: Optional[SignalAnalysisResult] = None
         self._last_run_params = None
         self._pending_command = None
+
+        # Set while an in-flight add_results_to_project() dispatch has
+        # quick-plot enabled, so _on_chart_updated() can recognize the
+        # CHART_UPDATED("series_added") that dispatch's own composite
+        # command (apply + AddAnalysisSeriesCommand) fires as it completes,
+        # and not mistake its own result for an external, invalidating
+        # chart edit. See _on_chart_updated()'s docstring.
+        self._pending_quick_plot = False
+
+        # Queued CHART_UPDATED events for the current chart that arrive
+        # while _pending_quick_plot suppresses _on_chart_updated() (see
+        # there), replayed in order once add_results_to_project()'s
+        # on_complete has made its display decision -- mirrors
+        # _deferred_tab_change below for the same underlying reason.
+        self._deferred_chart_updates: list[dict] = []
+
+        # A tab-changed event arriving while _pending_quick_plot suppresses
+        # _on_tab_changed() (see there) is queued here instead of dropped,
+        # and replayed once add_results_to_project()'s _on_complete has made
+        # its display decision against the untouched dispatch-time context
+        # -- see both sites below.
+        self._deferred_tab_change: Optional[dict] = None
 
         # Cache for _range_command(): a fresh ChartSignalAnalysisCommand
         # per call would re-run NaN-drop/to_numeric series resolution on
@@ -185,6 +214,18 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         layout.addWidget(group)
 
     def _create_action_buttons(self, layout):
+        self.plot_result_cb = QCheckBox("Plot result")
+        self.plot_result_cb.setChecked(True)
+        layout.addWidget(self.plot_result_cb)
+
+        self.plot_target_row = QWidget()
+        target_row_layout = QHBoxLayout(self.plot_target_row)
+        target_row_layout.setContentsMargins(0, 0, 0, 0)
+        target_row_layout.addWidget(QLabel("Plot on:"))
+        self.plot_target_combo = QComboBox()
+        target_row_layout.addWidget(self.plot_target_combo)
+        layout.addWidget(self.plot_target_row)
+
         row = QHBoxLayout()
         self.add_btn = PButton(
             "Add to Project", role="primary", on_click=self.add_results_to_project, enabled=False
@@ -199,6 +240,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.source_combo.currentIndexChanged.connect(self._on_source_changed)
         self.start_index.valueChanged.connect(self._on_segment_changed)
         self.end_index.valueChanged.connect(self._on_segment_changed)
+        self.plot_result_cb.toggled.connect(self._update_plot_target_visibility)
 
     # -- dynamic parameters ---------------------------------------------------
 
@@ -212,6 +254,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
 
         self._build_parameter_widgets(info)
         self._refresh_sampling_rate_default()
+        self._update_quick_plot_compatibility(has_sources=self.source_combo.count() > 0)
         self.clear()
 
     def _build_parameter_widgets(self, info):
@@ -348,6 +391,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
 
         chart_id, kind, index, analysis_type, sampling_rate, parameters = params
         folder_id = self.current_chart.parent_id if self.current_chart else None
+        plot_result = self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled()
         return ChartSignalAnalysisCommand(
             self.app_context,
             chart_id=chart_id,
@@ -357,6 +401,8 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             sampling_rate=sampling_rate,
             parameters=parameters,
             folder_id=folder_id,
+            plot_result=plot_result,
+            plot_target_chart_id=self.plot_target_combo.currentData() if plot_result else None,
         )
 
     # -- async run/apply dispatch (mirrors SignalPanel) ------------------------
@@ -445,7 +491,18 @@ class ChartSignalAnalysisPanel(SidebarPanel):
                 result=self.last_result,
             )
             executor = self.app_context.get_command_executor()
-            if executor.execute_command(apply_command):
+            if self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled():
+                plot_command = build_quick_plot_command(
+                    self.app_context,
+                    apply_command,
+                    target_chart_id=self.plot_target_combo.currentData(),
+                    folder_id=folder_id,
+                )
+                success = executor.execute_command(CompositeCommand([apply_command, plot_command]))
+            else:
+                success = executor.execute_command(apply_command)
+
+            if success:
                 self.results_text.append("\n\n✅ Results added to project")
                 self.add_btn.setEnabled(False)
             else:
@@ -467,6 +524,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.add_btn.setEnabled(False)
         self.busy_spinner.start()
         self._pending_command = command
+        self._pending_quick_plot = command.plot_result
 
         def _on_complete(result):
             self.busy_spinner.stop()
@@ -475,28 +533,69 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             # run_analysis().
             self.run_btn.setEnabled(self.source_combo.count() > 0)
             self._pending_command = None
+            # The one benign self-caused CHART_UPDATED this dispatch could
+            # produce (see _on_chart_updated()) has either already arrived
+            # and been queued, or -- on failure -- was never going to
+            # arrive at all; either way, don't let a stale True suppress
+            # invalidation for some later, unrelated series_added.
+            self._pending_quick_plot = False
 
             if self._generation != dispatch_generation or self._get_dispatch_params() != current_params:
                 self.logger.info(
                     "Not displaying chart signal analysis commit result: dispatch parameters changed."
                 )
-                return
-
-            if result is CommandResult.SUCCESS:
+            elif result is CommandResult.SUCCESS:
                 self.last_result = command.result
                 self._last_run_params = current_params
                 self.results_text.append("\n\n✅ Results added to project")
             else:
                 self.add_btn.setEnabled(True)  # let the user retry
 
+            # Chart-update replay must run before the tab-change replay:
+            # both can be queued together (quick-plotting onto the current
+            # chart, while the user separately switches away to a
+            # non-chart tab mid-flight), and a chart-updated event replayed
+            # after the tab change would rebind current_chart/
+            # current_chart_id back to the chart the (now-stale) queued
+            # event refers to -- overriding the tab change's more
+            # authoritative, more recent signal of where the user actually
+            # is now. Replaying chart updates first and the tab change last
+            # lets the final tab event settle the panel's real context.
+            if self._deferred_chart_updates:
+                deferred_updates = self._deferred_chart_updates
+                self._deferred_chart_updates = []
+                for event in deferred_updates:
+                    self._on_chart_updated(event)
+
+            if self._deferred_tab_change is not None:
+                deferred = self._deferred_tab_change
+                self._deferred_tab_change = None
+                self._on_tab_changed(deferred)
+
         command.on_complete = _on_complete
         executor = self.app_context.get_command_executor()
         if not executor.execute_command(command):
-            # Synchronous validation failure -- on_complete never fires.
+            # Synchronous validation failure -- on_complete never fires, so
+            # it never gets a chance to clear _pending_quick_plot either;
+            # do it here or a later, genuinely unrelated series_added would
+            # be mistaken for this (failed, never-dispatched) commit's own
+            # event and wrongly skip invalidation.
             self.busy_spinner.stop()
             self.run_btn.setEnabled(True)
             self.add_btn.setEnabled(True)
             self._pending_command = None
+            self._pending_quick_plot = False
+            # Same replay-ordering reason as in _on_complete above: chart
+            # updates first, tab change last.
+            if self._deferred_chart_updates:
+                deferred_updates = self._deferred_chart_updates
+                self._deferred_chart_updates = []
+                for event in deferred_updates:
+                    self._on_chart_updated(event)
+            if self._deferred_tab_change is not None:
+                deferred = self._deferred_tab_change
+                self._deferred_tab_change = None
+                self._on_tab_changed(deferred)
 
     def clear(self):
         if hasattr(self, "results_text"):
@@ -591,7 +690,20 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.start_value_label.setText(self._format_point(command.resolve_point(self.start_index.value())))
         self.end_value_label.setText(self._format_point(command.resolve_point(self.end_index.value())))
 
-    def _populate_sources(self):
+    def _update_plot_target_visibility(self):
+        self.plot_target_row.setVisible(self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled())
+
+    def _update_quick_plot_compatibility(self, *, has_sources: bool):
+        if not has_sources:
+            self.plot_result_cb.setEnabled(False)
+        else:
+            # STFT results are 3-column (time, frequency, magnitude) -- not
+            # a single (x, y) curve, so there's nothing sensible to overlay,
+            # regardless of destination.
+            self.plot_result_cb.setEnabled(self._current_analysis_type() != SignalAnalysisType.STFT)
+        self._update_plot_target_visibility()
+
+    def _populate_sources(self, *, invalidate: bool = True):
         # Force _range_command() to build a fresh command even if the
         # (chart, source) key is unchanged: this runs on every
         # UIEvents.TAB_CHANGED/ChartEvents.CHART_UPDATED/dataset change, and
@@ -606,18 +718,22 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # the panel's lifetime.
         self._range_command_key = None
         self._range_command_cache = None
-        # A previously computed last_result may have been resolved from
-        # data that just changed underneath it (same chart/source/method/
-        # segment, different underlying values) -- discard it rather than
-        # let Add to Project's cached-result fast path commit a stale
-        # analysis. Also bump _generation so an in-flight preview/commit
-        # dispatched before this update discards its result on arrival even
-        # when its own dispatch parameters still compare equal.
-        self.last_result = None
-        self._last_run_params = None
-        self._generation += 1
-        if hasattr(self, "add_btn"):
-            self.add_btn.setEnabled(False)
+        if invalidate:
+            # A previously computed last_result may have been resolved from
+            # data that just changed underneath it (same chart/source/
+            # method/segment, different underlying values) -- discard it
+            # rather than let Add to Project's cached-result fast path
+            # commit a stale analysis. Also bump _generation so an
+            # in-flight preview/commit dispatched before this update
+            # discards its result on arrival even when its own dispatch
+            # parameters still compare equal. Skipped when this refresh is
+            # itself the plotted result of an in-flight commit -- see
+            # _on_chart_updated().
+            self.last_result = None
+            self._last_run_params = None
+            self._generation += 1
+            if hasattr(self, "add_btn"):
+                self.add_btn.setEnabled(False)
         has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
         # A tab switch while a Run/Add-to-Project computation is still in
         # flight (for whatever chart/source was previously selected) must
@@ -628,6 +744,9 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.source_hint.setText(
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
+        project = self.app_context.get_app_state().current_project
+        populate_chart_target_combo(self.plot_target_combo, project)
+        self._update_quick_plot_compatibility(has_sources=has_sources)
         self._on_source_changed()
 
     @override
@@ -642,6 +761,10 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # of all those specific dataset events.
         self.subscribe_to_event(DatasetEvents.DATASET_CHANGED, self._on_dataset_changed)
         self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, self._on_chart_list_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, self._on_chart_list_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_RENAMED, self._on_chart_list_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_MOVED, self._on_chart_list_changed)
 
     def _on_series_selected_event(self, event_data):
         """Clicking a series/fit on the chart canvas or its legend also
@@ -660,6 +783,25 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             self.source_combo.setCurrentIndex(combo_index)
 
     def _on_tab_changed(self, event_data):
+        if self._pending_quick_plot:
+            # An in-flight add_results_to_project() dispatch with quick-plot
+            # enabled can itself trigger this (see the "New chart" case: its
+            # CreateChartCommand emits CHART_CREATED, which TabContainer
+            # reacts to by auto-opening and activating the new chart's tab --
+            # synchronously, before this dispatch's own on_complete runs).
+            # Applying it now (reassigning current_chart_id, bumping
+            # _generation via _populate_sources()) would corrupt
+            # on_complete's own staleness check against a context it
+            # captured before dispatch. Defer instead of dropping it
+            # outright: replay once on_complete has made its display
+            # decision, so a genuine tab switch -- self-caused or a real
+            # concurrent one by the user -- still lands, just after the
+            # pending dispatch settles rather than mid-flight. Only the
+            # most recent tab change while pending needs to survive; an
+            # earlier one superseded by a later one before completion
+            # doesn't need separate replay.
+            self._deferred_tab_change = event_data
+            return
         if event_data.get("tab_type") == "chart":
             chart_id = event_data.get("tab_id")
             self.current_chart_id = chart_id
@@ -673,12 +815,49 @@ class ChartSignalAnalysisPanel(SidebarPanel):
 
     def _on_chart_updated(self, event_data):
         chart = event_data.get("chart")
+        if chart is None:
+            # Some emitters (e.g. ChartPropertiesPanel's live-edit publish,
+            # which fires on every properties-tab change including a
+            # chart-type retype) only send chart_id, not the Chart object
+            # itself -- resolve it from the project so this handler (and
+            # its combo-refresh branch below) still fires for those.
+            chart_id = event_data.get("chart_id")
+            if chart_id:
+                project = self.app_context.get_app_state().current_project
+                found = project.find_item(chart_id) if project else None
+                chart = found if isinstance(found, Chart) else None
         if not chart or (self.current_chart_id and chart.id != self.current_chart_id):
+            # A different chart's own update (rename/retype/etc.) doesn't
+            # change this panel's context, but can change whether that chart
+            # belongs in the destination combo or how it's labeled -- refresh
+            # without disturbing the user's current destination pick (unlike
+            # _populate_sources(), which resets it to "New chart").
+            if isinstance(chart, Chart):
+                project = self.app_context.get_app_state().current_project
+                refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
             return
-        if isinstance(chart, Chart):
-            self.current_chart = chart
-            self.current_chart_id = chart.id
-            self._populate_sources()
+        if not isinstance(chart, Chart):
+            return
+        if self._pending_quick_plot:
+            # An in-flight add_results_to_project() dispatch with quick-plot
+            # enabled can itself fire this event for the current chart --
+            # its own AddAnalysisSeriesCommand's AddSeriesCommand emits
+            # CHART_UPDATED("series_added") strictly before on_complete
+            # runs (see ChartSignalAnalysisCommand._on_commit_computed() and
+            # _on_tab_changed()'s matching comment for why applying it now
+            # would corrupt on_complete's staleness check). A second,
+            # genuinely unrelated CHART_UPDATED for the same chart can also
+            # land in this same window (e.g. another panel adds a series
+            # while this dispatch is still computing) -- matching only
+            # chart id + update_type can't tell those two apart, so defer
+            # unconditionally instead of guessing which one is "ours":
+            # replay every deferred event, in order, once on_complete has
+            # made its decision against the untouched dispatch-time context.
+            self._deferred_chart_updates.append(event_data)
+            return
+        self.current_chart = chart
+        self.current_chart_id = chart.id
+        self._populate_sources()
 
     def _on_dataset_changed(self, event_data):
         changed_dataset_id = event_data.get("dataset_id")
@@ -688,6 +867,13 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # mirrors ChartTab.on_dataset_changed's own filter.
         if changed_dataset_id in self.current_chart.get_all_datasets():
             self._populate_sources()
+
+    def _on_chart_list_changed(self, event_data):
+        """A chart added/renamed/removed anywhere in the project can
+        change the destination combo's entries or their labels -- refresh
+        without disturbing the user's current destination pick."""
+        project = self.app_context.get_app_state().current_project
+        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
 
     @override
     def showEvent(self, event):
@@ -754,6 +940,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         value_label_style = f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
         self.start_value_label.setStyleSheet(value_label_style)
         self.end_value_label.setStyleSheet(value_label_style)
+        self.plot_result_cb.setStyleSheet(f"QCheckBox {{ color: {base_fg}; background-color: transparent; }}")
 
         self.results_text.setStyleSheet(f"""
             QTextEdit {{
