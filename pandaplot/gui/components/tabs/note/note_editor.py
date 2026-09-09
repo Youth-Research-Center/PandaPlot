@@ -749,7 +749,7 @@ class NoteEditorWidget(PWidget):
                 cursor = self.text_edit.textCursor()
                 alt_text = chart.name.replace("[", "(").replace("]", ")")
                 chart_ref = chart.id
-                markdown_ref = f"![{alt_text}]({chart_ref} =500x)"
+                markdown_ref = f"![{alt_text}]({chart_ref} ={_DEFAULT_INSERT_MAX_WIDTH}x)"
                 cursor.insertText(markdown_ref)
                 self.text_edit.setTextCursor(cursor)
                 self.text_edit.setFocus()

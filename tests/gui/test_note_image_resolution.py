@@ -848,6 +848,36 @@ def test_note_editor_insert_table_action(qapp):
     assert "| A | B |" in content
 
 
+def test_note_editor_insert_chart_uses_shared_width_constant(qapp):
+    """Chart insertion must size from the same constant image insertion uses,
+    not a hardcoded duplicate, so the two stay in sync if it's ever tuned."""
+    chart = Chart(name="Sample Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    mock_dialog = MagicMock()
+    mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
+    mock_dialog.get_selected_chart.return_value = chart
+
+    with patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog):
+        with patch(
+            "pandaplot.gui.components.tabs.note.note_editor._DEFAULT_INSERT_MAX_WIDTH", 777
+        ):
+            editor.insert_chart_from_picker()
+
+    content = editor.text_edit.toPlainText()
+    assert content == f"![Sample Plot]({chart.id} =777x)"
+
+
 def test_chart_update_event_only_invalidates_that_chart(qapp):
     """A CHART_UPDATED event for one chart must not evict other cached entries."""
     chart_a = Chart(name="Chart A")
