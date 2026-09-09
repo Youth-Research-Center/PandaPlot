@@ -4,6 +4,8 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.project import Project
+from pandaplot.models.project.items import Item
 from pandaplot.models.state import AppContext, AppState
 
 
@@ -44,8 +46,14 @@ class MoveItemCommand(Command):
         # FAILURE, undo()'s existing behavior).
         self._recovery_attempted = False
 
+        # Set (by execute()) to the sibling index `item` held in its source
+        # folder just before this move detached it. undo() reuses it so a
+        # successful restore puts the item back at its exact original
+        # position instead of appending it after its former siblings.
+        self._source_index: Optional[int] = None
+
     @staticmethod
-    def _resolve_folder(project, folder_id: Optional[str]):
+    def _resolve_folder(project: Project, folder_id: Optional[str]) -> Optional[Item]:
         """Resolve a folder_id/'root' sentinel (as stored on this command) to
         the actual folder item, for snapshotting its state before a
         compensating rollback (see execute()/undo())."""
@@ -119,6 +127,19 @@ class MoveItemCommand(Command):
                 else:
                     self.logger.debug(f"Found target folder: {target_folder.name} (type: {type(target_folder).__name__})")
 
+                    # Reject moving an item into itself or one of its own
+                    # descendants. Since detach_item() now preserves an
+                    # ItemCollection's subtree instead of tearing it down,
+                    # allowing this would attach `item` under its own child,
+                    # creating a cyclic parent/child graph that later
+                    # recursive traversals (e.g. remove_item(), to_dict())
+                    # would loop over forever (#374 review).
+                    if project.is_item_or_descendant(item, self.target_folder_id):
+                        error_msg = f"Cannot move '{item_name}' into itself or one of its own subfolders."
+                        self.logger.error(error_msg)
+                        self.ui_controller.show_error_message("Move Item Error", error_msg)
+                        return CommandResult.FAILURE
+
             # Snapshot the source folder's state before detaching, so a
             # failed move can be rolled back as a true no-op (see except
             # block below).
@@ -128,6 +149,9 @@ class MoveItemCommand(Command):
             # Detach item from its current parent. Unlike remove_item(),
             # this doesn't tear down an ItemCollection's subtree (#374).
             source_index = project.detach_item(item)
+            # Persisted for undo(), so a successful restore can put the item
+            # back at this exact sibling position (see undo()).
+            self._source_index = source_index
 
             # Add item to new parent
             # Convert 'root' string to None for project.add_item()
@@ -196,11 +220,14 @@ class MoveItemCommand(Command):
                         # ItemCollection's subtree (#374).
                         target_index = project.detach_item(item)
 
-                        # Add item back to original location
+                        # Add item back to original location, at the exact
+                        # sibling position it held before this move detached
+                        # it, so undo() is a true restore rather than
+                        # appending the item after its former siblings.
                         # Convert 'root' string to None for project.add_item()
                         parent_id_for_add = None if self.source_folder_id == "root" else self.source_folder_id
                         try:
-                            project.add_item(item, parent_id=parent_id_for_add)
+                            project.add_item(item, parent_id=parent_id_for_add, index=self._source_index)
                         except Exception:
                             # Don't leave the item orphaned if re-adding it to
                             # its original folder fails -- put it back exactly

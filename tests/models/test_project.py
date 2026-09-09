@@ -521,6 +521,63 @@ class TestDetachItem:
             sample_project.detach_item(sample_project.root)
 
 
+class TestIsItemOrDescendant:
+    """Test Project.is_item_or_descendant() -- used by MoveItemCommand to
+    reject a move that would attach an item to itself or to one of its own
+    descendants. With subtree-preserving detach_item(), such a move would
+    otherwise create a cyclic parent/child graph that recursive traversals
+    (remove_item(), to_dict(), ...) would loop over forever (#374 review)."""
+
+    def test_false_for_unrelated_item(self, sample_project):
+        folder = ItemCollection(name="Folder")
+        other = ItemCollection(name="Other")
+        sample_project.add_item(folder)
+        sample_project.add_item(other)
+
+        assert sample_project.is_item_or_descendant(folder, other.id) is False
+
+    def test_true_for_the_item_itself(self, sample_project):
+        folder = ItemCollection(name="Folder")
+        sample_project.add_item(folder)
+
+        assert sample_project.is_item_or_descendant(folder, folder.id) is True
+
+    def test_true_for_a_direct_child(self, sample_project):
+        folder = ItemCollection(name="Folder")
+        child = ItemCollection(name="Child")
+        sample_project.add_item(folder)
+        sample_project.add_item(child, folder.id)
+
+        assert sample_project.is_item_or_descendant(folder, child.id) is True
+
+    def test_true_for_a_deeply_nested_descendant(self, sample_project):
+        folder = ItemCollection(name="Folder")
+        child = ItemCollection(name="Child")
+        grandchild = ItemCollection(name="Grandchild")
+        sample_project.add_item(folder)
+        sample_project.add_item(child, folder.id)
+        sample_project.add_item(grandchild, child.id)
+
+        assert sample_project.is_item_or_descendant(folder, grandchild.id) is True
+
+    def test_false_for_the_item_parent(self, sample_project):
+        """A folder's own parent is not one of its descendants -- moving a
+        folder back up to where it already is (a no-op parent-wise) or to
+        one of its ancestors must not be rejected."""
+        parent = ItemCollection(name="Parent")
+        folder = ItemCollection(name="Folder")
+        sample_project.add_item(parent)
+        sample_project.add_item(folder, parent.id)
+
+        assert sample_project.is_item_or_descendant(folder, parent.id) is False
+
+    def test_false_for_none_candidate(self, sample_project):
+        folder = ItemCollection(name="Folder")
+        sample_project.add_item(folder)
+
+        assert sample_project.is_item_or_descendant(folder, None) is False
+
+
 class TestComplexScenarios:
     """Test complex real-world scenarios."""
     

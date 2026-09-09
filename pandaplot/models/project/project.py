@@ -94,6 +94,29 @@ class Project:
         if item.id in self.items_index:
             del self.items_index[item.id]
 
+    def is_item_or_descendant(self, item: Item, candidate_id: Optional[str]) -> bool:
+        """True if `candidate_id` refers to `item` itself, or to a descendant
+        of `item` nested anywhere inside its subtree. Used to reject a move
+        that would attach `item` to itself or to one of its own children --
+        e.g. moving `folder` under its own `child_folder` -- which would
+        otherwise create a cyclic parent/child graph (#374 review)."""
+        if candidate_id is None:
+            return False
+        cursor_id: Optional[str] = candidate_id
+        visited: set[str] = set()
+        while cursor_id is not None and cursor_id != self.root.id:
+            if cursor_id == item.id:
+                return True
+            if cursor_id in visited:
+                # Already-cyclic elsewhere in the hierarchy; don't loop forever.
+                break
+            visited.add(cursor_id)
+            cursor = self.find_item(cursor_id)
+            if cursor is None:
+                break
+            cursor_id = cursor.parent_id
+        return False
+
     def detach_item(self, item: Item) -> Optional[int]:
         """Detach `item` from its current parent so it can be reparented
         elsewhere with add_item(), e.g. by MoveItemCommand.

@@ -44,6 +44,7 @@ class TestMoveItemCommandLogging:
         project.remove_item = Mock()
         project.add_item = Mock()
         project.detach_item = Mock(return_value=3)
+        project.is_item_or_descendant = Mock(return_value=False)
         project.root = Mock(id="root-id", modified_at="root-modified-at-before")
         return project
 
@@ -122,6 +123,38 @@ class TestMoveItemCommandLogging:
         result = command.execute()
 
         assert result is CommandResult.FAILURE
+        sample_project.detach_item.assert_not_called()
+        sample_project.add_item.assert_not_called()
+
+    def test_execute_rejects_moving_an_item_into_itself_or_a_descendant(self, mock_app_context, sample_project):
+        """With subtree-preserving detach_item(), allowing this would attach
+        the item under its own descendant, creating a cyclic parent/child
+        graph (see #374 review). Must fail before anything is mutated."""
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        item = Mock()
+        item.name = "Some Item"
+        target_folder = Mock()
+        target_folder.name = "Descendant Folder"
+
+        def find_item(item_id):
+            if item_id == "item-123":
+                return item
+            return target_folder
+
+        sample_project.find_item.side_effect = find_item
+        sample_project.is_item_or_descendant.return_value = True
+
+        command = MoveItemCommand(
+            app_context, item_id="item-123", source_folder_id="root", target_folder_id="descendant-folder"
+        )
+
+        result = command.execute()
+
+        assert result is CommandResult.FAILURE
+        sample_project.is_item_or_descendant.assert_called_once_with(item, "descendant-folder")
         sample_project.detach_item.assert_not_called()
         sample_project.add_item.assert_not_called()
 
@@ -241,7 +274,7 @@ class TestMoveItemCommandLogging:
         assert result is CommandResult.ABORTED
         sample_project.detach_item.assert_called_once_with(item)
         assert sample_project.add_item.call_args_list == [
-            ((item,), {"parent_id": "source-folder"}),
+            ((item,), {"parent_id": "source-folder", "index": 3}),
             ((item,), {"parent_id": None, "index": 3}),
         ]
 
@@ -469,3 +502,64 @@ class TestMoveItemCommandSubtreePreservation:
         for descendant in (child_note, child_folder, grandchild):
             assert descendant.id in project.items_index
         assert old_folder.modified_at == old_folder_modified_at_before
+
+    def test_execute_rejects_moving_a_folder_into_its_own_descendant(
+        self, mock_app_context, project_with_nested_folder
+    ):
+        """With subtree-preserving detach_item(), moving `folder` under its
+        own `child_folder` would attach folder -> child_folder -> folder,
+        a cyclic parent/child graph that recursive traversals (remove_item(),
+        to_dict()) would loop over forever (#374 review). Must be rejected
+        before anything is mutated."""
+        app_context, _, _ = mock_app_context
+        project, old_folder, new_folder, folder, child_note, child_folder, grandchild = project_with_nested_folder
+
+        command = MoveItemCommand(
+            app_context, item_id=folder.id, source_folder_id=old_folder.id, target_folder_id=child_folder.id
+        )
+
+        result = command.execute()
+
+        assert result is CommandResult.FAILURE
+        assert command.move_performed is False
+        # Nothing was mutated -- folder is still exactly where it started.
+        assert folder in old_folder.get_items()
+        assert folder.get_items() == [child_note, child_folder]
+        assert child_folder.get_items() == [grandchild]
+
+    def test_execute_rejects_moving_a_folder_into_itself(self, mock_app_context, project_with_nested_folder):
+        app_context, _, _ = mock_app_context
+        project, old_folder, new_folder, folder, child_note, child_folder, grandchild = project_with_nested_folder
+
+        command = MoveItemCommand(
+            app_context, item_id=folder.id, source_folder_id=old_folder.id, target_folder_id=folder.id
+        )
+
+        result = command.execute()
+
+        assert result is CommandResult.FAILURE
+        assert command.move_performed is False
+        assert folder in old_folder.get_items()
+
+    def test_undo_restores_original_sibling_order_among_source_folder_items(
+        self, mock_app_context, project_with_nested_folder
+    ):
+        """A successful undo() must restore `item`'s exact prior sibling
+        position, not just its membership in the source folder -- moving the
+        first of [folder, sibling] and undoing must reproduce
+        [folder, sibling], not [sibling, folder] (#374 review)."""
+        app_context, _, _ = mock_app_context
+        project, old_folder, new_folder, folder, child_note, child_folder, grandchild = project_with_nested_folder
+
+        sibling = Item(name="sibling")
+        project.add_item(sibling, old_folder.id)
+        assert list(old_folder.get_items()) == [folder, sibling]
+
+        command = MoveItemCommand(
+            app_context, item_id=folder.id, source_folder_id=old_folder.id, target_folder_id=new_folder.id
+        )
+        assert command.execute() is CommandResult.SUCCESS
+
+        assert command.undo() is CommandResult.SUCCESS
+
+        assert list(old_folder.get_items()) == [folder, sibling]
