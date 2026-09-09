@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QImage, QTextDocument
+from PySide6.QtGui import QImage, QTextCursor, QTextDocument
 from PySide6.QtWidgets import QDialog
 
 from pandaplot.app import build_app_context
@@ -848,6 +848,43 @@ def test_note_editor_insert_table_action(qapp):
 
     content = editor.text_edit.toPlainText()
     assert "| A | B |" in content
+
+
+def test_note_editor_insert_table_mid_paragraph_still_renders_as_table(qapp):
+    """A single newline doesn't isolate the table from surrounding Markdown
+    (Python-Markdown's tables extension needs a blank line on each side, or
+    the table lines get absorbed into the preceding/following paragraph
+    block instead of becoming a <table>). Inserting at the end of existing
+    text, followed by more typed text, must still render as a real table."""
+    from markdown import markdown
+
+    project = Project(name="Test Project")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="Some paragraph text")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    cursor = editor.text_edit.textCursor()
+    cursor.movePosition(QTextCursor.MoveOperation.End)
+    editor.text_edit.setTextCursor(cursor)
+
+    table_md = "| A | B |\n| --- | --- |\n| 1 | 2 |"
+    mock_dialog = MagicMock()
+    mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
+    mock_dialog.get_markdown_table.return_value = table_md
+
+    with patch("pandaplot.gui.dialogs.note.NoteTablePickerDialog", return_value=mock_dialog):
+        editor.insert_table_from_picker()
+    editor.text_edit.insertPlainText("Following text")
+
+    content = editor.text_edit.toPlainText()
+    html = markdown(content, extensions=["tables"])
+    assert "<table>" in html
+    assert "<p>Following text</p>" in html
 
 
 def test_load_qimage_for_chart_renders_real_chart(qapp):

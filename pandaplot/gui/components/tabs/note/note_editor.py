@@ -780,7 +780,13 @@ class NoteEditorWidget(PWidget):
             table_md = dialog.get_markdown_table()
             if table_md:
                 cursor = self.text_edit.textCursor()
-                cursor.insertText("\n" + table_md + "\n")
+                # A single newline doesn't isolate the table block from
+                # surrounding Markdown -- inserting at the end of a
+                # paragraph without a blank line on each side gets the
+                # table lines absorbed into that paragraph (or trailing
+                # text absorbed into the table) instead of rendering as an
+                # actual <table>.
+                cursor.insertText("\n\n" + table_md + "\n\n")
                 self.text_edit.setTextCursor(cursor)
                 self.text_edit.setFocus()
                 if self.stack.currentIndex() == 1:
