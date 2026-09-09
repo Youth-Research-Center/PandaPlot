@@ -19,6 +19,7 @@ from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 def _escape_markdown_table_cell(val: object) -> str:
@@ -116,10 +117,13 @@ class NoteTablePickerDialog(PDialog):
         dataset_form.addRow(row_limit_box)
 
         dataset_layout.addLayout(dataset_form)
+        self.no_datasets_label: Optional[QLabel] = None
         if not self._datasets:
-            no_ds_lbl = QLabel("No datasets found in current project.")
-            no_ds_lbl.setStyleSheet("color: #777; font-style: italic;")
-            dataset_layout.addWidget(no_ds_lbl)
+            palette = self.app_context.get_manager(ThemeManager).get_surface_palette()
+            secondary_fg = palette.get("secondary_fg", "#555555")
+            self.no_datasets_label = QLabel("No datasets found in current project.")
+            self.no_datasets_label.setStyleSheet(f"color: {secondary_fg}; font-style: italic;")
+            dataset_layout.addWidget(self.no_datasets_label)
 
         # Tab 2: Custom Table
         self.custom_tab = QWidget()

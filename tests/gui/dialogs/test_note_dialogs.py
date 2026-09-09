@@ -107,6 +107,16 @@ def test_dataset_to_markdown_table_escapes_pipes_and_newlines():
     assert "line1 line2" in md
 
 
+def test_note_table_picker_no_datasets_label_uses_theme_palette(qapp):
+    project = Project(name="Empty Dataset Project")
+    app_context = _create_mock_app_context(project)
+    app_context.get_manager.return_value.get_surface_palette.return_value = {"secondary_fg": "#123456"}
+
+    dialog = NoteTablePickerDialog(app_context, project)
+
+    assert "#123456" in dialog.no_datasets_label.styleSheet()
+
+
 def test_note_table_picker_dialog_from_dataset(qapp):
     project = Project(name="Dataset Project")
     dataset = Dataset(name="Data 1")
