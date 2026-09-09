@@ -748,6 +748,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, self._on_chart_list_changed)
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, self._on_chart_list_changed)
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_RENAMED, self._on_chart_list_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_MOVED, self._on_chart_list_changed)
 
     def _on_series_selected_event(self, event_data):
         """Clicking a series/fit on the chart canvas or its legend also

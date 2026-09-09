@@ -994,6 +994,22 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert panel.plot_target_combo.currentData() == "chart-2"
         assert panel.plot_target_combo.currentText() == "Renamed"
 
+    def test_destination_combo_refreshes_when_a_different_chart_is_moved(self, panel, project):
+        from pandaplot.models.project.items.folder import Folder
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        dest_folder = Folder(id="f-dest", name="Dest")
+        project.add_item(dest_folder)
+        project.remove_item(other_chart)
+        project.add_item(other_chart, parent_id="f-dest")
+        panel._on_chart_list_changed({"item_id": "chart-2"})
+
+        assert panel.plot_target_combo.currentData() == "chart-2"
+
     def test_destination_combo_falls_back_to_new_chart_when_selected_destination_is_removed(self, panel, project):
         other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
         project.add_item(other_chart)
