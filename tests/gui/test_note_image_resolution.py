@@ -993,3 +993,36 @@ def test_note_editor_registers_chart_resources(qapp):
 
     res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl(chart.id))
     assert res is not None
+
+
+def test_note_editor_chart_does_not_shadow_same_named_gallery_image(qapp):
+    """A chart must not register a bare-name/".png" alias: it would silently
+    overwrite an unrelated gallery image resource registered under the exact
+    same key (e.g. a gallery image literally named "Plot.png" vs. a chart
+    named "Plot")."""
+    image = Image(name="Plot.png")
+    chart = Chart(name="Plot")
+    project = Project(name="Test Project")
+    project.add_item(image)
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    doc = QTextDocument()
+    image_qimg = QImage(10, 10, QImage.Format.Format_RGB32)
+    image_qimg.fill(0xFF0000FF)
+    chart_qimg = QImage(20, 20, QImage.Format.Format_RGB32)
+    chart_qimg.fill(0xFF00FF00)
+
+    with patch(
+        "pandaplot.gui.components.tabs.note.note_editor.load_qimage_for_item", return_value=image_qimg
+    ), patch(
+        "pandaplot.gui.components.tabs.note.note_editor.load_qimage_for_chart", return_value=chart_qimg
+    ):
+        register_project_image_resources(doc, app_context)
+
+    res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl("Plot.png"))
+    assert res.width() == 10  # still the gallery image, not overwritten by the chart

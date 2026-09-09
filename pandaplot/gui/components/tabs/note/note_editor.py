@@ -304,7 +304,12 @@ def register_project_image_resources(
         all_charts = [item for item in project.get_all_items() if isinstance(item, Chart)]
         for chart_item in all_charts:
             chart_path = get_chart_gallery_path(project, chart_item)
-            keys = {chart_item.id, chart_path, chart_item.name, f"{chart_item.name}.png"}
+            # Only the immutable id and exact gallery path are registrable
+            # keys, matching the image policy above: a bare name or
+            # synthetic ".png" alias could collide with an unrelated
+            # same-named gallery image's own registered key and silently
+            # overwrite it (see PR #383 review).
+            keys = {chart_item.id, chart_path}
 
             if referenced_keys is not None and keys.isdisjoint(referenced_keys):
                 continue
@@ -391,12 +396,7 @@ class NotePreviewBrowser(QTextBrowser):
             all_charts = [item for item in project.get_all_items() if isinstance(item, Chart)]
             for chart_item in all_charts:
                 chart_path = get_chart_gallery_path(project, chart_item)
-                match = (
-                    chart_item.id == ref_str
-                    or chart_item.name == ref_str
-                    or f"{chart_item.name}.png" == ref_str
-                    or (chart_path and chart_path in (ref_str, rel_path))
-                )
+                match = chart_item.id == ref_str or (chart_path and chart_path in (ref_str, rel_path))
                 if match:
                     qimg = get_cached_qimage_for_chart(self.app_context, chart_item, self.image_cache)
                     if qimg is not None and not qimg.isNull():
