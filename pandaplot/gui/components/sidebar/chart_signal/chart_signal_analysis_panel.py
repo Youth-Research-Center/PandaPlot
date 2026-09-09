@@ -84,16 +84,12 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # chart edit. See _on_chart_updated()'s docstring.
         self._pending_quick_plot = False
 
-        # The actual destination chart id of the in-flight
-        # add_results_to_project() dispatch tracked by _pending_quick_plot
-        # above (mirrors command.plot_target_chart_id), or None for the
-        # "new chart" destination. Lets _on_chart_updated() only treat a
-        # series_added on the *current* chart as this dispatch's own
-        # expected event when the current chart is actually that dispatch's
-        # target -- an unrelated series_added landing on the current chart
-        # while a dispatch targeting some other existing chart is in flight
-        # must still invalidate normally.
-        self._pending_plot_target_chart_id: Optional[str] = None
+        # Queued CHART_UPDATED events for the current chart that arrive
+        # while _pending_quick_plot suppresses _on_chart_updated() (see
+        # there), replayed in order once add_results_to_project()'s
+        # on_complete has made its display decision -- mirrors
+        # _deferred_tab_change below for the same underlying reason.
+        self._deferred_chart_updates: list[dict] = []
 
         # A tab-changed event arriving while _pending_quick_plot suppresses
         # _on_tab_changed() (see there) is queued here instead of dropped,
@@ -529,7 +525,6 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         self.busy_spinner.start()
         self._pending_command = command
         self._pending_quick_plot = command.plot_result
-        self._pending_plot_target_chart_id = command.plot_target_chart_id
 
         def _on_complete(result):
             self.busy_spinner.stop()
@@ -540,11 +535,10 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             self._pending_command = None
             # The one benign self-caused CHART_UPDATED this dispatch could
             # produce (see _on_chart_updated()) has either already arrived
-            # and been consumed, or -- on failure -- was never going to
+            # and been queued, or -- on failure -- was never going to
             # arrive at all; either way, don't let a stale True suppress
             # invalidation for some later, unrelated series_added.
             self._pending_quick_plot = False
-            self._pending_plot_target_chart_id = None
 
             if self._generation != dispatch_generation or self._get_dispatch_params() != current_params:
                 self.logger.info(
@@ -562,6 +556,12 @@ class ChartSignalAnalysisPanel(SidebarPanel):
                 self._deferred_tab_change = None
                 self._on_tab_changed(deferred)
 
+            if self._deferred_chart_updates:
+                deferred_updates = self._deferred_chart_updates
+                self._deferred_chart_updates = []
+                for event in deferred_updates:
+                    self._on_chart_updated(event)
+
         command.on_complete = _on_complete
         executor = self.app_context.get_command_executor()
         if not executor.execute_command(command):
@@ -575,11 +575,15 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             self.add_btn.setEnabled(True)
             self._pending_command = None
             self._pending_quick_plot = False
-            self._pending_plot_target_chart_id = None
             if self._deferred_tab_change is not None:
                 deferred = self._deferred_tab_change
                 self._deferred_tab_change = None
                 self._on_tab_changed(deferred)
+            if self._deferred_chart_updates:
+                deferred_updates = self._deferred_chart_updates
+                self._deferred_chart_updates = []
+                for event in deferred_updates:
+                    self._on_chart_updated(event)
 
     def clear(self):
         if hasattr(self, "results_text"):
@@ -809,32 +813,28 @@ class ChartSignalAnalysisPanel(SidebarPanel):
                 project = self.app_context.get_app_state().current_project
                 refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
             return
-        if isinstance(chart, Chart):
-            self.current_chart = chart
-            self.current_chart_id = chart.id
-            if (
-                self._pending_quick_plot
-                and self._pending_plot_target_chart_id == self.current_chart_id
-                and event_data.get("update_type") == "series_added"
-            ):
-                # The composite command an in-flight add_results_to_project()
-                # dispatched (with quick-plot enabled) fires this very event
-                # -- via AddAnalysisSeriesCommand's AddSeriesCommand -- as
-                # part of successfully completing *this* dispatch, strictly
-                # before its on_complete callback runs (see
-                # ChartSignalAnalysisCommand._on_commit_computed()). Treat it
-                # as expected progress, not an external edit that
-                # invalidates the very analysis it's the result of --
-                # otherwise on_complete's generation check below would
-                # always see a moved-on generation and silently discard its
-                # own successful result. Only the one event a given dispatch
-                # can produce is consumed this way (the flag is cleared
-                # here, and again unconditionally once on_complete runs) --
-                # any other series_added still invalidates normally.
-                self._pending_quick_plot = False
-                self._populate_sources(invalidate=False)
-            else:
-                self._populate_sources()
+        if not isinstance(chart, Chart):
+            return
+        if self._pending_quick_plot:
+            # An in-flight add_results_to_project() dispatch with quick-plot
+            # enabled can itself fire this event for the current chart --
+            # its own AddAnalysisSeriesCommand's AddSeriesCommand emits
+            # CHART_UPDATED("series_added") strictly before on_complete
+            # runs (see ChartSignalAnalysisCommand._on_commit_computed() and
+            # _on_tab_changed()'s matching comment for why applying it now
+            # would corrupt on_complete's staleness check). A second,
+            # genuinely unrelated CHART_UPDATED for the same chart can also
+            # land in this same window (e.g. another panel adds a series
+            # while this dispatch is still computing) -- matching only
+            # chart id + update_type can't tell those two apart, so defer
+            # unconditionally instead of guessing which one is "ours":
+            # replay every deferred event, in order, once on_complete has
+            # made its decision against the untouched dispatch-time context.
+            self._deferred_chart_updates.append(event_data)
+            return
+        self.current_chart = chart
+        self.current_chart_id = chart.id
+        self._populate_sources()
 
     def _on_dataset_changed(self, event_data):
         changed_dataset_id = event_data.get("dataset_id")

@@ -832,12 +832,21 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert panel._pending_quick_plot is True
 
         panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
-        assert panel._pending_quick_plot is False  # consumed, not left dangling
+        assert panel._pending_quick_plot is True  # deferred, not consumed yet
+        assert len(panel._deferred_chart_updates) == 1
 
         command.on_complete(CommandResult.SUCCESS)
 
-        assert panel.last_result is command.result
+        # on_complete's own success branch runs first and displays the
+        # result, but the queued event is then replayed for real (the new
+        # mechanism can no longer special-case "this was our own event" --
+        # see _on_chart_updated()) -- so the replay's own _populate_sources()
+        # call invalidates last_result again immediately afterwards. The
+        # success message it left behind is unaffected, and nothing is left
+        # dangling in the queue.
+        assert panel.last_result is None
         assert "added to project" in panel.results_text.toPlainText()
+        assert panel._deferred_chart_updates == []
 
     def test_async_add_still_discards_an_unrelated_series_added_mid_flight(self, panel):
         """The suppression above must not swallow a genuinely unrelated
@@ -1022,17 +1031,17 @@ class TestChartSignalAnalysisPanelQuickPlot:
 
         assert panel.plot_target_combo.currentData() is None
 
-    def test_chart_updated_on_current_chart_still_invalidates_when_destination_is_a_different_chart(
+    def test_chart_updated_on_current_chart_is_deferred_and_still_invalidates_when_destination_is_a_different_chart(
         self, panel, project
     ):
-        """Regression: the _pending_quick_plot leniency in _on_chart_updated()
-        used to apply to ANY series_added on the current chart while a
-        quick-plot dispatch was in flight, regardless of which chart the
-        dispatch actually targets. If the dispatch's real destination is a
-        different existing chart, an unrelated series_added landing on the
-        current chart (e.g. another panel adding a series concurrently)
-        must still invalidate normally instead of being swallowed as if it
-        were this dispatch's own expected event."""
+        """The dispatch's real destination is a different existing chart
+        (chart-2), but an unrelated CHART_UPDATED lands on the current
+        chart (chart-1) while the dispatch is in flight. The new mechanism
+        can't distinguish "this dispatch's own event" from a genuinely
+        unrelated one once more than one such event for the same chart can
+        arrive in the same window, so it defers ALL of them -- nothing is
+        lost, and normal invalidation still runs, just after on_complete
+        has made its own display decision instead of immediately."""
         other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
         project.add_item(other_chart)
 
@@ -1049,4 +1058,52 @@ class TestChartSignalAnalysisPanelQuickPlot:
         # An unrelated series_added lands on the CURRENT chart, not chart-2.
         panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
 
-        assert panel._generation > generation_before  # normal invalidation still ran
+        assert panel._generation == generation_before  # deferred, not yet applied
+        assert len(panel._deferred_chart_updates) == 1
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert panel._generation > generation_before  # replayed -- invalidation still ran
+        assert panel._deferred_chart_updates == []
+
+    def test_deferred_chart_update_replays_after_a_stale_discarded_completion(self, panel):
+        """The deferred-chart-update replay must fire even when on_complete
+        discards its own result as stale -- not only when it displays it."""
+        command = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = panel.current_chart_id
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+
+        panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+        assert len(panel._deferred_chart_updates) == 1
+
+        # Make the dispatch parameters change mid-flight so on_complete
+        # takes the "stale, discard" branch instead of the success branch.
+        peaks_index = panel.analysis_combo.findData(SignalAnalysisType.PEAKS)
+        panel.analysis_combo.setCurrentIndex(peaks_index)
+
+        generation_before = panel._generation
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert panel._deferred_chart_updates == []
+        assert panel._generation > generation_before
+
+    def test_deferred_chart_update_replays_after_synchronous_dispatch_failure(self, panel):
+        command = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = panel.current_chart_id
+
+        def _fail(cmd):
+            panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+            return False
+
+        panel.app_context.get_command_executor.return_value.execute_command = _fail
+        panel._build_command = lambda: command
+
+        generation_before = panel._generation
+        panel.add_results_to_project()
+
+        assert panel._deferred_chart_updates == []
+        assert panel._generation > generation_before
