@@ -864,8 +864,29 @@ class NoteEditorWidget(PWidget):
             DatasetEvents.DATASET_CHANGED, self.on_chart_or_dataset_changed_event)
 
     def on_chart_or_dataset_changed_event(self, event_data: dict):
-        """Refresh note preview when a chart or dataset changes in the project."""
-        self.preview.image_cache.clear()
+        """Invalidate only the cached chart image(s) affected by this change.
+
+        Chart rendering is synchronous (a full ChartEditorWidget is built and
+        rasterised via matplotlib -- see load_qimage_for_chart) so clearing
+        the whole cache on every change anywhere in the project would force
+        every chart referenced by the currently open note to re-render on the
+        next preview tick. Instead, drop only the specific chart's entry
+        (CHART_UPDATED) or the entries for charts that actually use the
+        changed dataset (DATASET_CHANGED).
+        """
+        chart_id = event_data.get("chart_id")
+        if chart_id is not None:
+            self.preview.image_cache.pop(chart_id, None)
+
+        dataset_id = event_data.get("dataset_id")
+        if dataset_id is not None:
+            app_state = self.app_context.get_app_state() if self.app_context else None
+            project = app_state.current_project if app_state else None
+            if project is not None:
+                for item in project.get_all_items():
+                    if isinstance(item, Chart) and dataset_id in item.get_all_datasets():
+                        self.preview.image_cache.pop(item.id, None)
+
         if self.stack.currentIndex() != 0:
             self.update_preview()
 

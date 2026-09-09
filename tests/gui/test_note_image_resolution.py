@@ -848,6 +848,64 @@ def test_note_editor_insert_table_action(qapp):
     assert "| A | B |" in content
 
 
+def test_chart_update_event_only_invalidates_that_chart(qapp):
+    """A CHART_UPDATED event for one chart must not evict other cached entries."""
+    chart_a = Chart(name="Chart A")
+    chart_b = Chart(name="Chart B")
+    project = Project(name="Test Project")
+    project.add_item(chart_a)
+    project.add_item(chart_b)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.preview.image_cache = {
+        chart_a.id: QImage(5, 5, QImage.Format.Format_RGB32),
+        chart_b.id: QImage(5, 5, QImage.Format.Format_RGB32),
+        "some-gallery-image-id": QImage(5, 5, QImage.Format.Format_RGB32),
+    }
+
+    with patch.object(editor, "update_preview"):
+        editor.on_chart_or_dataset_changed_event({"chart_id": chart_a.id, "chart": chart_a})
+
+    assert chart_a.id not in editor.preview.image_cache
+    assert chart_b.id in editor.preview.image_cache
+    assert "some-gallery-image-id" in editor.preview.image_cache
+
+
+def test_dataset_change_event_only_invalidates_charts_using_that_dataset(qapp):
+    """A DATASET_CHANGED event must only evict charts that reference that dataset."""
+    chart_using_ds = Chart(name="Uses Dataset")
+    chart_using_ds.add_data_series(dataset_id="ds-1", x_column_id="x", y_column_id="y")
+    chart_unrelated = Chart(name="Unrelated")
+    chart_unrelated.add_data_series(dataset_id="ds-2", x_column_id="x", y_column_id="y")
+    project = Project(name="Test Project")
+    project.add_item(chart_using_ds)
+    project.add_item(chart_unrelated)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.preview.image_cache = {
+        chart_using_ds.id: QImage(5, 5, QImage.Format.Format_RGB32),
+        chart_unrelated.id: QImage(5, 5, QImage.Format.Format_RGB32),
+    }
+
+    with patch.object(editor, "update_preview"):
+        editor.on_chart_or_dataset_changed_event({"dataset_id": "ds-1"})
+
+    assert chart_using_ds.id not in editor.preview.image_cache
+    assert chart_unrelated.id in editor.preview.image_cache
+
+
 def test_note_editor_registers_chart_resources(qapp):
     """Test registering chart images as resources for note documents."""
     chart = Chart(name="Chart 1")
