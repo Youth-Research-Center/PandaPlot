@@ -69,12 +69,25 @@ class AddAnalysisSeriesCommand(Command):
             return CommandResult.FAILURE
 
         cols = list(dataset.data.columns)
-        if len(cols) >= 2:
+        if len(cols) == 2:
             x_name, y_name = cols[0], cols[1]
         elif len(cols) == 1:
             x_name, y_name = "", cols[0]
         else:
-            self.logger.warning("AddAnalysisSeriesCommand: dataset '%s' has no columns", dataset_id)
+            # Anything other than exactly one or two columns (e.g. STFT's
+            # 3-column Frequency/Time/Magnitude output) isn't a single (x,
+            # y) curve -- taking the first two columns anyway would
+            # silently plot a nonsensical pair and drop the rest. The UI
+            # already disables the "Plot result" checkbox for these result
+            # shapes (see ChartSignalAnalysisPanel's STFT check), but this
+            # command can also be reached by constructing
+            # ChartSignalAnalysisCommand(..., plot_result=True) directly,
+            # bypassing that checkbox -- fail here too rather than relying
+            # solely on UI state.
+            self.logger.warning(
+                "AddAnalysisSeriesCommand: dataset '%s' has %d columns, not a single (x, y) curve",
+                dataset_id, len(cols),
+            )
             return CommandResult.FAILURE
 
         x_id = dataset.column_id(x_name) if x_name else ""

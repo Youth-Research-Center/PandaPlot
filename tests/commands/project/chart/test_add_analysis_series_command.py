@@ -163,6 +163,49 @@ class TestAddAnalysisSeriesCommand:
         assert analyze_cmd.result_dataset_id is not None
         assert project.find_item(analyze_cmd.result_dataset_id) is None
 
+    def test_fails_atomically_for_a_three_column_stft_style_result(self, ctx):
+        """STFT results are 3-column (Frequency, Time, Magnitude), not a
+        single (x, y) curve -- taking the first two columns anyway would
+        silently plot Frequency against Time and drop Magnitude entirely.
+        The panel disables its "Plot result" checkbox for STFT, but this
+        command can also be reached directly (e.g.
+        ChartSignalAnalysisCommand(..., plot_result=True)), bypassing that
+        checkbox -- must fail here too, atomically rolling back the
+        dataset just like the incompatible-chart-type case."""
+        app_context, project, chart = ctx
+        executor = CommandExecutor(app_context)
+
+        result_df = pd.DataFrame({
+            "Frequency (Hz)": [1.0, 2.0],
+            "Time (s)": [0.0, 0.1],
+            "Magnitude": [0.5, 0.7],
+        })
+        signal_result = SignalAnalysisResult(
+            analysis_type=SignalAnalysisType.STFT,
+            analysis_name="Short-Time Fourier Transform (STFT)",
+            source_columns=["y"],
+            data=result_df,
+        )
+
+        apply_cmd = ApplySignalAnalysisResultCommand(
+            app_context,
+            result_name="STFT Result",
+            folder_id=chart.parent_id,
+            result=signal_result,
+        )
+        add_series_cmd = AddAnalysisSeriesCommand(
+            app_context,
+            chart_id="chart-1",
+            dataset_command=apply_cmd,
+        )
+        composite = CompositeCommand([apply_cmd, add_series_cmd])
+
+        assert executor.execute_command(composite) is False
+
+        assert len(chart.data_series) == 1
+        assert apply_cmd.result_dataset_id is not None
+        assert project.find_item(apply_cmd.result_dataset_id) is None
+
     def test_add_analysis_series_with_signal_apply_command(self, ctx):
         app_context, project, chart = ctx
         executor = CommandExecutor(app_context)
