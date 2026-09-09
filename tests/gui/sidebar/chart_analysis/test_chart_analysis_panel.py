@@ -293,11 +293,21 @@ class TestChartAnalysisPanelQuickPlot:
 
     def test_destination_combo_refreshes_when_a_different_chart_is_moved(self, panel, project):
         from pandaplot.models.project.items.folder import Folder
+        source_folder = Folder(id="f-src", name="Src")
+        project.add_item(source_folder)
         other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
-        project.add_item(other_chart)
+        project.add_item(other_chart, parent_id="f-src")
+        # A same-named sibling elsewhere forces disambiguated_display_options
+        # to suffix both charts' labels with their folder path -- without a
+        # collision, neither label would ever include a path that could go
+        # stale, and this test wouldn't actually exercise the bug.
+        colliding_chart = Chart(id="chart-3", name="Other", chart_type=ChartType.LINE)
+        project.add_item(colliding_chart)
+
         panel._populate_sources()
         index = panel.plot_target_combo.findData("chart-2")
         panel.plot_target_combo.setCurrentIndex(index)
+        assert "Src" in panel.plot_target_combo.currentText()
 
         dest_folder = Folder(id="f-dest", name="Dest")
         project.add_item(dest_folder)
@@ -306,6 +316,8 @@ class TestChartAnalysisPanelQuickPlot:
         panel._on_chart_list_changed({"item_id": "chart-2"})
 
         assert panel.plot_target_combo.currentData() == "chart-2"
+        assert "Dest" in panel.plot_target_combo.currentText()
+        assert "Src" not in panel.plot_target_combo.currentText()
 
     def test_destination_combo_falls_back_to_new_chart_when_selected_destination_is_removed(self, panel, project):
         other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
