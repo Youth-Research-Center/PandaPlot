@@ -92,6 +92,21 @@ def test_dataset_to_markdown_table():
     assert "| 2 | 20 |" not in md_limited
 
 
+def test_dataset_to_markdown_table_escapes_pipes_and_newlines():
+    dataset = Dataset(name="Messy Data")
+    dataset.df = pd.DataFrame({
+        "Note": ["a | b", "line1\nline2"],
+        "Value": [1, 2],
+    })
+
+    md = dataset_to_markdown_table(dataset)
+
+    lines = md.split("\n")
+    assert len(lines) == 4  # header, separator, 2 data rows -- no extra rows from embedded newlines
+    assert "a \\| b" in md
+    assert "line1 line2" in md
+
+
 def test_note_table_picker_dialog_from_dataset(qapp):
     project = Project(name="Dataset Project")
     dataset = Dataset(name="Data 1")

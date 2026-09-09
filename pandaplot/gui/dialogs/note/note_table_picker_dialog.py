@@ -21,19 +21,29 @@ from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 
+def _escape_markdown_table_cell(val: object) -> str:
+    """Escape a value for safe embedding in a single Markdown table cell."""
+    if val is None or str(val) == "nan":
+        return ""
+    text = str(val)
+    text = text.replace("|", "\\|")
+    text = text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+    return text
+
+
 def dataset_to_markdown_table(dataset: Dataset, max_rows: Optional[int] = None) -> str:
     """Convert a Dataset item's DataFrame into a Markdown table string."""
     df = dataset.df
     if df is None or df.empty:
         return ""
     sub_df = df.iloc[:max_rows] if max_rows and len(df) > max_rows else df
-    headers = [str(col) for col in sub_df.columns]
+    headers = [_escape_markdown_table_cell(col) for col in sub_df.columns]
     header_row = "| " + " | ".join(headers) + " |"
     separator_row = "| " + " | ".join(["---"] * len(headers)) + " |"
     data_rows = []
     for _, row in sub_df.iterrows():
         data_rows.append(
-            "| " + " | ".join("" if val is None or str(val) == "nan" else str(val) for val in row) + " |"
+            "| " + " | ".join(_escape_markdown_table_cell(val) for val in row) + " |"
         )
     return "\n".join([header_row, separator_row] + data_rows)
 
