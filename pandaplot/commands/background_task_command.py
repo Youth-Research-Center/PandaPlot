@@ -85,16 +85,25 @@ class BackgroundTaskCommand(Command):
         self._is_running = True
 
         def _finished_wrapper():
-            try:
-                if on_finished:
-                    on_finished()
-            finally:
-                self._is_running = False
+            # Reset before invoking the caller's on_finished, not after: that
+            # callback may itself dispatch a new execution of this same
+            # command, which the re-entrancy guard must not reject.
+            self._is_running = False
+            if on_finished:
+                on_finished()
 
-        task_scheduler.run_task(
-            task=task,
-            task_arguments=task_arguments,
-            on_result=on_result,
-            on_error=on_error,
-            on_finished=_finished_wrapper,
-        )
+        try:
+            task_scheduler.run_task(
+                task=task,
+                task_arguments=task_arguments,
+                on_result=on_result,
+                on_error=on_error,
+                on_finished=_finished_wrapper,
+            )
+        except Exception:
+            # run_task can raise synchronously (e.g. reserved task_arguments
+            # keys) before ever scheduling the task -- _finished_wrapper never
+            # runs in that case, so reset here instead of leaving _is_running
+            # permanently stuck at True.
+            self._is_running = False
+            raise

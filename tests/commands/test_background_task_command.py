@@ -2,6 +2,8 @@
 
 from unittest.mock import Mock
 
+import pytest
+
 from pandaplot.commands.background_task_command import BackgroundTaskCommand
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.models.project.project import Project
@@ -99,4 +101,42 @@ def test_dispatch_task_lifecycle():
     # SyncTaskScheduler runs inline and finishes
     assert results == ["done"]
     assert finished_called == [True]
+    assert cmd._is_running is False
+
+
+def test_dispatch_task_resets_is_running_before_calling_on_finished():
+    """The re-entrancy guard must already be clear by the time on_finished
+    runs, so a callback that dispatches a follow-up execution isn't rejected
+    as re-entrant."""
+    scheduler = SyncTaskScheduler()
+    cmd = DummyBackgroundTaskCommand()
+
+    is_running_during_callback = []
+
+    def task(progress_callback):
+        return "done"
+
+    def _on_finished():
+        is_running_during_callback.append(cmd._is_running)
+
+    cmd._dispatch_task(scheduler, task=task, on_finished=_on_finished)
+
+    assert is_running_during_callback == [False]
+
+
+def test_dispatch_task_resets_is_running_on_synchronous_dispatch_failure():
+    """task_scheduler.run_task() can raise synchronously (e.g. reserved
+    task_arguments keys) before ever scheduling the task -- _is_running must
+    not be left stuck at True in that case, or every later execute() call is
+    permanently rejected as re-entrant."""
+    scheduler = SyncTaskScheduler()
+    cmd = DummyBackgroundTaskCommand()
+
+    def task(progress_callback, cancellation_token):
+        return "done"
+
+    assert cmd._is_running is False
+    with pytest.raises(ValueError):
+        cmd._dispatch_task(scheduler, task=task, task_arguments={"cancellation_token": None})
+
     assert cmd._is_running is False
