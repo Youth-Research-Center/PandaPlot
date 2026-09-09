@@ -911,25 +911,32 @@ class NoteEditorWidget(PWidget):
             self.update_preview()
 
     def on_project_item_changed_event(self, event_data: dict):
-        """Refresh preview if images in the project change.
+        """Refresh preview if images or charts in the project change.
 
         These add/remove/rename/move events are generic to every project
         item type, so without filtering, adding or renaming an unrelated
-        note/dataset/chart would also clear every decoded image and
+        note/dataset would also clear every decoded image/chart and
         immediately rerender -- for a note with a visible external gallery
         URL, that means a synchronous network fetch on the UI thread for a
-        change that has nothing to do with images at all.
+        change that has nothing to do with images or charts at all.
+
+        This also covers chart lifecycle changes (create/delete/undo) that
+        CHART_UPDATED does not: a deleted chart's rendered image would
+        otherwise stay cached (and visible in the note) indefinitely, and
+        undoing that deletion wouldn't restore it until some unrelated
+        refresh (see PR #383 review).
         """
-        if not self._event_affects_images(event_data):
+        if not self._event_affects_rendered_previews(event_data):
             return
-        # Added/removed/renamed/moved images invalidate cached decodes (an id
-        # could be reused by a new item, a rename changes its gallery path).
+        # Added/removed/renamed/moved images/charts invalidate cached
+        # decodes (an id could be reused by a new item, a rename changes its
+        # gallery path).
         self.preview.image_cache.clear()
         if self.stack.currentIndex() != 0:  # preview or split mode visible
             self.update_preview()
 
-    def _event_affects_images(self, event_data: dict) -> bool:
-        """Whether a PROJECT_ITEM_* event concerns an Image/ImageGallery.
+    def _event_affects_rendered_previews(self, event_data: dict) -> bool:
+        """Whether a PROJECT_ITEM_* event concerns an Image/ImageGallery/Chart.
 
         Payload shape differs per emitting command (image commands use
         "image_id"/"gallery_id"; generic add/remove/rename/move commands use
@@ -938,17 +945,17 @@ class NoteEditorWidget(PWidget):
         Falls back to looking the item up in the project when only a generic
         "item_id" is given and no type is present.
 
-        A generic Folder isn't itself an image, but one can contain an
-        ImageGallery (or nested Folder containing one) -- gallery-relative
-        paths include every ancestor folder name, so renaming/moving/
-        deleting such a folder changes or removes descendant images' paths
-        just as surely as touching the gallery directly.
+        A generic Folder isn't itself an image or chart, but one can contain
+        an ImageGallery/Chart (or nested Folder containing one) --
+        gallery-relative paths include every ancestor folder name, so
+        renaming/moving/deleting such a folder changes or removes descendant
+        images'/charts' paths just as surely as touching them directly.
         """
         if "image_id" in event_data or "gallery_id" in event_data:
             return True
 
         item_type = str(event_data.get("item_type", "")).lower()
-        if item_type in ("image", "imagegallery", "image_gallery", "gallery"):
+        if item_type in ("image", "imagegallery", "image_gallery", "gallery", "chart"):
             return True
 
         item_id = event_data.get("item_id")
@@ -961,21 +968,22 @@ class NoteEditorWidget(PWidget):
 
         item = project.find_item(item_id)
         if item is not None:
-            if isinstance(item, (Image, ImageGallery)):
+            if isinstance(item, (Image, ImageGallery, Chart)):
                 return True
             if isinstance(item, ItemCollection):
-                return self._collection_has_image_descendant(project, item)
+                return self._collection_has_rendered_preview_descendant(project, item)
             return False
 
         # The item no longer exists (a REMOVED event) -- fall back to the
         # deleted snapshot delete_item_command attaches, since it's the only
-        # place left to check whether the removed subtree held any images.
-        return self._snapshot_has_image_descendant(event_data.get("item_data"))
+        # place left to check whether the removed subtree held any images
+        # or charts.
+        return self._snapshot_has_rendered_preview_descendant(event_data.get("item_data"))
 
     @staticmethod
-    def _collection_has_image_descendant(project, collection: ItemCollection) -> bool:
+    def _collection_has_rendered_preview_descendant(project, collection: ItemCollection) -> bool:
         """Whether `collection` (a Folder/ImageGallery still in the project)
-        contains an Image/ImageGallery anywhere in its subtree."""
+        contains an Image/ImageGallery/Chart anywhere in its subtree."""
         collection_ids = {collection.id}
         # A second pass catches grandchildren etc.: collection_ids grows
         # every time a new descendant collection is found, so items whose
@@ -985,7 +993,7 @@ class NoteEditorWidget(PWidget):
             changed = False
             for item in project.get_all_items():
                 if item.parent_id in collection_ids and item.id not in collection_ids:
-                    if isinstance(item, (Image, ImageGallery)):
+                    if isinstance(item, (Image, ImageGallery, Chart)):
                         return True
                     if isinstance(item, ItemCollection):
                         collection_ids.add(item.id)
@@ -993,19 +1001,21 @@ class NoteEditorWidget(PWidget):
         return False
 
     @staticmethod
-    def _snapshot_has_image_descendant(item_data: Optional[dict]) -> bool:
+    def _snapshot_has_rendered_preview_descendant(item_data: Optional[dict]) -> bool:
         """Best-effort check of a deleted item's serialized snapshot
-        (Item.to_dict()) for an embedded Image.
+        (Item.to_dict()) for an embedded Image or Chart.
 
         There's no explicit "type" field in the serialized form, so this
-        looks for Image-specific keys (present only on Image.to_dict()).
+        looks for keys present only on Image.to_dict() or Chart.to_dict().
         """
         if not isinstance(item_data, dict):
             return False
         if "storage_mode" in item_data and "image_ext" in item_data:
             return True
+        if "chart_type" in item_data and "data_series" in item_data:
+            return True
         return any(
-            NoteEditorWidget._snapshot_has_image_descendant(child)
+            NoteEditorWidget._snapshot_has_rendered_preview_descendant(child)
             for child in item_data.get("items", [])
         )
 

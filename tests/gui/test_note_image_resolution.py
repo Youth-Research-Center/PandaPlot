@@ -505,6 +505,70 @@ def test_note_editor_refreshes_for_deleted_folder_snapshot_containing_image(qapp
         mock_update.assert_not_called()
 
 
+def test_note_editor_invalidates_cache_for_chart_deletion(qapp):
+    """Deleting a chart referenced by the note must drop its cached render,
+    not leave the note showing the deleted chart's stale image forever
+    (see PR #383 review)."""
+    chart = Chart(name="Doomed Chart")
+    project = Project(name="Test Project")
+    # The chart is already gone from the project by the time the REMOVED
+    # event arrives, matching how delete_item_command actually behaves.
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content=f"![Doomed Chart]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+    editor.preview.image_cache[chart.id] = QImage(5, 5, QImage.Format.Format_RGB32)
+
+    with patch.object(editor, "update_preview") as mock_update:
+        editor.on_project_item_changed_event(
+            {
+                "event": ProjectEvents.PROJECT_ITEM_REMOVED,
+                "item_id": chart.id,
+                "item_type": "chart",
+                "item_data": chart.to_dict(),
+            }
+        )
+        mock_update.assert_called_once()
+
+    assert chart.id not in editor.preview.image_cache
+
+
+def test_note_editor_invalidates_cache_for_deleted_chart_snapshot_without_item_type(qapp):
+    """Same as above, but exercising the deleted-snapshot fallback path (no
+    "item_type" in the payload, matching a generic delete_item_command)."""
+    chart = Chart(name="Doomed Chart")
+    project = Project(name="Test Project")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content=f"![Doomed Chart]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+    editor.preview.image_cache[chart.id] = QImage(5, 5, QImage.Format.Format_RGB32)
+
+    with patch.object(editor, "update_preview") as mock_update:
+        editor.on_project_item_changed_event(
+            {
+                "event": ProjectEvents.PROJECT_ITEM_REMOVED,
+                "item_id": chart.id,
+                "item_data": chart.to_dict(),
+            }
+        )
+        mock_update.assert_called_once()
+
+    assert chart.id not in editor.preview.image_cache
+
+
 def test_note_editor_export_pdf_registers_resources(qapp, tmp_path):
     project = Project(name="Test Project")
     png_bytes = create_test_png_bytes()
