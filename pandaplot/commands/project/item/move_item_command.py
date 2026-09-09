@@ -44,6 +44,15 @@ class MoveItemCommand(Command):
         # FAILURE, undo()'s existing behavior).
         self._recovery_attempted = False
 
+    @staticmethod
+    def _resolve_folder(project, folder_id: Optional[str]):
+        """Resolve a folder_id/'root' sentinel (as stored on this command) to
+        the actual folder item, for snapshotting its state before a
+        compensating rollback (see execute()/undo())."""
+        if folder_id is None or folder_id == "root":
+            return project.root
+        return project.find_item(folder_id)
+
     @override
     def execute(self) -> CommandResult:
         """Execute the move item command."""
@@ -110,8 +119,15 @@ class MoveItemCommand(Command):
                 else:
                     self.logger.debug(f"Found target folder: {target_folder.name} (type: {type(target_folder).__name__})")
 
-            # Remove item from current parent
-            project.remove_item(item)
+            # Snapshot the source folder's state before detaching, so a
+            # failed move can be rolled back as a true no-op (see except
+            # block below).
+            source_folder = self._resolve_folder(project, self.source_folder_id)
+            source_modified_at_before = source_folder.modified_at if source_folder is not None else None
+
+            # Detach item from its current parent. Unlike remove_item(),
+            # this doesn't tear down an ItemCollection's subtree (#374).
+            source_index = project.detach_item(item)
 
             # Add item to new parent
             # Convert 'root' string to None for project.add_item()
@@ -121,9 +137,14 @@ class MoveItemCommand(Command):
             except Exception:
                 # Don't leave the item orphaned (absent from both the source
                 # and target folder) if adding to the target fails -- put it
-                # back where it came from so the move is all-or-nothing.
+                # back exactly where it came from (same sibling position,
+                # same parent modified_at) so the move is all-or-nothing and
+                # the ABORTED result this raises into (see redo()) is an
+                # actual no-op, not just a membership restore.
                 rollback_parent_id = None if self.source_folder_id == "root" else self.source_folder_id
-                project.add_item(item, parent_id=rollback_parent_id)
+                project.add_item(item, parent_id=rollback_parent_id, index=source_index)
+                if source_folder is not None and source_modified_at_before is not None:
+                    source_folder.modified_at = source_modified_at_before
                 self._rolled_back = True
                 raise
 
@@ -163,8 +184,17 @@ class MoveItemCommand(Command):
                         # Get item name for better messages
                         item_name = getattr(item, "name", "Unnamed Item")
 
-                        # Remove item from current location
-                        project.remove_item(item)
+                        # Snapshot the target folder's state (where the item
+                        # currently sits) before detaching, so a failed
+                        # restore can be rolled back as a true no-op (see
+                        # except block below).
+                        target_folder = self._resolve_folder(project, self.target_folder_id)
+                        target_modified_at_before = target_folder.modified_at if target_folder is not None else None
+
+                        # Remove item from current location. Unlike
+                        # remove_item(), detach_item() doesn't tear down an
+                        # ItemCollection's subtree (#374).
+                        target_index = project.detach_item(item)
 
                         # Add item back to original location
                         # Convert 'root' string to None for project.add_item()
@@ -173,12 +203,15 @@ class MoveItemCommand(Command):
                             project.add_item(item, parent_id=parent_id_for_add)
                         except Exception:
                             # Don't leave the item orphaned if re-adding it to
-                            # its original folder fails -- put it back where
-                            # undo() found it (the target folder) so the undo
-                            # is all-or-nothing, same as execute()/redo().
+                            # its original folder fails -- put it back exactly
+                            # where undo() found it (same sibling position,
+                            # same parent modified_at) so the undo is
+                            # all-or-nothing, same as execute()/redo().
                             self._recovery_attempted = True
                             rollback_parent_id = None if self.target_folder_id == "root" else self.target_folder_id
-                            project.add_item(item, parent_id=rollback_parent_id)
+                            project.add_item(item, parent_id=rollback_parent_id, index=target_index)
+                            if target_folder is not None and target_modified_at_before is not None:
+                                target_folder.modified_at = target_modified_at_before
                             self._rolled_back = True
                             raise
 
@@ -254,7 +287,7 @@ class MoveItemCommand(Command):
 
         if result is CommandResult.FAILURE:
             # Every FAILURE execute() returns (rather than raises) happens
-            # before remove_item() ever runs -- i.e. nothing was mutated --
+            # before detach_item() ever runs -- i.e. nothing was mutated --
             # so this redo() attempt is itself a no-op. Report ABORTED so
             # CommandExecutor keeps this still-undone command on the redo
             # stack instead of moving it to the undo stack as if it had

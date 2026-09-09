@@ -426,6 +426,49 @@ class TestItemCollectionEdgeCases:
         assert child.parent_id == parent.id
         assert item.parent_id == child.id
 
+    def test_remove_item_returns_sibling_index(self):
+        """remove_item() returns the position the item held among its
+        siblings, so callers (e.g. MoveItemCommand's rollback) can restore
+        it exactly with add_item(index=...) (#374)."""
+        collection = ItemCollection()
+        item0 = Item(name="Item 0")
+        item1 = Item(name="Item 1")
+        item2 = Item(name="Item 2")
+        collection.add_item(item0)
+        collection.add_item(item1)
+        collection.add_item(item2)
+
+        assert collection.remove_item(item1) == 1
+        assert collection.remove_item(item0) == 0
+
+    def test_remove_item_returns_none_when_not_a_member(self, sample_items):
+        collection = ItemCollection()
+        assert collection.remove_item(sample_items["item1"]) is None
+
+    def test_add_item_with_index_inserts_at_position(self):
+        """add_item(index=...) inserts the item at that sibling position
+        instead of appending, restoring an item's exact prior order (#374)."""
+        collection = ItemCollection()
+        item0 = Item(name="Item 0")
+        item1 = Item(name="Item 1")
+        item2 = Item(name="Item 2")
+        collection.add_item(item0)
+        collection.add_item(item2)
+
+        collection.add_item(item1, index=1)
+
+        assert list(collection.items.keys()) == [item0.id, item1.id, item2.id]
+
+    def test_add_item_with_out_of_range_index_appends(self):
+        collection = ItemCollection()
+        item0 = Item(name="Item 0")
+        item1 = Item(name="Item 1")
+        collection.add_item(item0)
+
+        collection.add_item(item1, index=99)
+
+        assert list(collection.items.keys()) == [item0.id, item1.id]
+
     def test_move_item_between_collections(self):
         """Test moving an item from one collection to another."""
         collection1 = ItemCollection(name="Collection1")

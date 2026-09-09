@@ -439,6 +439,88 @@ class TestEdgeCases:
         assert len(sample_project.items_index) == 0  # Root is not in items_index
 
 
+class TestDetachItem:
+    """Test Project.detach_item() -- the non-destructive reparent primitive
+    added for #374 (moving a folder used to permanently delete its entire
+    descendant subtree, since remove_item() recursively tears down and
+    forgets an ItemCollection's children)."""
+
+    def test_detaching_a_leaf_item_removes_it_from_its_parent(self, sample_project):
+        folder = ItemCollection(name="Folder")
+        item = Item(name="Leaf")
+        sample_project.add_item(folder)
+        sample_project.add_item(item, folder.id)
+
+        sample_project.detach_item(item)
+
+        assert item not in folder.get_items()
+        assert item.parent_id is None
+        # Unlike remove_item(), detach_item() doesn't drop the item from the
+        # project -- it's meant to be re-added elsewhere.
+        assert item.id in sample_project.items_index
+
+    def test_detaching_a_folder_preserves_its_entire_subtree(self, sample_project):
+        """The core #374 bug: moving (detach + re-add) a non-empty folder
+        must not lose its children, grandchildren, etc."""
+        folder = ItemCollection(name="Folder")
+        child_note = Item(name="child note")
+        child_folder = ItemCollection(name="child folder")
+        grandchild = Item(name="grandchild")
+        sample_project.add_item(folder)
+        sample_project.add_item(child_note, folder.id)
+        sample_project.add_item(child_folder, folder.id)
+        sample_project.add_item(grandchild, child_folder.id)
+
+        sample_project.detach_item(folder)
+
+        assert folder.parent_id is None
+        assert folder.get_items() == [child_note, child_folder]
+        assert child_folder.get_items() == [grandchild]
+        assert child_note.id in sample_project.items_index
+        assert child_folder.id in sample_project.items_index
+        assert grandchild.id in sample_project.items_index
+
+    def test_move_via_detach_and_add_preserves_subtree_at_new_location(self, sample_project):
+        """End-to-end reproduction of the issue's repro script: detach_item()
+        + add_item() (what MoveItemCommand now does) must be a true
+        reparent, not a destructive remove_item() + add_item()."""
+        old_parent = ItemCollection(name="Old Parent")
+        new_parent = ItemCollection(name="New Parent")
+        folder = ItemCollection(name="F")
+        child = Item(name="child note")
+        sample_project.add_item(old_parent)
+        sample_project.add_item(new_parent)
+        sample_project.add_item(folder, old_parent.id)
+        sample_project.add_item(child, folder.id)
+
+        sample_project.detach_item(folder)
+        sample_project.add_item(folder, new_parent.id)
+
+        assert folder in new_parent.get_items()
+        assert folder not in old_parent.get_items()
+        assert folder.parent_id == new_parent.id
+        assert folder.get_items() == [child]
+        assert child.parent_id == folder.id
+        assert child.id in sample_project.items_index
+
+    def test_detach_returns_sibling_index_for_restoring_position(self, sample_project):
+        item0 = Item(name="Item 0")
+        item1 = Item(name="Item 1")
+        item2 = Item(name="Item 2")
+        sample_project.add_item(item0)
+        sample_project.add_item(item1)
+        sample_project.add_item(item2)
+
+        assert sample_project.detach_item(item1) == 1
+
+    def test_detach_item_not_attached_anywhere_returns_none(self, sample_project, sample_item):
+        assert sample_project.detach_item(sample_item) is None
+
+    def test_cannot_detach_root_item(self, sample_project):
+        with pytest.raises(ValueError, match="Cannot detach the root item"):
+            sample_project.detach_item(sample_project.root)
+
+
 class TestComplexScenarios:
     """Test complex real-world scenarios."""
     

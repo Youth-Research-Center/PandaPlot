@@ -64,18 +64,38 @@ class ItemCollection(Item):
     def __iter__(self):
         return iter(self.items.values())
     
-    def add_item(self, item: Item):
-        """Add an item to this collection."""
-        self.items[item.id] = item
+    def add_item(self, item: Item, index: Optional[int] = None):
+        """Add an item to this collection.
+
+        By default the item is appended after existing siblings. When
+        `index` is given, it's inserted at that position instead -- used to
+        restore an item's exact prior sibling position (e.g. when a move's
+        compensating rollback re-adds an item to the parent it just came
+        from, see #374).
+        """
         item.parent_id = self.id
+        if index is None or index >= len(self.items):
+            self.items[item.id] = item
+        else:
+            pairs = list(self.items.items())
+            pairs.insert(index, (item.id, item))
+            self.items = OrderedDict(pairs)
         self.update_modified_time()
 
-    def remove_item(self, item: Item):
-        """Remove an item from this collection."""
-        if item.id in self.items:
-            del self.items[item.id]
-            item.parent_id = None
-            self.update_modified_time()
+    def remove_item(self, item: Item) -> Optional[int]:
+        """Remove an item from this collection.
+
+        Returns the index the item held among its siblings (or None if it
+        wasn't a member), so callers can later restore its exact position
+        with add_item(index=...).
+        """
+        if item.id not in self.items:
+            return None
+        index = list(self.items.keys()).index(item.id)
+        del self.items[item.id]
+        item.parent_id = None
+        self.update_modified_time()
+        return index
     
     def remove_item_by_id(self, item_id: str):
         """Remove an item by ID from this collection."""

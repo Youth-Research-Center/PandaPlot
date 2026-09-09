@@ -37,27 +37,45 @@ class Project:
         # the user instead of the failure only showing up in the log.
         self.failed_item_ids: List[str] = []
 
-    def add_item(self, item: Item, parent_id: Optional[str] = None):
-        """Add an item to the project hierarchy."""
+    def add_item(self, item: Item, parent_id: Optional[str] = None, index: Optional[int] = None):
+        """Add an item to the project hierarchy.
+
+        `index`, when given, inserts the item at that position among its new
+        siblings instead of appending it (see ItemCollection.add_item()).
+        """
         if parent_id is None:
             # Add to root
-            self.root.add_item(item)
+            self.root.add_item(item, index=index)
         else:
             # Find parent and add item there
             parent = self.find_item(parent_id)
             if parent is not None and isinstance(parent, ItemCollection):
-                parent.add_item(item)
+                parent.add_item(item, index=index)
             else:
                 self.logger.warning(f"Parent {parent_id} not found or not a collection, item: {item.id} {item.name} ")
                 # If parent not found or not a collection, add to root
                 # TODO(#219): see if we need to handle this case differently, e.g. recursively search for a collection
-                self.root.add_item(item)
-        
+                self.root.add_item(item, index=index)
+
         # Update index
         self.items_index[item.id] = item
 
+    def _find_parent_collection(self, item: Item) -> Optional[ItemCollection]:
+        """Return the ItemCollection currently holding `item` (its parent, or
+        root when parent_id is unset or is the root), or None if its
+        recorded parent_id doesn't resolve to a real collection."""
+        if item.parent_id and item.parent_id != self.root.id:
+            parent = self.find_item(item.parent_id)
+            if parent is not None and isinstance(parent, ItemCollection):
+                return parent
+            return None
+        return self.root
+
     def remove_item(self, item: Item):
-        """Remove an item from the project hierarchy."""
+        """Remove an item -- and, for an ItemCollection, its entire subtree
+        -- from the project hierarchy. Descendants are dropped from
+        items_index too, so this is only for actually deleting an item, not
+        for reparenting one (use detach_item() + add_item() for that)."""
         if item.id == self.root.id:
             raise ValueError("Cannot remove the root item directly.")
 
@@ -67,24 +85,38 @@ class Project:
             child_items = list(item.get_items())
             for child_item in child_items:
                 self.remove_item(child_item)
-        
-        # Remove from parent
-        if item.parent_id:
-            # Check if parent is the root collection
-            if item.parent_id == self.root.id:
-                self.root.remove_item(item)
-            else:
-                # Find parent in the items index
-                parent = self.find_item(item.parent_id)
-                if parent and isinstance(parent, ItemCollection):
-                    parent.remove_item(item)
-        else:
-            # No parent_id means it should be in root
-            self.root.remove_item(item)
-        
+
+        parent = self._find_parent_collection(item)
+        if parent is not None:
+            parent.remove_item(item)
+
         # Remove from index
         if item.id in self.items_index:
             del self.items_index[item.id]
+
+    def detach_item(self, item: Item) -> Optional[int]:
+        """Detach `item` from its current parent so it can be reparented
+        elsewhere with add_item(), e.g. by MoveItemCommand.
+
+        Unlike remove_item(), this does not recurse into an ItemCollection's
+        own `items` -- its descendants (and their entries in items_index)
+        are left completely intact, so re-adding `item` elsewhere restores
+        its whole subtree instead of silently dropping it (#374).
+
+        Returns the index `item` held among its former siblings (or None if
+        it wasn't attached anywhere), so callers can restore its exact
+        position with add_item(index=...).
+        """
+        if item.id == self.root.id:
+            raise ValueError("Cannot detach the root item.")
+
+        parent = self._find_parent_collection(item)
+        if parent is None:
+            self.logger.warning(
+                f"Parent {item.parent_id} of item {item.id} not found or not a collection during detach"
+            )
+            return None
+        return parent.remove_item(item)
     
     def remove_item_by_id(self, item_id: str):
         """Remove an item by ID from the project."""
