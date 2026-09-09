@@ -1119,3 +1119,34 @@ class TestChartSignalAnalysisPanelQuickPlot:
 
         assert panel._deferred_chart_updates == []
         assert panel._generation > generation_before
+
+    def test_tab_change_replay_wins_over_a_stale_deferred_chart_update(self, panel):
+        """Regression: quick-plotting onto the current chart queues a
+        CHART_UPDATED for it, but the user can separately switch to a
+        non-chart tab (note, dataset, ...) in the same pending window --
+        an unrelated action, not caused by this dispatch. Replaying the
+        stale chart-update *after* the tab change would rebind
+        current_chart_id back to the chart that update refers to, even
+        though the tab change is the more recent, more authoritative
+        signal of where the user actually is now. Chart updates must
+        replay first, tab change last, so the tab change's context wins."""
+        command = Mock()
+        command.plot_result = True
+        command.plot_target_chart_id = panel.current_chart_id
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+        panel._build_command = lambda: command
+        panel.add_results_to_project()
+
+        panel._on_chart_updated({"chart": panel.current_chart, "update_type": "series_added"})
+        assert len(panel._deferred_chart_updates) == 1
+
+        # The user switches away to a non-chart tab, unrelated to this dispatch.
+        panel._on_tab_changed({"tab_type": "note"})
+        assert panel._deferred_tab_change is not None
+
+        command.on_complete(CommandResult.SUCCESS)
+
+        assert panel._deferred_chart_updates == []
+        assert panel._deferred_tab_change is None
+        assert panel.current_chart is None
+        assert panel.current_chart_id is None

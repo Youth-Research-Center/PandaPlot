@@ -551,16 +551,26 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             else:
                 self.add_btn.setEnabled(True)  # let the user retry
 
-            if self._deferred_tab_change is not None:
-                deferred = self._deferred_tab_change
-                self._deferred_tab_change = None
-                self._on_tab_changed(deferred)
-
+            # Chart-update replay must run before the tab-change replay:
+            # both can be queued together (quick-plotting onto the current
+            # chart, while the user separately switches away to a
+            # non-chart tab mid-flight), and a chart-updated event replayed
+            # after the tab change would rebind current_chart/
+            # current_chart_id back to the chart the (now-stale) queued
+            # event refers to -- overriding the tab change's more
+            # authoritative, more recent signal of where the user actually
+            # is now. Replaying chart updates first and the tab change last
+            # lets the final tab event settle the panel's real context.
             if self._deferred_chart_updates:
                 deferred_updates = self._deferred_chart_updates
                 self._deferred_chart_updates = []
                 for event in deferred_updates:
                     self._on_chart_updated(event)
+
+            if self._deferred_tab_change is not None:
+                deferred = self._deferred_tab_change
+                self._deferred_tab_change = None
+                self._on_tab_changed(deferred)
 
         command.on_complete = _on_complete
         executor = self.app_context.get_command_executor()
@@ -575,15 +585,17 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             self.add_btn.setEnabled(True)
             self._pending_command = None
             self._pending_quick_plot = False
-            if self._deferred_tab_change is not None:
-                deferred = self._deferred_tab_change
-                self._deferred_tab_change = None
-                self._on_tab_changed(deferred)
+            # Same replay-ordering reason as in _on_complete above: chart
+            # updates first, tab change last.
             if self._deferred_chart_updates:
                 deferred_updates = self._deferred_chart_updates
                 self._deferred_chart_updates = []
                 for event in deferred_updates:
                     self._on_chart_updated(event)
+            if self._deferred_tab_change is not None:
+                deferred = self._deferred_tab_change
+                self._deferred_tab_change = None
+                self._on_tab_changed(deferred)
 
     def clear(self):
         if hasattr(self, "results_text"):
