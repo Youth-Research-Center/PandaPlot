@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pandaplot.analysis import AnalysisType
+from pandaplot.analysis import AnalysisType, SignalAnalysisResult, SignalAnalysisType
 from pandaplot.commands import CommandExecutor, CompositeCommand
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart import AddAnalysisSeriesCommand, CreateChartWithAnalysisSeriesCommand
@@ -15,6 +15,9 @@ from pandaplot.commands.project.chart.analyze_chart_series_command import (
 )
 from pandaplot.commands.project.chart.create_chart_with_analysis_series_command import (
     build_quick_plot_command,
+)
+from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
+    ApplySignalAnalysisResultCommand,
 )
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.project.items.chart import Chart
@@ -131,6 +134,41 @@ class TestCreateChartWithAnalysisSeriesCommand:
 
         assert command.execute() is CommandResult.FAILURE
         assert command.created_chart_id is None
+
+    def test_rolls_back_the_new_chart_when_the_result_is_not_plottable(self, ctx):
+        """The inner composite is [CreateChartCommand, AddAnalysisSeriesCommand]
+        -- if AddAnalysisSeriesCommand fails (e.g. an STFT result, which
+        isn't a single (x, y) curve), the just-created chart must be rolled
+        back too, not left behind as an empty chart with nothing plotted."""
+        app_context, project, chart = ctx
+
+        result_df = pd.DataFrame({
+            "Frequency (Hz)": [1.0, 2.0],
+            "Time (s)": [0.0, 0.1],
+            "Magnitude": [0.5, 0.7],
+        })
+        signal_result = SignalAnalysisResult(
+            analysis_type=SignalAnalysisType.STFT,
+            analysis_name="Short-Time Fourier Transform (STFT)",
+            source_columns=["y"],
+            data=result_df,
+        )
+        apply_cmd = ApplySignalAnalysisResultCommand(
+            app_context, result_name="STFT Result", folder_id=chart.parent_id, result=signal_result,
+        )
+
+        command = CreateChartWithAnalysisSeriesCommand(
+            app_context, folder_id=chart.parent_id, dataset_command=apply_cmd,
+        )
+        composite = CompositeCommand([apply_cmd, command])
+        executor = CommandExecutor(app_context)
+
+        assert executor.execute_command(composite) is False
+
+        assert apply_cmd.result_dataset_id is not None
+        assert project.find_item(apply_cmd.result_dataset_id) is None
+        assert command.created_chart_id is not None
+        assert project.find_item(command.created_chart_id) is None
 
 
 class TestBuildQuickPlotCommand:
