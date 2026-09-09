@@ -388,11 +388,23 @@ class ChartPropertiesPanel(SidebarPanel):
     def _on_dirty_only(self):
         """Mark dirty and refresh the footer without publishing
         CHART_UPDATED -- used for edits that pre-refactor never published
-        for (see `DataTab.dirtyOnly`)."""
+        for (see `DataTab.dirtyOnly`).
+
+        Still publishes the (previously unwired) CHART_DATA_UPDATED, a
+        lighter-weight signal with no other current subscribers, purely so
+        anything caching a rendered snapshot of this chart elsewhere (e.g.
+        a note's embedded chart preview) can invalidate that one entry.
+        This is intentionally a separate event from CHART_UPDATED so it
+        doesn't reintroduce the CHART_UPDATED-per-keystroke behavior this
+        signal was split off to avoid.
+        """
         if not self.current_chart:
             return
         self._has_unsaved_changes = True
         self._update_status_indicator()
+        self.publish_event(ChartEvents.CHART_DATA_UPDATED, {
+            "chart_id": self.current_chart.id,
+        })
 
     def _update_status_indicator(self):
         """Update the footer to reflect unsaved changes."""

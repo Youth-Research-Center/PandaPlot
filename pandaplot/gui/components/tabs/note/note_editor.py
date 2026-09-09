@@ -880,6 +880,12 @@ class NoteEditorWidget(PWidget):
         # Subscribe to chart and dataset events to update chart/table previews
         self.subscribe_to_event(
             ChartEvents.CHART_UPDATED, self.on_chart_or_dataset_changed_event)
+        # CHART_DATA_UPDATED covers series dataset/column/axis edits, which
+        # are deliberately "dirty only" for CHART_UPDATED's purposes (see
+        # DataTab.dirtyOnly) but still change what a chart actually renders,
+        # so a note's cached preview needs the same invalidation.
+        self.subscribe_to_event(
+            ChartEvents.CHART_DATA_UPDATED, self.on_chart_or_dataset_changed_event)
         self.subscribe_to_event(
             DatasetEvents.DATASET_CHANGED, self.on_chart_or_dataset_changed_event)
 
@@ -891,8 +897,8 @@ class NoteEditorWidget(PWidget):
         the whole cache on every change anywhere in the project would force
         every chart referenced by the currently open note to re-render on the
         next preview tick. Instead, drop only the specific chart's entry
-        (CHART_UPDATED) or the entries for charts that actually use the
-        changed dataset (DATASET_CHANGED).
+        (CHART_UPDATED/CHART_DATA_UPDATED) or the entries for charts that
+        actually use the changed dataset (DATASET_CHANGED).
         """
         chart_id = event_data.get("chart_id")
         if chart_id is not None:

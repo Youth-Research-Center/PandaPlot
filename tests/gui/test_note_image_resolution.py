@@ -19,7 +19,7 @@ from pandaplot.gui.components.tabs.note.note_editor import (
     register_project_image_resources,
 )
 from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePickerDialog
-from pandaplot.models.events.event_types import ProjectEvents, ThemeEvents
+from pandaplot.models.events.event_types import ChartEvents, ProjectEvents, ThemeEvents
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
 from pandaplot.services.qtasks import TaskScheduler
@@ -421,6 +421,27 @@ def test_note_editor_subscribes_to_project_item_content_changed(qapp, tmp_path):
         call.args[0] for call in app_context.event_bus.subscribe.call_args_list
     ]
     assert ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED in subscribed_events
+
+
+def test_note_editor_subscribes_to_chart_data_updated(qapp):
+    """Series dataset/column/axis edits publish CHART_DATA_UPDATED, not
+    CHART_UPDATED (see ChartPropertiesPanel._on_dirty_only) -- the editor
+    must subscribe to it too, or a note's cached chart render goes stale
+    until the user clicks Apply in the chart properties panel."""
+    project = Project(name="Test Project")
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content="")
+    NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    subscribed_events = [
+        call.args[0] for call in app_context.event_bus.subscribe.call_args_list
+    ]
+    assert ChartEvents.CHART_DATA_UPDATED in subscribed_events
 
 
 def test_note_editor_refreshes_for_folder_containing_gallery(qapp, tmp_path):
