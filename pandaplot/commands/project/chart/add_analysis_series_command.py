@@ -2,6 +2,7 @@
 
 from typing import Optional, override
 
+from pandaplot.analysis import SignalAnalysisType
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.add_series_command import AddSeriesCommand
 from pandaplot.commands.project.current_project import get_current_project
@@ -68,26 +69,38 @@ class AddAnalysisSeriesCommand(Command):
             )
             return CommandResult.FAILURE
 
+        # Result datasets follow "first two columns are the (x, y) curve,
+        # any further columns are optional per-point metadata" -- e.g. Peak
+        # Detection always leads with Index/Value and only conditionally
+        # appends Height/Prominence/threshold columns depending on which
+        # scipy properties were requested, so a >2-column result is normal
+        # there and the trailing columns should just be ignored. STFT is the
+        # one exception: its 3 columns (Frequency, Time, Magnitude) are
+        # jointly meaningful and don't decompose into a first-two-columns
+        # (x, y) pair at all -- reject it specifically, rather than
+        # rejecting every result with more than 2 columns.
+        signal_result = getattr(self.dataset_command, "result", None)
+        is_stft = getattr(signal_result, "analysis_type", None) == SignalAnalysisType.STFT
+
         cols = list(dataset.data.columns)
-        if len(cols) == 2:
-            x_name, y_name = cols[0], cols[1]
-        elif len(cols) == 1:
-            x_name, y_name = "", cols[0]
-        else:
-            # Anything other than exactly one or two columns (e.g. STFT's
-            # 3-column Frequency/Time/Magnitude output) isn't a single (x,
-            # y) curve -- taking the first two columns anyway would
-            # silently plot a nonsensical pair and drop the rest. The UI
-            # already disables the "Plot result" checkbox for these result
-            # shapes (see ChartSignalAnalysisPanel's STFT check), but this
-            # command can also be reached by constructing
+        if is_stft:
+            # The UI already disables the "Plot result" checkbox for STFT
+            # (see ChartSignalAnalysisPanel's STFT check), but this command
+            # can also be reached by constructing
             # ChartSignalAnalysisCommand(..., plot_result=True) directly,
             # bypassing that checkbox -- fail here too rather than relying
             # solely on UI state.
             self.logger.warning(
-                "AddAnalysisSeriesCommand: dataset '%s' has %d columns, not a single (x, y) curve",
-                dataset_id, len(cols),
+                "AddAnalysisSeriesCommand: dataset '%s' is an STFT result, not a single (x, y) curve",
+                dataset_id,
             )
+            return CommandResult.FAILURE
+        elif len(cols) >= 2:
+            x_name, y_name = cols[0], cols[1]
+        elif len(cols) == 1:
+            x_name, y_name = "", cols[0]
+        else:
+            self.logger.warning("AddAnalysisSeriesCommand: dataset '%s' has no columns", dataset_id)
             return CommandResult.FAILURE
 
         x_id = dataset.column_id(x_name) if x_name else ""

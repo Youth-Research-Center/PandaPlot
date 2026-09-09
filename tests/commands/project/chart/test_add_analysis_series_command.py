@@ -206,6 +206,52 @@ class TestAddAnalysisSeriesCommand:
         assert apply_cmd.result_dataset_id is not None
         assert project.find_item(apply_cmd.result_dataset_id) is None
 
+    def test_plots_index_value_pair_for_peaks_result_with_extra_property_columns(self, ctx):
+        """Regression: Peak Detection always leads with Index/Value, but
+        conditionally appends Height/Prominence/threshold columns whenever
+        the corresponding scipy property was requested -- which the panel's
+        parameter widgets always supply a value for, so a normal Peak
+        Detection quick-plot commit routinely has more than 2 columns. A
+        blanket "reject anything but exactly 2 columns" guard (added to
+        close the STFT gap) would wrongly roll back every such commit even
+        though PEAKS remains a perfectly plottable (x, y) result -- only
+        STFT's genuinely 3-dimensional shape should be rejected."""
+        app_context, project, chart = ctx
+        executor = CommandExecutor(app_context)
+
+        result_df = pd.DataFrame({
+            "Index": [10, 20],
+            "Value": [1.5, 2.5],
+            "Height": [1.5, 2.5],
+            "Prominence": [0.3, 0.4],
+        })
+        signal_result = SignalAnalysisResult(
+            analysis_type=SignalAnalysisType.PEAKS,
+            analysis_name="Peak Detection",
+            source_columns=["y"],
+            data=result_df,
+        )
+
+        apply_cmd = ApplySignalAnalysisResultCommand(
+            app_context,
+            result_name="Peaks Result",
+            folder_id=chart.parent_id,
+            result=signal_result,
+        )
+        add_series_cmd = AddAnalysisSeriesCommand(
+            app_context,
+            chart_id="chart-1",
+            dataset_command=apply_cmd,
+        )
+        composite = CompositeCommand([apply_cmd, add_series_cmd])
+
+        assert executor.execute_command(composite) is True
+
+        assert len(chart.data_series) == 2
+        new_series = chart.data_series[1]
+        assert new_series.x_column == "Index"
+        assert new_series.y_column == "Value"
+
     def test_add_analysis_series_with_signal_apply_command(self, ctx):
         app_context, project, chart = ctx
         executor = CommandExecutor(app_context)
