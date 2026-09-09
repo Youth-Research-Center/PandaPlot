@@ -55,12 +55,19 @@ def dataset_to_markdown_table(dataset: Dataset, max_rows: Optional[int] = None) 
 
 
 def custom_to_markdown_table(rows: int, cols: int, *, include_header: bool = True) -> str:
-    """Generate a custom blank Markdown table string."""
-    lines = []
-    if include_header:
-        headers = [f"Header {i+1}" for i in range(cols)]
-        lines.append("| " + " | ".join(headers) + " |")
-        lines.append("| " + " | ".join(["---"] * cols) + " |")
+    """Generate a custom blank Markdown table string.
+
+    A Markdown table requires a header row followed by a delimiter row as
+    its first two lines regardless of whether the header labels should be
+    visible -- without them, a renderer treats the remaining lines as plain
+    text rather than a table. When `include_header` is False the header
+    row's cells are just left blank instead of being omitted.
+    """
+    headers = [f"Header {i+1}" for i in range(cols)] if include_header else [""] * cols
+    lines = [
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join(["---"] * cols) + " |",
+    ]
     for _r in range(rows):
         cells = ["Cell" for _ in range(cols)]
         lines.append("| " + " | ".join(cells) + " |")

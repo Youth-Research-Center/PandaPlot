@@ -78,6 +78,16 @@ def test_custom_to_markdown_table():
     assert md == expected
 
 
+def test_custom_to_markdown_table_without_header_still_has_blank_header_and_delimiter():
+    md = custom_to_markdown_table(rows=1, cols=2, include_header=False)
+    expected = (
+        "|  |  |\n"
+        "| --- | --- |\n"
+        "| Cell | Cell |"
+    )
+    assert md == expected
+
+
 def test_dataset_to_markdown_table():
     dataset = Dataset(name="Sample Data")
     dataset.df = pd.DataFrame({"X": [1, 2, 3], "Y": [10, 20, 30]})
@@ -90,6 +100,21 @@ def test_dataset_to_markdown_table():
     md_limited = dataset_to_markdown_table(dataset, max_rows=1)
     assert "| 1 | 10 |" in md_limited
     assert "| 2 | 20 |" not in md_limited
+
+
+def test_custom_to_markdown_table_without_header_is_still_a_valid_table():
+    """A Markdown table needs a header + delimiter row structurally, even
+    when the user doesn't want visible header labels -- otherwise the
+    "table" is just plain pipe-delimited text lines to any Markdown
+    renderer (see PR #383 review)."""
+    from markdown import markdown
+
+    md = custom_to_markdown_table(rows=2, cols=2, include_header=False)
+    lines = md.split("\n")
+
+    assert lines[1] == "| --- | --- |"  # delimiter row must be the second line
+    html = markdown(md, extensions=["tables"])
+    assert "<table>" in html
 
 
 def test_dataset_to_markdown_table_escapes_pipes_and_newlines():
