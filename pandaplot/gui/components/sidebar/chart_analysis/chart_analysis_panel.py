@@ -482,6 +482,17 @@ class ChartAnalysisPanel(SidebarPanel):
 
     def _on_chart_updated(self, event_data):
         chart = event_data.get("chart")
+        if chart is None:
+            # Some emitters (e.g. ChartPropertiesPanel's live-edit publish,
+            # which fires on every properties-tab change including a
+            # chart-type retype) only send chart_id, not the Chart object
+            # itself -- resolve it from the project so this handler (and
+            # its combo-refresh branch below) still fires for those.
+            chart_id = event_data.get("chart_id")
+            if chart_id:
+                project = self.app_context.get_app_state().current_project
+                found = project.find_item(chart_id) if project else None
+                chart = found if isinstance(found, Chart) else None
         if not chart or (self.current_chart_id and chart.id != self.current_chart_id):
             # A different chart's own update (rename/retype/etc.) doesn't
             # change this panel's context, but can change whether that chart

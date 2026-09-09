@@ -1003,6 +1003,40 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert panel.plot_target_combo.currentData() == "chart-2"
         assert panel.plot_target_combo.currentText() == "Renamed"
 
+    def test_chart_updated_with_only_chart_id_refreshes_destination_combo_for_a_different_chart(
+        self, panel, project
+    ):
+        """ChartPropertiesPanel's live-edit publish (e.g. retyping a chart
+        via the Properties panel) sends only chart_id, not the Chart object
+        itself -- must still resolve it from the project so a different
+        chart's retype is reflected in the destination combo."""
+        other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
+        project.add_item(other_chart)
+        panel._populate_sources()
+        index = panel.plot_target_combo.findData("chart-2")
+        panel.plot_target_combo.setCurrentIndex(index)
+
+        other_chart.chart_type = ChartType.HIST  # retyped to an incompatible type
+        panel._on_chart_updated({"chart_id": "chart-2", "update_type": "config_updated"})
+
+        assert panel.plot_target_combo.currentData() is None
+
+    def test_chart_updated_with_only_chart_id_still_refreshes_the_current_chart(self, panel):
+        """Same chart_id-only payload shape, but for the panel's own
+        current chart -- must still trigger the normal refresh path."""
+        calls = []
+        original = panel._populate_sources
+
+        def _spy(*, invalidate=True):
+            calls.append(invalidate)
+            original(invalidate=invalidate)
+
+        panel._populate_sources = _spy
+
+        panel._on_chart_updated({"chart_id": "chart-1", "update_type": "config_updated"})
+
+        assert calls == [True]
+
     def test_destination_combo_refreshes_when_a_different_chart_is_moved(self, panel, project):
         from pandaplot.models.project.items.folder import Folder
         source_folder = Folder(id="f-src", name="Src")
