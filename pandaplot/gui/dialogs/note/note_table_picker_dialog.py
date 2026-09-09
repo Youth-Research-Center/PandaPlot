@@ -54,7 +54,7 @@ def dataset_to_markdown_table(dataset: Dataset, max_rows: Optional[int] = None) 
     return "\n".join([header_row, separator_row] + data_rows)
 
 
-def custom_to_markdown_table(rows: int, cols: int, include_header: bool = True) -> str:  # noqa: FBT001, FBT002
+def custom_to_markdown_table(rows: int, cols: int, *, include_header: bool = True) -> str:
     """Generate a custom blank Markdown table string."""
     lines = []
     if include_header:
