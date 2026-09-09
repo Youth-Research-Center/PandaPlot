@@ -2,6 +2,7 @@
 
 from typing import List, Optional, override
 
+import pandas as pd
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -24,7 +25,11 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 
 def _escape_markdown_table_cell(val: object) -> str:
     """Escape a value for safe embedding in a single Markdown table cell."""
-    if val is None or str(val) == "nan":
+    # pd.isna, not a string comparison: a literal string "nan" is a real
+    # cell value, not a missing one (see PandasTableModel.data / PR #383
+    # review, and tests/gui/test_pandas_table_model.py's
+    # test_literal_nan_string_displays_as_nan for the same distinction).
+    if val is None or (not isinstance(val, (list, dict)) and pd.isna(val)):
         return ""
     text = str(val)
     text = text.replace("|", "\\|")

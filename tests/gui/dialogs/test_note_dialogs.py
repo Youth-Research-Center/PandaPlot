@@ -107,6 +107,19 @@ def test_dataset_to_markdown_table_escapes_pipes_and_newlines():
     assert "line1 line2" in md
 
 
+def test_dataset_to_markdown_table_preserves_literal_nan_string():
+    dataset = Dataset(name="Mixed Data")
+    dataset.df = pd.DataFrame({
+        "Label": ["nan", "real value"],
+        "Value": [float("nan"), 2],
+    })
+
+    md = dataset_to_markdown_table(dataset)
+
+    assert "| nan |  |" in md  # literal string "nan" preserved as a real cell value
+    assert "| real value | 2.0 |" in md  # a true NaN elsewhere still renders as an empty cell
+
+
 def test_note_table_picker_no_datasets_label_uses_theme_palette(qapp):
     project = Project(name="Empty Dataset Project")
     app_context = _create_mock_app_context(project)
