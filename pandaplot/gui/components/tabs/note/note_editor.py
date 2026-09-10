@@ -65,6 +65,12 @@ _LINK_DEFINITION_RE = re.compile(r"^[ \t]{0,3}\[([^\]]+)\]:\s*(?:<([^>]*)>|(\S+)
 # edit/remove the `=WxH` modifier by hand.
 _DEFAULT_INSERT_MAX_WIDTH = 500
 
+# How long to wait, after the last chart/dataset change event, before
+# actually re-rendering the preview -- coalesces rapid-fire edits (typing
+# into a linked dataset cell fires one of these per keystroke/commit) into a
+# single synchronous chart re-render instead of one per edit.
+_CHART_PREVIEW_REFRESH_DEBOUNCE_MS = 400
+
 
 def get_project_base_dir(app_context: AppContext) -> str:
     """Get base directory for relative path resolution based on current project path."""
@@ -427,6 +433,19 @@ class NoteEditorWidget(PWidget):
         self.auto_save_timer = QTimer()
         self.auto_save_timer.timeout.connect(self.auto_save)
         self.auto_save_timer.setSingleShot(True)
+
+        # Debounces update_preview() calls triggered by chart/dataset
+        # change events (as opposed to the user editing the note's own
+        # text): chart rendering is synchronous (a full ChartEditorWidget is
+        # built and rasterised via matplotlib -- see load_qimage_for_chart),
+        # so re-rendering immediately on every keystroke/cell-edit to a
+        # linked dataset stalls the UI on every single one. Coalescing
+        # rapid-fire edits into one re-render after a short pause keeps
+        # editing responsive while the note preview still catches up
+        # quickly once editing stops (see PR #383 follow-up).
+        self._chart_preview_refresh_timer = QTimer()
+        self._chart_preview_refresh_timer.timeout.connect(self.update_preview)
+        self._chart_preview_refresh_timer.setSingleShot(True)
 
         # Since we can't check if the preview is connected, track it with a flag
         self.preview_connected = False
@@ -915,7 +934,17 @@ class NoteEditorWidget(PWidget):
             self._invalidate_chart_cache_for_dataset(dataset_id)
 
         if self.stack.currentIndex() != 0:
-            self.update_preview()
+            self._schedule_chart_preview_refresh()
+
+    def _schedule_chart_preview_refresh(self) -> None:
+        """Debounced update_preview(), restarting the wait on every call.
+
+        Only the last call in a rapid burst (e.g. typing into a linked
+        dataset cell, which fires a chart/dataset change event per
+        keystroke/commit) actually triggers a re-render, instead of one
+        synchronous chart rebuild per edit.
+        """
+        self._chart_preview_refresh_timer.start(_CHART_PREVIEW_REFRESH_DEBOUNCE_MS)
 
     def _invalidate_chart_cache_for_dataset(self, dataset_id: str) -> None:
         """Drop the cached render of every Chart that plots `dataset_id`."""

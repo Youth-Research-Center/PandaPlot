@@ -1208,6 +1208,36 @@ def test_dataset_change_event_only_invalidates_charts_using_that_dataset(qapp):
     assert chart_unrelated.id in editor.preview.image_cache
 
 
+def test_chart_or_dataset_change_debounces_preview_refresh(qapp, qtbot):
+    """Editing a linked dataset fires a chart/dataset change event per
+    keystroke/cell-commit; each one used to call update_preview()
+    synchronously, and update_preview() eagerly re-renders every
+    referenced chart (a full ChartEditorWidget + matplotlib savefig,
+    on the GUI thread -- see load_qimage_for_chart), stalling editing on
+    every single edit. A burst of rapid-fire events must coalesce into
+    exactly one re-render, not one per event."""
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+
+    with patch.object(editor, "update_preview") as mock_update:
+        for _ in range(5):
+            editor.on_chart_or_dataset_changed_event({"chart_id": chart.id})
+        mock_update.assert_not_called()  # debounced, not synchronous
+        qtbot.wait(600)  # past the debounce delay
+        mock_update.assert_called_once()
+
+
 def test_note_editor_registers_chart_resources(qapp):
     """Test registering chart images as resources for note documents."""
     chart = Chart(name="Chart 1")
