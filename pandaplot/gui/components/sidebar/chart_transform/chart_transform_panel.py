@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMenu,
-    QScrollArea,
     QTextEdit,
     QToolButton,
     QVBoxLayout,
@@ -30,13 +29,20 @@ from pandaplot.commands.project.chart.transform_chart_series_command import (
     TransformChartSeriesCommand,
 )
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
+    ChartSeriesContextMixin,
+)
+from pandaplot.gui.components.sidebar.chart.series_result_messages import (
+    format_apply_failure,
+    format_preview_error,
+    format_series_result_preview,
+)
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
-    find_series_fit_combo_index,
     populate_series_fit_sources,
     series_source_hint,
 )
-from pandaplot.gui.core.widget_extension import PWidget
-from pandaplot.models.events import ChartEvents, UIEvents
+from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -53,7 +59,7 @@ _EXPRESSION_REFERENCE_HTML = (
 )
 
 
-class ChartTransformPanel(PWidget):
+class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for expression transforms on chart data/fit series."""
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
@@ -67,17 +73,8 @@ class ChartTransformPanel(PWidget):
 
     @override
     def _init_ui(self):
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(8)
-
-        self.title_label = QLabel("🔧 Chart Transform")
-        main_layout.addWidget(self.title_label)
-
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._init_panel_layout()
+        self._set_title("🔧 Chart Transform")
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
@@ -92,8 +89,7 @@ class ChartTransformPanel(PWidget):
         self._create_action_buttons(content_layout)
         content_layout.addStretch()
 
-        scroll_area.setWidget(content)
-        main_layout.addWidget(scroll_area)
+        self._set_content(content, scrollable=True)
 
     def _create_source_section(self, layout):
         group = QGroupBox("Series")
@@ -166,17 +162,8 @@ class ChartTransformPanel(PWidget):
         layout.addWidget(group)
 
     def _build_function_menu(self) -> QMenu:
-        menu = QMenu(self)
-        for category, entries in expression_engine.get_transformation_templates().items():
-            submenu = menu.addMenu(category)
-            for entry in entries:
-                action = submenu.addAction(entry["name"])
-                action.setToolTip(f"{entry['description']}  →  {entry['code']}")
-                action.triggered.connect(
-                    lambda _checked=False, code=entry["code"]: self._insert_function_code(code)
-                )
-        menu.setToolTipsVisible(True)
-        return menu
+        templates = expression_engine.get_transformation_templates()
+        return build_function_menu(self, templates, on_insert=self._insert_function_code)
 
     def _insert_function_code(self, code: str):
         """Insert a template's code, rewritten to the current Target axis.
@@ -268,17 +255,14 @@ class ChartTransformPanel(PWidget):
             return
         try:
             df, default_name = command.run_transform()
-            lines = [
+            header_lines = [
                 f"Target: {self.target_combo.currentText()}",
                 f"Series: {self.source_combo.currentText()}",
                 f"Result: {len(df)} points → dataset '{self.result_name.text().strip() or default_name}'",
-                "",
-                "First rows:",
-                df.head(5).to_string(index=False),
             ]
-            self.preview_text.setText("\n".join(lines))
+            self.preview_text.setText(format_series_result_preview(header_lines, df))
         except Exception as e:
-            self.preview_text.setText(f"❌ Preview error: {e}")
+            self.preview_text.setText(format_preview_error(e))
 
     def apply(self):
         command = self._make_command()
@@ -290,9 +274,7 @@ class ChartTransformPanel(PWidget):
                 "✅ Created a new dataset and added it to the chart as a series."
             )
         else:
-            self.preview_text.setText(
-                "❌ Could not transform the series. See the log for details."
-            )
+            self.preview_text.setText(format_apply_failure("transform"))
 
     def clear_inputs(self):
         self.result_name.clear()
@@ -319,45 +301,7 @@ class ChartTransformPanel(PWidget):
 
     @override
     def setup_event_subscriptions(self):
-        self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
-        self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
-        self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
-
-    def _on_series_selected_event(self, event_data):
-        """Clicking a series/fit on the chart canvas or its legend also
-        selects it here, so switching from "look at it" to "transform it"
-        doesn't require re-finding the same entry in this combo."""
-        chart_id = event_data.get("chart_id")
-        if self.current_chart_id is None or chart_id != self.current_chart_id:
-            return
-        kind = event_data.get("kind")
-        index = event_data.get("index")
-        if kind is None or index is None:
-            return
-        combo_index = find_series_fit_combo_index(self.source_combo, kind, index)
-        if combo_index >= 0:
-            self.source_combo.setCurrentIndex(combo_index)
-
-    def _on_tab_changed(self, event_data):
-        if event_data.get("tab_type") == "chart":
-            chart_id = event_data.get("tab_id")
-            self.current_chart_id = chart_id
-            project = self.app_context.get_app_state().current_project
-            chart = project.find_item(chart_id) if project and chart_id else None
-            self.current_chart = chart if isinstance(chart, Chart) else None
-        else:
-            self.current_chart = None
-            self.current_chart_id = None
-        self._populate_sources()
-
-    def _on_chart_updated(self, event_data):
-        chart = event_data.get("chart")
-        if not chart or (self.current_chart_id and chart.id != self.current_chart_id):
-            return
-        if isinstance(chart, Chart):
-            self.current_chart = chart
-            self.current_chart_id = chart.id
-            self._populate_sources()
+        self.setup_chart_series_context_subscriptions()
 
     @override
     def _apply_theme(self):
@@ -391,16 +335,7 @@ class ChartTransformPanel(PWidget):
                 background-color: {card_bg};
             }}
         """)
-        self.title_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 14px;
-                font-weight: bold;
-                color: {base_fg};
-                padding: 5px;
-                background-color: {card_border};
-                border-radius: 3px;
-            }}
-        """)
+        self._apply_title_theme(base_fg, card_border)
         self.source_hint.setStyleSheet(
             f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
         )
