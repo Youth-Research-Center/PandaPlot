@@ -526,6 +526,40 @@ def test_note_editor_refreshes_for_deleted_folder_snapshot_containing_image(qapp
         mock_update.assert_not_called()
 
 
+def test_note_editor_invalidates_cache_for_chart_created_via_undo_redo(qapp):
+    """CreateChartCommand's CHART_CREATED bubbles to PROJECT_ITEM_ADDED via
+    the event hierarchy fan-out (event_types.py), but with only "chart_id"
+    in the payload -- not the generic "item_id" this filter otherwise looks
+    for. Without recognizing "chart_id" too, redoing a chart's creation
+    (after an undo) while a note holds a stale/missing cached entry for
+    that chart id never refreshes it (see PR #383 review)."""
+    chart = Chart(name="Recreated Chart")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content=f"![Recreated Chart]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+    # Simulates a stale cached miss left over from before the chart existed
+    # (e.g. the note was loaded while the chart was undone/deleted).
+    editor.preview.image_cache[chart.id] = None
+
+    with patch.object(editor, "update_preview") as mock_update:
+        editor.on_project_item_changed_event({
+            "event": ProjectEvents.PROJECT_ITEM_ADDED,
+            "chart_id": chart.id,
+        })
+        mock_update.assert_called_once()
+
+    assert chart.id not in editor.preview.image_cache
+
+
 def test_note_editor_invalidates_cache_for_chart_deletion(qapp):
     """Deleting a chart referenced by the note must drop its cached render,
     not leave the note showing the deleted chart's stale image forever

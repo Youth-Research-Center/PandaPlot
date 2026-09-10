@@ -945,11 +945,14 @@ class NoteEditorWidget(PWidget):
         """Whether a PROJECT_ITEM_* event concerns an Image/ImageGallery/Chart.
 
         Payload shape differs per emitting command (image commands use
-        "image_id"/"gallery_id"; generic add/remove/rename/move commands use
-        "item_id" [+ "item_type" for remove/move, but not rename]), so no
-        single field reliably identifies the item type across all of them.
-        Falls back to looking the item up in the project when only a generic
-        "item_id" is given and no type is present.
+        "image_id"/"gallery_id"; CreateChartCommand's CHART_CREATED --
+        which bubbles to PROJECT_ITEM_ADDED via the event hierarchy fan-out
+        in event_types.py -- uses "chart_id"; generic add/remove/rename/move
+        commands use "item_id" [+ "item_type" for remove/move, but not
+        rename]), so no single field reliably identifies the item type
+        across all of them. Falls back to looking the item up in the
+        project when only a generic "item_id" is given and no type is
+        present.
 
         A generic Folder isn't itself an image or chart, but one can contain
         an ImageGallery/Chart (or nested Folder containing one) --
@@ -957,7 +960,7 @@ class NoteEditorWidget(PWidget):
         renaming/moving/deleting such a folder changes or removes descendant
         images'/charts' paths just as surely as touching them directly.
         """
-        if "image_id" in event_data or "gallery_id" in event_data:
+        if "image_id" in event_data or "gallery_id" in event_data or "chart_id" in event_data:
             return True
 
         item_type = str(event_data.get("item_type", "")).lower()
