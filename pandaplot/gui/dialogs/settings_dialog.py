@@ -514,7 +514,6 @@ class SettingsDialog(PDialog):
         }
         self.current_settings = self.original_settings.copy()
 
-        # TODO(#214): call apply only if the settings changed
         self.apply_settings_to_ui()
 
     def setup_event_subscriptions(self):
@@ -618,7 +617,11 @@ class SettingsDialog(PDialog):
     
     def apply_settings(self):
         """Apply settings without closing the dialog."""
-        self.current_settings = self.get_current_settings_from_ui()
+        new_ui_settings = self.get_current_settings_from_ui()
+        if new_ui_settings == self.original_settings:
+            return
+
+        self.current_settings = new_ui_settings
         self._applying = True
         try:
             if self._config_manager:
@@ -670,6 +673,7 @@ class SettingsDialog(PDialog):
                 )
                 self._chart_width_raw_cm = width_cm
                 self._chart_height_raw_cm = height_cm
+            self.original_settings = self.current_settings.copy()
             self.settings_changed.emit(self.current_settings)
         finally:
             self._applying = False

@@ -107,7 +107,7 @@ def test_disabled_current_step_circle_still_shows_the_real_accent_color():
 
     # Sample a pixel inside the filled circle but away from the centered
     # digit glyph, and confirm it's still the indigo accent, not grey.
-    color = disabled_pixmap.toImage().pixelColor(5, 5)
+    color = disabled_pixmap.toImage().pixelColor(8, 3)
     accent = QColor("#4A56C6")
     assert abs(color.red() - accent.red()) < 25
     assert abs(color.green() - accent.green()) < 25

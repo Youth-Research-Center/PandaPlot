@@ -283,7 +283,6 @@ if __name__ == "__main__":
     # TODO(#211): multi-threaded processing; improve initial app load time
     # TODO(#212): use mm instead of cm, or make units configurable
     # TODO(#213): copy/paste support
-    # TODO(#214): styles/themes: font size, dark theme colors
     # TODO(#215): chart creation/properties panel fixes; scrollable chart area
     # TODO(#216): improve project info display in sidebar
     # TODO(#217): dataset tab: lazy disk loading, sorting/filtering, export
