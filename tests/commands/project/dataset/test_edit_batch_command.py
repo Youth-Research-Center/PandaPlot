@@ -250,3 +250,30 @@ def test_cleanup_isolates_a_raising_sub_command():
 
     ok_sub_command.cleanup.assert_called_once_with()
     assert command.executed_commands == []
+
+
+def test_undo_and_redo_include_dataset_id_in_emitted_event(mock_app_context, sample_project):
+    """undo()/redo() must include "dataset_id" in the DATASET_DATA_CHANGED
+    payload, matching execute()'s own emission (which already does, via
+    DatasetDataChangedData). Without it, any consumer that only reacts to a
+    dataset it actually recognizes (ChartTab.on_dataset_changed, and
+    NoteEditorWidget.on_chart_or_dataset_changed_event) silently ignores an
+    undo/redo of a pasted range, leaving a stale chart/note preview
+    (see PR #383 review)."""
+    dataset = Dataset(name="ds", data=pd.DataFrame({"a": [1, 2], "b": [3, 4]}))
+    mock_app_context.app_state.has_project = True
+    mock_app_context.app_state.current_project = sample_project
+    sample_project.find_item.return_value = dataset
+
+    command = EditBatchCommand(mock_app_context, dataset.id, 0, 0, [[99]])
+    assert command.execute() is CommandResult.SUCCESS
+
+    mock_app_context.event_bus.emit.reset_mock()
+    assert command.undo() is CommandResult.SUCCESS
+    undo_payload = mock_app_context.event_bus.emit.call_args.args[1]
+    assert undo_payload["dataset_id"] == dataset.id
+
+    mock_app_context.event_bus.emit.reset_mock()
+    assert command.redo() is CommandResult.SUCCESS
+    redo_payload = mock_app_context.event_bus.emit.call_args.args[1]
+    assert redo_payload["dataset_id"] == dataset.id

@@ -261,6 +261,7 @@ class EditBatchCommand(Command):
                     self.logger.error(f"Failed to undo expansion command: {e}")
 
             self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, {
+                "dataset_id": self.dataset_id,
                 "start_index": (self.start_row, self.start_column),
                 "end_index": (self.end_row, self.end_column),
                 "new_data": self.old_data.values.tolist(),
@@ -302,6 +303,7 @@ class EditBatchCommand(Command):
                 self.dataset.data.iloc[row_idx, col_idx] = value
 
         self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, {
+            "dataset_id": self.dataset_id,
             "start_index": (self.start_row, self.start_column),
             "end_index": (self.end_row, self.end_column),
             "new_data": self.new_data,
