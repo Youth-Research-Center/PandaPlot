@@ -58,14 +58,15 @@ class ChartSeriesContextMixin:
         pass
 
     def _resolve_updated_chart(self, event_data: dict) -> Optional[Chart]:
-        """Resolve the chart a CHART_UPDATED event refers to. Some emitters
-        (e.g. ChartPropertiesPanel's live-edit publish, which fires on
-        every properties-tab change including a chart-type retype) only
-        send chart_id, not the Chart object itself -- resolve it from the
+        """Resolve the chart a CHART_UPDATED event refers to, or None if it
+        doesn't resolve to a real Chart. Some emitters (e.g.
+        ChartPropertiesPanel's live-edit publish, which fires on every
+        properties-tab change including a chart-type retype) only send
+        chart_id, not the Chart object itself -- resolve it from the
         project so callers still react to those."""
         chart = event_data.get("chart")
         if chart is not None:
-            return chart
+            return chart if isinstance(chart, Chart) else None
         chart_id = event_data.get("chart_id")
         if not chart_id:
             return None
@@ -107,13 +108,20 @@ class ChartSeriesContextMixin:
             # change this panel's context, but can change a chart
             # reference shown elsewhere in the panel -- refresh that
             # without disturbing the current chart/source selection.
-            if isinstance(chart, Chart):
+            if chart is not None:
                 self._refresh_chart_references()
             return
-        if isinstance(chart, Chart):
-            self.current_chart = chart
-            self.current_chart_id = chart.id
-            self._populate_sources()
+        self._apply_chart_update(chart, event_data)
+
+    def _apply_chart_update(self, chart: Chart, event_data: dict) -> None:
+        """Hook for _on_chart_updated(), called once `chart` has resolved
+        to this panel's own current chart (or is about to become it).
+        Default: adopt it and repopulate. Override to interpose extra
+        logic (e.g. deferring while a background dispatch is in flight)
+        before calling super()."""
+        self.current_chart = chart
+        self.current_chart_id = chart.id
+        self._populate_sources()
 
     def _on_chart_list_changed(self, event_data: dict) -> None:
         """A chart added/renamed/removed/moved anywhere in the project can

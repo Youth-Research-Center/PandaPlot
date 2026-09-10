@@ -788,19 +788,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             return
         super()._on_tab_changed(event_data)
 
-    def _on_chart_updated(self, event_data):
-        chart = self._resolve_updated_chart(event_data)
-        if not chart or (self.current_chart_id and chart.id != self.current_chart_id):
-            # A different chart's own update (rename/retype/etc.) doesn't
-            # change this panel's context, but can change whether that chart
-            # belongs in the destination combo or how it's labeled -- refresh
-            # without disturbing the user's current destination pick (unlike
-            # _populate_sources(), which resets it to "New chart").
-            if isinstance(chart, Chart):
-                self._refresh_chart_references()
-            return
-        if not isinstance(chart, Chart):
-            return
+    def _apply_chart_update(self, chart, event_data):
         if self._pending_quick_plot:
             # An in-flight add_results_to_project() dispatch with quick-plot
             # enabled can itself fire this event for the current chart --
@@ -818,9 +806,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             # made its decision against the untouched dispatch-time context.
             self._deferred_chart_updates.append(event_data)
             return
-        self.current_chart = chart
-        self.current_chart_id = chart.id
-        self._populate_sources()
+        super()._apply_chart_update(chart, event_data)
 
     def _on_dataset_changed(self, event_data):
         changed_dataset_id = event_data.get("dataset_id")

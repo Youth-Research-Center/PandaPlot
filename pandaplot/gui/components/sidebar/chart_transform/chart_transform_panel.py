@@ -37,12 +37,12 @@ from pandaplot.gui.components.sidebar.chart.series_result_messages import (
     format_preview_error,
     format_series_result_preview,
 )
-from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_series_fit_sources,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
