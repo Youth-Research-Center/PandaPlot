@@ -346,6 +346,39 @@ def _resolve_error_column(df, column_name):
     return df[column_name].to_numpy()
 
 
+def resolve_fill_baseline(resolved_data, series_index, fill_base, fill_to_index, query, *, horizontal=False):
+    """Resolve the second bound for a series' area fill: either the
+    constant ``fill_base``, or -- when ``fill_to_index`` points at another
+    series -- that series' curve interpolated onto this series' sampling
+    grid, so the region *between* the two curves is filled.
+
+    ``resolved_data`` is the SAME already-resolved list every series in the
+    chart was resolved into up front (not a second live lookup -- this must
+    stay safe to call from a background thread, see resolve_chart_series_data).
+
+    ``query`` is this series' independent-axis samples (x for a vertical
+    fill, y for a horizontal one). Interpolation makes ``fill_between``/
+    ``fill_betweenx`` well-defined even when the two series do not share
+    a sampling grid; falls back to ``fill_base`` if the referenced
+    series is missing or fails to resolve.
+    """
+    if fill_to_index is None or fill_to_index < 0 or fill_to_index == series_index or fill_to_index >= len(resolved_data):
+        return fill_base
+    other_data = resolved_data[fill_to_index]
+    if other_data.error or other_data.x_data is None or len(other_data.x_data) == 0:
+        return fill_base
+    # Interpolate the other curve over its own independent axis (x when
+    # vertical, y when horizontal). np.interp needs that axis increasing.
+    if horizontal:
+        xp = np.asarray(other_data.y_data, dtype=float)
+        fp = np.asarray(other_data.x_data, dtype=float)
+    else:
+        xp = np.asarray(other_data.x_data, dtype=float)
+        fp = np.asarray(other_data.y_data, dtype=float)
+    order = np.argsort(xp)
+    return np.interp(np.asarray(query, dtype=float), xp[order], fp[order])
+
+
 def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     """Resolve a DataSeries against the project's datasets.
 
@@ -415,6 +448,7 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
             magnitude_data = df[magnitude_column]
 
     z_data = None
+    z_label = ""
     if SERIES_TYPE_SPECS[SeriesType(chart_type) if chart_type else series.series_type].needs_z_column:
         z_column = resolve_series_column(dataset, series.style.z_column_id, series.style.z_column)
         if not z_column:
@@ -422,9 +456,11 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
         if z_column not in df.columns:
             return SeriesData(None, None, None, None, None, None, f"Z column '{z_column}' not found")
         z_data = df[z_column]
+        z_label = z_column
 
     return SeriesData(x_data, df[y_column], x_err, y_err, x_err_minus, y_err_minus, None,
-                      u_data=u_data, v_data=v_data, magnitude_data=magnitude_data, z_data=z_data)
+                      u_data=u_data, v_data=v_data, magnitude_data=magnitude_data, z_data=z_data,
+                      z_label=z_label)
 
 
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> Optional[tuple[float, float]]:
@@ -781,44 +817,6 @@ class ChartEditorWidget(PWidget):
         # No configuration UI to load since it's now in the side panel
         pass
 
-    def _resolve_fill_baseline(self, project, series_index, fill_base, fill_to_index, query, *, horizontal=False):
-        """Resolve the second bound for a series' area fill: either the
-        constant ``fill_base``, or -- when ``fill_to_index`` points at another
-        series -- that series' curve interpolated onto this series' sampling
-        grid, so the region *between* the two curves is filled.
-
-        ``query`` is this series' independent-axis samples (x for a vertical
-        fill, y for a horizontal one). Interpolation makes ``fill_between``/
-        ``fill_betweenx`` well-defined even when the two series do not share
-        a sampling grid; falls back to ``fill_base`` if the referenced
-        series is missing or fails to resolve.
-        """
-        if fill_to_index is None or fill_to_index < 0 or fill_to_index == series_index or fill_to_index >= len(self.chart.data_series):
-            return fill_base
-        other = self.chart.data_series[fill_to_index]
-        other_data = resolve_series_data(project, other)
-        if other_data.error or other_data.x_data is None or len(other_data.x_data) == 0:
-            return fill_base
-        # Interpolate the other curve over its own independent axis (x when
-        # vertical, y when horizontal). np.interp needs that axis increasing.
-        if horizontal:
-            xp = np.asarray(other_data.y_data, dtype=float)
-            fp = np.asarray(other_data.x_data, dtype=float)
-        else:
-            xp = np.asarray(other_data.x_data, dtype=float)
-            fp = np.asarray(other_data.y_data, dtype=float)
-        order = np.argsort(xp)
-        return np.interp(np.asarray(query, dtype=float), xp[order], fp[order])
-
-    def _resolve_z_label(self, project, series) -> str:
-        """Current display name of a series' Z (color) column, for the
-        default colorbar label. Empty when it can't be resolved (missing
-        dataset/column) so the colorbar just goes unlabeled rather than
-        erroring."""
-        from pandaplot.models.project.items.chart import resolve_series_column
-        dataset = project.find_item(series.dataset_id) if project else None
-        return resolve_series_column(dataset, series.style.z_column_id, series.style.z_column) or ""
-
     def update_chart(self):
         """Update the chart preview."""
         # Guard: Check if widget still exists
@@ -983,8 +981,8 @@ class ChartEditorWidget(PWidget):
                             extra={
                                 "bins": self.chart.config.get("hist_bins", 20),
                                 "resolve_fill_baseline": (
-                                    lambda query, *, horizontal, _i=i, _style=style: self._resolve_fill_baseline(
-                                        project, _i, _style.fill_base, _style.fill_to_index, query,
+                                    lambda query, *, horizontal, _i=i, _style=style: resolve_fill_baseline(
+                                        resolved_data, _i, _style.fill_base, _style.fill_to_index, query,
                                         horizontal=horizontal)
                                 ),
                                 "colormap": self.chart.config.get("colormap", "viridis"),
@@ -1007,7 +1005,7 @@ class ChartEditorWidget(PWidget):
                         custom_label = self.chart.config.get("colorbar_label")
                         colorbar_label = (
                             custom_label if custom_label is not None
-                            else self._resolve_z_label(project, series)
+                            else series_data.z_label
                         )
 
                 if colorbar_mappable is not None:

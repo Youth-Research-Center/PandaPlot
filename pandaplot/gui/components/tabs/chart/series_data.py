@@ -22,3 +22,4 @@ class SeriesData:
     v_data: Optional[Any] = None
     magnitude_data: Optional[Any] = None
     z_data: Optional[Any] = None
+    z_label: str = ""
