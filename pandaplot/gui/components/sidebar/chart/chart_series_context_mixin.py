@@ -1,9 +1,7 @@
-"""Shared tab/chart-context tracking for sidebar panels scoped to a chart
-tab's current chart and selected series/fit source.
+"""Shared tab/chart-context tracking for chart-series sidebar panels.
 
 Used by ChartAnalysisPanel, ChartSignalAnalysisPanel, and ChartTransformPanel
--- see docs/superpowers/specs/2026-09-10-chart-panel-boilerplate-extraction-
-design.md for why this was extracted (#284).
+to centralize current-chart and selected-source event handling (see #284).
 """
 
 from typing import Optional
