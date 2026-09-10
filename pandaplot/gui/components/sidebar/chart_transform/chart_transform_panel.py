@@ -32,6 +32,7 @@ from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
 )
+from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_series_fit_sources,
     series_source_hint,
@@ -156,17 +157,8 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
         layout.addWidget(group)
 
     def _build_function_menu(self) -> QMenu:
-        menu = QMenu(self)
-        for category, entries in expression_engine.get_transformation_templates().items():
-            submenu = menu.addMenu(category)
-            for entry in entries:
-                action = submenu.addAction(entry["name"])
-                action.setToolTip(f"{entry['description']}  →  {entry['code']}")
-                action.triggered.connect(
-                    lambda _checked=False, code=entry["code"]: self._insert_function_code(code)
-                )
-        menu.setToolTipsVisible(True)
-        return menu
+        templates = expression_engine.get_transformation_templates()
+        return build_function_menu(self, templates, on_insert=self._insert_function_code)
 
     def _insert_function_code(self, code: str):
         """Insert a template's code, rewritten to the current Target axis.
