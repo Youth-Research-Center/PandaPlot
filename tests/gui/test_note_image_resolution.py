@@ -624,6 +624,86 @@ def test_note_editor_invalidates_cache_for_deleted_chart_snapshot_without_item_t
     assert chart.id not in editor.preview.image_cache
 
 
+def test_note_editor_invalidates_chart_cache_for_deleted_dataset(qapp):
+    """Deleting a Dataset a cached chart plots must drop that chart's
+    render: DATASET_DELETED doesn't bubble to DATASET_CHANGED, and the
+    generic delete/undo command a Dataset actually goes through only ever
+    emits a generic item_id, never a dataset_id -- so neither of those
+    paths sees this on its own (see PR #383 review)."""
+    dataset = Dataset(name="Doomed Dataset")
+    chart = Chart(name="Chart Using It")
+    chart.add_data_series(dataset.id)
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    # The dataset is already gone from the project by the time the REMOVED
+    # event arrives, matching how delete_item_command actually behaves.
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content=f"![Chart Using It]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+    editor.preview.image_cache[chart.id] = QImage(5, 5, QImage.Format.Format_RGB32)
+
+    with patch.object(editor, "update_preview") as mock_update:
+        editor.on_project_item_changed_event(
+            {
+                "event": ProjectEvents.PROJECT_ITEM_REMOVED,
+                "item_id": dataset.id,
+                "item_type": "dataset",
+                "item_data": dataset.to_dict(),
+            }
+        )
+        mock_update.assert_called_once()
+
+    assert chart.id not in editor.preview.image_cache
+
+
+def test_note_editor_invalidates_chart_cache_for_dataset_deleted_inside_folder(qapp):
+    """Same as above, but the dataset is deleted as part of a Folder
+    subtree (no direct "dataset_id"/"item_type"=="dataset" in the payload
+    at all -- just the folder's own removed snapshot)."""
+    dataset = Dataset(name="Doomed Dataset")
+    chart = Chart(name="Chart Using It")
+    chart.add_data_series(dataset.id)
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    folder_snapshot = {
+        "id": "deleted-folder",
+        "name": "Deleted Folder",
+        "items": [dataset.to_dict()],
+    }
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content=f"![Chart Using It]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+    editor.preview.image_cache[chart.id] = QImage(5, 5, QImage.Format.Format_RGB32)
+
+    with patch.object(editor, "update_preview") as mock_update:
+        editor.on_project_item_changed_event(
+            {
+                "event": ProjectEvents.PROJECT_ITEM_REMOVED,
+                "item_id": "deleted-folder",
+                "item_type": "folder",
+                "item_data": folder_snapshot,
+            }
+        )
+        mock_update.assert_called_once()
+
+    assert chart.id not in editor.preview.image_cache
+
+
 def test_note_editor_export_pdf_registers_resources(qapp, tmp_path):
     project = Project(name="Test Project")
     png_bytes = create_test_png_bytes()

@@ -29,7 +29,7 @@ from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePickerDialog
 from pandaplot.models.events import ChartEvents, DatasetEvents, NoteEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.project.items import Chart, Image, ImageGallery, ItemCollection, Note
+from pandaplot.models.project.items import Chart, Dataset, Image, ImageGallery, ItemCollection, Note
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.note_render.latex_markdown_renderer import (
     is_escaped_at,
@@ -912,15 +912,20 @@ class NoteEditorWidget(PWidget):
 
         dataset_id = event_data.get("dataset_id")
         if dataset_id is not None:
-            app_state = self.app_context.get_app_state() if self.app_context else None
-            project = app_state.current_project if app_state else None
-            if project is not None:
-                for item in project.get_all_items():
-                    if isinstance(item, Chart) and dataset_id in item.get_all_datasets():
-                        self.preview.image_cache.pop(item.id, None)
+            self._invalidate_chart_cache_for_dataset(dataset_id)
 
         if self.stack.currentIndex() != 0:
             self.update_preview()
+
+    def _invalidate_chart_cache_for_dataset(self, dataset_id: str) -> None:
+        """Drop the cached render of every Chart that plots `dataset_id`."""
+        app_state = self.app_context.get_app_state() if self.app_context else None
+        project = app_state.current_project if app_state else None
+        if project is None:
+            return
+        for item in project.get_all_items():
+            if isinstance(item, Chart) and dataset_id in item.get_all_datasets():
+                self.preview.image_cache.pop(item.id, None)
 
     def on_project_item_changed_event(self, event_data: dict):
         """Refresh preview if images or charts in the project change.
@@ -937,15 +942,29 @@ class NoteEditorWidget(PWidget):
         otherwise stay cached (and visible in the note) indefinitely, and
         undoing that deletion wouldn't restore it until some unrelated
         refresh (see PR #383 review).
+
+        Deleting/restoring a Dataset a chart plots is handled separately
+        below (`_event_dataset_ids`): DATASET_DELETED doesn't bubble to
+        DATASET_CHANGED, and the generic delete/undo command these events
+        actually come from never emits a dataset_id-bearing payload at all
+        (also see PR #383 review) -- so this generic handler is the only
+        place left to catch it.
         """
-        if not self._event_affects_rendered_previews(event_data):
+        if self._event_affects_rendered_previews(event_data):
+            # Added/removed/renamed/moved images/charts invalidate cached
+            # decodes (an id could be reused by a new item, a rename
+            # changes its gallery path).
+            self.preview.image_cache.clear()
+            if self.stack.currentIndex() != 0:  # preview or split mode visible
+                self.update_preview()
             return
-        # Added/removed/renamed/moved images/charts invalidate cached
-        # decodes (an id could be reused by a new item, a rename changes its
-        # gallery path).
-        self.preview.image_cache.clear()
-        if self.stack.currentIndex() != 0:  # preview or split mode visible
-            self.update_preview()
+
+        dataset_ids = self._event_dataset_ids(event_data)
+        if dataset_ids:
+            for dataset_id in dataset_ids:
+                self._invalidate_chart_cache_for_dataset(dataset_id)
+            if self.stack.currentIndex() != 0:
+                self.update_preview()
 
     def _event_affects_rendered_previews(self, event_data: dict) -> bool:
         """Whether a PROJECT_ITEM_* event concerns an Image/ImageGallery/Chart.
@@ -1033,6 +1052,77 @@ class NoteEditorWidget(PWidget):
             NoteEditorWidget._snapshot_has_rendered_preview_descendant(child)
             for child in item_data.get("items", [])
         )
+
+    def _event_dataset_ids(self, event_data: dict) -> Set[str]:
+        """Ids of any Dataset(s) a PROJECT_ITEM_* event concerns.
+
+        DATASET_DELETED doesn't bubble to DATASET_CHANGED, and the generic
+        delete/undo command a Dataset actually goes through (unlike a
+        dedicated DeleteDatasetCommand) only ever emits
+        PROJECT_ITEM_REMOVED/PROJECT_ITEM_ADDED with a generic "item_id" --
+        never a "dataset_id" -- so `on_chart_or_dataset_changed_event`'s
+        DATASET_CHANGED subscription never sees these at all (see PR #383
+        review). This mirrors `_event_affects_rendered_previews`'s payload
+        handling for the generic add/remove/rename/move case.
+        """
+        item_type = str(event_data.get("item_type", "")).lower()
+        item_id = event_data.get("item_id")
+        if item_type == "dataset" and item_id:
+            return {item_id}
+
+        if not item_id:
+            return set()
+        app_state = self.app_context.get_app_state() if self.app_context else None
+        project = app_state.current_project if app_state else None
+        if project is None:
+            return set()
+
+        item = project.find_item(item_id)
+        if item is not None:
+            if isinstance(item, Dataset):
+                return {item.id}
+            if isinstance(item, ItemCollection):
+                return self._collection_dataset_descendant_ids(project, item)
+            return set()
+
+        # The item no longer exists (a REMOVED event) -- fall back to the
+        # deleted snapshot, same as _event_affects_rendered_previews.
+        return self._snapshot_dataset_descendant_ids(event_data.get("item_data"))
+
+    @staticmethod
+    def _collection_dataset_descendant_ids(project, collection: ItemCollection) -> Set[str]:
+        """Ids of every Dataset in `collection`'s (still-in-project) subtree."""
+        collection_ids = {collection.id}
+        dataset_ids: Set[str] = set()
+        changed = True
+        while changed:
+            changed = False
+            for item in project.get_all_items():
+                if item.parent_id in collection_ids and item.id not in collection_ids:
+                    if isinstance(item, Dataset):
+                        dataset_ids.add(item.id)
+                    elif isinstance(item, ItemCollection):
+                        collection_ids.add(item.id)
+                        changed = True
+        return dataset_ids
+
+    @staticmethod
+    def _snapshot_dataset_descendant_ids(item_data: Optional[dict]) -> Set[str]:
+        """Ids of every Dataset in a deleted item's serialized snapshot.
+
+        There's no explicit "type" field in the serialized form, so this
+        looks for keys present only on Dataset.to_dict().
+        """
+        if not isinstance(item_data, dict):
+            return set()
+        dataset_ids: Set[str] = set()
+        if "has_data" in item_data and "column_ids" in item_data:
+            item_id = item_data.get("id")
+            if item_id:
+                dataset_ids.add(item_id)
+        for child in item_data.get("items", []):
+            dataset_ids |= NoteEditorWidget._snapshot_dataset_descendant_ids(child)
+        return dataset_ids
 
     def on_reveal_match_event(self, event_data: dict):
         """Move the cursor to (and select) a match requested by note search."""
