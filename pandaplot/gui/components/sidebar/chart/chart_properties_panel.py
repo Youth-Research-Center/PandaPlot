@@ -94,6 +94,7 @@ class ChartPropertiesPanel(SidebarPanel):
         self.data_tab = DataTab(self.app_context, self)
         self.data_tab.configChanged.connect(self._on_any_tab_config_changed)
         self.data_tab.dirtyOnly.connect(self._on_dirty_only)
+        self.data_tab.chartDataChanged.connect(self._on_chart_data_changed)
         self.data_tab.seriesSelected.connect(lambda kind, obj: self.style_tab.set_selected(kind, obj))
         self.data_tab.seriesListChanged.connect(
             lambda ds, fd: self.style_tab.set_series_list(ds, fd, self.data_tab.selected_index)
@@ -390,18 +391,30 @@ class ChartPropertiesPanel(SidebarPanel):
         CHART_UPDATED -- used for edits that pre-refactor never published
         for (see `DataTab.dirtyOnly`).
 
-        Still publishes the (previously unwired) CHART_DATA_UPDATED, a
-        lighter-weight signal with no other current subscribers, purely so
-        anything caching a rendered snapshot of this chart elsewhere (e.g.
-        a note's embedded chart preview) can invalidate that one entry.
-        This is intentionally a separate event from CHART_UPDATED so it
-        doesn't reintroduce the CHART_UPDATED-per-keystroke behavior this
-        signal was split off to avoid.
+        `dirtyOnly` alone doesn't mean chart state changed (e.g.
+        `_on_label_typing` marks dirty on every keystroke before the model
+        is written, to keep Apply enabled while typing), so no cache
+        -invalidation event is published here. See `_on_chart_data_changed`
+        for that, wired to `DataTab.chartDataChanged` instead.
         """
         if not self.current_chart:
             return
         self._has_unsaved_changes = True
         self._update_status_indicator()
+
+    def _on_chart_data_changed(self):
+        """Publish the (previously unwired) CHART_DATA_UPDATED after a
+        `DataTab` edit actually mutated chart state (see
+        `DataTab.chartDataChanged`), so anything caching a rendered
+        snapshot of this chart elsewhere (e.g. a note's embedded chart
+        preview) can invalidate that one entry. Intentionally a separate
+        event from CHART_UPDATED so it doesn't reintroduce the
+        CHART_UPDATED-per-keystroke behavior `dirtyOnly` was split off to
+        avoid -- and, unlike `dirtyOnly`, not emitted for a keystroke that
+        hasn't actually changed the model yet.
+        """
+        if not self.current_chart:
+            return
         self.publish_event(ChartEvents.CHART_DATA_UPDATED, {
             "chart_id": self.current_chart.id,
         })

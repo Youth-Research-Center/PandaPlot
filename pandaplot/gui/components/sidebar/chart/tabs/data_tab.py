@@ -66,6 +66,14 @@ class DataTab(QWidget):
     # trigger a CHART_UPDATED publish the way `configChanged` does via the
     # panel's `_on_any_tab_config_changed` (see `_on_series_config_changed`).
     dirtyOnly = Signal()
+    # Emitted only where `dirtyOnly` above is emitted *and* chart state was
+    # actually just mutated -- unlike `dirtyOnly`, NOT emitted from
+    # `_on_label_typing`'s per-keystroke buffering (which deliberately marks
+    # dirty before any model write, to keep Apply enabled while typing; see
+    # its docstring). Consumed by the panel to invalidate anything caching a
+    # rendered snapshot of this chart (e.g. a note's embedded chart preview)
+    # without re-rendering on every keystroke of an unrelated/no-op edit.
+    chartDataChanged = Signal()
     # Emitted whenever a series/fit becomes the selected entry -- consumed by
     # the panel to drive `StyleTab.set_selected(kind, obj)`.
     seriesSelected = Signal(str, object)
@@ -885,6 +893,7 @@ class DataTab(QWidget):
         # publish CHART_UPDATED for every keystroke-driven combo change here,
         # which is a behavior change the refactor isn't meant to introduce.
         self.dirtyOnly.emit()
+        self.chartDataChanged.emit()
 
     def _apply_manual_fit_edits(self, fit):
         """Re-derive a manually-converted fit's data from its (possibly
@@ -970,6 +979,7 @@ class DataTab(QWidget):
             return
         self._apply_manual_fit_edits(fit)
         self.dirtyOnly.emit()
+        self.chartDataChanged.emit()
 
     def _on_series_type_changed(self):
         """Retype the selected, already-existing series to the combo's
@@ -1000,6 +1010,7 @@ class DataTab(QWidget):
         self._load_series_into_controls(series)
         self.seriesSelected.emit("series", series)
         self.dirtyOnly.emit()
+        self.chartDataChanged.emit()
 
     def _convert_selected_series_to_fit(self, index: int):
         """Convert the data series at `index` into a FitData entry via
@@ -1302,6 +1313,7 @@ class DataTab(QWidget):
             # why editing anything else afterwards was needed to make Apply
             # start doing something again.
             self.dirtyOnly.emit()
+            self.chartDataChanged.emit()
 
     def _reset_controls_for_series(self):
         """Reset controls for editing regular data series."""
