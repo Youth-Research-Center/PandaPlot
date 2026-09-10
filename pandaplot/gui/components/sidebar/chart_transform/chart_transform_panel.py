@@ -32,6 +32,11 @@ from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
 )
+from pandaplot.gui.components.sidebar.chart.series_result_messages import (
+    format_apply_failure,
+    format_preview_error,
+    format_series_result_preview,
+)
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_series_fit_sources,
@@ -250,17 +255,14 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
             return
         try:
             df, default_name = command.run_transform()
-            lines = [
+            header_lines = [
                 f"Target: {self.target_combo.currentText()}",
                 f"Series: {self.source_combo.currentText()}",
                 f"Result: {len(df)} points → dataset '{self.result_name.text().strip() or default_name}'",
-                "",
-                "First rows:",
-                df.head(5).to_string(index=False),
             ]
-            self.preview_text.setText("\n".join(lines))
+            self.preview_text.setText(format_series_result_preview(header_lines, df))
         except Exception as e:
-            self.preview_text.setText(f"❌ Preview error: {e}")
+            self.preview_text.setText(format_preview_error(e))
 
     def apply(self):
         command = self._make_command()
@@ -272,9 +274,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
                 "✅ Created a new dataset and added it to the chart as a series."
             )
         else:
-            self.preview_text.setText(
-                "❌ Could not transform the series. See the log for details."
-            )
+            self.preview_text.setText(format_apply_failure("transform"))
 
     def clear_inputs(self):
         self.result_name.clear()
