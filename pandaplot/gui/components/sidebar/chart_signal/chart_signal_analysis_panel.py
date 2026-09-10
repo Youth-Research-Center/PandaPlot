@@ -45,8 +45,10 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
 )
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
+    ChartSeriesContextMixin,
+)
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
-    find_series_fit_combo_index,
     populate_chart_target_combo,
     populate_series_fit_sources,
     refresh_chart_target_combo_preserving_selection,
@@ -57,13 +59,13 @@ from pandaplot.gui.components.sidebar.signal.signal_panel import SignalPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
     build_signal_parameter_widgets,
 )
-from pandaplot.models.events import ChartEvents, DatasetEvents, ProjectEvents, UIEvents
+from pandaplot.models.events import DatasetEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
-class ChartSignalAnalysisPanel(SidebarPanel):
+class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for signal analysis operations on chart data/fit series."""
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
@@ -751,8 +753,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
 
     @override
     def setup_event_subscriptions(self):
-        self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
-        self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
+        self.setup_chart_series_context_subscriptions()
         # Chart series/fits read their values live from source datasets, so
         # an edit to one of those datasets (cell edits, added/removed rows
         # or columns, ...) can change the resolved x/y without emitting
@@ -760,27 +761,10 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # reason (see chart_tab.py). DATASET_CHANGED is the generic parent
         # of all those specific dataset events.
         self.subscribe_to_event(DatasetEvents.DATASET_CHANGED, self._on_dataset_changed)
-        self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
-        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, self._on_chart_list_changed)
-        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, self._on_chart_list_changed)
-        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_RENAMED, self._on_chart_list_changed)
-        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_MOVED, self._on_chart_list_changed)
 
-    def _on_series_selected_event(self, event_data):
-        """Clicking a series/fit on the chart canvas or its legend also
-        selects it here, so switching from "look at it" to "run signal
-        analysis on it" doesn't require re-finding the same entry in this
-        combo."""
-        chart_id = event_data.get("chart_id")
-        if self.current_chart_id is None or chart_id != self.current_chart_id:
-            return
-        kind = event_data.get("kind")
-        index = event_data.get("index")
-        if kind is None or index is None:
-            return
-        combo_index = find_series_fit_combo_index(self.source_combo, kind, index)
-        if combo_index >= 0:
-            self.source_combo.setCurrentIndex(combo_index)
+    def _refresh_chart_references(self):
+        project = self.app_context.get_app_state().current_project
+        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
 
     def _on_tab_changed(self, event_data):
         if self._pending_quick_plot:
@@ -802,30 +786,10 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             # doesn't need separate replay.
             self._deferred_tab_change = event_data
             return
-        if event_data.get("tab_type") == "chart":
-            chart_id = event_data.get("tab_id")
-            self.current_chart_id = chart_id
-            project = self.app_context.get_app_state().current_project
-            chart = project.find_item(chart_id) if project and chart_id else None
-            self.current_chart = chart if isinstance(chart, Chart) else None
-        else:
-            self.current_chart = None
-            self.current_chart_id = None
-        self._populate_sources()
+        super()._on_tab_changed(event_data)
 
     def _on_chart_updated(self, event_data):
-        chart = event_data.get("chart")
-        if chart is None:
-            # Some emitters (e.g. ChartPropertiesPanel's live-edit publish,
-            # which fires on every properties-tab change including a
-            # chart-type retype) only send chart_id, not the Chart object
-            # itself -- resolve it from the project so this handler (and
-            # its combo-refresh branch below) still fires for those.
-            chart_id = event_data.get("chart_id")
-            if chart_id:
-                project = self.app_context.get_app_state().current_project
-                found = project.find_item(chart_id) if project else None
-                chart = found if isinstance(found, Chart) else None
+        chart = self._resolve_updated_chart(event_data)
         if not chart or (self.current_chart_id and chart.id != self.current_chart_id):
             # A different chart's own update (rename/retype/etc.) doesn't
             # change this panel's context, but can change whether that chart
@@ -833,8 +797,7 @@ class ChartSignalAnalysisPanel(SidebarPanel):
             # without disturbing the user's current destination pick (unlike
             # _populate_sources(), which resets it to "New chart").
             if isinstance(chart, Chart):
-                project = self.app_context.get_app_state().current_project
-                refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
+                self._refresh_chart_references()
             return
         if not isinstance(chart, Chart):
             return
@@ -867,13 +830,6 @@ class ChartSignalAnalysisPanel(SidebarPanel):
         # mirrors ChartTab.on_dataset_changed's own filter.
         if changed_dataset_id in self.current_chart.get_all_datasets():
             self._populate_sources()
-
-    def _on_chart_list_changed(self, event_data):
-        """A chart added/renamed/removed anywhere in the project can
-        change the destination combo's entries or their labels -- refresh
-        without disturbing the user's current destination pick."""
-        project = self.app_context.get_app_state().current_project
-        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
 
     @override
     def showEvent(self, event):
