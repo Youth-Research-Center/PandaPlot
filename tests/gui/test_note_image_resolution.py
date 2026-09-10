@@ -1182,3 +1182,39 @@ def test_note_editor_chart_does_not_shadow_same_named_gallery_image(qapp):
 
     res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl("Plot.png"))
     assert res.width() == 10  # still the gallery image, not overwritten by the chart
+
+
+def test_note_editor_chart_does_not_shadow_gallery_image_with_identical_exact_path(qapp):
+    """Even the chart's *exact* gallery path (not just a bare-name alias)
+    can collide with an unrelated image's: item names aren't unique across
+    types, so a Chart literally named "Plot.png" has the same gallery path
+    as an Image named "Plot.png". The eager registration pass has no
+    "first match wins" protection (addResource overwrites regardless of
+    order), so charts must only be eagerly registered by id, not by path
+    (see PR #383 review)."""
+    image = Image(name="Plot.png")
+    chart = Chart(name="Plot.png")
+    project = Project(name="Test Project")
+    project.add_item(image)
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    doc = QTextDocument()
+    image_qimg = QImage(10, 10, QImage.Format.Format_RGB32)
+    image_qimg.fill(0xFF0000FF)
+    chart_qimg = QImage(20, 20, QImage.Format.Format_RGB32)
+    chart_qimg.fill(0xFF00FF00)
+
+    with patch(
+        "pandaplot.gui.components.tabs.note.note_editor.load_qimage_for_item", return_value=image_qimg
+    ), patch(
+        "pandaplot.gui.components.tabs.note.note_editor.load_qimage_for_chart", return_value=chart_qimg
+    ):
+        register_project_image_resources(doc, app_context)
+
+    res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl("Plot.png"))
+    assert res.width() == 10  # still the gallery image, not overwritten by the chart

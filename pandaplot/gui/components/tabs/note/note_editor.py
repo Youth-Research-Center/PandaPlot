@@ -303,13 +303,19 @@ def register_project_image_resources(
 
         all_charts = [item for item in project.get_all_items() if isinstance(item, Chart)]
         for chart_item in all_charts:
-            chart_path = get_chart_gallery_path(project, chart_item)
-            # Only the immutable id and exact gallery path are registrable
-            # keys, matching the image policy above: a bare name or
-            # synthetic ".png" alias could collide with an unrelated
-            # same-named gallery image's own registered key and silently
-            # overwrite it (see PR #383 review).
-            keys = {chart_item.id, chart_path}
+            # Only the immutable id is an eagerly-registrable key here --
+            # unlike images, NOT the exact gallery path too: item names
+            # aren't unique across types, so a Chart could share an exact
+            # gallery path with an unrelated Image (e.g. both named
+            # "Plot.png"), and this eager pass has no "first match wins"
+            # protection the way the lazy per-request resolver below does
+            # (addResource() on the same key just overwrites, regardless of
+            # registration order -- see PR #383 review). Every chart
+            # insertion only ever references by id anyway; an exact-path
+            # reference (hand-edited into the note) still resolves via
+            # NotePreviewBrowser._resolve_gallery_image, which checks images
+            # before charts.
+            keys = {chart_item.id}
 
             if referenced_keys is not None and keys.isdisjoint(referenced_keys):
                 continue
