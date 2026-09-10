@@ -145,6 +145,22 @@ def test_dataset_to_markdown_table_preserves_literal_nan_string():
     assert "| real value | 2.0 |" in md  # a true NaN elsewhere still renders as an empty cell
 
 
+def test_dataset_to_markdown_table_handles_array_valued_cells():
+    """pd.isna(val) alone raises "truth value of an array is ambiguous" for
+    a non-scalar cell (e.g. a NumPy array in an object-dtype column) --
+    must not crash the whole table dialog open on such a dataset
+    (see PR #383 review)."""
+    import numpy as np
+
+    dataset = Dataset(name="Array Cells")
+    dataset.df = pd.DataFrame({"X": [1, 2], "Arr": [np.array([1, 2]), np.array([3, 4])]})
+
+    md = dataset_to_markdown_table(dataset)
+
+    assert "[1 2]" in md
+    assert "[3 4]" in md
+
+
 def test_note_table_picker_no_datasets_label_uses_theme_palette(qapp):
     project = Project(name="Empty Dataset Project")
     app_context = _create_mock_app_context(project)

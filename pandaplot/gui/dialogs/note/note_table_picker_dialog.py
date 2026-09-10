@@ -29,7 +29,13 @@ def _escape_markdown_table_cell(val: object) -> str:
     # cell value, not a missing one (see PandasTableModel.data / PR #383
     # review, and tests/gui/test_pandas_table_model.py's
     # test_literal_nan_string_displays_as_nan for the same distinction).
-    if val is None or (not isinstance(val, (list, dict)) and pd.isna(val)):
+    # Gated on pd.api.types.is_scalar first: pd.isna(val) itself raises
+    # "truth value of an array is ambiguous" for a non-scalar cell (a
+    # NumPy array; a tuple happens not to trigger it, but object-dtype
+    # DataFrame columns can hold arbitrary values) -- is_scalar is the
+    # general predicate for what pd.isna can safely evaluate, rather than
+    # hand-picking the non-scalar types to exclude (see PR #383 review).
+    if pd.api.types.is_scalar(val) and pd.isna(val):
         return ""
     text = str(val)
     text = text.replace("|", "\\|")
