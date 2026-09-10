@@ -45,7 +45,7 @@ def _escape_markdown_table_cell(val: object) -> str:
 
 def dataset_to_markdown_table(dataset: Dataset, max_rows: Optional[int] = None) -> str:
     """Convert a Dataset item's DataFrame into a Markdown table string."""
-    df = dataset.df
+    df = dataset.data
     if df is None or df.empty:
         return ""
     sub_df = df.iloc[:max_rows] if max_rows and len(df) > max_rows else df

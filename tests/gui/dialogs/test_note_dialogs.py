@@ -90,7 +90,7 @@ def test_custom_to_markdown_table_without_header_still_has_blank_header_and_deli
 
 def test_dataset_to_markdown_table():
     dataset = Dataset(name="Sample Data")
-    dataset.df = pd.DataFrame({"X": [1, 2, 3], "Y": [10, 20, 30]})
+    dataset.data = pd.DataFrame({"X": [1, 2, 3], "Y": [10, 20, 30]})
 
     md_all = dataset_to_markdown_table(dataset)
     assert "| X | Y |" in md_all
@@ -119,7 +119,7 @@ def test_custom_to_markdown_table_without_header_is_still_a_valid_table():
 
 def test_dataset_to_markdown_table_escapes_pipes_and_newlines():
     dataset = Dataset(name="Messy Data")
-    dataset.df = pd.DataFrame({
+    dataset.data = pd.DataFrame({
         "Note": ["a | b", "line1\nline2"],
         "Value": [1, 2],
     })
@@ -134,7 +134,7 @@ def test_dataset_to_markdown_table_escapes_pipes_and_newlines():
 
 def test_dataset_to_markdown_table_preserves_literal_nan_string():
     dataset = Dataset(name="Mixed Data")
-    dataset.df = pd.DataFrame({
+    dataset.data = pd.DataFrame({
         "Label": ["nan", "real value"],
         "Value": [float("nan"), 2],
     })
@@ -153,7 +153,7 @@ def test_dataset_to_markdown_table_handles_array_valued_cells():
     import numpy as np
 
     dataset = Dataset(name="Array Cells")
-    dataset.df = pd.DataFrame({"X": [1, 2], "Arr": [np.array([1, 2]), np.array([3, 4])]})
+    dataset.data = pd.DataFrame({"X": [1, 2], "Arr": [np.array([1, 2]), np.array([3, 4])]})
 
     md = dataset_to_markdown_table(dataset)
 
@@ -171,10 +171,24 @@ def test_note_table_picker_no_datasets_label_uses_theme_palette(qapp):
     assert "#123456" in dialog.no_datasets_label.styleSheet()
 
 
+def test_dataset_to_markdown_table_reads_the_real_data_attribute():
+    """Dataset stores its DataFrame in `.data`, not `.df` (see
+    models/project/items/dataset.py) -- constructing via the real
+    `Dataset(data=...)` API (not attribute-assignment, which would let a
+    typo'd attribute name pass silently) catches dataset_to_markdown_table
+    reading the wrong attribute (see PR #383 review)."""
+    dataset = Dataset(name="Real Dataset", data=pd.DataFrame({"A": [1, 2]}))
+
+    md = dataset_to_markdown_table(dataset)
+
+    assert "| A |" in md
+    assert "| 1 |" in md
+
+
 def test_note_table_picker_dialog_from_dataset(qapp):
     project = Project(name="Dataset Project")
     dataset = Dataset(name="Data 1")
-    dataset.df = pd.DataFrame({"A": [100, 200], "B": [300, 400]})
+    dataset.data = pd.DataFrame({"A": [100, 200], "B": [300, 400]})
     project.add_item(dataset)
 
     app_context = _create_mock_app_context(project)
