@@ -3,7 +3,7 @@ Note tab widget for displaying and editing notes in the main tab container.
 """
 import os
 import re
-from typing import Dict, Optional, Set, override
+from typing import Callable, Dict, Optional, Set, override
 from urllib.parse import unquote
 
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
@@ -104,49 +104,98 @@ def get_chart_gallery_path(project, chart_item: Chart) -> str:
     return chart_item.name
 
 
-def load_qimage_for_chart(app_context: AppContext, chart_item: Chart) -> Optional[QImage]:
-    """Render a Chart item to a QImage using ChartEditorWidget/matplotlib.
+def get_cached_qimage_for_chart(
+    app_context: AppContext, chart_item: Chart, cache: Dict[str, Optional[QImage]],
+    *, note_editor: Optional["NoteEditorWidget"] = None,
+) -> Optional[QImage]:
+    """Return a Chart item's cached QImage, or None on a cache miss --
+    dispatching a background render for next time.
 
-    Rendering happens on the GUI thread and can't move to a worker thread
-    (unlike image thumbnail decoding) because ChartEditorWidget is a QWidget
-    -- Qt widgets can only be constructed on the GUI thread. The widget is
-    throwaway (never shown/parented), but as a PWidget it still subscribes to
-    the event bus in __init__; unsubscribe_widget_tree() must run before
-    deleteLater() so that subscription doesn't stay live until Qt's deferred
-    destruction actually happens (see tests/gui/core/test_unsubscribe_widget_tree.py
-    for the same leak previously found on this exact widget).
+    Rendering is asynchronous (see render_chart_to_qimage/HeadlessChartCanvas):
+    a miss here always returns None immediately (same as a failed render
+    always has), and the cache is populated later, on the GUI thread, once
+    the background render completes -- at which point note_editor's
+    (already-debounced) preview refresh picks up the new image.
+
+    `note_editor` is used only for the in-flight-render sequencing guard
+    (so a second request for the same chart id while one is still
+    rendering doesn't dispatch a duplicate) and to trigger the debounced
+    refresh on completion; the eager whole-document registration pass
+    (register_project_image_resources) doesn't have one to pass, and a
+    miss there just means that reference renders on the next preview tick
+    instead, once note_editor's own per-request lazy resolution
+    (NotePreviewBrowser._resolve_gallery_image) dispatches it.
     """
-    try:
-        import io
+    if chart_item.id in cache:
+        return cache[chart_item.id]
 
-        from pandaplot.gui.components.tabs.chart.chart_editor import ChartEditorWidget
-        from pandaplot.gui.core.widget_extension import unsubscribe_widget_tree
-        editor = ChartEditorWidget(app_context=app_context, chart=chart_item, parent=None)
-        try:
-            editor.update_chart()
-            buf = io.BytesIO()
-            editor.chart_canvas.fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
-            qimg = QImage()
-            if qimg.loadFromData(buf.getvalue()):
-                return qimg
-        finally:
-            unsubscribe_widget_tree(editor)
-            editor.deleteLater()
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).debug("Failed to load QImage for chart %s: %s", chart_item.id, e)
+    _dispatch_chart_render(app_context, chart_item, cache, note_editor=note_editor)
     return None
 
 
-def get_cached_qimage_for_chart(
-    app_context: AppContext, chart_item: Chart, cache: Dict[str, Optional[QImage]]
-) -> Optional[QImage]:
-    """Load a Chart item's QImage, memoised by id in cache."""
-    if chart_item.id in cache:
-        return cache[chart_item.id]
-    qimg = load_qimage_for_chart(app_context, chart_item)
-    cache[chart_item.id] = qimg
-    return qimg
+def dispatch_headless_chart_render(
+    app_context: AppContext, chart_item: Chart,
+    *, on_result: Callable[[Optional[QImage]], None], on_error: Optional[Callable] = None,
+) -> None:
+    """Snapshot `chart_item`'s series data on the GUI thread, then render
+    it to a QImage on a TaskScheduler worker thread, delivering the result
+    (or a failure) back via `on_result`/`on_error` on the GUI thread.
+
+    Shared by every headless-chart-render call site (the note-cache path
+    below, and the static-snapshot-insertion path in a later task) so the
+    resolve/copy/dispatch boilerplate exists exactly once. Callers own
+    whatever they do with the result (populate a cache, create an Image,
+    ...) -- this function only handles getting a QImage off the GUI
+    thread and back.
+    """
+    from pandaplot.gui.components.tabs.chart.chart_editor import (
+        resolve_chart_series_data, resolve_chart_size_defaults, render_chart_to_qimage,
+    )
+
+    app_state = app_context.get_app_state() if app_context else None
+    project = app_state.current_project if app_state else None
+    resolved_series_data = [
+        data.copy() for data in resolve_chart_series_data(project, chart_item)
+    ]
+    size_defaults = resolve_chart_size_defaults(app_context)
+
+    def _render_task(progress_callback, chart, resolved_data, size_defs):
+        del progress_callback  # unused; required by the Worker call signature
+        return render_chart_to_qimage(chart, resolved_data, size_defs)
+
+    app_context.get_task_scheduler().run_task(
+        task=_render_task,
+        task_arguments={"chart": chart_item, "resolved_data": resolved_series_data, "size_defs": size_defaults},
+        on_result=on_result,
+        on_error=on_error,
+    )
+
+
+def _dispatch_chart_render(
+    app_context: AppContext, chart_item: Chart, cache: Dict[str, Optional[QImage]],
+    *, note_editor: Optional["NoteEditorWidget"],
+) -> None:
+    """Populate `cache[chart_item.id]` once a background render completes.
+    No-op if a render for this exact chart id is already in flight
+    (tracked on `note_editor`).
+    """
+    if note_editor is not None:
+        if chart_item.id in note_editor._rendering_chart_ids:
+            return
+        note_editor._rendering_chart_ids.add(chart_item.id)
+
+    def _on_result(qimg: Optional[QImage]) -> None:
+        cache[chart_item.id] = qimg
+        if note_editor is not None:
+            note_editor._rendering_chart_ids.discard(chart_item.id)
+            if note_editor.stack.currentIndex() != 0:
+                note_editor._schedule_chart_preview_refresh()
+
+    def _on_error(_err) -> None:
+        if note_editor is not None:
+            note_editor._rendering_chart_ids.discard(chart_item.id)
+
+    dispatch_headless_chart_render(app_context, chart_item, on_result=_on_result, on_error=_on_error)
 
 
 def load_qimage_for_item(image_item: Image) -> Optional[QImage]:
@@ -352,9 +401,17 @@ class NotePreviewBrowser(QTextBrowser):
     project gallery images for note preview rendering.
     """
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(
+        self, app_context: AppContext, parent: Optional[QWidget] = None,
+        note_editor: Optional["NoteEditorWidget"] = None,
+    ):
         super().__init__(parent)
         self.app_context = app_context
+        # Back-reference to the owning NoteEditorWidget, used only so a
+        # lazily-resolved chart render (see _resolve_gallery_image) can
+        # participate in the same in-flight-render sequencing guard and
+        # debounced refresh as the eager registration pass.
+        self.note_editor = note_editor
         self.setOpenExternalLinks(True)
         # Memoises decoded gallery images by id; cleared by the owning editor
         # when project images actually change (see NoteEditorWidget).
@@ -410,7 +467,9 @@ class NotePreviewBrowser(QTextBrowser):
                 chart_path = get_chart_gallery_path(project, chart_item)
                 match = chart_item.id == ref_str or (chart_path and chart_path in (ref_str, rel_path))
                 if match:
-                    qimg = get_cached_qimage_for_chart(self.app_context, chart_item, self.image_cache)
+                    qimg = get_cached_qimage_for_chart(
+                        self.app_context, chart_item, self.image_cache, note_editor=self.note_editor
+                    )
                     if qimg is not None and not qimg.isNull():
                         return qimg
         except Exception:
@@ -436,19 +495,26 @@ class NoteEditorWidget(PWidget):
 
         # Debounces update_preview() calls triggered by chart/dataset
         # change events (as opposed to the user editing the note's own
-        # text): chart rendering is synchronous (a full ChartEditorWidget is
-        # built and rasterised via matplotlib -- see load_qimage_for_chart),
-        # so re-rendering immediately on every keystroke/cell-edit to a
-        # linked dataset stalls the UI on every single one. Coalescing
-        # rapid-fire edits into one re-render after a short pause keeps
-        # editing responsive while the note preview still catches up
-        # quickly once editing stops (see PR #383 follow-up).
+        # text): chart rendering itself now happens off the GUI thread (see
+        # get_cached_qimage_for_chart/dispatch_headless_chart_render), but
+        # update_preview() still walks/re-registers every referenced image
+        # each time, so re-invoking it on every keystroke/cell-edit to a
+        # linked dataset is still wasteful. Coalescing rapid-fire edits into
+        # one re-render after a short pause keeps editing responsive while
+        # the note preview still catches up quickly once editing stops (see
+        # PR #383 follow-up).
         self._chart_preview_refresh_timer = QTimer()
         self._chart_preview_refresh_timer.timeout.connect(self.update_preview)
         self._chart_preview_refresh_timer.setSingleShot(True)
 
         # Since we can't check if the preview is connected, track it with a flag
         self.preview_connected = False
+
+        # Chart ids with a background render currently in flight (see
+        # _dispatch_chart_render) -- prevents a second request for the
+        # same chart from starting a duplicate concurrent render while
+        # one is already running.
+        self._rendering_chart_ids: set = set()
 
         # Re-entrancy guard so proportional scroll syncing between the source
         # and preview panes doesn't ping-pong into an infinite loop.
@@ -568,7 +634,7 @@ class NoteEditorWidget(PWidget):
         font = QFont("Segoe UI", _NOTE_FONT_SIZE)
         self.text_edit.setFont(font)
 
-        self.preview = NotePreviewBrowser(app_context=self.app_context)
+        self.preview = NotePreviewBrowser(app_context=self.app_context, note_editor=self)
 
         # Create container widgets for each mode
 
@@ -917,11 +983,12 @@ class NoteEditorWidget(PWidget):
     def on_chart_or_dataset_changed_event(self, event_data: dict):
         """Invalidate only the cached chart image(s) affected by this change.
 
-        Chart rendering is synchronous (a full ChartEditorWidget is built and
-        rasterised via matplotlib -- see load_qimage_for_chart) so clearing
-        the whole cache on every change anywhere in the project would force
-        every chart referenced by the currently open note to re-render on the
-        next preview tick. Instead, drop only the specific chart's entry
+        Chart rendering is dispatched off the GUI thread (see
+        get_cached_qimage_for_chart/dispatch_headless_chart_render), but
+        clearing the whole cache on every change anywhere in the project
+        would still dispatch a redundant background render for every chart
+        referenced by the currently open note on the next preview tick.
+        Instead, drop only the specific chart's entry
         (CHART_UPDATED/CHART_DATA_UPDATED) or the entries for charts that
         actually use the changed dataset (DATASET_CHANGED).
         """

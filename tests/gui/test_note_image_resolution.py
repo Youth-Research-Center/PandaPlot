@@ -5,21 +5,20 @@ Tests for note image path resolution and insert-image picker dialog.
 import os
 from unittest.mock import MagicMock, patch
 
-import pandas as pd
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QImage, QTextCursor, QTextDocument
 from PySide6.QtWidgets import QDialog
 
-from pandaplot.app import build_app_context
 from pandaplot.gui.components.tabs.note.note_editor import (
     NoteEditorWidget,
     NotePreviewBrowser,
     extract_referenced_image_keys,
+    get_cached_qimage_for_chart,
     get_project_base_dir,
     register_project_image_resources,
 )
 from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePickerDialog
-from pandaplot.models.events.event_types import ChartEvents, ProjectEvents, ThemeEvents
+from pandaplot.models.events.event_types import ChartEvents, ProjectEvents
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
 from pandaplot.services.qtasks import TaskScheduler
@@ -1086,38 +1085,99 @@ def test_note_editor_insert_table_mid_paragraph_still_renders_as_table(qapp):
     assert "<p>Following text</p>" in html
 
 
-def test_load_qimage_for_chart_renders_real_chart(qapp):
-    """load_qimage_for_chart must actually rasterize a real chart, and must
-    not leave the throwaway ChartEditorWidget's event-bus subscription live
-    past the call (see tests/gui/core/test_unsubscribe_widget_tree.py for the
-    documented historical bug this guards against)."""
-    from pandaplot.gui.components.tabs.note.note_editor import load_qimage_for_chart
-
+def test_chart_cache_miss_dispatches_async_render_not_synchronous(qapp):
+    """A chart cache miss must not build a ChartEditorWidget synchronously
+    on the GUI thread -- it must dispatch a background task instead, and
+    return None (a miss) immediately."""
+    chart = Chart(name="Chart A")
     project = Project(name="Test Project")
-    df = pd.DataFrame({"x": [1, 2, 3], "y": [10, 20, 30]})
-    dataset = Dataset(name="Data 1", data=df)
-    project.add_item(dataset)
-
-    chart = Chart(name="Line Chart", chart_type="line")
-    chart.add_data_series(
-        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
-    )
     project.add_item(chart)
 
-    app_context = build_app_context()
-    app_context.app_state.load_project(project)
-    theme_subscribers_before = list(app_context.event_bus._subscribers.get(ThemeEvents.THEME_CHANGED, []))
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
 
-    qimg = load_qimage_for_chart(app_context, chart)
+    fake_task_scheduler = MagicMock()
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
 
-    assert qimg is not None
-    assert not qimg.isNull()
-    assert qimg.width() > 0
-    assert qimg.height() > 0
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
 
-    qapp.processEvents()  # let the deferred deleteLater() actually run
-    theme_subscribers_after = app_context.event_bus._subscribers.get(ThemeEvents.THEME_CHANGED, [])
-    assert theme_subscribers_after == theme_subscribers_before
+    result = get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache)
+
+    assert result is None  # miss, not yet rendered
+    fake_task_scheduler.run_task.assert_called_once()
+
+
+def test_chart_render_result_populates_cache_and_refreshes_preview(qapp):
+    """When the background render completes, its on_result callback must
+    populate the cache and trigger the (already-debounced) preview
+    refresh -- exactly as if get_cached_qimage_for_chart had synchronously
+    returned an image, just later."""
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    captured = {}
+
+    def fake_run_task(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
+        captured["on_result"] = on_result
+        return None
+
+    fake_task_scheduler = MagicMock()
+    fake_task_scheduler.run_task.side_effect = fake_run_task
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+
+    get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache, note_editor=editor)
+    assert "on_result" in captured
+
+    fake_qimg = QImage(5, 5, QImage.Format.Format_RGB32)
+    with patch.object(editor, "update_preview") as mock_update:
+        captured["on_result"](fake_qimg)
+        from PySide6.QtCore import QEventLoop, QTimer
+        loop = QEventLoop()
+        QTimer.singleShot(600, loop.quit)
+        loop.exec()
+        mock_update.assert_called_once()
+
+    assert editor.preview.image_cache[chart.id] is fake_qimg
+
+
+def test_second_request_while_rendering_does_not_dispatch_duplicate(qapp):
+    """A second cache-miss request for the SAME chart while a render is
+    already in flight must not start a duplicate task."""
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    fake_task_scheduler = MagicMock()
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache, note_editor=editor)
+    get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache, note_editor=editor)
+
+    assert fake_task_scheduler.run_task.call_count == 1
 
 
 def test_note_editor_insert_chart_uses_shared_width_constant(qapp):
@@ -1211,11 +1271,11 @@ def test_dataset_change_event_only_invalidates_charts_using_that_dataset(qapp):
 def test_chart_or_dataset_change_debounces_preview_refresh(qapp, qtbot):
     """Editing a linked dataset fires a chart/dataset change event per
     keystroke/cell-commit; each one used to call update_preview()
-    synchronously, and update_preview() eagerly re-renders every
-    referenced chart (a full ChartEditorWidget + matplotlib savefig,
-    on the GUI thread -- see load_qimage_for_chart), stalling editing on
-    every single edit. A burst of rapid-fire events must coalesce into
-    exactly one re-render, not one per event."""
+    synchronously, and update_preview() eagerly re-resolves every
+    referenced image/chart, which is still wasteful to do once per
+    keystroke even now that chart rendering itself is dispatched off the
+    GUI thread. A burst of rapid-fire events must coalesce into exactly
+    one re-render, not one per event."""
     chart = Chart(name="Chart A")
     project = Project(name="Test Project")
     project.add_item(chart)
@@ -1251,11 +1311,14 @@ def test_note_editor_registers_chart_resources(qapp):
 
     doc = QTextDocument()
     mock_qimg = QImage(20, 20, QImage.Format.Format_RGB32)
+    # Chart rendering is now asynchronous (see get_cached_qimage_for_chart):
+    # pre-populate the cache directly rather than patching a rendering
+    # function, so this test exercises resource registration, not rendering.
+    cache = {chart.id: mock_qimg}
 
-    with patch("pandaplot.gui.components.tabs.note.note_editor.load_qimage_for_chart", return_value=mock_qimg):
-        register_project_image_resources(
-            doc, app_context, referenced_keys={chart.id}
-        )
+    register_project_image_resources(
+        doc, app_context, cache, referenced_keys={chart.id}
+    )
 
     res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl(chart.id))
     assert res is not None
@@ -1283,12 +1346,14 @@ def test_note_editor_chart_does_not_shadow_same_named_gallery_image(qapp):
     chart_qimg = QImage(20, 20, QImage.Format.Format_RGB32)
     chart_qimg.fill(0xFF00FF00)
 
+    # Chart rendering is now asynchronous (see get_cached_qimage_for_chart):
+    # pre-populate the cache directly rather than patching a rendering
+    # function, so this test exercises resource registration, not rendering.
+    cache = {chart.id: chart_qimg}
     with patch(
         "pandaplot.gui.components.tabs.note.note_editor.load_qimage_for_item", return_value=image_qimg
-    ), patch(
-        "pandaplot.gui.components.tabs.note.note_editor.load_qimage_for_chart", return_value=chart_qimg
     ):
-        register_project_image_resources(doc, app_context)
+        register_project_image_resources(doc, app_context, cache)
 
     res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl("Plot.png"))
     assert res.width() == 10  # still the gallery image, not overwritten by the chart
@@ -1319,12 +1384,11 @@ def test_note_editor_chart_does_not_shadow_gallery_image_with_identical_exact_pa
     chart_qimg = QImage(20, 20, QImage.Format.Format_RGB32)
     chart_qimg.fill(0xFF00FF00)
 
+    cache = {chart.id: chart_qimg}
     with patch(
         "pandaplot.gui.components.tabs.note.note_editor.load_qimage_for_item", return_value=image_qimg
-    ), patch(
-        "pandaplot.gui.components.tabs.note.note_editor.load_qimage_for_chart", return_value=chart_qimg
     ):
-        register_project_image_resources(doc, app_context)
+        register_project_image_resources(doc, app_context, cache)
 
     res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl("Plot.png"))
     assert res.width() == 10  # still the gallery image, not overwritten by the chart
