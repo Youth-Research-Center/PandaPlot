@@ -130,6 +130,7 @@ class ChangeColumnDtypeCommand(Command):
                 
             # Apply the converted data
             self.dataset.data[self.column_name] = conversion_result["converted_data"]
+            self.dataset.set_data(self.dataset.data)
             
             # Show conversion report if there were issues
             if conversion_result["errors_count"] > 0:
@@ -246,6 +247,7 @@ class ChangeColumnDtypeCommand(Command):
             self.dataset.data is not None and self.column_name):
 
             self.dataset.data[self.column_name] = self.original_data
+            self.dataset.set_data(self.dataset.data)
 
             # Emit event for data change
             self.app_context.event_bus.emit(
@@ -273,6 +275,7 @@ class ChangeColumnDtypeCommand(Command):
             conversion_result = self._convert_column_dtype()
             if conversion_result:
                 self.dataset.data[self.column_name] = conversion_result["converted_data"]
+                self.dataset.set_data(self.dataset.data)
 
                 # Emit event for data change
                 self.app_context.event_bus.emit(

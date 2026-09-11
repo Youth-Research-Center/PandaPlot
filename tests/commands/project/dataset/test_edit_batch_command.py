@@ -250,3 +250,24 @@ def test_cleanup_isolates_a_raising_sub_command():
 
     ok_sub_command.cleanup.assert_called_once_with()
     assert command.executed_commands == []
+
+
+def test_edit_batch_command_updates_modified_at_on_execute_undo_redo(mock_app_context, sample_project):
+    mock_app_context.app_state.has_project = True
+    mock_app_context.app_state.current_project = sample_project
+    dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2]}))
+    dataset.modified_at = "2020-01-01T00:00:00.000000"
+    sample_project.find_item.return_value = dataset
+
+    command = EditBatchCommand(mock_app_context, "ds-1", 0, 0, [[10]])
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert dataset.modified_at != "2020-01-01T00:00:00.000000"
+
+    dataset.modified_at = "2020-01-01T00:00:00.000000"
+    assert command.undo() is CommandResult.SUCCESS
+    assert dataset.modified_at != "2020-01-01T00:00:00.000000"
+
+    dataset.modified_at = "2020-01-01T00:00:00.000000"
+    assert command.redo() is CommandResult.SUCCESS
+    assert dataset.modified_at != "2020-01-01T00:00:00.000000"

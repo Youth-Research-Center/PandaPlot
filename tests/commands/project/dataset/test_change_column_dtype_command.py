@@ -66,6 +66,28 @@ class TestChangeColumnDtypeCommand:
         assert result is CommandResult.NOOP
         ui_controller.show_info_message.assert_called_once()
 
+    def test_change_column_dtype_command_updates_modified_at_on_execute_undo_redo(self, mock_app_context, sample_project):
+        app_context, app_state, _ = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2, 3]}))
+        dataset.modified_at = "2020-01-01T00:00:00.000000"
+        sample_project.find_item.return_value = dataset
+
+        command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
+
+        assert command.execute() is CommandResult.SUCCESS
+        assert dataset.modified_at != "2020-01-01T00:00:00.000000"
+
+        dataset.modified_at = "2020-01-01T00:00:00.000000"
+        assert command.undo() is CommandResult.SUCCESS
+        assert dataset.modified_at != "2020-01-01T00:00:00.000000"
+
+        dataset.modified_at = "2020-01-01T00:00:00.000000"
+        assert command.redo() is CommandResult.SUCCESS
+        assert dataset.modified_at != "2020-01-01T00:00:00.000000"
+
 
 class TestChangeColumnDtypeCommandLogging:
     """Tests that genuine failure paths log a warning instead of failing silently."""
