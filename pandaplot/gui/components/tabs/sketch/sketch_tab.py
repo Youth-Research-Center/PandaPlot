@@ -14,6 +14,7 @@ from pandaplot.gui.components.tabs.sketch.sketch_canvas import SketchCanvas
 from pandaplot.gui.components.tabs.sketch.sketch_property_inspector import SketchPropertyInspector
 from pandaplot.gui.components.tabs.sketch.tools.base_tool import ToolMode
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.gui.dialogs.sketch.export_sketch_dialog import ExportSketchDialog
 from pandaplot.models.project.items.sketch import Sketch
 from pandaplot.models.state.app_context import AppContext
 
@@ -39,6 +40,7 @@ class SketchTab(PWidget):
         self.rect_btn = QPushButton("Rectangle")
         self.ellipse_btn = QPushButton("Ellipse")
         self.text_btn = QPushButton("Text")
+        self.export_btn = QPushButton("Export Image...")
 
         self.select_btn.clicked.connect(lambda: self.set_tool(ToolMode.SELECT))
         self.freehand_btn.clicked.connect(lambda: self.set_tool(ToolMode.FREEHAND))
@@ -46,6 +48,7 @@ class SketchTab(PWidget):
         self.rect_btn.clicked.connect(lambda: self.set_tool(ToolMode.RECTANGLE))
         self.ellipse_btn.clicked.connect(lambda: self.set_tool(ToolMode.ELLIPSE))
         self.text_btn.clicked.connect(lambda: self.set_tool(ToolMode.TEXT))
+        self.export_btn.clicked.connect(self._open_export_dialog)
 
         self.drawing_toolbar.addWidget(self.select_btn)
         self.drawing_toolbar.addWidget(self.freehand_btn)
@@ -53,6 +56,8 @@ class SketchTab(PWidget):
         self.drawing_toolbar.addWidget(self.rect_btn)
         self.drawing_toolbar.addWidget(self.ellipse_btn)
         self.drawing_toolbar.addWidget(self.text_btn)
+        self.drawing_toolbar.addSeparator()
+        self.drawing_toolbar.addWidget(self.export_btn)
 
         main_layout.addWidget(self.drawing_toolbar)
 
@@ -71,7 +76,7 @@ class SketchTab(PWidget):
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(self.canvas)
 
-        self.layer_panel = LayerManagerPanel(self.sketch, self.canvas, self)
+        self.layer_panel = LayerManagerPanel(self.sketch, self.canvas, command_executor=cmd_executor, parent=self)
         splitter.addWidget(self.layer_panel)
         splitter.setSizes([800, 200])
 
@@ -80,6 +85,10 @@ class SketchTab(PWidget):
     @override
     def _apply_theme(self):
         pass
+
+    def _open_export_dialog(self) -> None:
+        dialog = ExportSketchDialog(self.canvas, self)
+        dialog.exec()
 
     def set_tool(self, mode: ToolMode) -> None:
         self.canvas.tool_manager.set_mode(mode)

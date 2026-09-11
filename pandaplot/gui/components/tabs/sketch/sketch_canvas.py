@@ -1,10 +1,11 @@
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QKeyEvent, QMouseEvent, QPainter, QWheelEvent
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsView
 
 from pandaplot.commands.command_executor import CommandExecutor
+from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.commands.project.sketch import (
     AddSketchElementCommand,
     DeleteSketchElementsCommand,
@@ -24,7 +25,12 @@ class SketchCanvas(QGraphicsView):
     sketch_changed = Signal()
     selection_changed = Signal()
 
-    def __init__(self, sketch: Sketch, command_executor: Optional[CommandExecutor] = None, parent=None):
+    def __init__(
+        self,
+        sketch: Sketch,
+        command_executor: Optional[CommandExecutor] = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self._scene = QGraphicsScene(self)
         self.setScene(self._scene)
@@ -55,7 +61,13 @@ class SketchCanvas(QGraphicsView):
         self.rebuild_scene()
 
     def rebuild_scene(self) -> None:
-        """Rebuild all scene items from the sketch model layers."""
+        """Rebuild all scene items from sketch model layers, preserving selection."""
+        selected_ids = {
+            item.element.id
+            for item in self.scene().selectedItems()
+            if isinstance(item, BaseGraphicsItem)
+        }
+
         self.scene().clear()
         self.item_map.clear()
 
@@ -70,11 +82,14 @@ class SketchCanvas(QGraphicsView):
                 item = create_graphics_item_for_element(elem)
                 if item:
                     item.setZValue(z_idx)
+                    item.setOpacity(layer.opacity)
                     if layer.locked:
                         item.setFlag(BaseGraphicsItem.GraphicsItemFlag.ItemIsSelectable, False)
                         item.setFlag(BaseGraphicsItem.GraphicsItemFlag.ItemIsMovable, False)
                     self.scene().addItem(item)
                     self.item_map[elem.id] = item
+                    if elem.id in selected_ids and not layer.locked:
+                        item.setSelected(True)
 
     def add_element_to_active_layer(self, element: SketchElement) -> None:
         """Add an element to the active layer in model and scene via command if available."""
@@ -92,26 +107,38 @@ class SketchCanvas(QGraphicsView):
         self.sketch_changed.emit()
 
     def delete_selected_elements(self) -> None:
-        """Delete currently selected elements from model and scene via command if available."""
+        """Delete currently selected elements across unlocked layers via command if available."""
         selected_items = self.scene().selectedItems()
         if not selected_items:
             return
 
-        to_delete_ids = [
-            item.element.id for item in selected_items if isinstance(item, BaseGraphicsItem)
-        ]
-        if not to_delete_ids:
-            return
+        layer_elem_map: Dict[str, List[str]] = {}
+        for item in selected_items:
+            if isinstance(item, BaseGraphicsItem):
+                elem_id = item.element.id
+                for layer in self.sketch.layers:
+                    if not layer.locked and any(e.id == elem_id for e in layer.elements):
+                        layer_elem_map.setdefault(layer.id, []).append(elem_id)
+                        break
 
-        active_layer = self.sketch.get_active_layer()
-        if not active_layer or active_layer.locked:
+        if not layer_elem_map:
             return
 
         if self.command_executor:
-            cmd = DeleteSketchElementsCommand(self.sketch, active_layer.id, to_delete_ids)
-            self.command_executor.execute_command(cmd)
+            commands = [
+                DeleteSketchElementsCommand(self.sketch, lid, elem_ids)
+                for lid, elem_ids in layer_elem_map.items()
+            ]
+            if len(commands) == 1:
+                self.command_executor.execute_command(commands[0])
+            else:
+                self.command_executor.execute_command(CompositeCommand(commands))
         else:
-            active_layer.elements = [e for e in active_layer.elements if e.id not in set(to_delete_ids)]
+            for lid, elem_ids in layer_elem_map.items():
+                layer = self.sketch.get_layer(lid)
+                if layer:
+                    id_set = set(elem_ids)
+                    layer.elements = [e for e in layer.elements if e.id not in id_set]
 
         self.rebuild_scene()
         self.sketch_changed.emit()

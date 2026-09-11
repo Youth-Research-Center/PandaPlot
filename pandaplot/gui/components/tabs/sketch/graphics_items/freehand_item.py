@@ -1,7 +1,7 @@
 from typing import Optional
 
 from PySide6.QtCore import QPointF, QRectF
-from PySide6.QtGui import QPainter, QPainterPath
+from PySide6.QtGui import QPainter, QPainterPath, QPainterPathStroker
 from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget
 
 from pandaplot.gui.components.tabs.sketch.graphics_items.base_graphics_item import BaseGraphicsItem
@@ -25,11 +25,13 @@ class FreehandGraphicsItem(BaseGraphicsItem):
                 self._path.lineTo(QPointF(*pt))
 
     def boundingRect(self) -> QRectF:
-        pen_w = self.element.stroke_width
+        pen_w = max(5.0, self.element.stroke_width)
         return self._path.boundingRect().adjusted(-pen_w, -pen_w, pen_w, pen_w)
 
     def shape(self) -> QPainterPath:
-        return self._path
+        stroker = QPainterPathStroker()
+        stroker.setWidth(max(8.0, self.element.stroke_width))
+        return stroker.createStroke(self._path)
 
     def paint(
         self,

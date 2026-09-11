@@ -3,27 +3,43 @@ from typing import Optional
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QListWidget,
     QListWidgetItem,
     QPushButton,
+    QSlider,
     QVBoxLayout,
     QWidget,
 )
 
+from pandaplot.commands.command_executor import CommandExecutor
+from pandaplot.commands.project.sketch import (
+    AddLayerCommand,
+    DeleteLayerCommand,
+    ReorderLayersCommand,
+    UpdateLayerPropertiesCommand,
+)
 from pandaplot.gui.components.tabs.sketch.sketch_canvas import SketchCanvas
 from pandaplot.models.project.items.sketch import Sketch, SketchLayer
 
 
 class LayerManagerPanel(QWidget):
-    """Sidebar widget for managing sketch layers (add, delete, reorder, visibility, lock)."""
+    """Sidebar widget for managing sketch layers (add, delete, reorder, visibility, lock, opacity, rename)."""
 
     layer_changed = Signal()
 
-    def __init__(self, sketch: Sketch, canvas: SketchCanvas, parent: Optional[QWidget] = None):
+    def __init__(
+        self,
+        sketch: Sketch,
+        canvas: SketchCanvas,
+        command_executor: Optional[CommandExecutor] = None,
+        parent: Optional[QWidget] = None,
+    ):
         super().__init__(parent)
         self.sketch: Sketch = sketch
         self.canvas: SketchCanvas = canvas
+        self.command_executor: Optional[CommandExecutor] = command_executor
 
         layout = QVBoxLayout(self)
 
@@ -52,6 +68,25 @@ class LayerManagerPanel(QWidget):
         btn_layout.addWidget(self.down_btn)
         layout.addLayout(btn_layout)
 
+        toggles_layout = QHBoxLayout()
+        self.lock_btn = QPushButton("🔒 Toggle Lock")
+        self.lock_btn.clicked.connect(self._toggle_lock)
+        self.rename_btn = QPushButton("Rename")
+        self.rename_btn.clicked.connect(self._rename_layer)
+        toggles_layout.addWidget(self.lock_btn)
+        toggles_layout.addWidget(self.rename_btn)
+        layout.addLayout(toggles_layout)
+
+        opacity_layout = QHBoxLayout()
+        opacity_label = QLabel("Opacity:")
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(0, 100)
+        self.opacity_slider.setValue(100)
+        self.opacity_slider.valueChanged.connect(self._on_opacity_changed)
+        opacity_layout.addWidget(opacity_label)
+        opacity_layout.addWidget(self.opacity_slider)
+        layout.addLayout(opacity_layout)
+
         self.refresh_layer_list()
 
     def refresh_layer_list(self) -> None:
@@ -66,6 +101,9 @@ class LayerManagerPanel(QWidget):
             item.setData(Qt.UserRole, layer.id)
             if layer.id == self.sketch.active_layer_id:
                 item.setSelected(True)
+                self.opacity_slider.blockSignals(True)
+                self.opacity_slider.setValue(int(layer.opacity * 100))
+                self.opacity_slider.blockSignals(False)
             self.layer_list.addItem(item)
 
         self.del_btn.setEnabled(len(self.sketch.layers) > 1)
@@ -80,15 +118,50 @@ class LayerManagerPanel(QWidget):
         layer_id = item.data(Qt.UserRole)
         layer = self.sketch.get_layer(layer_id)
         if layer:
-            layer.visible = not layer.visible
-            self.canvas.rebuild_scene()
-            self.refresh_layer_list()
-            self.layer_changed.emit()
+            self._update_layer_props(layer_id, {"visible": not layer.visible})
+
+    def _toggle_lock(self) -> None:
+        active_layer = self.sketch.get_active_layer()
+        if active_layer:
+            self._update_layer_props(active_layer.id, {"locked": not active_layer.locked})
+
+    def _rename_layer(self) -> None:
+        active_layer = self.sketch.get_active_layer()
+        if not active_layer:
+            return
+        new_name, ok = QInputDialog.getText(self, "Rename Layer", "New layer name:", text=active_layer.name)
+        if ok and new_name:
+            self._update_layer_props(active_layer.id, {"name": new_name})
+
+    def _on_opacity_changed(self, val: int) -> None:
+        active_layer = self.sketch.get_active_layer()
+        if active_layer:
+            self._update_layer_props(active_layer.id, {"opacity": val / 100.0})
+
+    def _update_layer_props(self, layer_id: str, props: dict) -> None:
+        if self.command_executor:
+            cmd = UpdateLayerPropertiesCommand(self.sketch, layer_id, props)
+            self.command_executor.execute_command(cmd)
+        else:
+            layer = self.sketch.get_layer(layer_id)
+            if layer:
+                for k, v in props.items():
+                    if hasattr(layer, k):
+                        setattr(layer, k, v)
+
+        self.canvas.rebuild_scene()
+        self.refresh_layer_list()
+        self.layer_changed.emit()
 
     def _add_layer(self) -> None:
         new_layer = SketchLayer(name=f"Layer {len(self.sketch.layers) + 1}")
-        self.sketch.layers.append(new_layer)
-        self.sketch.active_layer_id = new_layer.id
+        if self.command_executor:
+            cmd = AddLayerCommand(self.sketch, new_layer)
+            self.command_executor.execute_command(cmd)
+        else:
+            self.sketch.layers.append(new_layer)
+            self.sketch.active_layer_id = new_layer.id
+
         self.canvas.rebuild_scene()
         self.refresh_layer_list()
         self.layer_changed.emit()
@@ -97,12 +170,19 @@ class LayerManagerPanel(QWidget):
         if len(self.sketch.layers) <= 1:
             return
         active_layer = self.sketch.get_active_layer()
-        if active_layer:
+        if not active_layer:
+            return
+
+        if self.command_executor:
+            cmd = DeleteLayerCommand(self.sketch, active_layer.id)
+            self.command_executor.execute_command(cmd)
+        else:
             self.sketch.layers.remove(active_layer)
             self.sketch.active_layer_id = self.sketch.layers[-1].id
-            self.canvas.rebuild_scene()
-            self.refresh_layer_list()
-            self.layer_changed.emit()
+
+        self.canvas.rebuild_scene()
+        self.refresh_layer_list()
+        self.layer_changed.emit()
 
     def _move_up(self) -> None:
         active_layer = self.sketch.get_active_layer()
@@ -110,10 +190,14 @@ class LayerManagerPanel(QWidget):
             return
         idx = self.sketch.layers.index(active_layer)
         if idx < len(self.sketch.layers) - 1:
-            self.sketch.layers[idx], self.sketch.layers[idx + 1] = (
-                self.sketch.layers[idx + 1],
-                self.sketch.layers[idx],
-            )
+            new_layers = list(self.sketch.layers)
+            new_layers[idx], new_layers[idx + 1] = new_layers[idx + 1], new_layers[idx]
+            if self.command_executor:
+                cmd = ReorderLayersCommand(self.sketch, new_layers)
+                self.command_executor.execute_command(cmd)
+            else:
+                self.sketch.layers = new_layers
+
             self.canvas.rebuild_scene()
             self.refresh_layer_list()
             self.layer_changed.emit()
@@ -124,10 +208,14 @@ class LayerManagerPanel(QWidget):
             return
         idx = self.sketch.layers.index(active_layer)
         if idx > 0:
-            self.sketch.layers[idx], self.sketch.layers[idx - 1] = (
-                self.sketch.layers[idx - 1],
-                self.sketch.layers[idx],
-            )
+            new_layers = list(self.sketch.layers)
+            new_layers[idx], new_layers[idx - 1] = new_layers[idx - 1], new_layers[idx]
+            if self.command_executor:
+                cmd = ReorderLayersCommand(self.sketch, new_layers)
+                self.command_executor.execute_command(cmd)
+            else:
+                self.sketch.layers = new_layers
+
             self.canvas.rebuild_scene()
             self.refresh_layer_list()
             self.layer_changed.emit()

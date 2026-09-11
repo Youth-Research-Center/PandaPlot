@@ -1,15 +1,26 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from pandaplot.commands.base_command import Command, CommandResult
-from pandaplot.models.project.items.sketch import Sketch, SketchElement
+from pandaplot.models.project.items.sketch import Sketch, SketchElement, SketchLayer
 
 
-class AddSketchElementCommand(Command):
+class SketchCommand(Command):
+    """Base class for sketch mutation commands that emits content-changed events."""
+
+    def __init__(self, sketch: Sketch):
+        super().__init__()
+        self.sketch: Sketch = sketch
+
+    def _notify_content_changed(self) -> None:
+        """Helper method to notify UI that sketch content has been updated."""
+        pass
+
+
+class AddSketchElementCommand(SketchCommand):
     """Command to add a SketchElement to a Sketch layer."""
 
     def __init__(self, sketch: Sketch, layer_id: str, element: SketchElement):
-        super().__init__()
-        self.sketch: Sketch = sketch
+        super().__init__(sketch)
         self.layer_id: str = layer_id
         self.element: SketchElement = element
 
@@ -33,12 +44,11 @@ class AddSketchElementCommand(Command):
         return self.execute()
 
 
-class DeleteSketchElementsCommand(Command):
+class DeleteSketchElementsCommand(SketchCommand):
     """Command to delete SketchElements from a Sketch layer, preserving original indices."""
 
     def __init__(self, sketch: Sketch, layer_id: str, element_ids: List[str]):
-        super().__init__()
-        self.sketch: Sketch = sketch
+        super().__init__(sketch)
         self.layer_id: str = layer_id
         self.element_ids: List[str] = list(element_ids)
         self._removed: List[Tuple[int, SketchElement]] = []
@@ -74,12 +84,11 @@ class DeleteSketchElementsCommand(Command):
         return self.execute()
 
 
-class UpdateSketchElementStyleCommand(Command):
+class UpdateSketchElementStyleCommand(SketchCommand):
     """Command to update style properties of one or more SketchElements."""
 
     def __init__(self, sketch: Sketch, element_ids: List[str], property_dict: Dict[str, Any]):
-        super().__init__()
-        self.sketch: Sketch = sketch
+        super().__init__(sketch)
         self.element_ids: List[str] = list(element_ids)
         self.property_dict: Dict[str, Any] = dict(property_dict)
         self._old_properties: Dict[str, Dict[str, Any]] = {}
@@ -126,6 +135,139 @@ class UpdateSketchElementStyleCommand(Command):
                     old_vals = self._old_properties[elem.id]
                     for k, old_v in old_vals.items():
                         setattr(elem, k, old_v)
+        return CommandResult.SUCCESS
+
+    def redo(self) -> CommandResult:
+        return self.execute()
+
+
+class LayerCommand(SketchCommand):
+    """Base class for layer manipulation commands."""
+
+    pass
+
+
+class AddLayerCommand(LayerCommand):
+    """Command to add a new layer to a sketch."""
+
+    def __init__(self, sketch: Sketch, layer: SketchLayer):
+        super().__init__(sketch)
+        self.layer: SketchLayer = layer
+
+    def execute(self) -> CommandResult:
+        self.sketch.layers.append(self.layer)
+        self.sketch.active_layer_id = self.layer.id
+        return CommandResult.SUCCESS
+
+    def undo(self) -> CommandResult:
+        if self.layer in self.sketch.layers:
+            self.sketch.layers.remove(self.layer)
+            if self.sketch.active_layer_id == self.layer.id and self.sketch.layers:
+                self.sketch.active_layer_id = self.sketch.layers[-1].id
+            return CommandResult.SUCCESS
+        return CommandResult.FAILURE
+
+    def redo(self) -> CommandResult:
+        return self.execute()
+
+
+class DeleteLayerCommand(LayerCommand):
+    """Command to delete a layer from a sketch."""
+
+    def __init__(self, sketch: Sketch, layer_id: str):
+        super().__init__(sketch)
+        self.layer_id: str = layer_id
+        self.deleted_layer: Optional[SketchLayer] = None
+        self.deleted_index: int = -1
+
+    def execute(self) -> CommandResult:
+        if len(self.sketch.layers) <= 1:
+            return CommandResult.NOOP
+
+        layer = self.sketch.get_layer(self.layer_id)
+        if not layer:
+            return CommandResult.FAILURE
+
+        self.deleted_index = self.sketch.layers.index(layer)
+        self.deleted_layer = layer
+        self.sketch.layers.remove(layer)
+
+        if self.sketch.active_layer_id == self.layer_id and self.sketch.layers:
+            self.sketch.active_layer_id = self.sketch.layers[-1].id
+
+        return CommandResult.SUCCESS
+
+    def undo(self) -> CommandResult:
+        if self.deleted_layer and self.deleted_index >= 0:
+            self.sketch.layers.insert(self.deleted_index, self.deleted_layer)
+            self.sketch.active_layer_id = self.deleted_layer.id
+            return CommandResult.SUCCESS
+        return CommandResult.FAILURE
+
+    def redo(self) -> CommandResult:
+        return self.execute()
+
+
+class ReorderLayersCommand(LayerCommand):
+    """Command to reorder layers in a sketch."""
+
+    def __init__(self, sketch: Sketch, new_layers: List[SketchLayer]):
+        super().__init__(sketch)
+        self.new_layers: List[SketchLayer] = list(new_layers)
+        self.old_layers: List[SketchLayer] = list(sketch.layers)
+
+    def execute(self) -> CommandResult:
+        if self.new_layers == self.old_layers:
+            return CommandResult.NOOP
+        self.sketch.layers = list(self.new_layers)
+        return CommandResult.SUCCESS
+
+    def undo(self) -> CommandResult:
+        self.sketch.layers = list(self.old_layers)
+        return CommandResult.SUCCESS
+
+    def redo(self) -> CommandResult:
+        return self.execute()
+
+
+class UpdateLayerPropertiesCommand(LayerCommand):
+    """Command to update visibility, lock, or opacity properties of a layer."""
+
+    def __init__(self, sketch: Sketch, layer_id: str, property_dict: Dict[str, Any]):
+        super().__init__(sketch)
+        self.layer_id: str = layer_id
+        self.property_dict: Dict[str, Any] = dict(property_dict)
+        self.old_properties: Dict[str, Any] = {}
+
+    def execute(self) -> CommandResult:
+        layer = self.sketch.get_layer(self.layer_id)
+        if not layer or not self.property_dict:
+            return CommandResult.NOOP
+
+        has_changes = False
+        self.old_properties = {}
+        for k, new_v in self.property_dict.items():
+            if hasattr(layer, k):
+                curr_v = getattr(layer, k)
+                self.old_properties[k] = curr_v
+                if curr_v != new_v:
+                    has_changes = True
+
+        if not has_changes:
+            return CommandResult.NOOP
+
+        for k, new_v in self.property_dict.items():
+            if hasattr(layer, k):
+                setattr(layer, k, new_v)
+
+        return CommandResult.SUCCESS
+
+    def undo(self) -> CommandResult:
+        layer = self.sketch.get_layer(self.layer_id)
+        if not layer:
+            return CommandResult.FAILURE
+        for k, old_v in self.old_properties.items():
+            setattr(layer, k, old_v)
         return CommandResult.SUCCESS
 
     def redo(self) -> CommandResult:

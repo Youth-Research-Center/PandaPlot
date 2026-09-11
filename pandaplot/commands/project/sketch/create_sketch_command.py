@@ -13,8 +13,12 @@ from pandaplot.models.state import AppContext, AppState
 class CreateSketchCommand(Command):
     """Command to create a new sketch in the project."""
 
-    def __init__(self, app_context: AppContext, sketch_name: Optional[str] = None,
-                 folder_id: Optional[str] = None):
+    def __init__(
+        self,
+        app_context: AppContext,
+        sketch_name: Optional[str] = None,
+        folder_id: Optional[str] = None,
+    ):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -32,7 +36,8 @@ class CreateSketchCommand(Command):
         try:
             if get_current_project(self.app_context) is None:
                 if not ensure_project_or_offer_create(
-                    self.app_context, "New Sketch",
+                    self.app_context,
+                    "New Sketch",
                     "Creating a sketch requires a project. Create a new project to continue?",
                 ):
                     return CommandResult.FAILURE
@@ -43,20 +48,22 @@ class CreateSketchCommand(Command):
 
             name = self.sketch_name or "New Sketch"
             self.created_sketch_id = str(uuid.uuid4())
-            self.created_sketch = Sketch(
-                id=self.created_sketch_id,
-                name=name
-            )
+            self.created_sketch = Sketch(id=self.created_sketch_id, name=name)
 
             self.project.add_item(self.created_sketch, parent_id=self.folder_id)
 
-            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
-                "project": self.project,
-                "sketch_id": self.created_sketch_id,
-                "sketch_name": name,
-                "folder_id": self.folder_id,
-                "sketch": self.created_sketch
-            })
+            self.app_state.event_bus.emit(
+                ProjectEvents.PROJECT_ITEM_ADDED,
+                {
+                    "project": self.project,
+                    "item_id": self.created_sketch_id,
+                    "sketch_id": self.created_sketch_id,
+                    "sketch_name": name,
+                    "folder_id": self.folder_id,
+                    "sketch": self.created_sketch,
+                    "item": self.created_sketch,
+                },
+            )
 
             return CommandResult.SUCCESS
 
@@ -79,11 +86,16 @@ class CreateSketchCommand(Command):
 
                 project.remove_item(sketch)
 
-                self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
-                    "project": project,
-                    "sketch_id": self.created_sketch_id,
-                    "sketch": self.created_sketch
-                })
+                self.app_state.event_bus.emit(
+                    ProjectEvents.PROJECT_ITEM_REMOVED,
+                    {
+                        "project": project,
+                        "item_id": self.created_sketch_id,
+                        "sketch_id": self.created_sketch_id,
+                        "sketch": self.created_sketch,
+                        "item": self.created_sketch,
+                    },
+                )
                 return CommandResult.SUCCESS
             else:
                 return CommandResult.NOOP
@@ -103,13 +115,18 @@ class CreateSketchCommand(Command):
 
                 project.add_item(self.created_sketch, parent_id=self.folder_id)
 
-                self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
-                    "project": project,
-                    "sketch_id": self.created_sketch_id,
-                    "sketch_name": self.created_sketch.name,
-                    "folder_id": self.folder_id,
-                    "sketch": self.created_sketch
-                })
+                self.app_state.event_bus.emit(
+                    ProjectEvents.PROJECT_ITEM_ADDED,
+                    {
+                        "project": project,
+                        "item_id": self.created_sketch_id,
+                        "sketch_id": self.created_sketch_id,
+                        "sketch_name": self.created_sketch.name,
+                        "folder_id": self.folder_id,
+                        "sketch": self.created_sketch,
+                        "item": self.created_sketch,
+                    },
+                )
                 return CommandResult.SUCCESS
             else:
                 return CommandResult.FAILURE
