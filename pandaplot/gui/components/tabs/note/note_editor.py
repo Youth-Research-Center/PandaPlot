@@ -84,6 +84,31 @@ def get_project_base_dir(app_context: AppContext) -> str:
     return os.getcwd()
 
 
+_CHART_SNAPSHOT_GALLERY_NAME = "Chart Snapshots"
+
+
+def find_or_create_chart_snapshot_gallery(app_context: AppContext, folder_id: Optional[str]) -> Optional[str]:
+    """Return the id of the "Chart Snapshots" gallery inside `folder_id`
+    (the note's own parent folder, or None for project root), creating one
+    if it doesn't already exist there. Returns None if there's no current
+    project or the gallery couldn't be created."""
+    from pandaplot.commands.project.image.create_image_gallery_command import CreateImageGalleryCommand
+    from pandaplot.models.project.items import ImageGallery
+
+    app_state = app_context.get_app_state() if app_context else None
+    project = app_state.current_project if app_state else None
+    if project is None:
+        return None
+
+    for item in project.get_all_items():
+        if isinstance(item, ImageGallery) and item.parent_id == folder_id and item.name == _CHART_SNAPSHOT_GALLERY_NAME:
+            return item.id
+
+    command = CreateImageGalleryCommand(app_context, gallery_name=_CHART_SNAPSHOT_GALLERY_NAME, parent_id=folder_id)
+    succeeded = app_context.get_command_executor().execute_command(command, track_undo=True)
+    return command.created_gallery_id if succeeded else None
+
+
 def get_image_gallery_path(project, image_item: Image) -> str:
     """Get gallery-relative path for an Image item (e.g. 'Album/Photo.png' or 'Photo.png')."""
     if project is None or image_item is None:

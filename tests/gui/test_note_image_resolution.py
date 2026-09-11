@@ -9,10 +9,12 @@ from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QImage, QTextCursor, QTextDocument
 from PySide6.QtWidgets import QDialog
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.gui.components.tabs.note.note_editor import (
     NoteEditorWidget,
     NotePreviewBrowser,
     extract_referenced_image_keys,
+    find_or_create_chart_snapshot_gallery,
     get_cached_qimage_for_chart,
     get_project_base_dir,
     register_project_image_resources,
@@ -1386,6 +1388,47 @@ def test_note_editor_chart_does_not_shadow_same_named_gallery_image(qapp):
 
     res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl("Plot.png"))
     assert res.width() == 10  # still the gallery image, not overwritten by the chart
+
+
+def test_find_or_create_chart_snapshot_gallery_reuses_existing(qapp):
+    project = Project(name="Test Project")
+    folder = Folder(name="Notes Folder")
+    project.add_item(folder)
+    existing_gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(existing_gallery, parent_id=folder.id)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    gallery_id = find_or_create_chart_snapshot_gallery(app_context, folder.id)
+    assert gallery_id == existing_gallery.id
+
+
+def test_find_or_create_chart_snapshot_gallery_creates_when_missing(qapp):
+    project = Project(name="Test Project")
+    folder = Folder(name="Notes Folder")
+    project.add_item(folder)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    fake_executor = MagicMock()
+
+    def _execute(command, **kwargs):
+        return command.execute() == CommandResult.SUCCESS
+    fake_executor.execute_command.side_effect = _execute
+    app_context.get_command_executor.return_value = fake_executor
+    app_context.get_ui_controller.return_value = MagicMock()
+    app_context.event_bus = MagicMock()
+
+    gallery_id = find_or_create_chart_snapshot_gallery(app_context, folder.id)
+    gallery = project.find_item(gallery_id)
+    assert gallery is not None
+    assert gallery.name == "Chart Snapshots"
+    assert gallery.parent_id == folder.id
 
 
 def test_note_editor_chart_does_not_shadow_gallery_image_with_identical_exact_path(qapp):
