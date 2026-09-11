@@ -109,12 +109,17 @@ class WidgetExtension:
 
         This should be called in component cleanup/destruction to prevent memory leaks.
         """
-        for event_type, handler in self._subscriptions:
-            self.app_context.event_bus.unsubscribe(event_type, handler)
-        self._subscriptions.clear()
-        if self._unsaved_changes_registry is not None:
-            self._unsaved_changes_registry.unregister(self)
-            self._unsaved_changes_registry = None
+        try:
+            for event_type, handler in getattr(self, "_subscriptions", []):
+                if hasattr(self, "app_context") and self.app_context and hasattr(self.app_context, "event_bus"):
+                    self.app_context.event_bus.unsubscribe(event_type, handler)
+            if hasattr(self, "_subscriptions") and self._subscriptions is not None:
+                self._subscriptions.clear()
+            if getattr(self, "_unsaved_changes_registry", None) is not None:
+                self._unsaved_changes_registry.unregister(self)
+                self._unsaved_changes_registry = None
+        except Exception:
+            pass
 
     def __del__(self):
         """Clean up subscriptions when object is destroyed."""
