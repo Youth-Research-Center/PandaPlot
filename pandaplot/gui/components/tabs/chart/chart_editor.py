@@ -16,7 +16,7 @@ from matplotlib.ticker import (
     ScalarFormatter,
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QImage
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -1223,6 +1223,35 @@ def render_chart(
     canvas.draw()
 
     return ChartRenderResult(series_errors=series_errors, colorbar=colorbar)
+
+
+def render_chart_to_qimage(chart, resolved_series_data, size_defaults) -> Optional[QImage]:
+    """Render `chart` to a QImage using a headless canvas -- no Qt widget
+    involved, safe to call from any thread (see HeadlessChartCanvas).
+
+    Returns None on any render failure (logged at debug level) rather than
+    raising, so a background-task caller can treat it the same as today's
+    synchronous "couldn't render" case: leave the cache entry as a miss.
+    """
+    import io
+
+    from pandaplot.gui.components.tabs.chart.headless_chart_canvas import HeadlessChartCanvas
+
+    try:
+        canvas = HeadlessChartCanvas(
+            width=cm_to_inches(size_defaults.default_width_cm),
+            height=cm_to_inches(size_defaults.default_height_cm),
+            dpi=size_defaults.dpi,
+        )
+        render_chart(chart, canvas, resolved_series_data, size_defaults, interactive=False)
+        buf = io.BytesIO()
+        canvas.fig.savefig(buf, format="png", dpi=size_defaults.dpi, bbox_inches="tight")
+        qimg = QImage()
+        if qimg.loadFromData(buf.getvalue()):
+            return qimg
+    except Exception as e:
+        logger.debug("Failed to render chart %s headlessly: %s", chart.id, e)
+    return None
 
 
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> Optional[tuple[float, float]]:
