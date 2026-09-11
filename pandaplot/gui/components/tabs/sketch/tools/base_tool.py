@@ -1,4 +1,4 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 from enum import Enum, auto
 from typing import TYPE_CHECKING
 
@@ -24,14 +24,19 @@ class BaseTool(ABC):
         self.mode: ToolMode = mode
         self.canvas: "SketchCanvas" = canvas
 
+    @abstractmethod
     def mouse_press(self, event: QMouseEvent) -> None:
+        """Handle mouse press event."""
         pass
 
     def mouse_move(self, event: QMouseEvent) -> None:
+        """Handle mouse move event."""
         pass
 
     def mouse_release(self, event: QMouseEvent) -> None:
+        """Handle mouse release event."""
         pass
 
     def key_press(self, event: QKeyEvent) -> None:
+        """Handle key press event."""
         pass

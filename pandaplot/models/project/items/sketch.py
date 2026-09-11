@@ -251,8 +251,8 @@ class TextElement(SketchElement):
         text: str = "",
         font_family: str = "Sans-Serif",
         font_size: int = 14,
-        is_bold: bool = False,
-        is_italic: bool = False,
+        is_bold: bool = False,  # noqa: FBT001, FBT002
+        is_italic: bool = False,  # noqa: FBT001, FBT002
         alignment: str = "left",
     ):
         super().__init__(id, x, y, rotation, stroke_color, stroke_width, stroke_style, fill_color)
@@ -311,8 +311,8 @@ class SketchLayer:
         self,
         id: Optional[str] = None,
         name: str = "Layer 1",
-        visible: bool = True,
-        locked: bool = False,
+        visible: bool = True,  # noqa: FBT001, FBT002
+        locked: bool = False,  # noqa: FBT001, FBT002
         opacity: float = 1.0,
         elements: Optional[List[SketchElement]] = None,
     ):

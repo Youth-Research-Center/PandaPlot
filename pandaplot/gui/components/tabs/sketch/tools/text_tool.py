@@ -31,6 +31,9 @@ class TextTool(BaseTool):
                     text=text,
                     font_family=self.canvas.active_font_family,
                     font_size=self.canvas.active_font_size,
+                    is_bold=self.canvas.active_font_bold,
+                    is_italic=self.canvas.active_font_italic,
+                    alignment=self.canvas.active_text_alignment,
                     stroke_color=self.canvas.active_stroke_color,
                 )
                 self.canvas.add_element_to_active_layer(elem)

@@ -1,26 +1,38 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items.sketch import Sketch, SketchElement, SketchLayer
+from pandaplot.models.state.app_context import AppContext
 
 
 class SketchCommand(Command):
     """Base class for sketch mutation commands that emits content-changed events."""
 
-    def __init__(self, sketch: Sketch):
+    def __init__(self, sketch: Sketch, app_context: Optional[AppContext] = None):
         super().__init__()
         self.sketch: Sketch = sketch
+        self.app_context: Optional[AppContext] = app_context
 
     def _notify_content_changed(self) -> None:
-        """Helper method to notify UI that sketch content has been updated."""
-        pass
+        if self.app_context and self.app_context.event_bus:
+            self.app_context.event_bus.emit(
+                ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED,
+                {"item_id": self.sketch.id, "sketch": self.sketch, "item": self.sketch},
+            )
 
 
 class AddSketchElementCommand(SketchCommand):
     """Command to add a SketchElement to a Sketch layer."""
 
-    def __init__(self, sketch: Sketch, layer_id: str, element: SketchElement):
-        super().__init__(sketch)
+    def __init__(
+        self,
+        sketch: Sketch,
+        layer_id: str,
+        element: SketchElement,
+        app_context: Optional[AppContext] = None,
+    ):
+        super().__init__(sketch, app_context)
         self.layer_id: str = layer_id
         self.element: SketchElement = element
 
@@ -29,6 +41,7 @@ class AddSketchElementCommand(SketchCommand):
         if not layer or layer.locked:
             return CommandResult.FAILURE
         layer.elements.append(self.element)
+        self._notify_content_changed()
         return CommandResult.SUCCESS
 
     def undo(self) -> CommandResult:
@@ -37,6 +50,7 @@ class AddSketchElementCommand(SketchCommand):
             return CommandResult.FAILURE
         if self.element in layer.elements:
             layer.elements.remove(self.element)
+            self._notify_content_changed()
             return CommandResult.SUCCESS
         return CommandResult.FAILURE
 
@@ -47,8 +61,14 @@ class AddSketchElementCommand(SketchCommand):
 class DeleteSketchElementsCommand(SketchCommand):
     """Command to delete SketchElements from a Sketch layer, preserving original indices."""
 
-    def __init__(self, sketch: Sketch, layer_id: str, element_ids: List[str]):
-        super().__init__(sketch)
+    def __init__(
+        self,
+        sketch: Sketch,
+        layer_id: str,
+        element_ids: List[str],
+        app_context: Optional[AppContext] = None,
+    ):
+        super().__init__(sketch, app_context)
         self.layer_id: str = layer_id
         self.element_ids: List[str] = list(element_ids)
         self._removed: List[Tuple[int, SketchElement]] = []
@@ -70,6 +90,7 @@ class DeleteSketchElementsCommand(SketchCommand):
             return CommandResult.NOOP
 
         layer.elements = remaining
+        self._notify_content_changed()
         return CommandResult.SUCCESS
 
     def undo(self) -> CommandResult:
@@ -78,6 +99,7 @@ class DeleteSketchElementsCommand(SketchCommand):
             return CommandResult.FAILURE
         for idx, elem in sorted(self._removed, key=lambda x: x[0]):
             layer.elements.insert(idx, elem)
+        self._notify_content_changed()
         return CommandResult.SUCCESS
 
     def redo(self) -> CommandResult:
@@ -87,8 +109,14 @@ class DeleteSketchElementsCommand(SketchCommand):
 class UpdateSketchElementStyleCommand(SketchCommand):
     """Command to update style properties of one or more SketchElements."""
 
-    def __init__(self, sketch: Sketch, element_ids: List[str], property_dict: Dict[str, Any]):
-        super().__init__(sketch)
+    def __init__(
+        self,
+        sketch: Sketch,
+        element_ids: List[str],
+        property_dict: Dict[str, Any],
+        app_context: Optional[AppContext] = None,
+    ):
+        super().__init__(sketch, app_context)
         self.element_ids: List[str] = list(element_ids)
         self.property_dict: Dict[str, Any] = dict(property_dict)
         self._old_properties: Dict[str, Dict[str, Any]] = {}
@@ -126,6 +154,7 @@ class UpdateSketchElementStyleCommand(SketchCommand):
                 if hasattr(elem, k):
                     setattr(elem, k, new_v)
 
+        self._notify_content_changed()
         return CommandResult.SUCCESS
 
     def undo(self) -> CommandResult:
@@ -135,6 +164,7 @@ class UpdateSketchElementStyleCommand(SketchCommand):
                     old_vals = self._old_properties[elem.id]
                     for k, old_v in old_vals.items():
                         setattr(elem, k, old_v)
+        self._notify_content_changed()
         return CommandResult.SUCCESS
 
     def redo(self) -> CommandResult:
@@ -150,13 +180,19 @@ class LayerCommand(SketchCommand):
 class AddLayerCommand(LayerCommand):
     """Command to add a new layer to a sketch."""
 
-    def __init__(self, sketch: Sketch, layer: SketchLayer):
-        super().__init__(sketch)
+    def __init__(
+        self,
+        sketch: Sketch,
+        layer: SketchLayer,
+        app_context: Optional[AppContext] = None,
+    ):
+        super().__init__(sketch, app_context)
         self.layer: SketchLayer = layer
 
     def execute(self) -> CommandResult:
         self.sketch.layers.append(self.layer)
         self.sketch.active_layer_id = self.layer.id
+        self._notify_content_changed()
         return CommandResult.SUCCESS
 
     def undo(self) -> CommandResult:
@@ -164,6 +200,7 @@ class AddLayerCommand(LayerCommand):
             self.sketch.layers.remove(self.layer)
             if self.sketch.active_layer_id == self.layer.id and self.sketch.layers:
                 self.sketch.active_layer_id = self.sketch.layers[-1].id
+            self._notify_content_changed()
             return CommandResult.SUCCESS
         return CommandResult.FAILURE
 
@@ -174,8 +211,13 @@ class AddLayerCommand(LayerCommand):
 class DeleteLayerCommand(LayerCommand):
     """Command to delete a layer from a sketch."""
 
-    def __init__(self, sketch: Sketch, layer_id: str):
-        super().__init__(sketch)
+    def __init__(
+        self,
+        sketch: Sketch,
+        layer_id: str,
+        app_context: Optional[AppContext] = None,
+    ):
+        super().__init__(sketch, app_context)
         self.layer_id: str = layer_id
         self.deleted_layer: Optional[SketchLayer] = None
         self.deleted_index: int = -1
@@ -195,12 +237,14 @@ class DeleteLayerCommand(LayerCommand):
         if self.sketch.active_layer_id == self.layer_id and self.sketch.layers:
             self.sketch.active_layer_id = self.sketch.layers[-1].id
 
+        self._notify_content_changed()
         return CommandResult.SUCCESS
 
     def undo(self) -> CommandResult:
         if self.deleted_layer and self.deleted_index >= 0:
             self.sketch.layers.insert(self.deleted_index, self.deleted_layer)
             self.sketch.active_layer_id = self.deleted_layer.id
+            self._notify_content_changed()
             return CommandResult.SUCCESS
         return CommandResult.FAILURE
 
@@ -211,8 +255,13 @@ class DeleteLayerCommand(LayerCommand):
 class ReorderLayersCommand(LayerCommand):
     """Command to reorder layers in a sketch."""
 
-    def __init__(self, sketch: Sketch, new_layers: List[SketchLayer]):
-        super().__init__(sketch)
+    def __init__(
+        self,
+        sketch: Sketch,
+        new_layers: List[SketchLayer],
+        app_context: Optional[AppContext] = None,
+    ):
+        super().__init__(sketch, app_context)
         self.new_layers: List[SketchLayer] = list(new_layers)
         self.old_layers: List[SketchLayer] = list(sketch.layers)
 
@@ -220,10 +269,12 @@ class ReorderLayersCommand(LayerCommand):
         if self.new_layers == self.old_layers:
             return CommandResult.NOOP
         self.sketch.layers = list(self.new_layers)
+        self._notify_content_changed()
         return CommandResult.SUCCESS
 
     def undo(self) -> CommandResult:
         self.sketch.layers = list(self.old_layers)
+        self._notify_content_changed()
         return CommandResult.SUCCESS
 
     def redo(self) -> CommandResult:
@@ -233,8 +284,14 @@ class ReorderLayersCommand(LayerCommand):
 class UpdateLayerPropertiesCommand(LayerCommand):
     """Command to update visibility, lock, or opacity properties of a layer."""
 
-    def __init__(self, sketch: Sketch, layer_id: str, property_dict: Dict[str, Any]):
-        super().__init__(sketch)
+    def __init__(
+        self,
+        sketch: Sketch,
+        layer_id: str,
+        property_dict: Dict[str, Any],
+        app_context: Optional[AppContext] = None,
+    ):
+        super().__init__(sketch, app_context)
         self.layer_id: str = layer_id
         self.property_dict: Dict[str, Any] = dict(property_dict)
         self.old_properties: Dict[str, Any] = {}
@@ -260,6 +317,7 @@ class UpdateLayerPropertiesCommand(LayerCommand):
             if hasattr(layer, k):
                 setattr(layer, k, new_v)
 
+        self._notify_content_changed()
         return CommandResult.SUCCESS
 
     def undo(self) -> CommandResult:
@@ -268,6 +326,7 @@ class UpdateLayerPropertiesCommand(LayerCommand):
             return CommandResult.FAILURE
         for k, old_v in self.old_properties.items():
             setattr(layer, k, old_v)
+        self._notify_content_changed()
         return CommandResult.SUCCESS
 
     def redo(self) -> CommandResult:

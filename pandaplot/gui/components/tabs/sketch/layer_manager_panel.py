@@ -22,6 +22,7 @@ from pandaplot.commands.project.sketch import (
 )
 from pandaplot.gui.components.tabs.sketch.sketch_canvas import SketchCanvas
 from pandaplot.models.project.items.sketch import Sketch, SketchLayer
+from pandaplot.models.state.app_context import AppContext
 
 
 class LayerManagerPanel(QWidget):
@@ -34,12 +35,14 @@ class LayerManagerPanel(QWidget):
         sketch: Sketch,
         canvas: SketchCanvas,
         command_executor: Optional[CommandExecutor] = None,
+        app_context: Optional[AppContext] = None,
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
         self.sketch: Sketch = sketch
         self.canvas: SketchCanvas = canvas
         self.command_executor: Optional[CommandExecutor] = command_executor
+        self.app_context: Optional[AppContext] = app_context
 
         layout = QVBoxLayout(self)
 
@@ -101,9 +104,9 @@ class LayerManagerPanel(QWidget):
             item.setData(Qt.UserRole, layer.id)
             if layer.id == self.sketch.active_layer_id:
                 item.setSelected(True)
-                self.opacity_slider.blockSignals(True)
+                self.opacity_slider.blockSignals(True)  # noqa: FBT003
                 self.opacity_slider.setValue(int(layer.opacity * 100))
-                self.opacity_slider.blockSignals(False)
+                self.opacity_slider.blockSignals(False)  # noqa: FBT003
             self.layer_list.addItem(item)
 
         self.del_btn.setEnabled(len(self.sketch.layers) > 1)
@@ -140,7 +143,7 @@ class LayerManagerPanel(QWidget):
 
     def _update_layer_props(self, layer_id: str, props: dict) -> None:
         if self.command_executor:
-            cmd = UpdateLayerPropertiesCommand(self.sketch, layer_id, props)
+            cmd = UpdateLayerPropertiesCommand(self.sketch, layer_id, props, app_context=self.app_context)
             self.command_executor.execute_command(cmd)
         else:
             layer = self.sketch.get_layer(layer_id)
@@ -156,7 +159,7 @@ class LayerManagerPanel(QWidget):
     def _add_layer(self) -> None:
         new_layer = SketchLayer(name=f"Layer {len(self.sketch.layers) + 1}")
         if self.command_executor:
-            cmd = AddLayerCommand(self.sketch, new_layer)
+            cmd = AddLayerCommand(self.sketch, new_layer, app_context=self.app_context)
             self.command_executor.execute_command(cmd)
         else:
             self.sketch.layers.append(new_layer)
@@ -174,7 +177,7 @@ class LayerManagerPanel(QWidget):
             return
 
         if self.command_executor:
-            cmd = DeleteLayerCommand(self.sketch, active_layer.id)
+            cmd = DeleteLayerCommand(self.sketch, active_layer.id, app_context=self.app_context)
             self.command_executor.execute_command(cmd)
         else:
             self.sketch.layers.remove(active_layer)
@@ -193,7 +196,7 @@ class LayerManagerPanel(QWidget):
             new_layers = list(self.sketch.layers)
             new_layers[idx], new_layers[idx + 1] = new_layers[idx + 1], new_layers[idx]
             if self.command_executor:
-                cmd = ReorderLayersCommand(self.sketch, new_layers)
+                cmd = ReorderLayersCommand(self.sketch, new_layers, app_context=self.app_context)
                 self.command_executor.execute_command(cmd)
             else:
                 self.sketch.layers = new_layers
@@ -211,7 +214,7 @@ class LayerManagerPanel(QWidget):
             new_layers = list(self.sketch.layers)
             new_layers[idx], new_layers[idx - 1] = new_layers[idx - 1], new_layers[idx]
             if self.command_executor:
-                cmd = ReorderLayersCommand(self.sketch, new_layers)
+                cmd = ReorderLayersCommand(self.sketch, new_layers, app_context=self.app_context)
                 self.command_executor.execute_command(cmd)
             else:
                 self.sketch.layers = new_layers

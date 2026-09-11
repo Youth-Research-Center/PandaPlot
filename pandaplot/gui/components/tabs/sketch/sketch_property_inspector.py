@@ -69,6 +69,11 @@ class SketchPropertyInspector(QToolBar):
         self.italic_btn.clicked.connect(self._on_font_italic_toggled)
         self.addWidget(self.italic_btn)
 
+        self.align_combo = QComboBox()
+        self.align_combo.addItems(["Left", "Center", "Right"])
+        self.align_combo.currentTextChanged.connect(self._on_alignment_changed)
+        self.addWidget(self.align_combo)
+
         self.canvas.selection_changed.connect(self.update_from_selection)
 
     def _choose_stroke_color(self) -> None:
@@ -79,7 +84,13 @@ class SketchPropertyInspector(QToolBar):
             self.property_changed.emit({"stroke_color": hex_color})
 
     def _choose_fill_color(self) -> None:
-        color = QColorDialog.getColor(QColor(self.canvas.active_fill_color) if self.canvas.active_fill_color != "none" else Qt.white, self, "Select Fill Color")
+        color = QColorDialog.getColor(
+            QColor(self.canvas.active_fill_color)
+            if self.canvas.active_fill_color != "none"
+            else Qt.white,
+            self,
+            "Select Fill Color",
+        )
         if color.isValid():
             hex_color = color.name()
             self.canvas.active_fill_color = hex_color
@@ -103,11 +114,18 @@ class SketchPropertyInspector(QToolBar):
         self.canvas.active_font_size = size
         self.property_changed.emit({"font_size": size})
 
-    def _on_font_bold_toggled(self, checked: bool) -> None:
+    def _on_font_bold_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        self.canvas.active_font_bold = checked
         self.property_changed.emit({"is_bold": checked})
 
-    def _on_font_italic_toggled(self, checked: bool) -> None:
+    def _on_font_italic_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        self.canvas.active_font_italic = checked
         self.property_changed.emit({"is_italic": checked})
+
+    def _on_alignment_changed(self, align_str: str) -> None:
+        align_lower = align_str.lower()
+        self.canvas.active_text_alignment = align_lower
+        self.property_changed.emit({"alignment": align_lower})
 
     def update_from_selection(self) -> None:
         selected_items = self.canvas.scene().selectedItems()
@@ -117,11 +135,12 @@ class SketchPropertyInspector(QToolBar):
         if hasattr(item, "element"):
             elem = item.element
 
-            self.stroke_width_spin.blockSignals(True)
-            self.font_combo.blockSignals(True)
-            self.font_size_spin.blockSignals(True)
-            self.bold_btn.blockSignals(True)
-            self.italic_btn.blockSignals(True)
+            self.stroke_width_spin.blockSignals(True)  # noqa: FBT003
+            self.font_combo.blockSignals(True)  # noqa: FBT003
+            self.font_size_spin.blockSignals(True)  # noqa: FBT003
+            self.bold_btn.blockSignals(True)  # noqa: FBT003
+            self.italic_btn.blockSignals(True)  # noqa: FBT003
+            self.align_combo.blockSignals(True)  # noqa: FBT003
 
             if hasattr(elem, "stroke_width"):
                 self.stroke_width_spin.setValue(elem.stroke_width)
@@ -137,9 +156,14 @@ class SketchPropertyInspector(QToolBar):
                 self.bold_btn.setChecked(elem.is_bold)
             if hasattr(elem, "is_italic"):
                 self.italic_btn.setChecked(elem.is_italic)
+            if hasattr(elem, "alignment"):
+                idx = self.align_combo.findText(elem.alignment.capitalize())
+                if idx >= 0:
+                    self.align_combo.setCurrentIndex(idx)
 
-            self.stroke_width_spin.blockSignals(False)
-            self.font_combo.blockSignals(False)
-            self.font_size_spin.blockSignals(False)
-            self.bold_btn.blockSignals(False)
-            self.italic_btn.blockSignals(False)
+            self.stroke_width_spin.blockSignals(False)  # noqa: FBT003
+            self.font_combo.blockSignals(False)  # noqa: FBT003
+            self.font_size_spin.blockSignals(False)  # noqa: FBT003
+            self.bold_btn.blockSignals(False)  # noqa: FBT003
+            self.italic_btn.blockSignals(False)  # noqa: FBT003
+            self.align_combo.blockSignals(False)  # noqa: FBT003

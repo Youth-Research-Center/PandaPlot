@@ -17,6 +17,7 @@ from pandaplot.gui.components.tabs.sketch.graphics_items import (
 )
 from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolManager
 from pandaplot.models.project.items.sketch import Sketch, SketchElement
+from pandaplot.models.state.app_context import AppContext
 
 
 class SketchCanvas(QGraphicsView):
@@ -29,6 +30,7 @@ class SketchCanvas(QGraphicsView):
         self,
         sketch: Sketch,
         command_executor: Optional[CommandExecutor] = None,
+        app_context: Optional[AppContext] = None,
         parent=None,
     ):
         super().__init__(parent)
@@ -37,6 +39,7 @@ class SketchCanvas(QGraphicsView):
 
         self.sketch: Sketch = sketch
         self.command_executor: Optional[CommandExecutor] = command_executor
+        self.app_context: Optional[AppContext] = app_context
         self.tool_manager = ToolManager(self)
 
         self.item_map: Dict[str, BaseGraphicsItem] = {}
@@ -47,6 +50,9 @@ class SketchCanvas(QGraphicsView):
         self.active_fill_color: str = "none"
         self.active_font_family: str = "Sans-Serif"
         self.active_font_size: int = 14
+        self.active_font_bold: bool = False
+        self.active_font_italic: bool = False
+        self.active_text_alignment: str = "left"
 
         self.is_panning: bool = False
         self.pan_start: QPointF = QPointF()
@@ -98,7 +104,7 @@ class SketchCanvas(QGraphicsView):
             return
 
         if self.command_executor:
-            cmd = AddSketchElementCommand(self.sketch, layer.id, element)
+            cmd = AddSketchElementCommand(self.sketch, layer.id, element, app_context=self.app_context)
             self.command_executor.execute_command(cmd)
         else:
             layer.elements.append(element)
@@ -126,7 +132,7 @@ class SketchCanvas(QGraphicsView):
 
         if self.command_executor:
             commands = [
-                DeleteSketchElementsCommand(self.sketch, lid, elem_ids)
+                DeleteSketchElementsCommand(self.sketch, lid, elem_ids, app_context=self.app_context)
                 for lid, elem_ids in layer_elem_map.items()
             ]
             if len(commands) == 1:
@@ -156,7 +162,9 @@ class SketchCanvas(QGraphicsView):
             return
 
         if self.command_executor:
-            cmd = UpdateSketchElementStyleCommand(self.sketch, selected_ids, property_dict)
+            cmd = UpdateSketchElementStyleCommand(
+                self.sketch, selected_ids, property_dict, app_context=self.app_context
+            )
             self.command_executor.execute_command(cmd)
         else:
             for layer in self.sketch.layers:

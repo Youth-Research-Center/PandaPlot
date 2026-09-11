@@ -15,6 +15,7 @@ from pandaplot.gui.components.tabs.sketch.sketch_property_inspector import Sketc
 from pandaplot.gui.components.tabs.sketch.tools.base_tool import ToolMode
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.gui.dialogs.sketch.export_sketch_dialog import ExportSketchDialog
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items.sketch import Sketch
 from pandaplot.models.state.app_context import AppContext
 
@@ -26,6 +27,7 @@ class SketchTab(PWidget):
         super().__init__(app_context=app_context, parent=parent)
         self.sketch: Sketch = sketch
         self._initialize()
+        self.setup_connections()
 
     @override
     def _init_ui(self):
@@ -63,7 +65,9 @@ class SketchTab(PWidget):
 
         # Canvas & Property Inspector
         cmd_executor = self.app_context.get_command_executor() if self.app_context else None
-        self.canvas = SketchCanvas(self.sketch, command_executor=cmd_executor, parent=self)
+        self.canvas = SketchCanvas(
+            self.sketch, command_executor=cmd_executor, app_context=self.app_context, parent=self
+        )
         self.property_inspector = SketchPropertyInspector(self.canvas, self)
 
         self.property_inspector.property_changed.connect(
@@ -76,7 +80,9 @@ class SketchTab(PWidget):
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(self.canvas)
 
-        self.layer_panel = LayerManagerPanel(self.sketch, self.canvas, command_executor=cmd_executor, parent=self)
+        self.layer_panel = LayerManagerPanel(
+            self.sketch, self.canvas, command_executor=cmd_executor, app_context=self.app_context, parent=self
+        )
         splitter.addWidget(self.layer_panel)
         splitter.setSizes([800, 200])
 
@@ -85,6 +91,38 @@ class SketchTab(PWidget):
     @override
     def _apply_theme(self):
         pass
+
+    def setup_connections(self):
+        """Subscribe to event bus events for undo/redo and rename syncing."""
+        self.subscribe_to_event(
+            ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED, self._on_item_content_changed
+        )
+        self.subscribe_to_event(
+            ProjectEvents.PROJECT_ITEM_RENAMED, self._on_item_renamed
+        )
+
+    def _on_item_content_changed(self, event_data: dict):
+        item_id = event_data.get("item_id")
+        if item_id == self.sketch.id:
+            self.canvas.rebuild_scene()
+            self.layer_panel.refresh_layer_list()
+
+    def _on_item_renamed(self, event_data: dict):
+        item_id = event_data.get("item_id")
+        if item_id == self.sketch.id:
+            self.refresh_tab_title()
+
+    def refresh_tab_title(self):
+        parent_container = self.parent()
+        while parent_container is not None and not hasattr(parent_container, "update_tab_title"):
+            parent_container = parent_container.parent()
+        if parent_container:
+            update_fn = getattr(parent_container, "update_tab_title", None)
+            if callable(update_fn):
+                try:
+                    update_fn(self, self.get_tab_title())
+                except Exception:
+                    pass
 
     def _open_export_dialog(self) -> None:
         dialog = ExportSketchDialog(self.canvas, self)
