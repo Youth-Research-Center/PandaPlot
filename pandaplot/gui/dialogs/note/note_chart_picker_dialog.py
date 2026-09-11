@@ -4,6 +4,7 @@ from typing import Dict, Optional, override
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QHBoxLayout,
     QLabel,
     QTreeWidget,
@@ -57,6 +58,14 @@ class NoteChartPickerDialog(PDialog):
         self.tree.itemSelectionChanged.connect(self._refresh_ok_enabled)
         self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
         layout.addWidget(self.tree)
+
+        self.sync_checkbox = QCheckBox("Keep synced with chart")
+        self.sync_checkbox.setChecked(True)
+        self.sync_checkbox.setToolTip(
+            "On: the note always shows this chart's current data/style.\n"
+            "Off: inserts a static snapshot image that never changes again."
+        )
+        layout.addWidget(self.sync_checkbox)
 
         button_row = QHBoxLayout()
         self.cancel_button = PButton("Cancel", role="secondary", on_click=self.reject)
@@ -148,3 +157,8 @@ class NoteChartPickerDialog(PDialog):
     def get_selected_chart(self) -> Optional[Chart]:
         """Return the selected Chart model, or None if dialog was cancelled/no selection."""
         return self._selected_chart
+
+    def get_sync_mode(self) -> bool:
+        """True (default) for a live chart reference that always shows the
+        chart's current data/style; False for a one-time static snapshot."""
+        return self.sync_checkbox.isChecked()

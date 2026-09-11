@@ -200,3 +200,16 @@ def test_note_table_picker_dialog_from_dataset(qapp):
     md = dialog.get_markdown_table()
     assert "| A | B |" in md
     assert "| 100 | 300 |" in md
+
+
+def test_note_chart_picker_sync_toggle_defaults_to_true_and_is_readable(qapp):
+    project = Project(name="Test Project")
+    chart = Chart(name="Line Plot")
+    project.add_item(chart)
+    app_context = _create_mock_app_context(project)
+
+    dialog = NoteChartPickerDialog(app_context, project)
+    assert dialog.get_sync_mode() is True
+
+    dialog.sync_checkbox.setChecked(False)
+    assert dialog.get_sync_mode() is False
