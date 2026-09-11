@@ -67,6 +67,10 @@ class ProjectViewPanelContextManager(QMenu):
         self.add_note_action.triggered.connect(self.command_manager.add_note)
         self.addAction(self.add_note_action)
 
+        self.add_sketch_action = QAction("Add Sketch", self)
+        self.add_sketch_action.triggered.connect(self.command_manager.add_sketch)
+        self.addAction(self.add_sketch_action)
+
         self.add_image_gallery_action = QAction("Add Image Gallery", self)
         self.add_image_gallery_action.triggered.connect(
             self.command_manager.add_image_gallery)
