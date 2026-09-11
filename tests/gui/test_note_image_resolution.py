@@ -36,6 +36,35 @@ def create_test_png_bytes(width=10, height=10) -> bytes:
     return bytes(buf.data())
 
 
+def _make_app_context_with_synchronous_task_scheduler(project):
+    """An app_context whose TaskScheduler runs tasks immediately, inline,
+    instead of on a real background thread -- lets a test exercise the
+    async chart-render dispatch/callback wiring without needing an actual
+    QThreadPool or an event-loop wait."""
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    def _run_task_synchronously(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
+        task_arguments = task_arguments or {}
+        try:
+            result = task(None, **task_arguments)
+        except Exception as e:
+            if on_error:
+                on_error((type(e), e, ""))
+            return None
+        if on_result:
+            on_result(result)
+        return None
+
+    fake_task_scheduler = MagicMock()
+    fake_task_scheduler.run_task.side_effect = _run_task_synchronously
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
+    return app_context
+
+
 def test_get_project_base_dir(tmp_path):
     app_context = MagicMock()
     project_file = str(tmp_path / "sub" / "my_project.pplot")
