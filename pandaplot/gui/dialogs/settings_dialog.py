@@ -673,6 +673,8 @@ class SettingsDialog(PDialog):
                 )
                 self._chart_width_raw_cm = width_cm
                 self._chart_height_raw_cm = height_cm
+                self.current_settings["chart_width"] = quantize_cm(width_cm, self._chart_size_unit)
+                self.current_settings["chart_height"] = quantize_cm(height_cm, self._chart_size_unit)
             self.original_settings = self.current_settings.copy()
             self.settings_changed.emit(self.current_settings)
         finally:
