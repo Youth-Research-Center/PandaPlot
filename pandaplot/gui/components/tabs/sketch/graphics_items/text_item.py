@@ -52,3 +52,4 @@ class TextGraphicsItem(BaseGraphicsItem):
 
         rect = self.boundingRect()
         painter.drawText(rect, align_flags, self.element.text)
+        self.paint_selection_outline(painter)

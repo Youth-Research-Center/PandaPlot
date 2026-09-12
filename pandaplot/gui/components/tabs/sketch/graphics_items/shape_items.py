@@ -45,6 +45,7 @@ class RectangleGraphicsItem(BaseGraphicsItem):
             )
         else:
             painter.drawRect(0, 0, self.element.width, self.element.height)
+        self.paint_selection_outline(painter)
 
 
 class EllipseGraphicsItem(BaseGraphicsItem):
@@ -72,3 +73,4 @@ class EllipseGraphicsItem(BaseGraphicsItem):
         painter.setPen(self.get_pen())
         painter.setBrush(self.get_brush())
         painter.drawEllipse(0, 0, self.element.rx * 2, self.element.ry * 2)
+        self.paint_selection_outline(painter)

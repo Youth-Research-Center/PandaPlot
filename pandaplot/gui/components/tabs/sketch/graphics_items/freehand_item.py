@@ -42,3 +42,4 @@ class FreehandGraphicsItem(BaseGraphicsItem):
         painter.setPen(self.get_pen())
         painter.setBrush(self.get_brush())
         painter.drawPath(self._path)
+        self.paint_selection_outline(painter)

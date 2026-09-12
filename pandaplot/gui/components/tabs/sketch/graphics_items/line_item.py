@@ -42,3 +42,4 @@ class LineGraphicsItem(BaseGraphicsItem):
     ) -> None:
         painter.setPen(self.get_pen())
         painter.drawLine(QLineF(self.element.x1, self.element.y1, self.element.x2, self.element.y2))
+        self.paint_selection_outline(painter)

@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Dict, Any, Optional
+from typing import TYPE_CHECKING, Any, Dict
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeyEvent, QMouseEvent
 
@@ -25,18 +26,18 @@ class SelectTool(BaseTool):
             "rotation": item.rotation(),
         }
         if hasattr(elem, "width"):
-            state["width"] = getattr(elem, "width")
+            state["width"] = elem.width
         if hasattr(elem, "height"):
-            state["height"] = getattr(elem, "height")
+            state["height"] = elem.height
         if hasattr(elem, "rx"):
-            state["rx"] = getattr(elem, "rx")
+            state["rx"] = elem.rx
         if hasattr(elem, "ry"):
-            state["ry"] = getattr(elem, "ry")
+            state["ry"] = elem.ry
         if hasattr(elem, "x1"):
-            state["x1"] = getattr(elem, "x1")
-            state["y1"] = getattr(elem, "y1")
-            state["x2"] = getattr(elem, "x2")
-            state["y2"] = getattr(elem, "y2")
+            state["x1"] = elem.x1
+            state["y1"] = elem.y1
+            state["x2"] = elem.x2
+            state["y2"] = elem.y2
         return state
 
     def mouse_press(self, event: QMouseEvent) -> None:

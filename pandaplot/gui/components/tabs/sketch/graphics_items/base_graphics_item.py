@@ -1,6 +1,7 @@
 from typing import Any, Optional
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QPen
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsRectItem
 
 from pandaplot.models.project.items.sketch import SketchElement
@@ -32,7 +33,7 @@ class ResizeHandleItem(QGraphicsRectItem):
 
 
 class BaseGraphicsItem(QGraphicsItem):
-    """Base QGraphicsItem wrapper for a SketchElement model with selection/resize handles."""
+    """Base QGraphicsItem wrapper for a SketchElement model with dashed bounding box outline & resize handles."""
 
     def __init__(self, element: SketchElement, parent: Optional[QGraphicsItem] = None):
         super().__init__(parent)
@@ -69,6 +70,7 @@ class BaseGraphicsItem(QGraphicsItem):
             is_sel = bool(value)
             for handle in self.handles.values():
                 handle.setVisible(is_sel)
+            self.update()
         return super().itemChange(change, value)
 
     def update_from_element(self) -> None:
@@ -92,3 +94,15 @@ class BaseGraphicsItem(QGraphicsItem):
         self.element.x = pos.x()
         self.element.y = pos.y()
         self.element.rotation = self.rotation()
+
+    def paint_selection_outline(self, painter: QPainter) -> None:
+        """Draw dashed bounding box outline when item is selected or moved."""
+        if self.isSelected():
+            painter.save()
+            outline_pen = QPen(QColor("#0078D4"))
+            outline_pen.setStyle(Qt.DashLine)
+            outline_pen.setWidthF(1.5)
+            painter.setPen(outline_pen)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(self.boundingRect())
+            painter.restore()

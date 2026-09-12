@@ -98,7 +98,7 @@ class SketchCanvas(QGraphicsView):
                         item.setSelected(True)
 
     def add_element_to_active_layer(self, element: SketchElement) -> None:
-        """Add an element to the active layer in model and scene via command if available."""
+        """Add an element to the active layer incrementally without full scene rebuild."""
         layer = self.sketch.get_active_layer()
         if not layer or layer.locked or not layer.visible:
             return
@@ -109,11 +109,18 @@ class SketchCanvas(QGraphicsView):
         else:
             layer.elements.append(element)
 
-        self.rebuild_scene()
+        item = create_graphics_item_for_element(element)
+        if item:
+            z_idx = self.sketch.layers.index(layer) if layer in self.sketch.layers else 0
+            item.setZValue(z_idx)
+            item.setOpacity(layer.opacity)
+            self.scene().addItem(item)
+            self.item_map[element.id] = item
+
         self.sketch_changed.emit()
 
     def delete_selected_elements(self) -> None:
-        """Delete currently selected elements across unlocked layers via command if available."""
+        """Delete currently selected elements across unlocked layers via command."""
         selected_items = self.scene().selectedItems()
         if not selected_items:
             return
@@ -146,11 +153,17 @@ class SketchCanvas(QGraphicsView):
                     id_set = set(elem_ids)
                     layer.elements = [e for e in layer.elements if e.id not in id_set]
 
-        self.rebuild_scene()
+        # Remove deleted items directly from scene
+        for elem_ids in layer_elem_map.values():
+            for eid in elem_ids:
+                if eid in self.item_map:
+                    gitem = self.item_map.pop(eid)
+                    self.scene().removeItem(gitem)
+
         self.sketch_changed.emit()
 
     def apply_style_change_to_selection(self, property_dict: dict) -> None:
-        """Apply style property changes to selected elements."""
+        """Apply style property changes to selected elements incrementally."""
         selected_items = self.scene().selectedItems()
         if not selected_items:
             return
@@ -174,7 +187,10 @@ class SketchCanvas(QGraphicsView):
                             if hasattr(elem, k):
                                 setattr(elem, k, v)
 
-        self.rebuild_scene()
+        for eid in selected_ids:
+            if eid in self.item_map:
+                self.item_map[eid].update_from_element()
+
         self.sketch_changed.emit()
 
     def notify_sketch_changed(self) -> None:

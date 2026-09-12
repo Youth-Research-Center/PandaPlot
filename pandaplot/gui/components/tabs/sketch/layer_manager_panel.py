@@ -5,10 +5,10 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QPushButton,
     QSlider,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -17,6 +17,7 @@ from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.commands.project.sketch import (
     AddLayerCommand,
     DeleteLayerCommand,
+    DeleteSketchElementsCommand,
     ReorderLayersCommand,
     UpdateLayerPropertiesCommand,
 )
@@ -25,8 +26,19 @@ from pandaplot.models.project.items.sketch import Sketch, SketchLayer
 from pandaplot.models.state.app_context import AppContext
 
 
+def get_element_icon(elem_type: str) -> str:
+    icons = {
+        "freehand": "✏️",
+        "line": "📏",
+        "rectangle": "⬛",
+        "ellipse": "⚪",
+        "text": "🔤",
+    }
+    return icons.get(elem_type.lower(), "📄")
+
+
 class LayerManagerPanel(QWidget):
-    """Sidebar widget for managing sketch layers (add, delete, reorder, visibility, lock, opacity, rename)."""
+    """Sidebar widget for managing sketch layers and expandable element trees."""
 
     layer_changed = Signal()
 
@@ -46,20 +58,21 @@ class LayerManagerPanel(QWidget):
 
         layout = QVBoxLayout(self)
 
-        title_label = QLabel("Layer Manager")
+        title_label = QLabel("Layer & Element Hierarchy")
         title_label.setStyleSheet("font-weight: bold; margin-bottom: 4px;")
         layout.addWidget(title_label)
 
-        self.layer_list = QListWidget()
-        self.layer_list.itemClicked.connect(self._on_item_clicked)
-        self.layer_list.itemDoubleClicked.connect(self._on_item_double_clicked)
-        layout.addWidget(self.layer_list)
+        self.tree = QTreeWidget()
+        self.tree.setHeaderHidden(True)
+        self.tree.itemClicked.connect(self._on_item_clicked)
+        self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
+        layout.addWidget(self.tree)
 
         btn_layout = QHBoxLayout()
-        self.add_btn = QPushButton("+ Add")
+        self.add_btn = QPushButton("+ Layer")
         self.add_btn.clicked.connect(self._add_layer)
         self.del_btn = QPushButton("- Delete")
-        self.del_btn.clicked.connect(self._delete_layer)
+        self.del_btn.clicked.connect(self._delete_selected)
         self.up_btn = QPushButton("▲")
         self.up_btn.clicked.connect(self._move_up)
         self.down_btn = QPushButton("▼")
@@ -72,7 +85,7 @@ class LayerManagerPanel(QWidget):
         layout.addLayout(btn_layout)
 
         toggles_layout = QHBoxLayout()
-        self.lock_btn = QPushButton("🔒 Toggle Lock")
+        self.lock_btn = QPushButton("🔒 Lock")
         self.lock_btn.clicked.connect(self._toggle_lock)
         self.rename_btn = QPushButton("Rename")
         self.rename_btn.clicked.connect(self._rename_layer)
@@ -93,35 +106,95 @@ class LayerManagerPanel(QWidget):
         self.refresh_layer_list()
 
     def refresh_layer_list(self) -> None:
-        self.layer_list.clear()
+        self.tree.clear()
         for layer in reversed(self.sketch.layers):
             vis_str = "👁" if layer.visible else "🙈"
             lock_str = "🔒" if layer.locked else "🔓"
             active_str = " ★" if layer.id == self.sketch.active_layer_id else ""
-            item_text = f"{vis_str} {lock_str} {layer.name}{active_str}"
+            layer_text = f"📁 {vis_str} {lock_str} {layer.name}{active_str}"
 
-            item = QListWidgetItem(item_text)
-            item.setData(Qt.UserRole, layer.id)
+            layer_item = QTreeWidgetItem([layer_text])
+            layer_item.setData(0, Qt.UserRole, {"kind": "layer", "id": layer.id})
+
             if layer.id == self.sketch.active_layer_id:
-                item.setSelected(True)
                 self.opacity_slider.blockSignals(True)  # noqa: FBT003
                 self.opacity_slider.setValue(int(layer.opacity * 100))
                 self.opacity_slider.blockSignals(False)  # noqa: FBT003
-            self.layer_list.addItem(item)
 
-        self.del_btn.setEnabled(len(self.sketch.layers) > 1)
+            for elem in layer.elements:
+                icon = get_element_icon(elem.type)
+                summary = getattr(elem, "text", "") or elem.type.capitalize()
+                elem_item = QTreeWidgetItem([f"  {icon} {summary}"])
+                elem_item.setData(
+                    0, Qt.UserRole, {"kind": "element", "id": elem.id, "layer_id": layer.id}
+                )
+                layer_item.addChild(elem_item)
 
-    def _on_item_clicked(self, item: QListWidgetItem) -> None:
-        layer_id = item.data(Qt.UserRole)
-        self.sketch.active_layer_id = layer_id
-        self.refresh_layer_list()
-        self.layer_changed.emit()
+            self.tree.addTopLevelItem(layer_item)
+            layer_item.setExpanded(True)
 
-    def _on_item_double_clicked(self, item: QListWidgetItem) -> None:
-        layer_id = item.data(Qt.UserRole)
-        layer = self.sketch.get_layer(layer_id)
-        if layer:
-            self._update_layer_props(layer_id, {"visible": not layer.visible})
+        self.del_btn.setEnabled(len(self.sketch.layers) > 1 or self.tree.currentItem() is not None)
+
+    def _on_item_clicked(self, item: QTreeWidgetItem, column: int) -> None:
+        data = item.data(0, Qt.UserRole)
+        if not data:
+            return
+
+        kind = data.get("kind")
+        if kind == "layer":
+            layer_id = data.get("id")
+            self.sketch.active_layer_id = layer_id
+            self.refresh_layer_list()
+            self.layer_changed.emit()
+        elif kind == "element":
+            elem_id = data.get("id")
+            layer_id = data.get("layer_id")
+            if layer_id:
+                self.sketch.active_layer_id = layer_id
+            if elem_id in self.canvas.item_map:
+                self.canvas.scene().clearSelection()
+                self.canvas.item_map[elem_id].setSelected(True)
+
+    def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int) -> None:
+        data = item.data(0, Qt.UserRole)
+        if not data:
+            return
+
+        if data.get("kind") == "layer":
+            layer_id = data.get("id")
+            layer = self.sketch.get_layer(layer_id)
+            if layer:
+                self._update_layer_props(layer_id, {"visible": not layer.visible})
+
+    def _delete_selected(self) -> None:
+        current_item = self.tree.currentItem()
+        if not current_item:
+            return
+
+        data = current_item.data(0, Qt.UserRole)
+        if not data:
+            return
+
+        kind = data.get("kind")
+        if kind == "layer":
+            self._delete_layer()
+        elif kind == "element":
+            elem_id = data.get("id")
+            layer_id = data.get("layer_id")
+            if elem_id and layer_id:
+                if self.command_executor:
+                    cmd = DeleteSketchElementsCommand(
+                        self.sketch, layer_id, [elem_id], app_context=self.app_context
+                    )
+                    self.command_executor.execute_command(cmd)
+                else:
+                    layer = self.sketch.get_layer(layer_id)
+                    if layer:
+                        layer.elements = [e for e in layer.elements if e.id != elem_id]
+
+                self.canvas.rebuild_scene()
+                self.refresh_layer_list()
+                self.layer_changed.emit()
 
     def _toggle_lock(self) -> None:
         active_layer = self.sketch.get_active_layer()
@@ -132,7 +205,9 @@ class LayerManagerPanel(QWidget):
         active_layer = self.sketch.get_active_layer()
         if not active_layer:
             return
-        new_name, ok = QInputDialog.getText(self, "Rename Layer", "New layer name:", text=active_layer.name)
+        new_name, ok = QInputDialog.getText(
+            self, "Rename Layer", "New layer name:", text=active_layer.name
+        )
         if ok and new_name:
             self._update_layer_props(active_layer.id, {"name": new_name})
 
@@ -143,7 +218,9 @@ class LayerManagerPanel(QWidget):
 
     def _update_layer_props(self, layer_id: str, props: dict) -> None:
         if self.command_executor:
-            cmd = UpdateLayerPropertiesCommand(self.sketch, layer_id, props, app_context=self.app_context)
+            cmd = UpdateLayerPropertiesCommand(
+                self.sketch, layer_id, props, app_context=self.app_context
+            )
             self.command_executor.execute_command(cmd)
         else:
             layer = self.sketch.get_layer(layer_id)
