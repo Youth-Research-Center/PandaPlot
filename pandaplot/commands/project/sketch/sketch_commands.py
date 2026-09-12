@@ -106,6 +106,47 @@ class DeleteSketchElementsCommand(SketchCommand):
         return self.execute()
 
 
+class MoveResizeSketchElementsCommand(SketchCommand):
+    """Command to move or resize elements, storing before and after property states."""
+
+    def __init__(
+        self,
+        sketch: Sketch,
+        old_states: Dict[str, Dict[str, Any]],
+        new_states: Dict[str, Dict[str, Any]],
+        app_context: Optional[AppContext] = None,
+    ):
+        super().__init__(sketch, app_context)
+        self.old_states: Dict[str, Dict[str, Any]] = old_states
+        self.new_states: Dict[str, Dict[str, Any]] = new_states
+
+    def _apply_states(self, states: Dict[str, Dict[str, Any]]) -> None:
+        for layer in self.sketch.layers:
+            for elem in layer.elements:
+                if elem.id in states:
+                    elem_state = states[elem.id]
+                    for k, v in elem_state.items():
+                        if hasattr(elem, k):
+                            setattr(elem, k, v)
+
+    def execute(self) -> CommandResult:
+        if not self.new_states or self.old_states == self.new_states:
+            return CommandResult.NOOP
+        self._apply_states(self.new_states)
+        self._notify_content_changed()
+        return CommandResult.SUCCESS
+
+    def undo(self) -> CommandResult:
+        if not self.old_states:
+            return CommandResult.FAILURE
+        self._apply_states(self.old_states)
+        self._notify_content_changed()
+        return CommandResult.SUCCESS
+
+    def redo(self) -> CommandResult:
+        return self.execute()
+
+
 class UpdateSketchElementStyleCommand(SketchCommand):
     """Command to update style properties of one or more SketchElements."""
 

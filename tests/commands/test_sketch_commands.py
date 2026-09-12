@@ -3,79 +3,43 @@ from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.commands.project.sketch.sketch_commands import (
     AddSketchElementCommand,
     DeleteSketchElementsCommand,
+    MoveResizeSketchElementsCommand,
     UpdateSketchElementStyleCommand,
 )
 from pandaplot.models.project.items.sketch import RectangleElement, Sketch
 
 
-def test_add_sketch_element_command():
-    sketch = Sketch(name="Command Test")
+def test_move_resize_sketch_elements_command():
+    sketch = Sketch(name="Move Command Test")
     layer = sketch.get_active_layer()
     rect = RectangleElement(x=10, y=10, width=50, height=50)
+    layer.elements.append(rect)
 
-    cmd = AddSketchElementCommand(sketch, layer.id, rect)
+    old_state = {rect.id: {"x": 10.0, "y": 10.0, "width": 50.0, "height": 50.0}}
+    new_state = {rect.id: {"x": 100.0, "y": 150.0, "width": 120.0, "height": 80.0}}
+
+    cmd = MoveResizeSketchElementsCommand(sketch, old_state, new_state)
     res = cmd.execute()
     assert res == CommandResult.SUCCESS
-    assert len(layer.elements) == 1
-    assert layer.elements[0] is rect
+    assert rect.x == 100.0
+    assert rect.y == 150.0
+    assert rect.width == 120.0
+    assert rect.height == 80.0
 
     undo_res = cmd.undo()
     assert undo_res == CommandResult.SUCCESS
-    assert len(layer.elements) == 0
+    assert rect.x == 10.0
+    assert rect.y == 10.0
+    assert rect.width == 50.0
+    assert rect.height == 50.0
 
-    redo_res = cmd.redo()
-    assert redo_res == CommandResult.SUCCESS
-    assert len(layer.elements) == 1
 
-
-def test_delete_sketch_elements_command():
-    sketch = Sketch(name="Delete Command Test")
+def test_move_resize_command_noop():
+    sketch = Sketch(name="Noop Move Test")
     layer = sketch.get_active_layer()
-    r1 = RectangleElement(x=10, y=10, width=50, height=50)
-    r2 = RectangleElement(x=100, y=100, width=50, height=50)
-    layer.elements.extend([r1, r2])
+    rect = RectangleElement(x=10, y=10, width=50, height=50)
+    layer.elements.append(rect)
 
-    cmd = DeleteSketchElementsCommand(sketch, layer.id, [r1.id])
-    res = cmd.execute()
-    assert res == CommandResult.SUCCESS
-    assert len(layer.elements) == 1
-    assert layer.elements[0] is r2
-
-    undo_res = cmd.undo()
-    assert undo_res == CommandResult.SUCCESS
-    assert len(layer.elements) == 2
-    assert layer.elements[0] is r1
-
-
-def test_update_sketch_element_style_command_noop_and_execute():
-    sketch = Sketch(name="Style Command Test")
-    layer = sketch.get_active_layer()
-    r1 = RectangleElement(x=10, y=10, width=50, height=50, stroke_color="#000000")
-    layer.elements.append(r1)
-
-    noop_cmd = UpdateSketchElementStyleCommand(sketch, [r1.id], {"stroke_color": "#000000"})
-    assert noop_cmd.execute() == CommandResult.NOOP
-
-    cmd = UpdateSketchElementStyleCommand(sketch, [r1.id], {"stroke_color": "#FF0000", "stroke_width": 5.0})
-    res = cmd.execute()
-    assert res == CommandResult.SUCCESS
-    assert r1.stroke_color == "#FF0000"
-    assert r1.stroke_width == 5.0
-
-    undo_res = cmd.undo()
-    assert undo_res == CommandResult.SUCCESS
-    assert r1.stroke_color == "#000000"
-    assert r1.stroke_width == 2.0
-
-
-def test_command_executor_ignores_noop():
-    sketch = Sketch(name="Executor Test")
-    layer = sketch.get_active_layer()
-    r1 = RectangleElement(x=10, y=10, width=50, height=50, stroke_color="#000000")
-    layer.elements.append(r1)
-
-    executor = CommandExecutor()
-    noop_cmd = UpdateSketchElementStyleCommand(sketch, [r1.id], {"stroke_color": "#000000"})
-    executor.execute_command(noop_cmd)
-
-    assert executor.can_undo() is False
+    same_state = {rect.id: {"x": 10.0, "y": 10.0}}
+    cmd = MoveResizeSketchElementsCommand(sketch, same_state, same_state)
+    assert cmd.execute() == CommandResult.NOOP

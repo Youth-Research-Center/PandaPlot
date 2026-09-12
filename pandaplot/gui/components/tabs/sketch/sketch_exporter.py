@@ -1,3 +1,4 @@
+from typing import Optional
 from PySide6.QtCore import QMarginsF, QRectF, QSizeF, Qt
 from PySide6.QtGui import QBrush, QColor, QImage, QPageSize, QPainter, QPdfWriter
 from PySide6.QtSvg import QSvgGenerator
@@ -9,16 +10,38 @@ class SketchExporter:
     """Utility service for exporting a SketchCanvas to raster or vector image formats."""
 
     @staticmethod
+    def get_elements_bounding_rect(canvas: SketchCanvas, padding: float = 10.0) -> QRectF:
+        """Calculate tight bounding box around all visible elements with padding."""
+        items = [
+            item for item in canvas.scene().items()
+            if hasattr(item, "element") and item.isVisible()
+        ]
+        if not items:
+            return canvas.scene().sceneRect()
+
+        rect = items[0].sceneBoundingRect()
+        for item in items[1:]:
+            rect = rect.united(item.sceneBoundingRect())
+
+        return rect.adjusted(-padding, -padding, padding, padding)
+
+    @staticmethod
     def export_to_image(
         canvas: SketchCanvas,
         filepath: str,
         format_str: str = "PNG",
         dpi: int = 300,
         transparent: bool = False,
+        use_bounding_box: bool = False,
+        padding: float = 10.0,
     ) -> bool:
         """Export sketch canvas scene to PNG, JPEG, SVG, or PDF."""
         scene = canvas.scene()
-        rect = scene.sceneRect()
+        rect = (
+            SketchExporter.get_elements_bounding_rect(canvas, padding=padding)
+            if use_bounding_box
+            else scene.sceneRect()
+        )
 
         scale_factor = dpi / 72.0
         target_width = max(1, int(rect.width() * scale_factor))
@@ -50,7 +73,7 @@ class SketchExporter:
                 painter = QPainter(writer)
                 if not transparent:
                     painter.fillRect(rect, QColor(canvas.sketch.background_color))
-                scene.render(painter)
+                scene.render(painter, QRectF(0, 0, rect.width(), rect.height()), rect)
                 painter.end()
                 return True
 
