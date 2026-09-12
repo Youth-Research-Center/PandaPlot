@@ -21,10 +21,12 @@ class CircuitPalettePanel(QGroupBox):
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
+        self._all_buttons = []
 
         self.wire_btn = QPushButton("🔌 Wire")
         self.wire_btn.clicked.connect(self._select_wire)
         layout.addWidget(self.wire_btn)
+        self._all_buttons.append(self.wire_btn)
 
         components = [
             ("Resistor", "resistor"),
@@ -40,15 +42,25 @@ class CircuitPalettePanel(QGroupBox):
 
         for label, comp_type in components:
             btn = QPushButton(f"⚡ {label}")
-            btn.clicked.connect(lambda _, t=comp_type: self._select_component(t))
+            btn.clicked.connect(lambda _, t=comp_type, b=btn: self._select_component(t, b))
             layout.addWidget(btn)
+            self._all_buttons.append(btn)
 
         layout.addStretch()
 
+    def _highlight_button(self, active_btn: Optional[QPushButton] = None) -> None:
+        for btn in self._all_buttons:
+            if btn is active_btn:
+                btn.setStyleSheet("background-color: #4A56C6; color: white; font-weight: bold;")
+            else:
+                btn.setStyleSheet("")
+
     def _select_wire(self):
+        self._highlight_button(self.wire_btn)
         self.canvas.tool_manager.set_mode(ToolMode.WIRE)
 
-    def _select_component(self, comp_type: str):
+    def _select_component(self, comp_type: str, btn: QPushButton):
+        self._highlight_button(btn)
         tool = self.canvas.tool_manager.tools.get(ToolMode.CIRCUIT_COMPONENT)
         if tool and hasattr(tool, "set_component_type"):
             tool.set_component_type(comp_type)

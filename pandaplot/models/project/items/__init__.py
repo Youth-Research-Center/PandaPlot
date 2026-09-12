@@ -4,7 +4,9 @@ from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.items.image import Image, ImageGallery
 from pandaplot.models.project.items.item import Item, ItemCollection
 from pandaplot.models.project.items.note import Note
+from pandaplot.models.project.items.circuit_sketch import CircuitSketch
 from pandaplot.models.project.items.sketch import (
+    CircuitComponentElement,
     EllipseElement,
     FreehandElement,
     LineElement,
@@ -12,7 +14,9 @@ from pandaplot.models.project.items.sketch import (
     Sketch,
     SketchElement,
     SketchLayer,
+    Terminal,
     TextElement,
+    WireElement,
 )
 
 __all__ = [
@@ -25,6 +29,7 @@ __all__ = [
     "Image",
     "ImageGallery",
     "Sketch",
+    "CircuitSketch",
     "SketchLayer",
     "SketchElement",
     "FreehandElement",
@@ -32,4 +37,7 @@ __all__ = [
     "RectangleElement",
     "EllipseElement",
     "TextElement",
+    "CircuitComponentElement",
+    "Terminal",
+    "WireElement",
 ]

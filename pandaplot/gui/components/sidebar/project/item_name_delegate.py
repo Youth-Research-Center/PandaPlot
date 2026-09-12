@@ -29,6 +29,8 @@ class ItemNameDelegate(QStyledItemDelegate):
                 name_only = full_text[2:].strip()
             elif full_text.startswith("🎨 "):
                 name_only = full_text[2:].strip()
+            elif full_text.startswith("⚡ "):
+                name_only = full_text[2:].strip()
             else:
                 name_only = full_text.strip()
 
@@ -62,6 +64,8 @@ class ItemNameDelegate(QStyledItemDelegate):
                     new_full_text = f"📈 {new_name}"
                 elif full_text.startswith("🎨 "):
                     new_full_text = f"🎨 {new_name}"
+                elif full_text.startswith("⚡ "):
+                    new_full_text = f"⚡ {new_name}"
                 else:
                     new_full_text = new_name
 

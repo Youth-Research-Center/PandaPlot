@@ -4,19 +4,24 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
-    QListWidget,
-    QListWidgetItem,
     QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
 from pandaplot.gui.components.tabs.sketch.sketch_canvas import SketchCanvas
-from pandaplot.models.project.items.sketch import Sketch, SketchLayer
+from pandaplot.models.project.items.sketch import (
+    CircuitComponentElement,
+    Sketch,
+    SketchLayer,
+    WireElement,
+)
 
 
 class LayerManagerPanel(QWidget):
-    """Sidebar widget for managing sketch layers (add, delete, reorder, visibility, lock)."""
+    """Sidebar widget for managing sketch layers and viewing/deleting individual layer elements."""
 
     layer_changed = Signal()
 
@@ -27,20 +32,21 @@ class LayerManagerPanel(QWidget):
 
         layout = QVBoxLayout(self)
 
-        title_label = QLabel("Layer Manager")
+        title_label = QLabel("Layers & Elements")
         title_label.setStyleSheet("font-weight: bold; margin-bottom: 4px;")
         layout.addWidget(title_label)
 
-        self.layer_list = QListWidget()
-        self.layer_list.itemClicked.connect(self._on_item_clicked)
-        self.layer_list.itemDoubleClicked.connect(self._on_item_double_clicked)
-        layout.addWidget(self.layer_list)
+        self.tree_widget = QTreeWidget()
+        self.tree_widget.setHeaderHidden(True)
+        self.tree_widget.itemClicked.connect(self._on_item_clicked)
+        self.tree_widget.itemDoubleClicked.connect(self._on_item_double_clicked)
+        layout.addWidget(self.tree_widget)
 
         btn_layout = QHBoxLayout()
-        self.add_btn = QPushButton("+ Add")
+        self.add_btn = QPushButton("+ Layer")
         self.add_btn.clicked.connect(self._add_layer)
         self.del_btn = QPushButton("- Delete")
-        self.del_btn.clicked.connect(self._delete_layer)
+        self.del_btn.clicked.connect(self._delete_selected)
         self.up_btn = QPushButton("▲")
         self.up_btn.clicked.connect(self._move_up)
         self.down_btn = QPushButton("▼")
@@ -52,38 +58,77 @@ class LayerManagerPanel(QWidget):
         btn_layout.addWidget(self.down_btn)
         layout.addLayout(btn_layout)
 
+        self.canvas.sketch_changed.connect(self.refresh_layer_list)
+
         self.refresh_layer_list()
 
     def refresh_layer_list(self) -> None:
-        self.layer_list.clear()
+        self.tree_widget.blockSignals(True)
+        self.tree_widget.clear()
+
         for layer in reversed(self.sketch.layers):
             vis_str = "👁" if layer.visible else "🙈"
             lock_str = "🔒" if layer.locked else "🔓"
             active_str = " ★" if layer.id == self.sketch.active_layer_id else ""
-            item_text = f"{vis_str} {lock_str} {layer.name}{active_str}"
+            layer_text = f"{vis_str} {lock_str} {layer.name}{active_str}"
 
-            item = QListWidgetItem(item_text)
-            item.setData(Qt.UserRole, layer.id)
+            layer_item = QTreeWidgetItem([layer_text])
+            layer_item.setData(0, Qt.UserRole, {"type": "layer", "id": layer.id})
+            layer_item.setExpanded(True)
+
             if layer.id == self.sketch.active_layer_id:
-                item.setSelected(True)
-            self.layer_list.addItem(item)
+                layer_item.setSelected(True)
 
-        self.del_btn.setEnabled(len(self.sketch.layers) > 1)
+            for elem in layer.elements:
+                if isinstance(elem, CircuitComponentElement):
+                    elem_text = f"⚡ {elem.designator or elem.component_type} ({elem.value})" if elem.value else f"⚡ {elem.designator or elem.component_type}"
+                elif isinstance(elem, WireElement):
+                    conn_str = "connected" if (elem.start_ref or elem.end_ref) else "floating"
+                    elem_text = f"🔌 Wire ({conn_str})"
+                else:
+                    elem_text = f"🎨 {elem.type.title()}"
 
-    def _on_item_clicked(self, item: QListWidgetItem) -> None:
-        layer_id = item.data(Qt.UserRole)
-        self.sketch.active_layer_id = layer_id
-        self.refresh_layer_list()
-        self.layer_changed.emit()
+                elem_item = QTreeWidgetItem([elem_text])
+                elem_item.setData(0, Qt.UserRole, {"type": "element", "id": elem.id, "layer_id": layer.id})
+                layer_item.addChild(elem_item)
 
-    def _on_item_double_clicked(self, item: QListWidgetItem) -> None:
-        layer_id = item.data(Qt.UserRole)
-        layer = self.sketch.get_layer(layer_id)
-        if layer:
-            layer.visible = not layer.visible
-            self.canvas.rebuild_scene()
+            self.tree_widget.addTopLevelItem(layer_item)
+
+        self.del_btn.setEnabled(len(self.sketch.layers) > 1 or self._has_selected_element())
+        self.tree_widget.blockSignals(False)
+
+    def _has_selected_element(self) -> bool:
+        selected = self.tree_widget.selectedItems()
+        if not selected:
+            return False
+        data = selected[0].data(0, Qt.UserRole)
+        return isinstance(data, dict) and data.get("type") == "element"
+
+    def _on_item_clicked(self, item: QTreeWidgetItem) -> None:
+        data = item.data(0, Qt.UserRole)
+        if not isinstance(data, dict):
+            return
+
+        if data.get("type") == "layer":
+            self.sketch.active_layer_id = data["id"]
             self.refresh_layer_list()
             self.layer_changed.emit()
+        elif data.get("type") == "element":
+            elem_id = data["id"]
+            g_item = self.canvas.item_map.get(elem_id)
+            if g_item:
+                self.canvas.scene().clearSelection()
+                g_item.setSelected(True)
+
+    def _on_item_double_clicked(self, item: QTreeWidgetItem) -> None:
+        data = item.data(0, Qt.UserRole)
+        if isinstance(data, dict) and data.get("type") == "layer":
+            layer = self.sketch.get_layer(data["id"])
+            if layer:
+                layer.visible = not layer.visible
+                self.canvas.rebuild_scene()
+                self.refresh_layer_list()
+                self.layer_changed.emit()
 
     def _add_layer(self) -> None:
         new_layer = SketchLayer(name=f"Layer {len(self.sketch.layers) + 1}")
@@ -92,6 +137,21 @@ class LayerManagerPanel(QWidget):
         self.canvas.rebuild_scene()
         self.refresh_layer_list()
         self.layer_changed.emit()
+
+    def _delete_selected(self) -> None:
+        selected = self.tree_widget.selectedItems()
+        if not selected:
+            return
+
+        data = selected[0].data(0, Qt.UserRole)
+        if not isinstance(data, dict):
+            return
+
+        if data.get("type") == "element":
+            self.canvas.delete_selected_elements()
+            self.refresh_layer_list()
+        elif data.get("type") == "layer":
+            self._delete_layer()
 
     def _delete_layer(self) -> None:
         if len(self.sketch.layers) <= 1:

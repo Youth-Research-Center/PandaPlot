@@ -8,12 +8,76 @@ from pandaplot.gui.components.tabs.sketch.graphics_items.base_graphics_item impo
 from pandaplot.models.project.items.sketch import CircuitComponentElement
 
 
+_SYMBOL_PATHS: dict[str, QPainterPath] = {}
+
+
+def _get_symbol_path(comp_type: str) -> QPainterPath:
+    if comp_type in _SYMBOL_PATHS:
+        return _SYMBOL_PATHS[comp_type]
+
+    path = QPainterPath()
+
+    if comp_type == "resistor":
+        path.moveTo(-20, 0)
+        path.lineTo(-12, 0)
+        pts = [(-9, -6), (-5, 6), (-1, -6), (3, 6), (7, -6), (11, 6), (12, 0)]
+        for px, py in pts:
+            path.lineTo(px, py)
+        path.lineTo(20, 0)
+    elif comp_type == "capacitor":
+        path.moveTo(-20, 0)
+        path.lineTo(-4, 0)
+        path.moveTo(4, 0)
+        path.lineTo(20, 0)
+        path.moveTo(-4, -10)
+        path.lineTo(-4, 10)
+        path.moveTo(4, -10)
+        path.lineTo(4, 10)
+    elif comp_type == "inductor":
+        path.moveTo(-20, 0)
+        path.lineTo(-15, 0)
+        start_x = -15.0
+        arc_w = 7.5
+        for i in range(4):
+            x1 = start_x + i * arc_w
+            rect = QRectF(x1, -6, arc_w, 12)
+            path.arcTo(rect, 180, -180)
+        path.lineTo(20, 0)
+    elif comp_type == "diode":
+        path.moveTo(-20, 0)
+        path.lineTo(-10, 0)
+        path.moveTo(10, 0)
+        path.lineTo(20, 0)
+        path.moveTo(-10, -8)
+        path.lineTo(10, 0)
+        path.lineTo(-10, 8)
+        path.closeSubpath()
+        path.moveTo(10, -8)
+        path.lineTo(10, 8)
+    elif comp_type == "ground":
+        path.moveTo(0, -10)
+        path.lineTo(0, 0)
+        path.moveTo(-10, 0)
+        path.lineTo(10, 0)
+        path.moveTo(-6, 4)
+        path.lineTo(6, 4)
+        path.moveTo(-2, 8)
+        path.lineTo(2, 8)
+
+    _SYMBOL_PATHS[comp_type] = path
+    return path
+
+
 class CircuitComponentGraphicsItem(BaseGraphicsItem):
     """QGraphicsItem representing a circuit component schematic symbol."""
 
     def __init__(self, element: CircuitComponentElement, parent: Optional[QGraphicsItem] = None):
         self.element: CircuitComponentElement = element
         super().__init__(element, parent)
+
+    def update_from_element(self) -> None:
+        self.prepareGeometryChange()
+        super().update_from_element()
 
     def boundingRect(self) -> QRectF:
         pen_w = self.element.stroke_width
@@ -63,59 +127,32 @@ class CircuitComponentGraphicsItem(BaseGraphicsItem):
 
         painter.restore()
 
+        self._paint_terminals(painter)
+
         if self.element.label_visible:
             self._paint_labels(painter)
 
+    def _paint_terminals(self, painter: QPainter) -> None:
+        painter.save()
+        painter.setPen(QColor("#4A56C6"))
+        painter.setBrush(QBrush(QColor("#4A56C6")))
+        for term in self.element.terminals:
+            dx_flipped = -term.dx if self.element.flip_horizontal else term.dx
+            dy_flipped = -term.dy if self.element.flip_vertical else term.dy
+            painter.drawEllipse(QRectF(dx_flipped - 3.0, dy_flipped - 3.0, 6.0, 6.0))
+        painter.restore()
+
     def _paint_resistor(self, painter: QPainter) -> None:
-        path = QPainterPath()
-        path.moveTo(-20, 0)
-        path.lineTo(-12, 0)
-        pts = [
-            (-9, -6), (-5, 6), (-1, -6), (3, 6), (7, -6), (11, 6), (12, 0)
-        ]
-        for px, py in pts:
-            path.lineTo(px, py)
-        path.lineTo(20, 0)
-        painter.drawPath(path)
+        painter.drawPath(_get_symbol_path("resistor"))
 
     def _paint_capacitor(self, painter: QPainter) -> None:
-        path = QPainterPath()
-        path.moveTo(-20, 0)
-        path.lineTo(-4, 0)
-        path.moveTo(4, 0)
-        path.lineTo(20, 0)
-        painter.drawPath(path)
-
-        painter.drawLine(-4, -10, -4, 10)
-        painter.drawLine(4, -10, 4, 10)
+        painter.drawPath(_get_symbol_path("capacitor"))
 
     def _paint_inductor(self, painter: QPainter) -> None:
-        path = QPainterPath()
-        path.moveTo(-20, 0)
-        path.lineTo(-15, 0)
-
-        start_x = -15.0
-        arc_w = 7.5
-        for i in range(4):
-            x1 = start_x + i * arc_w
-            rect = QRectF(x1, -6, arc_w, 12)
-            path.arcTo(rect, 180, -180)
-
-        path.lineTo(20, 0)
-        painter.drawPath(path)
+        painter.drawPath(_get_symbol_path("inductor"))
 
     def _paint_diode(self, painter: QPainter) -> None:
-        painter.drawLine(-20, 0, -10, 0)
-        painter.drawLine(10, 0, 20, 0)
-
-        tri = QPainterPath()
-        tri.moveTo(-10, -8)
-        tri.lineTo(10, 0)
-        tri.lineTo(-10, 8)
-        tri.closeSubpath()
-        painter.drawPath(tri)
-
-        painter.drawLine(10, -8, 10, 8)
+        painter.drawPath(_get_symbol_path("diode"))
 
     def _paint_voltage_source(self, painter: QPainter) -> None:
         painter.drawLine(-20, 0, -10, 0)

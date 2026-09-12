@@ -4,7 +4,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QMouseEvent
 
 from pandaplot.gui.components.tabs.sketch.tools.base_tool import BaseTool, ToolMode
-from pandaplot.models.project.items.sketch import CircuitComponentElement
+from pandaplot.gui.components.tabs.sketch.tools.wire_tool import compute_manhattan_elbow, find_snap_terminal
+from pandaplot.models.project.items.sketch import CircuitComponentElement, WireElement
 
 if TYPE_CHECKING:
     from pandaplot.gui.components.tabs.sketch.sketch_canvas import SketchCanvas
@@ -82,3 +83,23 @@ class CircuitComponentTool(BaseTool):
                 value=val,
             )
             self.canvas.add_element_to_active_layer(elem)
+
+            # Auto-connect wires if terminal overlaps an existing terminal
+            for term in elem.terminals:
+                w_pos = elem.terminal_world_pos(term.id)
+                snap = find_snap_terminal(w_pos, self.canvas.sketch, radius_px=15.0)
+                if snap and snap[0] != elem.id:
+                    waypoints = compute_manhattan_elbow(w_pos, snap[2])
+                    wire = WireElement(
+                        waypoints=waypoints,
+                        start_ref=(elem.id, term.id),
+                        end_ref=(snap[0], snap[1]),
+                    )
+                    self.canvas.add_element_to_active_layer(wire)
+
+            # Auto-switch back to SELECT mode so user can immediately move items
+            self.canvas.tool_manager.set_mode(ToolMode.SELECT)
+            new_item = self.canvas.item_map.get(elem.id)
+            if new_item:
+                self.canvas.scene().clearSelection()
+                new_item.setSelected(True)

@@ -12,7 +12,7 @@ from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import EventBus
 from pandaplot.models.events.event_types import AppEvents
-from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note, Sketch
+from pandaplot.models.project.items import Chart, CircuitSketch, Dataset, Folder, Image, ImageGallery, Note, Sketch
 from pandaplot.models.state import AppContext, AppState, UnsavedChangesRegistry
 from pandaplot.services.autosave import AutoSaveManager
 from pandaplot.services.config import ConfigManager
@@ -42,6 +42,7 @@ def create_project_data_manager() -> ProjectDataManager:
     factory.register("image", Image, ImageDataManager(), "image")
     factory.register("imagegallery", ImageGallery, ImageGalleryDataManager(), "imagegallery")
     factory.register("sketch", Sketch, SketchDataManager(), "sketch")
+    factory.register("circuitsketch", CircuitSketch, SketchDataManager(), "circuitsketch")
     return ProjectDataManager(factory)
 
 
@@ -76,6 +77,7 @@ def create_tab_factory() -> TabFactory:
     factory.register(Dataset, _load_dataset_tab)
     factory.register(ImageGallery, _load_image_gallery_tab)
     factory.register(Sketch, _load_sketch_tab)
+    factory.register(CircuitSketch, _load_sketch_tab)
     return factory
 
 
