@@ -60,3 +60,25 @@ def test_dc_simulation_parallel_resistors():
     voltages = list(res.node_voltages.values())
     assert 5.0 in [round(v, 3) for v in voltages]
     assert 0.0 in [round(v, 3) for v in voltages]
+
+
+def test_dc_simulation_transformer_circuit():
+    sketch = Sketch(name="Transformer DC Circuit")
+    layer = sketch.get_active_layer()
+
+    v1 = CircuitComponentElement(x=0, y=0, component_type="voltage_source", designator="V1", value="10V")
+    gnd = CircuitComponentElement(x=0, y=100, component_type="ground")
+    trans = CircuitComponentElement(x=100, y=50, component_type="transformer", designator="T1", value="1:1")
+
+    w1 = WireElement(waypoints=[(-20, 0), (80, 40)], start_ref=(v1.id, "t1"), end_ref=(trans.id, "t1"))
+    w2 = WireElement(waypoints=[(20, 0), (0, 100)], start_ref=(v1.id, "t2"), end_ref=(gnd.id, "t1"))
+    w3 = WireElement(waypoints=[(80, 60), (0, 100)], start_ref=(trans.id, "t2"), end_ref=(gnd.id, "t1"))
+
+    layer.elements.extend([v1, gnd, trans, w1, w2, w3])
+
+    sim = CircuitSimulator(sketch)
+    res = sim.solve_dc()
+
+    voltages = list(res.node_voltages.values())
+    assert 10.0 in [round(v, 1) for v in voltages]
+    assert 0.0 in [round(v, 1) for v in voltages]

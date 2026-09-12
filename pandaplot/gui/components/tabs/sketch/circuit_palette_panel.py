@@ -32,6 +32,7 @@ class CircuitPalettePanel(QGroupBox):
             ("Inductor", "inductor"),
             ("Diode", "diode"),
             ("Voltage Source", "voltage_source"),
+            ("Transformer", "transformer"),
             ("Ground", "ground"),
             ("Voltmeter", "voltmeter"),
             ("Ammeter", "ammeter"),

@@ -315,6 +315,13 @@ class Terminal:
 def get_default_terminals_for_type(component_type: str) -> List[Terminal]:
     if component_type == "ground":
         return [Terminal("t1", 0.0, -10.0)]
+    if component_type == "transformer":
+        return [
+            Terminal("t1", -20.0, -10.0),
+            Terminal("t2", -20.0, 10.0),
+            Terminal("t3", 20.0, -10.0),
+            Terminal("t4", 20.0, 10.0),
+        ]
     return [Terminal("t1", -20.0, 0.0), Terminal("t2", 20.0, 0.0)]
 
 

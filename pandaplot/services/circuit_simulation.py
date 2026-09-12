@@ -165,6 +165,26 @@ class CircuitSimulator:
                 if n1 > 0 and n2 > 0:
                     A_matrix[n1 - 1, n2 - 1] -= g
                     A_matrix[n2 - 1, n1 - 1] -= g
+            elif c.component_type == "transformer":
+                g_coil = 1000.0
+                n1 = term_to_node.get((c.id, "t1"), 0)
+                n2 = term_to_node.get((c.id, "t2"), 0)
+                n3 = term_to_node.get((c.id, "t3"), 0)
+                n4 = term_to_node.get((c.id, "t4"), 0)
+
+                for na, nb in ((n1, n2), (n3, n4)):
+                    if na > 0:
+                        A_matrix[na - 1, na - 1] += g_coil
+                    if nb > 0:
+                        A_matrix[nb - 1, nb - 1] += g_coil
+                    if na > 0 and nb > 0:
+                        A_matrix[na - 1, nb - 1] -= g_coil
+                        A_matrix[nb - 1, na - 1] -= g_coil
+
+        # Regularize diagonal for floating nodes
+        if num_unknown_nodes > 0:
+            for i in range(num_unknown_nodes):
+                A_matrix[i, i] += 1e-9
 
         for idx, c in enumerate(v_sources):
             v_idx = num_unknown_nodes + idx

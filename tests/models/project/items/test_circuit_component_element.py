@@ -12,7 +12,7 @@ from pandaplot.storage.sketch_data_manager import SketchDataManager
 
 
 def test_circuit_component_element_defaults_and_serialization():
-    comp_types = ["resistor", "capacitor", "inductor", "diode", "voltage_source", "ground"]
+    comp_types = ["resistor", "capacitor", "inductor", "diode", "voltage_source", "ground", "transformer"]
     for c_type in comp_types:
         elem = CircuitComponentElement(
             component_type=c_type,

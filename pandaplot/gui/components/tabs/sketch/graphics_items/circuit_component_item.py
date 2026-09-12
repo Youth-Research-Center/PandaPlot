@@ -1,7 +1,7 @@
 from typing import Optional
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath
 from PySide6.QtWidgets import QGraphicsItem, QStyleOptionGraphicsItem, QWidget
 
 from pandaplot.gui.components.tabs.sketch.graphics_items.base_graphics_item import BaseGraphicsItem
@@ -54,6 +54,8 @@ class CircuitComponentGraphicsItem(BaseGraphicsItem):
             self._paint_voltage_source(painter)
         elif comp_type == "ground":
             self._paint_ground(painter)
+        elif comp_type == "transformer":
+            self._paint_transformer(painter)
         elif comp_type in ("voltmeter", "ammeter"):
             self._paint_meter(painter, "V" if comp_type == "voltmeter" else "A")
         else:
@@ -130,6 +132,38 @@ class CircuitComponentGraphicsItem(BaseGraphicsItem):
         painter.drawLine(-10, 0, 10, 0)
         painter.drawLine(-6, 4, 6, 4)
         painter.drawLine(-2, 8, 2, 8)
+
+    def _paint_transformer(self, painter: QPainter) -> None:
+        painter.drawLine(-20, -10, -10, -10)
+        painter.drawLine(-20, 10, -10, 10)
+
+        path_p = QPainterPath()
+        path_p.moveTo(-10, -10)
+        for i in range(3):
+            y1 = -10.0 + i * 6.66
+            rect = QRectF(-14, y1, 8, 6.66)
+            path_p.arcTo(rect, 90, -180)
+        path_p.lineTo(-10, 10)
+        painter.drawPath(path_p)
+
+        painter.drawLine(20, -10, 10, -10)
+        painter.drawLine(20, 10, 10, 10)
+
+        path_s = QPainterPath()
+        path_s.moveTo(10, -10)
+        for i in range(3):
+            y1 = -10.0 + i * 6.66
+            rect = QRectF(6, y1, 8, 6.66)
+            path_s.arcTo(rect, 90, 180)
+        path_s.lineTo(10, 10)
+        painter.drawPath(path_s)
+
+        painter.drawLine(-2, -12, -2, 12)
+        painter.drawLine(2, -12, 2, 12)
+
+        painter.setBrush(QBrush(QColor(self.element.stroke_color)))
+        painter.drawEllipse(QRectF(-14, -14, 3, 3))
+        painter.drawEllipse(QRectF(11, -14, 3, 3))
 
     def _paint_meter(self, painter: QPainter, letter: str) -> None:
         painter.drawLine(-20, 0, -10, 0)
