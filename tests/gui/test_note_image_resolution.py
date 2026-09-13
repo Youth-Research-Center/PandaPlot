@@ -1670,6 +1670,57 @@ def test_stale_chart_render_result_is_discarded_after_invalidation(qapp):
     fake_task_scheduler.run_task.assert_called_once()
 
 
+def test_stale_chart_render_discard_schedules_preview_refresh(qapp):
+    """Discarding a stale render result must not leave the chart
+    permanently unrendered. If nothing re-triggers a render after the
+    discard, the chart stays a cache miss forever: the note is in
+    preview-only mode (no live textChanged->update_preview connection), so
+    nothing else is scheduled to ever re-check this chart's cache entry
+    (see PR review -- the concrete t=0/50ms/450ms/600ms scenario)."""
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    captured = {}
+
+    def fake_run_task(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
+        captured["on_result"] = on_result
+        return None
+
+    fake_task_scheduler = MagicMock()
+    fake_task_scheduler.run_task.side_effect = fake_run_task
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")  # preview-only mode -- stack index 1
+
+    # Dispatch a render for the pre-invalidation chart data (generation 0).
+    get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache, note_editor=editor)
+    assert "on_result" in captured
+
+    # Invalidate before the render resolves -- bumps the chart to
+    # generation 1 while the generation-0 render is still in flight.
+    editor.preview.image_cache.pop(chart.id, None)
+    editor.on_chart_or_dataset_changed_event({"chart_id": chart.id})
+
+    # The stale, pre-invalidation render now arrives and is discarded.
+    with patch.object(editor, "_schedule_chart_preview_refresh") as mock_schedule:
+        stale_qimg = QImage(5, 5, QImage.Format.Format_RGB32)
+        captured["on_result"](stale_qimg)
+
+        # Discarding it must still schedule a refresh -- without one, the
+        # next preview tick that would notice the cache miss and dispatch a
+        # fresh render never happens, and the chart stays broken forever.
+        mock_schedule.assert_called_once()
+
+
 def test_chart_render_callback_noops_if_note_editor_deleted(qapp):
     """A note tab can be closed (widget deleted) while a background chart
     render is still in flight; the result callback must not touch the

@@ -159,6 +159,30 @@ def get_cached_qimage_for_chart(
     return None
 
 
+def _resolve_chart_render_inputs(app_context: AppContext, chart_item: Chart):
+    """Snapshot `chart_item`'s series data (on the GUI thread) and resolve
+    its chart-size defaults, ready to hand to `render_chart_to_qimage`.
+
+    Shared by `dispatch_headless_chart_render` (async, off the GUI thread)
+    and `_render_charts_synchronously_for_export` (sync, for PDF export) so
+    this resolve+copy sequence exists exactly once. Note this only resolves
+    inputs -- it doesn't render, so callers decide whether that happens on
+    a worker thread or inline.
+    """
+    from pandaplot.gui.components.tabs.chart.chart_editor import (
+        resolve_chart_series_data,
+        resolve_chart_size_defaults,
+    )
+
+    app_state = app_context.get_app_state() if app_context else None
+    project = app_state.current_project if app_state else None
+    resolved_series_data = [
+        data.copy() for data in resolve_chart_series_data(project, chart_item)
+    ]
+    size_defaults = resolve_chart_size_defaults(app_context)
+    return resolved_series_data, size_defaults
+
+
 def dispatch_headless_chart_render(
     app_context: AppContext, chart_item: Chart,
     *, on_result: Callable[[Optional[QImage]], None], on_error: Optional[Callable] = None,
@@ -174,18 +198,9 @@ def dispatch_headless_chart_render(
     ...) -- this function only handles getting a QImage off the GUI
     thread and back.
     """
-    from pandaplot.gui.components.tabs.chart.chart_editor import (
-        render_chart_to_qimage,
-        resolve_chart_series_data,
-        resolve_chart_size_defaults,
-    )
+    from pandaplot.gui.components.tabs.chart.chart_editor import render_chart_to_qimage
 
-    app_state = app_context.get_app_state() if app_context else None
-    project = app_state.current_project if app_state else None
-    resolved_series_data = [
-        data.copy() for data in resolve_chart_series_data(project, chart_item)
-    ]
-    size_defaults = resolve_chart_size_defaults(app_context)
+    resolved_series_data, size_defaults = _resolve_chart_render_inputs(app_context, chart_item)
 
     def _render_task(progress_callback, chart, resolved_data, size_defs):
         del progress_callback  # unused; required by the Worker call signature
@@ -213,7 +228,11 @@ def _dispatch_chart_render(
     was in flight, the result is for stale pre-invalidation data and must
     be discarded rather than silently overwriting the fresher cache miss
     left behind by that invalidation (see on_chart_or_dataset_changed_event
-    / on_project_item_changed_event).
+    / on_project_item_changed_event). Discarding it also schedules a
+    preview refresh: nothing else is in flight for this chart once this
+    render finishes, so without prompting a refresh here, the chart would
+    stay a permanent cache miss until some unrelated event happened to
+    touch its cache entry again (see PR review).
 
     Both callbacks also no-op if `note_editor`'s underlying Qt widget has
     since been deleted (e.g. its note tab was closed while the render was
@@ -225,23 +244,30 @@ def _dispatch_chart_render(
         if chart_item.id in note_editor._rendering_chart_ids:
             return
         generation = note_editor._chart_generations.get(chart_item.id, 0)
-        note_editor._rendering_chart_ids[chart_item.id] = generation
+        note_editor._rendering_chart_ids.add(chart_item.id)
 
     def _on_result(qimg: Optional[QImage]) -> None:
         if note_editor is not None:
             if not isValid(note_editor):
                 return
-            note_editor._rendering_chart_ids.pop(chart_item.id, None)
+            note_editor._rendering_chart_ids.discard(chart_item.id)
             current_generation = note_editor._chart_generations.get(chart_item.id, 0)
             if generation != current_generation:
-                return  # stale render for pre-invalidation data -- discard
+                # Stale render for pre-invalidation data -- discard, but
+                # schedule a refresh so the next preview tick sees the
+                # cache miss this invalidation left behind and dispatches a
+                # fresh render at the now-current generation (nothing else
+                # is in flight for this chart id anymore).
+                if note_editor.stack.currentIndex() != 0:
+                    note_editor._schedule_chart_preview_refresh()
+                return
         cache[chart_item.id] = qimg
         if note_editor is not None and note_editor.stack.currentIndex() != 0:
             note_editor._schedule_chart_preview_refresh()
 
     def _on_error(_err) -> None:
         if note_editor is not None and isValid(note_editor):
-            note_editor._rendering_chart_ids.pop(chart_item.id, None)
+            note_editor._rendering_chart_ids.discard(chart_item.id)
 
     dispatch_headless_chart_render(app_context, chart_item, on_result=_on_result, on_error=_on_error)
 
@@ -568,11 +594,13 @@ class NoteEditorWidget(PWidget):
         self.preview_connected = False
 
         # Chart ids with a background render currently in flight (see
-        # _dispatch_chart_render), mapped to the generation (see
-        # _chart_generations below) captured at dispatch time -- prevents
-        # a second request for the same chart from starting a duplicate
-        # concurrent render while one is already running.
-        self._rendering_chart_ids: Dict[str, int] = {}
+        # _dispatch_chart_render) -- prevents a second request for the same
+        # chart from starting a duplicate concurrent render while one is
+        # already running. The generation captured at dispatch time (see
+        # _chart_generations below) is tracked separately, since it's keyed
+        # by the chart the request was made *for*, not by "is a render
+        # currently running".
+        self._rendering_chart_ids: Set[str] = set()
 
         # Per-chart generation counters, bumped whenever a chart's cached
         # entry is invalidated (see _invalidate_chart_generation /
@@ -872,12 +900,17 @@ class NoteEditorWidget(PWidget):
         Used by export_pdf() only: blocking here is acceptable (the user
         already went through a save-file dialog), unlike the live preview,
         which must never block the GUI thread on a chart render.
+
+        Each chart is rendered in isolation: resolving a chart's series
+        data (_resolve_chart_render_inputs) can raise (e.g. a stale/missing
+        series reference), and unlike render_chart_to_qimage -- which
+        already swallows its own exceptions into None -- that isn't
+        wrapped by anything upstream. Without a per-chart try/except here,
+        a single bad chart would blow past export_pdf()'s outer except and
+        abort the whole export, leaving the user with no PDF at all instead
+        of one that's just missing that chart's image.
         """
-        from pandaplot.gui.components.tabs.chart.chart_editor import (
-            render_chart_to_qimage,
-            resolve_chart_series_data,
-            resolve_chart_size_defaults,
-        )
+        from pandaplot.gui.components.tabs.chart.chart_editor import render_chart_to_qimage
 
         cache: Dict[str, Optional[QImage]] = {}
         app_state = self.app_context.get_app_state() if self.app_context else None
@@ -885,7 +918,6 @@ class NoteEditorWidget(PWidget):
         if project is None:
             return cache
 
-        size_defaults = resolve_chart_size_defaults(self.app_context)
         for item in project.get_all_items():
             if not isinstance(item, Chart):
                 continue
@@ -893,8 +925,14 @@ class NoteEditorWidget(PWidget):
             # register_project_image_resources), never by gallery path.
             if referenced_keys is not None and item.id not in referenced_keys:
                 continue
-            resolved_series_data = [data.copy() for data in resolve_chart_series_data(project, item)]
-            cache[item.id] = render_chart_to_qimage(item, resolved_series_data, size_defaults)
+            try:
+                resolved_series_data, size_defaults = _resolve_chart_render_inputs(self.app_context, item)
+                cache[item.id] = render_chart_to_qimage(item, resolved_series_data, size_defaults)
+            except Exception as e:
+                self.logger.error(
+                    "Failed to render chart %s for PDF export: %s", item.id, e, exc_info=True
+                )
+                cache[item.id] = None
         return cache
 
     def create_toolbar_actions(self, toolbar: QToolBar):
@@ -1214,7 +1252,7 @@ class NoteEditorWidget(PWidget):
         so every one of them needs its generation bumped -- not just
         whichever chart ids happen to already be cached.
         """
-        for chart_id in list(self._rendering_chart_ids.keys()):
+        for chart_id in list(self._rendering_chart_ids):
             self._invalidate_chart_generation(chart_id)
 
     def _invalidate_chart_cache_for_dataset(self, dataset_id: str) -> None:
