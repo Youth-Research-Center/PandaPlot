@@ -6,7 +6,7 @@ import re
 from typing import Callable, Dict, Optional, Set, override
 from urllib.parse import unquote
 
-from PySide6.QtCore import Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QBuffer, QIODevice, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QFont, QImage, QKeySequence, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QDialog,
@@ -875,16 +875,73 @@ class NoteEditorWidget(PWidget):
         dialog = NoteChartPickerDialog(self.app_context, project, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             chart = dialog.get_selected_chart()
-            if chart is not None:
-                cursor = self.text_edit.textCursor()
-                alt_text = chart.name.replace("[", "(").replace("]", ")")
-                chart_ref = chart.id
-                markdown_ref = f"![{alt_text}]({chart_ref} ={_DEFAULT_INSERT_MAX_WIDTH}x)"
-                cursor.insertText(markdown_ref)
-                self.text_edit.setTextCursor(cursor)
-                self.text_edit.setFocus()
-                if self.stack.currentIndex() == 1:
-                    self.update_preview()
+            if chart is None:
+                return
+            if dialog.get_sync_mode():
+                self._insert_live_chart_reference(chart)
+            else:
+                self._insert_chart_snapshot(chart)
+
+    def _insert_live_chart_reference(self, chart: Chart) -> None:
+        """Insert a reference by chart id -- the note always shows this
+        chart's current data/style (the existing, pre-Task-8 behavior)."""
+        cursor = self.text_edit.textCursor()
+        alt_text = chart.name.replace("[", "(").replace("]", ")")
+        markdown_ref = f"![{alt_text}]({chart.id} ={_DEFAULT_INSERT_MAX_WIDTH}x)"
+        cursor.insertText(markdown_ref)
+        self.text_edit.setTextCursor(cursor)
+        self.text_edit.setFocus()
+        if self.stack.currentIndex() == 1:
+            self.update_preview()
+
+    def _insert_chart_snapshot(self, chart: Chart) -> None:
+        """Render `chart` once, in the background, and insert a static
+        gallery-image reference once ready -- unlike the live reference,
+        this never changes again even if the chart's data/style does.
+
+        `cursor` is captured now and reused when the render completes:
+        a live QTextCursor tracks its position through any edits made via
+        other cursors in between (e.g. the user continuing to type while
+        the render runs), so the reference lands where "Insert" was
+        clicked rather than wherever the caret happens to be later.
+        """
+        cursor = self.text_edit.textCursor()
+        alt_text = chart.name.replace("[", "(").replace("]", ")")
+
+        def _on_result(qimg: Optional[QImage]) -> None:
+            if qimg is None:
+                return
+            image_id = self._save_chart_snapshot_image(chart, qimg)
+            if image_id is None:
+                return
+            markdown_ref = f"![{alt_text}]({image_id} ={_DEFAULT_INSERT_MAX_WIDTH}x)"
+            cursor.insertText(markdown_ref)
+            self.text_edit.setTextCursor(cursor)
+            if self.stack.currentIndex() == 1:
+                self.update_preview()
+
+        dispatch_headless_chart_render(self.app_context, chart, on_result=_on_result)
+
+    def _save_chart_snapshot_image(self, chart: Chart, qimg: QImage) -> Optional[str]:
+        """Add `qimg` to the project as a plain gallery Image (in the
+        note's "Chart Snapshots" gallery), returning its new id, or None
+        on failure."""
+        from pandaplot.commands.project.image.create_image_from_bytes_command import CreateImageFromBytesCommand
+
+        buf = QBuffer()
+        buf.open(QIODevice.OpenModeFlag.WriteOnly)
+        qimg.save(buf, "PNG")
+        png_bytes = bytes(buf.data())
+
+        gallery_id = find_or_create_chart_snapshot_gallery(self.app_context, self.note.parent_id)
+        if gallery_id is None:
+            return None
+        command = CreateImageFromBytesCommand(
+            self.app_context, gallery_id=gallery_id, name=chart.name,
+            png_bytes=png_bytes, width=qimg.width(), height=qimg.height(),
+        )
+        succeeded = self.app_context.get_command_executor().execute_command(command, track_undo=True)
+        return command.created_image_id if succeeded else None
 
     def insert_table_from_picker(self):
         """Open the table picker dialog and insert markdown for the table."""

@@ -23,6 +23,7 @@ from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePicker
 from pandaplot.models.events.event_types import ChartEvents, ProjectEvents
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
+from pandaplot.services.config.config_manager import ConfigManager
 from pandaplot.services.qtasks import TaskScheduler
 
 
@@ -47,7 +48,23 @@ def _make_app_context_with_synchronous_task_scheduler(project):
     app_state = MagicMock()
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
-    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    def _get_manager(manager_cls):
+        # ConfigManager must come back as "no config available" (None) so
+        # resolve_chart_size_defaults() exercises its documented
+        # fallback-default branch -- a bare MagicMock() auto-vivifies a
+        # truthy `.config.chart_display` whose numeric-looking attributes
+        # (dpi, default_width_cm, ...) are themselves MagicMocks, which
+        # matplotlib chokes on deep inside Bbox/transforms (see
+        # test_headless_and_widget_canvas_render_equivalent_output in
+        # test_render_chart_to_qimage.py).
+        if manager_cls is ConfigManager:
+            return None
+        theme_manager = MagicMock()
+        theme_manager.get_surface_palette.return_value = {}
+        return theme_manager
+
+    app_context.get_manager.side_effect = _get_manager
 
     def _run_task_synchronously(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
         task_arguments = task_arguments or {}
@@ -1052,6 +1069,67 @@ def test_note_editor_insert_chart_action(qapp):
 
     content = editor.text_edit.toPlainText()
     assert content == f"![Sample Plot]({chart.id} =500x)"
+
+
+def test_insert_chart_from_picker_sync_mode_inserts_live_reference(qapp):
+    chart = Chart(name="Sample Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    mock_dialog = MagicMock()
+    mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
+    mock_dialog.get_selected_chart.return_value = chart
+    mock_dialog.get_sync_mode.return_value = True
+
+    with patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog):
+        editor.insert_chart_from_picker()
+
+    content = editor.text_edit.toPlainText()
+    assert content == f"![Sample Plot]({chart.id} =500x)"
+
+
+def test_insert_chart_from_picker_no_sync_mode_inserts_static_snapshot(qapp):
+    chart = Chart(name="Sample Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = _make_app_context_with_synchronous_task_scheduler(project)
+    app_context.get_ui_controller.return_value = MagicMock()
+    fake_executor = MagicMock()
+    fake_executor.execute_command.side_effect = lambda command, **kwargs: command.execute().name == "SUCCESS"
+    app_context.get_command_executor.return_value = fake_executor
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    mock_dialog = MagicMock()
+    mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
+    mock_dialog.get_selected_chart.return_value = chart
+    mock_dialog.get_sync_mode.return_value = False
+
+    with patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog):
+        editor.insert_chart_from_picker()
+
+    content = editor.text_edit.toPlainText()
+    # Not a reference to the chart's own id -- a newly created Image's id.
+    assert chart.id not in content
+    assert content.startswith("![Sample Plot](")
+    assert content.endswith(" =500x)")
+
+    inserted_id = content[len("![Sample Plot]("):-len(" =500x)")]
+    inserted_image = project.find_item(inserted_id)
+    from pandaplot.models.project.items import Image
+    assert isinstance(inserted_image, Image)
+    assert inserted_image.get_bytes() is not None
 
 
 def test_note_editor_insert_table_action(qapp):
