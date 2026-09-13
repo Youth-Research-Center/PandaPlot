@@ -96,9 +96,10 @@ def test_chart_properties_panel_handles_series_selected_event():
 
 def test_bar_series_legend_handle_resolves_to_series_index():
     """A bar/hist series' legend entry is a BarContainer, not one of the
-    individual bar Patches that `_track_new_artists` maps directly -- the
-    legend resolution must recurse into the container to find a tracked
-    patch, or clicking that legend entry silently does nothing (#107)."""
+    individual bar Patches that `render_chart`'s `track_new_artists` closure
+    maps directly -- the legend resolution must recurse into the container
+    to find a tracked patch, or clicking that legend entry silently does
+    nothing (#107)."""
     _qapp()
     app_ctx = build_app_context()
     project = Project(name="Test Project")

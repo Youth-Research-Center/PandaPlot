@@ -58,6 +58,20 @@ def test_missing_column_returns_error_naming_the_column():
     assert "gone" in result.error
 
 
+def test_resolves_z_label_from_z_column():
+    """z_label should be the resolved display name of the series' Z column
+    (used for the colorbar's default label), precomputed here instead of a
+    second live project lookup during rendering."""
+    from pandaplot.models.chart.series_type import SeriesType
+
+    project, dataset = _project_with_dataset()
+    dataset.data["z"] = [10.0, 20.0]
+    series = DataSeries(dataset_id=dataset.id, x_column="a", y_column="b", series_type=SeriesType.COLORMAP)
+    series.style.z_column = "z"
+    result = resolve_series_data(project, series)
+    assert result.z_label == "z"
+
+
 def test_no_project_returns_error():
     series = DataSeries(dataset_id="ds", x_column="a", y_column="b")
     result = resolve_series_data(None, series)

@@ -22,3 +22,24 @@ class SeriesData:
     v_data: Optional[Any] = None
     magnitude_data: Optional[Any] = None
     z_data: Optional[Any] = None
+    z_label: str = ""
+
+    def copy(self) -> "SeriesData":
+        """Deep-copy every array-like field, so the result is safe to read
+        on a different thread than whatever mutates the source DataFrame."""
+        def _copy_field(value):
+            return value.copy() if hasattr(value, "copy") else value
+        return SeriesData(
+            x_data=_copy_field(self.x_data),
+            y_data=_copy_field(self.y_data),
+            x_err=_copy_field(self.x_err),
+            y_err=_copy_field(self.y_err),
+            x_err_minus=_copy_field(self.x_err_minus),
+            y_err_minus=_copy_field(self.y_err_minus),
+            error=self.error,
+            u_data=_copy_field(self.u_data),
+            v_data=_copy_field(self.v_data),
+            magnitude_data=_copy_field(self.magnitude_data),
+            z_data=_copy_field(self.z_data),
+            z_label=self.z_label,
+        )
