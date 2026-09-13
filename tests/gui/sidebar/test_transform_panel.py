@@ -94,6 +94,103 @@ def test_apply_transform_generic_failure_surfaces_message_when_no_signal_fired(t
     assert transform_panel.preview_text.toPlainText() == "Transform failed - see logs for details"
 
 
+class TestApplyValidationFeedback:
+    """Regression (#227): clicking Apply without first clicking Preview
+    used to silently do nothing on a validation failure -- only a
+    logger.warning(), no visible feedback at all."""
+
+    def test_no_source_column_selected_writes_a_visible_message(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        # No item selected.
+
+        transform_panel.apply_transform()
+
+        assert transform_panel.preview_text.toPlainText() == "Select a source column before applying."
+
+    def test_empty_new_column_name_writes_a_visible_message(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.function_text.setPlainText("x * 2")
+        # Selecting a column auto-suggests a name; clear it back out to
+        # exercise the "no name" branch specifically.
+        transform_panel.new_column_name.clear()
+
+        transform_panel.apply_transform()
+
+        assert transform_panel.preview_text.toPlainText() == "Enter a name for the new column before applying."
+
+    def test_empty_function_writes_a_visible_message(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        # function_text left empty.
+
+        transform_panel.apply_transform()
+
+        assert transform_panel.preview_text.toPlainText() == "Enter a function before applying."
+
+    def test_missing_dataset_id_writes_a_visible_message(self, transform_panel):
+        transform_panel.current_dataset = Mock(id=None, data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        transform_panel.function_text.setPlainText("x * 2")
+
+        transform_panel.apply_transform()
+
+        assert transform_panel.preview_text.toPlainText() == "No dataset selected."
+
+
+class TestApplyButtonEnablement:
+    """Regression (#227 broader UX ask): disable Apply until the fields it
+    needs are actually filled in, instead of leaving it clickable for a
+    guaranteed-to-fail click."""
+
+    def test_apply_disabled_with_no_dataset(self, transform_panel):
+        assert transform_panel.apply_btn.isEnabled() is False
+
+    def test_apply_stays_disabled_until_every_field_is_filled(self, transform_panel):
+        transform_panel.enable_controls(enabled=True)
+        assert transform_panel.apply_btn.isEnabled() is False
+
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        assert transform_panel.apply_btn.isEnabled() is False
+
+        transform_panel.new_column_name.setText("b")
+        assert transform_panel.apply_btn.isEnabled() is False
+
+        transform_panel.function_text.setPlainText("x * 2")
+        assert transform_panel.apply_btn.isEnabled() is True
+
+    def test_clearing_the_function_disables_apply_again(self, transform_panel):
+        transform_panel.enable_controls(enabled=True)
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        transform_panel.function_text.setPlainText("x * 2")
+        assert transform_panel.apply_btn.isEnabled() is True
+
+        transform_panel.function_text.clear()
+
+        assert transform_panel.apply_btn.isEnabled() is False
+
+    def test_disabling_controls_disables_apply_regardless_of_filled_fields(self, transform_panel):
+        transform_panel.enable_controls(enabled=True)
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        transform_panel.function_text.setPlainText("x * 2")
+        assert transform_panel.apply_btn.isEnabled() is True
+
+        transform_panel.enable_controls(enabled=False)
+
+        assert transform_panel.apply_btn.isEnabled() is False
+
+
 class TestSourceColumnMarkers:
     """Regression (#203): which column `x` refers to is marked directly on
     the source_column_list's own items, rather than in a separate summary

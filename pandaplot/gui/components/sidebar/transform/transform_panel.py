@@ -47,15 +47,19 @@ class TransformPanel(SidebarPanel):
         self.current_dataset_tab = None
         self.current_dataset = None
         self._last_transform_error: Optional[str] = None
+        # Whether a dataset is currently active (see enable_controls) --
+        # combined with the field-completeness checks in
+        # _update_apply_enabled to decide whether Apply is clickable.
+        self._dataset_available = False
 
         # Initialize transform controller
         self.transform_controller = TransformController(app_context)
-        
+
         # Transform state
         self.available_columns = []
         self.transform_types = [
             "Custom Function",
-            "Math Operations", 
+            "Math Operations",
             "String Operations",
             "Date/Time Operations",
             "Statistical Operations"
@@ -63,6 +67,7 @@ class TransformPanel(SidebarPanel):
 
         self._initialize()
         self.setup_connections()
+        self._update_apply_enabled()
 
     @override
     def _init_ui(self):
@@ -348,6 +353,8 @@ class TransformPanel(SidebarPanel):
         """Set up signal connections."""
         self.transform_type_combo.currentTextChanged.connect(self.on_transform_type_changed)
         self.source_column_list.itemSelectionChanged.connect(self.on_source_column_changed)
+        self.new_column_name.textChanged.connect(self._update_apply_enabled)
+        self.function_text.textChanged.connect(self._update_apply_enabled)
         # Connect transform controller signals
         self.transform_controller.transform_completed.connect(self.on_controller_transform_completed)
         self.transform_controller.transform_failed.connect(self.on_controller_transform_failed)
@@ -449,11 +456,32 @@ class TransformPanel(SidebarPanel):
         self.replace_column_check.setEnabled(enabled)
         self.function_text.setEnabled(enabled)
         self.preview_btn.setEnabled(enabled)
-        self.apply_btn.setEnabled(enabled)
 
         # Enable function toolbar
         self.insert_function_btn.setEnabled(enabled)
         self.reference_btn.setEnabled(enabled)
+
+        # Apply has its own, stricter condition (see _update_apply_enabled) --
+        # a dataset being active doesn't by itself mean Apply has anything
+        # valid to do yet.
+        self._dataset_available = enabled
+        self._update_apply_enabled()
+
+    def _update_apply_enabled(self):
+        """Keep Apply clickable only once every field apply_transform()
+        requires is actually filled in (#227): a source column, a new
+        column name, and a function. Previously it stayed enabled
+        regardless, and clicking it with something missing failed
+        silently (a logger.warning() with no visible feedback) -- this
+        lets the user see at a glance that they're not done yet, instead
+        of only finding out after the click does nothing."""
+        ready = (
+            self._dataset_available
+            and bool(self.get_selected_columns())
+            and bool(self.new_column_name.text().strip())
+            and bool(self.function_text.toPlainText().strip())
+        )
+        self.apply_btn.setEnabled(ready)
     
     def on_transform_type_changed(self, transform_type: str):
         """Handle transform type selection change."""
@@ -506,6 +534,7 @@ class TransformPanel(SidebarPanel):
                 item.setText(name)
                 font.setBold(False)
             item.setFont(font)
+        self._update_apply_enabled()
 
     def insert_function_code(self, function_text: str):
         """Insert a ready-made function at the cursor, replacing any selection."""
@@ -586,30 +615,44 @@ class TransformPanel(SidebarPanel):
             self.preview_text.setPlainText(f"Preview error: {str(e)}")
     
     def apply_transform(self):
-        """Apply the transformation to the dataset."""
+        """Apply the transformation to the dataset.
+
+        Each early-return validation branch also writes a clear message to
+        preview_text (#227), mirroring update_preview()'s existing pattern --
+        previously these only logged a warning, so clicking Apply without
+        first clicking Preview (e.g. an empty function box) silently did
+        nothing visible at all. With the Apply button now disabled until
+        these fields are filled in (see _update_apply_enabled), the
+        dataset-id branch is the only one still normally reachable through
+        the UI, but all are covered in case apply_transform() is invoked
+        directly (e.g. a keyboard shortcut, or a test)."""
         selected_columns = self.get_selected_columns()
         if not self.current_dataset or not selected_columns:
             self.logger.warning("TransformPanel: no dataset or source column selected for transform")
+            self.preview_text.setPlainText("Select a source column before applying.")
             return
-        
+
         source_column = selected_columns[0]  # Use first selected column for transformation
         new_column_name = self.new_column_name.text().strip()
         function_code = self.function_text.toPlainText().strip()
         replace_existing = self.replace_column_check.isChecked()
-        
+
         if not new_column_name:
             self.logger.warning("TransformPanel: no new column name provided")
+            self.preview_text.setPlainText("Enter a name for the new column before applying.")
             return
-        
+
         if not function_code:
             self.logger.warning("TransformPanel: no transformation function provided")
+            self.preview_text.setPlainText("Enter a function before applying.")
             return
-        
+
         try:
             # Get dataset ID
             dataset_id = getattr(self.current_dataset, "id", None)
             if not dataset_id:
                 self.logger.warning("TransformPanel: dataset id not available; aborting transform")
+                self.preview_text.setPlainText("No dataset selected.")
                 return
 
             # Apply transformation through controller
