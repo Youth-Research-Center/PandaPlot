@@ -47,7 +47,6 @@ def test_returns_none_on_render_failure(qapp, monkeypatch):
 
     monkeypatch.setattr(chart_editor, "render_chart", _boom)
 
-    project = Project(name="Test Project")
     chart = Chart(name="Chart", chart_type="line")
     qimg = render_chart_to_qimage(chart, [], ChartSizeDefaults(10.0, 8.0, 100))
     assert qimg is None
