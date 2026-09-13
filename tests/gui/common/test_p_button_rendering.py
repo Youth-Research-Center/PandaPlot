@@ -1,4 +1,5 @@
 import pytest
+from PySide6.QtCore import QPoint
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication, QHBoxLayout, QWidget
 
@@ -28,7 +29,8 @@ def _render_and_pick_color(app: QApplication, theme: Theme, role: str, *, icon: 
     app.processEvents()
 
     pixmap = window.grab()
-    point = button.mapTo(window, button.rect().center())
+    c = button.rect().center()
+    point = button.mapTo(window, QPoint(c.x() // 2, c.y() // 2))
     image = pixmap.toImage()
     return QColor(image.pixel(point.x(), point.y())).name()
 
