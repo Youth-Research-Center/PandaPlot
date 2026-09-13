@@ -79,6 +79,7 @@ class EditCommand(Command):
                 return CommandResult.FAILURE
             
             self.dataset.data.iloc[self.index[0], self.index[1]] = self.new_value
+            self.dataset.set_data(self.dataset.data)
             self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, DatasetDataChangedData(
                     dataset_id=self.dataset_id,
                     start_index=(self.index[0], self.index[1]),
@@ -102,6 +103,7 @@ class EditCommand(Command):
             return CommandResult.FAILURE
 
         self.dataset.data.iloc[self.index[0], self.index[1]] = self.old_value
+        self.dataset.set_data(self.dataset.data)
         self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, DatasetDataChangedData(
                     dataset_id=self.dataset_id,
                     start_index=(self.index[0], self.index[1]),
@@ -118,6 +120,7 @@ class EditCommand(Command):
             return CommandResult.FAILURE
 
         self.dataset.data.iloc[self.index[0], self.index[1]] = self.new_value
+        self.dataset.set_data(self.dataset.data)
         self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, DatasetDataChangedData(
                     dataset_id=self.dataset_id,
                     start_index=(self.index[0], self.index[1]),

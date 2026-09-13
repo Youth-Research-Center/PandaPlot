@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.gui.components.sidebar.transform.transform_controller import TransformController
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
@@ -273,20 +274,8 @@ class TransformPanel(SidebarPanel):
 
     def _build_function_menu(self) -> "QMenu":
         """Build a categorized menu of ready-made transformation functions."""
-        menu = QMenu(self)
         templates = self.transform_controller.get_transformation_templates()
-        for category, entries in templates.items():
-            submenu = menu.addMenu(category)
-            for entry in entries:
-                action = submenu.addAction(entry["name"])
-                action.setToolTip(f"{entry['description']}  →  {entry['code']}")
-                # Bind the code for this entry via a default argument.
-                action.triggered.connect(
-                    lambda _checked=False, code=entry["code"]: self.insert_function_code(code)
-                )
-        # Surface tooltips inside the menu.
-        menu.setToolTipsVisible(True)
-        return menu
+        return build_function_menu(self, templates, on_insert=self.insert_function_code)
 
     def _function_reference_text(self) -> str:
         """Human-readable list of the variables and functions available."""

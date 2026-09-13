@@ -39,7 +39,19 @@ class Dataset(Item):
         self._sync_column_ids()
 
     def set_data(self, data: pd.DataFrame) -> None:
-        """Set the dataset data and update metadata."""
+        """Set the dataset's DataFrame and update associated metadata.
+
+        This is the standard entry point for updating dataset content in commands.
+        It updates `self.data`, reconciles stable column IDs via `_sync_column_ids()`,
+        and updates the item's modification timestamp (`modified_at`).
+
+        Note:
+            Renaming columns should use :meth:`rename_column` directly rather than
+            `set_data` so that column IDs are preserved across renames.
+
+        Args:
+            data: The pandas DataFrame containing the tabular data.
+        """
         self.data = data
         self._sync_column_ids()
         self.update_modified_time()

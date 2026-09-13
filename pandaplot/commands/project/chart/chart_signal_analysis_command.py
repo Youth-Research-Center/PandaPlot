@@ -25,7 +25,8 @@ from pandaplot.analysis import (
     SignalAnalysisType,
     SignalEngine,
 )
-from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.background_task_command import BackgroundTaskCommand
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.commands.project.chart.create_chart_with_analysis_series_command import (
@@ -41,7 +42,7 @@ from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext, AppState
 
 
-class ChartSignalAnalysisCommand(Command):
+class ChartSignalAnalysisCommand(BackgroundTaskCommand):
     """
     Runs a signal analysis on a chart series/fit (optionally restricted to a
     segment), either as a non-undoable preview (run_analysis_async) or
@@ -64,7 +65,7 @@ class ChartSignalAnalysisCommand(Command):
         plot_target_chart_id: Optional[str] = None,
         on_complete: Optional[Callable[[CommandResult], None]] = None,
     ):
-        super().__init__()
+        super().__init__(on_complete=on_complete)
 
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -82,38 +83,15 @@ class ChartSignalAnalysisCommand(Command):
         self.folder_id = folder_id
         self.plot_result = plot_result
         self.plot_target_chart_id = plot_target_chart_id
-        self.on_complete = on_complete
 
         self.result_dataset_id: Optional[str] = None
         self.result: Optional[SignalAnalysisResult] = None
-        self._is_running = False
-        # The project active at dispatch time, so a project switch while the
-        # computation runs in the background can be detected and the result
-        # rejected instead of silently landing in whatever project happens
-        # to be current when the background thread finishes.
-        self._dispatch_project = None
 
         # Cache for _resolve_xy_cached: the resolved series don't change over
         # the command's lifetime, and the UI calls it repeatedly (once per
         # segment bound, on every spinbox tick) to resolve/bound indices.
         self._resolved_xy_cache: Optional[tuple[pd.Series, pd.Series, str, str]] = None
         self._chart_finder = ChartFinder(app_context)
-
-    @override
-    def marks_project_modified(self) -> bool:
-        """execute() only dispatches the computation -- it returns SUCCESS
-        before anything has actually mutated the project, and the
-        dispatched computation may yet fail or be discarded (see
-        _on_commit_computed). The real mutation, and the real "unsaved
-        changes" flag, belongs to ApplySignalAnalysisResultCommand alone."""
-        return False
-
-    @override
-    def occupies_undo_slot(self) -> bool:
-        """The real, undoable effect is ApplySignalAnalysisResultCommand,
-        executed once the background computation's result is back (see
-        _on_commit_computed)."""
-        return False
 
     # -- source resolution ------------------------------------------------
 
@@ -215,17 +193,13 @@ class ChartSignalAnalysisCommand(Command):
     def _compute_signal_task(self, progress_callback, column: pd.Series) -> dict:
         """Runs on a background thread. Never raises for an expected
         computation failure; returns a plain dict instead."""
-        try:
-            result = SignalEngine.run_analysis(
-                analysis_type=self.analysis_type,
-                column=column,
-                sampling_rate=self.sampling_rate,
-                **self._extra_kwargs(),
-            )
-            return {"success": True, "result": result, "error": None}
-        except Exception as e:
-            self.logger.error("Chart signal analysis computation failed: %s", e, exc_info=True)
-            return {"success": False, "result": None, "error": str(e)}
+        return self._run_task_safely(
+            SignalEngine.run_analysis,
+            analysis_type=self.analysis_type,
+            column=column,
+            sampling_rate=self.sampling_rate,
+            **self._extra_kwargs(),
+        )
 
     def run_analysis_async(self, on_complete: Callable[[Optional[SignalAnalysisResult], Optional[str]], None]) -> None:
         """Non-undoable preview path: computes a SignalAnalysisResult on a
@@ -294,14 +268,13 @@ class ChartSignalAnalysisCommand(Command):
                 self.ui_controller.show_error_message("Chart Signal Analysis Error", message)
                 return CommandResult.FAILURE
 
-            self._dispatch_project = self.app_state.current_project
-            self._is_running = True
-            self.task_scheduler.run_task(
+            self._capture_dispatch_project(self.app_context)
+            self._dispatch_task(
+                self.task_scheduler,
                 task=self._compute_signal_task,
                 task_arguments={"column": y_segment},
                 on_result=self._on_commit_computed,
                 on_error=self._on_commit_error,
-                on_finished=self._on_commit_finished,
             )
             return CommandResult.SUCCESS
 
@@ -319,7 +292,7 @@ class ChartSignalAnalysisCommand(Command):
             self._notify_complete(CommandResult.FAILURE)
             return
 
-        if self.app_state.current_project is not self._dispatch_project:
+        if self._is_project_stale(self.app_context):
             # The project changed (or was closed) while this computation was
             # running in the background -- adding the result to whatever
             # project happens to be current now would silently attach it to
@@ -361,22 +334,6 @@ class ChartSignalAnalysisCommand(Command):
         self.logger.error(error_traceback)
         self.ui_controller.show_error_message("Chart Signal Analysis Error", message)
         self._notify_complete(CommandResult.FAILURE)
-
-    def _on_commit_finished(self) -> None:
-        self._is_running = False
-
-    def _notify_complete(self, result: CommandResult) -> None:
-        if self.on_complete:
-            self.on_complete(result)
-
-    @override
-    def undo(self) -> CommandResult:
-        """Unreachable via CommandExecutor: occupies_undo_slot() is False."""
-        return CommandResult.SUCCESS
-
-    @override
-    def redo(self) -> CommandResult:
-        return CommandResult.SUCCESS
 
     @override
     def cleanup(self) -> None:

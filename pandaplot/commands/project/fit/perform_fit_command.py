@@ -12,12 +12,13 @@ was never a meaningful undoable user action.
 
 from typing import Callable, Optional, override
 
-from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.background_task_command import BackgroundTaskCommand
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.services.fit.fit_service import FitResult, FitService
 from pandaplot.services.qtasks.task_scheduler import TaskScheduler
 
 
-class PerformFitCommand(Command):
+class PerformFitCommand(BackgroundTaskCommand):
     """Command that performs a curve fit."""
 
     def __init__(
@@ -38,11 +39,10 @@ class PerformFitCommand(Command):
         x_max: float | None = None,
         task_scheduler: TaskScheduler,
         on_complete: Optional[Callable[[CommandResult], None]] = None):
-        super().__init__()
+        super().__init__(on_complete=on_complete)
 
         self.fit_service = fit_service
         self.task_scheduler = task_scheduler
-        self.on_complete = on_complete
 
         self.fit_type = fit_type
         self.x_data = x_data
@@ -60,20 +60,6 @@ class PerformFitCommand(Command):
 
         self.result: Optional[FitResult] = None
         self.error_message: Optional[str] = None
-        self._is_running = False
-
-    @override
-    def marks_project_modified(self) -> bool:
-        """Computes a preview only -- never mutates project state (see
-        module docstring) -- so it must not flag the project as having
-        unsaved changes."""
-        return False
-
-    @override
-    def occupies_undo_slot(self) -> bool:
-        """Computing a fit preview was never a meaningful undoable action;
-        see module docstring."""
-        return False
 
     @override
     def execute(self) -> CommandResult:
@@ -83,36 +69,32 @@ class PerformFitCommand(Command):
             self.logger.warning("PerformFitCommand: a fit is already in progress")
             return CommandResult.FAILURE
 
-        self._is_running = True
-        self.task_scheduler.run_task(
+        self._dispatch_task(
+            self.task_scheduler,
             task=self._compute_fit_task,
             on_result=self._on_fit_computed,
             on_error=self._on_fit_error,
-            on_finished=self._on_fit_finished,
         )
         return CommandResult.SUCCESS
 
     def _compute_fit_task(self, progress_callback) -> dict:
         """Runs on a background thread. Never raises for an expected fit
         failure; returns a plain dict instead."""
-        try:
-            result = self.fit_service.perform_fit(
-                fit_type=self.fit_type,
-                x_data=self.x_data,
-                y_data=self.y_data,
-                fit_points=self.fit_points,
-                calculate_r_squared=self.calculate_r_squared,
-                confidence_bands=self.confidence_bands,
-                sigma_y=self.sigma_y,
-                custom_function=self.custom_function,
-                custom_parameters=self.custom_parameters,
-                fixed_parameters=self.fixed_parameters,
-                x_min=self.x_min,
-                x_max=self.x_max)
-            return {"success": result is not None, "result": result, "error": None}
-        except Exception as e:
-            self.logger.exception("PerformFitCommand failed")
-            return {"success": False, "result": None, "error": str(e)}
+        return self._run_task_safely(
+            self.fit_service.perform_fit,
+            fit_type=self.fit_type,
+            x_data=self.x_data,
+            y_data=self.y_data,
+            fit_points=self.fit_points,
+            calculate_r_squared=self.calculate_r_squared,
+            confidence_bands=self.confidence_bands,
+            sigma_y=self.sigma_y,
+            custom_function=self.custom_function,
+            custom_parameters=self.custom_parameters,
+            fixed_parameters=self.fixed_parameters,
+            x_min=self.x_min,
+            x_max=self.x_max,
+        )
 
     def _on_fit_computed(self, outcome: dict) -> None:
         if outcome["success"]:
@@ -133,13 +115,6 @@ class PerformFitCommand(Command):
         self.result = None
         self.error_message = str(value)
         self._notify_complete(CommandResult.FAILURE)
-
-    def _on_fit_finished(self) -> None:
-        self._is_running = False
-
-    def _notify_complete(self, result: CommandResult) -> None:
-        if self.on_complete:
-            self.on_complete(result)
 
     @override
     def undo(self) -> CommandResult:

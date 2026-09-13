@@ -277,3 +277,24 @@ def test_undo_and_redo_include_dataset_id_in_emitted_event(mock_app_context, sam
     assert command.redo() is CommandResult.SUCCESS
     redo_payload = mock_app_context.event_bus.emit.call_args.args[1]
     assert redo_payload["dataset_id"] == dataset.id
+
+
+def test_edit_batch_command_updates_modified_at_on_execute_undo_redo(mock_app_context, sample_project):
+    mock_app_context.app_state.has_project = True
+    mock_app_context.app_state.current_project = sample_project
+    dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2]}))
+    dataset.modified_at = "2020-01-01T00:00:00.000000"
+    sample_project.find_item.return_value = dataset
+
+    command = EditBatchCommand(mock_app_context, "ds-1", 0, 0, [[10]])
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert dataset.modified_at != "2020-01-01T00:00:00.000000"
+
+    dataset.modified_at = "2020-01-01T00:00:00.000000"
+    assert command.undo() is CommandResult.SUCCESS
+    assert dataset.modified_at != "2020-01-01T00:00:00.000000"
+
+    dataset.modified_at = "2020-01-01T00:00:00.000000"
+    assert command.redo() is CommandResult.SUCCESS
+    assert dataset.modified_at != "2020-01-01T00:00:00.000000"

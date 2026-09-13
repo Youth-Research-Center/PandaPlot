@@ -218,3 +218,33 @@ class TestChartTransformPanelSeriesSelectedEvent:
         )
 
         assert panel.source_combo.currentIndex() == 0
+
+
+class TestChartTransformPanelChartContextRefresh:
+    """ChartTransformPanel previously hand-rolled its own (narrower) tab-
+    tracking; migrating onto ChartSeriesContextMixin (#284) gives it two
+    capabilities ChartAnalysisPanel/ChartSignalAnalysisPanel already had."""
+
+    def test_chart_updated_with_only_chart_id_still_refreshes_the_current_chart(self, panel):
+        """A chart-type retype via ChartPropertiesPanel's live-edit publish
+        sends only chart_id, not the Chart object itself -- previously
+        missed by this panel's own _on_chart_updated; the shared mixin's
+        chart_id-fallback resolution now catches it."""
+        calls = []
+        original = panel._populate_sources
+
+        def _spy():
+            calls.append(1)
+            original()
+
+        panel._populate_sources = _spy
+
+        panel._on_chart_updated({"chart_id": "chart-1", "update_type": "config_updated"})
+
+        assert calls == [1]
+
+    def test_chart_list_changed_does_not_raise(self, panel):
+        """ChartTransformPanel has no destination combo to refresh, so this
+        is a no-op -- just confirm the now-subscribed PROJECT_ITEM_* events
+        don't error when they arrive."""
+        panel._on_chart_list_changed({"item_id": "some-other-chart"})
