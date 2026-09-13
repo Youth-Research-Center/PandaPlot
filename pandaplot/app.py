@@ -12,7 +12,7 @@ from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import EventBus
 from pandaplot.models.events.event_types import AppEvents
-from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
+from pandaplot.models.project.items import Chart, CircuitSketch, Dataset, Folder, Image, ImageGallery, Note, Sketch
 from pandaplot.models.state import AppContext, AppState, UnsavedChangesRegistry
 from pandaplot.services.autosave import AutoSaveManager
 from pandaplot.services.config import ConfigManager
@@ -28,6 +28,7 @@ from pandaplot.storage.image_gallery_data_manager import ImageGalleryDataManager
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.storage.note_data_manager import NoteDataManager
 from pandaplot.storage.project_data_manager import ProjectDataManager
+from pandaplot.storage.sketch_data_manager import SketchDataManager
 from pandaplot.utils.log import setup_logging
 
 
@@ -40,6 +41,8 @@ def create_project_data_manager() -> ProjectDataManager:
     factory.register("dataset", Dataset, DatasetDataManager(), "dataset")
     factory.register("image", Image, ImageDataManager(), "image")
     factory.register("imagegallery", ImageGallery, ImageGalleryDataManager(), "imagegallery")
+    factory.register("sketch", Sketch, SketchDataManager(), "sketch")
+    factory.register("circuitsketch", CircuitSketch, SketchDataManager(), "circuitsketch")
     return ProjectDataManager(factory)
 
 
@@ -65,10 +68,16 @@ def create_tab_factory() -> TabFactory:
         from pandaplot.gui.components.tabs.image.image_gallery_tab import ImageGalleryTab
         return ImageGalleryTab(app_context=app_context, gallery=item, parent=parent)
 
+    def _load_sketch_tab(app_context, item, parent):
+        from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
+        return SketchTab(app_context=app_context, sketch=item, parent=parent)
+
     factory.register(Note, _load_note_tab)
     factory.register(Chart, _load_chart_tab)
     factory.register(Dataset, _load_dataset_tab)
     factory.register(ImageGallery, _load_image_gallery_tab)
+    factory.register(Sketch, _load_sketch_tab)
+    factory.register(CircuitSketch, _load_sketch_tab)
     return factory
 
 

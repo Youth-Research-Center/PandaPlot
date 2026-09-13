@@ -13,6 +13,7 @@ from pandaplot.commands.project.image import CreateImageGalleryCommand, ImportIm
 from pandaplot.commands.project.item import DeleteItemCommand
 from pandaplot.commands.project.note import CreateNoteCommand
 from pandaplot.commands.project.project import RenameProjectCommand
+from pandaplot.commands.project.sketch import CreateSketchCommand
 from pandaplot.models.events.event_data import TabOpenRequestedData
 from pandaplot.models.events.event_types import UIEvents
 from pandaplot.models.state.app_context import AppContext
@@ -53,6 +54,16 @@ class ProjectPanelCommandManager:
         folder_id = self.get_target_folder_id()
 
         command = CreateNoteCommand(self.app_context, folder_id=folder_id)
+        self.app_context.get_command_executor().execute_command(command)
+
+    def add_sketch(self):
+        """Add a new sketch."""
+        if not self.app_state.has_project:
+            return
+
+        folder_id = self.get_target_folder_id()
+
+        command = CreateSketchCommand(self.app_context, folder_id=folder_id)
         self.app_context.get_command_executor().execute_command(command)
 
     def import_data(self):
@@ -251,7 +262,7 @@ class ProjectPanelCommandManager:
                 self._open_parent_gallery(item_data)
                 return
             # For other items that can be opened, don't start editing
-            elif item_type in ["note", "dataset", "chart"]:
+            elif item_type in ["note", "dataset", "chart", "sketch"]:
                 self.open_selected_item()
                 return
 
