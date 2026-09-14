@@ -310,43 +310,25 @@ class ThemeManager:
         self._app.setFont(f)
 
     def get_surface_palette(self) -> dict:
-        if not self._current:
-            return {
-                "card_bg": "#f8f9fa",
-                "card_hover": "#e9ecef",
-                "card_pressed": "#dee2e6",
-                "card_border": "#dee2e6",
-                "base_fg": "#000000",
-                "secondary_fg": "#555555",
-                "accent": "#4A90E2",
-            }
-        ctx = self._current
-        if ctx.theme == Theme.DARK:
-            return {
-                "card_bg": "#2a2c2e",
-                "card_hover": "#323437",
-                "card_pressed": "#3a3d40",
-                "card_border": "#404347",
-                "base_fg": "#e2e2e2",
-                "secondary_fg": "#a8adb2",
-                "accent": ctx.accent,
-            }
+        """Derived view over get_design_tokens() for callers that only need
+        the original small 7-key shape -- kept as a single source of truth
+        so the two can never drift out of sync (see get_design_tokens())."""
+        tokens = self.get_design_tokens()
         return {
-            "card_bg": "#f8f9fa",
-            "card_hover": "#e9ecef",
-            "card_pressed": "#dee2e6",
-            "card_border": "#dee2e6",
-            "base_fg": "#000000",
-            "secondary_fg": "#555555",
-            "accent": ctx.accent,
+            "card_bg": tokens["surface_white"],
+            "card_hover": tokens["surface_inset"],
+            "card_pressed": tokens["surface_chrome"],
+            "card_border": tokens["border_control"],
+            "base_fg": tokens["text_primary"],
+            "secondary_fg": tokens["text_secondary"],
+            "accent": tokens["accent"],
         }
 
     def get_design_tokens(self) -> dict:
         """Full token set for the chart-properties redesign's shared widgets.
 
-        Superset of get_surface_palette(); both stay in sync with the
-        current ThemeContext (theme + accent) so callers always see the
-        user's live theme/accent choice.
+        get_surface_palette() is a derived view over this method's return
+        value, not a separate dict -- this is the single source of truth.
         """
         accent = self._current.accent if self._current else "#4A56C6"
         is_dark = self._current is not None and self._current.theme == Theme.DARK
@@ -370,6 +352,7 @@ class ThemeManager:
                 "y2_accent": "#B27FD1", "y2_accent_bg": "#3A2E45",
                 "series_palette": ["#C24141", "#6B77E8", "#3F9BB0", "#3FA46A", "#E09A1F"],
                 "radius_swatch": 4, "radius_control": 5, "radius_card": 6, "radius_chip": 12,
+                "font_size_group_title": 9,
             }
         return {
             "text_primary": "#1C1E26", "text_secondary": "#3F4350",
@@ -385,7 +368,31 @@ class ThemeManager:
             "y2_accent": "#8A4BB8", "y2_accent_bg": "#F5EEFB",
             "series_palette": ["#A01818", "#4A56C6", "#2B7A8C", "#3FA46A", "#E09A1F"],
             "radius_swatch": 4, "radius_control": 5, "radius_card": 6, "radius_chip": 12,
+            "font_size_group_title": 9,
         }
+
+    def build_context_menu_stylesheet(self) -> str:
+        """Shared QSS for right-click context menus (dataset cell/column/row
+        headers, project tree) -- kept separate from build_stylesheet()'s
+        app-wide QPushButton rules since QMenu instances are styled
+        per-instance rather than through the global QApplication stylesheet.
+        """
+        tokens = self.get_design_tokens()
+        return f"""
+            QMenu {{
+                background-color: {tokens['surface_white']};
+                color: {tokens['text_primary']};
+                border: 1px solid {tokens['border_control']};
+            }}
+            QMenu::item:selected {{
+                background-color: {tokens['accent']};
+                color: #FFFFFF;
+            }}
+            QMenu::item:hover {{
+                background-color: {tokens['surface_inset']};
+                color: {tokens['text_primary']};
+            }}
+        """
 
     def _on_config_event(self, data):  # signature per EventBus
         cfg = data.get("config")
