@@ -2026,7 +2026,7 @@ def test_toolbar_has_links_action_instead_of_separate_insert_actions(qapp):
     assert any("Links" in text for text in action_texts)
 
 
-def test_links_badge_shows_no_marker_when_no_issues(qapp):
+def test_links_badge_shows_no_marker_when_no_issues(qapp, qtbot):
     chart = Chart(name="Line Plot")
     project = Project(name="Test Project")
     project.add_item(chart)
@@ -2038,11 +2038,12 @@ def test_links_badge_shows_no_marker_when_no_issues(qapp):
 
     note = Note(name="Note 1", content=f"![Line Plot]({chart.id} =500x)")
     editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    qtbot.wait(600)  # past the debounce delay
 
     assert "•" not in editor.links_action.text()
 
 
-def test_links_badge_shows_marker_when_reference_is_broken(qapp):
+def test_links_badge_shows_marker_when_reference_is_broken(qapp, qtbot):
     project = Project(name="Test Project")
     app_context = MagicMock()
     app_state = MagicMock()
@@ -2052,11 +2053,12 @@ def test_links_badge_shows_marker_when_reference_is_broken(qapp):
 
     note = Note(name="Note 1", content="![Gone](missing-id =500x)")
     editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    qtbot.wait(600)  # past the debounce delay
 
     assert "•" in editor.links_action.text()
 
 
-def test_links_badge_updates_as_content_changes(qapp):
+def test_links_badge_updates_as_content_changes(qapp, qtbot):
     project = Project(name="Test Project")
     app_context = MagicMock()
     app_state = MagicMock()
@@ -2066,8 +2068,35 @@ def test_links_badge_updates_as_content_changes(qapp):
 
     note = Note(name="Note 1", content="")
     editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    qtbot.wait(600)  # past the debounce delay
     assert "•" not in editor.links_action.text()
 
     editor.text_edit.setPlainText("![Gone](missing-id =500x)")
+    qtbot.wait(600)  # past the debounce delay
 
     assert "•" in editor.links_action.text()
+
+
+def test_content_changed_debounces_links_badge_refresh(qapp, qtbot):
+    """on_content_changed fires on every keystroke via textChanged;
+    _refresh_links_badge does real filesystem checks and an
+    O(references x project items) scan, so it must be debounced rather
+    than run synchronously on every edit (mirrors
+    test_chart_or_dataset_change_debounces_preview_refresh above)."""
+    project = Project(name="Test Project")
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    qtbot.wait(600)  # let the initial-load debounce settle before measuring
+
+    with patch.object(editor, "_refresh_links_badge") as mock_refresh:
+        for _ in range(5):
+            editor.text_edit.insertPlainText("x")
+        mock_refresh.assert_not_called()  # debounced, not synchronous
+        qtbot.wait(600)  # past the debounce delay
+        mock_refresh.assert_called_once()

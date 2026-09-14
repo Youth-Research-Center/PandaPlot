@@ -713,6 +713,15 @@ class NoteEditorWidget(PWidget):
         self._chart_preview_refresh_timer.timeout.connect(self.update_preview)
         self._chart_preview_refresh_timer.setSingleShot(True)
 
+        # Debounces _refresh_links_badge() the same way, since
+        # compute_note_link_rows does real filesystem checks and an
+        # O(references x project items) scan -- too expensive to run
+        # synchronously on every keystroke/content-changed event (see
+        # final-branch-review finding on Task 7).
+        self._links_badge_refresh_timer = QTimer()
+        self._links_badge_refresh_timer.setSingleShot(True)
+        self._links_badge_refresh_timer.timeout.connect(self._refresh_links_badge)
+
         # Since we can't check if the preview is connected, track it with a flag
         self.preview_connected = False
 
@@ -1139,6 +1148,13 @@ class NoteEditorWidget(PWidget):
             tooltip += " -- some references are unused or broken"
         self.links_action.setToolTip(tooltip)
 
+    def _schedule_links_badge_refresh(self) -> None:
+        """Debounced _refresh_links_badge(), restarting the wait on every
+        call -- compute_note_link_rows does real filesystem checks and an
+        O(references x project items) scan, so it must not run on every
+        keystroke (see final-branch-review finding on Task 7)."""
+        self._links_badge_refresh_timer.start(_CHART_PREVIEW_REFRESH_DEBOUNCE_MS)
+
     def insert_chart_from_picker(self):
         """Open the chart picker dialog and insert markdown for the selected chart."""
         from pandaplot.gui.dialogs.note import NoteChartPickerDialog
@@ -1441,7 +1457,7 @@ class NoteEditorWidget(PWidget):
             self._invalidate_all_in_flight_chart_generations()
             if self.stack.currentIndex() != 0:  # preview or split mode visible
                 self.update_preview()
-            self._refresh_links_badge()
+            self._schedule_links_badge_refresh()
             return
 
         dataset_ids = self._event_dataset_ids(event_data)
@@ -1450,7 +1466,7 @@ class NoteEditorWidget(PWidget):
                 self._invalidate_chart_cache_for_dataset(dataset_id)
             if self.stack.currentIndex() != 0:
                 self.update_preview()
-        self._refresh_links_badge()
+        self._schedule_links_badge_refresh()
 
     def _event_affects_rendered_previews(self, event_data: dict) -> bool:
         """Whether a PROJECT_ITEM_* event concerns an Image/ImageGallery/Chart.
@@ -1697,7 +1713,7 @@ class NoteEditorWidget(PWidget):
         content = self.text_edit.toPlainText()
         self.content_changed.emit(content)
 
-        self._refresh_links_badge()
+        self._schedule_links_badge_refresh()
 
     def update_statistics(self):
         """Update word and character count."""
