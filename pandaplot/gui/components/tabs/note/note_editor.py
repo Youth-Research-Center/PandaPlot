@@ -3,7 +3,8 @@ Note tab widget for displaying and editing notes in the main tab container.
 """
 import os
 import re
-from typing import Callable, Dict, Optional, Set, override
+from dataclasses import dataclass
+from typing import Callable, Dict, List, Optional, Set, override
 from urllib.parse import unquote
 
 from PySide6.QtCore import QBuffer, QIODevice, Qt, QTimer, QUrl, Signal
@@ -52,6 +53,18 @@ _NOTE_FONT_SIZE = 11
 # via `is_escaped_at` (Markdown backslash rules need to look at an arbitrary
 # run of preceding backslashes, not just one character).
 _IMAGE_REF_RE = re.compile(r"!\[[^\]]*\]\(\s*(?:<([^>]*)>|([^\s)]+))")
+
+# Same inline-image-link shape as _IMAGE_REF_RE, but the match is the
+# *entire* "![alt](target)" (optionally "![alt](target =WxH)") construct,
+# not just the target -- so the match span can be used to delete the whole
+# reference from note text (see compute_note_link_rows / NoteLinksDialog).
+# Reference-style links (![alt][label] + a separate [label]: target
+# definition) aren't matched here: every insertion this app performs uses
+# the inline form, so a reference-style link is only ever hand-written --
+# out of scope for the links-management delete action.
+_IMAGE_MARKDOWN_RE = re.compile(
+    r"!\[[^\]]*\]\(\s*(?:<([^>]*)>|([^\s)]+))(?:\s+=\d*x\d*)?\s*\)"
+)
 
 # Reference-style image link, e.g. "![alt][plot]" (or the collapsed
 # "![alt][]", whose label is `alt` itself) paired with a definition elsewhere
@@ -367,6 +380,90 @@ def extract_referenced_image_keys(source: str) -> Set[str]:
         _add_key_and_decoded(keys, target)
 
     return keys
+
+
+@dataclass
+class NoteLinkRow:
+    """One row for NoteLinksDialog / the toolbar badge: either a chart/image
+    reference found in the note's current markdown text, or an orphaned
+    snapshot Image this note created that's no longer referenced there."""
+    name: str
+    kind: str  # "chart", "image", or "unknown" (couldn't resolve the target)
+    status: str  # "ok", "unused", or "broken"
+    is_snapshot: bool  # True only for an Image with note_id == this note's id
+    match_start: Optional[int]  # start offset of the full markdown reference in `source`, or None (unused row)
+    match_end: Optional[int]  # end offset, or None (unused row)
+    item_id: Optional[str]  # resolved Chart/Image id, or None (broken row)
+
+
+def _resolve_note_reference_target(project, target: str):
+    """Return (kind, resolved_item) for a raw markdown reference target:
+    ("chart", Chart) if it matches a Chart's id; ("image", Image) if it
+    matches an Image's id or exact gallery path (checking both the raw and
+    percent-decoded form, mirroring register_project_image_resources);
+    otherwise ("unknown", None)."""
+    if project is None:
+        return "unknown", None
+    decoded = unquote(target)
+    all_items = project.get_all_items()
+    for item in all_items:
+        if isinstance(item, Chart) and item.id in (target, decoded):
+            return "chart", item
+    for item in all_items:
+        if isinstance(item, Image):
+            gallery_path = get_image_gallery_path(project, item)
+            if target in (item.id, gallery_path) or decoded in (item.id, gallery_path):
+                return "image", item
+    return "unknown", None
+
+
+def compute_note_link_rows(app_context: AppContext, note: Note, source: str) -> List[NoteLinkRow]:
+    """Build every row for the Links dialog / toolbar badge: one row per
+    chart/image reference found in `source` (status "ok" if it resolves,
+    "broken" if it doesn't), plus one row per snapshot Image this note
+    created (note_id == note.id) that ISN'T covered by one of those
+    references anymore (status "unused").
+
+    `source` is the note's *current* text (e.g. text_edit.toPlainText()),
+    not necessarily note.content -- callers must pass the live editor text
+    so unsaved edits are reflected.
+    """
+    app_state = app_context.get_app_state() if app_context else None
+    project = app_state.current_project if app_state else None
+    rows: List[NoteLinkRow] = []
+    if project is None:
+        return rows
+
+    referenced_item_ids: Set[str] = set()
+    protected_source, _, _ = protect_code_regions(source)
+    for match in _IMAGE_MARKDOWN_RE.finditer(protected_source):
+        if is_escaped_at(protected_source, match.start()):
+            continue
+        target = match.group(1) if match.group(1) is not None else match.group(2)
+        if not target:
+            continue
+        kind, resolved = _resolve_note_reference_target(project, target)
+        if resolved is not None:
+            referenced_item_ids.add(resolved.id)
+            is_snapshot = isinstance(resolved, Image) and resolved.note_id == note.id
+            rows.append(NoteLinkRow(
+                name=resolved.name, kind=kind, status="ok", is_snapshot=is_snapshot,
+                match_start=match.start(), match_end=match.end(), item_id=resolved.id,
+            ))
+        else:
+            rows.append(NoteLinkRow(
+                name=target, kind="unknown", status="broken", is_snapshot=False,
+                match_start=match.start(), match_end=match.end(), item_id=None,
+            ))
+
+    for item in project.get_all_items():
+        if isinstance(item, Image) and item.note_id == note.id and item.id not in referenced_item_ids:
+            rows.append(NoteLinkRow(
+                name=item.name, kind="image", status="unused", is_snapshot=True,
+                match_start=None, match_end=None, item_id=item.id,
+            ))
+
+    return rows
 
 
 def register_project_image_resources(

@@ -13,6 +13,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.gui.components.tabs.note.note_editor import (
     NoteEditorWidget,
     NotePreviewBrowser,
+    compute_note_link_rows,
     extract_referenced_image_keys,
     find_or_create_chart_snapshot_gallery,
     get_cached_qimage_for_chart,
@@ -1820,3 +1821,129 @@ def test_insert_chart_snapshot_noops_if_note_editor_deleted_before_render_comple
         fake_qimg = QImage(5, 5, QImage.Format.Format_RGB32)
         captured["on_result"](fake_qimg)  # must not raise
         mock_save.assert_not_called()
+
+
+def test_compute_note_link_rows_classifies_live_chart_reference(qapp):
+    chart = Chart(name="Line Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    note = Note(name="Note 1", content=f"![Line Plot]({chart.id} =500x)")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    rows = compute_note_link_rows(app_context, note, note.content)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.kind == "chart"
+    assert row.status == "ok"
+    assert row.is_snapshot is False
+    assert row.item_id == chart.id
+    assert note.content[row.match_start:row.match_end] == f"![Line Plot]({chart.id} =500x)"
+
+
+def test_compute_note_link_rows_classifies_snapshot_image_reference(qapp):
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    image = Image(name="Snapshot", note_id="note-1")
+    project.add_item(image, parent_id=gallery.id)
+    note = Note(id="note-1", name="Note 1", content=f"![Snapshot]({image.id} =500x)")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    rows = compute_note_link_rows(app_context, note, note.content)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.kind == "image"
+    assert row.status == "ok"
+    assert row.is_snapshot is True
+    assert row.item_id == image.id
+
+
+def test_compute_note_link_rows_flags_broken_reference(qapp):
+    project = Project(name="Test Project")
+    note = Note(name="Note 1", content="![Gone](missing-id =500x)")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    rows = compute_note_link_rows(app_context, note, note.content)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.kind == "unknown"
+    assert row.status == "broken"
+    assert row.item_id is None
+    assert row.is_snapshot is False
+
+
+def test_compute_note_link_rows_flags_unused_snapshot_not_in_text(qapp):
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    image = Image(name="Orphan Snapshot", note_id="note-1")
+    project.add_item(image, parent_id=gallery.id)
+    note = Note(id="note-1", name="Note 1", content="No references here.")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    rows = compute_note_link_rows(app_context, note, note.content)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.kind == "image"
+    assert row.status == "unused"
+    assert row.is_snapshot is True
+    assert row.item_id == image.id
+    assert row.match_start is None
+    assert row.match_end is None
+
+
+def test_compute_note_link_rows_excludes_snapshot_owned_by_a_different_note(qapp):
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    image = Image(name="Someone Else's Snapshot", note_id="other-note")
+    project.add_item(image, parent_id=gallery.id)
+    note = Note(id="note-1", name="Note 1", content="No references here.")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    rows = compute_note_link_rows(app_context, note, note.content)
+
+    assert rows == []
+
+
+def test_compute_note_link_rows_marks_referenced_plain_gallery_image_as_not_a_snapshot(qapp):
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="My Photos")
+    project.add_item(gallery)
+    image = Image(name="Photo")  # note_id stays None -- an ordinary gallery image
+    project.add_item(image, parent_id=gallery.id)
+    note = Note(name="Note 1", content=f"![Photo]({image.id} =500x)")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    rows = compute_note_link_rows(app_context, note, note.content)
+
+    assert len(rows) == 1
+    assert rows[0].is_snapshot is False
