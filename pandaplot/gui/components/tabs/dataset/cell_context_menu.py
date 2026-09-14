@@ -8,6 +8,7 @@ from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCom
 from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
 from pandaplot.commands.project.dataset.delete_columns_command import DeleteColumnsCommand
 from pandaplot.commands.project.dataset.delete_rows_command import DeleteRowsCommand
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class CellContextMenu(QMenu):
@@ -21,21 +22,8 @@ class CellContextMenu(QMenu):
         self._init_ui()
 
     def _init_ui(self):
-        self.setStyleSheet("""
-            QMenu {
-                background-color: #ffffff;
-                color: black;
-                border: 1px solid #cccccc;
-            }
-            QMenu::item:selected {
-                background-color: #0078d4;
-                color: white;
-            }
-            QMenu::item:hover {
-                background-color: #e5f3ff;
-                color: black;
-            }
-        """)
+        theme_manager = self.app_context.get_manager(ThemeManager)
+        self.setStyleSheet(theme_manager.build_context_menu_stylesheet())
 
         rows = list(set(index.row() for index in self.indexes))
         cols = list(set(index.column() for index in self.indexes))
