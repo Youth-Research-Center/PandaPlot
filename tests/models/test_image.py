@@ -72,6 +72,18 @@ class TestImage:
         assert restored.parent_id == image.parent_id
         assert restored.created_at == image.created_at
 
+    def test_note_id_defaults_to_none(self):
+        image = Image(name="Photo")
+
+        assert image.note_id is None
+
+    def test_note_id_round_trips_through_to_dict_from_dict(self):
+        image = Image(id="img-6", name="Chart Snapshot", note_id="note-42")
+
+        restored = Image.from_dict(image.to_dict())
+
+        assert restored.note_id == "note-42"
+
 
 class TestImageGallery:
     def test_is_item_collection(self):
