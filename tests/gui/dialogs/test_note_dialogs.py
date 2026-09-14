@@ -3,14 +3,17 @@
 from unittest.mock import MagicMock
 
 import pandas as pd
+from PySide6.QtWidgets import QTextEdit
 
+from pandaplot.commands.base_command import CommandResult
 from pandaplot.gui.dialogs.note.note_chart_picker_dialog import NoteChartPickerDialog
+from pandaplot.gui.dialogs.note.note_links_dialog import NoteLinksDialog
 from pandaplot.gui.dialogs.note.note_table_picker_dialog import (
     NoteTablePickerDialog,
     custom_to_markdown_table,
     dataset_to_markdown_table,
 )
-from pandaplot.models.project.items import Chart, Dataset, Folder
+from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
 
 
@@ -21,6 +24,14 @@ def _create_mock_app_context(project=None):
     app_context.get_app_state.return_value = app_state
     app_context.get_manager.return_value.get_surface_palette.return_value = {}
     app_context.get_manager.return_value.get_design_tokens.return_value = {}
+    return app_context
+
+
+def _create_mock_app_context_with_executor(project):
+    app_context = _create_mock_app_context(project)
+    fake_executor = MagicMock()
+    fake_executor.execute_command.side_effect = lambda command, **kwargs: command.execute() is CommandResult.SUCCESS
+    app_context.get_command_executor.return_value = fake_executor
     return app_context
 
 
@@ -213,3 +224,106 @@ def test_note_chart_picker_sync_toggle_defaults_to_true_and_is_readable(qapp):
 
     dialog.sync_checkbox.setChecked(False)
     assert dialog.get_sync_mode() is False
+
+
+def test_note_links_dialog_lists_rows_for_current_text(qapp):
+    chart = Chart(name="Line Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText(f"![Line Plot]({chart.id} =500x)")
+
+    dialog = NoteLinksDialog(app_context, note, text_edit)
+
+    assert dialog.table.rowCount() == 1
+    assert dialog.table.item(0, 0).text() == "Line Plot"
+
+
+def test_note_links_dialog_delete_live_chart_row_removes_only_markdown_text(qapp):
+    chart = Chart(name="Line Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText(f"Before ![Line Plot]({chart.id} =500x) after")
+
+    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert text_edit.toPlainText() == "Before  after"
+    assert project.find_item(chart.id) is chart  # the Chart itself is untouched
+
+
+def test_note_links_dialog_delete_snapshot_row_removes_text_and_deletes_image(qapp):
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    note = Note(id="note-1", name="Note 1")
+    image = Image(name="Snapshot", note_id=note.id)
+    project.add_item(image, parent_id=gallery.id)
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText(f"![Snapshot]({image.id} =500x)")
+
+    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert text_edit.toPlainText() == ""
+    assert project.find_item(image.id) is None
+
+
+def test_note_links_dialog_delete_unused_row_deletes_image_only(qapp):
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    note = Note(id="note-1", name="Note 1")
+    image = Image(name="Orphan", note_id=note.id)
+    project.add_item(image, parent_id=gallery.id)
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText("No references here.")
+
+    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert text_edit.toPlainText() == "No references here."
+    assert project.find_item(image.id) is None
+
+
+def test_note_links_dialog_delete_broken_row_removes_dangling_text(qapp):
+    project = Project(name="Test Project")
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText("Before ![Gone](missing-id =500x) after")
+
+    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert text_edit.toPlainText() == "Before  after"
+
+
+def test_note_links_dialog_refresh_rows_reflects_current_text(qapp):
+    project = Project(name="Test Project")
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText("")
+    dialog = NoteLinksDialog(app_context, note, text_edit)
+    assert dialog.table.rowCount() == 0
+
+    chart = Chart(name="Line Plot")
+    project.add_item(chart)
+    text_edit.setPlainText(f"![Line Plot]({chart.id} =500x)")
+    dialog.refresh_rows()
+
+    assert dialog.table.rowCount() == 1
