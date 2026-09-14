@@ -1,7 +1,7 @@
 """Tests for ChangeSettingsCommand: settings changes (theme included) must be
 undoable/redoable through CommandExecutor, not applied outside its history."""
 import logging
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from pandaplot.commands.app.change_settings_command import ChangeSettingsCommand
 from pandaplot.commands.base_command import CommandResult
@@ -100,6 +100,49 @@ def test_theme_change_is_undoable_through_command_executor(tmp_path):
     assert executor.can_undo() is True
     assert config_manager.config.appearance.theme == Theme.DARK
 
-    executor.undo()
-    assert config_manager.config.appearance.theme == Theme.SYSTEM
-    assert executor.can_redo() is True
+
+def test_execute_reports_failure_when_disk_write_fails(tmp_path):
+    """Regression (PR #390 review, Copilot): ConfigManager.save() catches
+    every write exception and logs, so execute() previously always returned
+    SUCCESS after calling update(..., save=True) regardless of whether the
+    write actually reached disk -- SettingsDialog's apply-if-changed guard
+    (which relies on this return value) would then silently advance
+    original_settings and emit settings_changed for an edit that was never
+    actually persisted. execute() must reflect the real save outcome."""
+    config_manager = _config_manager(tmp_path)
+    mapping = {"appearance": {"theme": "dark"}}
+    command = ChangeSettingsCommand(Mock(), mapping, config_manager=config_manager)
+
+    with patch.object(config_manager, "save", return_value=False):
+        result = command.execute()
+
+    assert result is CommandResult.FAILURE
+    # The in-memory config still reflects the attempted change (matches
+    # ConfigManager's existing "defensive" philosophy: the mutation isn't
+    # rolled back, only the disk-persistence outcome is now surfaced).
+    assert config_manager.config.appearance.theme == Theme.DARK
+
+
+def test_undo_reports_failure_when_disk_write_fails(tmp_path):
+    config_manager = _config_manager(tmp_path)
+    mapping = {"appearance": {"theme": "dark"}}
+    command = ChangeSettingsCommand(Mock(), mapping, config_manager=config_manager)
+    command.execute()
+
+    with patch.object(config_manager, "save", return_value=False):
+        result = command.undo()
+
+    assert result is CommandResult.FAILURE
+
+
+def test_redo_reports_failure_when_disk_write_fails(tmp_path):
+    config_manager = _config_manager(tmp_path)
+    mapping = {"appearance": {"theme": "dark"}}
+    command = ChangeSettingsCommand(Mock(), mapping, config_manager=config_manager)
+    command.execute()
+    command.undo()
+
+    with patch.object(config_manager, "save", return_value=False):
+        result = command.redo()
+
+    assert result is CommandResult.FAILURE

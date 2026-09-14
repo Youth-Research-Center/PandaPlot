@@ -48,19 +48,28 @@ class ChangeSettingsCommand(Command):
             # warning about.
             self.logger.debug("ChangeSettingsCommand: no changes to apply, skipping")
             return CommandResult.NOOP
-        self.config_manager.update(self.new_mapping, save=True)
-        return CommandResult.SUCCESS
+        return self._apply_and_save(self.new_mapping)
 
     @override
     def undo(self) -> CommandResult:
         if self.old_mapping is None:
             return CommandResult.FAILURE
-        self.config_manager.update(self.old_mapping, save=True)
-        return CommandResult.SUCCESS
+        return self._apply_and_save(self.old_mapping)
 
     @override
     def redo(self) -> CommandResult:
-        self.config_manager.update(self.new_mapping, save=True)
+        return self._apply_and_save(self.new_mapping)
+
+    def _apply_and_save(self, mapping: Mapping[str, Any]) -> CommandResult:
+        """Apply `mapping` in memory and persist it, reporting FAILURE if
+        the disk write didn't actually succeed -- ConfigManager.save()
+        catches every write exception internally (its own documented
+        "defensive" design), so update(..., save=True) alone can't tell a
+        real disk failure from a successful write. Saving explicitly here,
+        instead, surfaces save()'s own boolean result."""
+        self.config_manager.update(mapping, save=False)
+        if not self.config_manager.save():
+            return CommandResult.FAILURE
         return CommandResult.SUCCESS
 
     @staticmethod

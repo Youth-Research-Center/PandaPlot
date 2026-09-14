@@ -80,6 +80,33 @@ class ThemeManager:
     def _relative_luminance(color: QColor) -> float:
         return (0.2126 * color.red() + 0.7152 * color.green() + 0.0722 * color.blue()) / 255.0
 
+    @staticmethod
+    def _wcag_relative_luminance(color: QColor) -> float:
+        """WCAG 2.x relative luminance (gamma-corrected per channel), used
+        only for build_context_menu_stylesheet()'s selected-item text
+        color. Distinct from _relative_luminance() above (a cheaper,
+        non-gamma-corrected approximation already tuned for
+        _contrasting_text_color()'s button/palette use cases elsewhere in
+        this file) so fixing this one doesn't risk changing behavior for
+        those other, separately-tuned call sites."""
+        def channel(v: int) -> float:
+            c = v / 255.0
+            return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+        r, g, b = channel(color.red()), channel(color.green()), channel(color.blue())
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+    @classmethod
+    def _wcag_contrast_text_color(cls, background: QColor) -> QColor:
+        """Pick whichever of black/white has the higher WCAG contrast ratio
+        against `background` -- unlike _contrasting_text_color(), this has
+        no theme-specific override, so it always picks the objectively more
+        legible option."""
+        lum = cls._wcag_relative_luminance(background)
+        white_contrast = (1.0 + 0.05) / (lum + 0.05)
+        black_contrast = (lum + 0.05) / (0.0 + 0.05)
+        return QColor(255, 255, 255) if white_contrast >= black_contrast else QColor(0, 0, 0)
+
     @classmethod
     def _contrasting_text_color(cls, accent: QColor, theme: Theme) -> QColor:
         """Pick black or white text so it stays legible against ``accent``."""
@@ -386,8 +413,7 @@ class ThemeManager:
         per-instance rather than through the global QApplication stylesheet.
         """
         tokens = self.get_design_tokens()
-        theme = self._current.theme if self._current else Theme.LIGHT
-        selected_text_color = self._contrasting_text_color(QColor(tokens['accent']), theme).name()
+        selected_text_color = self._wcag_contrast_text_color(QColor(tokens["accent"])).name()
         return f"""
             QMenu {{
                 background-color: {tokens['surface_white']};

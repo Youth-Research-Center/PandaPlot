@@ -114,10 +114,13 @@ def test_build_context_menu_stylesheet_uses_theme_tokens(theme):
 
 
 def test_build_context_menu_stylesheet_selected_text_contrasts_with_accent():
-    """Regression guard: the selected QMenu item's text color must be derived
-    from the accent color via _contrasting_text_color(), not hardcoded to
-    white -- a light accent (e.g. yellow) with hardcoded white text would be
-    illegible."""
+    """Regression guard: the selected QMenu item's text color must be
+    derived from the accent color via a real WCAG contrast-ratio
+    comparison, not hardcoded to white (illegible for a light accent) and
+    not _contrasting_text_color()'s theme-specific heuristic (which picks
+    black for the default accent #4A56C6 in light theme -- 3.44:1 contrast,
+    below the 4.5:1 minimum for normal text -- even though white gives
+    6.11:1 there)."""
     manager = _manager_with_context(Theme.LIGHT)
     manager._current.accent = "#FFEB3B"  # light yellow accent
     qss = manager.build_context_menu_stylesheet()
@@ -125,10 +128,14 @@ def test_build_context_menu_stylesheet_selected_text_contrasts_with_accent():
     assert "color: #000000;" in selected_rule.lower()
     assert "#ffffff" not in selected_rule.lower()
 
-    # In dark theme, the default accent (#4A56C6, luminance ~0.36) is below
-    # the dark-theme white-text threshold, so selected-item text stays white.
-    manager = _manager_with_context(Theme.DARK)
-    manager._current.accent = "#4A56C6"  # default dark-ish accent
-    qss = manager.build_context_menu_stylesheet()
-    selected_rule = qss.split("QMenu::item:selected {")[1].split("}")[0]
-    assert "color: #ffffff;" in selected_rule.lower()
+    # The default accent (#4A56C6) has ~6.11:1 contrast against white and
+    # only ~3.44:1 against black -- white must win, in BOTH themes, since
+    # WCAG contrast doesn't depend on the app's light/dark theme setting.
+    for theme in (Theme.LIGHT, Theme.DARK):
+        manager = _manager_with_context(theme)
+        manager._current.accent = "#4A56C6"
+        qss = manager.build_context_menu_stylesheet()
+        selected_rule = qss.split("QMenu::item:selected {")[1].split("}")[0]
+        assert "color: #ffffff;" in selected_rule.lower(), (
+            f"expected white text for default accent in {theme}, got: {selected_rule}"
+        )

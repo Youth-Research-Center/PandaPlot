@@ -476,8 +476,25 @@ class SettingsDialog(PDialog):
         
         layout.addWidget(self.button_frame)
     
-    def load_current_settings(self):
-        """Load current settings from the configuration manager (or defaults)."""
+    def load_current_settings(self, *, force: bool = False):
+        """Load current settings from the configuration manager (or defaults).
+
+        `force=True` (used by reset_to_defaults()) always rebuilds
+        original_settings/current_settings and resyncs the UI, even if the
+        freshly-loaded config equals what was already loaded -- Reset must
+        resync visible widgets regardless of whether the persisted config
+        actually changed (e.g. it was already at defaults, so the
+        underlying command was a no-op).
+
+        Without `force`, an unchanged reload (e.g. triggered by an
+        unrelated CONFIG_UPDATED event while the dialog is open) returns
+        immediately without touching either settings dict -- current_settings
+        can hold state that lives nowhere else (accent_color, set directly by
+        choose_accent_color() with no backing widget for
+        get_current_settings_from_ui() to read back from), so overwriting it
+        on a no-op reload would silently discard a pending, not-yet-applied
+        pick.
+        """
         cfg: Optional[ApplicationConfig] = None
         if self._config_manager is not None:
             cfg = self._config_manager.config
@@ -490,8 +507,6 @@ class SettingsDialog(PDialog):
             unit = LengthUnit.CM
         raw_width = getattr(display_cfg, "default_width_cm", 20)
         raw_height = getattr(display_cfg, "default_height_cm", 15)
-        self._chart_width_raw_cm = raw_width
-        self._chart_height_raw_cm = raw_height
 
         new_settings = {
             "auto_save": cfg.auto_save.enabled,
@@ -508,12 +523,14 @@ class SettingsDialog(PDialog):
             "chart_height": quantize_cm(raw_height, unit),
             "measurement_unit": unit.value,
         }
-        settings_unchanged = getattr(self, "original_settings", None) == new_settings
+        if not force and getattr(self, "original_settings", None) == new_settings:
+            return
+
+        self._chart_width_raw_cm = raw_width
+        self._chart_height_raw_cm = raw_height
         self.original_settings = new_settings
         self.current_settings = self.original_settings.copy()
-
-        if not settings_unchanged:
-            self.apply_settings_to_ui()
+        self.apply_settings_to_ui()
 
     def setup_event_subscriptions(self):
         """Subscribe to config update events to reflect external changes while dialog open."""
@@ -612,13 +629,20 @@ class SettingsDialog(PDialog):
                         self.app_context, mapping, config_manager=self._config_manager
                     )
                 )
-            self.load_current_settings()
+            self.load_current_settings(force=True)
     
-    def apply_settings(self):
-        """Apply settings without closing the dialog."""
+    def apply_settings(self) -> bool:
+        """Apply settings without closing the dialog.
+
+        Returns True when it's safe for a caller to close the dialog
+        afterwards -- either nothing needed applying, or the apply
+        succeeded. Returns False only when the underlying command actually
+        failed, so accept_settings() (the OK button) can keep the dialog
+        open instead of silently discarding the failed edit.
+        """
         new_ui_settings = self.get_current_settings_from_ui()
         if new_ui_settings == self.original_settings:
-            return
+            return True
 
         self.current_settings = new_ui_settings
         self._applying = True
@@ -676,18 +700,21 @@ class SettingsDialog(PDialog):
                     # to values that were never actually persisted, and a
                     # later Apply with the same values is wrongly skipped by
                     # the guard above.
-                    return
+                    return False
                 self._chart_width_raw_cm = width_cm
                 self._chart_height_raw_cm = height_cm
             self.original_settings = self.current_settings.copy()
             self.settings_changed.emit(self.current_settings)
+            return True
         finally:
             self._applying = False
 
     def accept_settings(self):
-        """Apply settings and close the dialog."""
-        self.apply_settings()
-        self.accept()
+        """Apply settings and close the dialog, unless applying failed --
+        a failed apply must not silently close the dialog and discard the
+        edit with no indication anything went wrong."""
+        if self.apply_settings():
+            self.accept()
     
     def reject(self):
         """Cancel and close the dialog without applying changes."""
