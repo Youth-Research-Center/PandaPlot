@@ -15,11 +15,13 @@ from pandaplot.gui.components.main_menu.main_menu import MainMenu
 
 
 # These mirror the real get_surface_palette() output (ThemeManager,
-# pandaplot/services/theme/theme_manager.py) for the LIGHT/DARK themes with
-# the default accent -- card_hover/card_pressed are surface_white darkened
-# via QColor.darker(110)/darker(115) respectively (see get_surface_palette()
+# pandaplot/services/theme/theme_manager.py) for the LIGHT/DARK themes --
+# card_hover/card_pressed are surface_white darkened via
+# QColor.darker(110)/darker(115) respectively (see get_surface_palette()
 # docstring for why they're derived rather than reusing surface_inset/
-# surface_chrome).
+# surface_chrome). `accent` is this fixture's own value, not the app's
+# actual default (#4A56C6) -- it isn't exercised by the assertions below,
+# which only check card_pressed/card_hover/base_fg contrast.
 LIGHT_PALETTE = {
     "card_bg": "#ffffff",
     "card_hover": "#e8e8e8",
