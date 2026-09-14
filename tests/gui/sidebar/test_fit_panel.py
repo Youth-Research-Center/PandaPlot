@@ -36,6 +36,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
     return ctx
 
 
@@ -77,6 +78,31 @@ def test_fit_button_disabled_when_data_is_insufficient(fit_panel):
 
 def test_apply_button_starts_disabled(fit_panel):
     assert fit_panel.apply_button.isEnabled() is False
+
+
+def test_equation_label_uses_theme_tokens_not_hardcoded_colors(app_context):
+    """equation_label used to hardcode background-color: #f5f5f5; color:
+    #333333; border: 1px solid #ddd at construction, never refreshed by
+    _apply_theme() -- a light-mode-only box against a dark app theme."""
+    theme_manager = Mock()
+    theme_manager.get_surface_palette.return_value = {
+        "card_bg": "#2A2C2E", "card_border": "#4A4D52", "base_fg": "#E2E2E2",
+        "card_hover": "#26282B", "card_pressed": "#232527", "secondary_fg": "#C7CAD1",
+        "accent": "#4A56C6",
+    }
+    theme_manager.get_design_tokens.return_value = {"font_size_group_title": 9}
+    app_context.get_manager.return_value = theme_manager
+
+    panel = FitPanel(app_context)
+    panel._apply_theme()
+
+    style = panel.equation_label.styleSheet()
+    assert "#f5f5f5" not in style
+    assert "#333333" not in style
+    assert "#ddd" not in style
+    assert "#2A2C2E" in style
+    assert "#4A4D52" in style
+    assert "#E2E2E2" in style
 
 
 def test_clear_button_click_invokes_clear_results(app_context):

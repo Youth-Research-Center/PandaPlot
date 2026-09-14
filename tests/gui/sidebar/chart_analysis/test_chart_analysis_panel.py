@@ -49,6 +49,7 @@ def project():
 def app_context(project):
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
     app_state = Mock(spec=AppState)
     app_state.current_project = project
     ctx.get_app_state.return_value = app_state
