@@ -82,6 +82,23 @@ def test_build_stylesheet_primary_button_text_is_white_for_default_accent_in_lig
 
 
 @pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+def test_build_stylesheet_disabled_primary_button_text_is_legible(theme):
+    """User-reported: a disabled primary button (e.g. an "Apply" button
+    before there's anything to apply) rendered near-invisible text -- the
+    disabled rule used tokens['text_hint'] (#9AA0AB) against
+    tokens['accent_disabled'] (#7683FF for the default accent, same value
+    in both themes) for only ~1.24:1 contrast, versus ~6.46:1 for black and
+    ~3.25:1 for white. Must pick whichever of black/white actually
+    contrasts against the disabled background, same as the enabled
+    button's text color."""
+    manager = _manager_with_context(theme)
+    ctx = manager._current
+    qss = manager.build_stylesheet(ctx)
+    disabled_rule = qss.split('QPushButton[primary="true"]:disabled {')[1].split("}")[0]
+    assert "color: #000000;" in disabled_rule.lower()
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
 def test_get_surface_palette_matches_design_tokens(theme):
     """get_surface_palette() must be a derived view over get_design_tokens(),
     not a separately-maintained dict -- this is what would have caught the

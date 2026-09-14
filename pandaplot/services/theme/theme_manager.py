@@ -134,6 +134,13 @@ class ThemeManager:
         except Exception:  # noqa: BLE001
             pass
 
+        # accent_disabled is a lightened, still fairly saturated variant of
+        # accent (e.g. #7683FF for the default #4A56C6) -- text_hint (a
+        # muted gray meant for text on a plain surface) has only ~1.2:1
+        # contrast against it, effectively invisible. Same fix as the
+        # enabled button: pick whichever of black/white actually contrasts.
+        disabled_text_color = self._contrasting_text_color(QColor(tokens["accent_disabled"])).name()
+
         shared_widget_rules = f"""
             QFrame[card="true"] {{
                 background-color: {tokens['surface_white']};
@@ -280,7 +287,7 @@ class ThemeManager:
             QPushButton[primary="true"]:disabled {{
                 background-color: {tokens['accent_disabled']};
                 border-color: {tokens['accent_disabled']};
-                color: {tokens['text_hint']};
+                color: {disabled_text_color};
             }}
             QTabBar::tab:selected {{ color: {accent}; }}
         """ + shared_widget_rules
