@@ -470,6 +470,18 @@ def compute_note_link_rows(app_context: AppContext, note: Note, source: str) -> 
                 match_start=match.start(), match_end=match.end(), item_id=None,
             ))
 
+    # extract_referenced_image_keys also recognizes reference-style links
+    # (![alt][label] + a separate [label]: target definition elsewhere in
+    # the note), which don't have one contiguous span to delete -- so they
+    # don't get their own row -- but they DO count as "this item is
+    # referenced": without this, a snapshot Image referenced only that way
+    # would wrongly show up as "unused" below.
+    all_referenced_keys = extract_referenced_image_keys(source)
+    for key in all_referenced_keys:
+        _, resolved = _resolve_note_reference_target(app_context, project, key)
+        if resolved is not None:
+            referenced_item_ids.add(resolved.id)
+
     for item in project.get_all_items():
         if isinstance(item, Image) and item.note_id == note.id and item.id not in referenced_item_ids:
             rows.append(NoteLinkRow(

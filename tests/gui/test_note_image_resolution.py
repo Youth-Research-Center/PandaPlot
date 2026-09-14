@@ -1988,3 +1988,22 @@ def test_compute_note_link_rows_resolves_real_on_disk_file_as_ok(qapp, tmp_path)
     assert row.status == "ok"
     assert row.is_snapshot is False
     assert row.item_id is None
+
+
+def test_compute_note_link_rows_does_not_flag_reference_style_snapshot_as_unused(qapp):
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    image = Image(name="Snapshot", note_id="note-1")
+    project.add_item(image, parent_id=gallery.id)
+    content = f"![alt][plot]\n\n[plot]: <{image.id}>"
+    note = Note(id="note-1", name="Note 1", content=content)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    rows = compute_note_link_rows(app_context, note, content)
+
+    assert rows == []
