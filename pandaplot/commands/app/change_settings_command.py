@@ -66,9 +66,20 @@ class ChangeSettingsCommand(Command):
         catches every write exception internally (its own documented
         "defensive" design), so update(..., save=True) alone can't tell a
         real disk failure from a successful write. Saving explicitly here,
-        instead, surfaces save()'s own boolean result."""
+        instead, surfaces save()'s own boolean result.
+
+        On failure, rolls the in-memory config back to its pre-attempt
+        value (re-applying it through update() so CONFIG_UPDATED-subscribed
+        components, e.g. ThemeManager, resync too) -- otherwise a failed
+        save still left the unsaved value live in memory, so a retry of the
+        identical edit would see "no change" and skip straight to NOOP
+        instead of attempting another save, and Cancel had no way back to
+        a state that actually matches disk.
+        """
+        before = self._extract_matching(self.config_manager.as_dict(), mapping)
         self.config_manager.update(mapping, save=False)
         if not self.config_manager.save():
+            self.config_manager.update(before, save=False)
             return CommandResult.FAILURE
         return CommandResult.SUCCESS
 

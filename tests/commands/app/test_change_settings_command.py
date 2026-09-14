@@ -117,9 +117,28 @@ def test_execute_reports_failure_when_disk_write_fails(tmp_path):
         result = command.execute()
 
     assert result is CommandResult.FAILURE
-    # The in-memory config still reflects the attempted change (matches
-    # ConfigManager's existing "defensive" philosophy: the mutation isn't
-    # rolled back, only the disk-persistence outcome is now surfaced).
+    # A follow-up finding (same PR review) on the first version of this fix:
+    # applying the mapping in memory before checking save() left the config
+    # holding the never-persisted value even on FAILURE, so a retry of the
+    # identical edit hit the "already matches, nothing to apply" NOOP branch
+    # instead of attempting another save. Failure must roll the in-memory
+    # config back to its pre-attempt value, so FAILURE really means no
+    # effective change.
+    assert config_manager.config.appearance.theme == Theme.SYSTEM
+
+
+def test_execute_can_be_retried_after_a_failed_save(tmp_path):
+    config_manager = _config_manager(tmp_path)
+    mapping = {"appearance": {"theme": "dark"}}
+    command = ChangeSettingsCommand(Mock(), mapping, config_manager=config_manager)
+
+    with patch.object(config_manager, "save", return_value=False):
+        assert command.execute() is CommandResult.FAILURE
+
+    # Retrying the identical edit must actually attempt another save --
+    # not silently no-op because the (rolled-back) config already "matches".
+    retry = ChangeSettingsCommand(Mock(), mapping, config_manager=config_manager)
+    assert retry.execute() is CommandResult.SUCCESS
     assert config_manager.config.appearance.theme == Theme.DARK
 
 
