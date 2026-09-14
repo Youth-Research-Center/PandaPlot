@@ -32,9 +32,9 @@ class IntegralDialog(BaseAnalysisDialog):
         layout = QFormLayout()
         
         # Method info (trapezoidal rule is used)
-        method_label = QLabel("Method: Trapezoidal Rule")
-        method_label.setStyleSheet("color: #666666; font-style: italic;")
-        layout.addRow("", method_label)
+        self.method_label = QLabel("Method: Trapezoidal Rule")
+        self.method_label.setStyleSheet("font-style: italic;")
+        layout.addRow("", self.method_label)
         
         group.setLayout(layout)
         return group

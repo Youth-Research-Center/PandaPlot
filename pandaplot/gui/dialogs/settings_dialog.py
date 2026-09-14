@@ -249,9 +249,8 @@ class SettingsDialog(PDialog):
         
         # DPI setting
         dpi_layout = QHBoxLayout()
-        dpi_label = QLabel("Preview DPI:")
-        dpi_label.setStyleSheet("color: #495057;")
-        dpi_layout.addWidget(dpi_label)
+        self._dpi_label = QLabel("Preview DPI:")
+        dpi_layout.addWidget(self._dpi_label)
         self.chart_dpi_spin = QSpinBox()
         self.chart_dpi_spin.setRange(50, 600)
         self.chart_dpi_spin.setSingleStep(10)
@@ -264,9 +263,8 @@ class SettingsDialog(PDialog):
         
         # Measurement unit
         unit_layout = QHBoxLayout()
-        unit_label = QLabel("Measurement unit:")
-        unit_label.setStyleSheet("color: #495057;")
-        unit_layout.addWidget(unit_label)
+        self._unit_label = QLabel("Measurement unit:")
+        unit_layout.addWidget(self._unit_label)
         self.chart_unit_combo = QComboBox()
         self.chart_unit_combo.addItems(list(UNIT_DISPLAY.values()))
         self.chart_unit_combo.setToolTip("Unit used to display chart width/height")
@@ -277,9 +275,8 @@ class SettingsDialog(PDialog):
 
         # Default chart size
         size_layout = QHBoxLayout()
-        size_label = QLabel("Default size:")
-        size_label.setStyleSheet("color: #495057;")
-        size_layout.addWidget(size_label)
+        self._size_label = QLabel("Default size:")
+        size_layout.addWidget(self._size_label)
         self.chart_width_spin = QDoubleSpinBox()
         self.chart_width_spin.setRange(MIN_CHART_WIDTH_CM, MAX_CHART_WIDTH_CM)
         self.chart_width_spin.setDecimals(1)
@@ -288,9 +285,8 @@ class SettingsDialog(PDialog):
         self.chart_width_spin.setToolTip("Default chart width")
         size_layout.addWidget(self.chart_width_spin)
 
-        multiply_label = QLabel("×")
-        multiply_label.setStyleSheet("color: #495057;")
-        size_layout.addWidget(multiply_label)
+        self._multiply_label = QLabel("×")
+        size_layout.addWidget(self._multiply_label)
 
         self.chart_height_spin = QDoubleSpinBox()
         self.chart_height_spin.setRange(MIN_CHART_HEIGHT_CM, MAX_CHART_HEIGHT_CM)
