@@ -66,6 +66,21 @@ def test_build_stylesheet_primary_uses_shared_shape():
     assert "font-weight: 600" in primary_rule
 
 
+def test_build_stylesheet_primary_button_text_is_white_for_default_accent_in_light_theme():
+    """User-reported: the default accent (#4A56C6) primary button showed
+    black text in light theme. _contrasting_text_color()'s "light theme
+    prefers black text down to luminance 0.25" heuristic picks black here
+    (3.44:1 contrast) even though white gives 6.11:1 -- the same WCAG
+    contrast bug already fixed for build_context_menu_stylesheet()'s
+    selected-item text, present here too since both share
+    _contrasting_text_color()."""
+    manager = _manager_with_context(Theme.LIGHT)
+    ctx = manager._current
+    qss = manager.build_stylesheet(ctx)
+    primary_rule = qss.split('QPushButton[primary="true"] {')[1].split("}")[0]
+    assert "color: #ffffff;" in primary_rule.lower()
+
+
 @pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
 def test_get_surface_palette_matches_design_tokens(theme):
     """get_surface_palette() must be a derived view over get_design_tokens(),

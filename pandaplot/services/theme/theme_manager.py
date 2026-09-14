@@ -78,17 +78,7 @@ class ThemeManager:
 
     @staticmethod
     def _relative_luminance(color: QColor) -> float:
-        return (0.2126 * color.red() + 0.7152 * color.green() + 0.0722 * color.blue()) / 255.0
-
-    @staticmethod
-    def _wcag_relative_luminance(color: QColor) -> float:
-        """WCAG 2.x relative luminance (gamma-corrected per channel), used
-        only for build_context_menu_stylesheet()'s selected-item text
-        color. Distinct from _relative_luminance() above (a cheaper,
-        non-gamma-corrected approximation already tuned for
-        _contrasting_text_color()'s button/palette use cases elsewhere in
-        this file) so fixing this one doesn't risk changing behavior for
-        those other, separately-tuned call sites."""
+        """WCAG 2.x relative luminance (gamma-corrected per channel)."""
         def channel(v: int) -> float:
             c = v / 255.0
             return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
@@ -97,27 +87,27 @@ class ThemeManager:
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
     @classmethod
-    def _wcag_contrast_text_color(cls, background: QColor) -> QColor:
+    def _contrasting_text_color(cls, accent: QColor) -> QColor:
         """Pick whichever of black/white has the higher WCAG contrast ratio
-        against `background` -- unlike _contrasting_text_color(), this has
-        no theme-specific override, so it always picks the objectively more
-        legible option."""
-        lum = cls._wcag_relative_luminance(background)
+        against `accent`, so it stays legible regardless of the app's
+        light/dark theme setting -- theme doesn't affect how legible text
+        is against a given background color.
+
+        Previously branched on theme too ("light theme prefers black text
+        down to luminance 0.25"), which picked black for the default accent
+        (#4A56C6) in light theme -- 3.44:1 contrast, below the WCAG 4.5:1
+        minimum for normal text -- even though white gives 6.11:1 there.
+        Reported live on the primary button; the same bug was independently
+        found and fixed for the context-menu selected-item text, but that
+        fix was scoped to a separate helper to avoid touching this method's
+        other call sites without evidence they were also affected. They
+        were -- so this replaces the heuristic here instead of duplicating
+        the correct logic a third time.
+        """
+        lum = cls._relative_luminance(accent)
         white_contrast = (1.0 + 0.05) / (lum + 0.05)
         black_contrast = (lum + 0.05) / (0.0 + 0.05)
         return QColor(255, 255, 255) if white_contrast >= black_contrast else QColor(0, 0, 0)
-
-    @classmethod
-    def _contrasting_text_color(cls, accent: QColor, theme: Theme) -> QColor:
-        """Pick black or white text so it stays legible against ``accent``."""
-        lum = cls._relative_luminance(accent)
-        if lum > 0.6:
-            return QColor(0, 0, 0)
-        # Light theme favors dark text unless the accent is extremely dark
-        # (lum < 0.25), where white text is still needed for contrast.
-        if theme != Theme.DARK and lum >= 0.25:
-            return QColor(0, 0, 0)
-        return QColor(255, 255, 255)
 
     def build_stylesheet(self, ctx: ThemeContext) -> str:
         accent = ctx.accent
@@ -130,7 +120,7 @@ class ThemeManager:
                 # Derive hover / pressed variants
                 hover = c.lighter(110).name()
                 pressed = c.darker(115).name()
-                text_color = self._contrasting_text_color(c, ctx.theme).name()
+                text_color = self._contrasting_text_color(c).name()
         except Exception:  # noqa: BLE001
             pass
 
@@ -309,7 +299,7 @@ class ThemeManager:
         accent = QColor(ctx.accent)
         if not accent.isValid():
             accent = QColor(74, 86, 198)
-        highlighted_text = self._contrasting_text_color(accent, ctx.theme)
+        highlighted_text = self._contrasting_text_color(accent)
         # Muted variant of fg, halfway to bg, so placeholder text is visibly
         # distinct from real text but still legible against the background.
         placeholder = QColor(
@@ -413,7 +403,7 @@ class ThemeManager:
         per-instance rather than through the global QApplication stylesheet.
         """
         tokens = self.get_design_tokens()
-        selected_text_color = self._wcag_contrast_text_color(QColor(tokens["accent"])).name()
+        selected_text_color = self._contrasting_text_color(QColor(tokens["accent"])).name()
         return f"""
             QMenu {{
                 background-color: {tokens['surface_white']};
