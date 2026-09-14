@@ -34,6 +34,7 @@ from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Chart, Dataset, Image, ImageGallery, ItemCollection, Note
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.note_render.latex_markdown_renderer import (
+    code_region_spans,
     is_escaped_at,
     protect_code_regions,
     render_body_html,
@@ -388,7 +389,7 @@ class NoteLinkRow:
     reference found in the note's current markdown text, or an orphaned
     snapshot Image this note created that's no longer referenced there."""
     name: str
-    kind: str  # "chart", "image", or "unknown" (couldn't resolve the target)
+    kind: str  # "chart", "image", "file" (a real on-disk file), or "unknown" (couldn't resolve the target)
     status: str  # "ok", "unused", or "broken"
     is_snapshot: bool  # True only for an Image with note_id == this note's id
     match_start: Optional[int]  # start offset of the full markdown reference in `source`, or None (unused row)
@@ -396,12 +397,18 @@ class NoteLinkRow:
     item_id: Optional[str]  # resolved Chart/Image id, or None (broken row)
 
 
-def _resolve_note_reference_target(project, target: str):
+def _resolve_note_reference_target(app_context: AppContext, project, target: str):
     """Return (kind, resolved_item) for a raw markdown reference target:
+    ("file", None) if it resolves to a real file on disk (mirrors
+    NotePreviewBrowser's own local-file-wins-over-gallery precedent);
     ("chart", Chart) if it matches a Chart's id; ("image", Image) if it
     matches an Image's id or exact gallery path (checking both the raw and
     percent-decoded form, mirroring register_project_image_resources);
     otherwise ("unknown", None)."""
+    base_dir = get_project_base_dir(app_context)
+    local_path = os.path.join(base_dir, target) if base_dir else target
+    if os.path.isfile(local_path):
+        return "file", None
     if project is None:
         return "unknown", None
     decoded = unquote(target)
@@ -435,15 +442,22 @@ def compute_note_link_rows(app_context: AppContext, note: Note, source: str) -> 
         return rows
 
     referenced_item_ids: Set[str] = set()
-    protected_source, _, _ = protect_code_regions(source)
-    for match in _IMAGE_MARKDOWN_RE.finditer(protected_source):
-        if is_escaped_at(protected_source, match.start()):
+    code_spans = code_region_spans(source)
+    for match in _IMAGE_MARKDOWN_RE.finditer(source):
+        if is_escaped_at(source, match.start()):
+            continue
+        if any(start <= match.start() < end for start, end in code_spans):
             continue
         target = match.group(1) if match.group(1) is not None else match.group(2)
         if not target:
             continue
-        kind, resolved = _resolve_note_reference_target(project, target)
-        if resolved is not None:
+        kind, resolved = _resolve_note_reference_target(app_context, project, target)
+        if kind == "file":
+            rows.append(NoteLinkRow(
+                name=target, kind="file", status="ok", is_snapshot=False,
+                match_start=match.start(), match_end=match.end(), item_id=None,
+            ))
+        elif resolved is not None:
             referenced_item_ids.add(resolved.id)
             is_snapshot = isinstance(resolved, Image) and resolved.note_id == note.id
             rows.append(NoteLinkRow(

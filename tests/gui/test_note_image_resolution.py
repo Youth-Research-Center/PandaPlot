@@ -1947,3 +1947,44 @@ def test_compute_note_link_rows_marks_referenced_plain_gallery_image_as_not_a_sn
 
     assert len(rows) == 1
     assert rows[0].is_snapshot is False
+
+
+def test_compute_note_link_rows_match_offsets_survive_a_preceding_code_span(qapp):
+    chart = Chart(name="Line Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    content = f"Here is `inline code` then\n\n![Line Plot]({chart.id} =500x)"
+    note = Note(name="Note 1", content=content)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    rows = compute_note_link_rows(app_context, note, content)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert content[row.match_start:row.match_end] == f"![Line Plot]({chart.id} =500x)"
+
+
+def test_compute_note_link_rows_resolves_real_on_disk_file_as_ok(qapp, tmp_path):
+    project = Project(name="Test Project")
+    project.project_file_path = str(tmp_path / "project.ppf")
+    image_path = tmp_path / "local.png"
+    image_path.write_bytes(create_test_png_bytes())
+    note = Note(name="Note 1", content="![Local](local.png)")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    rows = compute_note_link_rows(app_context, note, note.content)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.kind == "file"
+    assert row.status == "ok"
+    assert row.is_snapshot is False
+    assert row.item_id is None
