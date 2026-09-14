@@ -1132,6 +1132,28 @@ def test_insert_chart_from_picker_no_sync_mode_inserts_static_snapshot(qapp):
     assert inserted_image.get_bytes() is not None
 
 
+def test_save_chart_snapshot_image_stamps_note_id(qapp):
+    chart = Chart(name="Sample Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = _make_app_context_with_synchronous_task_scheduler(project)
+    app_context.get_ui_controller.return_value = MagicMock()
+    fake_executor = MagicMock()
+    fake_executor.execute_command.side_effect = lambda command, **kwargs: command.execute().name == "SUCCESS"
+    app_context.get_command_executor.return_value = fake_executor
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    qimg = QImage(20, 20, QImage.Format.Format_RGB32)
+    image_id = editor._save_chart_snapshot_image(chart, qimg)
+
+    assert image_id is not None
+    created_image = project.find_item(image_id)
+    assert created_image.note_id == note.id
+
+
 def test_note_editor_insert_table_action(qapp):
     """Test inserting markdown table via NoteTablePickerDialog."""
     project = Project(name="Test Project")

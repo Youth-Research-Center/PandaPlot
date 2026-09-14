@@ -56,3 +56,33 @@ def test_undo_then_redo_restores_the_image(app_context_with_project):
     restored = project.find_item(image_id)
     assert isinstance(restored, Image)
     assert restored.get_bytes() == b"fake-png-bytes"
+
+
+def test_execute_stamps_note_id_when_given(app_context_with_project):
+    project = app_context_with_project.get_app_state().current_project
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+
+    command = CreateImageFromBytesCommand(
+        app_context_with_project, gallery_id=gallery.id, name="My Chart",
+        png_bytes=b"fake-png-bytes", width=100, height=80, note_id="note-1",
+    )
+    assert command.execute() is CommandResult.SUCCESS
+
+    image = project.find_item(command.created_image_id)
+    assert image.note_id == "note-1"
+
+
+def test_execute_leaves_note_id_none_by_default(app_context_with_project):
+    project = app_context_with_project.get_app_state().current_project
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+
+    command = CreateImageFromBytesCommand(
+        app_context_with_project, gallery_id=gallery.id, name="My Chart",
+        png_bytes=b"fake-png-bytes", width=100, height=80,
+    )
+    assert command.execute() is CommandResult.SUCCESS
+
+    image = project.find_item(command.created_image_id)
+    assert image.note_id is None

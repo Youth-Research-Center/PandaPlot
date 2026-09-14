@@ -1076,6 +1076,7 @@ class NoteEditorWidget(PWidget):
         command = CreateImageFromBytesCommand(
             self.app_context, gallery_id=gallery_id, name=chart.name,
             png_bytes=png_bytes, width=qimg.width(), height=qimg.height(),
+            note_id=self.note.id,
         )
         succeeded = self.app_context.get_command_executor().execute_command(command, track_undo=True)
         return command.created_image_id if succeeded else None
