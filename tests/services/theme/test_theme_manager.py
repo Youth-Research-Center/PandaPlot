@@ -1,8 +1,14 @@
 import pytest
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.models.state.config import Theme
 from pandaplot.services.theme.theme_manager import ThemeContext, ThemeManager
+
+
+def _luminance(hex_color: str) -> float:
+    c = QColor(hex_color)
+    return (0.2126 * c.red() + 0.7152 * c.green() + 0.0722 * c.blue()) / 255.0
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -71,12 +77,20 @@ def test_get_surface_palette_matches_design_tokens(theme):
     tokens = manager.get_design_tokens()
 
     assert palette["card_bg"] == tokens["surface_white"]
-    assert palette["card_hover"] == tokens["surface_inset"]
-    assert palette["card_pressed"] == tokens["surface_chrome"]
     assert palette["card_border"] == tokens["border_control"]
     assert palette["base_fg"] == tokens["text_primary"]
     assert palette["secondary_fg"] == tokens["text_secondary"]
     assert palette["accent"] == tokens["accent"]
+
+    # card_bg -> card_hover -> card_pressed must be monotonically darkening
+    # (press-feedback hierarchy relied on by ~30 call sites), in both themes.
+    # This directly guards the regression where light-theme card_pressed
+    # (derived from surface_chrome) ended up lighter than card_hover
+    # (derived from surface_inset).
+    bg_lum = _luminance(palette["card_bg"])
+    hover_lum = _luminance(palette["card_hover"])
+    pressed_lum = _luminance(palette["card_pressed"])
+    assert bg_lum > hover_lum > pressed_lum
 
 
 def test_design_tokens_has_font_size_group_title():
@@ -97,3 +111,24 @@ def test_build_context_menu_stylesheet_uses_theme_tokens(theme):
     assert tokens["surface_white"] in qss
     assert tokens["border_control"] in qss
     assert tokens["accent"] in qss
+
+
+def test_build_context_menu_stylesheet_selected_text_contrasts_with_accent():
+    """Regression guard: the selected QMenu item's text color must be derived
+    from the accent color via _contrasting_text_color(), not hardcoded to
+    white -- a light accent (e.g. yellow) with hardcoded white text would be
+    illegible."""
+    manager = _manager_with_context(Theme.LIGHT)
+    manager._current.accent = "#FFEB3B"  # light yellow accent
+    qss = manager.build_context_menu_stylesheet()
+    selected_rule = qss.split("QMenu::item:selected {")[1].split("}")[0]
+    assert "color: #000000;" in selected_rule.lower()
+    assert "#ffffff" not in selected_rule.lower()
+
+    # In dark theme, the default accent (#4A56C6, luminance ~0.36) is below
+    # the dark-theme white-text threshold, so selected-item text stays white.
+    manager = _manager_with_context(Theme.DARK)
+    manager._current.accent = "#4A56C6"  # default dark-ish accent
+    qss = manager.build_context_menu_stylesheet()
+    selected_rule = qss.split("QMenu::item:selected {")[1].split("}")[0]
+    assert "color: #ffffff;" in selected_rule.lower()

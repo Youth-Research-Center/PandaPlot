@@ -312,12 +312,20 @@ class ThemeManager:
     def get_surface_palette(self) -> dict:
         """Derived view over get_design_tokens() for callers that only need
         the original small 7-key shape -- kept as a single source of truth
-        so the two can never drift out of sync (see get_design_tokens())."""
+        so the two can never drift out of sync (see get_design_tokens()).
+        card_hover/card_pressed are derived from surface_white via
+        QColor.darker() rather than reusing surface_inset/surface_chrome
+        directly, since those tokens serve a different purpose (chrome/inset
+        surfaces) and aren't guaranteed to sit in a monotonically-darkening
+        order relative to each other."""
         tokens = self.get_design_tokens()
+        bg = QColor(tokens["surface_white"])
+        card_hover = bg.darker(110).name() if bg.isValid() else tokens["surface_inset"]
+        card_pressed = bg.darker(115).name() if bg.isValid() else tokens["surface_chrome"]
         return {
             "card_bg": tokens["surface_white"],
-            "card_hover": tokens["surface_inset"],
-            "card_pressed": tokens["surface_chrome"],
+            "card_hover": card_hover,
+            "card_pressed": card_pressed,
             "card_border": tokens["border_control"],
             "base_fg": tokens["text_primary"],
             "secondary_fg": tokens["text_secondary"],
@@ -378,6 +386,8 @@ class ThemeManager:
         per-instance rather than through the global QApplication stylesheet.
         """
         tokens = self.get_design_tokens()
+        theme = self._current.theme if self._current else Theme.LIGHT
+        selected_text_color = self._contrasting_text_color(QColor(tokens['accent']), theme).name()
         return f"""
             QMenu {{
                 background-color: {tokens['surface_white']};
@@ -386,7 +396,7 @@ class ThemeManager:
             }}
             QMenu::item:selected {{
                 background-color: {tokens['accent']};
-                color: #FFFFFF;
+                color: {selected_text_color};
             }}
             QMenu::item:hover {{
                 background-color: {tokens['surface_inset']};

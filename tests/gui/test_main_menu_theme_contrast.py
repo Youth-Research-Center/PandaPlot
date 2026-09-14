@@ -13,23 +13,30 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
 
+
+# These mirror the real get_surface_palette() output (ThemeManager,
+# pandaplot/services/theme/theme_manager.py) for the LIGHT/DARK themes with
+# the default accent -- card_hover/card_pressed are surface_white darkened
+# via QColor.darker(110)/darker(115) respectively (see get_surface_palette()
+# docstring for why they're derived rather than reusing surface_inset/
+# surface_chrome).
 LIGHT_PALETTE = {
-    "card_bg": "#f8f9fa",
-    "card_hover": "#e9ecef",
-    "card_pressed": "#dee2e6",
-    "card_border": "#dee2e6",
-    "base_fg": "#000000",
-    "secondary_fg": "#555555",
+    "card_bg": "#ffffff",
+    "card_hover": "#e8e8e8",
+    "card_pressed": "#dedede",
+    "card_border": "#dcdee4",
+    "base_fg": "#1c1e26",
+    "secondary_fg": "#3f4350",
     "accent": "#3B82F6",
 }
 
 DARK_PALETTE = {
     "card_bg": "#2a2c2e",
-    "card_hover": "#323437",
-    "card_pressed": "#3a3d40",
-    "card_border": "#404347",
+    "card_hover": "#26282a",
+    "card_pressed": "#252628",
+    "card_border": "#4a4d52",
     "base_fg": "#e2e2e2",
-    "secondary_fg": "#a8adb2",
+    "secondary_fg": "#c7cad1",
     "accent": "#3B82F6",
 }
 
