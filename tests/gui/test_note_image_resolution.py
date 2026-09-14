@@ -2007,3 +2007,67 @@ def test_compute_note_link_rows_does_not_flag_reference_style_snapshot_as_unused
     rows = compute_note_link_rows(app_context, note, content)
 
     assert rows == []
+
+
+def test_toolbar_has_links_action_instead_of_separate_insert_actions(qapp):
+    project = Project(name="Test Project")
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    action_texts = [action.text() for action in editor.toolbar.actions()]
+    assert not any("Insert Chart" in text for text in action_texts)
+    assert not any("Insert Table" in text for text in action_texts)
+    assert any("Links" in text for text in action_texts)
+
+
+def test_links_badge_shows_no_marker_when_no_issues(qapp):
+    chart = Chart(name="Line Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content=f"![Line Plot]({chart.id} =500x)")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    assert "•" not in editor.links_action.text()
+
+
+def test_links_badge_shows_marker_when_reference_is_broken(qapp):
+    project = Project(name="Test Project")
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="![Gone](missing-id =500x)")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    assert "•" in editor.links_action.text()
+
+
+def test_links_badge_updates_as_content_changes(qapp):
+    project = Project(name="Test Project")
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    assert "•" not in editor.links_action.text()
+
+    editor.text_edit.setPlainText("![Gone](missing-id =500x)")
+
+    assert "•" in editor.links_action.text()

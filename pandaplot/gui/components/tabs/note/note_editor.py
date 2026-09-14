@@ -1083,17 +1083,14 @@ class NoteEditorWidget(PWidget):
         insert_image_action.triggered.connect(self.insert_image_from_picker)
         toolbar.addAction(insert_image_action)
 
-        # Insert Chart action
-        insert_chart_action = QAction("📊 Insert Chart", self)
-        insert_chart_action.setToolTip("Insert a chart from the project")
-        insert_chart_action.triggered.connect(self.insert_chart_from_picker)
-        toolbar.addAction(insert_chart_action)
-
-        # Insert Table action
-        insert_table_action = QAction("📋 Insert Table", self)
-        insert_table_action.setToolTip("Insert a table or dataset into the note")
-        insert_table_action.triggered.connect(self.insert_table_from_picker)
-        toolbar.addAction(insert_table_action)
+        # Links action -- replaces the separate Insert Chart / Insert Table
+        # actions with one dialog that lists, inserts, and cleans up a
+        # note's chart/image references (see NoteLinksDialog). Badge text
+        # (a trailing " •") is applied by _refresh_links_badge().
+        self.links_action = QAction("🔗 Links", self)
+        self.links_action.setToolTip("Manage chart/image references in this note")
+        self.links_action.triggered.connect(self.open_links_dialog)
+        toolbar.addAction(self.links_action)
 
         toolbar.addSeparator()
         self.edit_mode_action = QAction("✍ Edit", self)
@@ -1118,6 +1115,29 @@ class NoteEditorWidget(PWidget):
             "Keep the source and preview scrolled to the same place in split view")
         self.scroll_sync_action.toggled.connect(self._on_scroll_sync_toggled)
         toolbar.addAction(self.scroll_sync_action)
+
+    def open_links_dialog(self):
+        """Open the Links dialog for managing this note's chart/image references."""
+        from pandaplot.gui.dialogs.note import NoteLinksDialog
+        dialog = NoteLinksDialog(self.app_context, self.note, self.text_edit, parent=self)
+        dialog.exec()
+        self._refresh_links_badge()
+        if self.stack.currentIndex() == 1:
+            self.update_preview()
+
+    def _refresh_links_badge(self) -> None:
+        """Update the Links toolbar action's text/tooltip to flag unused or
+        broken references, computed the same way NoteLinksDialog itself
+        does (see compute_note_link_rows)."""
+        if not hasattr(self, "links_action"):
+            return
+        rows = compute_note_link_rows(self.app_context, self.note, self.text_edit.toPlainText())
+        has_issues = any(row.status in ("unused", "broken") for row in rows)
+        self.links_action.setText("🔗 Links" + (" •" if has_issues else ""))
+        tooltip = "Manage chart/image references in this note"
+        if has_issues:
+            tooltip += " -- some references are unused or broken"
+        self.links_action.setToolTip(tooltip)
 
     def insert_chart_from_picker(self):
         """Open the chart picker dialog and insert markdown for the selected chart."""
@@ -1421,6 +1441,7 @@ class NoteEditorWidget(PWidget):
             self._invalidate_all_in_flight_chart_generations()
             if self.stack.currentIndex() != 0:  # preview or split mode visible
                 self.update_preview()
+            self._refresh_links_badge()
             return
 
         dataset_ids = self._event_dataset_ids(event_data)
@@ -1429,6 +1450,7 @@ class NoteEditorWidget(PWidget):
                 self._invalidate_chart_cache_for_dataset(dataset_id)
             if self.stack.currentIndex() != 0:
                 self.update_preview()
+        self._refresh_links_badge()
 
     def _event_affects_rendered_previews(self, event_data: dict) -> bool:
         """Whether a PROJECT_ITEM_* event concerns an Image/ImageGallery/Chart.
@@ -1674,6 +1696,8 @@ class NoteEditorWidget(PWidget):
         # Emit content changed signal
         content = self.text_edit.toPlainText()
         self.content_changed.emit(content)
+
+        self._refresh_links_badge()
 
     def update_statistics(self):
         """Update word and character count."""
