@@ -1,0 +1,169 @@
+from typing import Optional
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtWidgets import (
+    QColorDialog,
+    QComboBox,
+    QDoubleSpinBox,
+    QFontComboBox,
+    QPushButton,
+    QSpinBox,
+    QToolBar,
+    QWidget,
+)
+
+from pandaplot.gui.components.tabs.sketch.sketch_canvas import SketchCanvas
+
+
+class SketchPropertyInspector(QToolBar):
+    """Property Inspector toolbar for controlling stroke, fill, and font properties."""
+
+    property_changed = Signal(dict)
+
+    def __init__(self, canvas: SketchCanvas, parent: Optional[QWidget] = None):
+        super().__init__("Sketch Property Inspector", parent)
+        self.canvas: SketchCanvas = canvas
+
+        self.stroke_color_btn = QPushButton("Stroke")
+        self.stroke_color_btn.clicked.connect(self._choose_stroke_color)
+        self.addWidget(self.stroke_color_btn)
+
+        self.stroke_width_spin = QDoubleSpinBox()
+        self.stroke_width_spin.setRange(0.5, 50.0)
+        self.stroke_width_spin.setValue(2.0)
+        self.stroke_width_spin.setSingleStep(0.5)
+        self.stroke_width_spin.setPrefix("Width: ")
+        self.stroke_width_spin.valueChanged.connect(self._on_stroke_width_changed)
+        self.addWidget(self.stroke_width_spin)
+
+        self.stroke_style_combo = QComboBox()
+        self.stroke_style_combo.addItems(["Solid", "Dashed", "Dotted", "Dash_Dot"])
+        self.stroke_style_combo.currentTextChanged.connect(self._on_stroke_style_changed)
+        self.addWidget(self.stroke_style_combo)
+
+        self.fill_color_btn = QPushButton("Fill")
+        self.fill_color_btn.clicked.connect(self._choose_fill_color)
+        self.addWidget(self.fill_color_btn)
+
+        self.addSeparator()
+
+        self.font_combo = QFontComboBox()
+        self.font_combo.currentFontChanged.connect(self._on_font_family_changed)
+        self.addWidget(self.font_combo)
+
+        self.font_size_spin = QSpinBox()
+        self.font_size_spin.setRange(6, 144)
+        self.font_size_spin.setValue(14)
+        self.font_size_spin.setPrefix("Size: ")
+        self.font_size_spin.valueChanged.connect(self._on_font_size_changed)
+        self.addWidget(self.font_size_spin)
+
+        self.bold_btn = QPushButton("B")
+        self.bold_btn.setCheckable(True)
+        self.bold_btn.clicked.connect(self._on_font_bold_toggled)
+        self.addWidget(self.bold_btn)
+
+        self.italic_btn = QPushButton("I")
+        self.italic_btn.setCheckable(True)
+        self.italic_btn.clicked.connect(self._on_font_italic_toggled)
+        self.addWidget(self.italic_btn)
+
+        self.align_combo = QComboBox()
+        self.align_combo.addItems(["Left", "Center", "Right"])
+        self.align_combo.currentTextChanged.connect(self._on_alignment_changed)
+        self.addWidget(self.align_combo)
+
+        self.canvas.selection_changed.connect(self.update_from_selection)
+
+    def _choose_stroke_color(self) -> None:
+        color = QColorDialog.getColor(QColor(self.canvas.active_stroke_color), self, "Select Stroke Color")
+        if color.isValid():
+            hex_color = color.name()
+            self.canvas.active_stroke_color = hex_color
+            self.property_changed.emit({"stroke_color": hex_color})
+
+    def _choose_fill_color(self) -> None:
+        color = QColorDialog.getColor(
+            QColor(self.canvas.active_fill_color)
+            if self.canvas.active_fill_color != "none"
+            else Qt.white,
+            self,
+            "Select Fill Color",
+        )
+        if color.isValid():
+            hex_color = color.name()
+            self.canvas.active_fill_color = hex_color
+            self.property_changed.emit({"fill_color": hex_color})
+
+    def _on_stroke_width_changed(self, val: float) -> None:
+        self.canvas.active_stroke_width = val
+        self.property_changed.emit({"stroke_width": val})
+
+    def _on_stroke_style_changed(self, style_str: str) -> None:
+        style_lower = style_str.lower()
+        self.canvas.active_stroke_style = style_lower
+        self.property_changed.emit({"stroke_style": style_lower})
+
+    def _on_font_family_changed(self, font) -> None:
+        family = font.family()
+        self.canvas.active_font_family = family
+        self.property_changed.emit({"font_family": family})
+
+    def _on_font_size_changed(self, size: int) -> None:
+        self.canvas.active_font_size = size
+        self.property_changed.emit({"font_size": size})
+
+    def _on_font_bold_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        self.canvas.active_font_bold = checked
+        self.property_changed.emit({"is_bold": checked})
+
+    def _on_font_italic_toggled(self, checked: bool) -> None:  # noqa: FBT001
+        self.canvas.active_font_italic = checked
+        self.property_changed.emit({"is_italic": checked})
+
+    def _on_alignment_changed(self, align_str: str) -> None:
+        align_lower = align_str.lower()
+        self.canvas.active_text_alignment = align_lower
+        self.property_changed.emit({"alignment": align_lower})
+
+    def update_from_selection(self) -> None:
+        selected_items = self.canvas.scene().selectedItems()
+        if not selected_items:
+            return
+        item = selected_items[0]
+        if hasattr(item, "element"):
+            elem = item.element
+
+            self.stroke_width_spin.blockSignals(True)  # noqa: FBT003
+            self.font_combo.blockSignals(True)  # noqa: FBT003
+            self.font_size_spin.blockSignals(True)  # noqa: FBT003
+            self.bold_btn.blockSignals(True)  # noqa: FBT003
+            self.italic_btn.blockSignals(True)  # noqa: FBT003
+            self.align_combo.blockSignals(True)  # noqa: FBT003
+
+            if hasattr(elem, "stroke_width"):
+                self.stroke_width_spin.setValue(elem.stroke_width)
+            if hasattr(elem, "stroke_color"):
+                self.canvas.active_stroke_color = elem.stroke_color
+            if hasattr(elem, "fill_color"):
+                self.canvas.active_fill_color = elem.fill_color
+            if hasattr(elem, "font_family"):
+                self.font_combo.setCurrentFont(QFont(elem.font_family))
+            if hasattr(elem, "font_size"):
+                self.font_size_spin.setValue(elem.font_size)
+            if hasattr(elem, "is_bold"):
+                self.bold_btn.setChecked(elem.is_bold)
+            if hasattr(elem, "is_italic"):
+                self.italic_btn.setChecked(elem.is_italic)
+            if hasattr(elem, "alignment"):
+                idx = self.align_combo.findText(elem.alignment.capitalize())
+                if idx >= 0:
+                    self.align_combo.setCurrentIndex(idx)
+
+            self.stroke_width_spin.blockSignals(False)  # noqa: FBT003
+            self.font_combo.blockSignals(False)  # noqa: FBT003
+            self.font_size_spin.blockSignals(False)  # noqa: FBT003
+            self.bold_btn.blockSignals(False)  # noqa: FBT003
+            self.italic_btn.blockSignals(False)  # noqa: FBT003
+            self.align_combo.blockSignals(False)  # noqa: FBT003
