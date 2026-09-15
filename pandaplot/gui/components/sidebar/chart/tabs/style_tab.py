@@ -2172,37 +2172,34 @@ class StyleTab(QWidget):
 
             for prefix in ("x", "y", "y2"):
                 axis_form = self.axes_style_forms[prefix]
-                axis_form["font_size_spin"].setValue(chart.config.get(f"{prefix}_font_size", 12))
-                axis_form["font_family_combo"].setCurrentValue(chart.config.get(f"{prefix}_font_family", "DejaVu Sans"))
-                axis_form["bold_check"].setChecked(chart.config.get(f"{prefix}_title_bold", False))
-                axis_form["italic_check"].setChecked(chart.config.get(f"{prefix}_title_italic", False))
+                axis = getattr(chart.config, prefix)
+                axis_form["font_size_spin"].setValue(axis.font_size)
+                axis_form["font_family_combo"].setCurrentValue(axis.font_family)
+                axis_form["bold_check"].setChecked(axis.title_bold)
+                axis_form["italic_check"].setChecked(axis.title_italic)
                 match = True
                 if axis_form["match_x_toggle"] is not None:
-                    match = chart.config.get(f"{prefix}_match_x_label_color", True)
+                    match = axis.match_x_label_color
                     axis_form["match_x_toggle"].setChecked(checked=match)
-                axis_form["color_row"].setCurrentColor(chart.config.get(f"{prefix}_label_color", "#000000"))
+                axis_form["color_row"].setCurrentColor(axis.label_color)
                 if axis_form["match_x_toggle"] is not None:
                     axis_form["color_label"].setVisible(not match)
                     axis_form["color_row"].setVisible(not match)
-                default_rotation = 90 if prefix in ("y", "y2") else 0
-                axis_form["rotation_spin"].setValue(chart.config.get(f"{prefix}_label_rotation", default_rotation))
+                axis_form["rotation_spin"].setValue(axis.label_rotation)
 
-                axis_form["tick_font_size_spin"].setValue(chart.config.get(f"{prefix}_tick_label_font_size", 10))
-                axis_form["tick_font_family_combo"].setCurrentValue(
-                    chart.config.get(f"{prefix}_tick_label_font_family", "DejaVu Sans"))
-                axis_form["tick_bold_check"].setChecked(chart.config.get(f"{prefix}_tick_label_bold", False))
-                axis_form["tick_italic_check"].setChecked(chart.config.get(f"{prefix}_tick_label_italic", False))
-                axis_form["tick_color_row"].setCurrentColor(chart.config.get(f"{prefix}_tick_label_color", "#000000"))
-                axis_form["tick_rotation_spin"].setValue(chart.config.get(f"{prefix}_tick_label_rotation", 0))
+                axis_form["tick_font_size_spin"].setValue(axis.tick_label_font_size)
+                axis_form["tick_font_family_combo"].setCurrentValue(axis.tick_label_font_family)
+                axis_form["tick_bold_check"].setChecked(axis.tick_label_bold)
+                axis_form["tick_italic_check"].setChecked(axis.tick_label_italic)
+                axis_form["tick_color_row"].setCurrentColor(axis.tick_label_color)
+                axis_form["tick_rotation_spin"].setValue(axis.tick_label_rotation)
                 match_colors = True
                 if axis_form["match_x_colors_toggle"] is not None:
-                    match_colors = chart.config.get(f"{prefix}_match_x_colors", True)
+                    match_colors = axis.match_x_colors
                     axis_form["match_x_colors_toggle"].setChecked(checked=match_colors)
-                axis_form["spine_color_row"].setCurrentColor(chart.config.get(f"{prefix}_spine_color", "#000000"))
-                axis_form["major_tick_color_row"].setCurrentColor(
-                    chart.config.get(f"{prefix}_major_tick_color", "#000000"))
-                axis_form["minor_tick_color_row"].setCurrentColor(
-                    chart.config.get(f"{prefix}_minor_tick_color", "#000000"))
+                axis_form["spine_color_row"].setCurrentColor(axis.spine_color)
+                axis_form["major_tick_color_row"].setCurrentColor(axis.major_tick_color)
+                axis_form["minor_tick_color_row"].setCurrentColor(axis.minor_tick_color)
                 if axis_form["match_x_colors_toggle"] is not None:
                     for widget_key in ("spine_color_row", "major_tick_color_row", "tick_color_row",
                                        "minor_tick_color_row"):
@@ -2244,25 +2241,26 @@ class StyleTab(QWidget):
 
         for prefix in ("x", "y", "y2"):
             axis_form = self.axes_style_forms[prefix]
-            chart.config[f"{prefix}_font_size"] = axis_form["font_size_spin"].value()
-            chart.config[f"{prefix}_font_family"] = axis_form["font_family_combo"].currentValue()
-            chart.config[f"{prefix}_title_bold"] = axis_form["bold_check"].isChecked()
-            chart.config[f"{prefix}_title_italic"] = axis_form["italic_check"].isChecked()
-            chart.config[f"{prefix}_label_color"] = axis_form["color_row"].currentColor()
+            axis = getattr(chart.config, prefix)
+            axis.font_size = axis_form["font_size_spin"].value()
+            axis.font_family = axis_form["font_family_combo"].currentValue()
+            axis.title_bold = axis_form["bold_check"].isChecked()
+            axis.title_italic = axis_form["italic_check"].isChecked()
+            axis.label_color = axis_form["color_row"].currentColor()
             if axis_form["match_x_toggle"] is not None:
-                chart.config[f"{prefix}_match_x_label_color"] = axis_form["match_x_toggle"].isChecked()
-            chart.config[f"{prefix}_label_rotation"] = axis_form["rotation_spin"].value()
-            chart.config[f"{prefix}_tick_label_font_size"] = axis_form["tick_font_size_spin"].value()
-            chart.config[f"{prefix}_tick_label_font_family"] = axis_form["tick_font_family_combo"].currentValue()
-            chart.config[f"{prefix}_tick_label_bold"] = axis_form["tick_bold_check"].isChecked()
-            chart.config[f"{prefix}_tick_label_italic"] = axis_form["tick_italic_check"].isChecked()
-            chart.config[f"{prefix}_tick_label_color"] = axis_form["tick_color_row"].currentColor()
-            chart.config[f"{prefix}_tick_label_rotation"] = axis_form["tick_rotation_spin"].value()
-            chart.config[f"{prefix}_spine_color"] = axis_form["spine_color_row"].currentColor()
-            chart.config[f"{prefix}_major_tick_color"] = axis_form["major_tick_color_row"].currentColor()
-            chart.config[f"{prefix}_minor_tick_color"] = axis_form["minor_tick_color_row"].currentColor()
+                axis.match_x_label_color = axis_form["match_x_toggle"].isChecked()
+            axis.label_rotation = axis_form["rotation_spin"].value()
+            axis.tick_label_font_size = axis_form["tick_font_size_spin"].value()
+            axis.tick_label_font_family = axis_form["tick_font_family_combo"].currentValue()
+            axis.tick_label_bold = axis_form["tick_bold_check"].isChecked()
+            axis.tick_label_italic = axis_form["tick_italic_check"].isChecked()
+            axis.tick_label_color = axis_form["tick_color_row"].currentColor()
+            axis.tick_label_rotation = axis_form["tick_rotation_spin"].value()
+            axis.spine_color = axis_form["spine_color_row"].currentColor()
+            axis.major_tick_color = axis_form["major_tick_color_row"].currentColor()
+            axis.minor_tick_color = axis_form["minor_tick_color_row"].currentColor()
             if axis_form["match_x_colors_toggle"] is not None:
-                chart.config[f"{prefix}_match_x_colors"] = axis_form["match_x_colors_toggle"].isChecked()
+                axis.match_x_colors = axis_form["match_x_colors_toggle"].isChecked()
 
     def clear_chart_style(self):
         self._chart = None
@@ -2481,25 +2479,26 @@ class StyleTab(QWidget):
 
         for prefix in ("x", "y", "y2"):
             axis_form = self.axes_style_forms[prefix]
-            config[f"{prefix}_font_size"] = axis_form["font_size_spin"].value()
-            config[f"{prefix}_font_family"] = axis_form["font_family_combo"].currentValue()
-            config[f"{prefix}_title_bold"] = axis_form["bold_check"].isChecked()
-            config[f"{prefix}_title_italic"] = axis_form["italic_check"].isChecked()
-            config[f"{prefix}_label_color"] = axis_form["color_row"].currentColor()
+            axis = getattr(config, prefix)
+            axis.font_size = axis_form["font_size_spin"].value()
+            axis.font_family = axis_form["font_family_combo"].currentValue()
+            axis.title_bold = axis_form["bold_check"].isChecked()
+            axis.title_italic = axis_form["italic_check"].isChecked()
+            axis.label_color = axis_form["color_row"].currentColor()
             if axis_form["match_x_toggle"] is not None:
-                config[f"{prefix}_match_x_label_color"] = axis_form["match_x_toggle"].isChecked()
-            config[f"{prefix}_label_rotation"] = axis_form["rotation_spin"].value()
-            config[f"{prefix}_tick_label_font_size"] = axis_form["tick_font_size_spin"].value()
-            config[f"{prefix}_tick_label_font_family"] = axis_form["tick_font_family_combo"].currentValue()
-            config[f"{prefix}_tick_label_bold"] = axis_form["tick_bold_check"].isChecked()
-            config[f"{prefix}_tick_label_italic"] = axis_form["tick_italic_check"].isChecked()
-            config[f"{prefix}_tick_label_color"] = axis_form["tick_color_row"].currentColor()
-            config[f"{prefix}_tick_label_rotation"] = axis_form["tick_rotation_spin"].value()
-            config[f"{prefix}_spine_color"] = axis_form["spine_color_row"].currentColor()
-            config[f"{prefix}_major_tick_color"] = axis_form["major_tick_color_row"].currentColor()
-            config[f"{prefix}_minor_tick_color"] = axis_form["minor_tick_color_row"].currentColor()
+                axis.match_x_label_color = axis_form["match_x_toggle"].isChecked()
+            axis.label_rotation = axis_form["rotation_spin"].value()
+            axis.tick_label_font_size = axis_form["tick_font_size_spin"].value()
+            axis.tick_label_font_family = axis_form["tick_font_family_combo"].currentValue()
+            axis.tick_label_bold = axis_form["tick_bold_check"].isChecked()
+            axis.tick_label_italic = axis_form["tick_italic_check"].isChecked()
+            axis.tick_label_color = axis_form["tick_color_row"].currentColor()
+            axis.tick_label_rotation = axis_form["tick_rotation_spin"].value()
+            axis.spine_color = axis_form["spine_color_row"].currentColor()
+            axis.major_tick_color = axis_form["major_tick_color_row"].currentColor()
+            axis.minor_tick_color = axis_form["minor_tick_color_row"].currentColor()
             if axis_form["match_x_colors_toggle"] is not None:
-                config[f"{prefix}_match_x_colors"] = axis_form["match_x_colors_toggle"].isChecked()
+                axis.match_x_colors = axis_form["match_x_colors_toggle"].isChecked()
         self.configChanged.emit()
 
     # -- Theme ----------------------------------------------------------------
