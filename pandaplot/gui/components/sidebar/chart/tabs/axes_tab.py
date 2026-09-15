@@ -20,6 +20,7 @@ from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.gui.components.common.toggle_switch import ToggleSwitch
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
+from pandaplot.models.chart.chart_config import ChartConfig
 from pandaplot.models.chart.chart_configuration import ScaleType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
@@ -428,10 +429,10 @@ class AxesTab(QWidget):
         form["color_vmax_label"].setVisible(show_manual)
         form["color_vmax_spin"].setVisible(show_manual)
 
-    def _write_color_axis_config(self, config: dict):
+    def _write_color_axis_config(self, config: ChartConfig):
         form = self.axes_forms["color"]
-        config["colormap"] = form["colormap_control"].currentValue()
-        config["colorbar_show"] = form["colorbar_show_toggle"].isChecked()
+        config.colormap = form["colormap_control"].currentValue()
+        config.colorbar_show = form["colorbar_show_toggle"].isChecked()
         # Only ever written once the user has actually typed into the field
         # (see _on_colorbar_label_edited) -- this method runs on every field
         # change on the whole tab, not just this one, so unconditionally
@@ -439,27 +440,27 @@ class AxesTab(QWidget):
         # make "never customized" indistinguishable from "customized to
         # empty" the moment any other field changed.
         if self._colorbar_label_customized:
-            config["colorbar_label"] = form["colorbar_label_edit"].text()
-        config["color_scale_auto"] = form["color_scale_auto_toggle"].isChecked()
-        config["color_vmin"] = form["color_vmin_spin"].value()
-        config["color_vmax"] = form["color_vmax_spin"].value()
+            config.colorbar_label = form["colorbar_label_edit"].text()
+        config.color_scale_auto = form["color_scale_auto_toggle"].isChecked()
+        config.color_vmin = form["color_vmin_spin"].value()
+        config.color_vmax = form["color_vmax_spin"].value()
 
-    def _read_color_axis_config(self, config: dict):
+    def _read_color_axis_config(self, config: ChartConfig):
         form = self.axes_forms["color"]
-        form["colormap_control"].setCurrentValue(config.get("colormap", "viridis"))
+        form["colormap_control"].setCurrentValue(config.colormap)
         form["colorbar_show_toggle"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-        form["colorbar_show_toggle"].setChecked(checked=config.get("colorbar_show", True))
+        form["colorbar_show_toggle"].setChecked(checked=config.colorbar_show)
         form["colorbar_show_toggle"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
-        stored_label = config.get("colorbar_label")
+        stored_label = config.colorbar_label
         self._colorbar_label_customized = stored_label is not None
         form["colorbar_label_edit"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         form["colorbar_label_edit"].setText(stored_label or "")
         form["colorbar_label_edit"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
         form["color_scale_auto_toggle"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-        form["color_scale_auto_toggle"].setChecked(checked=config.get("color_scale_auto", True))
+        form["color_scale_auto_toggle"].setChecked(checked=config.color_scale_auto)
         form["color_scale_auto_toggle"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
-        form["color_vmin_spin"].setValue(config.get("color_vmin", 0.0))
-        form["color_vmax_spin"].setValue(config.get("color_vmax", 1.0))
+        form["color_vmin_spin"].setValue(config.color_vmin)
+        form["color_vmax_spin"].setValue(config.color_vmax)
         self._update_color_scale_controls()
 
     def _show_axis_form(self, prefix: str):
@@ -661,8 +662,11 @@ class AxesTab(QWidget):
             self.axis_chips.setCurrentValue("x")
             self._show_axis_form("x")
 
-    def _write_axis_config(self, prefix: str, config: dict):
-        """Write one axis form's widget values into `config` (the mutable chart.config dict)."""
+    def _write_axis_config(self, prefix: str, config: ChartConfig):
+        """Write one axis form's widget values into `config` (the mutable
+        chart.config -- a ChartConfig; every axis-prefixed key here goes
+        through its dict-style shim since those keys aren't declared
+        dataclass fields yet, see ChartConfig's docstring)."""
         form = self.axes_forms[prefix]
         config[f"{prefix}_label"] = form["label_edit"].text()
         if form["scale_control"].currentValue():
@@ -684,8 +688,10 @@ class AxesTab(QWidget):
         config[f"{prefix}_minor_tick_direction"] = form["minor_tick_direction_control"].currentValue()
         config[f"{prefix}_show_minor_grid"] = form["minor_grid_toggle"].isChecked()
 
-    def _read_axis_config(self, prefix: str, config: dict):
-        """Populate one axis form's widgets from `config`. Assumes the caller
+    def _read_axis_config(self, prefix: str, config: "ChartConfig | dict"):
+        """Populate one axis form's widgets from `config` (a ChartConfig when
+        called with a real chart's config, or a plain empty dict from
+        `clear()`). Assumes the caller
         already has `self._updating_controls` set so change signals don't
         write half-loaded values back out."""
         form = self.axes_forms[prefix]
@@ -761,8 +767,8 @@ class AxesTab(QWidget):
         config = self._chart.config
         for prefix in _AXIS_PREFIXES:
             self._write_axis_config(prefix, config)
-        config["view_elev"] = self.view_elev_spin.value()
-        config["view_azim"] = self.view_azim_spin.value()
+        config.view_elev = self.view_elev_spin.value()
+        config.view_azim = self.view_azim_spin.value()
         self._write_color_axis_config(config)
         self.configChanged.emit()
 
@@ -771,8 +777,8 @@ class AxesTab(QWidget):
         self._updating_controls = True
         self._chart = chart
         try:
-            self.view_elev_spin.setValue(chart.config.get("view_elev", 30.0))
-            self.view_azim_spin.setValue(chart.config.get("view_azim", -60.0))
+            self.view_elev_spin.setValue(chart.config.view_elev)
+            self.view_azim_spin.setValue(chart.config.view_azim)
             for prefix in _AXIS_PREFIXES:
                 self._read_axis_config(prefix, chart.config)
                 # Only Auto axes get their range recomputed from live data on
@@ -793,8 +799,8 @@ class AxesTab(QWidget):
     def apply_to(self, chart):
         for prefix in _AXIS_PREFIXES:
             self._write_axis_config(prefix, chart.config)
-        chart.config["view_elev"] = self.view_elev_spin.value()
-        chart.config["view_azim"] = self.view_azim_spin.value()
+        chart.config.view_elev = self.view_elev_spin.value()
+        chart.config.view_azim = self.view_azim_spin.value()
         self._write_color_axis_config(chart.config)
 
     def clear(self):
@@ -806,7 +812,7 @@ class AxesTab(QWidget):
                 self._read_axis_config(prefix, {})
             self.view_elev_spin.setValue(30.0)
             self.view_azim_spin.setValue(-60.0)
-            self._read_color_axis_config({})
+            self._read_color_axis_config(ChartConfig())
             self.refresh_axis_chips(None)
         finally:
             self._updating_controls = previous_guard

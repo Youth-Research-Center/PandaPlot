@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from pandaplot.models.chart.chart_config import ChartConfig
+from pandaplot.models.chart.chart_style import ChartStyle
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
@@ -169,27 +171,39 @@ class Chart(Item):
         self.chart_type: ChartType = ChartType(chart_type)
         self.data_series: List[DataSeries] = []
         self.fit_data: List[FitData] = []
-        self.config: Dict[str, Any] = {}
-        self.style: Dict[str, Any] = {}
-        
+        self.config: ChartConfig = ChartConfig()
+        self.style: ChartStyle = ChartStyle()
+
         # Initialize default configuration
         self._init_default_config()
-    
+
     def _init_default_config(self) -> None:
-        """Initialize default chart configuration."""
-        self.config = {
-            "title": self.name,
+        """Apply default chart-level config/style -- called once from
+        __init__. from_dict() always constructs via __init__ first (so this
+        always runs) and then overlays any persisted config/style on top via
+        `chart.config.update(...)`/`chart.style.update(...)`, which -- for a
+        saved chart carrying no config/style at all -- is a no-op, leaving
+        these defaults in place; there is no separate "empty config" branch.
+
+        Chart-level fields (title, legend, grid globals, colormap, figure
+        size/dpi/background, ...) get real dataclass defaults on
+        `ChartConfig`/`ChartStyle` -- see #146.
+
+        Axis-prefixed fields (x_label, x_min, show_grid_x, z_scale, ...) are
+        not yet typed (tracked as a follow-up PR; see ChartConfig's
+        docstring), but still need their historical defaults pre-populated
+        into `config._legacy` here -- axes_tab.py/chart_editor.py read them
+        via `.get(key, default)` with a matching inline default, so the two
+        are equivalent at read time either way, but leaving `_legacy` empty
+        here would silently drop these keys from a freshly created chart's
+        `to_dict()` output until the Axes tab was opened/applied at least
+        once, changing the persisted JSON shape for never-touched charts.
+        """
+        self.config = ChartConfig(title=self.name)
+        self.config._legacy.update({
             "x_label": "",
             "y_label": "",
             "y2_label": "",
-            "show_legend": True,
-            "legend_position": "upper right",
-            "legend_show_frame": True,
-            "legend_font_size": 10,
-            "legend_bg_color": "#ffffff",
-            "grid_style": "solid",
-            "grid_alpha": 0.3,
-            "minor_grid_alpha": 0.15,
             "show_grid_x": True,
             "show_grid_y": True,
             "show_grid_y2": True,
@@ -225,28 +239,6 @@ class Chart(Item):
             "x_tick_format_custom": "",
             "y_tick_format_custom": "",
             "y2_tick_format_custom": "",
-            "hist_bins": 20,
-            "subtitle": "",
-            "title_font_size": 14,
-            "subtitle_font_size": 12,
-            "chart_padding": 2.0,
-            "chart_padding_w": 2.0,
-            "chart_padding_h": 2.0,
-            "title_padding": 6.0,
-            "main_title_padding": 10.0,
-            "top_margin": 1.0,
-            "title_bold": True,
-            "title_italic": False,
-            "subtitle_bold": False,
-            "subtitle_italic": False,
-            "title_color": "#000000",
-            "subtitle_color": "#000000",
-            "subtitle_match_title_color": True,
-            "width_cm": None,
-            "height_cm": None,
-            "dpi": None,
-            "legend_columns": 1,
-            "legend_bg_alpha": 1.0,
             # Z axis (3-D chart types only -- see ChartTypeSpec.is_3d).
             # Mirrors the x/y/y2 key families above one-for-one so AxesTab
             # can drive it through the same prefix-keyed read/write helpers
@@ -266,37 +258,8 @@ class Chart(Item):
             "z_tick_format_custom": "",
             "z_font_size": 12,
             "show_grid_z": True,
-            # 3-D camera angle, in degrees, passed to Axes3D.view_init.
-            # These are the starting/persisted view: matplotlib's own
-            # interactive drag-to-rotate still moves the camera freely from
-            # here, it just isn't saved back (a re-render resets to this).
-            "view_elev": 30.0,
-            "view_azim": -60.0,
-            # Color Map (shared across every Colormap/Heatmap series on this
-            # chart -- there is only ever one physical colorbar drawn, so
-            # this is chart-level config, not per-series style. See
-            # docs/superpowers/specs/2026-08-21-shared-chart-level-color-map-design.md.
-            "colormap": "viridis",
-            "colorbar_show": True,
-            # None means "not customized" -- the colorbar falls back to the
-            # Z column's own name (see chart_editor.py). Only becomes a
-            # string once the user actually types into the Colorbar label
-            # field; from then on even "" is respected literally (no label),
-            # rather than falling back again.
-            "colorbar_label": None,
-            "color_scale_auto": True,
-            "color_vmin": 0.0,
-            "color_vmax": 1.0,
-        }
-
-        self.style = {
-            "figure_size": (10, 6),
-            "figure_background_color": "#ffffff",
-            "axes_background_color": "#ffffff",
-            "font_size": 12,
-            "font_family": "Arial",
-            "dpi": 100
-        }
+        })
+        self.style = ChartStyle()
     
     def retype_series(self, index: int, series_type: "str | SeriesType") -> None:
         """Retype a single series to `series_type`, rebuilding its `.style`
@@ -530,7 +493,7 @@ class Chart(Item):
                   y_label: Optional[str] = None) -> None:
         """Set chart labels."""
         if title is not None:
-            self.config["title"] = title
+            self.config.title = title
             # Also update the item name if different
             if title != self.name:
                 self.name = title
@@ -546,8 +509,8 @@ class Chart(Item):
             "chart_type": self.chart_type,
             "data_series_count": len(self.data_series),
             "datasets": self.get_all_datasets(),
-            "title": self.config.get("title", ""),
-            "has_legend": self.config.get("show_legend", True),
+            "title": self.config.title,
+            "has_legend": self.config.show_legend,
             "has_grid": self.config.get("show_grid_x", True) or self.config.get("show_grid_y", True)
         }
     
@@ -563,7 +526,7 @@ class Chart(Item):
 
         # Search in name and title
         if (query_lower in self.name.lower() or
-            query_lower in self.config.get("title", "").lower()):
+            query_lower in self.config.title.lower()):
             return True
 
         # Search in chart type
@@ -625,8 +588,8 @@ class Chart(Item):
                     "style": asdict(fit.style) if fit.style is not None else None,
                 } for fit in self.fit_data
             ],
-            "config": self.config,
-            "style": self.style
+            "config": self.config.to_dict(),
+            "style": self.style.to_dict()
         })
         return data
     
@@ -703,10 +666,6 @@ class Chart(Item):
                 style=style,
             )
             chart.fit_data.append(fit)
-
-        # Ensure required config keys exist
-        if not chart.config:
-            chart._init_default_config()
 
         return chart
 

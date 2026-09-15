@@ -2104,37 +2104,35 @@ class StyleTab(QWidget):
         self._updating_controls = True
         try:
             self._refresh_size_unit_display()
-            self.title_font_size_spin.setValue(chart.config.get("title_font_size", 14))
-            self.subtitle_font_size_spin.setValue(chart.config.get("subtitle_font_size", 12))
-            self.title_font_family_combo.setCurrentValue(chart.config.get("title_font_family", "DejaVu Sans"))
-            self.subtitle_font_family_combo.setCurrentValue(
-                chart.config.get("subtitle_font_family", "DejaVu Sans")
-            )
-            self.chart_padding_spin.setValue(chart.config.get("chart_padding", 2.0))
-            self.chart_padding_w_spin.setValue(chart.config.get("chart_padding_w", 2.0))
-            self.chart_padding_h_spin.setValue(chart.config.get("chart_padding_h", 2.0))
-            self.title_padding_spin.setValue(chart.config.get("title_padding", 6.0))
-            self.main_title_padding_spin.setValue(chart.config.get("main_title_padding", 10.0))
-            self.top_margin_spin.setValue(chart.config.get("top_margin", 1.0))
-            self.title_bold_check.setChecked(chart.config.get("title_bold", True))
-            self.title_italic_check.setChecked(chart.config.get("title_italic", False))
-            self.subtitle_bold_check.setChecked(chart.config.get("subtitle_bold", False))
-            self.subtitle_italic_check.setChecked(chart.config.get("subtitle_italic", False))
-            self.title_color_row.setCurrentColor(chart.config.get("title_color", "#000000"))
-            match_title = chart.config.get("subtitle_match_title_color", True)
+            self.title_font_size_spin.setValue(chart.config.title_font_size)
+            self.subtitle_font_size_spin.setValue(chart.config.subtitle_font_size)
+            self.title_font_family_combo.setCurrentValue(chart.config.title_font_family)
+            self.subtitle_font_family_combo.setCurrentValue(chart.config.subtitle_font_family)
+            self.chart_padding_spin.setValue(chart.config.chart_padding)
+            self.chart_padding_w_spin.setValue(chart.config.chart_padding_w)
+            self.chart_padding_h_spin.setValue(chart.config.chart_padding_h)
+            self.title_padding_spin.setValue(chart.config.title_padding)
+            self.main_title_padding_spin.setValue(chart.config.main_title_padding)
+            self.top_margin_spin.setValue(chart.config.top_margin)
+            self.title_bold_check.setChecked(chart.config.title_bold)
+            self.title_italic_check.setChecked(chart.config.title_italic)
+            self.subtitle_bold_check.setChecked(chart.config.subtitle_bold)
+            self.subtitle_italic_check.setChecked(chart.config.subtitle_italic)
+            self.title_color_row.setCurrentColor(chart.config.title_color)
+            match_title = chart.config.subtitle_match_title_color
             self.subtitle_match_title_toggle.setChecked(checked=match_title)
             self.subtitle_color_row.setCurrentColor(
-                chart.config.get("title_color", "#000000") if match_title
-                else chart.config.get("subtitle_color", "#000000")
+                chart.config.title_color if match_title
+                else chart.config.subtitle_color
             )
             self.subtitle_color_row.setVisible(not match_title)
 
-            fig_bg = chart.style.get("figure_background_color", "#ffffff")
+            fig_bg = chart.style.figure_background_color
             self.figure_bg_transparent_toggle.setChecked(checked=fig_bg is None)
             self.figure_bg_color_row.setCurrentColor(fig_bg or "#ffffff")
             self.figure_bg_color_row.setEnabled(fig_bg is not None)
 
-            axes_bg = chart.style.get("axes_background_color", "#ffffff")
+            axes_bg = chart.style.axes_background_color
             self.axes_bg_transparent_toggle.setChecked(checked=axes_bg is None)
             self.axes_bg_color_row.setCurrentColor(axes_bg or "#ffffff")
             self.axes_bg_color_row.setEnabled(axes_bg is not None)
@@ -2142,7 +2140,7 @@ class StyleTab(QWidget):
             # QComboBox.findData() is unreliable for tuple-valued itemData
             # (Qt's QVariant comparison doesn't match Python tuple equality
             # here), so look up the matching index manually.
-            target_size = (chart.config.get("width_cm"), chart.config.get("height_cm"))
+            target_size = (chart.config.width_cm, chart.config.height_cm)
             size_index = -1
             for i in range(self.chart_size_combo.count()):
                 if self.chart_size_combo.itemData(i) == target_size:
@@ -2161,7 +2159,7 @@ class StyleTab(QWidget):
                 self.chart_size_combo.setCurrentIndex(self.chart_size_combo.count() - 1)
 
             self._custom_dpi_prefilled = False
-            dpi_value = chart.config.get("dpi")
+            dpi_value = chart.config.dpi
             dpi_index = self.chart_dpi_combo.findData(dpi_value)
             if dpi_index >= 0:
                 self.chart_dpi_combo.setCurrentIndex(dpi_index)
@@ -2216,33 +2214,33 @@ class StyleTab(QWidget):
             self._updating_controls = previous_guard
 
     def apply_chart_style_to(self, chart):
-        chart.config["title_font_size"] = self.title_font_size_spin.value()
-        chart.config["subtitle_font_size"] = self.subtitle_font_size_spin.value()
-        chart.config["title_font_family"] = self.title_font_family_combo.currentValue()
-        chart.config["subtitle_font_family"] = self.subtitle_font_family_combo.currentValue()
-        chart.config["chart_padding"] = self.chart_padding_spin.value()
-        chart.config["chart_padding_w"] = self.chart_padding_w_spin.value()
-        chart.config["chart_padding_h"] = self.chart_padding_h_spin.value()
-        chart.config["title_padding"] = self.title_padding_spin.value()
-        chart.config["main_title_padding"] = self.main_title_padding_spin.value()
-        chart.config["top_margin"] = self.top_margin_spin.value()
-        chart.config["title_bold"] = self.title_bold_check.isChecked()
-        chart.config["title_italic"] = self.title_italic_check.isChecked()
-        chart.config["subtitle_bold"] = self.subtitle_bold_check.isChecked()
-        chart.config["subtitle_italic"] = self.subtitle_italic_check.isChecked()
-        chart.config["title_color"] = self.title_color_row.currentColor()
-        chart.config["subtitle_match_title_color"] = self.subtitle_match_title_toggle.isChecked()
-        chart.config["subtitle_color"] = self.subtitle_color_row.currentColor()
-        chart.style["figure_background_color"] = (
+        chart.config.title_font_size = self.title_font_size_spin.value()
+        chart.config.subtitle_font_size = self.subtitle_font_size_spin.value()
+        chart.config.title_font_family = self.title_font_family_combo.currentValue()
+        chart.config.subtitle_font_family = self.subtitle_font_family_combo.currentValue()
+        chart.config.chart_padding = self.chart_padding_spin.value()
+        chart.config.chart_padding_w = self.chart_padding_w_spin.value()
+        chart.config.chart_padding_h = self.chart_padding_h_spin.value()
+        chart.config.title_padding = self.title_padding_spin.value()
+        chart.config.main_title_padding = self.main_title_padding_spin.value()
+        chart.config.top_margin = self.top_margin_spin.value()
+        chart.config.title_bold = self.title_bold_check.isChecked()
+        chart.config.title_italic = self.title_italic_check.isChecked()
+        chart.config.subtitle_bold = self.subtitle_bold_check.isChecked()
+        chart.config.subtitle_italic = self.subtitle_italic_check.isChecked()
+        chart.config.title_color = self.title_color_row.currentColor()
+        chart.config.subtitle_match_title_color = self.subtitle_match_title_toggle.isChecked()
+        chart.config.subtitle_color = self.subtitle_color_row.currentColor()
+        chart.style.figure_background_color = (
             None if self.figure_bg_transparent_toggle.isChecked()
             else self.figure_bg_color_row.currentColor()
         )
-        chart.style["axes_background_color"] = (
+        chart.style.axes_background_color = (
             None if self.axes_bg_transparent_toggle.isChecked()
             else self.axes_bg_color_row.currentColor()
         )
-        chart.config["width_cm"], chart.config["height_cm"] = self._size_from_controls()
-        chart.config["dpi"] = self._dpi_from_controls()
+        chart.config.width_cm, chart.config.height_cm = self._size_from_controls()
+        chart.config.dpi = self._dpi_from_controls()
 
         for prefix in ("x", "y", "y2"):
             axis_form = self.axes_style_forms[prefix]
@@ -2398,9 +2396,9 @@ class StyleTab(QWidget):
         from pandaplot.gui.components.tabs.chart.chart_editor import resolve_chart_size
 
         return resolve_chart_size(
-            self._chart.config.get("width_cm"),
-            self._chart.config.get("height_cm"),
-            self._chart.config.get("dpi"),
+            self._chart.config.width_cm,
+            self._chart.config.height_cm,
+            self._chart.config.dpi,
             default_width, default_height, default_dpi,
         )
 
@@ -2453,33 +2451,33 @@ class StyleTab(QWidget):
         if self._chart is None or self._updating_controls:
             return
         config = self._chart.config
-        config["title_font_size"] = self.title_font_size_spin.value()
-        config["subtitle_font_size"] = self.subtitle_font_size_spin.value()
-        config["title_font_family"] = self.title_font_family_combo.currentValue()
-        config["subtitle_font_family"] = self.subtitle_font_family_combo.currentValue()
-        config["chart_padding"] = self.chart_padding_spin.value()
-        config["chart_padding_w"] = self.chart_padding_w_spin.value()
-        config["chart_padding_h"] = self.chart_padding_h_spin.value()
-        config["title_padding"] = self.title_padding_spin.value()
-        config["main_title_padding"] = self.main_title_padding_spin.value()
-        config["top_margin"] = self.top_margin_spin.value()
-        config["title_bold"] = self.title_bold_check.isChecked()
-        config["title_italic"] = self.title_italic_check.isChecked()
-        config["subtitle_bold"] = self.subtitle_bold_check.isChecked()
-        config["subtitle_italic"] = self.subtitle_italic_check.isChecked()
-        config["title_color"] = self.title_color_row.currentColor()
-        config["subtitle_match_title_color"] = self.subtitle_match_title_toggle.isChecked()
-        config["subtitle_color"] = self.subtitle_color_row.currentColor()
-        self._chart.style["figure_background_color"] = (
+        config.title_font_size = self.title_font_size_spin.value()
+        config.subtitle_font_size = self.subtitle_font_size_spin.value()
+        config.title_font_family = self.title_font_family_combo.currentValue()
+        config.subtitle_font_family = self.subtitle_font_family_combo.currentValue()
+        config.chart_padding = self.chart_padding_spin.value()
+        config.chart_padding_w = self.chart_padding_w_spin.value()
+        config.chart_padding_h = self.chart_padding_h_spin.value()
+        config.title_padding = self.title_padding_spin.value()
+        config.main_title_padding = self.main_title_padding_spin.value()
+        config.top_margin = self.top_margin_spin.value()
+        config.title_bold = self.title_bold_check.isChecked()
+        config.title_italic = self.title_italic_check.isChecked()
+        config.subtitle_bold = self.subtitle_bold_check.isChecked()
+        config.subtitle_italic = self.subtitle_italic_check.isChecked()
+        config.title_color = self.title_color_row.currentColor()
+        config.subtitle_match_title_color = self.subtitle_match_title_toggle.isChecked()
+        config.subtitle_color = self.subtitle_color_row.currentColor()
+        self._chart.style.figure_background_color = (
             None if self.figure_bg_transparent_toggle.isChecked()
             else self.figure_bg_color_row.currentColor()
         )
-        self._chart.style["axes_background_color"] = (
+        self._chart.style.axes_background_color = (
             None if self.axes_bg_transparent_toggle.isChecked()
             else self.axes_bg_color_row.currentColor()
         )
-        config["width_cm"], config["height_cm"] = self._size_from_controls()
-        config["dpi"] = self._dpi_from_controls()
+        config.width_cm, config.height_cm = self._size_from_controls()
+        config.dpi = self._dpi_from_controls()
 
         for prefix in ("x", "y", "y2"):
             axis_form = self.axes_style_forms[prefix]

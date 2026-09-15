@@ -638,10 +638,10 @@ class ChartEditorWidget(PWidget):
             if dpi and isValid(self.chart_canvas):
                 self.chart_canvas.set_dpi(
                     dpi,
-                    pad=self.chart.config.get("chart_padding", 2.0),
-                    w_pad=self.chart.config.get("chart_padding_w", 2.0),
-                    h_pad=self.chart.config.get("chart_padding_h", 2.0),
-                    top_margin=self.chart.config.get("top_margin", 1.0),
+                    pad=self.chart.config.chart_padding,
+                    w_pad=self.chart.config.chart_padding_w,
+                    h_pad=self.chart.config.chart_padding_h,
+                    top_margin=self.chart.config.top_margin,
                 )
         except Exception:
             self.logger.exception("Failed applying updated DPI setting")
@@ -686,8 +686,8 @@ class ChartEditorWidget(PWidget):
         # Resolve the initial canvas size/DPI, preferring per-chart overrides
         # (chart.config) over the app-wide Settings defaults fetched above.
         width_cm, height_cm, dpi = resolve_chart_size(
-            self.chart.config.get("width_cm"), self.chart.config.get("height_cm"),
-            self.chart.config.get("dpi"), default_width_cm, default_height_cm, dpi,
+            self.chart.config.width_cm, self.chart.config.height_cm,
+            self.chart.config.dpi, default_width_cm, default_height_cm, dpi,
         )
 
         # Chart canvas
@@ -869,8 +869,8 @@ class ChartEditorWidget(PWidget):
                 if self.chart_canvas.axes2 is not None:
                     self.chart_canvas.axes2.set_subplotspec(fresh_subplotspec)
 
-            fig_bg = self.chart.style.get("figure_background_color", "#ffffff")
-            axes_bg = self.chart.style.get("axes_background_color", "#ffffff")
+            fig_bg = self.chart.style.figure_background_color
+            axes_bg = self.chart.style.axes_background_color
             self.chart_canvas.fig.set_facecolor(fig_bg if fig_bg is not None else "none")
             self.chart_canvas.axes.set_facecolor(axes_bg if axes_bg is not None else "none")
 
@@ -905,7 +905,7 @@ class ChartEditorWidget(PWidget):
                 # whichever one happens to render first (see
                 # docs/superpowers/specs/2026-08-21-shared-chart-level-color-map-design.md).
                 resolved_data = [resolve_series_data(project, series) for series in self.chart.data_series]
-                color_scale_auto = self.chart.config.get("color_scale_auto", True)
+                color_scale_auto = self.chart.config.color_scale_auto
                 # Only gather z-data when the scale is auto-computed: a
                 # manual scale never reads it (see resolve_color_limits),
                 # so skip the work entirely in that case. Each array is
@@ -928,8 +928,8 @@ class ChartEditorWidget(PWidget):
                 color_limits = resolve_color_limits(
                     combined_z,
                     auto=color_scale_auto,
-                    vmin=self.chart.config.get("color_vmin", 0.0),
-                    vmax=self.chart.config.get("color_vmax", 1.0),
+                    vmin=self.chart.config.color_vmin,
+                    vmax=self.chart.config.color_vmax,
                 )
 
                 for i, (series, series_data) in enumerate(zip(self.chart.data_series, resolved_data, strict=True)):
@@ -981,13 +981,13 @@ class ChartEditorWidget(PWidget):
                             target_axes, series_data, style, series.label, alpha,
                             visible=series.visible,
                             extra={
-                                "bins": self.chart.config.get("hist_bins", 20),
+                                "bins": self.chart.config.hist_bins,
                                 "resolve_fill_baseline": (
                                     lambda query, *, horizontal, _i=i, _style=style: self._resolve_fill_baseline(
                                         project, _i, _style.fill_base, _style.fill_to_index, query,
                                         horizontal=horizontal)
                                 ),
-                                "colormap": self.chart.config.get("colormap", "viridis"),
+                                "colormap": self.chart.config.colormap,
                                 "color_limits": color_limits,
                             },
                         )
@@ -997,14 +997,14 @@ class ChartEditorWidget(PWidget):
                         continue
                     if (mappable is not None and colorbar_mappable is None
                             and SERIES_TYPE_SPECS[series_type].uses_color_scale
-                            and self.chart.config.get("colorbar_show", True)):
+                            and self.chart.config.colorbar_show):
                         colorbar_mappable = mappable
                         # None means "not customized" -- fall back to the Z
                         # column's name. Any other value (including "") is
                         # the user's explicit choice and is used as-is, so a
                         # deliberately cleared label renders with no label
                         # rather than reverting to the column name.
-                        custom_label = self.chart.config.get("colorbar_label")
+                        custom_label = self.chart.config.colorbar_label
                         colorbar_label = (
                             custom_label if custom_label is not None
                             else self._resolve_z_label(project, series)
@@ -1104,37 +1104,42 @@ class ChartEditorWidget(PWidget):
             default_height = getattr(display_cfg, "default_height_cm", 15.0) if display_cfg else 15.0
             default_dpi = getattr(display_cfg, "dpi", 100) if display_cfg else 100
             width_cm, height_cm, dpi = resolve_chart_size(
-                config.get("width_cm"), config.get("height_cm"), config.get("dpi"),
+                config.width_cm, config.height_cm, config.dpi,
                 default_width, default_height, default_dpi,
             )
 
+            # config.title is already correctly "the chart's name" for a
+            # title never explicitly set (Chart.__init__ seeds it) and
+            # correctly "" for one explicitly cleared (from_dict only
+            # overwrites the seeded default when the saved dict actually had
+            # a "title" key) -- see chart_tab.py's load() for the same note.
             apply_chart_title(
                 self.chart_canvas.axes,
-                title=config.get("title", self.chart.name),
-                subtitle=config.get("subtitle", ""),
-                title_font_size=config.get("title_font_size", 14),
-                subtitle_font_size=config.get("subtitle_font_size", 12),
-                title_padding=config.get("title_padding", 6.0),
-                main_title_padding=config.get("main_title_padding", 10.0),
+                title=config.title,
+                subtitle=config.subtitle,
+                title_font_size=config.title_font_size,
+                subtitle_font_size=config.subtitle_font_size,
+                title_padding=config.title_padding,
+                main_title_padding=config.main_title_padding,
                 fig_height_inches=cm_to_inches(height_cm),
-                title_bold=config.get("title_bold", True),
-                title_italic=config.get("title_italic", False),
-                subtitle_bold=config.get("subtitle_bold", False),
-                subtitle_italic=config.get("subtitle_italic", False),
-                title_color=config.get("title_color", "#000000"),
+                title_bold=config.title_bold,
+                title_italic=config.title_italic,
+                subtitle_bold=config.subtitle_bold,
+                subtitle_italic=config.subtitle_italic,
+                title_color=config.title_color,
                 subtitle_color=(
-                    config.get("title_color", "#000000")
-                    if config.get("subtitle_match_title_color", True)
-                    else config.get("subtitle_color", "#000000")
+                    config.title_color
+                    if config.subtitle_match_title_color
+                    else config.subtitle_color
                 ),
-                title_font_family=config.get("title_font_family", "DejaVu Sans"),
-                subtitle_font_family=config.get("subtitle_font_family", "DejaVu Sans"),
+                title_font_family=config.title_font_family,
+                subtitle_font_family=config.subtitle_font_family,
             )
 
-            chart_padding = config.get("chart_padding", 2.0)
-            chart_padding_w = config.get("chart_padding_w", 2.0)
-            chart_padding_h = config.get("chart_padding_h", 2.0)
-            top_margin = config.get("top_margin", 1.0)
+            chart_padding = config.chart_padding
+            chart_padding_w = config.chart_padding_w
+            chart_padding_h = config.chart_padding_h
+            top_margin = config.top_margin
             self.chart_canvas.set_size(
                 cm_to_inches(width_cm), cm_to_inches(height_cm),
                 pad=chart_padding, w_pad=chart_padding_w, h_pad=chart_padding_h, top_margin=top_margin,
@@ -1194,7 +1199,7 @@ class ChartEditorWidget(PWidget):
                 # still moves it freely from here -- this is the view every
                 # (re-)render starts from, not a lock.
                 self.chart_canvas.axes.view_init(
-                    elev=config.get("view_elev", 30.0), azim=config.get("view_azim", -60.0))
+                    elev=config.view_elev, azim=config.view_azim)
 
             if self.chart_canvas.axes2 is not None:
                 y2_match_label = config.get("y2_match_x_label_color", True)
@@ -1253,12 +1258,12 @@ class ChartEditorWidget(PWidget):
                 )
 
                 if config.get("show_grid_y2", True):
-                    self.chart_canvas.axes2.grid(visible=True, axis="y", alpha=config.get("grid_alpha", 0.3))
+                    self.chart_canvas.axes2.grid(visible=True, axis="y", alpha=config.grid_alpha)
                 else:
                     self.chart_canvas.axes2.grid(visible=False, axis="y")
                 if config.get("y2_show_minor_grid", False):
                     self.chart_canvas.axes2.grid(
-                        visible=True, axis="y", which="minor", alpha=config.get("minor_grid_alpha", 0.15))
+                        visible=True, axis="y", which="minor", alpha=config.minor_grid_alpha)
                 else:
                     self.chart_canvas.axes2.grid(visible=False, axis="y", which="minor")
 
@@ -1355,8 +1360,8 @@ class ChartEditorWidget(PWidget):
                     config.get("y2_match_x_colors", True),
                     config.get("x_spine_color", "#000000")))
 
-            grid_alpha = config.get("grid_alpha", 0.3)
-            minor_grid_alpha = config.get("minor_grid_alpha", 0.15)
+            grid_alpha = config.grid_alpha
+            minor_grid_alpha = config.minor_grid_alpha
             if is_3d:
                 # Axes3D.grid() takes no `axis`/`which`/`alpha` -- it draws
                 # the three panes' gridlines as one unit (any kwarg passed
@@ -1389,7 +1394,7 @@ class ChartEditorWidget(PWidget):
 
             legend = None
             placement_kwargs = {}
-            if config.get("show_legend", True) and (self.chart.data_series or self.chart.fit_data):
+            if config.show_legend and (self.chart.data_series or self.chart.fit_data):
                 # Combine handles/labels from both axes since twinx() legends
                 # are independent by default.
                 handles, labels = self.chart_canvas.axes.get_legend_handles_labels()
@@ -1403,19 +1408,19 @@ class ChartEditorWidget(PWidget):
                 # otherwise draw an empty framed legend box over the plot.
                 if handles:
                     placement_kwargs = resolve_legend_placement(
-                        config.get("legend_position", "upper right"),
-                        config.get("legend_custom_x", 1.02),
-                        config.get("legend_custom_y", 0.5),
-                        config.get("legend_custom_anchor", "center left"),
+                        config.legend_position,
+                        config.legend_custom_x,
+                        config.legend_custom_y,
+                        config.legend_custom_anchor,
                     )
                     legend = build_legend(
                         self.chart_canvas.axes, handles, labels,
-                        config.get("legend_font_family", "DejaVu Sans"),
-                        config.get("legend_font_size", 10),
-                        config.get("legend_bg_color", "#ffffff"),
-                        show_frame=config.get("legend_show_frame", True),
-                        columns=config.get("legend_columns", 1),
-                        bg_alpha=config.get("legend_bg_alpha", 1.0),
+                        config.legend_font_family,
+                        config.legend_font_size,
+                        config.legend_bg_color,
+                        show_frame=config.legend_show_frame,
+                        columns=config.legend_columns,
+                        bg_alpha=config.legend_bg_alpha,
                         placement_kwargs=placement_kwargs,
                     )
                     if legend is not None:
@@ -1431,10 +1436,10 @@ class ChartEditorWidget(PWidget):
                                 self._artist_series_map[text_art] = series_idx
 
             tight_layout_kwargs = dict(
-                pad=config.get("chart_padding", 2.0),
-                w_pad=config.get("chart_padding_w", 2.0),
-                h_pad=config.get("chart_padding_h", 2.0),
-                rect=(0, 0, 1, config.get("top_margin", 1.0)),
+                pad=config.chart_padding,
+                w_pad=config.chart_padding_w,
+                h_pad=config.chart_padding_h,
+                rect=(0, 0, 1, config.top_margin),
             )
             # Reserve room for the secondary axis label/ticks so they aren't
             # clipped at the right edge of the figure.
@@ -1661,7 +1666,7 @@ class ChartEditorWidget(PWidget):
         if not isValid(self.canvas_scroll) or not isValid(self.chart_canvas):
             return
 
-        if self.chart.config.get("width_cm") is not None or self.chart.config.get("height_cm") is not None:
+        if self.chart.config.width_cm is not None or self.chart.config.height_cm is not None:
             return
 
         viewport = self.canvas_scroll.viewport()
@@ -1675,8 +1680,8 @@ class ChartEditorWidget(PWidget):
             min_width_cm=MIN_CHART_WIDTH_CM, max_width_cm=MAX_CHART_WIDTH_CM,
             min_height_cm=MIN_CHART_HEIGHT_CM, max_height_cm=MAX_CHART_HEIGHT_CM)
 
-        self.chart.config["width_cm"] = width_cm
-        self.chart.config["height_cm"] = height_cm
+        self.chart.config.width_cm = width_cm
+        self.chart.config.height_cm = height_cm
         self.update_chart()
 
     def _on_refresh(self):
