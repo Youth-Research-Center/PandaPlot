@@ -1,14 +1,14 @@
 """Tests that pandaplot.app registers a usable TabFactory."""
 from pandaplot.app import create_tab_factory
 from pandaplot.gui.components.tabs.tab_factory import TabFactory
-from pandaplot.models.project.items import Chart, Dataset, ImageGallery, Note
+from pandaplot.models.project.items import Chart, Dataset, ImageGallery, Note, Sketch
 
 
 def test_create_tab_factory_registers_all_four_tab_item_types():
     factory = create_tab_factory()
 
     assert isinstance(factory, TabFactory)
-    assert set(factory._registry.keys()) == {Note, Chart, Dataset, ImageGallery}
+    assert set(factory._registry.keys()) == {Note, Chart, Dataset, ImageGallery, Sketch}
 
 
 def test_create_tab_factory_does_not_import_tab_modules_eagerly():

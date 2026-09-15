@@ -4,7 +4,7 @@ Visitor pattern implementation for traversing project item hierarchies.
 
 from typing import Any, Protocol
 
-from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Item, ItemCollection, Note
+from pandaplot.models.project.items import Chart, CircuitSketch, Dataset, Folder, Image, ImageGallery, Item, ItemCollection, Note, Sketch
 
 
 class ItemVisitor(Protocol):
@@ -101,6 +101,10 @@ class ProjectTreeBuilder:
             return self.visit_image_gallery(item, parent_context)
         elif isinstance(item, Image):
             return self.visit_image(item, parent_context)
+        elif isinstance(item, CircuitSketch):
+            return self.visit_circuit_sketch(item, parent_context)
+        elif isinstance(item, Sketch):
+            return self.visit_sketch(item, parent_context)
         elif isinstance(item, ItemCollection):
             return self.visit_item_collection(item, parent_context)
         else:
@@ -164,6 +168,22 @@ class ProjectTreeBuilder:
             f"🎞️ {image.name}",
             "image",
             {"type": "image", "id": image.id, "data": image}
+        )
+
+    def visit_sketch(self, sketch: Sketch, parent_context: Any = None) -> Any:
+        """Visit a sketch item."""
+        return self.tree_item_factory(
+            f"🎨 {sketch.name}",
+            "sketch",
+            {"type": "sketch", "id": sketch.id, "data": sketch}
+        )
+
+    def visit_circuit_sketch(self, circuit_sketch: CircuitSketch, parent_context: Any = None) -> Any:
+        """Visit a circuit sketch item."""
+        return self.tree_item_factory(
+            f"⚡ {circuit_sketch.name}",
+            "circuitsketch",
+            {"type": "circuitsketch", "id": circuit_sketch.id, "data": circuit_sketch}
         )
 
     def visit_item_collection(self, collection: ItemCollection, parent_context: Any = None) -> Any:
