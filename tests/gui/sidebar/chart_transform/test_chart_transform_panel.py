@@ -46,6 +46,7 @@ def project():
 def app_context(project):
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
     app_state = Mock(spec=AppState)
     app_state.has_project = True
     app_state.current_project = project
@@ -190,3 +191,61 @@ class TestChartTransformPanelButtons:
     def test_preview_button_is_secondary_and_simply_labeled(self, panel):
         assert panel.preview_btn.text() == "Preview"
         assert panel.preview_btn.property("secondary") is True
+
+
+class TestChartTransformPanelSeriesSelectedEvent:
+    """Clicking a series/fit on the chart canvas or its legend (#341, #107)
+    should also select it here, so switching to "transform it" doesn't
+    require re-finding the same entry in this combo."""
+
+    def test_series_click_selects_matching_combo_row(self, panel):
+        panel.current_chart.add_data_series(
+            dataset_id="ds-1", label="Second", series_type=SeriesType.LINE,
+        )
+        panel._populate_sources()
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "chart-1", "kind": "series", "index": 1}
+        )
+
+        assert panel.source_combo.currentData() == ("series", 1)
+
+    def test_ignores_event_for_a_different_chart(self, panel):
+        panel.source_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "some-other-chart", "kind": "series", "index": 0}
+        )
+
+        assert panel.source_combo.currentIndex() == 0
+
+
+class TestChartTransformPanelChartContextRefresh:
+    """ChartTransformPanel previously hand-rolled its own (narrower) tab-
+    tracking; migrating onto ChartSeriesContextMixin (#284) gives it two
+    capabilities ChartAnalysisPanel/ChartSignalAnalysisPanel already had."""
+
+    def test_chart_updated_with_only_chart_id_still_refreshes_the_current_chart(self, panel):
+        """A chart-type retype via ChartPropertiesPanel's live-edit publish
+        sends only chart_id, not the Chart object itself -- previously
+        missed by this panel's own _on_chart_updated; the shared mixin's
+        chart_id-fallback resolution now catches it."""
+        calls = []
+        original = panel._populate_sources
+
+        def _spy():
+            calls.append(1)
+            original()
+
+        panel._populate_sources = _spy
+
+        panel._on_chart_updated({"chart_id": "chart-1", "update_type": "config_updated"})
+
+        assert calls == [1]
+
+    def test_chart_list_changed_does_not_raise(self, panel):
+        """ChartTransformPanel has no destination combo to refresh, so this
+        is a no-op -- just confirm the now-subscribed PROJECT_ITEM_* events
+        don't error when they arrive."""
+        panel._on_chart_list_changed({"item_id": "some-other-chart"})

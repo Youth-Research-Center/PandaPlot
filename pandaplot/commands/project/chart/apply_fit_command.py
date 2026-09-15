@@ -7,12 +7,12 @@ import numpy as np
 import pandas as pd
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.events import ChartEvents
 from pandaplot.models.events.event_types import DatasetEvents, ProjectEvents
 from pandaplot.models.project.items import Dataset, Note
-from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext
 
 # Maps a short fit-type name to its chart color. `fit_type` from the fit panel is a
@@ -80,19 +80,7 @@ class ApplyFitCommand(Command):
         self.result_dataset_id: Optional[str] = None
         self._report_note: Optional[Note] = None
         self._result_dataset: Optional[Dataset] = None
-
-    def _find_chart(self) -> Optional[Chart]:
-        app_state = self.app_context.get_app_state()
-
-        if not app_state.has_project or not app_state.current_project:
-            return None
-
-        chart = app_state.current_project.find_item(self.chart_id)
-
-        if not isinstance(chart, Chart):
-            return None
-
-        return chart
+        self._chart_finder = ChartFinder(app_context)
 
     def _source_path(self) -> str:
         """Full "Folder / Subfolder / DatasetName" path of the source dataset."""
@@ -250,7 +238,7 @@ class ApplyFitCommand(Command):
 
     @override
     def execute(self) -> CommandResult:
-        chart = self._find_chart()
+        chart = self._chart_finder.find(self.chart_id)
 
         if chart is None:
             self.logger.warning(
@@ -307,7 +295,7 @@ class ApplyFitCommand(Command):
 
     @override
     def undo(self) -> CommandResult:
-        chart = self._find_chart()
+        chart = self._chart_finder.find(self.chart_id)
 
         if chart is None or self.added_index is None:
             self.logger.warning(

@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.gui.components.sidebar.transform.transform_controller import TransformController
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
@@ -108,7 +109,8 @@ class TransformPanel(SidebarPanel):
         # Get theme colors
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        
+        tokens = theme_manager.get_design_tokens()
+
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#333333")
@@ -122,7 +124,7 @@ class TransformPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;
@@ -273,20 +275,8 @@ class TransformPanel(SidebarPanel):
 
     def _build_function_menu(self) -> "QMenu":
         """Build a categorized menu of ready-made transformation functions."""
-        menu = QMenu(self)
         templates = self.transform_controller.get_transformation_templates()
-        for category, entries in templates.items():
-            submenu = menu.addMenu(category)
-            for entry in entries:
-                action = submenu.addAction(entry["name"])
-                action.setToolTip(f"{entry['description']}  →  {entry['code']}")
-                # Bind the code for this entry via a default argument.
-                action.triggered.connect(
-                    lambda _checked=False, code=entry["code"]: self.insert_function_code(code)
-                )
-        # Surface tooltips inside the menu.
-        menu.setToolTipsVisible(True)
-        return menu
+        return build_function_menu(self, templates, on_insert=self.insert_function_code)
 
     def _function_reference_text(self) -> str:
         """Human-readable list of the variables and functions available."""
@@ -349,10 +339,10 @@ class TransformPanel(SidebarPanel):
 
         self.clear_btn = PButton("Clear", role="secondary", on_click=self.clear_panel)
         # Remove hardcoded styling - will be applied in _apply_theme
-        
+
         button_layout.addWidget(self.apply_btn)
         button_layout.addWidget(self.clear_btn)
-        
+
         layout.addLayout(button_layout)
     
     def setup_connections(self):

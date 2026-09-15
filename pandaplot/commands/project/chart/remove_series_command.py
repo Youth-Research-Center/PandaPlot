@@ -4,9 +4,10 @@ import copy
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import ChartEvents
-from pandaplot.models.project.items.chart import Chart, DataSeries
+from pandaplot.models.project.items.chart import DataSeries
 from pandaplot.models.state import AppContext
 
 
@@ -20,20 +21,15 @@ class RemoveSeriesCommand(Command):
         self.chart_id = chart_id
         self.series_index = series_index
         self.removed_series_data: Optional[DataSeries] = None
-
-    def _find_chart(self) -> Optional[Chart]:
-        app_state = self.app_context.get_app_state()
-        if not app_state.has_project or not app_state.current_project:
-            return None
-        return app_state.current_project.find_item(self.chart_id)
+        self._chart_finder = ChartFinder(app_context)
 
     @override
     def execute(self) -> CommandResult:
-        chart = self._find_chart()
-        if not chart or not isinstance(chart, Chart):
+        chart = self._chart_finder.find(self.chart_id)
+        if not chart:
             self.logger.warning(
-                "RemoveSeriesCommand.execute: chart '%s' not found or not a Chart (got %s)",
-                self.chart_id, type(chart).__name__ if chart else None,
+                "RemoveSeriesCommand.execute: chart '%s' not found",
+                self.chart_id,
             )
             self.ui_controller.show_error_message(
                 "Remove Series Error", f"Chart '{self.chart_id}' not found."
@@ -65,7 +61,7 @@ class RemoveSeriesCommand(Command):
 
     @override
     def undo(self) -> CommandResult:
-        chart = self._find_chart()
+        chart = self._chart_finder.find(self.chart_id)
         if not chart or self.removed_series_data is None:
             self.logger.warning(
                 "RemoveSeriesCommand.undo: cannot undo for chart '%s' (chart found=%s, removed_series_data set=%s)",

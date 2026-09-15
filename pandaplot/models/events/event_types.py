@@ -99,6 +99,7 @@ class ChartEvents:
     CHART_STYLE_CHANGED = "chart.style_changed"
     CHART_DATA_UPDATED = "chart.data_updated"
     CHART_SELECTED = "chart.selected"
+    SERIES_SELECTED = "chart.series_selected"
     CHART_PREVIEW_REQUESTED = "chart.preview_requested"
 
 
@@ -140,12 +141,17 @@ class ProjectEvents:
     PROJECT_CLOSED = "project.closed"
     PROJECT_SAVING = "project.saving"
     FIRST_PROJECT_LOADED = "first_project_loaded"
+    # Fires whenever AppState.is_modified flips (mark_modified/mark_saved) --
+    # consumed by anything showing a saved/unsaved indicator (e.g. the main
+    # window title).
+    PROJECT_MODIFIED_CHANGED = "project.modified_changed"
     
     # Generic project structure events (item-type agnostic)
     PROJECT_CHANGED = "project.changed"  # Generic change event - use for broad awareness
     PROJECT_ITEM_ADDED = "project.item_added"  # Generic item added - use when type doesn't matter
     PROJECT_ITEM_REMOVED = "project.item_removed"  # Generic item removed
     PROJECT_ITEM_RENAMED = "project.item_renamed"  # Generic item renamed
+    PROJECT_ITEM_CONTENT_CHANGED = "project.item_content_changed"  # Generic item content edit (not a rename)
     PROJECT_ITEM_MOVED = "project.item_moved"  # Generic item moved
     PROJECT_STRUCTURE_CHANGED = "project.structure_changed"  # Structure change - folders/items reorganized
 
@@ -192,7 +198,12 @@ class EventHierarchy:
         "dataset.deleted": ["dataset.deleted", "project.changed"],
         
         # Analysis events
-        "analysis.completed": ["analysis.completed", "dataset.column_added", "dataset.structure_changed", "dataset.changed"],
+        # Does NOT fan out to dataset.column_added/structure_changed/changed:
+        # AnalysisPanel's ANALYSIS_COMPLETED payload isn't shaped like those
+        # events' payloads (e.g. it has no column_positions), and the actual
+        # column mutation already announces itself correctly via
+        # ApplyAnalysisResultCommand -> emit_columns_changed (see #322).
+        "analysis.completed": ["analysis.completed"],
         "analysis.failed": ["analysis.failed"],
         "analysis.started": ["analysis.started"],
         "analysis.config_changed": ["analysis.config_changed"],
@@ -204,6 +215,7 @@ class EventHierarchy:
         "chart.style_changed": ["chart.style_changed"],
         "chart.data_updated": ["chart.data_updated"],
         "chart.selected": ["chart.selected"],
+        "chart.series_selected": ["chart.series_selected"],
         
         # UI events (no hierarchy needed)
         "ui.tab_changed": ["ui.tab_changed"],
@@ -220,6 +232,7 @@ class EventHierarchy:
         "project.item_added": ["project.item_added", "project.changed"],
         "project.item_removed": ["project.item_removed", "project.changed"],
         "project.item_renamed": ["project.item_renamed", "project.changed"],
+        "project.item_content_changed": ["project.item_content_changed", "project.changed"],
         "project.item_moved": ["project.item_moved", "project.changed"],
         "project.structure_changed": ["project.structure_changed", "project.changed"],
 

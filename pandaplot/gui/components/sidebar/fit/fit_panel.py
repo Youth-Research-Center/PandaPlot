@@ -105,6 +105,7 @@ class FitPanel(SidebarPanel):
         """Apply theme styling to all components."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
+        tokens = theme_manager.get_design_tokens()
 
         # Get theme colors with fallbacks
         card_bg = palette.get("card_bg", "#ffffff")
@@ -119,7 +120,7 @@ class FitPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;
@@ -137,6 +138,11 @@ class FitPanel(SidebarPanel):
 
         # Title label with shared styling
         self._apply_title_theme(base_fg, card_border)
+
+        self.equation_label.setStyleSheet(
+            f"font-family: monospace; background-color: {card_bg}; "
+            f"color: {base_fg}; padding: 5px; border: 1px solid {card_border};"
+        )
 
         self.update_data_points_display()
 
@@ -356,7 +362,6 @@ class FitPanel(SidebarPanel):
         equation_layout.addWidget(QLabel("Equation:"))
         self.equation_label = QLabel("No fit performed")
         self.equation_label.setMaximumHeight(60)
-        self.equation_label.setStyleSheet("font-family: monospace; background-color: #f5f5f5; color: #333333; padding: 5px; border: 1px solid #ddd;")
         equation_layout.addWidget(self.equation_label)
         results_layout.addLayout(equation_layout)
 
@@ -397,6 +402,25 @@ class FitPanel(SidebarPanel):
         """Set up event subscriptions for tab changes."""
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
+        self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
+
+    def _on_series_selected_event(self, event_data):
+        """Clicking a data series on the chart canvas or its legend also
+        selects it here as the source to fit -- a fitted-curve click is
+        ignored, since a fit isn't itself a valid source for a new fit.
+        """
+        if not self.isVisible() or self.current_chart is None:
+            return
+        chart_id = event_data.get("chart_id")
+        if chart_id != self.current_chart.id or event_data.get("kind") != "series":
+            return
+        index = event_data.get("index")
+        # series_combo mirrors chart.data_series 1:1, in order, followed by
+        # a trailing "Custom..." entry -- so the series' own index in the
+        # chart is also its row here.
+        if index is None or not (0 <= index < len(self.current_chart.data_series)):
+            return
+        self.series_combo.setCurrentIndex(index)
 
     def _show_scipy_warning(self):
         """Show warning if scipy is not available."""
@@ -821,7 +845,7 @@ class FitPanel(SidebarPanel):
         self.range_auto_check.setChecked(True)
         self.update_data_points_display()
 
-    def _on_range_auto_toggled(self, checked: bool):
+    def _on_range_auto_toggled(self, checked: bool):  # noqa: FBT001 - Qt `toggled` callback, invoked positionally
         """Show the live data-range labels in Auto mode, or manual range
         entry (seeded from the current series' actual data range as a
         starting point) once Auto is unchecked."""

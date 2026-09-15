@@ -22,6 +22,7 @@ from pandaplot.models.project.items.chart import (
     DataSeries,
     FitData,
     assign_series_column_ids,
+    resolve_manual_fit_source_data,
     restore_chart_state,
     snapshot_chart_state,
 )
@@ -595,6 +596,69 @@ class TestRetypeSeries:
         assert series.style.error_bars.y_error_column_id == "err-col"
         assert series.style.error_bars.error_cap_size == 7.0
 
+    def test_retyping_line_to_scatter_carries_over_value_label_settings(self):
+        """Regression test: a Line series' value-label configuration (#125)
+        must survive a retype to Scatter -- both style classes declare the
+        identical field set, so retype_series must carry them over the same
+        way it already does for marker/error_bars, rather than silently
+        resetting a labeled series back to unlabeled on retype."""
+        chart = Chart(name="C", chart_type="line")
+        chart.add_data_series(
+            dataset_id="ds1", x_column_id="x", y_column_id="y",
+            style=LineSeriesStyle(
+                color="#112233",
+                show_value_labels=True,
+                value_label_mode="xy",
+                value_label_show_arrow=True,
+                value_label_offset_x=2.0,
+                value_label_offset_y=-3.0,
+                value_label_text_color="#abcdef",
+                value_label_bg_color="#fedcba",
+                value_label_bg_alpha=0.5,
+            ),
+        )
+
+        chart.retype_series(0, "scatter")
+
+        style = chart.data_series[0].style
+        assert isinstance(style, ScatterSeriesStyle)
+        assert style.show_value_labels is True
+        assert style.value_label_mode == "xy"
+        assert style.value_label_show_arrow is True
+        assert style.value_label_offset_x == 2.0
+        assert style.value_label_offset_y == -3.0
+        assert style.value_label_text_color == "#abcdef"
+        assert style.value_label_bg_color == "#fedcba"
+        assert style.value_label_bg_alpha == 0.5
+
+    def test_retyping_line_to_bar_carries_over_only_the_fields_bar_supports(self):
+        """BarSeriesStyle has no value_label_mode/show_arrow/offset fields
+        (see BarSeriesStyle) -- retyping to Bar must carry over only the
+        color/background/alpha subset it actually declares, and must not
+        raise or silently invent those fields on the new style."""
+        chart = Chart(name="C", chart_type="line")
+        chart.add_data_series(
+            dataset_id="ds1", x_column_id="x", y_column_id="y",
+            style=LineSeriesStyle(
+                color="#112233",
+                show_value_labels=True,
+                value_label_mode="xy",
+                value_label_text_color="#abcdef",
+                value_label_bg_color="#fedcba",
+                value_label_bg_alpha=0.5,
+            ),
+        )
+
+        chart.retype_series(0, "bar")
+
+        style = chart.data_series[0].style
+        assert isinstance(style, BarSeriesStyle)
+        assert style.show_value_labels is True
+        assert style.value_label_text_color == "#abcdef"
+        assert style.value_label_bg_color == "#fedcba"
+        assert style.value_label_bg_alpha == 0.5
+        assert not hasattr(style, "value_label_mode")
+
     def test_retyping_line_to_scatter_does_not_alias_the_carried_error_bars(self):
         """The carried-over error_bars/marker must be independent copies,
         not shared references with the old (now-discarded) style object --
@@ -894,3 +958,71 @@ class TestRetypeSeriesToColormapCarriesOverMarker:
         assert isinstance(series.style, HeatmapSeriesStyle)
         assert series.style.z_column_id == "z-id"
         assert series.style.z_column == "z"
+
+
+class TestResolveManualFitSourceData:
+    """Tests for resolve_manual_fit_source_data helper."""
+
+    @pytest.fixture
+    def dataset(self):
+        import pandas as pd
+
+        from pandaplot.models.project.items import Dataset
+        df = pd.DataFrame({
+            "x": [1.0, 2.0, 3.0],
+            "y": [10.0, 20.0, 30.0],
+            "y_lower": [9.0, 19.0, 29.0],
+            "y_upper": [11.0, 21.0, 31.0],
+            "text": ["a", "b", "c"],
+        })
+        return Dataset(id="ds-1", name="DS", data=df)
+
+    def test_missing_dataset_returns_none(self):
+        assert resolve_manual_fit_source_data(None, "col_x", "col_y") is None
+
+    def test_unresolvable_x_or_y_returns_none(self, dataset):
+        x_id = dataset.column_id("x")
+        y_id = dataset.column_id("y")
+        assert resolve_manual_fit_source_data(dataset, "invalid_id", y_id) is None
+        assert resolve_manual_fit_source_data(dataset, x_id, "invalid_id") is None
+
+    def test_resolves_x_and_y_without_confidence(self, dataset):
+        x_id = dataset.column_id("x")
+        y_id = dataset.column_id("y")
+        res = resolve_manual_fit_source_data(dataset, x_id, y_id)
+        assert res is not None
+        x_data, y_data, conf_lower, conf_upper = res
+        np.testing.assert_array_equal(x_data, np.array([1.0, 2.0, 3.0]))
+        np.testing.assert_array_equal(y_data, np.array([10.0, 20.0, 30.0]))
+        assert conf_lower is None
+        assert conf_upper is None
+
+    def test_resolves_x_y_and_confidence_columns(self, dataset):
+        x_id = dataset.column_id("x")
+        y_id = dataset.column_id("y")
+        lower_id = dataset.column_id("y_lower")
+        upper_id = dataset.column_id("y_upper")
+        res = resolve_manual_fit_source_data(
+            dataset, x_id, y_id,
+            confidence_lower_column_id=lower_id,
+            confidence_upper_column_id=upper_id,
+        )
+        assert res is not None
+        x_data, y_data, conf_lower, conf_upper = res
+        np.testing.assert_array_equal(x_data, np.array([1.0, 2.0, 3.0]))
+        np.testing.assert_array_equal(y_data, np.array([10.0, 20.0, 30.0]))
+        np.testing.assert_array_equal(conf_lower, np.array([9.0, 19.0, 29.0]))
+        np.testing.assert_array_equal(conf_upper, np.array([11.0, 21.0, 31.0]))
+
+    def test_unresolvable_confidence_column_returns_none(self, dataset):
+        x_id = dataset.column_id("x")
+        y_id = dataset.column_id("y")
+        text_id = dataset.column_id("text")
+        # Invalid column ID for lower
+        assert resolve_manual_fit_source_data(
+            dataset, x_id, y_id, confidence_lower_column_id="missing_id"
+        ) is None
+        # Non-numeric column ID for upper
+        assert resolve_manual_fit_source_data(
+            dataset, x_id, y_id, confidence_upper_column_id=text_id
+        ) is None

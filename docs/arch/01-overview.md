@@ -59,15 +59,18 @@ app.py::main()
        └── Renders to embedded Qt canvas (FigureCanvasQTAgg)
 ```
 
-## Analysis Operation Flow
+## Analysis Operation Flow (Asynchronous)
 
 ```
 User selects analysis type (Derivative / Integral / Smoothing / Interpolation)
 └── AnalysisCommand.execute()
-    ├── AnalysisEngine.calculate_*(x_col, y_col, params)
-    │   └── scipy algorithms (cumulative_trapezoid, savgol_filter, CubicSpline…)
-    ├── Result appended as new column to Dataset
-    └── EventBus.emit(AnalysisEvents.ANALYSIS_COMPLETED + DatasetEvents.DATASET_COLUMN_ADDED)
+    ├── UI panel displays BusySpinner
+    ├── TaskScheduler.run_task(AnalysisEngine.calculate_*, params) on QThreadPool
+    ├── On task completion:
+    │   ├── Result appended as new column to Dataset
+    │   ├── ApplyAnalysisResultCommand created and pushed to undo stack
+    │   └── EventBus.emit(AnalysisEvents.ANALYSIS_COMPLETED + DatasetEvents.DATASET_COLUMN_ADDED)
+    └── UI panel hides BusySpinner
 ```
 
 ## Curve Fitting Flow

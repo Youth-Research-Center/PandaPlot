@@ -611,6 +611,74 @@ class StyleTab(QWidget):
 
         layout.addWidget(error_bars_card)
 
+        # VALUE LABELS group -- annotate each rendered point/bar with its
+        # own numeric value (#125). Mode/arrow/offset apply to Line/Scatter
+        # only (BarSeriesStyle has no such fields -- see
+        # _update_value_labels_controls_visibility); color/background/alpha
+        # apply to all three -- see SeriesTypeSpec.supports_value_labels for
+        # which series types show this card at all.
+        self.value_labels_card = Card()
+        value_labels_card = self.value_labels_card
+        value_labels_layout = QGridLayout(value_labels_card)
+
+        value_labels_header_row = QHBoxLayout()
+        value_labels_header_row.addWidget(SectionHeader("Value Labels"))
+        value_labels_header_row.addStretch(1)
+        self.value_labels_enabled_toggle = ToggleSwitch()
+        value_labels_header_row.addWidget(self.value_labels_enabled_toggle)
+        value_labels_layout.addLayout(value_labels_header_row, 0, 0, 1, 2)
+
+        self.value_labels_mode_label = QLabel("Show:")
+        value_labels_layout.addWidget(self.value_labels_mode_label, 1, 0)
+        self.value_labels_mode_control = ValueComboBox([("X", "x"), ("Y", "y"), ("X, Y", "xy")])
+        value_labels_layout.addWidget(self.value_labels_mode_control, 1, 1)
+
+        self.value_labels_arrow_label = QLabel("Arrow:")
+        value_labels_layout.addWidget(self.value_labels_arrow_label, 2, 0)
+        self.value_labels_arrow_toggle = ToggleSwitch()
+        value_labels_layout.addWidget(self.value_labels_arrow_toggle, 2, 1)
+
+        self.value_labels_offset_x_label = QLabel("Offset X:")
+        value_labels_layout.addWidget(self.value_labels_offset_x_label, 3, 0)
+        self.value_labels_offset_x_spin = QDoubleSpinBox()
+        self.value_labels_offset_x_spin.setRange(-100.0, 100.0)
+        self.value_labels_offset_x_spin.setDecimals(1)
+        value_labels_layout.addWidget(self.value_labels_offset_x_spin, 3, 1)
+
+        self.value_labels_offset_y_label = QLabel("Offset Y:")
+        value_labels_layout.addWidget(self.value_labels_offset_y_label, 4, 0)
+        self.value_labels_offset_y_spin = QDoubleSpinBox()
+        self.value_labels_offset_y_spin.setRange(-100.0, 100.0)
+        self.value_labels_offset_y_spin.setDecimals(1)
+        value_labels_layout.addWidget(self.value_labels_offset_y_spin, 4, 1)
+
+        self.value_labels_match_color_label = QLabel("Match series color:")
+        value_labels_layout.addWidget(self.value_labels_match_color_label, 5, 0)
+        self.value_labels_match_color_toggle = ToggleSwitch(checked=True)
+        value_labels_layout.addWidget(self.value_labels_match_color_toggle, 5, 1)
+
+        self.value_labels_text_color_label = QLabel("Text color:")
+        value_labels_layout.addWidget(self.value_labels_text_color_label, 6, 0)
+        self.value_labels_text_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
+        value_labels_layout.addWidget(self.value_labels_text_color_row, 6, 1)
+
+        self.value_labels_bg_enabled_label = QLabel("Background:")
+        value_labels_layout.addWidget(self.value_labels_bg_enabled_label, 7, 0)
+        self.value_labels_bg_enabled_toggle = ToggleSwitch()
+        value_labels_layout.addWidget(self.value_labels_bg_enabled_toggle, 7, 1)
+
+        self.value_labels_bg_color_label = QLabel("Background color:")
+        value_labels_layout.addWidget(self.value_labels_bg_color_label, 8, 0)
+        self.value_labels_bg_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
+        value_labels_layout.addWidget(self.value_labels_bg_color_row, 8, 1)
+
+        self.value_labels_bg_alpha_label = QLabel("Background alpha:")
+        value_labels_layout.addWidget(self.value_labels_bg_alpha_label, 9, 0)
+        self.value_labels_bg_alpha_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
+        value_labels_layout.addWidget(self.value_labels_bg_alpha_slider, 9, 1)
+
+        layout.addWidget(value_labels_card)
+
         # VECTOR group -- shown instead of Line/Fill/Marker/Error Bars for a
         # series on a Vector (quiver) chart, which has no line/marker/fill/
         # error-bar concept of its own.
@@ -758,6 +826,16 @@ class StyleTab(QWidget):
         self.error_color_row.colorChanged.connect(self._on_field_changed)
         self.error_match_line_toggle.toggled.connect(self._on_error_match_line_toggled)
         self.error_cap_size_slider.valueChanged.connect(self._on_field_changed)
+        self.value_labels_enabled_toggle.toggled.connect(self._on_value_labels_enabled_toggled)
+        self.value_labels_mode_control.currentValueChanged.connect(self._on_field_changed)
+        self.value_labels_arrow_toggle.toggled.connect(self._on_field_changed)
+        self.value_labels_offset_x_spin.valueChanged.connect(self._on_field_changed)
+        self.value_labels_offset_y_spin.valueChanged.connect(self._on_field_changed)
+        self.value_labels_match_color_toggle.toggled.connect(self._on_value_labels_match_color_toggled)
+        self.value_labels_text_color_row.colorChanged.connect(self._on_field_changed)
+        self.value_labels_bg_enabled_toggle.toggled.connect(self._on_value_labels_bg_enabled_toggled)
+        self.value_labels_bg_color_row.colorChanged.connect(self._on_field_changed)
+        self.value_labels_bg_alpha_slider.valueChanged.connect(self._on_field_changed)
         self.vector_color_row.colorChanged.connect(self._on_field_changed)
         self.vector_colormap_control.currentValueChanged.connect(self._on_field_changed)
         self.vector_scale_slider.valueChanged.connect(self._on_field_changed)
@@ -889,6 +967,7 @@ class StyleTab(QWidget):
         color_supported = spec is not None and spec.supports_color
         fill_supported = spec is not None and spec.supports_fill
         error_bars_supported = spec is not None and spec.supports_error_bars
+        value_labels_supported = spec is not None and spec.supports_value_labels
         # The Line card holds both color/opacity controls (style.color/
         # style.alpha, rendered for line/bar/hist) and line_style/line_width
         # controls (rendered only for "line" -- see SeriesTypeSpec.supports_
@@ -909,6 +988,11 @@ class StyleTab(QWidget):
         self.error_bars_card.setVisible(
             kind == "series" and isinstance(obj, DataSeries) and obj.has_error_data and error_bars_supported
         )
+        # Fit data has no show_value_labels field (FitStyle) -- a fit is
+        # always the analytic curve itself, not individually plotted points/
+        # bars, so per-point annotation doesn't apply the way it does to a
+        # data series.
+        self.value_labels_card.setVisible(kind == "series" and value_labels_supported)
         self.vector_card.setVisible(kind == "series" and spec is not None and spec.needs_secondary_columns)
         self.heatmap_gridding_card.setVisible(kind == "series" and spec is not None and spec.supports_gridding)
         # Re-evaluate "Match line" visibility: it depends on both kind and
@@ -916,6 +1000,7 @@ class StyleTab(QWidget):
         # have just changed.
         self._update_marker_controls_enabled()
         self._update_colormap_gridding_visibility()
+        self._update_value_labels_controls_visibility()
 
     def _build_axis_style_form(self, prefix: str):
         """Build one axis's appearance form (title font/color, tick-value
@@ -1591,6 +1676,60 @@ class StyleTab(QWidget):
         self.fill_color_label.setVisible(show_color)
         self.fill_color_row.setVisible(show_color)
 
+    # -- Value-labels controls ----------------------------------------------
+
+    def _on_value_labels_enabled_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Value Labels section's on/off toggle."""
+        self._update_value_labels_controls_visibility()
+        self._on_field_changed()
+
+    def _on_value_labels_match_color_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Value Labels 'Match series color' toggle."""
+        self._update_value_labels_controls_visibility()
+        self._on_field_changed()
+
+    def _on_value_labels_bg_enabled_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Value Labels 'Background' toggle."""
+        self._update_value_labels_controls_visibility()
+        self._on_field_changed()
+
+    def _update_value_labels_controls_visibility(self):
+        """Show the Value Labels sub-controls only while the master toggle
+        is on -- hidden, not just greyed, when off (same convention as
+        _update_fill_controls_visibility/_update_band_controls_visibility).
+        Mode/arrow/offset are further hidden for a target whose style class
+        doesn't declare them (Bar -- see BarSeriesStyle). The text-color
+        swatch is hidden while 'Match series color' is checked, and the
+        background color/alpha are hidden until 'Background' is checked
+        (same show_color convention as Marker/Fill/Confidence-Band)."""
+        kind, obj = self._current_target
+        enabled = self.value_labels_enabled_toggle.isChecked()
+        supports_mode = (
+            enabled and kind == "series" and isinstance(obj, DataSeries)
+            and isinstance(obj.style, (LineSeriesStyle, ScatterSeriesStyle))
+        )
+        for widget in (
+            self.value_labels_mode_label, self.value_labels_mode_control,
+            self.value_labels_arrow_label, self.value_labels_arrow_toggle,
+            self.value_labels_offset_x_label, self.value_labels_offset_x_spin,
+            self.value_labels_offset_y_label, self.value_labels_offset_y_spin,
+        ):
+            widget.setVisible(supports_mode)
+
+        self.value_labels_match_color_label.setVisible(enabled)
+        self.value_labels_match_color_toggle.setVisible(enabled)
+        show_text_color = enabled and not self.value_labels_match_color_toggle.isChecked()
+        self.value_labels_text_color_label.setVisible(show_text_color)
+        self.value_labels_text_color_row.setVisible(show_text_color)
+
+        self.value_labels_bg_enabled_label.setVisible(enabled)
+        self.value_labels_bg_enabled_toggle.setVisible(enabled)
+        show_bg = enabled and self.value_labels_bg_enabled_toggle.isChecked()
+        self.value_labels_bg_color_label.setVisible(show_bg)
+        self.value_labels_bg_color_row.setVisible(show_bg)
+        self.value_labels_bg_alpha_label.setVisible(show_bg)
+        self.value_labels_bg_alpha_slider.setVisible(show_bg)
+
     # -- Background transparent toggles ----------------------------------
 
     def _on_bg_transparent_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
@@ -1671,6 +1810,35 @@ class StyleTab(QWidget):
                 style.line_style = self.line_style_control.currentValue().value
                 style.line_width = self.line_width_slider.value()
             series.alpha = self.line_opacity_slider.value()
+
+        # Value labels (#125): only LineSeriesStyle/ScatterSeriesStyle/
+        # BarSeriesStyle declare this field (see SeriesTypeSpec.supports_
+        # value_labels) -- the Value Labels card itself is only shown for
+        # those types, but this direct write still needs its own guard, same
+        # as the error_bars write below.
+        if hasattr(style, "show_value_labels"):
+            style.show_value_labels = self.value_labels_enabled_toggle.isChecked()
+        # Mode/arrow/offset: Line/Scatter only (BarSeriesStyle has no such
+        # fields -- see _update_value_labels_controls_visibility).
+        if isinstance(style, (LineSeriesStyle, ScatterSeriesStyle)):
+            style.value_label_mode = self.value_labels_mode_control.currentValue()
+            style.value_label_show_arrow = self.value_labels_arrow_toggle.isChecked()
+            style.value_label_offset_x = self.value_labels_offset_x_spin.value()
+            style.value_label_offset_y = self.value_labels_offset_y_spin.value()
+        # Text/background color+alpha: all three value-label-capable types.
+        # "" == match series color (text) / no background box (bg) -- same
+        # "" -sentinel convention as marker_color/fill_color.
+        if hasattr(style, "value_label_text_color"):
+            style.value_label_text_color = (
+                "" if self.value_labels_match_color_toggle.isChecked()
+                else self.value_labels_text_color_row.currentColor()
+            )
+        if hasattr(style, "value_label_bg_color"):
+            style.value_label_bg_color = (
+                self.value_labels_bg_color_row.currentColor()
+                if self.value_labels_bg_enabled_toggle.isChecked() else ""
+            )
+            style.value_label_bg_alpha = self.value_labels_bg_alpha_slider.value()
 
         # "Markers enabled" isn't a separate persisted flag: it maps onto
         # MarkerType.NONE -- except for a required-marker target (Scatter,
@@ -1833,6 +2001,32 @@ class StyleTab(QWidget):
 
             self._update_marker_controls_enabled()
 
+            self.value_labels_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.value_labels_enabled_toggle.setChecked(checked=getattr(style, "show_value_labels", False))
+            self.value_labels_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+
+            self.value_labels_mode_control.setCurrentValue(getattr(style, "value_label_mode", "y"))
+            self.value_labels_arrow_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.value_labels_arrow_toggle.setChecked(checked=getattr(style, "value_label_show_arrow", False))
+            self.value_labels_arrow_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+            self.value_labels_offset_x_spin.setValue(getattr(style, "value_label_offset_x", 0.0))
+            self.value_labels_offset_y_spin.setValue(getattr(style, "value_label_offset_y", 6.0))
+
+            value_label_text_color = getattr(style, "value_label_text_color", "")
+            self.value_labels_text_color_row.setCurrentColor(value_label_text_color or color)
+            self.value_labels_match_color_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.value_labels_match_color_toggle.setChecked(checked=value_label_text_color == "")
+            self.value_labels_match_color_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+
+            value_label_bg_color = getattr(style, "value_label_bg_color", "")
+            self.value_labels_bg_color_row.setCurrentColor(value_label_bg_color or color)
+            self.value_labels_bg_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.value_labels_bg_enabled_toggle.setChecked(checked=value_label_bg_color != "")
+            self.value_labels_bg_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+            self.value_labels_bg_alpha_slider.setValue(getattr(style, "value_label_bg_alpha", 1.0))
+
+            self._update_value_labels_controls_visibility()
+
             # Error-bar fields now live on style.error_bars; not every style
             # class declares one (Hist/Vector don't), so read defensively.
             error_bars = getattr(style, "error_bars", None)
@@ -1910,37 +2104,35 @@ class StyleTab(QWidget):
         self._updating_controls = True
         try:
             self._refresh_size_unit_display()
-            self.title_font_size_spin.setValue(chart.config.get("title_font_size", 14))
-            self.subtitle_font_size_spin.setValue(chart.config.get("subtitle_font_size", 12))
-            self.title_font_family_combo.setCurrentValue(chart.config.get("title_font_family", "DejaVu Sans"))
-            self.subtitle_font_family_combo.setCurrentValue(
-                chart.config.get("subtitle_font_family", "DejaVu Sans")
-            )
-            self.chart_padding_spin.setValue(chart.config.get("chart_padding", 2.0))
-            self.chart_padding_w_spin.setValue(chart.config.get("chart_padding_w", 2.0))
-            self.chart_padding_h_spin.setValue(chart.config.get("chart_padding_h", 2.0))
-            self.title_padding_spin.setValue(chart.config.get("title_padding", 6.0))
-            self.main_title_padding_spin.setValue(chart.config.get("main_title_padding", 10.0))
-            self.top_margin_spin.setValue(chart.config.get("top_margin", 1.0))
-            self.title_bold_check.setChecked(chart.config.get("title_bold", True))
-            self.title_italic_check.setChecked(chart.config.get("title_italic", False))
-            self.subtitle_bold_check.setChecked(chart.config.get("subtitle_bold", False))
-            self.subtitle_italic_check.setChecked(chart.config.get("subtitle_italic", False))
-            self.title_color_row.setCurrentColor(chart.config.get("title_color", "#000000"))
-            match_title = chart.config.get("subtitle_match_title_color", True)
+            self.title_font_size_spin.setValue(chart.config.title_font_size)
+            self.subtitle_font_size_spin.setValue(chart.config.subtitle_font_size)
+            self.title_font_family_combo.setCurrentValue(chart.config.title_font_family)
+            self.subtitle_font_family_combo.setCurrentValue(chart.config.subtitle_font_family)
+            self.chart_padding_spin.setValue(chart.config.chart_padding)
+            self.chart_padding_w_spin.setValue(chart.config.chart_padding_w)
+            self.chart_padding_h_spin.setValue(chart.config.chart_padding_h)
+            self.title_padding_spin.setValue(chart.config.title_padding)
+            self.main_title_padding_spin.setValue(chart.config.main_title_padding)
+            self.top_margin_spin.setValue(chart.config.top_margin)
+            self.title_bold_check.setChecked(chart.config.title_bold)
+            self.title_italic_check.setChecked(chart.config.title_italic)
+            self.subtitle_bold_check.setChecked(chart.config.subtitle_bold)
+            self.subtitle_italic_check.setChecked(chart.config.subtitle_italic)
+            self.title_color_row.setCurrentColor(chart.config.title_color)
+            match_title = chart.config.subtitle_match_title_color
             self.subtitle_match_title_toggle.setChecked(checked=match_title)
             self.subtitle_color_row.setCurrentColor(
-                chart.config.get("title_color", "#000000") if match_title
-                else chart.config.get("subtitle_color", "#000000")
+                chart.config.title_color if match_title
+                else chart.config.subtitle_color
             )
             self.subtitle_color_row.setVisible(not match_title)
 
-            fig_bg = chart.style.get("figure_background_color", "#ffffff")
+            fig_bg = chart.style.figure_background_color
             self.figure_bg_transparent_toggle.setChecked(checked=fig_bg is None)
             self.figure_bg_color_row.setCurrentColor(fig_bg or "#ffffff")
             self.figure_bg_color_row.setEnabled(fig_bg is not None)
 
-            axes_bg = chart.style.get("axes_background_color", "#ffffff")
+            axes_bg = chart.style.axes_background_color
             self.axes_bg_transparent_toggle.setChecked(checked=axes_bg is None)
             self.axes_bg_color_row.setCurrentColor(axes_bg or "#ffffff")
             self.axes_bg_color_row.setEnabled(axes_bg is not None)
@@ -1948,7 +2140,7 @@ class StyleTab(QWidget):
             # QComboBox.findData() is unreliable for tuple-valued itemData
             # (Qt's QVariant comparison doesn't match Python tuple equality
             # here), so look up the matching index manually.
-            target_size = (chart.config.get("width_cm"), chart.config.get("height_cm"))
+            target_size = (chart.config.width_cm, chart.config.height_cm)
             size_index = -1
             for i in range(self.chart_size_combo.count()):
                 if self.chart_size_combo.itemData(i) == target_size:
@@ -1967,7 +2159,7 @@ class StyleTab(QWidget):
                 self.chart_size_combo.setCurrentIndex(self.chart_size_combo.count() - 1)
 
             self._custom_dpi_prefilled = False
-            dpi_value = chart.config.get("dpi")
+            dpi_value = chart.config.dpi
             dpi_index = self.chart_dpi_combo.findData(dpi_value)
             if dpi_index >= 0:
                 self.chart_dpi_combo.setCurrentIndex(dpi_index)
@@ -2022,33 +2214,33 @@ class StyleTab(QWidget):
             self._updating_controls = previous_guard
 
     def apply_chart_style_to(self, chart):
-        chart.config["title_font_size"] = self.title_font_size_spin.value()
-        chart.config["subtitle_font_size"] = self.subtitle_font_size_spin.value()
-        chart.config["title_font_family"] = self.title_font_family_combo.currentValue()
-        chart.config["subtitle_font_family"] = self.subtitle_font_family_combo.currentValue()
-        chart.config["chart_padding"] = self.chart_padding_spin.value()
-        chart.config["chart_padding_w"] = self.chart_padding_w_spin.value()
-        chart.config["chart_padding_h"] = self.chart_padding_h_spin.value()
-        chart.config["title_padding"] = self.title_padding_spin.value()
-        chart.config["main_title_padding"] = self.main_title_padding_spin.value()
-        chart.config["top_margin"] = self.top_margin_spin.value()
-        chart.config["title_bold"] = self.title_bold_check.isChecked()
-        chart.config["title_italic"] = self.title_italic_check.isChecked()
-        chart.config["subtitle_bold"] = self.subtitle_bold_check.isChecked()
-        chart.config["subtitle_italic"] = self.subtitle_italic_check.isChecked()
-        chart.config["title_color"] = self.title_color_row.currentColor()
-        chart.config["subtitle_match_title_color"] = self.subtitle_match_title_toggle.isChecked()
-        chart.config["subtitle_color"] = self.subtitle_color_row.currentColor()
-        chart.style["figure_background_color"] = (
+        chart.config.title_font_size = self.title_font_size_spin.value()
+        chart.config.subtitle_font_size = self.subtitle_font_size_spin.value()
+        chart.config.title_font_family = self.title_font_family_combo.currentValue()
+        chart.config.subtitle_font_family = self.subtitle_font_family_combo.currentValue()
+        chart.config.chart_padding = self.chart_padding_spin.value()
+        chart.config.chart_padding_w = self.chart_padding_w_spin.value()
+        chart.config.chart_padding_h = self.chart_padding_h_spin.value()
+        chart.config.title_padding = self.title_padding_spin.value()
+        chart.config.main_title_padding = self.main_title_padding_spin.value()
+        chart.config.top_margin = self.top_margin_spin.value()
+        chart.config.title_bold = self.title_bold_check.isChecked()
+        chart.config.title_italic = self.title_italic_check.isChecked()
+        chart.config.subtitle_bold = self.subtitle_bold_check.isChecked()
+        chart.config.subtitle_italic = self.subtitle_italic_check.isChecked()
+        chart.config.title_color = self.title_color_row.currentColor()
+        chart.config.subtitle_match_title_color = self.subtitle_match_title_toggle.isChecked()
+        chart.config.subtitle_color = self.subtitle_color_row.currentColor()
+        chart.style.figure_background_color = (
             None if self.figure_bg_transparent_toggle.isChecked()
             else self.figure_bg_color_row.currentColor()
         )
-        chart.style["axes_background_color"] = (
+        chart.style.axes_background_color = (
             None if self.axes_bg_transparent_toggle.isChecked()
             else self.axes_bg_color_row.currentColor()
         )
-        chart.config["width_cm"], chart.config["height_cm"] = self._size_from_controls()
-        chart.config["dpi"] = self._dpi_from_controls()
+        chart.config.width_cm, chart.config.height_cm = self._size_from_controls()
+        chart.config.dpi = self._dpi_from_controls()
 
         for prefix in ("x", "y", "y2"):
             axis_form = self.axes_style_forms[prefix]
@@ -2204,9 +2396,9 @@ class StyleTab(QWidget):
         from pandaplot.gui.components.tabs.chart.chart_editor import resolve_chart_size
 
         return resolve_chart_size(
-            self._chart.config.get("width_cm"),
-            self._chart.config.get("height_cm"),
-            self._chart.config.get("dpi"),
+            self._chart.config.width_cm,
+            self._chart.config.height_cm,
+            self._chart.config.dpi,
             default_width, default_height, default_dpi,
         )
 
@@ -2259,33 +2451,33 @@ class StyleTab(QWidget):
         if self._chart is None or self._updating_controls:
             return
         config = self._chart.config
-        config["title_font_size"] = self.title_font_size_spin.value()
-        config["subtitle_font_size"] = self.subtitle_font_size_spin.value()
-        config["title_font_family"] = self.title_font_family_combo.currentValue()
-        config["subtitle_font_family"] = self.subtitle_font_family_combo.currentValue()
-        config["chart_padding"] = self.chart_padding_spin.value()
-        config["chart_padding_w"] = self.chart_padding_w_spin.value()
-        config["chart_padding_h"] = self.chart_padding_h_spin.value()
-        config["title_padding"] = self.title_padding_spin.value()
-        config["main_title_padding"] = self.main_title_padding_spin.value()
-        config["top_margin"] = self.top_margin_spin.value()
-        config["title_bold"] = self.title_bold_check.isChecked()
-        config["title_italic"] = self.title_italic_check.isChecked()
-        config["subtitle_bold"] = self.subtitle_bold_check.isChecked()
-        config["subtitle_italic"] = self.subtitle_italic_check.isChecked()
-        config["title_color"] = self.title_color_row.currentColor()
-        config["subtitle_match_title_color"] = self.subtitle_match_title_toggle.isChecked()
-        config["subtitle_color"] = self.subtitle_color_row.currentColor()
-        self._chart.style["figure_background_color"] = (
+        config.title_font_size = self.title_font_size_spin.value()
+        config.subtitle_font_size = self.subtitle_font_size_spin.value()
+        config.title_font_family = self.title_font_family_combo.currentValue()
+        config.subtitle_font_family = self.subtitle_font_family_combo.currentValue()
+        config.chart_padding = self.chart_padding_spin.value()
+        config.chart_padding_w = self.chart_padding_w_spin.value()
+        config.chart_padding_h = self.chart_padding_h_spin.value()
+        config.title_padding = self.title_padding_spin.value()
+        config.main_title_padding = self.main_title_padding_spin.value()
+        config.top_margin = self.top_margin_spin.value()
+        config.title_bold = self.title_bold_check.isChecked()
+        config.title_italic = self.title_italic_check.isChecked()
+        config.subtitle_bold = self.subtitle_bold_check.isChecked()
+        config.subtitle_italic = self.subtitle_italic_check.isChecked()
+        config.title_color = self.title_color_row.currentColor()
+        config.subtitle_match_title_color = self.subtitle_match_title_toggle.isChecked()
+        config.subtitle_color = self.subtitle_color_row.currentColor()
+        self._chart.style.figure_background_color = (
             None if self.figure_bg_transparent_toggle.isChecked()
             else self.figure_bg_color_row.currentColor()
         )
-        self._chart.style["axes_background_color"] = (
+        self._chart.style.axes_background_color = (
             None if self.axes_bg_transparent_toggle.isChecked()
             else self.axes_bg_color_row.currentColor()
         )
-        config["width_cm"], config["height_cm"] = self._size_from_controls()
-        config["dpi"] = self._dpi_from_controls()
+        config.width_cm, config.height_cm = self._size_from_controls()
+        config.dpi = self._dpi_from_controls()
 
         for prefix in ("x", "y", "y2"):
             axis_form = self.axes_style_forms[prefix]

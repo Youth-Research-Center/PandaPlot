@@ -140,9 +140,9 @@ class ChartTab(QWidget):
         if self._chart is None or self._updating_controls:
             return
         config = self._chart.config
-        config["title"] = self.title_edit.text()
-        config["subtitle"] = self.subtitle_edit.text()
-        config["hist_bins"] = self.hist_bins_spin.value()
+        config.title = self.title_edit.text()
+        config.subtitle = self.subtitle_edit.text()
+        config.hist_bins = self.hist_bins_spin.value()
         chart_type = self.chart_type_control.currentValue()
         if chart_type:
             self._chart.set_chart_type(chart_type)
@@ -157,8 +157,15 @@ class ChartTab(QWidget):
             # renders on the chart) -- it must NOT rename the chart item in
             # the project tree, which is a separate concept controlled by
             # its own rename action.
-            self.title_edit.setText(chart.config.get("title", chart.name))
-            self.subtitle_edit.setText(chart.config.get("subtitle", ""))
+            # Chart.__init__ seeds config.title with the chart's name, and
+            # from_dict's ChartConfig.update() only overwrites it when the
+            # saved dict actually had a "title" key -- so config.title is
+            # already correctly "the chart's name" for a title never set,
+            # and correctly "" for one explicitly cleared, with no further
+            # fallback needed here (unlike the old dict .get("title", ...)
+            # default, this doesn't need to distinguish those cases itself).
+            self.title_edit.setText(chart.config.title)
+            self.subtitle_edit.setText(chart.config.subtitle)
 
             # chart.chart_type is already a ChartType instance -- Chart's
             # constructor coerces via ChartType(...) and raises ValueError
@@ -169,14 +176,14 @@ class ChartTab(QWidget):
             self._update_chart_type_compatibility()
             self._update_hist_bins_visibility()
 
-            self.hist_bins_spin.setValue(chart.config.get("hist_bins", 20))
+            self.hist_bins_spin.setValue(chart.config.hist_bins)
         finally:
             self._updating_controls = previous_guard
 
     def apply_to(self, chart):
-        chart.config["title"] = self.title_edit.text()
-        chart.config["subtitle"] = self.subtitle_edit.text()
-        chart.config["hist_bins"] = self.hist_bins_spin.value()
+        chart.config.title = self.title_edit.text()
+        chart.config.subtitle = self.subtitle_edit.text()
+        chart.config.hist_bins = self.hist_bins_spin.value()
 
         chart_type = self.chart_type_control.currentValue()
         if chart_type:

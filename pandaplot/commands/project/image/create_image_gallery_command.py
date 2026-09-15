@@ -2,6 +2,7 @@ import uuid
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.require_project import ensure_project_or_offer_create
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
@@ -34,7 +35,7 @@ class CreateImageGalleryCommand(Command):
         """Execute the create image gallery command."""
         try:
             self.logger.info("Executing CreateImageGalleryCommand")
-            if not self.app_state.has_project or not self.app_state.current_project:
+            if get_current_project(self.app_context) is None:
                 self.logger.warning("CreateImageGalleryCommand.execute: no project is currently loaded")
                 if not ensure_project_or_offer_create(
                     self.app_context, "Create Image Gallery",
@@ -42,7 +43,7 @@ class CreateImageGalleryCommand(Command):
                 ):
                     return CommandResult.FAILURE
 
-            self.project = self.app_state.current_project
+            self.project = get_current_project(self.app_context)
             if not self.project:
                 self.logger.warning(
                     "CreateImageGalleryCommand.execute: has_project is True but current_project is None"
@@ -99,7 +100,7 @@ class CreateImageGalleryCommand(Command):
         """Undo the create image gallery command."""
         try:
             if self.created_gallery_id and self.app_state.has_project:
-                project = self.app_state.current_project
+                project = get_current_project(self.app_context)
                 if not project:
                     self.logger.warning(
                         "CreateImageGalleryCommand.undo: has_project is True but current_project is None (gallery id=%s)",
@@ -143,7 +144,7 @@ class CreateImageGalleryCommand(Command):
         """Redo the create image gallery command."""
         try:
             if self.created_gallery_id and self.created_gallery is not None and self.app_state.has_project:
-                project = self.app_state.current_project
+                project = get_current_project(self.app_context)
                 if not project:
                     self.logger.warning(
                         "CreateImageGalleryCommand.redo: has_project is True but current_project is None"

@@ -23,7 +23,8 @@ pandaplot/
 ├── analysis/           # Analysis algorithms (scipy-based): fitting,
 │                       # descriptive stats, preprocessing, signal processing
 ├── services/           # Config, theme, task scheduling, curve fitting,
-│                       # data import, data managers, note rendering/search, session
+│                       # data import, data managers, note rendering/search,
+│                       # autosave, transform, session management
 ├── storage/            # ZIP-based project persistence
 ├── utils/              # Shared helpers (logging, pandas utilities, examples)
 └── gui/                # PySide6 UI components and controllers
@@ -45,7 +46,8 @@ pandaplot_storybook/    # Standalone sub-project: PySide6 component storybook
 ├─────────────────────────────────────────────────────────┤
 │                     Service Layer                        │
 │ ConfigManager │ ThemeManager │ TaskScheduler │ FitSvc    │
-│ DataImport │ DataManagers │ NoteRender │ NoteSearch │... │
+│ DataImport │ DataManagers │ NoteRender │ NoteSearch │    │
+│ AutosaveService │ SessionManager │ TransformEngine │...  │
 ├───────────────────────────┬─────────────────────────────┤
 │        Models             │       Storage               │
 │  Project │ Items │ Events │  ProjectDataManager + ZIPs  │
@@ -59,11 +61,11 @@ pandaplot_storybook/    # Standalone sub-project: PySide6 component storybook
 
 ## Core Communication Patterns
 
-**GUI → Backend:** User actions create and execute Command objects via `CommandExecutor`.
+**GUI → Backend:** User actions create and execute Command objects via `CommandExecutor`. Long-running computations are dispatched asynchronously to background threads via `TaskScheduler`.
 
 **Backend → GUI:** State changes emit events on the `EventBus`. GUI components subscribe and react.
 
-**Dependency injection:** All services are accessed through the central `AppContext` container passed to every component.
+**Dependency Injection:** All services are registered in and accessed through the central `AppContext` container passed to commands, views, and controllers.
 
 ## Key Design Patterns
 

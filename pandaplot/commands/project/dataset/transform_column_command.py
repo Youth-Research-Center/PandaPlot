@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, override
 import pandas as pd
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -193,10 +194,9 @@ class TransformColumnCommand(Command):
     def _get_dataset(self):
         """Get dataset from app context."""
         try:
-            if self.app_context and hasattr(self.app_context, "app_state"):
-                current_project = self.app_context.app_state.current_project
-                if current_project:
-                    return current_project.find_item(self.dataset_id)
+            project = get_current_project(self.app_context)
+            if project is not None:
+                return project.find_item(self.dataset_id)
             return None
         except Exception as e:
             self.logger.error(f"Error getting dataset: {e}")

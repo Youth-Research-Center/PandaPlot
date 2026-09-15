@@ -2,6 +2,7 @@ import uuid
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Folder
@@ -40,7 +41,7 @@ class CreateFolderCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            self.project = self.app_state.current_project
+            self.project = get_current_project(self.app_context)
             if not self.project:
                 self.logger.warning(
                     "CreateFolderCommand.execute: has_project is True but current_project is None"
@@ -105,7 +106,7 @@ class CreateFolderCommand(Command):
         """Undo the create folder command."""
         try:
             if self.created_folder_id and self.app_state.has_project:
-                project = self.app_state.current_project
+                project = get_current_project(self.app_context)
                 if not project:
                     self.logger.warning(
                         "CreateFolderCommand.undo: has_project is True but current_project is None (folder id=%s)",
@@ -150,7 +151,7 @@ class CreateFolderCommand(Command):
         """Redo the create folder command."""
         try:
             if self.created_folder_id and self.created_folder is not None and self.app_state.has_project:
-                project = self.app_state.current_project
+                project = get_current_project(self.app_context)
                 if not project:
                     self.logger.warning(
                         "CreateFolderCommand.redo: has_project is True but current_project is None (folder id=%s)",

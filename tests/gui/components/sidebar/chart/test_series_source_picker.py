@@ -6,12 +6,15 @@ import pytest
 from PySide6.QtWidgets import QApplication, QComboBox
 
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
+    populate_chart_target_combo,
     populate_series_fit_sources,
     series_source_hint,
 )
+from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.project import Project
 
 
@@ -87,3 +90,58 @@ class TestSeriesSourceHint:
 
     def test_has_sources_with_exclusion(self):
         assert "aren't shown" in series_source_hint(has_sources=True, any_series_excluded=True)
+
+
+@pytest.fixture
+def project_with_charts():
+    project = Project(name="P")
+    line_chart = Chart(id="line-1", name="Line Chart", chart_type=ChartType.LINE)
+    project.add_item(line_chart)
+    hist_chart = Chart(id="hist-1", name="Hist Chart", chart_type=ChartType.HIST)
+    project.add_item(hist_chart)
+    return project
+
+
+class TestPopulateChartTargetCombo:
+    def test_new_chart_is_always_first_and_selected_by_default(self, project_with_charts):
+        combo = QComboBox()
+        populate_chart_target_combo(combo, project_with_charts)
+        assert combo.itemText(0) == "➕ New chart"
+        assert combo.itemData(0) is None
+        assert combo.currentIndex() == 0
+
+    def test_compatible_charts_are_listed(self, project_with_charts):
+        combo = QComboBox()
+        populate_chart_target_combo(combo, project_with_charts)
+        assert combo.itemText(1) == "Line Chart"
+        assert combo.itemData(1) == "line-1"
+
+    def test_incompatible_charts_are_excluded(self, project_with_charts):
+        combo = QComboBox()
+        populate_chart_target_combo(combo, project_with_charts)
+        labels = [combo.itemText(i) for i in range(combo.count())]
+        assert "Hist Chart" not in labels
+
+    def test_no_project_yields_only_new_chart(self):
+        combo = QComboBox()
+        populate_chart_target_combo(combo, None)
+        assert combo.count() == 1
+        assert combo.itemData(0) is None
+
+    def test_same_named_charts_get_disambiguated_labels(self):
+        project = Project(name="P")
+        folder_a = Folder(id="fa", name="A")
+        project.add_item(folder_a)
+        folder_b = Folder(id="fb", name="B")
+        project.add_item(folder_b)
+        project.add_item(Chart(id="c1", name="Signal", chart_type=ChartType.LINE), parent_id="fa")
+        project.add_item(Chart(id="c2", name="Signal", chart_type=ChartType.LINE), parent_id="fb")
+
+        combo = QComboBox()
+        populate_chart_target_combo(combo, project)
+
+        labels = [combo.itemText(i) for i in range(combo.count())]
+        assert labels[0] == "➕ New chart"
+        assert "A" in labels[1] and "Signal" in labels[1]
+        assert "B" in labels[2] and "Signal" in labels[2]
+        assert labels[1] != labels[2]

@@ -338,7 +338,20 @@ def test_style_field_names_match_the_real_style_dataclasses():
     0) project file can contain them, and this migration only runs for
     schema_version 0 data. A separate assertion locks the two dicts free
     of entries for them, so no one adds placeholder entries that legacy
-    data will never exercise."""
+    data will never exercise.
+
+    Direct fields are checked for exact equality against the real dataclass
+    minus an explicit _POST_MIGRATION_FIELDS exclusion set, not a bare
+    subset: a style dataclass field added after this migration's field
+    lists were written (e.g. LineSeriesStyle/ScatterSeriesStyle/
+    BarSeriesStyle's show_value_labels and the value_label_* fields, #125)
+    can't appear in any genuinely legacy schema_version-0 file either, so it
+    correctly falls through to the dataclass's own default via
+    style_cls(**style_dict) instead of needing to be hand-added to a list
+    meant to describe the old flat format -- but it must be named in
+    _POST_MIGRATION_FIELDS explicitly, so accidentally dropping a genuinely
+    legacy field from _DIRECT_STYLE_FIELDS_BY_CHART_TYPE (which a bare
+    subset check can't catch) still fails this test."""
     import dataclasses
 
     from pandaplot.models.chart.error_bar_config import ErrorBarConfig
@@ -372,10 +385,20 @@ def test_style_field_names_match_the_real_style_dataclasses():
     marker_field_names = {f.name for f in dataclasses.fields(MarkerStyle)}
     error_bar_field_names = {f.name for f in dataclasses.fields(ErrorBarConfig)}
 
+    # Fields added to a style dataclass after this migration's field lists
+    # were written (#125) -- no legacy schema_version-0 file can contain
+    # them, so they're excluded from the equality check below rather than
+    # weakening it to a subset check for every field.
+    _POST_MIGRATION_FIELDS = {
+        "show_value_labels", "value_label_mode", "value_label_show_arrow",
+        "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
+        "value_label_bg_color", "value_label_bg_alpha",
+    }
+
     for series_type in _PRE_MIGRATION_SERIES_TYPES:
         spec = SERIES_TYPE_SPECS[series_type]
         top_level_field_names = {f.name for f in dataclasses.fields(spec.style_cls)}
-        expected_direct = top_level_field_names - {"marker", "error_bars"}
+        expected_direct = top_level_field_names - {"marker", "error_bars"} - _POST_MIGRATION_FIELDS
         actual_direct = set(_DIRECT_STYLE_FIELDS_BY_CHART_TYPE[series_type.value])
         assert actual_direct == expected_direct, f"{series_type.value}: {actual_direct} != {expected_direct}"
 

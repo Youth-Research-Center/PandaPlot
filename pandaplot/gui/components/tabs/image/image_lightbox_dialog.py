@@ -33,11 +33,13 @@ class ImageLightboxDialog(QDialog):
 
     def __init__(self, images: List[Image], start_index: int,
                  load_pixmap: Callable[[Image], Optional[QPixmap]],
-                 parent: Optional[QWidget] = None):
+                 parent: Optional[QWidget] = None, *,
+                 on_edit: Optional[Callable[[Image], None]] = None):
         super().__init__(parent)
         self._images = images
         self._index = start_index
         self._load_pixmap = load_pixmap
+        self._on_edit = on_edit
 
         self.resize(_INITIAL_WIDTH, _INITIAL_HEIGHT)
         self._user_has_resized = False
@@ -50,9 +52,15 @@ class ImageLightboxDialog(QDialog):
 
         self.previous_button = PButton("◀ Previous", on_click=self._go_previous)
         self.next_button = PButton("Next ▶", on_click=self._go_next)
+        self.edit_button = PButton("Edit Image...", on_click=self._trigger_edit)
+
         nav_row = QHBoxLayout()
         nav_row.addWidget(self.previous_button)
         nav_row.addStretch()
+        if self._on_edit is not None:
+            nav_row.addWidget(self.edit_button)
+            nav_row.addStretch()
+        self.edit_button.setVisible(self._on_edit is not None)
         nav_row.addWidget(self.next_button)
 
         layout = QVBoxLayout(self)
@@ -108,6 +116,11 @@ class ImageLightboxDialog(QDialog):
 
         self.previous_button.setEnabled(self._index > 0)
         self.next_button.setEnabled(self._index < len(self._images) - 1)
+
+    def _trigger_edit(self) -> None:
+        if self._on_edit is not None:
+            self._on_edit(self._current_image())
+            self._render_current()
 
     def _go_previous(self) -> None:
         if self._index <= 0:

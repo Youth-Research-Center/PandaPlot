@@ -28,6 +28,7 @@ def test_design_tokens_has_all_required_keys(tmp_path):
         "status_modified_dot", "status_modified_text", "status_success",
         "y2_accent", "y2_accent_bg", "series_palette",
         "radius_swatch", "radius_control", "radius_card", "radius_chip",
+        "font_size_group_title",
     ]
     for key in required:
         assert key in tokens, f"missing token: {key}"

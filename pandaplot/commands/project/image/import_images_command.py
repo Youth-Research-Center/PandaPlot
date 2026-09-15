@@ -14,6 +14,7 @@ from PySide6.QtCore import QBuffer, QByteArray, QIODevice
 from PySide6.QtGui import QImageReader
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Image, ImageGallery
@@ -57,7 +58,7 @@ class ImportImagesCommand(Command):
                 self.ui_controller.show_warning_message("Import Images", "Please open or create a project first.")
                 return CommandResult.FAILURE
 
-            self.project = self.app_state.current_project
+            self.project = get_current_project(self.app_context)
             if not self.project:
                 self.logger.warning(
                     "ImportImagesCommand.execute: has_project is True but current_project is None"
@@ -223,7 +224,7 @@ class ImportImagesCommand(Command):
         """Undo the import images command by removing all created images."""
         try:
             if self.created_image_ids and self.app_state.has_project:
-                project = self.app_state.current_project
+                project = get_current_project(self.app_context)
                 if not project:
                     self.logger.warning(
                         "ImportImagesCommand.undo: has_project is True but current_project is None"

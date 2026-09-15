@@ -86,6 +86,30 @@ class TestEventBus:
         assert len(received_events) == 1
         assert received_events[0]["test"] == "data1"
 
+    def test_unsubscribe_unknown_direct_pattern_leaves_no_entry(self):
+        """Unsubscribing a callback that was never subscribed to a direct pattern
+        should not create a dead entry in the internal subscriber dict."""
+        bus = EventBus()
+
+        def handler(event_data):
+            pass
+
+        bus.unsubscribe("test.event", handler)
+
+        assert "test.event" not in bus._subscribers
+
+    def test_unsubscribe_unknown_glob_pattern_leaves_no_entry(self):
+        """Unsubscribing a callback that was never subscribed to a glob pattern
+        should not create a dead entry in the internal pattern subscriber dict."""
+        bus = EventBus()
+
+        def handler(event_data):
+            pass
+
+        bus.unsubscribe("dataset.*", handler)
+
+        assert r"dataset\..*" not in bus._pattern_subscribers
+
 
 class TestEventHierarchy:
     

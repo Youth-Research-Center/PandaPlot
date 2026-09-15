@@ -1,8 +1,10 @@
-from typing import Any, Callable, Tuple, override
+from typing import Any, Callable, Optional, Tuple, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.qtasks import TaskScheduler
@@ -23,9 +25,27 @@ class SaveProjectCommand(Command):
         self.task_scheduler: TaskScheduler = app_context.get_task_scheduler()
         self.save_as_path = None
         self.previous_file_path = None
+        # AppState.modification_revision as of the moment the background
+        # save task was kicked off -- see _on_save_result.
+        self._save_started_revision: int = 0
+        # The Project (and its resolved save path) captured at dispatch
+        # time, in execute() -- passed into _save_project_task via
+        # task_arguments rather than having the background thread re-read
+        # AppState.current_project itself, and compared by identity in
+        # _on_save_result() so a completion is discarded rather than
+        # applied to whatever project happens to be current if the active
+        # project changed (opened/created/closed) while this save was
+        # writing to disk in the background.
+        self._dispatch_project: Optional[Project] = None
 
         # Task state
         self.is_saving = False
+
+    @override
+    def marks_project_modified(self) -> bool:
+        """A save clears AppState's modified flag (via mark_saved in
+        _on_save_result) rather than setting it."""
+        return False
 
     @override
     def occupies_undo_slot(self) -> bool:
@@ -40,21 +60,22 @@ class SaveProjectCommand(Command):
         try:
             self.logger.info("Executing SaveProjectCommand")
 
-            # Prevent concurrent saves
-            if self.is_saving:
+            # Prevent concurrent saves -- both this specific instance
+            # re-executing (self.is_saving) and any other writer of the same
+            # project file (another SaveProjectCommand instance, e.g.
+            # auto-save, or a caller doing its own synchronous save; see
+            # AppState.is_saving) racing this one. ProjectDataManager.save()
+            # opens the target file in write mode, so two overlapping
+            # writers can corrupt it.
+            if self.is_saving or self.app_state.is_saving:
                 self.logger.warning("SaveProjectCommand.execute: a save operation is already in progress")
                 self.ui_controller.show_warning_message("Save Project", "A save operation is already in progress. Please wait for it to complete.")
                 return CommandResult.FAILURE
 
             # Check if we have a project to save
-            if not self.app_state.has_project:
+            project = get_current_project(self.app_context)
+            if project is None:
                 self.logger.warning("SaveProjectCommand.execute: no project is currently loaded to save")
-                self.ui_controller.show_warning_message("Save Project", "No project is currently loaded to save.")
-                return CommandResult.FAILURE
-
-            project = self.app_state.current_project
-            if not project:  # Additional safety check
-                self.logger.warning("SaveProjectCommand.execute: has_project is True but current_project is None")
                 self.ui_controller.show_warning_message("Save Project", "No project is currently loaded to save.")
                 return CommandResult.FAILURE
 
@@ -89,13 +110,22 @@ class SaveProjectCommand(Command):
             # Emit saving event on main thread before starting background task
             self.app_context.event_bus.emit(ProjectEvents.PROJECT_SAVING, {"project": project, "file_path": save_path})
 
-            # Start background save operation
+            # Start background save operation. Capture the project and its
+            # resolved save path now (main thread) rather than having the
+            # background task re-read AppState.current_project/
+            # project_file_path itself -- those are mutable on the main
+            # thread while this task runs, and _on_save_result compares
+            # this same captured project by identity to detect (and
+            # discard) a completion for a project that's no longer current.
+            self._dispatch_project = project
             self.is_saving = True
+            self.app_state.begin_save()
+            self._save_started_revision = self.app_state.modification_revision
 
             # Run save in background thread
             self.task_scheduler.run_task(
                 task=self._save_project_task,
-                task_arguments={},
+                task_arguments={"project": project, "save_path": save_path},
                 on_result=self._on_save_result,
                 on_error=self._on_save_error,
                 on_finished=self._on_save_finished,
@@ -109,15 +139,28 @@ class SaveProjectCommand(Command):
             self.logger.error("SaveProjectCommand Error: %s", error_msg, exc_info=True)
             self.ui_controller.show_error_message("Save Project Error", error_msg)
             self.is_saving = False  # Reset flag on error
+            # Safe even if begin_save() was never reached (a no-op flip):
+            # covers the case where run_task() itself raised after
+            # begin_save(), which would otherwise leave AppState.is_saving
+            # stuck True forever since _on_save_finished would never run.
+            self.app_state.end_save()
             return CommandResult.FAILURE
 
-    def _save_project_task(self, progress_callback: Callable[[float], None], **kwargs) -> dict:
+    def _save_project_task(
+        self, progress_callback: Callable[[float], None], project: Project, save_path: str, **kwargs
+    ) -> dict:
         """
         Save task function to be run in a background thread.
         Returns a dictionary with success status and any error message.
 
         Args:
             progress_callback: Optional callback for progress updates
+            project: The Project to save, captured on the main thread by
+                execute() -- never re-read from AppState here, since
+                AppState.current_project is mutable on the main thread
+                while this runs on a background one.
+            save_path: The resolved path to save to, likewise captured by
+                execute().
 
         Returns:
             dict: {'success': bool, 'error': str or None, 'path': str or None, 'project': Project or None}
@@ -126,30 +169,6 @@ class SaveProjectCommand(Command):
         try:
             if progress_callback:
                 progress_callback(0.1)  # Starting save
-
-            if not self.app_state.has_project:
-                return {"success": False, "error": "No project is currently loaded to save.", "path": None, "project": None}
-
-            project = self.app_state.current_project
-            if not project:
-                return {"success": False, "error": "No project is currently loaded to save.", "path": None, "project": None}
-
-            if progress_callback:
-                progress_callback(0.2)  # Project validation complete
-
-            # Determine the save path
-            save_path = None
-            if self.save_as_path:
-                save_path = self.save_as_path
-            elif self.app_state.project_file_path:
-                save_path = self.app_state.project_file_path
-            else:
-                return {
-                    "success": False,
-                    "error": "No save path available. This should have been handled in execute().",
-                    "path": None,
-                    "project": None,
-                }
 
             if progress_callback:
                 progress_callback(0.3)  # Save path determined
@@ -185,6 +204,21 @@ class SaveProjectCommand(Command):
         try:
             self.is_saving = False
 
+            if self.app_state.current_project is not self._dispatch_project:
+                # The active project changed (opened/created/closed) while
+                # this save was writing self._dispatch_project to disk in
+                # the background -- applying this result now (Save-As
+                # path-tracking, mark_saved()) would act on whatever
+                # project happens to be current, not the one that was
+                # actually saved. That write to disk already happened (or
+                # failed) for the old project regardless; just don't act on
+                # it here.
+                self.logger.warning(
+                    "Discarding save result for '%s': the active project changed while saving",
+                    self._dispatch_project.name if self._dispatch_project else "<unknown>",
+                )
+                return
+
             if result.get("success", False):
                 project = result.get("project")
                 save_path = result.get("path")
@@ -193,6 +227,21 @@ class SaveProjectCommand(Command):
                     # Update app state with new file path (if it changed)
                     if save_path != self.previous_file_path:
                         self.app_state.load_project(project)
+                        # load_project unconditionally clears is_modified (a
+                        # freshly (re)loaded project has nothing unsaved
+                        # yet) -- but if a command modified the project in
+                        # the gap between the background save finishing and
+                        # this callback running, that edit wasn't part of
+                        # the file just written, so restore the dirty flag
+                        # rather than letting load_project's reset silently
+                        # swallow it.
+                        if self.app_state.modification_revision != self._save_started_revision:
+                            self.app_state.mark_modified()
+                    else:
+                        # A successful save has nothing left unsaved -- but
+                        # only if nothing modified the project since this
+                        # save started (see mark_saved's at_revision).
+                        self.app_state.mark_saved(at_revision=self._save_started_revision)
 
                     # Emit save event
                     self.app_state.event_bus.emit(
@@ -238,9 +287,12 @@ class SaveProjectCommand(Command):
             self.logger.error(f"Error handling save error: {e}", exc_info=True)
 
     def _on_save_finished(self):
-        """Handle completion of save task (success or failure)."""
+        """Handle completion of save task (success or failure). Always
+        called, regardless of whether _on_save_result discarded a stale
+        result -- see begin_save()/end_save()."""
         try:
             self.is_saving = False
+            self.app_state.end_save()
             self.logger.info("Save task finished")
 
         except Exception as e:
@@ -294,14 +346,9 @@ class SaveProjectAsCommand(SaveProjectCommand):
         """Execute the save as command."""
         try:
             # Check if we have a project to save
-            if not self.app_state.has_project:
+            project = get_current_project(self.app_context)
+            if project is None:
                 self.logger.warning("SaveProjectAsCommand.execute: no project is currently loaded to save")
-                self.ui_controller.show_warning_message("Save Project As", "No project is currently loaded to save.")
-                return CommandResult.FAILURE
-
-            project = self.app_state.current_project
-            if not project:  # Additional safety check
-                self.logger.warning("SaveProjectAsCommand.execute: has_project is True but current_project is None")
                 self.ui_controller.show_warning_message("Save Project As", "No project is currently loaded to save.")
                 return CommandResult.FAILURE
 

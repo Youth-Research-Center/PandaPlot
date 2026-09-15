@@ -13,6 +13,7 @@ from typing import Optional, override
 
 from pandaplot.analysis import SignalAnalysisResult
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state import AppContext, AppState
@@ -41,11 +42,10 @@ class ApplySignalAnalysisResultCommand(Command):
     @override
     def execute(self) -> CommandResult:
         try:
-            if not self.app_state.has_project or not self.app_state.current_project:
+            project = get_current_project(self.app_context)
+            if project is None:
                 self.logger.warning("ApplySignalAnalysisResultCommand.execute: no project loaded")
                 return CommandResult.FAILURE
-
-            project = self.app_state.current_project
 
             # Built once (first execute()) and cached; a later redo() re-adds
             # this same object instead of minting a fresh id, so anything
@@ -87,14 +87,14 @@ class ApplySignalAnalysisResultCommand(Command):
     @override
     def undo(self) -> CommandResult:
         try:
-            if not self.result_dataset_id or not self.app_state.current_project:
+            project = get_current_project(self.app_context)
+            if not self.result_dataset_id or project is None:
                 self.logger.warning(
                     "ApplySignalAnalysisResultCommand.undo: cannot undo (result_dataset_id=%s, project loaded=%s)",
-                    self.result_dataset_id, bool(self.app_state.current_project),
+                    self.result_dataset_id, project is not None,
                 )
                 return CommandResult.FAILURE
 
-            project = self.app_state.current_project
             dataset = project.find_item(self.result_dataset_id)
             if dataset:
                 project.remove_item(dataset)

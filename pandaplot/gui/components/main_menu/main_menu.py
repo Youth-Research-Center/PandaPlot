@@ -396,14 +396,9 @@ class MainMenu(PMenuBar):
         if not dialog.exec() or not dialog.selected_path:
             return
 
-        if self.app_context.get_app_state().has_project:
-            should_continue = self.app_context.get_ui_controller().show_question(
-                "Open Example Project",
-                "Opening the example project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
-            )
-            if not should_continue:
-                return
-
+        # LoadProjectCommand itself guards against replacing a modified
+        # project (and against reloading the one already open) -- no need
+        # to duplicate that check here.
         self.app_context.get_command_executor().execute_command(
             LoadProjectCommand(self.app_context, dialog.selected_path)
         )

@@ -18,7 +18,6 @@ from pandaplot.commands.project.dataset.signal_analysis_command import SignalAna
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
-
 from tests.commands.project.conftest import SyncTaskScheduler
 
 
@@ -215,6 +214,19 @@ class TestSignalAnalysisCommandPreviewPath:
         command.run_analysis_async(lambda result, error: None)
 
         assert len(project.get_all_items()) == before
+
+
+def test_marks_project_modified_is_false(app_context_with_project):
+    """Regression: execute() only dispatches the computation and returns
+    SUCCESS before anything has actually mutated the project -- the
+    dispatched computation may yet fail or be discarded (see
+    _on_commit_computed). Flagging the project as modified here, before
+    ApplySignalAnalysisResultCommand (the real mutation) ever runs, would
+    leave a false "unsaved changes" state if the computation never
+    actually applies."""
+    app_context, _ = app_context_with_project
+    command = SignalAnalysisCommand(app_context, "ds-1", SignalAnalysisType.FFT, "signal", sampling_rate=1000)
+    assert command.marks_project_modified() is False
 
 
 class TestSignalAnalysisCommandRealTaskScheduler:

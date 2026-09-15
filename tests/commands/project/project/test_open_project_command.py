@@ -1,10 +1,23 @@
-"""Tests for OpenProjectCommand logging behavior."""
+"""Tests for OpenProjectCommand logging and lifecycle behavior.
+
+The already-open/unsaved-changes guards this command used to implement
+inline now live in LoadProjectCommand itself (PR #235 review: those other
+callers -- recent/example projects, the Examples dialog -- called
+LoadProjectCommand directly and had no such protection). See
+test_load_project_command.py's TestLoadProjectCommandGuards for that
+behavior; this file just covers OpenProjectCommand's own responsibilities
+(file dialog, validation, delegating to and propagating LoadProjectCommand's
+result)."""
 
 import logging
 from unittest.mock import Mock, patch
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.project.open_project_command import OpenProjectCommand
+
+
+def _make_app_context():
+    return Mock()
 
 
 def test_invalid_project_file_logs_a_warning(caplog):
@@ -33,14 +46,20 @@ def test_execute_returns_noop_when_user_cancels_the_open_dialog():
 
 
 def test_execute_returns_noop_when_user_cancels_replacing_current_project():
+    """The already-open/unsaved-changes prompt now lives inside
+    LoadProjectCommand itself (see test_load_project_command.py's
+    TestLoadProjectCommandGuards); here it's simulated via the mocked
+    LoadProjectCommand's return value."""
     app_context = Mock()
     app_context.ui_controller.show_open_project_dialog.return_value = "path.pplot"
-    app_context.app_state.has_project = True
-    app_context.ui_controller.show_question.return_value = False
 
     command = OpenProjectCommand(app_context)
     with patch.object(command.project_manager, "validate_project_file", return_value=True):
-        result = command.execute()
+        with patch(
+            "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
+        ) as load_cls:
+            load_cls.return_value.execute.return_value = CommandResult.NOOP
+            result = command.execute()
 
     assert command.was_executed is False
     assert result is CommandResult.NOOP
@@ -49,11 +68,14 @@ def test_execute_returns_noop_when_user_cancels_replacing_current_project():
 def test_execute_returns_success_when_project_opens():
     app_context = Mock()
     app_context.ui_controller.show_open_project_dialog.return_value = "path.pplot"
-    app_context.app_state.has_project = False
 
     command = OpenProjectCommand(app_context)
     with patch.object(command.project_manager, "validate_project_file", return_value=True):
-        result = command.execute()
+        with patch(
+            "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
+        ) as load_cls:
+            load_cls.return_value.execute.return_value = CommandResult.SUCCESS
+            result = command.execute()
 
     assert command.was_executed is True
     assert result is CommandResult.SUCCESS
@@ -128,6 +150,68 @@ def test_redo_re_executes_when_nothing_was_executed():
     command = OpenProjectCommand(app_context)
 
     assert command.redo() is CommandResult.NOOP
+
+
+def test_execute_delegates_to_load_project_command():
+    app_context = _make_app_context()
+    app_context.ui_controller.show_open_project_dialog.return_value = "/p/other.pplot"
+
+    command = OpenProjectCommand(app_context)
+    with patch.object(command.project_manager, "validate_project_file", return_value=True):
+        with patch(
+            "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
+        ) as load_cls:
+            load_cls.return_value.execute.return_value = CommandResult.SUCCESS
+            result = command.execute()
+
+    load_cls.assert_called_once_with(app_context, "/p/other.pplot")
+    load_cls.return_value.execute.assert_called_once()
+    assert result is CommandResult.SUCCESS
+    assert command.was_executed is True
+
+
+def test_execute_propagates_a_declined_or_skipped_load():
+    """Regression (PR #235 review): previously the load command's return
+    value was discarded entirely, so a guard-declined/no-op load inside
+    LoadProjectCommand.execute() (already-open, or user declined the
+    unsaved-changes prompt) was still reported as a successful open."""
+    app_context = _make_app_context()
+    app_context.ui_controller.show_open_project_dialog.return_value = "/p/other.pplot"
+
+    command = OpenProjectCommand(app_context)
+    with patch.object(command.project_manager, "validate_project_file", return_value=True):
+        with patch(
+            "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
+        ) as load_cls:
+            load_cls.return_value.execute.return_value = CommandResult.NOOP
+            result = command.execute()
+
+    assert result is CommandResult.NOOP
+    assert command.was_executed is False
+
+
+def test_execute_does_not_show_a_success_dialog():
+    """Regression (#209): opening a project used to show an "Opened
+    successfully" info dialog after merely *initiating* the (asynchronous)
+    load -- both an unnecessary interruption and, since the load hadn't
+    finished yet, liable to reference the wrong project."""
+    app_context = _make_app_context()
+    app_context.ui_controller.show_open_project_dialog.return_value = "/p/new.pplot"
+
+    command = OpenProjectCommand(app_context)
+    with patch.object(command.project_manager, "validate_project_file", return_value=True):
+        with patch("pandaplot.commands.project.project.open_project_command.LoadProjectCommand"):
+            command.execute()
+
+    app_context.ui_controller.show_info_message.assert_not_called()
+
+
+def test_marks_project_modified_is_false():
+    """OpenProjectCommand delegates all state changes to LoadProjectCommand/
+    AppState and must not be double-counted by CommandExecutor's generic
+    on_project_modified hook."""
+    command = OpenProjectCommand(Mock())
+    assert command.marks_project_modified() is False
 
 
 def test_cleanup_forwards_to_the_wrapped_load_command():

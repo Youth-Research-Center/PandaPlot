@@ -1,6 +1,7 @@
 from typing import Any, Dict, Optional, Type, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Item
@@ -40,7 +41,7 @@ class DeleteItemCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            project = self.app_state.current_project
+            project = get_current_project(self.app_context)
             if not project:
                 self.logger.warning(
                     "DeleteItemCommand.execute: has_project is True but current_project is None"
@@ -113,7 +114,7 @@ class DeleteItemCommand(Command):
                     not self.app_state.has_project):
                 return CommandResult.FAILURE
 
-            project = self.app_state.current_project
+            project = get_current_project(self.app_context)
             if not project:
                 self.logger.warning(
                     "DeleteItemCommand.undo: has_project is True but current_project is None (item_id=%s)",
@@ -167,7 +168,7 @@ class DeleteItemCommand(Command):
                     not self.app_state.has_project):
                 return CommandResult.FAILURE
 
-            project = self.app_state.current_project
+            project = get_current_project(self.app_context)
             if not project:
                 self.logger.warning(
                     "DeleteItemCommand.redo: has_project is True but current_project is None (item_id=%s)",

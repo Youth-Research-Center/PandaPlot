@@ -133,3 +133,82 @@ class TestImageLightboxDialogFixedSize:
 
         assert dialog.windowTitle() != long_name
         assert len(dialog.windowTitle()) < len(long_name)
+
+
+class TestImageLightboxDialogEdit:
+    def test_edit_button_hidden_without_on_edit_callback(self, qapp):
+        # isVisible() only reflects real state once the dialog has actually
+        # been shown (an un-shown QDialog reports every descendant as not
+        # visible regardless of layout membership), so this needs a real
+        # show()+processEvents() pass -- matching
+        # test_dialog_can_be_shrunk_by_user_after_showing's convention above.
+        images = [Image(name="First")]
+        dialog = ImageLightboxDialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
+        dialog.show()
+        qapp.processEvents()
+
+        assert dialog.edit_button.isVisible() is False
+
+    def test_edit_button_present_with_on_edit_callback(self, qapp):
+        images = [Image(name="First")]
+        dialog = ImageLightboxDialog(
+            images, 0, load_pixmap=lambda img: _colored_pixmap("red"), on_edit=lambda img: None
+        )
+        dialog.show()
+        qapp.processEvents()
+
+        assert dialog.edit_button.isVisible() is True
+
+    def test_clicking_edit_invokes_callback_with_current_image_and_rerenders(self):
+        images = [Image(name="First"), Image(name="Second")]
+        received = []
+        load_calls = []
+
+        def _on_edit(img):
+            received.append(img)
+
+        def _load(img):
+            load_calls.append(img)
+            return _colored_pixmap("red")
+
+        dialog = ImageLightboxDialog(images, 1, load_pixmap=_load, on_edit=_on_edit)
+
+        # The constructor's own initial render already calls load_pixmap
+        # once -- reset the spy so the count below reflects only the
+        # re-render triggered by _trigger_edit() itself.
+        load_calls.clear()
+
+        dialog._trigger_edit()
+
+        assert received == [images[1]]
+        # _trigger_edit() must actually re-render (not just invoke the
+        # callback) -- load_pixmap is the hook _render_current() uses to
+        # fetch the image to display, so one more call after the edit
+        # confirms a real re-render happened, not just the callback firing.
+        assert load_calls == [images[1]]
+
+
+class TestImageLightboxDialogSignatureOrder:
+    def test_parent_can_still_be_passed_positionally_in_its_original_slot(self, qapp):
+        """on_edit was added as a new parameter after load_pixmap in an
+        earlier revision, ahead of the pre-existing parent parameter --
+        which would silently break any positional caller expecting the
+        4th positional argument to be parent (a QWidget passed there would
+        instead be bound to on_edit, an Optional[Callable]). parent must
+        stay in its original positional slot, with on_edit moved after it
+        and made keyword-only."""
+        from PySide6.QtWidgets import QWidget
+
+        images = [Image(name="First")]
+        host = QWidget()
+        try:
+            dialog = ImageLightboxDialog(images, 0, lambda img: _colored_pixmap("red"), host)
+            assert dialog.parent() is host
+            assert dialog._on_edit is None
+        finally:
+            host.deleteLater()
+
+    def test_on_edit_is_keyword_only(self, qapp):
+        images = [Image(name="First")]
+        with pytest.raises(TypeError):
+            ImageLightboxDialog(images, 0, lambda img: _colored_pixmap("red"), None, lambda img: None)

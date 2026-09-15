@@ -39,14 +39,15 @@ Icon-based left panel switcher. Each icon maps to a panel:
 | Dataset info | `DatasetPanel` | Dataset item selected |
 | Chart props | `ChartPropertiesPanel` | Chart item selected |
 | Analysis | `AnalysisPanel` | Dataset or chart active |
+| Signal | `SignalPanel` | Dataset active |
 | Curve fit | `FitPanel` | Chart with series active |
 | Transform | `TransformPanel` | Dataset active |
 
-`ConditionalPanelManager` listens to `UIEvents` and `ProjectEvents` to show/hide the correct panel automatically.
+`ConditionalPanelManager` listens to `UIEvents` and `ProjectEvents` to show/hide the correct panel automatically based on active workspace context and selection.
 
 ### SidebarPanel (`gui/components/sidebar/panels/sidebar_panel.py`)
 
-Base class (extends `PWidget`) all 9 sidebar panels use for a consistent shell: a title pinned at the top via `_set_title()`, and a content area added via `_set_content(widget, scrollable=...)` — wrapped in a `QScrollArea` when `scrollable=True`, added directly otherwise (used by `ChartPropertiesPanel`, which scrolls per-tab instead, and `ProjectViewPanel`, whose tree scrolls natively).
+Base class (extends `PWidget`) all sidebar panels use for a consistent shell: a title pinned at the top via `_set_title()`, and a content area added via `_set_content(widget, scrollable=...)` — wrapped in a `QScrollArea` when `scrollable=True`, added directly otherwise (used by `ChartPropertiesPanel`, which scrolls per-tab instead, and `ProjectViewPanel`, whose tree scrolls natively).
 
 ### ProjectViewPanel
 
@@ -121,17 +122,17 @@ The `UIController` stores the `parent_widget` reference so all dialogs are prope
 2. All `WidgetExtension` subclasses receive the event and call `_apply_theme()`
 3. `_apply_theme()` reads the current theme from `ThemeManager` and updates Qt stylesheets
 
-## Background Tasks (`services/qtasks/`)
+## Background Tasks & Busy Operations (`services/qtasks/` & `gui/components/common/`)
 
-Long-running operations (large CSV imports, analysis on big datasets) run via `TaskScheduler`:
+Long-running operations (large CSV imports, analysis, signal processing, fitting on big datasets) run via `TaskScheduler`:
 
 ```
 TaskScheduler
 └── QThreadPool
     └── Worker (QRunnable)
-        ├── run()             # Executes the callable on a thread
+        ├── run()             # Executes computation off the main Qt thread
         ├── signals.result    # Emitted on success
         └── signals.error     # Emitted on exception
 ```
 
-GUI components connect to worker signals to show progress or handle completion without blocking the Qt event loop.
+During asynchronous tasks, panels display a `BusySpinner` widget to give visual progress feedback without blocking the UI or Qt event loop.

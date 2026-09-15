@@ -8,16 +8,14 @@ series or a fitted curve — and stores the result as a new dataset.
 
 from typing import Optional, override
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QPushButton,
-    QScrollArea,
     QSpinBox,
     QTextEdit,
     QVBoxLayout,
@@ -25,21 +23,35 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.analysis import AnalysisType
+from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
 )
+from pandaplot.commands.project.chart.create_chart_with_analysis_series_command import (
+    build_quick_plot_command,
+)
+from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
+    ChartSeriesContextMixin,
+)
+from pandaplot.gui.components.sidebar.chart.series_result_messages import (
+    format_apply_failure,
+    format_preview_error,
+    format_series_result_preview,
+)
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
+    populate_chart_target_combo,
     populate_series_fit_sources,
+    refresh_chart_target_combo_preserving_selection,
     series_source_hint,
 )
-from pandaplot.gui.core.widget_extension import PWidget
-from pandaplot.models.events import ChartEvents, UIEvents
+from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
-class ChartAnalysisPanel(PWidget):
+class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for analysis operations on chart data/fit series."""
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
@@ -53,17 +65,8 @@ class ChartAnalysisPanel(PWidget):
 
     @override
     def _init_ui(self):
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(8, 8, 8, 8)
-        main_layout.setSpacing(8)
-
-        self.title_label = QLabel("🧮 Chart Analysis")
-        main_layout.addWidget(self.title_label)
-
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._init_panel_layout()
+        self._set_title("🧮 Chart Analysis")
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
@@ -79,8 +82,7 @@ class ChartAnalysisPanel(PWidget):
         self._create_action_buttons(content_layout)
         content_layout.addStretch()
 
-        scroll_area.setWidget(content)
-        main_layout.addWidget(scroll_area)
+        self._set_content(content, scrollable=True)
 
     # -- sections ---------------------------------------------------------
 
@@ -141,13 +143,22 @@ class ChartAnalysisPanel(PWidget):
         self.result_name = QLineEdit()
         self.result_name.setPlaceholderText("Auto-named from operation and series")
         form.addRow("Dataset name:", self.result_name)
+        self.plot_result_cb = QCheckBox("Plot result")
+        self.plot_result_cb.setChecked(True)
+        form.addRow("", self.plot_result_cb)
+        self.plot_target_row = QWidget()
+        target_row_layout = QHBoxLayout(self.plot_target_row)
+        target_row_layout.setContentsMargins(0, 0, 0, 0)
+        target_row_layout.addWidget(QLabel("Plot on:"))
+        self.plot_target_combo = QComboBox()
+        target_row_layout.addWidget(self.plot_target_combo)
+        form.addRow("", self.plot_target_row)
         layout.addWidget(group)
 
     def _create_preview_section(self, layout):
         group = QGroupBox("Preview")
         vbox = QVBoxLayout(group)
-        self.preview_btn = QPushButton("🔍 Preview")
-        self.preview_btn.clicked.connect(self.preview)
+        self.preview_btn = PButton("Preview", role="secondary", on_click=self.preview)
         self.preview_text = QTextEdit()
         self.preview_text.setReadOnly(True)
         self.preview_text.setMaximumHeight(140)
@@ -158,10 +169,8 @@ class ChartAnalysisPanel(PWidget):
 
     def _create_action_buttons(self, layout):
         row = QHBoxLayout()
-        self.apply_btn = QPushButton("✅ Analyze → New Dataset")
-        self.apply_btn.clicked.connect(self.apply)
-        self.clear_btn = QPushButton("🔄 Clear")
-        self.clear_btn.clicked.connect(self.clear_inputs)
+        self.apply_btn = PButton("Apply", role="primary", on_click=self.apply)
+        self.clear_btn = PButton("Clear", role="secondary", on_click=self.clear_inputs)
         row.addWidget(self.apply_btn)
         row.addWidget(self.clear_btn)
         layout.addLayout(row)
@@ -172,6 +181,7 @@ class ChartAnalysisPanel(PWidget):
         self.source_combo.currentIndexChanged.connect(self._on_source_changed)
         self.start_index.valueChanged.connect(self._update_range_labels)
         self.end_index.valueChanged.connect(self._update_range_labels)
+        self.plot_result_cb.toggled.connect(self._update_plot_target_visibility)
 
     # -- dynamic parameters ----------------------------------------------
 
@@ -282,6 +292,7 @@ class ChartAnalysisPanel(PWidget):
             return None
         kind, index = source
         name = self.result_name.text().strip() or None
+        folder_id = self.current_chart.parent_id if self.current_chart else None
         return AnalyzeChartSeriesCommand(
             self.app_context,
             chart_id=self.current_chart_id,
@@ -290,6 +301,7 @@ class ChartAnalysisPanel(PWidget):
             analysis_type=self.operation_combo.currentData(),
             parameters=self._build_parameters(),
             result_name=name,
+            folder_id=folder_id,
         )
 
     # -- actions ----------------------------------------------------------
@@ -301,31 +313,46 @@ class ChartAnalysisPanel(PWidget):
             return
         try:
             df, default_name = command.run_analysis()
-            lines = [
+            header_lines = [
                 f"Operation: {self.operation_combo.currentText()}",
                 f"Series: {self.source_combo.currentText()}",
                 f"Result: {len(df)} points → dataset '{self.result_name.text().strip() or default_name}'",
-                "",
-                "First rows:",
-                df.head(5).to_string(index=False),
             ]
-            self.preview_text.setText("\n".join(lines))
+            self.preview_text.setText(format_series_result_preview(header_lines, df))
         except Exception as e:
-            self.preview_text.setText(f"❌ Preview error: {e}")
+            self.preview_text.setText(format_preview_error(e))
 
     def apply(self):
         command = self._make_command()
         if command is None:
             self.preview_text.setText("❌ Select a series to analyze.")
             return
-        if self.app_context.get_command_executor().execute_command(command):
-            self.preview_text.setText(
-                "✅ Created a new dataset from the analysis. Find it in the project explorer."
+
+        executor = self.app_context.get_command_executor()
+        plot_result = self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled()
+        target_chart_id = self.plot_target_combo.currentData() if plot_result else None
+        target_chart_name = self.plot_target_combo.currentText() if plot_result else None
+        if plot_result:
+            plot_command = build_quick_plot_command(
+                self.app_context,
+                command,
+                target_chart_id=target_chart_id,
+                folder_id=command.folder_id,
             )
+            success = executor.execute_command(CompositeCommand([command, plot_command]))
         else:
-            self.preview_text.setText(
-                "❌ Could not analyze the series. See the log for details."
-            )
+            success = executor.execute_command(command)
+
+        if success:
+            message = "✅ Created a new dataset from the analysis. Find it in the project explorer."
+            if plot_result:
+                if target_chart_id is None:
+                    message += " Plotted on a new chart."
+                else:
+                    message += f" Plotted on '{target_chart_name}'."
+            self.preview_text.setText(message)
+        else:
+            self.preview_text.setText(format_apply_failure("analyze"))
 
     def clear_inputs(self):
         self.result_name.clear()
@@ -398,6 +425,13 @@ class ChartAnalysisPanel(PWidget):
         # Leave any user-entered name untouched; only fill the placeholder.
         self.result_name.setPlaceholderText(f"{op} — {self.source_combo.currentText()}")
 
+    def _update_plot_target_visibility(self):
+        self.plot_target_row.setVisible(self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled())
+
+    def _update_quick_plot_compatibility(self, *, has_sources: bool):
+        self.plot_result_cb.setEnabled(has_sources)
+        self._update_plot_target_visibility()
+
     def _populate_sources(self):
         has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
         self.apply_btn.setEnabled(has_sources)
@@ -405,45 +439,29 @@ class ChartAnalysisPanel(PWidget):
         self.source_hint.setText(
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
+        project = self.app_context.get_app_state().current_project
+        populate_chart_target_combo(self.plot_target_combo, project)
+        self._update_quick_plot_compatibility(has_sources=has_sources)
         self._on_source_changed()
 
     @override
     def setup_event_subscriptions(self):
-        self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
-        self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
+        self.setup_chart_series_context_subscriptions()
 
-    def _on_tab_changed(self, event_data):
-        if event_data.get("tab_type") == "chart":
-            chart_id = event_data.get("tab_id")
-            self.current_chart_id = chart_id
-            project = self.app_context.get_app_state().current_project
-            chart = project.find_item(chart_id) if project and chart_id else None
-            self.current_chart = chart if isinstance(chart, Chart) else None
-        else:
-            self.current_chart = None
-            self.current_chart_id = None
-        self._populate_sources()
-
-    def _on_chart_updated(self, event_data):
-        chart = event_data.get("chart")
-        if not chart or (self.current_chart_id and chart.id != self.current_chart_id):
-            return
-        if isinstance(chart, Chart):
-            self.current_chart = chart
-            self.current_chart_id = chart.id
-            self._populate_sources()
+    def _refresh_chart_references(self):
+        project = self.app_context.get_app_state().current_project
+        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
 
     @override
     def _apply_theme(self):
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
+        tokens = theme_manager.get_design_tokens()
 
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#333333")
         secondary_fg = palette.get("secondary_fg", "#666666")
-        accent = palette.get("accent", "#4CAF50")
-        card_hover = palette.get("card_hover", "#e5f3ff")
 
         self.setStyleSheet(f"""
             ChartAnalysisPanel {{
@@ -452,7 +470,7 @@ class ChartAnalysisPanel(PWidget):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;
@@ -467,42 +485,11 @@ class ChartAnalysisPanel(PWidget):
                 background-color: {card_bg};
             }}
         """)
-        self.title_label.setStyleSheet(f"""
-            QLabel {{
-                font-size: 14px;
-                font-weight: bold;
-                color: {base_fg};
-                padding: 5px;
-                background-color: {card_border};
-                border-radius: 3px;
-            }}
-        """)
+        self._apply_title_theme(base_fg, card_border)
         self.source_hint.setStyleSheet(
             f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
         )
         value_label_style = f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
         self.start_value_label.setStyleSheet(value_label_style)
         self.end_value_label.setStyleSheet(value_label_style)
-        self.apply_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {accent};
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px 16px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: {card_hover}; color: {base_fg}; }}
-            QPushButton:disabled {{ background-color: {secondary_fg}; color: #999999; }}
-        """)
-        self.clear_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {secondary_fg};
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 10px 16px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{ background-color: #7f8c8d; }}
-        """)
+        self.plot_result_cb.setStyleSheet(f"QCheckBox {{ color: {base_fg}; background-color: transparent; }}")

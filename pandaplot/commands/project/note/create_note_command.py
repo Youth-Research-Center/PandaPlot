@@ -2,6 +2,7 @@ import uuid
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.require_project import ensure_project_or_offer_create
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
@@ -35,7 +36,7 @@ class CreateNoteCommand(Command):
         """Execute the create note command."""
         try:
             # Check if we have a project loaded
-            if not self.app_state.has_project or not self.app_state.current_project:
+            if get_current_project(self.app_context) is None:
                 self.logger.warning(
                     "CreateNoteCommand.execute: no project is currently loaded, note '%s'",
                     self.note_name,
@@ -46,7 +47,7 @@ class CreateNoteCommand(Command):
                 ):
                     return CommandResult.FAILURE
 
-            self.project = self.app_state.current_project
+            self.project = get_current_project(self.app_context)
             if not self.project:
                 self.logger.warning(
                     "CreateNoteCommand.execute: has_project is True but current_project is None"
@@ -98,7 +99,7 @@ class CreateNoteCommand(Command):
         """Undo the create note command."""
         try:
             if self.created_note_id and self.app_state.has_project:
-                project = self.app_state.current_project
+                project = get_current_project(self.app_context)
                 if not project:
                     self.logger.warning(
                         "CreateNoteCommand.undo: has_project is True but current_project is None (note id=%s)",
@@ -142,7 +143,7 @@ class CreateNoteCommand(Command):
         """Redo the create note command."""
         try:
             if self.created_note_id and self.created_note is not None and self.app_state.has_project:
-                project = self.app_state.current_project
+                project = get_current_project(self.app_context)
                 if not project:
                     self.logger.warning(
                         "CreateNoteCommand.redo: has_project is True but current_project is None for note id=%s",

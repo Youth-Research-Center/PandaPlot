@@ -11,6 +11,7 @@ Chart, independent of how that Chart was built.
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.models.events import ChartEvents, ProjectEvents
 from pandaplot.models.events.event_data import ChartCreatedData
 from pandaplot.models.project.items import Chart
@@ -30,11 +31,11 @@ class CreateChartCommand(Command):
 
     @override
     def execute(self) -> CommandResult:
-        if not self.app_state.has_project or not self.app_state.current_project:
+        project = get_current_project(self.app_context)
+        if project is None:
             self.logger.warning("CreateChartCommand.execute: no project is currently loaded")
             return CommandResult.FAILURE
         try:
-            project = self.app_state.current_project
             project.add_item(self.chart, parent_id=self.parent_id)
             self.app_context.event_bus.emit(ChartEvents.CHART_CREATED, ChartCreatedData(
                 chart_id=self.chart_id
@@ -47,11 +48,11 @@ class CreateChartCommand(Command):
 
     @override
     def undo(self) -> CommandResult:
-        if not self.app_state.has_project or not self.app_state.current_project:
+        project = get_current_project(self.app_context)
+        if project is None:
             self.logger.warning("CreateChartCommand.undo: no project is currently loaded")
             return CommandResult.FAILURE
         try:
-            project = self.app_state.current_project
             project.remove_item_by_id(self.chart_id)
             self.app_context.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
                 "item_id": self.chart_id,

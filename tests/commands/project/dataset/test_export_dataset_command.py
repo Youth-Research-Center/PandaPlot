@@ -18,6 +18,13 @@ from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 
 
+def test_marks_project_modified_is_false():
+    """Regression (PR #235 review): exporting only writes an external file
+    and never mutates the project, so it must not flag the project as
+    having unsaved changes."""
+    assert ExportDatasetCommand(Mock(spec=AppContext), "ds-1").marks_project_modified() is False
+
+
 @pytest.fixture
 def mock_app_context():
     app_context = Mock(spec=AppContext)

@@ -12,6 +12,7 @@ already-built Dataset objects, independent of how they were produced.
 from typing import List, Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state import AppContext, AppState
@@ -37,11 +38,11 @@ class AddImportedDatasetsCommand(Command):
 
     @override
     def execute(self) -> CommandResult:
-        if not self.app_state.has_project or not self.app_state.current_project:
+        project = get_current_project(self.app_context)
+        if project is None:
             self.logger.warning("AddImportedDatasetsCommand.execute: no project is currently loaded")
             return CommandResult.FAILURE
         try:
-            project = self.app_state.current_project
             for dataset in self.datasets:
                 project.add_item(dataset, parent_id=self.folder_id)
                 # TODO(#219): migrate to item created and create data class
@@ -65,11 +66,11 @@ class AddImportedDatasetsCommand(Command):
 
     @override
     def undo(self) -> CommandResult:
-        if not self.app_state.has_project or not self.app_state.current_project:
+        project = get_current_project(self.app_context)
+        if project is None:
             self.logger.warning("AddImportedDatasetsCommand.undo: no project is currently loaded")
             return CommandResult.FAILURE
         try:
-            project = self.app_state.current_project
             for dataset_id in self.dataset_ids:
                 dataset = project.find_item(dataset_id)
                 if dataset:

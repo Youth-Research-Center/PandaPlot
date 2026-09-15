@@ -13,6 +13,7 @@ from typing import Any, List, Literal, override
 import pandas as pd
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetRowsAddedData, DatasetRowsRemovedData
 from pandaplot.models.events.event_types import DatasetOperationEvents
@@ -89,7 +90,7 @@ class AddRowsCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            self.project = self.app_state.current_project
+            self.project = get_current_project(self.app_context)
             if not self.project:
                 self.logger.warning(
                     "AddRowsCommand.execute: has_project is True but current_project is None"

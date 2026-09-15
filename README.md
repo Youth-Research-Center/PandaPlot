@@ -17,7 +17,7 @@ PandaPlot is an open-source, Python-based desktop application for scientific dat
 See [docs/USER_GUIDE.md](docs/USER_GUIDE.md) for usage details and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for an overview of the codebase.
 
 ## Setup
-We use [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage our Python environment. Requires Python 3.12+. To set up the project, run the following commands:
+We use [uv](https://docs.astral.sh/uv/getting-started/installation/) to manage our Python environment. Requires Python 3.12+. To set up the project, run the following command:
 
 ```bash
 uv sync
@@ -27,15 +27,15 @@ uv sync
 To run the PandaPlot application, execute the following command from the root directory of the project:
 
 ```bash
-python -m pandaplot.app
+uv run python -m pandaplot.app
 ```
 
 ## Running Tests
 ```bash
-pytest
-pytest --verbose
-pytest --cov
-pytest --cov=pandaplot --cov-report=html
+uv run pytest
+uv run pytest --verbose
+uv run pytest --cov
+uv run pytest --cov=pandaplot --cov-report=html
 ```
 
 ## Component Storybook
@@ -45,10 +45,10 @@ pytest --cov=pandaplot --cov-report=html
 ## Linting and Static Analysis
 
 ```bash
-ruff check .
-bandit -r pandaplot
-pip-audit
-vulture pandaplot
+uv run ruff check .
+uv run bandit -r pandaplot
+uv run pip-audit
+uv run vulture pandaplot
 ```
 
 ## Contributing

@@ -101,6 +101,279 @@ def test_render_line_series_fill_alpha_halved_when_not_visible():
     plt.close(fig)
 
 
+def test_render_line_series_annotates_points_when_show_value_labels_is_set():
+    """#125: each point gets a text annotation of its own Y value."""
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(color="#ff0000", show_value_labels=True,
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "My Line", 1.0, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    assert [t.get_text() for t in ax.texts] == ["4", "5", "6"]
+    plt.close(fig)
+
+
+def test_render_line_series_draws_no_annotations_when_show_value_labels_is_unset():
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(color="#ff0000", marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "My Line", 1.0, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    assert len(ax.texts) == 0
+    plt.close(fig)
+
+
+def test_render_line_series_value_label_mode_x_shows_x_value():
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(show_value_labels=True, value_label_mode="x",
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "L", 1.0, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    assert [t.get_text() for t in ax.texts] == ["1", "2", "3"]
+    plt.close(fig)
+
+
+def test_render_line_series_value_label_mode_xy_shows_both():
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(show_value_labels=True, value_label_mode="xy",
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "L", 1.0, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    assert [t.get_text() for t in ax.texts] == ["1, 4", "2, 5", "3, 6"]
+    plt.close(fig)
+
+
+def test_render_line_series_draws_arrow_when_show_arrow_is_set():
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(show_value_labels=True, value_label_show_arrow=True,
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "L", 1.0, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    assert all(t.arrow_patch is not None for t in ax.texts)
+    plt.close(fig)
+
+
+def test_render_line_series_no_arrow_by_default():
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(show_value_labels=True,
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "L", 1.0, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    assert all(t.arrow_patch is None for t in ax.texts)
+    plt.close(fig)
+
+
+def test_render_line_series_uses_custom_offset():
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(show_value_labels=True, value_label_offset_x=3.0, value_label_offset_y=-4.0,
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "L", 1.0, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    assert all(t.xyann == (3.0, -4.0) for t in ax.texts)
+    plt.close(fig)
+
+
+def test_render_line_series_applies_text_color_and_background():
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(show_value_labels=True, value_label_text_color="#ff0000",
+                             value_label_bg_color="#00ff00", value_label_bg_alpha=0.5,
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "L", 1.0, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    text = ax.texts[0]
+    assert text.get_color() == "#ff0000"
+    bbox_patch = text.get_bbox_patch()
+    assert bbox_patch is not None
+    assert bbox_patch.get_alpha() == 0.5
+    plt.close(fig)
+
+
+def test_render_line_series_no_background_box_when_bg_color_unset():
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(show_value_labels=True,
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "L", 1.0, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    assert ax.texts[0].get_bbox_patch() is None
+    plt.close(fig)
+
+
+def test_render_line_series_skips_nan_points_when_annotating():
+    """NaN in either X or Y must skip that point's label entirely -- see
+    annotate_point_labels' `pd.isna(x) or pd.isna(y): continue` guard."""
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(show_value_labels=True,
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(
+        ax, _series_data(x_data=[1, np.nan, 3], y_data=[4, 5, np.nan]), style, "L", 1.0,
+        visible=True, extra={"resolve_fill_baseline": lambda q, horizontal: 0.0},
+    )
+
+    assert [t.get_text() for t in ax.texts] == ["4"]
+    plt.close(fig)
+
+
+def test_render_scatter_series_skips_nan_points_when_annotating():
+    fig, ax = plt.subplots()
+    style = ScatterSeriesStyle(show_value_labels=True,
+                                marker=MarkerStyle(marker_style="square", marker_size=3.0))
+
+    render_scatter_series(
+        ax, _series_data(x_data=[1, np.nan, 3], y_data=[4, 5, np.nan]), style, "S", 1.0,
+        visible=True, extra={},
+    )
+
+    assert [t.get_text() for t in ax.texts] == ["4"]
+    plt.close(fig)
+
+
+def test_render_line_series_value_label_alpha_matches_renderer_alpha():
+    """Value labels must fade with the series' own effective alpha (already
+    computed by the caller as `series.alpha if series.visible else 0.3`,
+    see chart_editor.py) rather than staying fully opaque -- a faded or
+    hidden series shouldn't leave fully-opaque numbers behind."""
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(show_value_labels=True,
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "L", 0.4, visible=False,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    assert all(t.get_alpha() == 0.4 for t in ax.texts)
+    plt.close(fig)
+
+
+def test_render_line_series_value_label_arrow_and_background_fade_with_alpha():
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(show_value_labels=True, value_label_show_arrow=True,
+                             value_label_bg_color="#00ff00", value_label_bg_alpha=0.5,
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "L", 0.4, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    text = ax.texts[0]
+    assert text.arrow_patch.get_alpha() == 0.4
+    assert text.get_bbox_patch().get_alpha() == pytest.approx(0.5 * 0.4)
+    plt.close(fig)
+
+
+def test_render_line_series_value_label_color_falls_back_to_series_color():
+    """"Match series color" toggle writes value_label_text_color = "" --
+    the label must then take on the series' own rendered color, not
+    matplotlib's default text color (black)."""
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(color="#123456", show_value_labels=True,
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(), style, "L", 1.0, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    assert ax.texts[0].get_color() == "#123456"
+    plt.close(fig)
+
+
+def test_render_line_series_value_label_mode_x_handles_non_numeric_x():
+    """X-axis data can be categorical/string (or datetime) rather than
+    numeric -- unconditional f"{x:.3g}" raises TypeError for these, which
+    previously blanked the whole chart. Must fall back to str(value)."""
+    fig, ax = plt.subplots()
+    style = LineSeriesStyle(show_value_labels=True, value_label_mode="x",
+                             marker=MarkerStyle(marker_style="none", marker_size=1.0))
+
+    render_line_series(ax, _series_data(x_data=["a", "b", "c"]), style, "L", 1.0, visible=True,
+                        extra={"resolve_fill_baseline": lambda q, horizontal: 0.0})
+
+    assert [t.get_text() for t in ax.texts] == ["a", "b", "c"]
+    plt.close(fig)
+
+
+def test_render_scatter_series_value_label_mode_x_shows_x_value():
+    fig, ax = plt.subplots()
+    style = ScatterSeriesStyle(show_value_labels=True, value_label_mode="x",
+                                marker=MarkerStyle(marker_style="square", marker_size=3.0))
+
+    render_scatter_series(ax, _series_data(), style, "S", 1.0, visible=True, extra={})
+
+    assert [t.get_text() for t in ax.texts] == ["1", "2", "3"]
+    plt.close(fig)
+
+
+def test_render_scatter_series_applies_text_color_and_background():
+    fig, ax = plt.subplots()
+    style = ScatterSeriesStyle(show_value_labels=True, value_label_text_color="#123123",
+                                value_label_bg_color="#456456", value_label_bg_alpha=0.25,
+                                marker=MarkerStyle(marker_style="square", marker_size=3.0))
+
+    render_scatter_series(ax, _series_data(), style, "S", 1.0, visible=True, extra={})
+
+    text = ax.texts[0]
+    assert text.get_color() == "#123123"
+    bbox_patch = text.get_bbox_patch()
+    assert bbox_patch is not None
+    assert bbox_patch.get_alpha() == 0.25
+    plt.close(fig)
+
+
+def test_render_scatter_series_value_label_color_falls_back_to_series_color():
+    fig, ax = plt.subplots()
+    style = ScatterSeriesStyle(color="#654321", show_value_labels=True,
+                                marker=MarkerStyle(marker_style="square", marker_size=3.0))
+
+    render_scatter_series(ax, _series_data(), style, "S", 1.0, visible=True, extra={})
+
+    assert ax.texts[0].get_color() == "#654321"
+    plt.close(fig)
+
+
+def test_render_scatter_series_value_label_color_falls_back_to_marker_color_not_base_color():
+    """"Match series color" must match the point's actually-rendered fill --
+    for Scatter that's `mfc` (marker.marker_color or style.color), not
+    style.color directly. Scatter has no drawn line to make style.color the
+    visible "series color" the way it is for Line, and the Style tab lets a
+    user override the marker's own fill color independently of `color`
+    (SeriesTypeSpec.supports_color=False for Scatter) -- so once a marker
+    color override is set, the label must follow IT, not the unused base
+    color underneath it."""
+    fig, ax = plt.subplots()
+    style = ScatterSeriesStyle(color="#654321", show_value_labels=True,
+                                marker=MarkerStyle(marker_style="square", marker_size=3.0,
+                                                    marker_color="#00ff00"))
+
+    render_scatter_series(ax, _series_data(), style, "S", 1.0, visible=True, extra={})
+
+    assert ax.texts[0].get_color() == "#00ff00"
+    plt.close(fig)
+
+
+def test_render_scatter_series_value_label_alpha_matches_renderer_alpha():
+    fig, ax = plt.subplots()
+    style = ScatterSeriesStyle(show_value_labels=True,
+                                marker=MarkerStyle(marker_style="square", marker_size=3.0))
+
+    render_scatter_series(ax, _series_data(), style, "S", 0.4, visible=False, extra={})
+
+    assert all(t.get_alpha() == 0.4 for t in ax.texts)
+    plt.close(fig)
+
+
 def test_render_scatter_series_draws_a_scatter_collection():
     fig, ax = plt.subplots()
     style = ScatterSeriesStyle(color="#123456", marker=MarkerStyle(marker_style="square", marker_size=3.0))
@@ -112,6 +385,17 @@ def test_render_scatter_series_draws_a_scatter_collection():
     plt.close(fig)
 
 
+def test_render_scatter_series_annotates_points_when_show_value_labels_is_set():
+    fig, ax = plt.subplots()
+    style = ScatterSeriesStyle(color="#123456", show_value_labels=True,
+                                marker=MarkerStyle(marker_style="square", marker_size=3.0))
+
+    render_scatter_series(ax, _series_data(), style, "My Scatter", 1.0, visible=True, extra={})
+
+    assert [t.get_text() for t in ax.texts] == ["4", "5", "6"]
+    plt.close(fig)
+
+
 def test_render_bar_series_draws_bars():
     fig, ax = plt.subplots()
     style = BarSeriesStyle(color="#654321")
@@ -119,6 +403,87 @@ def test_render_bar_series_draws_bars():
     render_bar_series(ax, _series_data(), style, "My Bars", 1.0, visible=True, extra={})
 
     assert len(ax.patches) == 3  # one Rectangle per bar
+    plt.close(fig)
+
+
+def test_render_bar_series_adds_bar_labels_when_show_value_labels_is_set():
+    """#125: matplotlib's bar_label() places one text per bar."""
+    fig, ax = plt.subplots()
+    style = BarSeriesStyle(color="#654321", show_value_labels=True)
+
+    render_bar_series(ax, _series_data(), style, "My Bars", 1.0, visible=True, extra={})
+
+    assert [t.get_text() for t in ax.texts] == ["4", "5", "6"]
+    plt.close(fig)
+
+
+def test_render_bar_series_draws_no_bar_labels_when_show_value_labels_is_unset():
+    fig, ax = plt.subplots()
+    style = BarSeriesStyle(color="#654321")
+
+    render_bar_series(ax, _series_data(), style, "My Bars", 1.0, visible=True, extra={})
+
+    assert len(ax.texts) == 0
+    plt.close(fig)
+
+
+def test_render_bar_series_applies_text_color_and_background():
+    fig, ax = plt.subplots()
+    style = BarSeriesStyle(color="#654321", show_value_labels=True,
+                            value_label_text_color="#ff0000",
+                            value_label_bg_color="#00ff00", value_label_bg_alpha=0.5)
+
+    render_bar_series(ax, _series_data(), style, "My Bars", 1.0, visible=True, extra={})
+
+    text = ax.texts[0]
+    assert text.get_color() == "#ff0000"
+    bbox_patch = text.get_bbox_patch()
+    assert bbox_patch is not None
+    assert bbox_patch.get_alpha() == 0.5
+    plt.close(fig)
+
+
+def test_render_bar_series_no_background_box_when_bg_color_unset():
+    fig, ax = plt.subplots()
+    style = BarSeriesStyle(color="#654321", show_value_labels=True)
+
+    render_bar_series(ax, _series_data(), style, "My Bars", 1.0, visible=True, extra={})
+
+    assert ax.texts[0].get_bbox_patch() is None
+    plt.close(fig)
+
+
+def test_render_bar_series_value_label_color_falls_back_to_series_color():
+    fig, ax = plt.subplots()
+    style = BarSeriesStyle(color="#abcdef", show_value_labels=True)
+
+    render_bar_series(ax, _series_data(), style, "My Bars", 1.0, visible=True, extra={})
+
+    assert ax.texts[0].get_color() == "#abcdef"
+    plt.close(fig)
+
+
+def test_render_bar_series_value_label_alpha_matches_renderer_alpha():
+    """Bar labels must fade with the series' own effective alpha too (the
+    same `alpha` already passed to axes.bar()) rather than staying fully
+    opaque when the bars themselves are faded/hidden."""
+    fig, ax = plt.subplots()
+    style = BarSeriesStyle(color="#654321", show_value_labels=True)
+
+    render_bar_series(ax, _series_data(), style, "My Bars", 0.4, visible=False, extra={})
+
+    assert all(t.get_alpha() == 0.4 for t in ax.texts)
+    plt.close(fig)
+
+
+def test_render_bar_series_background_fades_with_alpha():
+    fig, ax = plt.subplots()
+    style = BarSeriesStyle(color="#654321", show_value_labels=True,
+                            value_label_bg_color="#00ff00", value_label_bg_alpha=0.5)
+
+    render_bar_series(ax, _series_data(), style, "My Bars", 0.4, visible=True, extra={})
+
+    assert ax.texts[0].get_bbox_patch().get_alpha() == pytest.approx(0.5 * 0.4)
     plt.close(fig)
 
 

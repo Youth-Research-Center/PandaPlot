@@ -1,8 +1,11 @@
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.project import Project
+from pandaplot.models.project.items import Item
 from pandaplot.models.state import AppContext, AppState
 
 
@@ -27,11 +30,43 @@ class MoveItemCommand(Command):
         # Store state for undo
         self.move_performed = False
 
+        # Set (by execute()/undo()) just before re-raising an add_item()
+        # failure that was itself successfully rolled back -- i.e. the item
+        # is back exactly where this call found it, so no net project-state
+        # change occurred. redo()/undo() check this to report ABORTED
+        # instead of a hard failure for that recovered, no-op case.
+        self._rolled_back = False
+
+        # Set (by undo()) as soon as its compensating add_item() rollback is
+        # attempted, before knowing whether it succeeds. undo()'s outer
+        # exception handler uses this to tell "the rollback attempt itself
+        # also failed" (item potentially left genuinely orphaned -- must
+        # propagate, matching redo()'s equivalent double-failure) apart from
+        # any other, unrelated exception in undo() (kept as an ordinary
+        # FAILURE, undo()'s existing behavior).
+        self._recovery_attempted = False
+
+        # Set (by execute()) to the sibling index `item` held in its source
+        # folder just before this move detached it. undo() reuses it so a
+        # successful restore puts the item back at its exact original
+        # position instead of appending it after its former siblings.
+        self._source_index: Optional[int] = None
+
+    @staticmethod
+    def _resolve_folder(project: Project, folder_id: Optional[str]) -> Optional[Item]:
+        """Resolve a folder_id/'root' sentinel (as stored on this command) to
+        the actual folder item, for snapshotting its state before a
+        compensating rollback (see execute()/undo())."""
+        if folder_id is None or folder_id == "root":
+            return project.root
+        return project.find_item(folder_id)
+
     @override
     def execute(self) -> CommandResult:
         """Execute the move item command."""
         # Initialize item_name for error messages
         item_name = self.item_id  # Fallback to ID if name is not available
+        self._rolled_back = False
 
         try:
             # Debug logging
@@ -47,7 +82,7 @@ class MoveItemCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            project = self.app_state.current_project
+            project = get_current_project(self.app_context)
             if project is None:
                 self.logger.warning(
                     "MoveItemCommand.execute: has_project is True but current_project is None"
@@ -92,13 +127,50 @@ class MoveItemCommand(Command):
                 else:
                     self.logger.debug(f"Found target folder: {target_folder.name} (type: {type(target_folder).__name__})")
 
-            # Remove item from current parent
-            project.remove_item(item)
+                    # Reject moving an item into itself or one of its own
+                    # descendants. Since detach_item() now preserves an
+                    # ItemCollection's subtree instead of tearing it down,
+                    # allowing this would attach `item` under its own child,
+                    # creating a cyclic parent/child graph that later
+                    # recursive traversals (e.g. remove_item(), to_dict())
+                    # would loop over forever (#374 review).
+                    if project.is_item_or_descendant(item, self.target_folder_id):
+                        error_msg = f"Cannot move '{item_name}' into itself or one of its own subfolders."
+                        self.logger.error(error_msg)
+                        self.ui_controller.show_error_message("Move Item Error", error_msg)
+                        return CommandResult.FAILURE
+
+            # Snapshot the source folder's state before detaching, so a
+            # failed move can be rolled back as a true no-op (see except
+            # block below).
+            source_folder = self._resolve_folder(project, self.source_folder_id)
+            source_modified_at_before = source_folder.modified_at if source_folder is not None else None
+
+            # Detach item from its current parent. Unlike remove_item(),
+            # this doesn't tear down an ItemCollection's subtree (#374).
+            source_index = project.detach_item(item)
+            # Persisted for undo(), so a successful restore can put the item
+            # back at this exact sibling position (see undo()).
+            self._source_index = source_index
 
             # Add item to new parent
             # Convert 'root' string to None for project.add_item()
             parent_id_for_add = None if self.target_folder_id == "root" else self.target_folder_id
-            project.add_item(item, parent_id=parent_id_for_add)
+            try:
+                project.add_item(item, parent_id=parent_id_for_add)
+            except Exception:
+                # Don't leave the item orphaned (absent from both the source
+                # and target folder) if adding to the target fails -- put it
+                # back exactly where it came from (same sibling position,
+                # same parent modified_at) so the move is all-or-nothing and
+                # the ABORTED result this raises into (see redo()) is an
+                # actual no-op, not just a membership restore.
+                rollback_parent_id = None if self.source_folder_id == "root" else self.source_folder_id
+                project.add_item(item, parent_id=rollback_parent_id, index=source_index)
+                if source_folder is not None and source_modified_at_before is not None:
+                    source_folder.modified_at = source_modified_at_before
+                self._rolled_back = True
+                raise
 
             self.move_performed = True
 
@@ -124,9 +196,11 @@ class MoveItemCommand(Command):
 
     def undo(self) -> CommandResult:
         """Undo the move item command."""
+        self._rolled_back = False
+        self._recovery_attempted = False
         try:
             if self.move_performed and self.app_state.has_project:
-                project = self.app_state.current_project
+                project = get_current_project(self.app_context)
                 if project and self.item_id:
                     # Find the item in the hierarchical structure
                     item = project.find_item(self.item_id)
@@ -134,13 +208,39 @@ class MoveItemCommand(Command):
                         # Get item name for better messages
                         item_name = getattr(item, "name", "Unnamed Item")
 
-                        # Remove item from current location
-                        project.remove_item(item)
+                        # Snapshot the target folder's state (where the item
+                        # currently sits) before detaching, so a failed
+                        # restore can be rolled back as a true no-op (see
+                        # except block below).
+                        target_folder = self._resolve_folder(project, self.target_folder_id)
+                        target_modified_at_before = target_folder.modified_at if target_folder is not None else None
 
-                        # Add item back to original location
+                        # Remove item from current location. Unlike
+                        # remove_item(), detach_item() doesn't tear down an
+                        # ItemCollection's subtree (#374).
+                        target_index = project.detach_item(item)
+
+                        # Add item back to original location, at the exact
+                        # sibling position it held before this move detached
+                        # it, so undo() is a true restore rather than
+                        # appending the item after its former siblings.
                         # Convert 'root' string to None for project.add_item()
                         parent_id_for_add = None if self.source_folder_id == "root" else self.source_folder_id
-                        project.add_item(item, parent_id=parent_id_for_add)
+                        try:
+                            project.add_item(item, parent_id=parent_id_for_add, index=self._source_index)
+                        except Exception:
+                            # Don't leave the item orphaned if re-adding it to
+                            # its original folder fails -- put it back exactly
+                            # where undo() found it (same sibling position,
+                            # same parent modified_at) so the undo is
+                            # all-or-nothing, same as execute()/redo().
+                            self._recovery_attempted = True
+                            rollback_parent_id = None if self.target_folder_id == "root" else self.target_folder_id
+                            project.add_item(item, parent_id=rollback_parent_id, index=target_index)
+                            if target_folder is not None and target_modified_at_before is not None:
+                                target_folder.modified_at = target_modified_at_before
+                            self._rolled_back = True
+                            raise
 
                         # Emit event
                         self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_MOVED, {
@@ -170,7 +270,7 @@ class MoveItemCommand(Command):
             # Try to get item name for error message
             item_name = self.item_id  # Fallback to ID
             if self.app_state.has_project:
-                project = self.app_state.current_project
+                project = get_current_project(self.app_context)
                 if project and self.item_id:
                     item = project.find_item(self.item_id)
                     if item is not None:
@@ -179,11 +279,48 @@ class MoveItemCommand(Command):
             error_msg = f"Failed to undo move of '{item_name}': {str(e)}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
+            if self._rolled_back:
+                # Re-adding to the source folder failed, but the item was
+                # successfully put back where undo() found it (the target
+                # folder) -- no net change, so this is retryable rather than
+                # a hard failure that CommandExecutor would move to the redo
+                # stack as if the item had actually been undone.
+                return CommandResult.ABORTED
+            if self._recovery_attempted:
+                # The compensating add_item() rollback was attempted but
+                # failed too -- the item may now be genuinely orphaned
+                # (removed from the target, never successfully re-added
+                # anywhere), a real uncertain state. Match redo()'s behavior
+                # for the same double-failure: propagate rather than
+                # swallow as an ordinary FAILURE, so CommandExecutor
+                # invalidates history instead of treating this as safe to
+                # retry.
+                raise
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
         """Redo the move item command."""
-        return self.execute()
+        try:
+            result = self.execute()
+        except Exception:
+            if self._rolled_back:
+                # add_item() to the target failed but the rollback restored
+                # the item to where undo() had put it -- no net change, so
+                # report ABORTED rather than letting the exception propagate
+                # and have CommandExecutor.redo() invalidate the entire
+                # undo/redo history over what was actually a no-op.
+                return CommandResult.ABORTED
+            raise
+
+        if result is CommandResult.FAILURE:
+            # Every FAILURE execute() returns (rather than raises) happens
+            # before detach_item() ever runs -- i.e. nothing was mutated --
+            # so this redo() attempt is itself a no-op. Report ABORTED so
+            # CommandExecutor keeps this still-undone command on the redo
+            # stack instead of moving it to the undo stack as if it had
+            # actually been redone.
+            return CommandResult.ABORTED
+        return result
 
     @override
     def cleanup(self) -> None:

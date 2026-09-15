@@ -3,6 +3,7 @@
 from typing import List, Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.events.event_data import DatasetColumnRenamedData
@@ -36,7 +37,8 @@ class RenameColumnCommand(Command):
     @override
     def execute(self) -> CommandResult:
         try:
-            if not self.app_state.has_project or not self.app_state.current_project:
+            project = get_current_project(self.app_context)
+            if project is None:
                 self.logger.warning(
                     "RenameColumnCommand.execute: no project open; cannot rename column in dataset '%s'",
                     self.dataset_id,
@@ -44,7 +46,6 @@ class RenameColumnCommand(Command):
                 self.ui_controller.show_warning_message(
                     "Rename Column", "Please open or create a project first.")
                 return CommandResult.FAILURE
-            project = self.app_state.current_project
 
             found_item = project.find_item(self.dataset_id)
             if not isinstance(found_item, Dataset) or found_item.data is None:
@@ -140,7 +141,7 @@ class RenameColumnCommand(Command):
         for legacy references that never got an id. Nothing is mutated — this
         only decides which charts to refresh.
         """
-        project = self.app_state.current_project
+        project = get_current_project(self.app_context)
         if not project or self.dataset is None:
             return []
         column_id = self.dataset.column_id(current_name)

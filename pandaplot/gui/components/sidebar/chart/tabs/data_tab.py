@@ -35,7 +35,7 @@ from pandaplot.models.chart.series_style_builder import build_series_style
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items import Dataset
-from pandaplot.models.project.items.chart import DataSeries, YAxis, resolve_numeric_column
+from pandaplot.models.project.items.chart import DataSeries, YAxis, resolve_manual_fit_source_data
 from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.utils.item_display_options import dataset_display_options
 
@@ -919,24 +919,17 @@ class DataTab(QWidget):
         dataset = self.current_project.find_item(dataset_id) if self.current_project else None
         dataset = dataset if isinstance(dataset, Dataset) else None
 
-        new_x = resolve_numeric_column(dataset, x_column_id)
-        new_y = resolve_numeric_column(dataset, y_column_id)
-        if new_x is None or new_y is None:
+        resolved = resolve_manual_fit_source_data(
+            dataset,
+            x_column_id,
+            y_column_id,
+            confidence_lower_column_id,
+            confidence_upper_column_id,
+        )
+        if resolved is None:
             self._load_fit_into_controls(fit)
             return
-
-        new_confidence_lower = None
-        if confidence_lower_column_id:
-            new_confidence_lower = resolve_numeric_column(dataset, confidence_lower_column_id)
-            if new_confidence_lower is None:
-                self._load_fit_into_controls(fit)
-                return
-        new_confidence_upper = None
-        if confidence_upper_column_id:
-            new_confidence_upper = resolve_numeric_column(dataset, confidence_upper_column_id)
-            if new_confidence_upper is None:
-                self._load_fit_into_controls(fit)
-                return
+        new_x, new_y, new_confidence_lower, new_confidence_upper = resolved
 
         fit.source_dataset_id = dataset_id
         fit.source_x_column_id = x_column_id

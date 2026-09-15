@@ -1,4 +1,3 @@
-
 from PySide6.QtCore import (
     QObject,
     Signal,
@@ -19,9 +18,13 @@ class WorkerSignals(QObject):
 
     progress
         float indicating % progress
+
+    cancelled
+        No data; emitted when task execution is cancelled
     """
 
     finished = Signal()
     error = Signal(tuple)
     result = Signal(object)
     progress = Signal(float)
+    cancelled = Signal()

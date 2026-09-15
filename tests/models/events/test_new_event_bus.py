@@ -174,6 +174,29 @@ class TestNewEventBus:
 
         item_removed_callback.assert_not_called()
 
+    def test_analysis_completed_does_not_bubble_to_dataset_column_added(self):
+        """Regression (#322): AnalysisPanel's ANALYSIS_COMPLETED payload
+        (dataset_id/new_column_name/analysis_type/analysis_config) is not
+        shaped like DatasetColumnsAddedData (which requires
+        column_positions) -- PandasTableModel.on_add_column_event crashed
+        building that dataclass from the un-shaped payload whenever
+        analysis.completed bubbled up to dataset.column_added. The real
+        column-add is already announced separately, with the correct shape,
+        by ApplyAnalysisResultCommand, so analysis.completed must not fan
+        out to dataset.column_added (or the other dataset.* levels)."""
+        event_bus = EventBus()
+        column_added_callback = Mock()
+        event_bus.subscribe("dataset.column_added", column_added_callback)
+
+        event_bus.emit("analysis.completed", {
+            "dataset_id": "ds-1",
+            "new_column_name": "derivative",
+            "analysis_type": "derivative",
+            "analysis_config": {},
+        })
+
+        column_added_callback.assert_not_called()
+
     def test_callback_exception_handling(self):
         """Test that exceptions in callbacks don't break the event bus."""
         event_bus = EventBus()

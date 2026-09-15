@@ -186,6 +186,58 @@ class TestConcreteCommand:
         cmd = ConcreteCommand()
         cmd.cleanup()  # must not raise
 
+    def test_marks_project_modified_defaults_to_true(self):
+        cmd = ConcreteCommand()
+        assert cmd.marks_project_modified() is True
+
+
+class TestDisplayName:
+    """Test cases for Command.display_name(), the human-readable label shown
+    to the user (e.g. in an undo/redo error dialog) instead of the class
+    name."""
+
+    def test_strips_command_suffix_and_lowercases_trailing_words(self):
+        class CreateNoteCommand(Command):
+            def execute(self):
+                pass
+
+            def undo(self):
+                pass
+
+            def redo(self):
+                pass
+
+        assert CreateNoteCommand().display_name() == "Create note"
+
+    def test_splits_multiple_camel_case_words(self):
+        class CreateChartFromWizardCommand(Command):
+            def execute(self):
+                pass
+
+            def undo(self):
+                pass
+
+            def redo(self):
+                pass
+
+        assert CreateChartFromWizardCommand().display_name() == "Create chart from wizard"
+
+    def test_class_name_without_command_suffix_is_left_as_is(self):
+        class RenameItem(Command):
+            def execute(self):
+                pass
+
+            def undo(self):
+                pass
+
+            def redo(self):
+                pass
+
+        assert RenameItem().display_name() == "Rename item"
+
+    def test_single_word_class_name(self):
+        assert ConcreteCommand().display_name() == "Concrete"
+
 
 class TestCommandWithExceptions:
     """Test cases for commands that raise exceptions."""

@@ -8,6 +8,7 @@ from typing import List, Optional, override
 
 from pandaplot.analysis import StatsEngine, StatTestResult, StatTestType
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
@@ -80,13 +81,12 @@ class StatisticalTestCommand(Command):
     def execute(self) -> CommandResult:
         try:
             self.logger.info("Executing StatisticalTestCommand (%s)", self.test_type.value)
-            if not self.app_state.has_project or not self.app_state.current_project:
+            project = get_current_project(self.app_context)
+            if project is None:
                 message = "No project loaded; cannot run statistical test."
                 self.logger.warning(message)
                 self.ui_controller.show_error_message("Statistical Test Error", message)
                 return CommandResult.FAILURE
-
-            project = self.app_state.current_project
 
             self.result = self.run_test()
 
@@ -121,13 +121,13 @@ class StatisticalTestCommand(Command):
     @override
     def undo(self) -> CommandResult:
         try:
-            if not self.result_dataset_id or not self.app_state.current_project:
+            project = get_current_project(self.app_context)
+            if not self.result_dataset_id or project is None:
                 self.logger.warning(
                     "StatisticalTestCommand.undo: cannot undo (result_dataset_id set=%s, current_project set=%s)",
-                    bool(self.result_dataset_id), self.app_state.current_project is not None,
+                    bool(self.result_dataset_id), project is not None,
                 )
                 return CommandResult.FAILURE
-            project = self.app_state.current_project
             dataset = project.find_item(self.result_dataset_id)
             if dataset:
                 project.remove_item(dataset)
@@ -155,7 +155,7 @@ class StatisticalTestCommand(Command):
         self.result = None
 
     def _get_source_dataset(self) -> Optional[Dataset]:
-        project = self.app_state.current_project
+        project = get_current_project(self.app_context)
         if not project:
             return None
         item = project.find_item(self.source_dataset_id)

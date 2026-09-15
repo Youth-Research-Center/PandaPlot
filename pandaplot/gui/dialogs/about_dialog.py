@@ -37,6 +37,9 @@ class AboutDialog(PDialog):
 
         self.icon_label = QLabel("🐼")
         icon_font = self.icon_label.font()
+        # Fixed icon/heading sizes -- deliberately independent of
+        # interface_font_size (a body-text preference), same as
+        # test_info_dialog.py's monospace formula font.
         icon_font.setPointSize(40)
         self.icon_label.setFont(icon_font)
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)

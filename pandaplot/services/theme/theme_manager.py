@@ -78,19 +78,36 @@ class ThemeManager:
 
     @staticmethod
     def _relative_luminance(color: QColor) -> float:
-        return (0.2126 * color.red() + 0.7152 * color.green() + 0.0722 * color.blue()) / 255.0
+        """WCAG 2.x relative luminance (gamma-corrected per channel)."""
+        def channel(v: int) -> float:
+            c = v / 255.0
+            return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+        r, g, b = channel(color.red()), channel(color.green()), channel(color.blue())
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
     @classmethod
-    def _contrasting_text_color(cls, accent: QColor, theme: Theme) -> QColor:
-        """Pick black or white text so it stays legible against ``accent``."""
+    def _contrasting_text_color(cls, accent: QColor) -> QColor:
+        """Pick whichever of black/white has the higher WCAG contrast ratio
+        against `accent`, so it stays legible regardless of the app's
+        light/dark theme setting -- theme doesn't affect how legible text
+        is against a given background color.
+
+        Previously branched on theme too ("light theme prefers black text
+        down to luminance 0.25"), which picked black for the default accent
+        (#4A56C6) in light theme -- 3.44:1 contrast, below the WCAG 4.5:1
+        minimum for normal text -- even though white gives 6.11:1 there.
+        Reported live on the primary button; the same bug was independently
+        found and fixed for the context-menu selected-item text, but that
+        fix was scoped to a separate helper to avoid touching this method's
+        other call sites without evidence they were also affected. They
+        were -- so this replaces the heuristic here instead of duplicating
+        the correct logic a third time.
+        """
         lum = cls._relative_luminance(accent)
-        if lum > 0.6:
-            return QColor(0, 0, 0)
-        # Light theme favors dark text unless the accent is extremely dark
-        # (lum < 0.25), where white text is still needed for contrast.
-        if theme != Theme.DARK and lum >= 0.25:
-            return QColor(0, 0, 0)
-        return QColor(255, 255, 255)
+        white_contrast = (1.0 + 0.05) / (lum + 0.05)
+        black_contrast = (lum + 0.05) / (0.0 + 0.05)
+        return QColor(255, 255, 255) if white_contrast >= black_contrast else QColor(0, 0, 0)
 
     def build_stylesheet(self, ctx: ThemeContext) -> str:
         accent = ctx.accent
@@ -103,7 +120,7 @@ class ThemeManager:
                 # Derive hover / pressed variants
                 hover = c.lighter(110).name()
                 pressed = c.darker(115).name()
-                text_color = self._contrasting_text_color(c, ctx.theme).name()
+                text_color = self._contrasting_text_color(c).name()
         except Exception:  # noqa: BLE001
             pass
 
@@ -116,6 +133,13 @@ class ThemeManager:
                 danger_pressed = dc.darker(115).name()
         except Exception:  # noqa: BLE001
             pass
+
+        # accent_disabled is a lightened, still fairly saturated variant of
+        # accent (e.g. #7683FF for the default #4A56C6) -- text_hint (a
+        # muted gray meant for text on a plain surface) has only ~1.2:1
+        # contrast against it, effectively invisible. Same fix as the
+        # enabled button: pick whichever of black/white actually contrasts.
+        disabled_text_color = self._contrasting_text_color(QColor(tokens["accent_disabled"])).name()
 
         shared_widget_rules = f"""
             QFrame[card="true"] {{
@@ -263,7 +287,7 @@ class ThemeManager:
             QPushButton[primary="true"]:disabled {{
                 background-color: {tokens['accent_disabled']};
                 border-color: {tokens['accent_disabled']};
-                color: {tokens['text_hint']};
+                color: {disabled_text_color};
             }}
             QTabBar::tab:selected {{ color: {accent}; }}
         """ + shared_widget_rules
@@ -282,7 +306,7 @@ class ThemeManager:
         accent = QColor(ctx.accent)
         if not accent.isValid():
             accent = QColor(74, 86, 198)
-        highlighted_text = self._contrasting_text_color(accent, ctx.theme)
+        highlighted_text = self._contrasting_text_color(accent)
         # Muted variant of fg, halfway to bg, so placeholder text is visibly
         # distinct from real text but still legible against the background.
         placeholder = QColor(
@@ -310,43 +334,33 @@ class ThemeManager:
         self._app.setFont(f)
 
     def get_surface_palette(self) -> dict:
-        if not self._current:
-            return {
-                "card_bg": "#f8f9fa",
-                "card_hover": "#e9ecef",
-                "card_pressed": "#dee2e6",
-                "card_border": "#dee2e6",
-                "base_fg": "#000000",
-                "secondary_fg": "#555555",
-                "accent": "#4A90E2",
-            }
-        ctx = self._current
-        if ctx.theme == Theme.DARK:
-            return {
-                "card_bg": "#2a2c2e",
-                "card_hover": "#323437",
-                "card_pressed": "#3a3d40",
-                "card_border": "#404347",
-                "base_fg": "#e2e2e2",
-                "secondary_fg": "#a8adb2",
-                "accent": ctx.accent,
-            }
+        """Derived view over get_design_tokens() for callers that only need
+        the original small 7-key shape -- kept as a single source of truth
+        so the two can never drift out of sync (see get_design_tokens()).
+        card_hover/card_pressed are derived from surface_white via
+        QColor.darker() rather than reusing surface_inset/surface_chrome
+        directly, since those tokens serve a different purpose (chrome/inset
+        surfaces) and aren't guaranteed to sit in a monotonically-darkening
+        order relative to each other."""
+        tokens = self.get_design_tokens()
+        bg = QColor(tokens["surface_white"])
+        card_hover = bg.darker(110).name() if bg.isValid() else tokens["surface_inset"]
+        card_pressed = bg.darker(115).name() if bg.isValid() else tokens["surface_chrome"]
         return {
-            "card_bg": "#f8f9fa",
-            "card_hover": "#e9ecef",
-            "card_pressed": "#dee2e6",
-            "card_border": "#dee2e6",
-            "base_fg": "#000000",
-            "secondary_fg": "#555555",
-            "accent": ctx.accent,
+            "card_bg": tokens["surface_white"],
+            "card_hover": card_hover,
+            "card_pressed": card_pressed,
+            "card_border": tokens["border_control"],
+            "base_fg": tokens["text_primary"],
+            "secondary_fg": tokens["text_secondary"],
+            "accent": tokens["accent"],
         }
 
     def get_design_tokens(self) -> dict:
         """Full token set for the chart-properties redesign's shared widgets.
 
-        Superset of get_surface_palette(); both stay in sync with the
-        current ThemeContext (theme + accent) so callers always see the
-        user's live theme/accent choice.
+        get_surface_palette() is a derived view over this method's return
+        value, not a separate dict -- this is the single source of truth.
         """
         accent = self._current.accent if self._current else "#4A56C6"
         is_dark = self._current is not None and self._current.theme == Theme.DARK
@@ -370,6 +384,7 @@ class ThemeManager:
                 "y2_accent": "#B27FD1", "y2_accent_bg": "#3A2E45",
                 "series_palette": ["#C24141", "#6B77E8", "#3F9BB0", "#3FA46A", "#E09A1F"],
                 "radius_swatch": 4, "radius_control": 5, "radius_card": 6, "radius_chip": 12,
+                "font_size_group_title": 9,
             }
         return {
             "text_primary": "#1C1E26", "text_secondary": "#3F4350",
@@ -385,7 +400,28 @@ class ThemeManager:
             "y2_accent": "#8A4BB8", "y2_accent_bg": "#F5EEFB",
             "series_palette": ["#A01818", "#4A56C6", "#2B7A8C", "#3FA46A", "#E09A1F"],
             "radius_swatch": 4, "radius_control": 5, "radius_card": 6, "radius_chip": 12,
+            "font_size_group_title": 9,
         }
+
+    def build_context_menu_stylesheet(self) -> str:
+        """Shared QSS for right-click context menus (dataset cell/column/row
+        headers, project tree) -- kept separate from build_stylesheet()'s
+        app-wide QPushButton rules since QMenu instances are styled
+        per-instance rather than through the global QApplication stylesheet.
+        """
+        tokens = self.get_design_tokens()
+        selected_text_color = self._contrasting_text_color(QColor(tokens["accent"])).name()
+        return f"""
+            QMenu {{
+                background-color: {tokens['surface_white']};
+                color: {tokens['text_primary']};
+                border: 1px solid {tokens['border_control']};
+            }}
+            QMenu::item:selected {{
+                background-color: {tokens['accent']};
+                color: {selected_text_color};
+            }}
+        """
 
     def _on_config_event(self, data):  # signature per EventBus
         cfg = data.get("config")

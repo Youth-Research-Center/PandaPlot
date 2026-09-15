@@ -2,6 +2,7 @@ import os
 from typing import Any, Callable, Tuple, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -78,6 +79,12 @@ class ExportDatasetCommand(Command):
         self.is_exporting = False
 
     @override
+    def marks_project_modified(self) -> bool:
+        """Only writes an external file; the project itself is never
+        mutated."""
+        return False
+
+    @override
     def execute(self) -> CommandResult:
         """Execute the export dataset command."""
         try:
@@ -91,7 +98,7 @@ class ExportDatasetCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            self.project = self.app_state.current_project
+            self.project = get_current_project(self.app_context)
             if not self.project:
                 self.logger.warning("ExportDatasetCommand.execute: has_project is True but current_project is None")
                 return CommandResult.FAILURE

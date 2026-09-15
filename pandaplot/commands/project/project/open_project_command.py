@@ -24,6 +24,11 @@ class OpenProjectCommand(Command):
         self.was_executed = False
 
     @override
+    def marks_project_modified(self) -> bool:
+        """Delegates all state changes to LoadProjectCommand / AppState."""
+        return False
+
+    @override
     def execute(self) -> CommandResult:
         """Execute the open project command."""
         try:
@@ -51,37 +56,22 @@ class OpenProjectCommand(Command):
                 self.was_executed = False
                 return CommandResult.FAILURE
 
-            # Check if we need to save current project
-            if self.app_context.app_state.has_project:
-                should_continue = self.app_context.ui_controller.show_question(
-                    "Open Project",
-                    "Opening a new project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
-                )
-
-                if not should_continue:
-                    # User cancelled -- expected, not an error.
-                    self.logger.info("Open project cancelled by user (current project protection)")
-                    self.was_executed = False
-                    return CommandResult.NOOP
-
-            # Create and execute load command
+            # Create and execute load command. The "already open"/unsaved-
+            # changes checks live in LoadProjectCommand itself (shared by
+            # every load path, not just this file-dialog-driven one) -- see
+            # its execute() for why.
             self.load_command = LoadProjectCommand(self.app_context, file_path)
             load_result = self.load_command.execute()
             if load_result is not CommandResult.SUCCESS:
-                self.logger.warning(
+                self.logger.info(
                     "OpenProjectCommand.execute: LoadProjectCommand returned %s for '%s'",
                     load_result, file_path,
                 )
                 self.was_executed = False
-                return CommandResult.FAILURE
+                return load_result
 
             self.was_executed = True
             self.logger.info(f"Project opened successfully: {file_path}")
-
-            # Show success message
-            project = self.app_context.app_state.current_project
-            if project:
-                self.app_context.ui_controller.show_info_message("Project Opened", f"Successfully opened project: {project.name}")
 
             # Update recent projects list in config
             try:

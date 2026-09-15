@@ -1,6 +1,7 @@
 from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state import AppContext, AppState
@@ -36,7 +37,7 @@ class RenameItemCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            project = self.app_state.current_project
+            project = get_current_project(self.app_context)
             if not project:
                 self.logger.warning(
                     "RenameItemCommand.execute: has_project is True but current_project is None"
@@ -80,7 +81,7 @@ class RenameItemCommand(Command):
         """Undo the rename item command."""
         try:
             if self.old_name and self.app_state.has_project:
-                project = self.app_state.current_project
+                project = get_current_project(self.app_context)
                 if not project:
                     self.logger.warning(
                         "RenameItemCommand.undo: has_project is True but current_project is None"

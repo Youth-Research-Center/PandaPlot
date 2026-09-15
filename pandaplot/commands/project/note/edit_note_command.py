@@ -1,10 +1,11 @@
 from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.note.note_finder import NoteFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import NoteContentChangedData
 from pandaplot.models.events.event_types import NoteEvents
-from pandaplot.models.project.items import Note
 from pandaplot.models.state import AppContext, AppState
 
 
@@ -29,8 +30,8 @@ class EditNoteCommand(Command):
     def execute(self) -> CommandResult:
         """Execute the edit note command."""
         try:
-            # Check if we have a project loaded
-            if not self.app_state.has_project:
+            project = get_current_project(self.app_context)
+            if project is None:
                 self.logger.warning(
                     "EditNoteCommand.execute: cannot edit note '%s', no project is loaded",
                     self.note_id,
@@ -41,26 +42,16 @@ class EditNoteCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            project = self.app_state.current_project
-            if not project:
+            note = NoteFinder.find(project, self.note_id)
+            if note is None:
                 self.logger.warning(
-                    "EditNoteCommand.execute: has_project is True but current_project is None"
-                )
-                return CommandResult.FAILURE
-
-            item = project.find_item(self.note_id)
-            if item is None or not isinstance(item, Note):
-                self.logger.warning(
-                    "EditNoteCommand.execute: note '%s' not found or not a Note (got %s)",
-                    self.note_id, type(item).__name__ if item is not None else None,
+                    "EditNoteCommand.execute: note '%s' not found", self.note_id,
                 )
                 self.ui_controller.show_warning_message(
                     "Edit Note",
                     f"Note '{self.note_id}' not found in the project."
                 )
                 return CommandResult.FAILURE
-
-            note: Note = item
             # Store old content for undo
             self.old_content = note.content
             note.update_content(self.new_content)
@@ -89,55 +80,51 @@ class EditNoteCommand(Command):
     def undo(self) -> CommandResult:
         """Undo the edit note command."""
         try:
-            if self.old_content is not None and self.app_state.has_project:
-                project = self.app_state.current_project
-
-                if not project:
-                    self.logger.warning(
-                        "EditNoteCommand.undo: has_project is True but current_project is None for note '%s'",
-                        self.note_id,
-                    )
-                    self.ui_controller.show_warning_message(
-                        "Undo Edit Note",
-                        "No project is currently loaded."
-                    )
-                    return CommandResult.FAILURE
-
-                item = project.find_item(self.note_id)
-                if item is None or not isinstance(item, Note):
-                    self.logger.warning(
-                        "EditNoteCommand.undo: note '%s' not found or not a Note (got %s)",
-                        self.note_id, type(item).__name__ if item is not None else None,
-                    )
-                    self.ui_controller.show_warning_message(
-                        "Undo Edit Note",
-                        f"Note with ID '{self.note_id}' not found in the project."
-                    )
-                    return CommandResult.FAILURE
-
-                note: Note = item
-                note.update_content(self.old_content)
-
-                # Emit dotted content changed event only (reversal)
-                self.app_state.event_bus.emit(
-                    NoteEvents.NOTE_CONTENT_CHANGED,
-                    NoteContentChangedData(
-                        note_id=self.note_id,
-                        old_content=self.new_content,
-                        new_content=self.old_content
-                    ).to_dict()
+            if self.old_content is None:
+                self.logger.warning(
+                    "EditNoteCommand.undo: cannot undo for note '%s', no prior content recorded",
+                    self.note_id,
                 )
+                return CommandResult.FAILURE
 
-                self.logger.info(
-                    "Restored note content for '%s'", self.note_id
+            project = get_current_project(self.app_context)
+            if project is None:
+                self.logger.warning(
+                    "EditNoteCommand.undo: cannot undo note '%s', no project is loaded",
+                    self.note_id,
                 )
-                return CommandResult.SUCCESS
+                self.ui_controller.show_warning_message(
+                    "Undo Edit Note",
+                    "No project is currently loaded."
+                )
+                return CommandResult.FAILURE
 
-            self.logger.warning(
-                "EditNoteCommand.undo: cannot undo for note '%s' (old_content set=%s, has_project=%s)",
-                self.note_id, self.old_content is not None, self.app_state.has_project,
+            note = NoteFinder.find(project, self.note_id)
+            if note is None:
+                self.logger.warning(
+                    "EditNoteCommand.undo: note '%s' not found", self.note_id,
+                )
+                self.ui_controller.show_warning_message(
+                    "Undo Edit Note",
+                    f"Note with ID '{self.note_id}' not found in the project."
+                )
+                return CommandResult.FAILURE
+            note.update_content(self.old_content)
+
+            # Emit dotted content changed event only (reversal)
+            self.app_state.event_bus.emit(
+                NoteEvents.NOTE_CONTENT_CHANGED,
+                NoteContentChangedData(
+                    note_id=self.note_id,
+                    old_content=self.new_content,
+                    new_content=self.old_content
+                ).to_dict()
             )
-            return CommandResult.FAILURE
+
+            self.logger.info(
+                "Restored note content for '%s'", self.note_id
+            )
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to undo edit note: {e}"
@@ -148,42 +135,39 @@ class EditNoteCommand(Command):
     def redo(self) -> CommandResult:
         """Redo the edit note command."""
         try:
-            if self.old_content is not None and self.app_state.has_project:
-                project = self.app_state.current_project
-                if not project:
-                    self.logger.warning(
-                        "EditNoteCommand.redo: has_project is True but current_project is None for note '%s'",
-                        self.note_id,
-                    )
-                    return CommandResult.FAILURE
-
-                item = project.find_item(self.note_id)
-                if item is None or not isinstance(item, Note):
-                    self.logger.warning(
-                        "EditNoteCommand.redo: note '%s' not found or not a Note (got %s)",
-                        self.note_id, type(item).__name__ if item is not None else None,
-                    )
-                    return CommandResult.FAILURE
-
-                note: Note = item
-                note.update_content(self.new_content)
-
-                # Emit dotted content changed event only (redo)
-                self.app_state.event_bus.emit(
-                    NoteEvents.NOTE_CONTENT_CHANGED,
-                    NoteContentChangedData(
-                        note_id=self.note_id,
-                        old_content=self.old_content,
-                        new_content=self.new_content
-                    ).to_dict()
-                )
-
-                self.logger.info(
-                    "Redone edit of note '%s'", self.note_id
-                )
-                return CommandResult.SUCCESS
-            else:
+            if self.old_content is None:
                 return CommandResult.FAILURE
+
+            project = get_current_project(self.app_context)
+            if project is None:
+                self.logger.warning(
+                    "EditNoteCommand.redo: cannot redo note '%s', no project is loaded",
+                    self.note_id,
+                )
+                return CommandResult.FAILURE
+
+            note = NoteFinder.find(project, self.note_id)
+            if note is None:
+                self.logger.warning(
+                    "EditNoteCommand.redo: note '%s' not found", self.note_id,
+                )
+                return CommandResult.FAILURE
+            note.update_content(self.new_content)
+
+            # Emit dotted content changed event only (redo)
+            self.app_state.event_bus.emit(
+                NoteEvents.NOTE_CONTENT_CHANGED,
+                NoteContentChangedData(
+                    note_id=self.note_id,
+                    old_content=self.old_content,
+                    new_content=self.new_content
+                ).to_dict()
+            )
+
+            self.logger.info(
+                "Redone edit of note '%s'", self.note_id
+            )
+            return CommandResult.SUCCESS
 
         except Exception as e:
             error_msg = f"Failed to redo edit note: {e}"

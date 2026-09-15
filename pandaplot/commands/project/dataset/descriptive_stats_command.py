@@ -9,6 +9,7 @@ from typing import List, Optional, override
 
 from pandaplot.analysis import DescriptiveStatsEngine, DescriptiveStatsResult
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import DatasetEvents, ProjectEvents
 from pandaplot.models.project.items import Dataset, Note
@@ -70,13 +71,12 @@ class DescriptiveStatsCommand(Command):
     def execute(self) -> CommandResult:
         try:
             self.logger.info("Executing DescriptiveStatsCommand on %s", self.column_names)
-            if not self.app_state.has_project or not self.app_state.current_project:
+            project = get_current_project(self.app_context)
+            if project is None:
                 message = "No project loaded; cannot compute descriptive statistics."
                 self.logger.warning(message)
                 self.ui_controller.show_error_message("Descriptive Statistics Error", message)
                 return CommandResult.FAILURE
-
-            project = self.app_state.current_project
 
             self.result = self.compute()
 
@@ -133,13 +133,13 @@ class DescriptiveStatsCommand(Command):
     @override
     def undo(self) -> CommandResult:
         try:
-            if not self.app_state.current_project:
+            project = get_current_project(self.app_context)
+            if project is None:
                 self.logger.warning(
                     "DescriptiveStatsCommand.undo: no project loaded; cannot undo results '%s'",
                     self.result_dataset_id,
                 )
                 return CommandResult.FAILURE
-            project = self.app_state.current_project
 
             if self.report_note_id:
                 note = project.find_item(self.report_note_id)
@@ -181,7 +181,7 @@ class DescriptiveStatsCommand(Command):
         self.result = None
 
     def _get_source_dataset(self) -> Optional[Dataset]:
-        project = self.app_state.current_project
+        project = get_current_project(self.app_context)
         if not project:
             return None
         item = project.find_item(self.source_dataset_id)

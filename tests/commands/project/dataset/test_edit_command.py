@@ -21,6 +21,7 @@ from pandaplot.models.state.app_context import AppContext
 def mock_app_context():
     app_context = Mock(spec=AppContext)
     app_context.app_state = Mock()
+    app_context.get_app_state.return_value = app_context.app_state
     app_context.get_ui_controller.return_value = Mock(spec=UIController)
     app_context.event_bus = Mock()
     app_context.event_bus.emit = Mock()
@@ -171,3 +172,24 @@ def test_cleanup_releases_the_dataset_and_project_references(mock_app_context):
 
     assert command.dataset is None
     assert command.project is None
+
+
+def test_edit_command_updates_modified_at_on_execute_undo_redo(mock_app_context, sample_project):
+    mock_app_context.app_state.has_project = True
+    mock_app_context.app_state.current_project = sample_project
+    dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2]}))
+    dataset.modified_at = "2020-01-01T00:00:00.000000"
+    sample_project.find_item.return_value = dataset
+
+    command = EditCommand(mock_app_context, "ds-1", (0, 0), old_value=1, new_value=99)
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert dataset.modified_at != "2020-01-01T00:00:00.000000"
+
+    dataset.modified_at = "2020-01-01T00:00:00.000000"
+    assert command.undo() is CommandResult.SUCCESS
+    assert dataset.modified_at != "2020-01-01T00:00:00.000000"
+
+    dataset.modified_at = "2020-01-01T00:00:00.000000"
+    assert command.redo() is CommandResult.SUCCESS
+    assert dataset.modified_at != "2020-01-01T00:00:00.000000"

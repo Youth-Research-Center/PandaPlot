@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QDialog, QMainWindow, QMenuBar, QTabWidget, QWidge
 
 from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.models.state.unsaved_changes_registry import UnsavedChangesRegistry
 
 
 class WidgetExtension:
@@ -17,6 +18,7 @@ class WidgetExtension:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.app_context = app_context
         self._subscriptions : List[Tuple[str, Callable]] = []
+        self._unsaved_changes_registry: Optional[UnsavedChangesRegistry] = None
     
     @abstractmethod
     def _init_ui(self):
@@ -85,15 +87,34 @@ class WidgetExtension:
         """
         for event_type, handler in event_subscriptions:
             self.subscribe_to_event(event_type, handler)
-    
+
+    def register_unsaved_changes_source(self) -> None:
+        """Opt into flush_pending_edits(): this object must implement
+        has_unsaved_changes()/save() (see UnsavedChangesSource). Deregistered
+        by unsubscribe_all() -- the same synchronous teardown call already
+        invoked (via unsubscribe_widget_tree) at every place a widget is
+        closed, so a closed widget is never left flushable mid-teardown.
+        Relying on the destroyed signal alone was already tried and rejected
+        for event-bus subscriptions (see unsubscribe_widget_tree below) -- it
+        only fires once Qt's deferred deleteLater() destruction actually
+        runs, leaving the same race window this avoids.
+        """
+        self._unsaved_changes_registry = self.app_context.get_manager(UnsavedChangesRegistry)
+        self._unsaved_changes_registry.register(self)
+
     def unsubscribe_all(self) -> None:
-        """Unsubscribe from all events.
-        
+        """Unsubscribe from all events, and deregister from the
+        unsaved-changes registry if register_unsaved_changes_source() was
+        called.
+
         This should be called in component cleanup/destruction to prevent memory leaks.
         """
         for event_type, handler in self._subscriptions:
             self.app_context.event_bus.unsubscribe(event_type, handler)
         self._subscriptions.clear()
+        if self._unsaved_changes_registry is not None:
+            self._unsaved_changes_registry.unregister(self)
+            self._unsaved_changes_registry = None
 
     def __del__(self):
         """Clean up subscriptions when object is destroyed."""

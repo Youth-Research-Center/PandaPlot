@@ -10,6 +10,9 @@ from pandaplot.gui.components.sidebar.chart.chart_properties_panel import (
 from pandaplot.gui.components.sidebar.chart_analysis.chart_analysis_panel import (
     ChartAnalysisPanel,
 )
+from pandaplot.gui.components.sidebar.chart_signal.chart_signal_analysis_panel import (
+    ChartSignalAnalysisPanel,
+)
 from pandaplot.gui.components.sidebar.chart_transform.chart_transform_panel import (
     ChartTransformPanel,
 )
@@ -53,6 +56,7 @@ class PanelSetupManager:
         self.register_panel(ChartPropertiesPanel(self.app_context), "chart_properties", "📈", is_chart_tab_active)
         self.register_panel(FitPanel(self.app_context), "fit", "📐", is_chart_tab_active)
         self.register_panel(ChartAnalysisPanel(self.app_context), "chart_analysis", "🧮", is_chart_tab_active)
+        self.register_panel(ChartSignalAnalysisPanel(self.app_context), "chart_signal", "📡", is_chart_tab_active)
         self.register_panel(ChartTransformPanel(self.app_context), "chart_transform", "🔧", is_chart_tab_active)
 
     def register_panel(self, panel: QWidget, name: str, icon: str, visibility_condition):

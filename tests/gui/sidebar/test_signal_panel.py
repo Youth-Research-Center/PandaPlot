@@ -18,6 +18,9 @@ import pytest
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
+    ApplySignalAnalysisResultCommand,
+)
 from pandaplot.gui.components.sidebar.signal.signal_panel import SignalPanel
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -33,6 +36,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
     return ctx
 
 
@@ -201,6 +205,135 @@ class TestAddResultsToProjectAsyncDispatch:
         panel._build_command = lambda: fake_command
 
         return panel, fake_command, executed
+
+    def test_reuses_cached_result_without_recomputing(self, app_context):
+        panel = _build_panel_with_column(app_context)
+
+        captured_run = {}
+        fake_run_command = Mock()
+        fake_run_command.run_analysis_async = lambda on_complete: captured_run.update(on_complete=on_complete)
+        panel._build_command = lambda: fake_run_command
+
+        # Step 1: Run analysis to calculate and cache preview result
+        panel.run_analysis()
+        result = _fake_result()
+        captured_run["on_complete"](result, None)
+
+        assert panel.last_result is result
+
+        executed = {}
+        def _capture_execute(command):
+            executed["command"] = command
+            return True
+
+        panel.app_context.get_command_executor.return_value.execute_command = _capture_execute
+
+        # Step 2: Add to project with unchanged parameters
+        panel.add_results_to_project()
+
+        # Should execute ApplySignalAnalysisResultCommand directly instead of re-building SignalAnalysisCommand
+        assert isinstance(executed["command"], ApplySignalAnalysisResultCommand)
+        assert executed["command"].result is result
+        assert "added to project" in panel.results_text.toPlainText().lower()
+        assert panel.add_btn.isEnabled() is False
+
+    def test_invalidates_cached_result_on_dataset_data_changed(self, app_context):
+        panel = _build_panel_with_column(app_context)
+
+        captured_run = {}
+        fake_run_command = Mock()
+        fake_run_command.run_analysis_async = lambda on_complete: captured_run.update(on_complete=on_complete)
+        panel._build_command = lambda: fake_run_command
+
+        # Run analysis to populate last_result and _last_run_params
+        panel.run_analysis()
+        result = _fake_result()
+        captured_run["on_complete"](result, None)
+
+        assert panel.last_result is result
+
+        # Emit dataset data changed event
+        panel.on_dataset_data_changed({"dataset_id": "ds-1"})
+
+        assert panel.last_result is None
+        assert panel._last_run_params is None
+
+        fake_add_command = Mock()
+        fake_add_command.result = Mock()
+        executed = {}
+
+        def _capture_execute(command):
+            executed["command"] = command
+            return True
+
+        panel.app_context.get_command_executor.return_value.execute_command = _capture_execute
+        panel._build_command = lambda: fake_add_command
+
+        panel.add_results_to_project()
+
+        # Should fall back to full command because cached result was invalidated
+        assert executed["command"] is fake_add_command
+
+    def test_row_added_and_removed_events_also_invalidate_cache(self, app_context):
+        """Regression test (PR review): row insert/delete on the source
+        dataset emit DATASET_ROW_ADDED/DATASET_ROW_REMOVED, not
+        DATASET_DATA_CHANGED. A signal's cached length/values are just as
+        stale after a row edit as after a cell edit, so both must also
+        invalidate the cached preview."""
+        from pandaplot.models.events import DatasetOperationEvents
+
+        panel = _build_panel_with_column(app_context)
+
+        subscribed_events = {event_type for event_type, _handler in panel._subscriptions}
+        assert DatasetOperationEvents.DATASET_ROW_ADDED in subscribed_events
+        assert DatasetOperationEvents.DATASET_ROW_REMOVED in subscribed_events
+
+        captured_run = {}
+        fake_run_command = Mock()
+        fake_run_command.run_analysis_async = lambda on_complete: captured_run.update(on_complete=on_complete)
+        panel._build_command = lambda: fake_run_command
+
+        panel.run_analysis()
+        result = _fake_result()
+        captured_run["on_complete"](result, None)
+        assert panel.last_result is result
+
+        panel.on_dataset_data_changed({"dataset_id": panel.current_dataset_id})
+        assert panel.last_result is None
+        assert panel._last_run_params is None
+
+    def test_recomputes_if_parameters_changed_after_run(self, app_context):
+        panel = _build_panel_with_column(app_context)
+
+        captured_run = {}
+        fake_run_command = Mock()
+        fake_run_command.run_analysis_async = lambda on_complete: captured_run.update(on_complete=on_complete)
+        panel._build_command = lambda: fake_run_command
+
+        # Run analysis to populate last_result and _last_run_params
+        panel.run_analysis()
+        result = _fake_result()
+        captured_run["on_complete"](result, None)
+
+        # Change sampling rate parameter
+        if panel.sampling_rate:
+            panel.sampling_rate.setValue(panel.sampling_rate.value() + 50)
+
+        fake_add_command = Mock()
+        fake_add_command.result = Mock()
+        executed = {}
+
+        def _capture_execute(command):
+            executed["command"] = command
+            return True
+
+        panel.app_context.get_command_executor.return_value.execute_command = _capture_execute
+        panel._build_command = lambda: fake_add_command
+
+        panel.add_results_to_project()
+
+        # Should fall back to dispatching full command
+        assert executed["command"] is fake_add_command
 
     def test_success_path_appends_confirmation_and_stops_spinner(self, app_context):
         panel, fake_command, executed = self._ready(app_context)

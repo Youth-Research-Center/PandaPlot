@@ -10,6 +10,7 @@ import pandas as pd
 from pandaplot.analysis import PreprocessingEngine, PreprocessingMethod
 from pandaplot.analysis.preprocessing_types import PREPROCESSING_METHODS
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
@@ -195,9 +196,9 @@ class PreprocessColumnCommand(Command):
     def _get_dataset(self) -> Optional[Dataset]:
         """Get the dataset from the app context."""
         try:
-            app_state = self.app_context.get_app_state()
-            if app_state.has_project and app_state.current_project:
-                item = app_state.current_project.find_item(self.dataset_id)
+            project = get_current_project(self.app_context)
+            if project is not None:
+                item = project.find_item(self.dataset_id)
                 if isinstance(item, Dataset):
                     return item
             return None

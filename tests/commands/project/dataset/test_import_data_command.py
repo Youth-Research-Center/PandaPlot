@@ -111,6 +111,7 @@ class TestImportDataCommandLogging:
     def mock_app_context(self):
         app_context = Mock(spec=AppContext)
         app_state = Mock(spec=AppState)
+        app_state.event_bus = Mock()
         ui_controller = Mock()
 
         app_context.get_app_state.return_value = app_state

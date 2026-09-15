@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QScreen
 from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
+from pandaplot.commands.project.project.unsaved_changes import confirm_discard_unsaved_changes
 from pandaplot.gui.components import CollapsibleSidebar, TabContainer
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
 from pandaplot.gui.components.sidebar.panels.sidebar_panel_coordinator import (
@@ -12,6 +13,7 @@ from pandaplot.gui.components.sidebar.panels.sidebar_panel_coordinator import (
 from pandaplot.gui.core.widget_extension import PMainWindow
 from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import AppEvents
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.config.config_manager import ConfigManager
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -20,6 +22,10 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class PandaMainWindow(PMainWindow):
     def __init__(self, app_context: AppContext):
         super().__init__(app_context=app_context)
+        # Guards re-entrancy between this flag's two writers: on_app_closing_
+        # event (the File > Exit path, which already confirmed via
+        # ExitCommand before emitting APP_CLOSING) and closeEvent below (the
+        # OS window-close button/Cmd+Q path, which hasn't confirmed yet).
         self._is_closing = False
         self._initialize()
 
@@ -37,6 +43,7 @@ class PandaMainWindow(PMainWindow):
 
         # Create central widget
         central_widget = QWidget()
+        central_widget.setObjectName("mainCentralWidget")
         self.setCentralWidget(central_widget)
 
         # Main layout
@@ -57,9 +64,16 @@ class PandaMainWindow(PMainWindow):
         # Get theme-appropriate background color
         background_color = palette.get("card_bg", "#F5F5F5")
         
-        # Apply background to central widget
+        # Apply background to central widget. Scoped to its object name
+        # rather than the bare "QWidget" type selector -- a widget-level
+        # style sheet overrides the QApplication-wide one for any property it
+        # sets, regardless of selector specificity, so an unscoped "QWidget"
+        # rule here would clobber background-color on every descendant
+        # QPushButton (Apply, Add to Project, ...) styled by the global
+        # [primary="true"] etc. rules, leaving only their border/text colors
+        # -- drawn for a colored fill -- visible against a plain background.
         central_widget = self.centralWidget()
-        central_widget.setStyleSheet(f"QWidget {{ background-color: {background_color}; }}")
+        central_widget.setStyleSheet(f"QWidget#mainCentralWidget {{ background-color: {background_color}; }}")
             
         self.logger.debug("Applied theme")
             
@@ -126,6 +140,52 @@ class PandaMainWindow(PMainWindow):
         """Set up event subscriptions for the main window."""
         self.subscribe_to_event(AppEvents.APP_CLOSING,
                                 self.on_app_closing_event)
+
+        # Keep the title bar showing the current project's name and
+        # saved/unsaved state (previously it was always the static
+        # "PandaPlot", never reflecting which project -- if any -- was open).
+        self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, lambda _data: self._update_window_title())
+        self.subscribe_to_event(ProjectEvents.PROJECT_SAVED, lambda _data: self._update_window_title())
+        self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, lambda _data: self._update_window_title())
+        self.subscribe_to_event(ProjectEvents.PROJECT_CHANGED, lambda _data: self._update_window_title())
+        self.subscribe_to_event(ProjectEvents.PROJECT_MODIFIED_CHANGED, lambda _data: self._update_window_title())
+
+    def _update_window_title(self):
+        """Set the title bar to "<project name>[*] - PandaPlot", or plain
+        "PandaPlot" when no project is loaded. The trailing "*" mirrors the
+        common desktop-app convention for unsaved changes."""
+        app_state = self.app_context.get_app_state()
+        if not app_state.has_project or not app_state.current_project:
+            self.setWindowTitle("PandaPlot")
+            return
+        marker = "*" if app_state.is_modified else ""
+        self.setWindowTitle(f"{app_state.current_project.name}{marker} - PandaPlot")
+
+    @override
+    def closeEvent(self, event):
+        """Handle the OS window-close button / Cmd+Q.
+
+        Previously this path bypassed every unsaved-changes check: with no
+        override here, Qt's default QMainWindow.closeEvent just accepts and
+        closes, and File > Exit's ExitCommand (the only other close path)
+        didn't check anything either at the time. Route through the same
+        confirm_discard_unsaved_changes guard ExitCommand now uses, and
+        ignore the event (cancelling the close) if the user declines.
+        will_autosave=True for the same reason as ExitCommand: this path
+        also ends in app.launch()'s aboutToQuit -> _flush_save_on_quit,
+        which unconditionally saves an existing saved project rather than
+        discarding it.
+        """
+        if self._is_closing:
+            # Already mid-close via ExitCommand -> APP_CLOSING ->
+            # on_app_closing_event -> self.close() -- that path confirmed
+            # already, so don't ask a second time.
+            event.accept()
+            return
+        if not confirm_discard_unsaved_changes(self.app_context, will_autosave=True):
+            event.ignore()
+            return
+        event.accept()
 
     def on_app_closing_event(self, event_data: dict):
         """Handle app closing event from the internal event bus.

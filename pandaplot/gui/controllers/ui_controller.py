@@ -51,6 +51,26 @@ class UIController:
         
         return file_path if file_path else None
     
+    def show_new_project_dialog(self, default_name: str = "New Project") -> Optional[str]:
+        """
+        Prompt for a name for a brand-new project.
+
+        Args:
+            default_name (str): Name pre-filled in the input field.
+
+        Returns:
+            str: The entered name (whitespace-trimmed), or None if the user
+                cancelled or entered a blank name.
+        """
+        name, ok = QInputDialog.getText(
+            self.parent_widget,
+            "New Project",
+            "Project name:",
+            text=default_name,
+        )
+        name = name.strip() if name else ""
+        return name if ok and name else None
+
     def show_import_data_dialog(self) -> Optional[str]:
         """
         Show file dialog to import a data file (CSV/TSV or single-sheet Excel workbook).

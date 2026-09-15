@@ -5,7 +5,7 @@ PandaPlot is an educational scientific visualization and analysis application bu
 
 ## Running the App
 ```bash
-python -m pandaplot.app
+uv run python -m pandaplot.app
 ```
 
 ## Package Manager
@@ -20,31 +20,31 @@ uv add <package>         # Add a new dependency
 - **Python** >=3.12
 - **GUI:** PySide6
 - **Plotting:** matplotlib
-- **Data:** pandas, pyarrow, openpyxl
+- **Data:** pandas, pyarrow, openpyxl, xlrd
 - **Scientific:** scipy, statsmodels
 - **Linting:** ruff (line-length = 150)
-- **Testing:** pytest, pytest-mock, pytest-cov, pytest-asyncio
-- **Security:** bandit, pip-audit
+- **Testing:** pytest, pytest-mock, pytest-cov, pytest-asyncio, pytest-qt
 
 ## Linting & Formatting
 ```bash
-ruff check .              # Lint check
-ruff check --fix .        # Lint and auto-fix
-ruff check --select I .   # Check import sorting only
-ruff check --select I --fix .  # Auto-sort imports
+uv run ruff check .              # Lint check
+uv run ruff check --fix .        # Lint and auto-fix
+uv run ruff check --select I .   # Check import sorting only
+uv run ruff check --select I --fix .  # Auto-sort imports
 ```
 
 ## Testing
+When running tests in headless environments, set `QT_QPA_PLATFORM=offscreen`:
 ```bash
-pytest                    # Run all tests
-pytest --cov=pandaplot    # With coverage
+QT_QPA_PLATFORM=offscreen uv run pytest                    # Run all tests
+QT_QPA_PLATFORM=offscreen uv run pytest --cov=pandaplot    # With coverage
 ```
 Tests live in `tests/` and mirror the main package structure.
 
 ## Project Structure
 - `pandaplot/` - Main application package
   - `app.py` - Entry point (builds AppContext, launches Qt event loop)
-  - `analysis/` - Data analysis engine
+  - `analysis/` - Data analysis engine (derivatives, fits, transforms, smoothing)
   - `commands/` - Command pattern (undo/redo support)
   - `gui/` - Qt GUI (main window, components, controllers, dialogs)
   - `models/` - Data models (chart, events, project, state)
@@ -64,8 +64,9 @@ Tests live in `tests/` and mirror the main package structure.
 
 ## Code Conventions
 - Type hints on all function parameters and return types
+- Keyword-only booleans (`def f(*, flag: bool)`) for `ruff` `FBT` compliance unless overriding Qt virtual methods
 - Naming: PascalCase classes, snake_case functions, _private methods
 - Line length: 150 characters (enforced by ruff)
 - Logging: `self.logger = logging.getLogger(self.__class__.__name__)`
-- Docstrings: NumPy/Google style with Args, Returns, Notes sections
+- Docstrings: Google style (`Args:`, `Returns:`, `Raises:` sections)
 - Follow existing patterns — don't over-engineer or add unnecessary abstractions

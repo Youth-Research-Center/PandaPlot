@@ -85,6 +85,14 @@ class SeriesTypeSpec:
     # scatter (not a sequence), and every 3-D type would silently drop its Z
     # dimension if analyzed as a flat (x, y) pair.
     supports_curve_analysis: bool
+    # Whether this type's renderer can annotate each rendered point/bar with
+    # its own numeric value (#125) -- a Line/Scatter point's Y value, or a
+    # Bar's height. True only for LINE/SCATTER/BAR: HIST's bars represent a
+    # computed count matplotlib itself picks bin edges for (no single
+    # "value" column to label from series data the way a Bar chart's height
+    # already is one), VECTOR/COLORMAP/HEATMAP/every 3-D type have no single
+    # scalar value per plotted element that a flat text label reads naturally.
+    supports_value_labels: bool
     style_cls: type[SeriesStyleBase]
 
 
@@ -95,6 +103,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=False, supports_gridding=False,
         uses_color_scale=False, is_3d=False,
         supports_curve_analysis=True,
+        supports_value_labels=True,
         style_cls=LineSeriesStyle,
     ),
     SeriesType.SCATTER: SeriesTypeSpec(
@@ -103,6 +112,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=False, supports_gridding=False,
         uses_color_scale=False, is_3d=False,
         supports_curve_analysis=True,
+        supports_value_labels=True,
         style_cls=ScatterSeriesStyle,
     ),
     SeriesType.BAR: SeriesTypeSpec(
@@ -111,6 +121,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=False, supports_gridding=False,
         uses_color_scale=False, is_3d=False,
         supports_curve_analysis=False,
+        supports_value_labels=True,
         style_cls=BarSeriesStyle,
     ),
     SeriesType.HIST: SeriesTypeSpec(
@@ -119,6 +130,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=False, supports_gridding=False,
         uses_color_scale=False, is_3d=False,
         supports_curve_analysis=False,
+        supports_value_labels=False,
         style_cls=HistSeriesStyle,
     ),
     SeriesType.VECTOR: SeriesTypeSpec(
@@ -127,6 +139,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=False, supports_gridding=False,
         uses_color_scale=False, is_3d=False,
         supports_curve_analysis=False,
+        supports_value_labels=False,
         style_cls=VectorSeriesStyle,
     ),
     SeriesType.COLORMAP: SeriesTypeSpec(
@@ -135,6 +148,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=True, supports_gridding=False,
         uses_color_scale=True, is_3d=False,
         supports_curve_analysis=False,
+        supports_value_labels=False,
         style_cls=ColormapSeriesStyle,
     ),
     SeriesType.HEATMAP: SeriesTypeSpec(
@@ -143,6 +157,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=True, supports_gridding=True,
         uses_color_scale=True, is_3d=False,
         supports_curve_analysis=False,
+        supports_value_labels=False,
         style_cls=HeatmapSeriesStyle,
     ),
     # -- 3-D types (is_3d=True) ------------------------------------------
@@ -154,6 +169,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=True, supports_gridding=False,
         uses_color_scale=False, is_3d=True,
         supports_curve_analysis=False,
+        supports_value_labels=False,
         style_cls=Scatter3DSeriesStyle,
     ),
     SeriesType.LINE3D: SeriesTypeSpec(
@@ -162,6 +178,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=True, supports_gridding=False,
         uses_color_scale=False, is_3d=True,
         supports_curve_analysis=False,
+        supports_value_labels=False,
         style_cls=Line3DSeriesStyle,
     ),
     SeriesType.SURFACE: SeriesTypeSpec(
@@ -170,6 +187,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=True, supports_gridding=True,
         uses_color_scale=True, is_3d=True,
         supports_curve_analysis=False,
+        supports_value_labels=False,
         style_cls=SurfaceSeriesStyle,
     ),
     SeriesType.WIREFRAME: SeriesTypeSpec(
@@ -181,6 +199,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=True, supports_gridding=True,
         uses_color_scale=False, is_3d=True,
         supports_curve_analysis=False,
+        supports_value_labels=False,
         style_cls=WireframeSeriesStyle,
     ),
     SeriesType.BAR3D: SeriesTypeSpec(
@@ -189,6 +208,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=True, supports_gridding=False,
         uses_color_scale=False, is_3d=True,
         supports_curve_analysis=False,
+        supports_value_labels=False,
         style_cls=Bar3DSeriesStyle,
     ),
     SeriesType.TRISURF: SeriesTypeSpec(
@@ -197,6 +217,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         needs_z_column=True, supports_gridding=False,
         uses_color_scale=True, is_3d=True,
         supports_curve_analysis=False,
+        supports_value_labels=False,
         style_cls=TrisurfSeriesStyle,
     ),
 }

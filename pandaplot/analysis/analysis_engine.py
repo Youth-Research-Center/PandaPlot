@@ -39,10 +39,20 @@ class AnalysisEngine:
         # Handle data slicing
         if end_index == -1:
             end_index = len(x_data)
-        
+
         x_slice = x_data.iloc[start_index:end_index]
         y_slice = y_data.iloc[start_index:end_index]
-        
+
+        # np.diff() (forward/backward) and np.gradient() (central) all need
+        # at least 2 points to produce a single difference/slope; with fewer
+        # than that they return/operate on an empty array, and indexing into
+        # it below (derivative[-1]/derivative[0]) raises an opaque IndexError
+        # instead of a message that explains what's actually wrong.
+        if len(x_slice) < 2:
+            raise ValueError(
+                f"Derivative calculation requires at least 2 data points, got {len(x_slice)}."
+            )
+
         # Calculate derivative based on method
         if method == DerivativeMethod.CENTRAL.value:
             derivative = np.gradient(y_slice, x_slice)

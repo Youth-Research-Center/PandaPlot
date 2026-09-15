@@ -14,7 +14,12 @@ AppContext
 ├── task_scheduler: TaskScheduler
 ├── fit_service: FitService
 ├── ui_controller: UIController
-└── project_data_manager: ProjectDataManager
+├── project_data_manager: ProjectDataManager
+├── autosave_service: AutosaveService
+├── session_manager: SessionManager
+├── transform_engine: TransformEngine
+├── note_render_service: NoteRenderService
+└── note_search_service: NoteSearchService
 ```
 
 ### Type-Safe Manager Retrieval
@@ -40,6 +45,14 @@ AppState
     ├── self.current_project = None
     └── EventBus.emit(ProjectEvents.PROJECT_CLOSED, {...})
 ```
+
+## Service Layer Overview
+
+- **AutosaveService (`services/autosave/`)**: Listens to project and dataset modification events on `EventBus`. When auto-save is enabled in `ConfigManager`, triggers debounced asynchronous project saves.
+- **SessionManager (`services/session/`)**: Saves and restores application session state (open tabs, window geometry, last active item) across application launches.
+- **TransformEngine (`services/transform/`)**: Safely evaluates mathematical expressions over pandas DataFrame columns using `pandas.eval`.
+- **NoteRenderService & NoteSearchService (`services/note_render/`, `services/note_search/`)**: Converts Markdown notes to HTML/LaTeX and provides full-text search across project notes.
+- **ExcelImportService (`services/data_import/`)**: Parses single and multi-sheet Excel workbooks into project Datasets with sheet previews.
 
 ## Full State Tree
 

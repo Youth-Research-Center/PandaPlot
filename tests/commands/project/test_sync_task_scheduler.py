@@ -1,5 +1,6 @@
 """Tests for SyncTaskScheduler test double."""
 
+from pandaplot.services.qtasks import CancellationToken, TaskCancelledError
 from tests.commands.project.conftest import SyncTaskScheduler
 
 
@@ -37,3 +38,26 @@ def test_sync_task_scheduler_calls_error_then_finished_on_exception():
     assert calls[0][0] == "error"
     assert isinstance(calls[0][1], ValueError)
     assert calls[1] == ("finished", None)
+
+
+def test_sync_task_scheduler_cancellation():
+    calls = []
+    scheduler = SyncTaskScheduler()
+
+    def task(progress_callback, is_cancelled):
+        if is_cancelled():
+            raise TaskCancelledError()
+        return "ok"
+
+    token = CancellationToken()
+    token.cancel()
+
+    scheduler.run_task(
+        task,
+        cancellation_token=token,
+        on_result=lambda r: calls.append(("result", r)),
+        on_cancelled=lambda: calls.append(("cancelled", None)),
+        on_finished=lambda: calls.append(("finished", None)),
+    )
+
+    assert calls == [("cancelled", None), ("finished", None)]

@@ -46,13 +46,13 @@ class EventBus:
         
         if "*" in event_pattern:
             regex_pattern = event_pattern.replace(".", r"\.").replace("*", ".*")
-            if callback in self._pattern_subscribers[regex_pattern]:
+            if callback in self._pattern_subscribers.get(regex_pattern, []):
                 self._pattern_subscribers[regex_pattern].remove(callback)
                 self.logger.debug("Removed pattern subscriber for: %s", event_pattern)
             else:
                 self.logger.warning("Callback not found in pattern subscribers for: %s", event_pattern)
         else:
-            if callback in self._subscribers[event_pattern]:
+            if callback in self._subscribers.get(event_pattern, []):
                 self._subscribers[event_pattern].remove(callback)
                 self.logger.debug("Removed direct subscriber for: %s", event_pattern)
             else:

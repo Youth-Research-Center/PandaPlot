@@ -95,6 +95,18 @@ def test_curve_analysis_is_supported_only_by_line_and_scatter():
         assert SERIES_TYPE_SPECS[series_type].supports_curve_analysis is expected, series_type
 
 
+def test_value_labels_are_supported_only_by_line_scatter_and_bar():
+    """Regression (#125): each rendered point/bar can be annotated with its
+    own numeric value only for the types with a single scalar value per
+    plotted element (a Line/Scatter point's Y, a Bar's height). Asserted
+    against the full SeriesType enum so a newly added type defaults to
+    being excluded rather than silently inheriting an unsupported option."""
+    value_label_types = {SeriesType.LINE, SeriesType.SCATTER, SeriesType.BAR}
+    for series_type in SeriesType:
+        expected = series_type in value_label_types
+        assert SERIES_TYPE_SPECS[series_type].supports_value_labels is expected, series_type
+
+
 def test_style_cls_matches_each_series_type():
     assert SERIES_TYPE_SPECS[SeriesType.LINE].style_cls is LineSeriesStyle
     assert SERIES_TYPE_SPECS[SeriesType.SCATTER].style_cls is ScatterSeriesStyle

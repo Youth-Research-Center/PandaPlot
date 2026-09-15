@@ -3,6 +3,7 @@
 from typing import Any, Callable, Dict, Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import ChartEvents
 from pandaplot.models.project.items.chart import (
@@ -29,12 +30,7 @@ class ApplyChartPropertiesCommand(Command):
         # snapshot taken when the chart was loaded into the panel.
         self.old_snapshot: Optional[Dict[str, Any]] = old_snapshot
         self.new_snapshot: Optional[Dict[str, Any]] = None
-
-    def _find_chart(self) -> Optional[Chart]:
-        app_state = self.app_context.get_app_state()
-        if not app_state.has_project or not app_state.current_project:
-            return None
-        return app_state.current_project.find_item(self.chart_id)
+        self._chart_finder = ChartFinder(app_context)
 
     def _emit_update(self, chart: Chart) -> None:
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
@@ -44,11 +40,11 @@ class ApplyChartPropertiesCommand(Command):
 
     @override
     def execute(self) -> CommandResult:
-        chart = self._find_chart()
-        if not chart or not isinstance(chart, Chart):
+        chart = self._chart_finder.find(self.chart_id)
+        if not chart:
             self.logger.warning(
-                "ApplyChartPropertiesCommand.execute: chart '%s' not found or not a Chart (got %s)",
-                self.chart_id, type(chart).__name__ if chart else None,
+                "ApplyChartPropertiesCommand.execute: chart '%s' not found",
+                self.chart_id,
             )
             self.ui_controller.show_error_message(
                 "Apply Chart Properties Error", f"Chart '{self.chart_id}' not found."
@@ -69,7 +65,7 @@ class ApplyChartPropertiesCommand(Command):
 
     @override
     def undo(self) -> CommandResult:
-        chart = self._find_chart()
+        chart = self._chart_finder.find(self.chart_id)
         if not chart or self.old_snapshot is None:
             self.logger.warning(
                 "ApplyChartPropertiesCommand.undo: cannot undo for chart '%s' (chart found=%s, old_snapshot set=%s)",
@@ -82,7 +78,7 @@ class ApplyChartPropertiesCommand(Command):
 
     @override
     def redo(self) -> CommandResult:
-        chart = self._find_chart()
+        chart = self._chart_finder.find(self.chart_id)
         if not chart or self.new_snapshot is None:
             self.logger.warning(
                 "ApplyChartPropertiesCommand.redo: cannot redo for chart '%s' (chart found=%s, new_snapshot set=%s)",

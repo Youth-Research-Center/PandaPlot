@@ -11,14 +11,14 @@ Contributions are welcome! If you would like to contribute to PandaPlot, please 
 4.  Make your changes.
 5.  Run the tests to ensure everything is working correctly:
     ```bash
-    pytest
+    QT_QPA_PLATFORM=offscreen uv run pytest
     ```
 6.  Run linting and static analysis checks:
     ```bash
-    ruff check .
-    bandit -r pandaplot
-    pip-audit
-    vulture pandaplot
+    uv run ruff check .
+    uv run bandit -r pandaplot
+    uv run pip-audit
+    uv run vulture pandaplot
     ```
 7.  Submit a pull request.
 

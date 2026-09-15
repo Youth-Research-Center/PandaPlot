@@ -19,6 +19,14 @@ from pandaplot.commands.project.chart import CreateChartFromWizardCommand
 from pandaplot.models.project.items import Dataset
 
 
+def test_marks_project_modified_is_false():
+    """Regression (PR #235 review): execute() only opens the wizard dialog;
+    the real mutation is CreateChartCommand, executed separately (and
+    self-tracked) once the wizard finishes. A cancelled wizard must not
+    flag the project as having unsaved changes."""
+    assert CreateChartFromWizardCommand(Mock()).marks_project_modified() is False
+
+
 @pytest.fixture
 def app_context_with_project():
     dataset = Mock(spec=Dataset)

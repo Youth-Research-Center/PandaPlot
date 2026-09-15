@@ -1,11 +1,12 @@
 """Tests for ImageGalleryTab."""
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from PySide6.QtCore import QBuffer, QIODevice, QMimeData
 from PySide6.QtGui import QColor, QPixmap
-from PySide6.QtWidgets import QApplication, QLabel
+from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
 
+from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.tabs.image.image_gallery_tab import ImageGalleryTab
 from pandaplot.models.project.items import Image, ImageGallery
@@ -500,6 +501,17 @@ class TestImageGalleryTabMovedEvent:
         assert tab.grid.count() == 0
 
 
+class TestImageGalleryTabContentChangedEvent:
+    def test_subscribes_to_project_item_content_changed(self, app_context):
+        from pandaplot.models.events.event_types import ProjectEvents
+
+        gallery = ImageGallery(name="Trip")
+        ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+
+        subscribed_events = [call.args[0] for call in app_context.event_bus.subscribe.call_args_list]
+        assert ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED in subscribed_events
+
+
 class TestImageGalleryTabListViewSelection:
     """Regression coverage for the toolbar/context-menu acting on stale grid
     selection after the user has switched to (and selected in) list view."""
@@ -690,8 +702,10 @@ class TestImageGalleryTabMoveCopy:
 
         executor = tab.app_context.get_command_executor.return_value
         assert executor.execute_command.call_count == 1
-        move_command = executor.execute_command.call_args.args[0]
-        assert move_command.item_id == image.id
+        composite = executor.execute_command.call_args.args[0]
+        assert isinstance(composite, CompositeCommand)
+        assert len(composite.commands) == 1
+        assert composite.commands[0].item_id == image.id
 
     def test_move_executes_move_item_command_per_selected_image(self, app_context, monkeypatch):
         gallery = ImageGallery(name="Trip")
@@ -721,10 +735,51 @@ class TestImageGalleryTabMoveCopy:
 
         executor = tab.app_context.get_command_executor.return_value
         assert executor.execute_command.called
-        move_command = executor.execute_command.call_args.args[0]
+        composite = executor.execute_command.call_args.args[0]
+        assert isinstance(composite, CompositeCommand)
+        assert len(composite.commands) == 1
+        move_command = composite.commands[0]
         assert move_command.item_id == image.id
         assert move_command.target_folder_id == target_gallery_id
         assert move_command.source_folder_id == gallery.id
+
+    def test_move_wraps_multiple_selected_images_in_one_composite_command(self, app_context, monkeypatch):
+        """A single 'Move to...' action on N selected images must land as one
+        undo-stack entry (one CompositeCommand of N MoveItemCommands), not N
+        separate entries that would each need their own Ctrl+Z."""
+        gallery = ImageGallery(name="Trip")
+        image1 = Image(name="Beach")
+        image2 = Image(name="Mountain")
+        gallery.add_item(image1)
+        gallery.add_item(image2)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.item(1).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        target_gallery_id = "some-other-gallery-id"
+
+        class _FakeDialog:
+            def __init__(self, *a, **kw):
+                pass
+            def exec(self):
+                from PySide6.QtWidgets import QDialog
+                return QDialog.DialogCode.Accepted
+            def get_selected_gallery_id(self):
+                return target_gallery_id
+
+        monkeypatch.setattr(
+            "pandaplot.gui.dialogs.image.gallery_destination_picker_dialog.GalleryDestinationPickerDialog",
+            _FakeDialog,
+        )
+
+        tab._on_move_clicked()
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 1
+        composite = executor.execute_command.call_args.args[0]
+        assert isinstance(composite, CompositeCommand)
+        assert {cmd.item_id for cmd in composite.commands} == {image1.id, image2.id}
 
     def test_copy_executes_copy_images_command_once_for_whole_selection(self, app_context, monkeypatch):
         gallery = ImageGallery(name="Trip")
@@ -789,6 +844,65 @@ class TestImageGalleryTabMoveCopy:
         assert not executor.execute_command.called
 
 
+class TestImageGalleryTabBulkDelete:
+    def test_delete_wraps_single_selection_in_composite_command(self, app_context):
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            tab._on_delete_clicked()
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 1
+        composite = executor.execute_command.call_args.args[0]
+        assert isinstance(composite, CompositeCommand)
+        assert len(composite.commands) == 1
+        assert composite.commands[0].item_id == image.id
+
+    def test_delete_wraps_multiple_selected_items_in_one_composite_command(self, app_context):
+        """A single 'Delete' action on N selected items must land as one
+        undo-stack entry (one CompositeCommand of N DeleteItemCommands), not
+        N separate entries that would each need their own Ctrl+Z."""
+        gallery = ImageGallery(name="Trip")
+        image1 = Image(name="Beach")
+        image2 = Image(name="Mountain")
+        gallery.add_item(image1)
+        gallery.add_item(image2)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.item(1).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            tab._on_delete_clicked()
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 1
+        composite = executor.execute_command.call_args.args[0]
+        assert isinstance(composite, CompositeCommand)
+        assert {cmd.item_id for cmd in composite.commands} == {image1.id, image2.id}
+        # Each sub-command already skips its own confirmation dialog since
+        # the tab confirmed the whole batch up front.
+        assert all(cmd.confirm is False for cmd in composite.commands)
+
+    def test_delete_does_nothing_when_confirmation_declined(self, app_context):
+        gallery = ImageGallery(name="Trip")
+        gallery.add_item(Image(name="Beach"))
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No):
+            tab._on_delete_clicked()
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert not executor.execute_command.called
+
+
 class TestImageGalleryTabBrokenThumbnails:
     def test_failed_thumbnail_load_produces_broken_icon_distinct_from_success(self, app_context):
         gallery = ImageGallery(name="Trip")
@@ -835,7 +949,10 @@ class TestImageGalleryTabDragDropOntoAlbum:
 
         executor = tab.app_context.get_command_executor.return_value
         assert executor.execute_command.called
-        move_command = executor.execute_command.call_args.args[0]
+        composite = executor.execute_command.call_args.args[0]
+        assert isinstance(composite, CompositeCommand)
+        assert len(composite.commands) == 1
+        move_command = composite.commands[0]
         assert move_command.item_id == image.id
         assert move_command.target_folder_id == album.id
         assert move_command.source_folder_id == gallery.id
@@ -878,7 +995,10 @@ class TestImageGalleryTabDragDropOntoAlbum:
         tab.grid._handle_drop_on_item(album_item, mime)
 
         executor = tab.app_context.get_command_executor.return_value
-        assert executor.execute_command.call_count == 2
+        assert executor.execute_command.call_count == 1
+        composite = executor.execute_command.call_args.args[0]
+        assert isinstance(composite, CompositeCommand)
+        assert {cmd.item_id for cmd in composite.commands} == {image_a.id, image_b.id}
 
     def test_dropping_an_album_id_onto_another_album_does_not_destroy_its_contents(self, app_context):
         """Regression: a drag payload can contain an album id (e.g. an album
@@ -957,7 +1077,10 @@ class TestImageGalleryTabDragDropOntoBreadcrumb:
 
         executor = tab.app_context.get_command_executor.return_value
         assert executor.execute_command.called
-        move_command = executor.execute_command.call_args.args[0]
+        composite = executor.execute_command.call_args.args[0]
+        assert isinstance(composite, CompositeCommand)
+        assert len(composite.commands) == 1
+        move_command = composite.commands[0]
         assert move_command.item_id == image.id
         assert move_command.target_folder_id == gallery.id
         assert move_command.source_folder_id == album.id
@@ -1153,3 +1276,229 @@ class TestImageGalleryTabTitleRefresh:
         tab._on_project_item_changed({"item_id": image.id, "new_name": "Beach Renamed"})
 
         tab.refresh_tab_title.assert_not_called()
+
+
+class TestImageGalleryTabEditImage:
+    def test_edit_button_disabled_without_single_image_selection(self, app_context):
+        gallery = ImageGallery(name="Trip")
+        gallery.add_item(Image(name="Beach"))
+        gallery.add_item(Image(name="Mountain"))
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+
+        assert tab.edit_image_button.isEnabled() is False
+
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+        assert tab.edit_image_button.isEnabled() is True
+
+        tab.grid.item(1).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+        assert tab.edit_image_button.isEnabled() is False
+
+    def test_edit_image_clicked_opens_dialog_and_executes_command_on_accept(self, app_context, monkeypatch):
+        from PySide6.QtWidgets import QDialog
+
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(_real_png_bytes())
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        class _FakeEditorDialog:
+            def __init__(self, *a, **kw):
+                pass
+            def exec(self):
+                return QDialog.DialogCode.Accepted
+            def has_edits(self):
+                return True
+            def get_result_bytes(self):
+                return b"new-bytes"
+            def get_result_width(self):
+                return 42
+            def get_result_height(self):
+                return 24
+            def get_result_ext(self):
+                return "png"
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog",
+            _FakeEditorDialog,
+        )
+
+        tab._on_edit_image_clicked()
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 1
+        command = executor.execute_command.call_args.args[0]
+        from pandaplot.commands.project.image.edit_image_command import EditImageCommand
+        assert isinstance(command, EditImageCommand)
+        assert command.image_id == image.id
+        assert command.new_bytes == b"new-bytes"
+        assert command.new_width == 42
+        assert command.new_height == 24
+        assert command.new_ext == "png"
+
+    def test_edit_image_accepted_with_no_edits_does_not_execute_command(self, app_context, monkeypatch):
+        from unittest.mock import Mock
+
+        from PySide6.QtWidgets import QDialog
+
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(_real_png_bytes())
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        class _FakeEditorDialog:
+            def __init__(self, *a, **kw):
+                pass
+            def exec(self):
+                return QDialog.DialogCode.Accepted
+            def has_edits(self):
+                return False
+            get_result_bytes = Mock()
+            get_result_width = Mock()
+            get_result_height = Mock()
+            get_result_ext = Mock()
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog",
+            _FakeEditorDialog,
+        )
+
+        tab._on_edit_image_clicked()
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 0
+        assert _FakeEditorDialog.get_result_bytes.call_count == 0
+        assert _FakeEditorDialog.get_result_width.call_count == 0
+        assert _FakeEditorDialog.get_result_height.call_count == 0
+        assert _FakeEditorDialog.get_result_ext.call_count == 0
+
+    def test_edit_image_clicked_does_nothing_on_cancel(self, app_context, monkeypatch):
+        from PySide6.QtWidgets import QDialog
+
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(_real_png_bytes())
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        class _FakeEditorDialog:
+            def __init__(self, *a, **kw):
+                pass
+            def exec(self):
+                return QDialog.DialogCode.Rejected
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog",
+            _FakeEditorDialog,
+        )
+
+        tab._on_edit_image_clicked()
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 0
+
+    def test_edit_image_shows_warning_instead_of_crashing_when_external_load_raises(
+        self, app_context, monkeypatch
+    ):
+        """_load_external_bytes can raise (a network error for a URL source,
+        an unreadable/removed local file) -- that must surface as the same
+        load-error message a missing/empty result already gets, not escape
+        the Qt slot as an unhandled exception."""
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach", storage_mode="external", source_file="https://example.com/beach.png")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        def _raise(*_a, **_kw):
+            raise ConnectionError("network is unreachable")
+
+        monkeypatch.setattr(tab, "_load_external_bytes", _raise)
+
+        with patch.object(QMessageBox, "warning") as mock_warning:
+            tab._on_edit_image_clicked()
+
+        mock_warning.assert_called_once()
+        assert "Beach" in mock_warning.call_args.args[2]
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 0
+
+    def test_edit_image_warns_instead_of_opening_dialog_on_undecodable_data(
+        self, app_context, monkeypatch
+    ):
+        """A non-empty payload isn't necessarily a decodable image -- an
+        external URL can return an HTML error page or otherwise-corrupt
+        data. That must be caught before the editor dialog opens, not
+        silently produce a null-image dialog with bogus 0/1-sized
+        controls."""
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(b"not a real image, just some bytes")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+        tab.grid.itemSelectionChanged.emit()
+
+        dialog_constructed = []
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog",
+            lambda *a, **kw: dialog_constructed.append(True),
+        )
+
+        with patch.object(QMessageBox, "warning") as mock_warning:
+            tab._on_edit_image_clicked()
+
+        mock_warning.assert_called_once()
+        assert "Beach" in mock_warning.call_args.args[2]
+        assert dialog_constructed == []
+
+        executor = tab.app_context.get_command_executor.return_value
+        assert executor.execute_command.call_count == 0
+
+
+class TestImageGalleryTabLightboxLoadResilience:
+    def test_lightbox_load_pixmap_returns_none_instead_of_raising_on_external_load_failure(
+        self, app_context, monkeypatch
+    ):
+        """The lightbox's load_pixmap callback is reused for every render
+        (initial open, Next/Previous navigation, and the rerender after an
+        edit session) -- it must not let an external-load exception
+        escape, since ImageLightboxDialog already has a "broken image"
+        placeholder path for a None result."""
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach", storage_mode="external", source_file="https://example.com/beach.png")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+
+        def _raise(*_a, **_kw):
+            raise ConnectionError("network is unreachable")
+
+        monkeypatch.setattr(tab, "_load_external_bytes", _raise)
+
+        captured = {}
+
+        class _FakeLightbox:
+            def __init__(self, images, start_index, load_pixmap, **kwargs):
+                captured["load_pixmap"] = load_pixmap
+            def exec(self):
+                return None
+
+        monkeypatch.setattr(
+            "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageLightboxDialog",
+            _FakeLightbox,
+        )
+
+        tab._open_lightbox_for(image)
+
+        assert captured["load_pixmap"](image) is None

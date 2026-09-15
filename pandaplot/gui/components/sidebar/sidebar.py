@@ -196,7 +196,14 @@ class CollapsibleSidebar(PWidget):
         # Get theme-appropriate colors
         panel_bg = palette.get("card_bg", "#ffffff")
         
-        # Apply theme to sidebar background
-        self.setStyleSheet(f"QWidget {{ background-color: {panel_bg}; }}")
+        # Apply theme to sidebar background. Scoped to CollapsibleSidebar's own
+        # type rather than the generic "QWidget" selector -- a widget-level
+        # style sheet overrides the QApplication-wide one for any property it
+        # sets, regardless of selector specificity, so a bare "QWidget" rule
+        # here was clobbering the background-color every descendant QPushButton
+        # (Apply, Add to Project, ...) gets from the global [primary="true"]
+        # etc. rules, leaving only their border/text colors -- drawn for a
+        # colored fill -- visible against a plain white background.
+        self.setStyleSheet(f"CollapsibleSidebar {{ background-color: {panel_bg}; }}")
         
             

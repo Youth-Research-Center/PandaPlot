@@ -6,7 +6,6 @@ import pytest
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
-
 from tests.commands.project.conftest import SyncTaskScheduler
 
 
@@ -23,6 +22,20 @@ def fit_result():
 @pytest.fixture
 def task_scheduler():
     return SyncTaskScheduler()
+
+
+def test_marks_project_modified_is_false(fit_service, task_scheduler):
+    """Regression (PR #235 review): this command computes a fit preview
+    only and never mutates project state, so it must not flag the project
+    as having unsaved changes."""
+    command = PerformFitCommand(
+        fit_service=fit_service,
+        fit_type="linear",
+        x_data=[1, 2, 3],
+        y_data=[2, 4, 6],
+        task_scheduler=task_scheduler,
+    )
+    assert command.marks_project_modified() is False
 
 
 def test_execute_performs_fit(fit_service, fit_result, task_scheduler):

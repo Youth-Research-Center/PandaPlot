@@ -3,9 +3,10 @@
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import ChartEvents
-from pandaplot.models.project.items.chart import Chart, DataSeries
+from pandaplot.models.project.items.chart import DataSeries
 from pandaplot.models.state import AppContext
 
 
@@ -19,17 +20,12 @@ class AddSeriesCommand(Command):
         self.chart_id = chart_id
         self.series = series
         self.added_index: Optional[int] = None
-
-    def _find_chart(self) -> Optional[Chart]:
-        app_state = self.app_context.get_app_state()
-        if not app_state.has_project or not app_state.current_project:
-            return None
-        return app_state.current_project.find_item(self.chart_id)
+        self._chart_finder = ChartFinder(app_context)
 
     @override
     def execute(self) -> CommandResult:
-        chart = self._find_chart()
-        if not chart or not isinstance(chart, Chart):
+        chart = self._chart_finder.find(self.chart_id)
+        if not chart:
             self.logger.warning(
                 "AddSeriesCommand.execute: chart '%s' not found or not a Chart (got %s)",
                 self.chart_id, type(chart).__name__ if chart else None,
@@ -52,7 +48,7 @@ class AddSeriesCommand(Command):
 
     @override
     def undo(self) -> CommandResult:
-        chart = self._find_chart()
+        chart = self._chart_finder.find(self.chart_id)
         if not chart or self.added_index is None:
             return CommandResult.FAILURE
 

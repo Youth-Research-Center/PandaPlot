@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -51,7 +52,7 @@ class ChangeColumnDtypeCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            self.project = self.app_state.current_project
+            self.project = get_current_project(self.app_context)
             if not self.project:
                 self.logger.warning("ChangeColumnDtypeCommand.execute: has_project is True but current_project is None")
                 return CommandResult.FAILURE
@@ -129,6 +130,7 @@ class ChangeColumnDtypeCommand(Command):
                 
             # Apply the converted data
             self.dataset.data[self.column_name] = conversion_result["converted_data"]
+            self.dataset.set_data(self.dataset.data)
             
             # Show conversion report if there were issues
             if conversion_result["errors_count"] > 0:
@@ -245,6 +247,7 @@ class ChangeColumnDtypeCommand(Command):
             self.dataset.data is not None and self.column_name):
 
             self.dataset.data[self.column_name] = self.original_data
+            self.dataset.set_data(self.dataset.data)
 
             # Emit event for data change
             self.app_context.event_bus.emit(
@@ -272,6 +275,7 @@ class ChangeColumnDtypeCommand(Command):
             conversion_result = self._convert_column_dtype()
             if conversion_result:
                 self.dataset.data[self.column_name] = conversion_result["converted_data"]
+                self.dataset.set_data(self.dataset.data)
 
                 # Emit event for data change
                 self.app_context.event_bus.emit(

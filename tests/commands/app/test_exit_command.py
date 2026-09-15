@@ -15,7 +15,7 @@ from unittest.mock import MagicMock, Mock, call
 import pytest
 
 from pandaplot.commands.app.exit_command import ExitCommand
-from pandaplot.commands.base_command import Command
+from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.models.events import AppEvents
 from pandaplot.models.state.app_context import AppContext
 
@@ -31,8 +31,15 @@ def mock_event_bus():
 
 @pytest.fixture
 def mock_app_state():
-    """Create a mock AppState for testing."""
-    return Mock()
+    """Create a mock AppState for testing. has_project=False so
+    confirm_discard_unsaved_changes (called unconditionally by
+    ExitCommand.execute()) returns True immediately without engaging any of
+    its save/unsaved-changes machinery -- these fixtures/tests predate that
+    check and don't exercise it (see TestExitCommandUnsavedChangesGuard for
+    dedicated tests that do)."""
+    state = Mock()
+    state.has_project = False
+    return state
 
 
 @pytest.fixture
@@ -52,6 +59,7 @@ def mock_app_context(mock_app_state, mock_event_bus, mock_command_executor, mock
     """Create a mock AppContext with all dependencies."""
     context = Mock(spec=AppContext)
     context.app_state = mock_app_state
+    context.get_app_state.return_value = mock_app_state
     context.event_bus = mock_event_bus
     context.command_executor = mock_command_executor
     context.ui_controller = mock_ui_controller
@@ -243,9 +251,14 @@ class TestExitCommandEdgeCases:
     def test_app_context_without_event_bus(self):
         """Test with AppContext that doesn't have event_bus."""
         mock_context = Mock()
+        # No project loaded, so confirm_discard_unsaved_changes returns True
+        # immediately without touching any of the (otherwise unconfigured)
+        # app_state/ui_controller mocks -- isolates this test to exactly the
+        # thing it's testing: event_bus being missing.
+        mock_context.get_app_state.return_value.has_project = False
         # Don't set event_bus attribute
         delattr(mock_context, "event_bus") if hasattr(mock_context, "event_bus") else None
-        
+
         command = ExitCommand(mock_context)
         
         with pytest.raises(AttributeError):
@@ -290,6 +303,146 @@ class TestExitCommandEdgeCases:
         # Context reference should remain the same
         assert command.app_context is original_context
         assert command.app_context is mock_app_context
+
+
+class TestExitCommandUnsavedChangesGuard:
+    """Regression (PR #235 review): File > Exit previously emitted
+    APP_CLOSING unconditionally, with no unsaved-changes check at all."""
+
+    def _make_context(self, has_project, is_modified, project_file_path="/p.pplot"):
+        app_state = Mock()
+        app_state.has_project = has_project
+        app_state.is_modified = is_modified
+        app_state.project_file_path = project_file_path
+        app_state.current_project.name = "P"
+        app_state.is_saving = False  # no in-flight save to wait for, by default
+        app_context = Mock(spec=AppContext)
+        app_context.get_app_state.return_value = app_state
+        app_context.get_ui_controller.return_value = Mock()
+        app_context.event_bus = Mock()
+        return app_context, app_state
+
+    def test_exits_without_asking_when_no_project(self):
+        app_context, _ = self._make_context(has_project=False, is_modified=False)
+        command = ExitCommand(app_context)
+
+        assert command.execute() is CommandResult.SUCCESS
+        app_context.get_ui_controller.return_value.show_question.assert_not_called()
+        app_context.event_bus.emit.assert_called_once_with(AppEvents.APP_CLOSING)
+
+    def test_exits_without_asking_when_unmodified(self):
+        app_context, _ = self._make_context(has_project=True, is_modified=False)
+        command = ExitCommand(app_context)
+
+        assert command.execute() is CommandResult.SUCCESS
+        app_context.get_ui_controller.return_value.show_question.assert_not_called()
+        app_context.event_bus.emit.assert_called_once_with(AppEvents.APP_CLOSING)
+
+    def test_asks_and_proceeds_when_modified_and_confirmed(self):
+        app_context, _ = self._make_context(has_project=True, is_modified=True)
+        app_context.get_ui_controller.return_value.show_question.return_value = True
+        command = ExitCommand(app_context)
+
+        assert command.execute() is CommandResult.SUCCESS
+        app_context.get_ui_controller.return_value.show_question.assert_called_once()
+        app_context.event_bus.emit.assert_called_once_with(AppEvents.APP_CLOSING)
+
+    def test_cancels_when_modified_and_declined(self):
+        app_context, _ = self._make_context(has_project=True, is_modified=True)
+        app_context.get_ui_controller.return_value.show_question.return_value = False
+        command = ExitCommand(app_context)
+
+        assert command.execute() is CommandResult.NOOP
+        app_context.event_bus.emit.assert_not_called()
+
+    def test_prompt_says_autosave_not_discard_for_an_already_saved_project(self):
+        """Regression (PR #235 review): app.launch()'s aboutToQuit handler
+        unconditionally flushes a save for an existing saved project before
+        the process exits, so this prompt must not claim continuing will
+        discard those edits."""
+        app_context, _ = self._make_context(has_project=True, is_modified=True, project_file_path="/p.pplot")
+        app_context.get_ui_controller.return_value.show_question.return_value = True
+        command = ExitCommand(app_context)
+
+        command.execute()
+
+        _, message = app_context.get_ui_controller.return_value.show_question.call_args[0]
+        assert "saved automatically" in message
+        assert "discard" not in message
+
+    def test_prompt_says_discard_for_a_never_saved_project(self):
+        """A project with no file path yet has nothing for
+        _flush_save_on_quit to write to, so exiting really does discard it."""
+        app_context, _ = self._make_context(has_project=True, is_modified=True, project_file_path=None)
+        app_context.get_ui_controller.return_value.show_question.return_value = True
+        command = ExitCommand(app_context)
+
+        command.execute()
+
+        _, message = app_context.get_ui_controller.return_value.show_question.call_args[0]
+        assert "discard" in message
+
+    def test_confirming_an_autosave_actually_saves_before_exiting(self):
+        """Regression (PR #235 review): the prompt promises an automatic
+        save, but the actual save previously only happened later, in
+        app._flush_save_on_quit -- after the point of no return, with every
+        exception swallowed into a log line. Make sure the save genuinely
+        runs (and clears is_modified) as part of confirming, not just the
+        promise of one."""
+        app_context, app_state = self._make_context(has_project=True, is_modified=True, project_file_path="/p.pplot")
+        app_context.get_ui_controller.return_value.show_question.return_value = True
+        project_manager = Mock()
+        app_context.get_manager.return_value = project_manager
+        command = ExitCommand(app_context)
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        project_manager.save_project.assert_called_once_with(app_state.current_project, "/p.pplot")
+        app_state.mark_saved.assert_called_once()
+        app_context.event_bus.emit.assert_called_once_with(AppEvents.APP_CLOSING)
+
+    def test_a_failed_autosave_cancels_the_exit_instead_of_losing_edits(self):
+        """Regression (PR #235 review): _flush_save_on_quit catches every
+        save exception and lets shutdown continue anyway, so a disk-full/
+        permission/serialization failure would silently exit the app having
+        lost the edits it just promised to keep. The save must instead be
+        checked here, before committing to the exit."""
+        app_context, app_state = self._make_context(has_project=True, is_modified=True, project_file_path="/p.pplot")
+        app_context.get_ui_controller.return_value.show_question.return_value = True
+        project_manager = Mock()
+        project_manager.save_project.side_effect = OSError("disk full")
+        app_context.get_manager.return_value = project_manager
+        command = ExitCommand(app_context)
+
+        assert command.execute() is CommandResult.NOOP
+
+    def test_refuses_to_exit_while_another_save_is_already_writing_the_file(self):
+        """Regression (PR #235 review): writing here while a SaveProjectCommand
+        (manual or auto-save) is already mid-write would be a second,
+        uncoordinated writer of the same file -- ProjectDataManager.save()
+        opens it in write mode, so two overlapping writers can corrupt it.
+        Refuse to proceed instead (the user can just try exiting again once
+        the in-flight save finishes)."""
+        app_context, app_state = self._make_context(has_project=True, is_modified=True, project_file_path="/p.pplot")
+        app_context.get_ui_controller.return_value.show_question.return_value = True
+        app_state.is_saving = True
+        project_manager = Mock()
+        app_context.get_manager.return_value = project_manager
+        command = ExitCommand(app_context)
+
+        assert command.execute() is CommandResult.NOOP
+
+        project_manager.save_project.assert_not_called()
+        app_state.mark_saved.assert_not_called()
+        app_context.event_bus.emit.assert_not_called()
+        app_context.get_ui_controller.return_value.show_info_message.assert_called_once()
+        app_state.mark_saved.assert_not_called()
+        app_context.event_bus.emit.assert_not_called()
+
+
+def test_marks_project_modified_is_false():
+    """Exiting (or cancelling an exit) isn't itself a project edit."""
+    assert ExitCommand(Mock()).marks_project_modified() is False
 
 
 class TestExitCommandDocumentation:

@@ -3,6 +3,7 @@
 from typing import Optional, override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
@@ -29,7 +30,8 @@ class RenameProjectCommand(Command):
     @override
     def execute(self) -> CommandResult:
         try:
-            if not self.app_state.has_project or not self.app_state.current_project:
+            project = get_current_project(self.app_context)
+            if project is None:
                 self.logger.warning(
                     "RenameProjectCommand.execute: cannot rename to '%s', no project is loaded",
                     self.new_name,
@@ -37,7 +39,6 @@ class RenameProjectCommand(Command):
                 self.ui_controller.show_warning_message(
                     "Rename Project", "Please open or create a project first.")
                 return CommandResult.FAILURE
-            project = self.app_state.current_project
 
             self.old_name = project.name
             if not self.new_name:
@@ -62,7 +63,7 @@ class RenameProjectCommand(Command):
             return CommandResult.FAILURE
 
     def _apply_rename(self, name: str) -> None:
-        project = self.app_state.current_project
+        project = get_current_project(self.app_context)
         if project is None:
             return
         project.name = name

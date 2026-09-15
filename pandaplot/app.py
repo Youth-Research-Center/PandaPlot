@@ -13,7 +13,7 @@ from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import EventBus
 from pandaplot.models.events.event_types import AppEvents
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
-from pandaplot.models.state import AppContext, AppState
+from pandaplot.models.state import AppContext, AppState, UnsavedChangesRegistry
 from pandaplot.services.autosave import AutoSaveManager
 from pandaplot.services.config import ConfigManager
 from pandaplot.services.data_managers.project_manager import ProjectManager
@@ -85,13 +85,28 @@ def build_app_context() -> AppContext:
     auto_save_manager = AutoSaveManager(event_bus, config_manager, app_state)
     session_manager = SessionPersistenceManager(config_manager)
     ui_controller = UIController()
-    command_executor = CommandExecutor(on_history_changed=lambda: event_bus.emit(AppEvents.HISTORY_CHANGED))
+    # Every command passes through CommandExecutor, so it's the single choke
+    # point to flag the project as having unsaved changes -- see
+    # Command.marks_project_modified().
+    def _warn_undo_redo_error(command_description: str, operation: str) -> None:
+        ui_controller.show_warning_message(
+            "Undo" if operation == "undo" else "Redo",
+            f"Could not {operation} '{command_description}': an unexpected error occurred. "
+            "The undo/redo history has been reset.",
+        )
+
+    command_executor = CommandExecutor(
+        on_history_changed=lambda: event_bus.emit(AppEvents.HISTORY_CHANGED),
+        on_project_modified=app_state.mark_modified,
+        on_undo_redo_error=_warn_undo_redo_error,
+    )
     task_scheduler = TaskScheduler()
 
     # Create list of managers to pass to AppContext. ProjectDataManager is
     # intentionally not registered here -- it's an implementation detail
     # owned by ProjectManager, not something commands should fetch directly.
-    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_manager, tab_factory]
+    unsaved_changes_registry = UnsavedChangesRegistry()
+    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_manager, tab_factory, unsaved_changes_registry]
 
     app_context = AppContext(app_state=app_state, event_bus=event_bus, managers=managers)
     # AutoSaveManager needs the AppContext itself (to construct SaveProjectCommand),
@@ -268,7 +283,6 @@ if __name__ == "__main__":
     # TODO(#211): multi-threaded processing; improve initial app load time
     # TODO(#212): use mm instead of cm, or make units configurable
     # TODO(#213): copy/paste support
-    # TODO(#214): styles/themes: font size, dark theme colors
     # TODO(#215): chart creation/properties panel fixes; scrollable chart area
     # TODO(#216): improve project info display in sidebar
     # TODO(#217): dataset tab: lazy disk loading, sorting/filtering, export

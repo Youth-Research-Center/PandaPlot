@@ -81,8 +81,16 @@ class ConfigManager:
         )
         return self._config
 
-    def save(self) -> None:
-        """Persist current configuration to disk (JSON)."""
+    def save(self) -> bool:
+        """Persist current configuration to disk (JSON).
+
+        Returns True on success, False if the write failed. Still catches
+        and logs every exception rather than raising (same "defensive"
+        philosophy as the rest of this class), but now lets callers that
+        need to know -- e.g. ChangeSettingsCommand, which SettingsDialog's
+        apply-if-changed guard relies on -- distinguish a real disk failure
+        from a successful save.
+        """
         try:
             if self._backup_enabled and self._config_path.exists():
                 backup_path = self._config_path.with_suffix(self._config_path.suffix + ".bak")
@@ -94,8 +102,10 @@ class ConfigManager:
             data = self._config.to_json(indent=2)
             self._config_path.write_text(data, encoding="utf-8")
             self._event_bus.emit(ConfigEvents.CONFIG_SAVED, {"config": self._config, "path": str(self._config_path)})
+            return True
         except Exception as exc:  # noqa: BLE001
             self._log.error("Failed to save configuration: %s", exc)
+            return False
 
     def update(self, mapping: Mapping[str, Any], *, save: Optional[bool] = None) -> ApplicationConfig:
         """Merge mapping into config and emit update.

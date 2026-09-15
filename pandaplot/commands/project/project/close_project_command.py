@@ -2,6 +2,7 @@
 from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.project.project.unsaved_changes import confirm_discard_unsaved_changes
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.session import SessionPersistenceManager
@@ -16,6 +17,12 @@ class CloseProjectCommand(Command):
         self.ui_controller: UIController = app_context.get_ui_controller()
 
     @override
+    def marks_project_modified(self) -> bool:
+        """Closing sets AppState's modified flag explicitly (close_project
+        always resets it) -- not a project edit itself."""
+        return False
+
+    @override
     def execute(self) -> CommandResult:
         """Close the current project if one is loaded."""
         try:
@@ -26,8 +33,15 @@ class CloseProjectCommand(Command):
                 return CommandResult.SUCCESS
 
             project_name = app_state.current_project.name if app_state.current_project else "Unknown"
+
+            # Give the user a chance to save/cancel if there are unsaved
+            # changes -- previously this closed silently and discarded them.
+            if not confirm_discard_unsaved_changes(self.app_context):
+                self.logger.info("Close project cancelled by user (unsaved changes)")
+                return CommandResult.NOOP
+
             self.logger.info(f"Closing project: {project_name}")
-            
+
             # Close the project - this will emit PROJECT_CLOSED event
             app_state.close_project()
 

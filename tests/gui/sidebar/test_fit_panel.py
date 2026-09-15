@@ -36,6 +36,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
     return ctx
 
 
@@ -77,6 +78,31 @@ def test_fit_button_disabled_when_data_is_insufficient(fit_panel):
 
 def test_apply_button_starts_disabled(fit_panel):
     assert fit_panel.apply_button.isEnabled() is False
+
+
+def test_equation_label_uses_theme_tokens_not_hardcoded_colors(app_context):
+    """equation_label used to hardcode background-color: #f5f5f5; color:
+    #333333; border: 1px solid #ddd at construction, never refreshed by
+    _apply_theme() -- a light-mode-only box against a dark app theme."""
+    theme_manager = Mock()
+    theme_manager.get_surface_palette.return_value = {
+        "card_bg": "#2A2C2E", "card_border": "#4A4D52", "base_fg": "#E2E2E2",
+        "card_hover": "#26282B", "card_pressed": "#232527", "secondary_fg": "#C7CAD1",
+        "accent": "#4A56C6",
+    }
+    theme_manager.get_design_tokens.return_value = {"font_size_group_title": 9}
+    app_context.get_manager.return_value = theme_manager
+
+    panel = FitPanel(app_context)
+    panel._apply_theme()
+
+    style = panel.equation_label.styleSheet()
+    assert "#f5f5f5" not in style
+    assert "#333333" not in style
+    assert "#ddd" not in style
+    assert "#2A2C2E" in style
+    assert "#4A4D52" in style
+    assert "#E2E2E2" in style
 
 
 def test_clear_button_click_invokes_clear_results(app_context):
@@ -714,7 +740,6 @@ def test_auto_range_labels_refresh_on_series_change(app_context):
     value was last typed. The read-only labels must always reflect the
     currently selected series' real data range instead."""
     dataset, chart = _make_dataset_and_chart_with_id_only_series()
-    x_id = dataset.column_id("time")
     y_id = dataset.column_id("value")
     dataset.set_data(dataset.data.assign(time2=[100, 200, 300, 400]))
     chart.add_data_series(dataset_id=dataset.id, x_column_id=dataset.column_id("time2"), y_column_id=y_id, label="second series")
@@ -1259,3 +1284,93 @@ def test_range_labels_show_placeholder_when_no_valid_data_points(app_context):
 
     assert panel.range_min_value_label.text() == "—"
     assert panel.range_max_value_label.text() == "—"
+
+
+class TestFitPanelSeriesSelectedEvent:
+    """Clicking a data series on the chart canvas or its legend (#341,
+    #107) should also select it here as the fit source; a fitted-curve
+    click is ignored, since a fit isn't itself a valid source for a new
+    fit."""
+
+    def _make_two_series_chart(self):
+        df = pd.DataFrame({"time": [1, 2, 3, 4], "value": [10, 20, 30, 40]})
+        dataset = Dataset(id="ds-1", name="dataset", data=df)
+        chart = Chart(id="chart-1", name="chart")
+        chart.add_data_series(dataset_id=dataset.id, x_column="time", y_column="value", label="First")
+        chart.add_data_series(dataset_id=dataset.id, x_column="time", y_column="value", label="Second")
+        return dataset, chart
+
+    def test_series_click_selects_matching_combo_row(self, app_context):
+        dataset, chart = self._make_two_series_chart()
+        project = Mock()
+        project.find_item = Mock(return_value=dataset)
+
+        panel = FitPanel(app_context)
+        panel.show()
+        panel.app_context.app_state = Mock()
+        panel.app_context.app_state.current_project = project
+        panel.load_chart_object(chart)
+        panel.series_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "chart-1", "kind": "series", "index": 1}
+        )
+
+        assert panel.series_combo.currentIndex() == 1
+        assert panel.series_combo.currentData() is chart.data_series[1]
+
+    def test_fit_click_is_ignored(self, app_context):
+        """A fit isn't a valid source for a new fit -- selection must not
+        change."""
+        dataset, chart = self._make_two_series_chart()
+        project = Mock()
+        project.find_item = Mock(return_value=dataset)
+
+        panel = FitPanel(app_context)
+        panel.show()
+        panel.app_context.app_state = Mock()
+        panel.app_context.app_state.current_project = project
+        panel.load_chart_object(chart)
+        panel.series_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "chart-1", "kind": "fit", "index": 0}
+        )
+
+        assert panel.series_combo.currentIndex() == 0
+
+    def test_ignores_event_while_panel_is_hidden(self, app_context):
+        dataset, chart = self._make_two_series_chart()
+        project = Mock()
+        project.find_item = Mock(return_value=dataset)
+
+        panel = FitPanel(app_context)
+        panel.app_context.app_state = Mock()
+        panel.app_context.app_state.current_project = project
+        panel.load_chart_object(chart)
+        panel.series_combo.setCurrentIndex(0)
+
+        assert panel.isVisible() is False
+        panel._on_series_selected_event(
+            {"chart_id": "chart-1", "kind": "series", "index": 1}
+        )
+
+        assert panel.series_combo.currentIndex() == 0
+
+    def test_ignores_event_for_a_different_chart(self, app_context):
+        dataset, chart = self._make_two_series_chart()
+        project = Mock()
+        project.find_item = Mock(return_value=dataset)
+
+        panel = FitPanel(app_context)
+        panel.show()
+        panel.app_context.app_state = Mock()
+        panel.app_context.app_state.current_project = project
+        panel.load_chart_object(chart)
+        panel.series_combo.setCurrentIndex(0)
+
+        panel._on_series_selected_event(
+            {"chart_id": "some-other-chart", "kind": "series", "index": 1}
+        )
+
+        assert panel.series_combo.currentIndex() == 0

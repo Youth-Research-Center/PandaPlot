@@ -93,3 +93,13 @@ def test_apply_settings_persists_actual_size_change_under_lossy_unit(tmp_path):
     dialog.chart_width_spin.setValue(10.0)  # a real edit, in inches
     dialog.apply_settings()
     assert dialog._config_manager.config.chart_display.default_width_cm == pytest.approx(10.0 * 2.54)
+
+
+def test_chart_display_labels_do_not_hardcode_a_static_color(tmp_path):
+    """These labels used to setStyleSheet("color: #495057;") once at
+    construction and never refresh -- illegible against a dark background
+    since ThemeManager's app-wide palette is never consulted. They should
+    inherit the app's theme-aware text color instead of overriding it."""
+    dialog = _isolated_dialog(tmp_path)
+    for label in (dialog._dpi_label, dialog._unit_label, dialog._size_label, dialog._multiply_label):
+        assert "#495057" not in label.styleSheet()
