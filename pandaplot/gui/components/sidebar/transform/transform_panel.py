@@ -339,10 +339,10 @@ class TransformPanel(SidebarPanel):
 
         self.clear_btn = PButton("Clear", role="secondary", on_click=self.clear_panel)
         # Remove hardcoded styling - will be applied in _apply_theme
-        
+
         button_layout.addWidget(self.apply_btn)
         button_layout.addWidget(self.clear_btn)
-        
+
         layout.addLayout(button_layout)
     
     def setup_connections(self):
