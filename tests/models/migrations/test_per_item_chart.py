@@ -1,18 +1,21 @@
 """Tests for the per-item chart migration dispatcher.
 
-As of this refactor, PER_ITEM_CHART_MIGRATIONS has a single real entry
-(migrate_chart_legacy_to_v1, see TestMigrateChartLegacyToV1 below) --
-formerly two steps (migrate_chart_v1_to_v2 for series, migrate_chart_v2_to_v3
-for fits), collapsed into one since neither had ever shipped to a real user
-and there was no intermediate shape worth preserving. The dispatcher-loop
-tests below patch the registry to whatever shape each scenario needs --
-pinning down migrate_chart's loop behavior in isolation from the real
-migration content, the same way test_runner.py does for the cross-item
-runner.
+PER_ITEM_CHART_MIGRATIONS has two real entries: migrate_chart_legacy_to_v1
+(schema_version 0 -> 1, see TestMigrateChartLegacyToV1 below) and
+migrate_chart_v1_to_v2 (schema_version 1 -> 2, see TestMigrateChartV1ToV2
+-- nests axis-prefixed flat config keys like "x_min"/"show_grid_x" under
+config["x"]/["y"]/["y2"]/["z"], see #146 PR2). The dispatcher-loop tests
+below patch the registry to whatever shape each scenario needs -- pinning
+down migrate_chart's loop behavior in isolation from the real migration
+content, the same way test_runner.py does for the cross-item runner.
 """
 from unittest.mock import patch
 
-from pandaplot.models.migrations.per_item.chart import migrate_chart, migrate_chart_legacy_to_v1
+from pandaplot.models.migrations.per_item.chart import (
+    migrate_chart,
+    migrate_chart_legacy_to_v1,
+    migrate_chart_v1_to_v2,
+)
 
 
 def test_noop_when_registry_is_empty():
@@ -318,6 +321,68 @@ class TestMigrateChartLegacyToV1:
 
         assert "style" not in raw["fit_data"][0]
         assert raw["fit_data"][0]["color"] == "#112233"
+
+
+class TestMigrateChartV1ToV2:
+    """Nests every axis-prefixed flat config key ("x_min", "y2_tick_mode",
+    "show_grid_x") under config["x"]/["y"]/["y2"]/["z"] -- see #146 PR2,
+    ChartConfig.x/.y/.y2/.z are now typed AxisConfig instances instead of
+    flat dict keys."""
+
+    def test_nests_axis_prefixed_config_keys(self):
+        raw = {
+            "config": {
+                "title": "My Chart",
+                "show_legend": True,
+                "x_label": "Time",
+                "x_min": -5.0,
+                "x_max": 5.0,
+                "show_grid_x": False,
+                "y_scale": "log",
+                "y_log_base": 2.0,
+                "y2_side": "left",
+                "z_font_size": 14,
+            },
+            "style": {},
+            "data_series": [],
+            "fit_data": [],
+        }
+
+        migrated = migrate_chart_v1_to_v2(raw)
+
+        config = migrated["config"]
+        assert config["title"] == "My Chart"
+        assert config["show_legend"] is True
+        assert "x_label" not in config
+        assert "x_min" not in config
+        assert "show_grid_x" not in config
+        assert "y_scale" not in config
+        assert "y2_side" not in config
+        assert config["x"] == {"label": "Time", "min": -5.0, "max": 5.0, "show_grid": False}
+        assert config["y"] == {"scale": "log", "log_base": 2.0}
+        assert config["y2"] == {"side": "left"}
+        assert config["z"] == {"font_size": 14}
+
+    def test_handles_a_chart_with_no_axis_keys_at_all(self):
+        raw = {"config": {"title": "Empty"}, "style": {}, "data_series": [], "fit_data": []}
+
+        migrated = migrate_chart_v1_to_v2(raw)
+
+        assert migrated["config"] == {"title": "Empty", "x": {}, "y": {}, "y2": {}, "z": {}}
+
+    def test_leaves_a_chart_with_no_config_key_untouched(self):
+        raw = {"data_series": [], "fit_data": []}
+
+        migrated = migrate_chart_v1_to_v2(raw)
+
+        assert "config" not in migrated
+
+    def test_does_not_mutate_the_input_dict(self):
+        raw = {"config": {"x_min": -5.0}, "data_series": [], "fit_data": []}
+
+        migrate_chart_v1_to_v2(raw)
+
+        assert raw["config"] == {"x_min": -5.0}
 
 
 def test_style_field_names_match_the_real_style_dataclasses():

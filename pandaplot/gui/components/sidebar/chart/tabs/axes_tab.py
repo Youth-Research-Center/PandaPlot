@@ -663,47 +663,44 @@ class AxesTab(QWidget):
             self._show_axis_form("x")
 
     def _write_axis_config(self, prefix: str, config: ChartConfig):
-        """Write one axis form's widget values into `config` (the mutable
-        chart.config -- a ChartConfig; every axis-prefixed key here goes
-        through its dict-style shim since those keys aren't declared
-        dataclass fields yet, see ChartConfig's docstring)."""
+        """Write one axis form's widget values into `config`'s AxisConfig
+        for `prefix` (the mutable chart.config -- a ChartConfig)."""
         form = self.axes_forms[prefix]
-        config[f"{prefix}_label"] = form["label_edit"].text()
+        axis = getattr(config, prefix)
+        axis.label = form["label_edit"].text()
         if form["scale_control"].currentValue():
-            config[f"{prefix}_scale"] = form["scale_control"].currentValue().value
-        config[f"{prefix}_log_base"] = self._resolve_log_base(prefix)
+            axis.scale = form["scale_control"].currentValue().value
+        axis.log_base = self._resolve_log_base(prefix)
         if form["side_control"] is not None:
-            config[f"{prefix}_side"] = form["side_control"].currentValue()
-        config[f"{prefix}_auto_limits"] = form["auto_toggle"].isChecked()
-        config[f"{prefix}_min"] = form["min_spin"].value()
-        config[f"{prefix}_max"] = form["max_spin"].value()
-        config[f"{prefix}_tick_mode"] = form["mode_control"].currentValue()
-        config[f"{prefix}_tick_count"] = form["count_spin"].value()
-        config[f"{prefix}_tick_step"] = form["step_spin"].value()
-        config[f"{prefix}_tick_format"] = form["format_combo"].currentData()
-        config[f"{prefix}_tick_format_custom"] = form["format_custom_edit"].text()
-        config[f"show_grid_{prefix}"] = form["grid_toggle"].isChecked()
-        config[f"{prefix}_tick_direction"] = form["tick_direction_control"].currentValue()
-        config[f"{prefix}_minor_ticks"] = form["minor_ticks_toggle"].isChecked()
-        config[f"{prefix}_minor_tick_direction"] = form["minor_tick_direction_control"].currentValue()
-        config[f"{prefix}_show_minor_grid"] = form["minor_grid_toggle"].isChecked()
+            axis.side = form["side_control"].currentValue()
+        axis.auto_limits = form["auto_toggle"].isChecked()
+        axis.min = form["min_spin"].value()
+        axis.max = form["max_spin"].value()
+        axis.tick_mode = form["mode_control"].currentValue()
+        axis.tick_count = form["count_spin"].value()
+        axis.tick_step = form["step_spin"].value()
+        axis.tick_format = form["format_combo"].currentData()
+        axis.tick_format_custom = form["format_custom_edit"].text()
+        axis.show_grid = form["grid_toggle"].isChecked()
+        axis.tick_direction = form["tick_direction_control"].currentValue()
+        axis.minor_ticks = form["minor_ticks_toggle"].isChecked()
+        axis.minor_tick_direction = form["minor_tick_direction_control"].currentValue()
+        axis.show_minor_grid = form["minor_grid_toggle"].isChecked()
 
-    def _read_axis_config(self, prefix: str, config: "ChartConfig | dict"):
-        """Populate one axis form's widgets from `config` (a ChartConfig when
-        called with a real chart's config, or a plain empty dict from
-        `clear()`). Assumes the caller
-        already has `self._updating_controls` set so change signals don't
-        write half-loaded values back out."""
+    def _read_axis_config(self, prefix: str, config: ChartConfig):
+        """Populate one axis form's widgets from `config`'s AxisConfig for
+        `prefix`. Assumes the caller already has `self._updating_controls`
+        set so change signals don't write half-loaded values back out."""
         form = self.axes_forms[prefix]
-        form["label_edit"].setText(config.get(f"{prefix}_label", ""))
+        axis = getattr(config, prefix)
+        form["label_edit"].setText(axis.label)
 
-        scale_value = config.get(f"{prefix}_scale", "linear")
         try:
-            form["scale_control"].setCurrentValue(ScaleType(scale_value))
+            form["scale_control"].setCurrentValue(ScaleType(axis.scale))
         except ValueError:
             form["scale_control"].setCurrentValue(ScaleType.LINEAR)
 
-        log_base = config.get(f"{prefix}_log_base", 10.0)
+        log_base = axis.log_base
         preset_index = form["log_base_combo"].findData(log_base)
         if preset_index >= 0:
             form["log_base_combo"].setCurrentIndex(preset_index)
@@ -716,10 +713,9 @@ class AxesTab(QWidget):
         form["log_base_row"].setVisible(is_log)
 
         if form["side_control"] is not None:
-            default_side = "left" if prefix == "y" else "right"
-            form["side_control"].setCurrentValue(config.get(f"{prefix}_side", default_side))
+            form["side_control"].setCurrentValue(axis.side)
 
-        auto_limits = config.get(f"{prefix}_auto_limits", True)
+        auto_limits = axis.auto_limits
         form["auto_toggle"].setChecked(checked=auto_limits)
         # Auto mode's displayed min/max is owned by `_refresh_range_display`
         # (recomputed from live data whenever it's called). Manual mode has
@@ -727,37 +723,35 @@ class AxesTab(QWidget):
         # ever changes via an explicit Auto->Manual toggle or the user
         # typing, never merely by loading/reopening a chart -- so it must be
         # restored here from the actual saved config.
-        form["min_spin"].setValue(config.get(f"{prefix}_min", 0.0))
-        form["max_spin"].setValue(config.get(f"{prefix}_max", 1.0))
+        form["min_spin"].setValue(axis.min)
+        form["max_spin"].setValue(axis.max)
         form["min_spin"].setEnabled(not auto_limits)
         form["max_spin"].setEnabled(not auto_limits)
 
-        tick_mode = config.get(f"{prefix}_tick_mode", "auto")
+        tick_mode = axis.tick_mode
         form["mode_control"].setCurrentValue(tick_mode)
-        form["count_spin"].setValue(config.get(f"{prefix}_tick_count", 5))
-        form["step_spin"].setValue(config.get(f"{prefix}_tick_step", 1.0))
+        form["count_spin"].setValue(axis.tick_count)
+        form["step_spin"].setValue(axis.tick_step)
         form["count_label"].setVisible(tick_mode == "count")
         form["count_spin"].setVisible(tick_mode == "count")
         form["step_label"].setVisible(tick_mode == "step")
         form["step_spin"].setVisible(tick_mode == "step")
 
-        tick_format = config.get(f"{prefix}_tick_format", "auto")
+        tick_format = axis.tick_format
         format_index = form["format_combo"].findData(tick_format)
         form["format_combo"].setCurrentIndex(format_index if format_index >= 0 else 0)
-        form["format_custom_edit"].setText(config.get(f"{prefix}_tick_format_custom", ""))
+        form["format_custom_edit"].setText(axis.tick_format_custom)
         form["format_custom_edit"].setEnabled(tick_format == "custom")
 
-        form["grid_toggle"].setChecked(checked=config.get(f"show_grid_{prefix}", True))
+        form["grid_toggle"].setChecked(checked=axis.show_grid)
 
-        form["tick_direction_control"].setCurrentValue(config.get(f"{prefix}_tick_direction", "out"))
-        minor_ticks_enabled = config.get(f"{prefix}_minor_ticks", False)
+        form["tick_direction_control"].setCurrentValue(axis.tick_direction)
+        minor_ticks_enabled = axis.minor_ticks
         form["minor_ticks_toggle"].setChecked(checked=minor_ticks_enabled)
-        form["minor_tick_direction_control"].setCurrentValue(
-            config.get(f"{prefix}_minor_tick_direction", "out")
-        )
+        form["minor_tick_direction_control"].setCurrentValue(axis.minor_tick_direction)
         form["minor_tick_direction_label"].setVisible(minor_ticks_enabled)
         form["minor_tick_direction_control"].setVisible(minor_ticks_enabled)
-        form["minor_grid_toggle"].setChecked(checked=config.get(f"{prefix}_show_minor_grid", False))
+        form["minor_grid_toggle"].setChecked(checked=axis.show_minor_grid)
         form["minor_grid_label"].setVisible(minor_ticks_enabled)
         form["minor_grid_toggle"].setVisible(minor_ticks_enabled)
 
@@ -808,11 +802,12 @@ class AxesTab(QWidget):
         previous_guard = self._updating_controls
         self._updating_controls = True
         try:
+            default_config = ChartConfig()
             for prefix in _AXIS_PREFIXES:
-                self._read_axis_config(prefix, {})
+                self._read_axis_config(prefix, default_config)
             self.view_elev_spin.setValue(30.0)
             self.view_azim_spin.setValue(-60.0)
-            self._read_color_axis_config(ChartConfig())
+            self._read_color_axis_config(default_config)
             self.refresh_axis_chips(None)
         finally:
             self._updating_controls = previous_guard
