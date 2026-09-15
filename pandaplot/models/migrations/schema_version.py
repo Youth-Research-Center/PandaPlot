@@ -8,4 +8,4 @@ registered migrations to bring a loaded project up to this version
 before handing it back to the caller.
 """
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 2
