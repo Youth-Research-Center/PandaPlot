@@ -187,78 +187,13 @@ class Chart(Item):
 
         Chart-level fields (title, legend, grid globals, colormap, figure
         size/dpi/background, ...) get real dataclass defaults on
-        `ChartConfig`/`ChartStyle` -- see #146.
-
-        Axis-prefixed fields (x_label, x_min, show_grid_x, z_scale, ...) are
-        not yet typed (tracked as a follow-up PR; see ChartConfig's
-        docstring), but still need their historical defaults pre-populated
-        into `config._legacy` here -- axes_tab.py/chart_editor.py read them
-        via `.get(key, default)` with a matching inline default, so the two
-        are equivalent at read time either way, but leaving `_legacy` empty
-        here would silently drop these keys from a freshly created chart's
-        `to_dict()` output until the Axes tab was opened/applied at least
-        once, changing the persisted JSON shape for never-touched charts.
+        `ChartConfig`/`ChartStyle`; per-axis fields (label, min/max, ticks,
+        colors, fonts, ...) get theirs from `AxisConfig`, nested on
+        `ChartConfig.x`/`.y`/`.y2`/`.z` with the correct per-axis defaults
+        already baked in (e.g. `y.side="left"`, `y2.side="right"`) -- see
+        #146.
         """
         self.config = ChartConfig(title=self.name)
-        self.config._legacy.update({
-            "x_label": "",
-            "y_label": "",
-            "y2_label": "",
-            "show_grid_x": True,
-            "show_grid_y": True,
-            "show_grid_y2": True,
-            "x_font_size": 12,
-            "y_font_size": 12,
-            "y2_font_size": 12,
-            "x_scale": "linear",
-            "y_scale": "linear",
-            "y2_scale": "linear",
-            "y_side": "left",
-            "y2_side": "right",
-            "x_auto_limits": True,
-            "y_auto_limits": True,
-            "y2_auto_limits": True,
-            "x_min": 0.0,
-            "x_max": 1.0,
-            "y_min": 0.0,
-            "y_max": 1.0,
-            "y2_min": 0.0,
-            "y2_max": 1.0,
-            "x_tick_mode": "auto",
-            "y_tick_mode": "auto",
-            "y2_tick_mode": "auto",
-            "x_tick_count": 5,
-            "y_tick_count": 5,
-            "y2_tick_count": 5,
-            "x_tick_step": 1.0,
-            "y_tick_step": 1.0,
-            "y2_tick_step": 1.0,
-            "x_tick_format": "auto",
-            "y_tick_format": "auto",
-            "y2_tick_format": "auto",
-            "x_tick_format_custom": "",
-            "y_tick_format_custom": "",
-            "y2_tick_format_custom": "",
-            # Z axis (3-D chart types only -- see ChartTypeSpec.is_3d).
-            # Mirrors the x/y/y2 key families above one-for-one so AxesTab
-            # can drive it through the same prefix-keyed read/write helpers
-            # instead of a parallel Z-only code path. Written for every
-            # chart (2-D charts simply never render them), which is what
-            # keeps a chart that switches 2-D -> 3-D from starting out with
-            # a half-populated Z axis.
-            "z_label": "",
-            "z_scale": "linear",
-            "z_auto_limits": True,
-            "z_min": 0.0,
-            "z_max": 1.0,
-            "z_tick_mode": "auto",
-            "z_tick_count": 5,
-            "z_tick_step": 1.0,
-            "z_tick_format": "auto",
-            "z_tick_format_custom": "",
-            "z_font_size": 12,
-            "show_grid_z": True,
-        })
         self.style = ChartStyle()
     
     def retype_series(self, index: int, series_type: "str | SeriesType") -> None:

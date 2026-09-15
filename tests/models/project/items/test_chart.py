@@ -872,6 +872,39 @@ class TestChartConfigHasColorMapDefaults:
         assert restored.config["color_vmax"] == 42.0
 
 
+class TestChartConfigAxisFieldsRoundTripThroughToDictFromDict:
+    """Chart.config.x/.y/.y2/.z (AxisConfig, #146 PR2) must survive a
+    to_dict()/from_dict() round trip via Chart.from_dict()'s
+    `chart.config.update(data.get("config", {}))` call -- a regression
+    test for a real bug caught during implementation: the top-level "x"/
+    "y"/"y2"/"z" keys in the serialized dict are themselves ChartConfig
+    field names, so update()/__setitem__ must reconstruct them into
+    AxisConfig instances rather than blindly overwriting the field with
+    the raw nested dict."""
+
+    def test_a_modified_axis_field_survives_the_round_trip(self):
+        chart = Chart(name="C", chart_type="line")
+        chart.config.x.min = -5.0
+        chart.config.x.label = "Time (s)"
+        chart.config.y2.tick_mode = "count"
+
+        restored = Chart.from_dict(chart.to_dict())
+
+        assert restored.config.x.min == -5.0
+        assert restored.config.x.label == "Time (s)"
+        assert restored.config.y2.tick_mode == "count"
+        # An axis never touched keeps its own correct per-axis default.
+        assert restored.config.y.side == "left"
+        assert restored.config.y2.side == "right"
+
+    def test_serialized_config_has_no_leftover_flat_axis_keys(self):
+        chart = Chart(name="C", chart_type="line")
+        data = chart.to_dict()["config"]
+        assert "x_label" not in data
+        assert "show_grid_x" not in data
+        assert data["x"]["label"] == ""
+
+
 class TestRetypeSeriesToColormapCarriesOverMarker:
     """ColormapSeriesStyle.marker is a MarkerStyle field like Line/Scatter's
     -- retype_series' existing generic
