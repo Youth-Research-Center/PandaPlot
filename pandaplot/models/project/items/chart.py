@@ -475,11 +475,19 @@ class Chart(Item):
         deliberately left alone even though it counts toward
         referenced_item_ids(): a fit renders from its own stored
         x_data/y_data arrays, not a live dataset lookup, so it stays valid
-        (just no longer re-fittable) after its source dataset is gone."""
-        snapshot = snapshot_chart_state(self)
-        self.data_series = [
+        (just no longer re-fittable) after its source dataset is gone.
+
+        Returns None (a real no-op, no snapshot/modified-time bump/event)
+        when removed_ids only overlapped via fit_data -- referenced_item_ids()
+        includes fit_data for relevance detection, but if no data_series
+        actually gets dropped here, nothing about this chart changed."""
+        remaining_series = [
             series for series in self.data_series if series.dataset_id not in removed_ids
         ]
+        if len(remaining_series) == len(self.data_series):
+            return None
+        snapshot = snapshot_chart_state(self)
+        self.data_series = remaining_series
         self.update_modified_time()
         return snapshot
 

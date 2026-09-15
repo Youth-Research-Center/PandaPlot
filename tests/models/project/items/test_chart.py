@@ -1074,3 +1074,18 @@ class TestChartDependencyHook:
         chart = Chart(id="chart-1", name="Chart")
 
         assert chart.dependency_update_event() == (ChartEvents.CHART_UPDATED, {"chart_id": "chart-1"})
+
+    def test_on_items_removed_is_a_no_op_when_only_a_fit_overlaps(self):
+        """A chart whose only reference to a removed dataset is via
+        fit_data (not data_series) must not be treated as changed --
+        fit_data is included in referenced_item_ids() for relevance
+        detection only and is never stripped, so stripping nothing should
+        report nothing changed rather than a spurious snapshot/event."""
+        chart = Chart(id="chart-1", name="Fit-only chart")
+        chart.add_data_series("ds-unrelated", label="s1")
+        chart.add_fit_data("ds-1", fit_type="linear", label="f1",
+                          x_data=np.array([1.0]), y_data=np.array([2.0]))
+
+        assert chart.on_items_removed({"ds-1"}) is None
+        assert [s.dataset_id for s in chart.data_series] == ["ds-unrelated"]
+        assert [f.source_dataset_id for f in chart.fit_data] == ["ds-1"]
