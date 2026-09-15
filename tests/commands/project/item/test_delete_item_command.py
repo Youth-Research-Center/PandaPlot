@@ -707,6 +707,8 @@ class TestDeleteItemCommandChartSeriesCascade:
         command = self._make_command(mock_app_context, project, "ds-1")
         command.execute()
 
+        app_context.event_bus.emit.reset_mock()
+
         assert command.undo() is CommandResult.SUCCESS
 
         restored_chart = project.find_item("chart-1")
