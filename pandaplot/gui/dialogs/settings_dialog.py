@@ -624,11 +624,28 @@ class SettingsDialog(PDialog):
                     section: defaults[section]
                     for section in ("auto_save", "appearance", "editor", "chart_display")
                 }
-                self.app_context.get_command_executor().execute_command(
-                    ChangeSettingsCommand(
-                        self.app_context, mapping, config_manager=self._config_manager
-                    )
+                # execute_command()'s bool return can't distinguish "already
+                # at defaults" (NOOP) from a real save failure -- check
+                # against the current config first, the same way
+                # ChangeSettingsCommand itself would, so a genuine failure
+                # gets the same warning Apply shows instead of silently
+                # reloading the (unreset) old values.
+                current = ChangeSettingsCommand._extract_matching(
+                    self._config_manager.as_dict(), mapping
                 )
+                if current != mapping:
+                    success = self.app_context.get_command_executor().execute_command(
+                        ChangeSettingsCommand(
+                            self.app_context, mapping, config_manager=self._config_manager
+                        )
+                    )
+                    if not success:
+                        QMessageBox.warning(
+                            self,
+                            "Settings Not Saved",
+                            "Your settings could not be reset. Please try again.",
+                        )
+                        return
             self.load_current_settings(force=True)
     
     def apply_settings(self) -> bool:

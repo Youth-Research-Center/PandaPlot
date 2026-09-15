@@ -421,10 +421,6 @@ class ThemeManager:
                 background-color: {tokens['accent']};
                 color: {selected_text_color};
             }}
-            QMenu::item:hover {{
-                background-color: {tokens['surface_inset']};
-                color: {tokens['text_primary']};
-            }}
         """
 
     def _on_config_event(self, data):  # signature per EventBus
