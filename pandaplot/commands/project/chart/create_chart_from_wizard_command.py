@@ -255,8 +255,8 @@ class CreateChartFromWizardCommand(Command):
                 )
                 chart.config.subtitle = dialog.get_subtitle()
                 chart.config.show_legend = dialog.get_show_legend()
-                chart.config["show_grid_x"] = dialog.get_show_grid()
-                chart.config["show_grid_y"] = dialog.get_show_grid()
+                chart.config.x.show_grid = dialog.get_show_grid()
+                chart.config.y.show_grid = dialog.get_show_grid()
                 series_type = SeriesType(chart.chart_type)
                 for index, series_config in enumerate(series_configs):
                     # Cycle through the same default palette data_tab.py's

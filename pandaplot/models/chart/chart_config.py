@@ -123,13 +123,21 @@ class ChartConfig:
 
     def __setitem__(self, key: str, value: Any) -> None:
         if key in ("x", "y", "y2", "z"):
-            # Whole-axis replacement: a raw dict (e.g. from JSON, via
-            # Chart.from_dict()'s `config.update(data.get("config", {}))`)
-            # must be reconstructed into a real AxisConfig, not blindly
-            # setattr'd in place of one -- unlike every other declared
-            # field, this one's "value" shape on the wire (a nested dict)
-            # differs from its in-memory type.
-            setattr(self, key, value if isinstance(value, AxisConfig) else AxisConfig(**value))
+            if isinstance(value, AxisConfig):
+                setattr(self, key, value)
+            else:
+                # A raw dict (e.g. from JSON, via Chart.from_dict()'s
+                # `config.update(data.get("config", {}))`) is merged onto
+                # the EXISTING AxisConfig instance field-by-field, not used
+                # to construct a fresh one -- the existing instance already
+                # carries this axis's correct per-instance defaults (e.g.
+                # y.side="left"), and a partial dict (any saved chart that
+                # never touched "side") must not reset those untouched
+                # fields back to AxisConfig's own generic defaults
+                # (side=None) by replacing the whole object.
+                axis = getattr(self, key)
+                for sub_key, sub_value in value.items():
+                    setattr(axis, sub_key, sub_value)
             return
         if key in ChartConfig._FIELD_NAMES:
             setattr(self, key, value)
@@ -170,14 +178,18 @@ class ChartConfig:
             if k in cls._FIELD_NAMES and k not in ("x", "y", "y2", "z")
         }
         config = cls(**known)
-        if isinstance(data.get("x"), dict):
-            config.x = AxisConfig(**data["x"])
-        if isinstance(data.get("y"), dict):
-            config.y = AxisConfig(**data["y"])
-        if isinstance(data.get("y2"), dict):
-            config.y2 = AxisConfig(**data["y2"])
-        if isinstance(data.get("z"), dict):
-            config.z = AxisConfig(**data["z"])
+        # Merge each saved axis dict onto the freshly-constructed
+        # AxisConfig (which already carries this axis's correct
+        # per-instance defaults, e.g. y.side="left") rather than replacing
+        # it outright -- a saved chart whose "y" dict never touched "side"
+        # must keep that default, not fall back to AxisConfig's own
+        # generic one (side=None) via `AxisConfig(**data["y"])`.
+        for prefix in ("x", "y", "y2", "z"):
+            axis_data = data.get(prefix)
+            if isinstance(axis_data, dict):
+                axis = getattr(config, prefix)
+                for sub_key, sub_value in axis_data.items():
+                    setattr(axis, sub_key, sub_value)
         config._legacy = {
             k: v for k, v in data.items()
             if k not in cls._FIELD_NAMES and k not in ("x", "y", "y2", "z")

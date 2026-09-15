@@ -135,6 +135,28 @@ def test_flat_axis_prefixed_key_still_works_via_the_dict_style_shim():
     assert config.y.label_color == "#ff0000"
 
 
+def test_from_dict_with_a_partial_axis_dict_keeps_the_untouched_fields_per_axis_default():
+    # A saved chart whose "y" dict never touched "side" (e.g. the user
+    # only ever edited y.scale) must not have side reset to AxisConfig's
+    # own generic default (None) by whole-object replacement -- it must
+    # keep ChartConfig's per-axis default ("left" for y, "right" for y2).
+    config = ChartConfig.from_dict({"y": {"scale": "log"}, "y2": {"tick_mode": "count"}})
+    assert config.y.scale == "log"
+    assert config.y.side == "left"
+    assert config.y.label_rotation == 90.0
+    assert config.y2.tick_mode == "count"
+    assert config.y2.side == "right"
+    assert config.y2.label_rotation == 90.0
+
+
+def test_setitem_with_a_partial_axis_dict_keeps_the_untouched_fields_per_axis_default():
+    config = ChartConfig()
+    config["y"] = {"scale": "log"}
+    assert config.y.scale == "log"
+    assert config.y.side == "left"
+    assert config.y.label_rotation == 90.0
+
+
 def test_unrecognized_flat_key_still_falls_back_to_legacy_bucket():
     # Genuinely unknown keys (not a ChartConfig field, not an axis-prefixed
     # AxisConfig field) still round-trip through `_legacy`, same as before

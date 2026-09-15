@@ -433,9 +433,9 @@ class Chart(Item):
             if title != self.name:
                 self.name = title
         if x_label is not None:
-            self.config["x_label"] = x_label
+            self.config.x.label = x_label
         if y_label is not None:
-            self.config["y_label"] = y_label
+            self.config.y.label = y_label
         self.update_modified_time()
     
     def get_config_summary(self) -> Dict[str, Any]:
@@ -446,7 +446,7 @@ class Chart(Item):
             "datasets": self.get_all_datasets(),
             "title": self.config.title,
             "has_legend": self.config.show_legend,
-            "has_grid": self.config.get("show_grid_x", True) or self.config.get("show_grid_y", True)
+            "has_grid": self.config.x.show_grid or self.config.y.show_grid
         }
     
     def search_chart(self, query: str, project: Any = None) -> bool:
