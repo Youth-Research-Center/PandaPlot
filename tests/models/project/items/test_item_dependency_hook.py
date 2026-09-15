@@ -1,5 +1,3 @@
-import pytest
-
 from pandaplot.models.project.items.item import Item
 
 

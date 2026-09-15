@@ -14,7 +14,6 @@ import pandas as pd
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
-from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.chart.error_direction import ErrorDirection  # noqa: F401 (re-exported; see tests/gui/test_chart_editor_series_resolution.py)
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.marker_style import MarkerStyle
@@ -24,6 +23,7 @@ from pandaplot.models.chart.series_style.heatmap import HeatmapSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.project.items.item import Item
 
 
@@ -460,6 +460,9 @@ class Chart(Item):
         return list(set(series.dataset_id for series in self.data_series))
 
     def referenced_item_ids(self) -> Optional[set]:
+        """Dataset ids referenced by any data series or fit (fit_data is
+        included here for relevance-checking purposes only -- see
+        _strip_references for why it's never actually stripped)."""
         if not self.data_series and not self.fit_data:
             return None
         return (
@@ -468,6 +471,11 @@ class Chart(Item):
         )
 
     def _strip_references(self, removed_ids: set) -> Any:
+        """Drop data series referencing a removed dataset. fit_data is
+        deliberately left alone even though it counts toward
+        referenced_item_ids(): a fit renders from its own stored
+        x_data/y_data arrays, not a live dataset lookup, so it stays valid
+        (just no longer re-fittable) after its source dataset is gone."""
         snapshot = snapshot_chart_state(self)
         self.data_series = [
             series for series in self.data_series if series.dataset_id not in removed_ids
@@ -476,9 +484,12 @@ class Chart(Item):
         return snapshot
 
     def restore_removed_items_snapshot(self, snapshot: Any) -> None:
+        """Undo _strip_references via the chart-state snapshot it returned."""
         restore_chart_state(self, snapshot)
 
     def dependency_update_event(self) -> Optional[tuple]:
+        """Event DeleteItemCommand should emit after this chart's series
+        are stripped or restored."""
         return ChartEvents.CHART_UPDATED, {"chart_id": self.id}
 
     def add_fit_data(self, source_dataset_id: str, fit_type: str,

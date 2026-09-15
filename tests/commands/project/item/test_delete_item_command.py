@@ -703,6 +703,7 @@ class TestDeleteItemCommandChartSeriesCascade:
 
     def test_undo_restores_the_removed_series(self, mock_app_context, project_with_chart):
         project, dataset, chart = project_with_chart
+        app_context, _app_state, _ui = mock_app_context
         command = self._make_command(mock_app_context, project, "ds-1")
         command.execute()
 
@@ -710,6 +711,7 @@ class TestDeleteItemCommandChartSeriesCascade:
 
         restored_chart = project.find_item("chart-1")
         assert [s.dataset_id for s in restored_chart.data_series] == ["ds-1", "ds-other"]
+        app_context.event_bus.emit.assert_any_call(ChartEvents.CHART_UPDATED, {"chart_id": chart.id})
 
     def test_redo_removes_the_series_again(self, mock_app_context, project_with_chart):
         """Regression: redo must re-strip the series undo() just restored,
@@ -741,10 +743,11 @@ class TestDeleteItemCommandChartSeriesCascade:
         assert [s.dataset_id for s in restored_chart.data_series] == ["ds-other"]
 
     def test_deleting_an_unrelated_note_does_not_touch_any_chart(self, mock_app_context, project_with_chart):
-        """A delete with no Dataset involved at all (_dataset_ids_under
-        returns empty) must be a complete no-op for _strip_dangling_series
-        -- in particular it must never call project.get_all_items() and
-        risk an extra CHART_UPDATED emission for unrelated deletes."""
+        """A delete whose subtree nothing references must leave every chart
+        untouched and emit no dependency event -- the hook's relevance
+        check (referenced_item_ids() intersected with removed_ids) short-
+        circuits before any mutation, even though _apply_dependency_cleanup
+        still walks every dependency-aware item via get_all_items()."""
         project, dataset, chart = project_with_chart
         note = Note(id="note-1", name="Unrelated")
         project.add_item(note)

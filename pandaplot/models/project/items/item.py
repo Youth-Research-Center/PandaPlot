@@ -46,7 +46,9 @@ class Item:
         Snapshot enough state to undo and mutate self to drop references
         into removed_ids. Must not touch the event bus -- see
         dependency_update_event()."""
-        raise NotImplementedError
+        raise NotImplementedError(
+            f"{type(self).__name__} overrides referenced_item_ids() but not _strip_references()"
+        )
 
     def restore_removed_items_snapshot(self, snapshot: Any) -> None:
         """Undo a prior _strip_references mutation using the snapshot it

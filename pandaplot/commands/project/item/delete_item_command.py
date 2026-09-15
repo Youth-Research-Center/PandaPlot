@@ -59,6 +59,10 @@ class DeleteItemCommand(Command):
         dependency_classes = tuple(Item._dependency_aware_classes)
         if not dependency_classes:
             return
+        # Not atomic: if on_items_removed() raises partway through, items
+        # already stripped before the exception are not rolled back. Accepted
+        # since execute() returning FAILURE means this command never reaches
+        # the undo stack anyway.
         for other in project.get_all_items():
             if other.id in removed_ids or not isinstance(other, dependency_classes):
                 continue

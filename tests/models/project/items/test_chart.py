@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 
 from pandaplot.models.chart.chart_type import ChartType
-from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.marker_style import MarkerStyle
@@ -18,6 +17,7 @@ from pandaplot.models.chart.series_style import (
     VectorSeriesStyle,
 )
 from pandaplot.models.chart.series_type import SeriesType
+from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.project.items.chart import (
     Chart,
     DataSeries,
