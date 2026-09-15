@@ -77,6 +77,29 @@ def test_reset_to_defaults_is_a_noop_when_already_default(tmp_path):
     executor = dialog.app_context.get_command_executor()
 
     with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
-        dialog.reset_to_defaults()
+        with patch.object(QMessageBox, "warning") as mock_warning:
+            dialog.reset_to_defaults()
 
     assert executor.can_undo() is False
+    mock_warning.assert_not_called()
+
+
+def test_reset_to_defaults_warns_and_keeps_old_values_when_save_fails(tmp_path):
+    """Regression: a failed reset-to-defaults save used to be indistinguishable
+    from the valid "already at defaults" no-op -- both made execute_command()
+    return False -- so the old (unreset) values were silently reloaded with no
+    indication anything went wrong."""
+    dialog = _isolated_dialog(tmp_path)
+    dialog.theme_combo.setCurrentText("Dark")
+    dialog.apply_settings()
+    executor = dialog.app_context.get_command_executor()
+    undo_count_before = len(executor.undo_stack)
+
+    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+        with patch.object(dialog._config_manager, "save", return_value=False):
+            with patch.object(QMessageBox, "warning") as mock_warning:
+                dialog.reset_to_defaults()
+
+    mock_warning.assert_called_once()
+    assert dialog._config_manager.config.appearance.theme == Theme.DARK
+    assert len(executor.undo_stack) == undo_count_before

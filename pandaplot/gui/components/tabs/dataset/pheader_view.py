@@ -1,7 +1,7 @@
 """Pandas custom header view that supports dtypes."""
 
 from PySide6.QtCore import QRect, Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPalette
 from PySide6.QtWidgets import QHeaderView
 
 
@@ -55,9 +55,15 @@ class PHeaderView(QHeaderView):
         first_line = f"{column_number} - {column_name}"
         painter.drawText(top_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, first_line)
         
-        # Draw second line: data type
+        # Draw second line: data type. QPalette.Mid is derived automatically
+        # from the Button color assuming a light theme, so in dark theme
+        # (dark Button color) it comes out darker still -- nearly invisible
+        # against the dark background. PlaceholderText is explicitly set
+        # per-theme (theme_manager._apply_to_qapp) to a color halfway between
+        # the theme's text and background, so it stays legible-but-muted in
+        # both themes.
         painter.setFont(italic_font)
-        painter.setPen(self.palette().mid().color())  # Lighter color for dtype
+        painter.setPen(self.palette().color(QPalette.ColorRole.PlaceholderText))
         painter.drawText(bottom_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, column_dtype)
         
         painter.restore()

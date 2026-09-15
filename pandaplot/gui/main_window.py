@@ -43,6 +43,7 @@ class PandaMainWindow(PMainWindow):
 
         # Create central widget
         central_widget = QWidget()
+        central_widget.setObjectName("mainCentralWidget")
         self.setCentralWidget(central_widget)
 
         # Main layout
@@ -63,9 +64,16 @@ class PandaMainWindow(PMainWindow):
         # Get theme-appropriate background color
         background_color = palette.get("card_bg", "#F5F5F5")
         
-        # Apply background to central widget
+        # Apply background to central widget. Scoped to its object name
+        # rather than the bare "QWidget" type selector -- a widget-level
+        # style sheet overrides the QApplication-wide one for any property it
+        # sets, regardless of selector specificity, so an unscoped "QWidget"
+        # rule here would clobber background-color on every descendant
+        # QPushButton (Apply, Add to Project, ...) styled by the global
+        # [primary="true"] etc. rules, leaving only their border/text colors
+        # -- drawn for a colored fill -- visible against a plain background.
         central_widget = self.centralWidget()
-        central_widget.setStyleSheet(f"QWidget {{ background-color: {background_color}; }}")
+        central_widget.setStyleSheet(f"QWidget#mainCentralWidget {{ background-color: {background_color}; }}")
             
         self.logger.debug("Applied theme")
             

@@ -12,12 +12,14 @@ from pandaplot.gui.components.sidebar.project.project_command_manager import (
     ProjectPanelCommandManager,
 )
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class ProjectViewPanelContextManager(QMenu):
     def __init__(self, parent: QWidget, app_context: AppContext, command_manager: ProjectPanelCommandManager, getItemAt, getGlobalPosition):
         super().__init__(parent)
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.app_context = app_context
         self.app_state = app_context.get_app_state()
         self.command_manager = command_manager
         self.getItemAt = getItemAt
@@ -26,21 +28,6 @@ class ProjectViewPanelContextManager(QMenu):
         self._setup_ui()
 
     def _setup_ui(self):
-        self.setStyleSheet("""
-            QMenu {
-                background-color: #ffffff;
-                color: black;
-                border: 1px solid #cccccc;
-            }
-            QMenu::item:selected {
-                background-color: #0078d4;
-                color: white;
-            }
-            QMenu::item:hover {
-                background-color: #e5f3ff;
-                color: black;
-            }
-        """)
         # Open action
         self.open_action = QAction("Open", self)
         self.open_action.triggered.connect(
@@ -104,6 +91,9 @@ class ProjectViewPanelContextManager(QMenu):
 
     def show_context_menu(self, position):
         """Show context menu at the given position."""
+        theme_manager = self.app_context.get_manager(ThemeManager)
+        self.setStyleSheet(theme_manager.build_context_menu_stylesheet())
+
         if not self.app_state.has_project:
             return
 

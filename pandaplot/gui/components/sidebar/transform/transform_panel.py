@@ -109,7 +109,8 @@ class TransformPanel(SidebarPanel):
         # Get theme colors
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        
+        tokens = theme_manager.get_design_tokens()
+
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#333333")
@@ -123,7 +124,7 @@ class TransformPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;
@@ -338,10 +339,10 @@ class TransformPanel(SidebarPanel):
 
         self.clear_btn = PButton("Clear", role="secondary", on_click=self.clear_panel)
         # Remove hardcoded styling - will be applied in _apply_theme
-        
+
         button_layout.addWidget(self.apply_btn)
         button_layout.addWidget(self.clear_btn)
-        
+
         layout.addLayout(button_layout)
     
     def setup_connections(self):

@@ -8,6 +8,7 @@ from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCom
 from pandaplot.commands.project.dataset.change_column_dtype_command import ChangeColumnDtypeCommand
 from pandaplot.commands.project.dataset.delete_columns_command import DeleteColumnsCommand
 from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class ColumnHeaderContextMenu(QMenu):
@@ -21,22 +22,9 @@ class ColumnHeaderContextMenu(QMenu):
         self._init_ui()
     
     def _init_ui(self):
-        self.setStyleSheet("""
-            QMenu {
-                background-color: #ffffff;
-                color: black;
-                border: 1px solid #cccccc;
-            }
-            QMenu::item:selected {
-                background-color: #0078d4;
-                color: white;
-            }
-            QMenu::item:hover {
-                background-color: #e5f3ff;
-                color: black;
-            }
-        """)
-        
+        theme_manager = self.app_context.get_manager(ThemeManager)
+        self.setStyleSheet(theme_manager.build_context_menu_stylesheet())
+
         # Add column actions
         add_col_left_action = QAction("Add column(s) to the left", self)
         add_col_left_action.triggered.connect(

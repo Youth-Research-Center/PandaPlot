@@ -225,7 +225,8 @@ class ProjectViewPanel(SidebarPanel):
 
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        
+        tokens = theme_manager.get_design_tokens()
+
         # Get theme-appropriate colors
         card_bg = palette.get("card_bg", "#ffffff")
         base_fg = palette.get("base_fg", "#000000")
@@ -242,7 +243,7 @@ class ProjectViewPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;
@@ -265,7 +266,7 @@ class ProjectViewPanel(SidebarPanel):
         self.project_title_label.setStyleSheet(f"""
             QLabel {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 background-color: transparent;

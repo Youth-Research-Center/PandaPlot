@@ -105,6 +105,7 @@ class FitPanel(SidebarPanel):
         """Apply theme styling to all components."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
+        tokens = theme_manager.get_design_tokens()
 
         # Get theme colors with fallbacks
         card_bg = palette.get("card_bg", "#ffffff")
@@ -119,7 +120,7 @@ class FitPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;
@@ -137,6 +138,11 @@ class FitPanel(SidebarPanel):
 
         # Title label with shared styling
         self._apply_title_theme(base_fg, card_border)
+
+        self.equation_label.setStyleSheet(
+            f"font-family: monospace; background-color: {card_bg}; "
+            f"color: {base_fg}; padding: 5px; border: 1px solid {card_border};"
+        )
 
         self.update_data_points_display()
 
@@ -356,7 +362,6 @@ class FitPanel(SidebarPanel):
         equation_layout.addWidget(QLabel("Equation:"))
         self.equation_label = QLabel("No fit performed")
         self.equation_label.setMaximumHeight(60)
-        self.equation_label.setStyleSheet("font-family: monospace; background-color: #f5f5f5; color: #333333; padding: 5px; border: 1px solid #ddd;")
         equation_layout.addWidget(self.equation_label)
         results_layout.addLayout(equation_layout)
 
