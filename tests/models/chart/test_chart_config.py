@@ -62,6 +62,14 @@ def test_legacy_shim_get_getitem_setitem_update():
     assert config["y_min"] == 2.5
 
 
+def test_contains_checks_both_typed_fields_and_legacy():
+    config = ChartConfig()
+    assert "title" in config
+    assert "x_min" not in config
+    config["x_min"] = 1.0
+    assert "x_min" in config
+
+
 def test_unknown_field_via_attribute_access_still_raises():
     # Real dataclass attribute access (not the dict-style shim) must behave
     # like a normal typed object -- no silent typo tolerance.

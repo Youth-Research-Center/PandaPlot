@@ -24,3 +24,11 @@ def test_dict_style_shim():
     style["figure_background_color"] = None
     assert style.figure_background_color is None
     assert style.get("axes_background_color") == "#ffffff"
+
+
+def test_contains_checks_both_typed_fields_and_legacy():
+    style = ChartStyle()
+    assert "font_size" in style
+    assert "some_future_key" not in style
+    style["some_future_key"] = 1
+    assert "some_future_key" in style

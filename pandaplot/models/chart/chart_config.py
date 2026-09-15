@@ -85,6 +85,9 @@ class ChartConfig:
         else:
             self._legacy[key] = value
 
+    def __contains__(self, key: str) -> bool:
+        return key in ChartConfig._FIELD_NAMES or key in self._legacy
+
     def update(self, mapping: dict) -> None:
         for key, value in mapping.items():
             self[key] = value
