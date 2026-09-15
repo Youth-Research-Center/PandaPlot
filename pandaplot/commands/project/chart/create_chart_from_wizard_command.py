@@ -243,9 +243,9 @@ class CreateChartFromWizardCommand(Command):
                     dpi = getattr(chart_display, "dpi", dpi) or dpi
             except Exception:
                 pass
-            chart.config["width_cm"] = width_cm
-            chart.config["height_cm"] = height_cm
-            chart.config["dpi"] = dpi
+            chart.config.width_cm = width_cm
+            chart.config.height_cm = height_cm
+            chart.config.dpi = dpi
             series_configs = [] if dialog.is_empty() else dialog.get_series_configs()
             if not dialog.is_empty():
                 chart.set_labels(
@@ -253,8 +253,8 @@ class CreateChartFromWizardCommand(Command):
                     x_label=dialog.get_x_label() or None,
                     y_label=dialog.get_y_label() or None,
                 )
-                chart.config["subtitle"] = dialog.get_subtitle()
-                chart.config["show_legend"] = dialog.get_show_legend()
+                chart.config.subtitle = dialog.get_subtitle()
+                chart.config.show_legend = dialog.get_show_legend()
                 chart.config["show_grid_x"] = dialog.get_show_grid()
                 chart.config["show_grid_y"] = dialog.get_show_grid()
                 series_type = SeriesType(chart.chart_type)
