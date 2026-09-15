@@ -14,6 +14,7 @@ import pandas as pd
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
+from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.chart.error_direction import ErrorDirection  # noqa: F401 (re-exported; see tests/gui/test_chart_editor_series_resolution.py)
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.marker_style import MarkerStyle
@@ -457,7 +458,29 @@ class Chart(Item):
     def get_all_datasets(self) -> List[str]:
         """Get all unique dataset IDs used in this chart."""
         return list(set(series.dataset_id for series in self.data_series))
-    
+
+    def referenced_item_ids(self) -> Optional[set]:
+        if not self.data_series and not self.fit_data:
+            return None
+        return (
+            {series.dataset_id for series in self.data_series}
+            | {fit.source_dataset_id for fit in self.fit_data}
+        )
+
+    def _strip_references(self, removed_ids: set) -> Any:
+        snapshot = snapshot_chart_state(self)
+        self.data_series = [
+            series for series in self.data_series if series.dataset_id not in removed_ids
+        ]
+        self.update_modified_time()
+        return snapshot
+
+    def restore_removed_items_snapshot(self, snapshot: Any) -> None:
+        restore_chart_state(self, snapshot)
+
+    def dependency_update_event(self) -> Optional[tuple]:
+        return ChartEvents.CHART_UPDATED, {"chart_id": self.id}
+
     def add_fit_data(self, source_dataset_id: str, fit_type: str,
                     x_data: np.ndarray, y_data: np.ndarray,
                     source_x_column_id: str = "", source_y_column_id: str = "",

@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.marker_style import MarkerStyle
@@ -1026,3 +1027,50 @@ class TestResolveManualFitSourceData:
         assert resolve_manual_fit_source_data(
             dataset, x_id, y_id, confidence_upper_column_id=text_id
         ) is None
+
+
+class TestChartDependencyHook:
+    def test_referenced_item_ids_is_none_when_no_series_or_fits(self):
+        chart = Chart(id="chart-1", name="Empty")
+
+        assert chart.referenced_item_ids() is None
+
+    def test_referenced_item_ids_includes_series_and_fit_dataset_ids(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+        chart.add_fit_data("ds-2", fit_type="linear", label="f1",
+                          x_data=np.array([1.0]), y_data=np.array([2.0]))
+
+        assert chart.referenced_item_ids() == {"ds-1", "ds-2"}
+
+    def test_on_items_removed_returns_none_without_overlap(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+
+        assert chart.on_items_removed({"ds-unrelated"}) is None
+        assert [s.dataset_id for s in chart.data_series] == ["ds-1"]
+
+    def test_on_items_removed_strips_matching_series(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+        chart.add_data_series("ds-2", label="s2")
+
+        snapshot = chart.on_items_removed({"ds-1"})
+
+        assert snapshot is not None
+        assert [s.dataset_id for s in chart.data_series] == ["ds-2"]
+
+    def test_restore_removed_items_snapshot_round_trips(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+        chart.add_data_series("ds-2", label="s2")
+        snapshot = chart.on_items_removed({"ds-1"})
+
+        chart.restore_removed_items_snapshot(snapshot)
+
+        assert [s.dataset_id for s in chart.data_series] == ["ds-1", "ds-2"]
+
+    def test_dependency_update_event_returns_chart_updated(self):
+        chart = Chart(id="chart-1", name="Chart")
+
+        assert chart.dependency_update_event() == (ChartEvents.CHART_UPDATED, {"chart_id": "chart-1"})
