@@ -431,8 +431,8 @@ class AxesTab(QWidget):
 
     def _write_color_axis_config(self, config: ChartConfig):
         form = self.axes_forms["color"]
-        config["colormap"] = form["colormap_control"].currentValue()
-        config["colorbar_show"] = form["colorbar_show_toggle"].isChecked()
+        config.colormap = form["colormap_control"].currentValue()
+        config.colorbar_show = form["colorbar_show_toggle"].isChecked()
         # Only ever written once the user has actually typed into the field
         # (see _on_colorbar_label_edited) -- this method runs on every field
         # change on the whole tab, not just this one, so unconditionally
@@ -440,27 +440,27 @@ class AxesTab(QWidget):
         # make "never customized" indistinguishable from "customized to
         # empty" the moment any other field changed.
         if self._colorbar_label_customized:
-            config["colorbar_label"] = form["colorbar_label_edit"].text()
-        config["color_scale_auto"] = form["color_scale_auto_toggle"].isChecked()
-        config["color_vmin"] = form["color_vmin_spin"].value()
-        config["color_vmax"] = form["color_vmax_spin"].value()
+            config.colorbar_label = form["colorbar_label_edit"].text()
+        config.color_scale_auto = form["color_scale_auto_toggle"].isChecked()
+        config.color_vmin = form["color_vmin_spin"].value()
+        config.color_vmax = form["color_vmax_spin"].value()
 
-    def _read_color_axis_config(self, config: "ChartConfig | dict"):
+    def _read_color_axis_config(self, config: ChartConfig):
         form = self.axes_forms["color"]
-        form["colormap_control"].setCurrentValue(config.get("colormap", "viridis"))
+        form["colormap_control"].setCurrentValue(config.colormap)
         form["colorbar_show_toggle"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-        form["colorbar_show_toggle"].setChecked(checked=config.get("colorbar_show", True))
+        form["colorbar_show_toggle"].setChecked(checked=config.colorbar_show)
         form["colorbar_show_toggle"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
-        stored_label = config.get("colorbar_label")
+        stored_label = config.colorbar_label
         self._colorbar_label_customized = stored_label is not None
         form["colorbar_label_edit"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         form["colorbar_label_edit"].setText(stored_label or "")
         form["colorbar_label_edit"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
         form["color_scale_auto_toggle"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-        form["color_scale_auto_toggle"].setChecked(checked=config.get("color_scale_auto", True))
+        form["color_scale_auto_toggle"].setChecked(checked=config.color_scale_auto)
         form["color_scale_auto_toggle"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
-        form["color_vmin_spin"].setValue(config.get("color_vmin", 0.0))
-        form["color_vmax_spin"].setValue(config.get("color_vmax", 1.0))
+        form["color_vmin_spin"].setValue(config.color_vmin)
+        form["color_vmax_spin"].setValue(config.color_vmax)
         self._update_color_scale_controls()
 
     def _show_axis_form(self, prefix: str):
@@ -767,8 +767,8 @@ class AxesTab(QWidget):
         config = self._chart.config
         for prefix in _AXIS_PREFIXES:
             self._write_axis_config(prefix, config)
-        config["view_elev"] = self.view_elev_spin.value()
-        config["view_azim"] = self.view_azim_spin.value()
+        config.view_elev = self.view_elev_spin.value()
+        config.view_azim = self.view_azim_spin.value()
         self._write_color_axis_config(config)
         self.configChanged.emit()
 
@@ -777,8 +777,8 @@ class AxesTab(QWidget):
         self._updating_controls = True
         self._chart = chart
         try:
-            self.view_elev_spin.setValue(chart.config.get("view_elev", 30.0))
-            self.view_azim_spin.setValue(chart.config.get("view_azim", -60.0))
+            self.view_elev_spin.setValue(chart.config.view_elev)
+            self.view_azim_spin.setValue(chart.config.view_azim)
             for prefix in _AXIS_PREFIXES:
                 self._read_axis_config(prefix, chart.config)
                 # Only Auto axes get their range recomputed from live data on
@@ -799,8 +799,8 @@ class AxesTab(QWidget):
     def apply_to(self, chart):
         for prefix in _AXIS_PREFIXES:
             self._write_axis_config(prefix, chart.config)
-        chart.config["view_elev"] = self.view_elev_spin.value()
-        chart.config["view_azim"] = self.view_azim_spin.value()
+        chart.config.view_elev = self.view_elev_spin.value()
+        chart.config.view_azim = self.view_azim_spin.value()
         self._write_color_axis_config(chart.config)
 
     def clear(self):
@@ -812,7 +812,7 @@ class AxesTab(QWidget):
                 self._read_axis_config(prefix, {})
             self.view_elev_spin.setValue(30.0)
             self.view_azim_spin.setValue(-60.0)
-            self._read_color_axis_config({})
+            self._read_color_axis_config(ChartConfig())
             self.refresh_axis_chips(None)
         finally:
             self._updating_controls = previous_guard
