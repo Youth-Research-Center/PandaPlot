@@ -1,14 +1,15 @@
 import logging
 from unittest.mock import Mock
 
+import pandas as pd
 import pytest
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.item import DeleteItemCommand
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.events.event_types import ChartEvents, ProjectEvents
 from pandaplot.models.project import Project
-from pandaplot.models.project.items import Folder, Note
+from pandaplot.models.project.items import Chart, Dataset, Folder, Note
 from pandaplot.models.state import AppContext, AppState
 
 
@@ -627,3 +628,142 @@ class TestDeleteItemCommand:
         assert command2.deleted_item_data["id"] == "note-2"
         assert command1.deleted_item_data["name"] == "Note 1"
         assert command2.deleted_item_data["name"] == "Note 2"
+
+
+class TestDeleteItemCommandChartSeriesCascade:
+    """Regression (#276): deleting a Dataset must strip any chart data
+    series referencing it, not leave them dangling until the project
+    reloads and series-to-dataset resolution starts failing at render
+    time. Uses a real Project (not the mocked find_item/remove_item/
+    add_item of the other tests' sample_project) so add/remove/find and
+    the chart's own data_series list all behave for real."""
+
+    @pytest.fixture
+    def mock_app_context(self):
+        app_context = Mock(spec=AppContext)
+        app_state = Mock(spec=AppState)
+        ui_controller = Mock(spec=UIController)
+        app_context.get_app_state.return_value = app_state
+        app_context.get_ui_controller.return_value = ui_controller
+        app_context.event_bus = Mock()
+        app_state.event_bus = Mock()
+        return app_context, app_state, ui_controller
+
+    @pytest.fixture
+    def project_with_chart(self):
+        project = Project("Test Project")
+        dataset = Dataset(id="ds-1", name="Data", data=pd.DataFrame({"x": [1, 2], "y": [3, 4]}))
+        project.add_item(dataset)
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="from ds-1")
+        chart.add_data_series("ds-other", label="unrelated")
+        project.add_item(chart)
+        return project, dataset, chart
+
+    def _make_command(self, mock_app_context, project, item_id):
+        app_context, app_state, ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = project
+        ui_controller.show_question.return_value = True
+        return DeleteItemCommand(app_context, item_id)
+
+    def test_execute_removes_series_referencing_the_deleted_dataset(self, mock_app_context, project_with_chart):
+        project, dataset, chart = project_with_chart
+        command = self._make_command(mock_app_context, project, "ds-1")
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        assert [s.dataset_id for s in chart.data_series] == ["ds-other"]
+
+    def test_execute_emits_chart_updated_for_the_affected_chart(self, mock_app_context, project_with_chart):
+        project, _dataset, chart = project_with_chart
+        app_context, _app_state, _ui = mock_app_context
+        command = self._make_command(mock_app_context, project, "ds-1")
+
+        command.execute()
+
+        app_context.event_bus.emit.assert_any_call(ChartEvents.CHART_UPDATED, {"chart_id": chart.id})
+
+    def test_execute_leaves_unrelated_charts_untouched(self, mock_app_context, project_with_chart):
+        """A chart with no series referencing the deleted dataset must not
+        be snapshotted/touched at all."""
+        project, dataset, chart = project_with_chart
+        other_chart = Chart(id="chart-2", name="Other")
+        other_chart.add_data_series("ds-other", label="unrelated only")
+        project.add_item(other_chart)
+        command = self._make_command(mock_app_context, project, "ds-1")
+
+        command.execute()
+
+        assert other_chart.id not in command._chart_snapshots
+        assert len(other_chart.data_series) == 1
+
+    def test_undo_restores_the_removed_series(self, mock_app_context, project_with_chart):
+        project, dataset, chart = project_with_chart
+        command = self._make_command(mock_app_context, project, "ds-1")
+        command.execute()
+
+        assert command.undo() is CommandResult.SUCCESS
+
+        restored_chart = project.find_item("chart-1")
+        assert [s.dataset_id for s in restored_chart.data_series] == ["ds-1", "ds-other"]
+
+    def test_redo_removes_the_series_again(self, mock_app_context, project_with_chart):
+        """Regression: redo must re-strip the series undo() just restored,
+        not assume they're already gone."""
+        project, dataset, chart = project_with_chart
+        command = self._make_command(mock_app_context, project, "ds-1")
+        command.execute()
+        command.undo()
+
+        assert command.redo() is CommandResult.SUCCESS
+
+        restored_chart = project.find_item("chart-1")
+        assert [s.dataset_id for s in restored_chart.data_series] == ["ds-other"]
+
+    def test_redo_undo_round_trip_is_stable(self, mock_app_context, project_with_chart):
+        """A second full undo/redo cycle must behave identically to the
+        first -- guards against state left over from the first cycle
+        (e.g. a stale snapshot) corrupting the second."""
+        project, dataset, chart = project_with_chart
+        command = self._make_command(mock_app_context, project, "ds-1")
+        command.execute()
+
+        command.undo()
+        command.redo()
+        command.undo()
+        command.redo()
+
+        restored_chart = project.find_item("chart-1")
+        assert [s.dataset_id for s in restored_chart.data_series] == ["ds-other"]
+
+    def test_deleting_an_unrelated_note_does_not_touch_any_chart(self, mock_app_context, project_with_chart):
+        """A delete with no Dataset involved at all (_dataset_ids_under
+        returns empty) must be a complete no-op for _strip_dangling_series
+        -- in particular it must never call project.get_all_items() and
+        risk an extra CHART_UPDATED emission for unrelated deletes."""
+        project, dataset, chart = project_with_chart
+        note = Note(id="note-1", name="Unrelated")
+        project.add_item(note)
+        app_context, _app_state, _ui = mock_app_context
+        command = self._make_command(mock_app_context, project, "note-1")
+
+        command.execute()
+
+        app_context.event_bus.emit.assert_not_called()
+        assert len(chart.data_series) == 2
+
+    def test_deleting_a_folder_containing_the_dataset_also_strips_series(self, mock_app_context, project_with_chart):
+        """project.remove_item() cascades a Folder delete to its children,
+        so deleting a Folder containing the referenced Dataset must strip
+        chart series the same way deleting the Dataset directly does."""
+        project, dataset, chart = project_with_chart
+        folder = Folder(id="folder-1", name="Container")
+        project.add_item(folder)
+        project.remove_item(dataset)
+        project.add_item(dataset, parent_id="folder-1")
+        command = self._make_command(mock_app_context, project, "folder-1")
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        assert [s.dataset_id for s in chart.data_series] == ["ds-other"]
