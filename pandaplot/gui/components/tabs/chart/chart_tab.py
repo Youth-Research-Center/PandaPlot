@@ -2,6 +2,7 @@
 
 from typing import override
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
@@ -15,6 +16,15 @@ from pandaplot.models.events.event_types import DatasetEvents, ProjectEvents
 from pandaplot.models.project.items import Chart
 from pandaplot.models.state.app_context import AppContext
 
+# How long to wait, after the last relevant chart/dataset event, before
+# actually re-rendering the chart -- coalesces a burst of rapid-fire edits
+# (typing into a linked dataset cell fires one event per keystroke/commit)
+# into a single synchronous chart re-render instead of one per edit, so an
+# edit to the dataset never blocks on a matplotlib render (see the
+# async-chart-rendering follow-up review: this was the one open-chart-tab
+# path that work never touched).
+_CHART_REFRESH_DEBOUNCE_MS = 400
+
 
 class ChartTab(PWidget):
     """
@@ -24,6 +34,9 @@ class ChartTab(PWidget):
     def __init__(self, app_context: AppContext, chart: Chart, parent: QWidget):
         super().__init__(app_context=app_context, parent=parent)
         self.chart = chart
+        self._chart_refresh_timer = QTimer()
+        self._chart_refresh_timer.setSingleShot(True)
+        self._chart_refresh_timer.timeout.connect(lambda: self._refresh_chart_editor())
         self._initialize()
 
     @override
@@ -79,7 +92,7 @@ class ChartTab(PWidget):
 
         # Only respond if this is our chart
         if updated_chart_id == self.chart.id:
-            self._refresh_chart_editor()
+            self._chart_refresh_timer.start(_CHART_REFRESH_DEBOUNCE_MS)
 
     def on_dataset_changed(self, event_data: dict):
         """Refresh the chart when one of its source datasets changes."""
@@ -89,7 +102,7 @@ class ChartTab(PWidget):
 
         # Only re-render if this chart actually plots the changed dataset.
         if changed_dataset_id in self.chart.get_all_datasets():
-            self._refresh_chart_editor()
+            self._chart_refresh_timer.start(_CHART_REFRESH_DEBOUNCE_MS)
 
     def _refresh_chart_editor(self):
         """Refresh the chart editor's preview, guarding against a deleted widget."""

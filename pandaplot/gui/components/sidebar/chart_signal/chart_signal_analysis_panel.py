@@ -18,6 +18,7 @@ Modeled on two sibling panels:
 from typing import Optional, override
 
 import numpy as np
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -64,6 +65,12 @@ from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
+# Mirrors ChartTab's own debounce (see chart_tab.py) for the identical
+# synchronous-refresh-on-every-edit problem: recomputing a signal analysis
+# result on every keystroke while typing into a linked dataset cell is
+# wasteful and blocks the GUI thread inline.
+_CHART_REFRESH_DEBOUNCE_MS = 400
+
 
 class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for signal analysis operations on chart data/fit series."""
@@ -85,6 +92,16 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         # and not mistake its own result for an external, invalidating
         # chart edit. See _on_chart_updated()'s docstring.
         self._pending_quick_plot = False
+
+        self._chart_refresh_timer = QTimer()
+        self._chart_refresh_timer.setSingleShot(True)
+        # A lambda, not `self._populate_sources` directly: connecting a
+        # bound method captures that exact method object at connect time,
+        # so a test (or any later code) that reassigns
+        # `panel._populate_sources` afterward would silently not affect an
+        # already-made connection. The lambda re-resolves the attribute on
+        # every timeout instead.
+        self._chart_refresh_timer.timeout.connect(lambda: self._populate_sources())
 
         # Queued CHART_UPDATED events for the current chart that arrive
         # while _pending_quick_plot suppresses _on_chart_updated() (see
@@ -815,7 +832,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         # Only invalidate if this chart actually plots the changed dataset --
         # mirrors ChartTab.on_dataset_changed's own filter.
         if changed_dataset_id in self.current_chart.get_all_datasets():
-            self._populate_sources()
+            self._chart_refresh_timer.start(_CHART_REFRESH_DEBOUNCE_MS)
 
     @override
     def showEvent(self, event):

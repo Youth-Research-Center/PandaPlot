@@ -620,12 +620,13 @@ class TestDatasetChangedInvalidatesCache:
     cached range command and any successful last_result looking valid,
     letting Add's fast path commit a preview computed from pre-edit data."""
 
-    def test_dataset_changed_for_a_plotted_dataset_invalidates_range_command_and_last_result(self, panel):
+    def test_dataset_changed_for_a_plotted_dataset_invalidates_range_command_and_last_result(self, panel, qtbot):
         stale_range_command = panel._range_command("series", 0)
         panel.last_result = Mock()
         panel._last_run_params = panel._get_dispatch_params()
 
         panel._on_dataset_changed({"dataset_id": "ds-1"})
+        qtbot.wait(600)
 
         assert panel._range_command("series", 0) is not stale_range_command
         assert panel.last_result is None
@@ -639,6 +640,32 @@ class TestDatasetChangedInvalidatesCache:
 
         assert panel._range_command("series", 0) is stale_range_command
         assert panel.last_result is not None
+
+
+class TestDatasetChangeDebounce:
+    def test_on_dataset_changed_debounces_instead_of_calling_immediately(self, panel):
+        panel._populate_sources = Mock()
+
+        panel._on_dataset_changed({"dataset_id": "ds-1"})
+
+        panel._populate_sources.assert_not_called()
+        assert panel._chart_refresh_timer.isActive()
+
+    def test_rapid_dataset_changes_coalesce_into_one_refresh(self, panel, qtbot):
+        panel._populate_sources = Mock()
+
+        for _ in range(5):
+            panel._on_dataset_changed({"dataset_id": "ds-1"})
+        panel._populate_sources.assert_not_called()
+        qtbot.wait(600)
+        panel._populate_sources.assert_called_once()
+
+    def test_on_dataset_changed_ignores_unrelated_dataset(self, panel):
+        panel._populate_sources = Mock()
+
+        panel._on_dataset_changed({"dataset_id": "other-ds"})
+
+        assert not panel._chart_refresh_timer.isActive()
 
 
 class TestShowEventRefresh:

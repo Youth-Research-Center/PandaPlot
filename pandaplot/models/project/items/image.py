@@ -29,7 +29,7 @@ class Image(Item):
     def __init__(self, id: Optional[str] = None, name: str = "",
                  source_file: str = "", storage_mode: str = "copied",
                  image_ext: str = "", width: int = 0, height: int = 0,
-                 size_bytes: Optional[int] = None):
+                 size_bytes: Optional[int] = None, note_id: Optional[str] = None):
         super().__init__(id, name)
         self.source_file = source_file
         self.storage_mode = storage_mode
@@ -37,6 +37,13 @@ class Image(Item):
         self.width = width
         self.height = height
         self.size_bytes = size_bytes
+        # Set only when this Image was created as a chart snapshot (see
+        # NoteEditorWidget._save_chart_snapshot_image / CreateImageFromBytesCommand);
+        # None for every other Image (imported/pasted gallery images). Lets
+        # the note-links feature attribute a snapshot to the note that
+        # created it, even though the "Chart Snapshots" gallery itself is
+        # shared per-folder, not per-note.
+        self.note_id = note_id
         self._bytes: Optional[bytes] = None
 
     def set_bytes(self, data: Optional[bytes]) -> None:
@@ -57,6 +64,7 @@ class Image(Item):
             "width": self.width,
             "height": self.height,
             "size_bytes": self.size_bytes,
+            "note_id": self.note_id,
         })
         return data
 
@@ -72,6 +80,7 @@ class Image(Item):
             width=data.get("width", 0),
             height=data.get("height", 0),
             size_bytes=data.get("size_bytes"),
+            note_id=data.get("note_id"),
         )
         image.parent_id = data.get("parent_id")
         image.created_at = data.get("created_at", datetime.now().isoformat())
