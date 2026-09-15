@@ -178,9 +178,12 @@ class Chart(Item):
         self._init_default_config()
 
     def _init_default_config(self) -> None:
-        """(Re)apply default chart-level config/style -- called from
-        __init__ and by from_dict when a saved chart carried no config at
-        all.
+        """Apply default chart-level config/style -- called once from
+        __init__. from_dict() always constructs via __init__ first (so this
+        always runs) and then overlays any persisted config/style on top via
+        `chart.config.update(...)`/`chart.style.update(...)`, which -- for a
+        saved chart carrying no config/style at all -- is a no-op, leaving
+        these defaults in place; there is no separate "empty config" branch.
 
         Chart-level fields (title, legend, grid globals, colormap, figure
         size/dpi/background, ...) get real dataclass defaults on

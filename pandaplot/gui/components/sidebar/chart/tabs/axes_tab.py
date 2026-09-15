@@ -20,6 +20,7 @@ from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.gui.components.common.toggle_switch import ToggleSwitch
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
+from pandaplot.models.chart.chart_config import ChartConfig
 from pandaplot.models.chart.chart_configuration import ScaleType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
@@ -428,7 +429,7 @@ class AxesTab(QWidget):
         form["color_vmax_label"].setVisible(show_manual)
         form["color_vmax_spin"].setVisible(show_manual)
 
-    def _write_color_axis_config(self, config: dict):
+    def _write_color_axis_config(self, config: ChartConfig):
         form = self.axes_forms["color"]
         config["colormap"] = form["colormap_control"].currentValue()
         config["colorbar_show"] = form["colorbar_show_toggle"].isChecked()
@@ -444,7 +445,7 @@ class AxesTab(QWidget):
         config["color_vmin"] = form["color_vmin_spin"].value()
         config["color_vmax"] = form["color_vmax_spin"].value()
 
-    def _read_color_axis_config(self, config: dict):
+    def _read_color_axis_config(self, config: "ChartConfig | dict"):
         form = self.axes_forms["color"]
         form["colormap_control"].setCurrentValue(config.get("colormap", "viridis"))
         form["colorbar_show_toggle"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
@@ -661,8 +662,11 @@ class AxesTab(QWidget):
             self.axis_chips.setCurrentValue("x")
             self._show_axis_form("x")
 
-    def _write_axis_config(self, prefix: str, config: dict):
-        """Write one axis form's widget values into `config` (the mutable chart.config dict)."""
+    def _write_axis_config(self, prefix: str, config: ChartConfig):
+        """Write one axis form's widget values into `config` (the mutable
+        chart.config -- a ChartConfig; every axis-prefixed key here goes
+        through its dict-style shim since those keys aren't declared
+        dataclass fields yet, see ChartConfig's docstring)."""
         form = self.axes_forms[prefix]
         config[f"{prefix}_label"] = form["label_edit"].text()
         if form["scale_control"].currentValue():
@@ -684,8 +688,10 @@ class AxesTab(QWidget):
         config[f"{prefix}_minor_tick_direction"] = form["minor_tick_direction_control"].currentValue()
         config[f"{prefix}_show_minor_grid"] = form["minor_grid_toggle"].isChecked()
 
-    def _read_axis_config(self, prefix: str, config: dict):
-        """Populate one axis form's widgets from `config`. Assumes the caller
+    def _read_axis_config(self, prefix: str, config: "ChartConfig | dict"):
+        """Populate one axis form's widgets from `config` (a ChartConfig when
+        called with a real chart's config, or a plain empty dict from
+        `clear()`). Assumes the caller
         already has `self._updating_controls` set so change signals don't
         write half-loaded values back out."""
         form = self.axes_forms[prefix]

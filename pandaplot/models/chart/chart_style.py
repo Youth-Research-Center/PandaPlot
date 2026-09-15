@@ -20,6 +20,15 @@ class ChartStyle:
 
     _FIELD_NAMES: ClassVar[frozenset] = frozenset()
 
+    def __post_init__(self) -> None:
+        # JSON has no tuple type -- a figure_size loaded from a persisted
+        # project's dict arrives as a list (both via `cls(**known)` in
+        # from_dict and via direct construction). Normalize it here so the
+        # declared `tuple` type actually holds for every ChartStyle
+        # instance, not just freshly-constructed defaults.
+        if isinstance(self.figure_size, list):
+            self.figure_size = tuple(self.figure_size)
+
     def get(self, key: str, default: Any = None) -> Any:
         if key in ChartStyle._FIELD_NAMES:
             return getattr(self, key)
@@ -31,6 +40,8 @@ class ChartStyle:
         return self._legacy[key]
 
     def __setitem__(self, key: str, value: Any) -> None:
+        if key == "figure_size" and isinstance(value, list):
+            value = tuple(value)
         if key in ChartStyle._FIELD_NAMES:
             setattr(self, key, value)
         else:
