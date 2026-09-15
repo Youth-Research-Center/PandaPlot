@@ -13,7 +13,7 @@ This test suite guards against both gaps.
 import sys
 from unittest.mock import Mock, patch
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from pandaplot.app import build_app_context
 from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
@@ -80,10 +80,12 @@ def test_apply_settings_does_not_advance_state_when_command_fails(tmp_path):
     original_before = dict(dialog.original_settings)
 
     with patch.object(executor, "execute_command", return_value=False):
-        dialog.apply_settings()
+        with patch.object(QMessageBox, "warning") as mock_warning:
+            dialog.apply_settings()
 
     assert dialog.original_settings == original_before
     changed_signal_handler.assert_not_called()
+    mock_warning.assert_called_once()
 
 
 def test_load_current_settings_skips_reapply_when_config_unchanged(tmp_path):
@@ -173,7 +175,9 @@ def test_accept_settings_does_not_close_when_apply_fails(tmp_path):
     dialog.auto_save_check.setChecked(not dialog.auto_save_check.isChecked())
 
     with patch.object(executor, "execute_command", return_value=False):
-        with patch.object(dialog, "accept") as mock_accept:
-            dialog.accept_settings()
+        with patch.object(QMessageBox, "warning") as mock_warning:
+            with patch.object(dialog, "accept") as mock_accept:
+                dialog.accept_settings()
 
     mock_accept.assert_not_called()
+    mock_warning.assert_called_once()

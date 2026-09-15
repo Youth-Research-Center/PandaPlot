@@ -100,6 +100,10 @@ def test_theme_change_is_undoable_through_command_executor(tmp_path):
     assert executor.can_undo() is True
     assert config_manager.config.appearance.theme == Theme.DARK
 
+    executor.undo()
+    assert config_manager.config.appearance.theme == Theme.SYSTEM
+    assert executor.can_redo() is True
+
 
 def test_execute_reports_failure_when_disk_write_fails(tmp_path):
     """Regression (PR #390 review, Copilot): ConfigManager.save() catches

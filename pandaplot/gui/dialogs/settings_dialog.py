@@ -700,6 +700,11 @@ class SettingsDialog(PDialog):
                     # to values that were never actually persisted, and a
                     # later Apply with the same values is wrongly skipped by
                     # the guard above.
+                    QMessageBox.warning(
+                        self,
+                        "Settings Not Saved",
+                        "Your settings could not be saved. Please try again.",
+                    )
                     return False
                 self._chart_width_raw_cm = width_cm
                 self._chart_height_raw_cm = height_cm
