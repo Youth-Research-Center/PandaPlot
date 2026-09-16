@@ -167,9 +167,65 @@ def migrate_chart_v1_to_v2(raw: dict) -> dict:
     return new_raw
 
 
+def migrate_chart_v2_to_v3(raw: dict) -> dict:
+    """Fold each of raw["fit_data"]'s legacy entries into raw["data_series"]
+    as a "series_type": "fit" entry (#304), then drop "fit_data" entirely.
+
+    A fit's opacity lived at style["alpha"] since migrate_chart_legacy_to_v1
+    nested it there -- every other series type reads opacity from its own
+    top-level "alpha" instead, so this pulls it back out to the series
+    dict's "alpha" and drops it from style (FitStyle no longer has an
+    alpha field). Old fits had no y_axis of their own (chart_editor.py's
+    removed fit-rendering loop matched a fit to its source series purely
+    to borrow that series' axis) -- "primary" is the same fallback that
+    matching used when no source series matched, so this is not a
+    behavior regression, just made explicit and stored per-series like
+    every other type.
+    """
+    fit_entries = raw.get("fit_data")
+    if not fit_entries:
+        new_raw = dict(raw)
+        new_raw.pop("fit_data", None)
+        return new_raw
+
+    data_series = list(raw.get("data_series", []))
+    for fit in fit_entries:
+        style = dict(fit.get("style") or {})
+        alpha = style.pop("alpha", 1.0)
+        style["fit_type"] = fit.get("fit_type", "")
+        style["fit_params"] = fit.get("fit_params", {})
+        style["fit_stats"] = fit.get("fit_stats", {})
+        style["confidence_lower"] = fit.get("confidence_lower")
+        style["confidence_upper"] = fit.get("confidence_upper")
+        style["confidence_lower_column_id"] = fit.get("confidence_lower_column_id", "")
+        style["confidence_upper_column_id"] = fit.get("confidence_upper_column_id", "")
+        style["is_manual"] = fit.get("is_manual", False)
+        data_series.append({
+            "dataset_id": fit.get("source_dataset_id", ""),
+            "x_column": fit.get("source_x_column", ""),
+            "y_column": fit.get("source_y_column", ""),
+            "x_column_id": fit.get("source_x_column_id", ""),
+            "y_column_id": fit.get("source_y_column_id", ""),
+            "label": fit.get("label", ""),
+            "visible": fit.get("visible", True),
+            "y_axis": "primary",
+            "alpha": alpha,
+            "series_type": "fit",
+            "style": style,
+            "precomputed_x_data": fit.get("x_data"),
+            "precomputed_y_data": fit.get("y_data"),
+        })
+
+    new_raw = dict(raw)
+    new_raw["data_series"] = data_series
+    new_raw.pop("fit_data", None)
+    return new_raw
+
+
 PER_ITEM_CHART_MIGRATIONS: dict[int, Callable[[dict], dict]] = {
     0: migrate_chart_legacy_to_v1,
     1: migrate_chart_v1_to_v2,
+    2: migrate_chart_v2_to_v3,
 }
 
 

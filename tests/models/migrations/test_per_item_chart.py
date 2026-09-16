@@ -507,3 +507,62 @@ def test_fit_style_fields_are_a_subset_of_the_real_fit_style_dataclass():
     assert set(_FIT_STYLE_FIELDS).issubset(real_field_names), (
         f"{set(_FIT_STYLE_FIELDS)} not a subset of {real_field_names}"
     )
+
+
+def test_migrate_chart_v2_to_v3_folds_fit_data_into_data_series():
+    from pandaplot.models.migrations.per_item.chart import migrate_chart_v2_to_v3
+
+    raw = {
+        "chart_type": "line",
+        "data_series": [{"dataset_id": "ds1", "series_type": "line", "style": {}}],
+        "fit_data": [{
+            "source_dataset_id": "ds1",
+            "source_x_column_id": "xid", "source_y_column_id": "yid",
+            "source_x_column": "X", "source_y_column": "Y",
+            "fit_type": "linear",
+            "x_data": [1.0, 2.0], "y_data": [3.0, 4.0],
+            "label": "My Fit", "visible": True,
+            "fit_params": {"a": 1.0}, "fit_stats": {"r_squared": 0.9},
+            "confidence_lower": [0.5, 1.5], "confidence_upper": [1.5, 2.5],
+            "confidence_lower_column_id": "", "confidence_upper_column_id": "",
+            "is_manual": False,
+            "style": {
+                "color": "#ff7f0e", "line_style": "dashed", "line_width": 2.0,
+                "alpha": 0.8,
+            },
+        }],
+    }
+
+    migrated = migrate_chart_v2_to_v3(raw)
+
+    assert "fit_data" not in migrated
+    assert len(migrated["data_series"]) == 2
+    fit_entry = migrated["data_series"][1]
+    assert fit_entry["series_type"] == "fit"
+    assert fit_entry["dataset_id"] == "ds1"
+    assert fit_entry["x_column_id"] == "xid"
+    assert fit_entry["y_column_id"] == "yid"
+    assert fit_entry["alpha"] == 0.8  # pulled up from style.alpha
+    assert "alpha" not in fit_entry["style"]
+    assert fit_entry["precomputed_x_data"] == [1.0, 2.0]
+    assert fit_entry["precomputed_y_data"] == [3.0, 4.0]
+    assert fit_entry["style"]["fit_type"] == "linear"
+    assert fit_entry["style"]["fit_params"] == {"a": 1.0}
+    assert fit_entry["style"]["confidence_lower"] == [0.5, 1.5]
+    assert fit_entry["y_axis"] == "primary"
+
+
+def test_migrate_chart_dispatches_through_v2_to_v3(monkeypatch=None):
+    from pandaplot.models.migrations.per_item.chart import migrate_chart
+
+    raw = {
+        "chart_type": "line", "data_series": [],
+        "fit_data": [{
+            "source_dataset_id": "ds1", "fit_type": "linear",
+            "x_data": [1.0], "y_data": [2.0], "label": "Fit",
+            "style": {"color": "#000", "line_style": "solid", "line_width": 1.0, "alpha": 1.0},
+        }],
+    }
+    result = migrate_chart(raw, schema_version=2)
+    assert "fit_data" not in result
+    assert len(result["data_series"]) == 1
