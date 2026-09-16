@@ -46,28 +46,28 @@ class ChartTypeSpec:
 CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
     ChartType.LINE: ChartTypeSpec(
         display_name="Line", roles=("x", "y"), required_roles=("y",),
-        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}),
+        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR, SeriesType.FIT}),
         allows_fit=True, default_series_type=SeriesType.LINE,
     ),
     ChartType.SCATTER: ChartTypeSpec(
         display_name="Scatter", roles=("x", "y"), required_roles=("y",),
-        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}),
+        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR, SeriesType.FIT}),
         allows_fit=True, default_series_type=SeriesType.SCATTER,
     ),
     ChartType.BAR: ChartTypeSpec(
         display_name="Bar", roles=("x", "y"), required_roles=("y",),
-        allowed_series_types=frozenset({SeriesType.BAR, SeriesType.SCATTER}),
+        allowed_series_types=frozenset({SeriesType.BAR, SeriesType.SCATTER, SeriesType.FIT}),
         allows_fit=True, default_series_type=SeriesType.BAR,
     ),
     ChartType.HIST: ChartTypeSpec(
         display_name="Histogram", roles=("values",), required_roles=("values",),
-        allowed_series_types=frozenset({SeriesType.HIST}),
+        allowed_series_types=frozenset({SeriesType.HIST, SeriesType.FIT}),
         allows_fit=True, default_series_type=SeriesType.HIST,
     ),
     ChartType.VECTOR: ChartTypeSpec(
         display_name="Vector", roles=("x", "y", "u", "v", "magnitude"),
         required_roles=("x", "y", "u", "v"),
-        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}),
+        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR, SeriesType.FIT}),
         allows_fit=True, default_series_type=SeriesType.VECTOR,
     ),
     ChartType.COLORMAP: ChartTypeSpec(

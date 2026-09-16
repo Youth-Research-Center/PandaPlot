@@ -49,9 +49,9 @@ def test_series_type_combo_offers_only_the_chart_types_allowed_series_types():
     tab.load(chart)
 
     offered = {tab.series_type_combo.itemData(i) for i in range(tab.series_type_combo.count())}
-    # "Fit" is a conversion action offered regardless of allowed_series_types
-    # (see test_selecting_fit_converts_the_series_to_fit_data below).
-    assert offered == {SeriesType.BAR, SeriesType.SCATTER, "__convert_to_fit__"}
+    # FIT is now in the allowed_series_types, so it appears both as a regular series type
+    # and as a conversion action (see test_selecting_fit_converts_the_series_to_fit_data below).
+    assert offered == {SeriesType.BAR, SeriesType.SCATTER, SeriesType.FIT, "__convert_to_fit__"}
 
 
 def test_series_type_combo_selects_the_current_series_own_type():
