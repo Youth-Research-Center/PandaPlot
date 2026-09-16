@@ -40,12 +40,9 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS,
     SERIES_RENDERERS_REPORTING_NO_DATA,
 )
-from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
-from pandaplot.models.chart.marker_style import MarkerStyle
-from pandaplot.models.chart.series_style import LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ChartEvents, ConfigEvents
@@ -1044,60 +1041,6 @@ class ChartEditorWidget(PWidget):
                             self.chart_canvas.axes.get_subplotspec())
                     if colorbar_label:
                         self._colorbar.set_label(colorbar_label)
-
-                # Plot fit data from chart.fit_data, routed to the same axis as
-                # the data series it was fitted from (if that series uses the
-                # secondary Y axis).
-                total_data_series = len(self.chart.data_series)
-                for fit_idx, fit in enumerate(self.chart.fit_data):
-                    if fit.visible:
-                        fit_axes = self.chart_canvas.axes
-                        if self.chart_canvas.axes2 is not None:
-                            for series in self.chart.data_series:
-                                # Match series to the fit it came from: prefer
-                                # stable column ids, fall back to names (both
-                                # sides carry ids once assigned; renames keep
-                                # the ids equal without touching either).
-                                def _col_match(s_id, s_name, f_id, f_name):
-                                    if s_id and f_id:
-                                        return s_id == f_id
-                                    return s_name == f_name
-                                if (series.y_axis == "secondary"
-                                        and series.dataset_id == fit.source_dataset_id
-                                        and _col_match(series.x_column_id, series.x_column,
-                                                       fit.source_x_column_id, fit.source_x_column)
-                                        and _col_match(series.y_column_id, series.y_column,
-                                                       fit.source_y_column_id, fit.source_y_column)):
-                                    fit_axes = self.chart_canvas.axes2
-                                    break
-
-                        with self._track_new_artists(total_data_series + fit_idx):
-                            # Plot the fit line
-                            style = fit.style
-                            line_style_adapter = LineSeriesStyle(
-                                color=style.color,
-                                line_style=style.line_style,
-                                line_width=style.line_width,
-                                marker=MarkerStyle(marker_style="none"),
-                                fill_enabled=False,
-                            )
-                            fit_series_data = SeriesData(
-                                x_data=fit.x_data, y_data=fit.y_data,
-                                x_err=None, y_err=None, x_err_minus=None, y_err_minus=None, error=None,
-                            )
-                            render_line_series(fit_axes, fit_series_data, line_style_adapter,
-                                                fit.label, style.alpha, visible=fit.visible, extra={})
-
-                            if (style.band_fill_enabled
-                                    and fit.confidence_lower is not None
-                                    and fit.confidence_upper is not None):
-                                band_color = style.band_color or style.color
-                                fit_axes.fill_between(
-                                    fit.x_data,
-                                    fit.confidence_lower,
-                                    fit.confidence_upper,
-                                    color=band_color,
-                                    alpha=style.band_fill_alpha)
 
             # Apply chart configuration
             config = self.chart.config
