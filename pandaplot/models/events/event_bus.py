@@ -101,12 +101,17 @@ class EventBus:
                 except Exception as e:
                     self.logger.error("Error in event callback for '%s': %s", event_level, str(e), exc_info=True)
             
-            # Emit to pattern subscribers. Iterate over a snapshot: a callback
-            # can call unsubscribe() on its own last subscription, which
-            # deletes the dict entry / mutates the callback list mid-emit.
+            # Emit to pattern subscribers. Snapshot pattern, compiled regex,
+            # and callbacks together: a callback (for this pattern or an
+            # earlier one in the snapshot) can call unsubscribe() on the
+            # final subscription for some pattern, which deletes that
+            # pattern's entries from both _pattern_subscribers and
+            # _compiled_patterns mid-emit.
             pattern_matches = 0
-            for pattern_str, callbacks in list(self._pattern_subscribers.items()):
-                if self._compiled_patterns[pattern_str].match(event_level):
+            for pattern_str, compiled_pattern, callbacks in [
+                (p, self._compiled_patterns[p], cbs) for p, cbs in self._pattern_subscribers.items()
+            ]:
+                if compiled_pattern.match(event_level):
                     pattern_matches += len(callbacks)
                     for callback in list(callbacks):
                         try:

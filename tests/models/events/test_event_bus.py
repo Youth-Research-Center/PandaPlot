@@ -581,6 +581,24 @@ class TestEventBus:
 
         assert "dataset.*" not in event_bus._pattern_subscribers
 
+    def test_emit_survives_earlier_pattern_callback_unsubscribing_a_later_pattern(self):
+        """A callback for one pattern that unsubscribes the last callback of a
+        *different*, later pattern must not make emit() KeyError when it
+        later looks up that now-deleted pattern's compiled regex."""
+        event_bus = EventBus()
+        later_callback = Mock()
+
+        def unsubscribes_other_pattern(event_data):
+            event_bus.unsubscribe("other.*", later_callback)
+
+        event_bus.subscribe("dataset.*", unsubscribes_other_pattern)
+        event_bus.subscribe("other.*", later_callback)
+
+        event_bus.emit("dataset.changed", {"key": "value"})
+
+        assert "other.*" not in event_bus._pattern_subscribers
+        later_callback.assert_not_called()
+
     def test_emit_calls_matching_pattern_subscriber(self):
         """A pattern subscriber whose glob matches the emitted event should be called."""
         event_bus = EventBus()
