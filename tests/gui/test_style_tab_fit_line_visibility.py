@@ -13,12 +13,26 @@ from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import ScatterSeriesStyle
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
-from pandaplot.models.project.items.chart import DataSeries, FitData
+from pandaplot.models.project.items.chart import Chart, DataSeries
 
 
 def _qapp():
     return QApplication.instance() or QApplication(sys.argv)
+
+
+def _fit(**style_kwargs):
+    chart = Chart(name="c", chart_type="line")
+    return chart.add_fit_series(
+        source_dataset_id="ds1",
+        source_x_column="x",
+        source_y_column="y",
+        x_data=np.array([1.0, 2.0]),
+        y_data=np.array([1.0, 2.0]),
+        label="Fit",
+        style=FitStyle(fit_type="linear", **style_kwargs),
+    )
 
 
 def test_fit_line_card_visible_on_scatter_chart():
@@ -28,16 +42,8 @@ def test_fit_line_card_visible_on_scatter_chart():
     style_tab.show()
     style_tab.set_chart_type(ChartType.SCATTER)
 
-    fit = FitData(
-        source_dataset_id="ds1",
-        source_x_column="x",
-        source_y_column="y",
-        fit_type="linear",
-        x_data=np.array([1.0, 2.0]),
-        y_data=np.array([1.0, 2.0]),
-        label="Fit",
-    )
-    style_tab.set_selected("fit", fit)
+    fit = _fit()
+    style_tab.set_selected("series", fit)
 
     assert style_tab.line_card.isVisible()
     assert not style_tab.marker_card.isVisible()
@@ -67,16 +73,8 @@ def test_fit_line_card_visible_on_line_chart():
     style_tab.show()
     style_tab.set_chart_type(ChartType.LINE)
 
-    fit = FitData(
-        source_dataset_id="ds1",
-        source_x_column="x",
-        source_y_column="y",
-        fit_type="linear",
-        x_data=np.array([1.0, 2.0]),
-        y_data=np.array([1.0, 2.0]),
-        label="Fit",
-    )
-    style_tab.set_selected("fit", fit)
+    fit = _fit()
+    style_tab.set_selected("series", fit)
 
     assert style_tab.line_card.isVisible()
     assert not style_tab.marker_card.isVisible()

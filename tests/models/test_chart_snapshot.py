@@ -84,20 +84,23 @@ def test_restore_only_touches_fit_style_fields():
 def test_restore_reverts_fit_alpha():
     """Regression: fit opacity (alpha) must be part of the snapshot/restore
     cycle, same as color and line_width -- otherwise Revert silently leaves
-    an opacity edit in place."""
+    an opacity edit in place. Post-#304, a fit's opacity is the generic
+    DataSeries.alpha field (FitStyle carries no alpha of its own)."""
     chart = _make_chart()
-    chart.add_fit_data(
-        "ds1", "Linear",
-        np.array([1.0]), np.array([2.0]),
-        style=FitStyle(alpha=1.0),
+    chart.add_fit_series(
+        source_dataset_id="ds1",
+        x_data=np.array([1.0]), y_data=np.array([2.0]),
+        label="Linear",
+        style=FitStyle(),
+        alpha=1.0,
     )
     snap = snapshot_chart_state(chart)
 
-    chart.fit_data[0].style.alpha = 0.3
+    chart.fit_data[0].alpha = 0.3
 
     restore_chart_state(chart, snap)
 
-    assert chart.fit_data[0].style.alpha == 1.0
+    assert chart.fit_data[0].alpha == 1.0
 
 
 def test_restore_reverts_fit_label():
