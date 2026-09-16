@@ -489,13 +489,21 @@ def test_fit_style_fields_are_a_subset_of_the_real_fit_style_dataclass():
     Subset (not equality) is correct: FitStyle also has
     band_fill_enabled/band_fill_alpha/band_color, deliberately absent
     from _FIT_STYLE_FIELDS since old data never had them and should fall
-    through to FitStyle's own defaults."""
+    through to FitStyle's own defaults.
+
+    "alpha" is excluded from the subset check: #304 moved fit opacity
+    off FitStyle onto the generic DataSeries.alpha field every other
+    series type already uses. migrate_chart_legacy_to_v1 (schema 0->1)
+    still nests legacy flat "alpha" into style["alpha"] here -- migrate_
+    chart_v2_to_v3 pulls it back out into the series' top-level "alpha"
+    before FitStyle(**style_dict) is ever constructed, so this is a
+    genuinely transient field, not a drift bug."""
     import dataclasses
 
     from pandaplot.models.chart.fit_style import FitStyle
     from pandaplot.models.migrations.per_item.chart import _FIT_STYLE_FIELDS
 
-    real_field_names = {f.name for f in dataclasses.fields(FitStyle)}
+    real_field_names = {f.name for f in dataclasses.fields(FitStyle)} | {"alpha"}
     assert set(_FIT_STYLE_FIELDS).issubset(real_field_names), (
         f"{set(_FIT_STYLE_FIELDS)} not a subset of {real_field_names}"
     )

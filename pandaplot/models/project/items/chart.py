@@ -151,6 +151,10 @@ def _series_style_from_dict(series_type: SeriesType, style_dict: Dict[str, Any])
         style_dict["marker"] = MarkerStyle(**style_dict["marker"])
     if "error_bars" in style_dict and isinstance(style_dict["error_bars"], dict):
         style_dict["error_bars"] = ErrorBarConfig(**style_dict["error_bars"])
+    if style_dict.get("confidence_lower") is not None:
+        style_dict["confidence_lower"] = np.array(style_dict["confidence_lower"])
+    if style_dict.get("confidence_upper") is not None:
+        style_dict["confidence_upper"] = np.array(style_dict["confidence_upper"])
     return SERIES_TYPE_SPECS[series_type].style_cls(**style_dict)
 
 
