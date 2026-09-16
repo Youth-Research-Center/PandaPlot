@@ -1497,7 +1497,14 @@ class ChartEditorWidget(PWidget):
                 # resolves it (#304: FIT entries live inline in
                 # data_series now, at whatever position, so the two
                 # indices generally differ).
-                kind, kind_index = "fit", self.chart.fit_data.index(series)
+                # Identity (`is`) search, not `==`/`.index()`: DataSeries
+                # is a plain dataclass whose precomputed curve data is
+                # compare=False, so two distinct FIT series sharing
+                # dataset/columns/label/style can compare equal, and
+                # `.index()` would silently resolve to the wrong one.
+                kind, kind_index = "fit", next(
+                    i for i, s in enumerate(self.chart.fit_data) if s is series
+                )
             else:
                 kind, kind_index = "series", series_index
             self.publish_event(

@@ -694,6 +694,52 @@ def test_apply_to_does_not_recreate_a_series_after_converting_the_only_series_to
     assert len(chart.fit_data) == 1
 
 
+def test_remove_series_at_resolves_fit_index_by_identity_not_equality():
+    """Regression test (review finding on Task 9): `_remove_series_at` must
+    find a FIT series' position in `chart.fit_data` by identity (`is`), not
+    `==`/`.index()`. Two FIT series that share dataset_id/x_column_id/
+    y_column_id/label/style (DataSeries.precomputed_x_data/y_data are
+    compare=False) compare `==`-equal despite holding different snapshotted
+    curve data -- `.index()` would silently resolve to the position of the
+    FIRST equal match rather than the actual series being removed."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Line Chart", chart_type="line")
+
+    shared_style = FitStyle(fit_type="linear")
+    chart.add_fit_series(
+        dataset.id,
+        x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
+        source_x_column_id=dataset.column_id("x"), source_y_column_id=dataset.column_id("y"),
+        label="Fit", style=shared_style,
+    )
+    chart.add_fit_series(
+        dataset.id,
+        # Same dataset/columns/label/style as the first fit -- only the
+        # snapshotted curve data differs.
+        x_data=dataset.data["x"].to_numpy() * 10, y_data=dataset.data["y"].to_numpy() * 10,
+        source_x_column_id=dataset.column_id("x"), source_y_column_id=dataset.column_id("y"),
+        label="Fit", style=shared_style,
+    )
+    # Sanity: the two fits really do compare equal (the bug's precondition).
+    assert chart.data_series[0] == chart.data_series[1]
+    second_fit = chart.data_series[1]
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+
+    with patch(
+        "pandaplot.gui.components.sidebar.chart.tabs.data_tab.RemoveFitDataCommand"
+    ) as mock_command_cls:
+        tab._remove_series_at(1)
+
+    mock_command_cls.assert_called_once()
+    # Must resolve to the SECOND fit's own fit_data-relative index (1), not
+    # the first equal match's index (0) that `.index()` would have returned.
+    assert mock_command_cls.call_args.kwargs["fit_index"] == 1
+    assert chart.fit_data[1] is second_fit
+
+
 def test_expand_series_emits_series_kind_for_fit_entries():
     """#304: a FIT-type series at any index emits ("series", obj), not
     ("fit", obj) -- there is no more separate index space to split on;
