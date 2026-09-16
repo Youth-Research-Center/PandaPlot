@@ -566,6 +566,21 @@ class TestEventBus:
 
         assert "dataset.*" not in event_bus._pattern_subscribers
 
+    def test_emit_survives_pattern_callback_unsubscribing_itself(self):
+        """A pattern callback that unsubscribes its own (last) subscription
+        during emit() must not raise RuntimeError from mutating
+        _pattern_subscribers while emit() iterates over it."""
+        event_bus = EventBus()
+
+        def self_unsubscribing_callback(event_data):
+            event_bus.unsubscribe("dataset.*", self_unsubscribing_callback)
+
+        event_bus.subscribe("dataset.*", self_unsubscribing_callback)
+
+        event_bus.emit("dataset.changed", {"key": "value"})
+
+        assert "dataset.*" not in event_bus._pattern_subscribers
+
     def test_emit_calls_matching_pattern_subscriber(self):
         """A pattern subscriber whose glob matches the emitted event should be called."""
         event_bus = EventBus()
