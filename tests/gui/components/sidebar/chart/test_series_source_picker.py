@@ -11,6 +11,7 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     series_source_hint,
 )
 from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -61,9 +62,9 @@ class TestPopulateSeriesFitSources:
         assert any_excluded is True
 
     def test_fits_are_offered_alongside_series(self, chart):
-        chart.add_fit_data(
-            source_dataset_id="ds-1", fit_type="linear",
-            x_data=[1.0, 2.0], y_data=[1.0, 2.0], label="Fit 1",
+        chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]),
+            label="Fit 1", style=FitStyle(fit_type="linear"),
         )
         combo = QComboBox()
         populate_series_fit_sources(combo, chart)

@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.sidebar.chart.tabs.data_tab import DataTab
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style import LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Dataset
@@ -280,9 +281,9 @@ def test_selecting_fit_converts_the_series_to_fit_data():
     assert len(chart.data_series) == 0
     assert len(chart.fit_data) == 1
     fit = chart.fit_data[0]
-    assert fit.fit_type == "Custom"
+    assert fit.style.fit_type == "Custom"
     assert fit.label == "My Series"
-    assert fit.source_dataset_id == dataset.id
+    assert fit.dataset_id == dataset.id
 
 
 def test_the_disabled_series_type_combo_shows_fit_not_the_converted_series_own_type():
@@ -339,8 +340,8 @@ def test_selecting_fit_snapshots_the_chosen_confidence_columns():
 
     fit = chart.fit_data[0]
     import numpy as np
-    np.testing.assert_array_equal(fit.confidence_lower, dataset.data["y_lower"].to_numpy())
-    np.testing.assert_array_equal(fit.confidence_upper, dataset.data["y_upper"].to_numpy())
+    np.testing.assert_array_equal(fit.style.confidence_lower, dataset.data["y_lower"].to_numpy())
+    np.testing.assert_array_equal(fit.style.confidence_upper, dataset.data["y_upper"].to_numpy())
 
 
 def test_selecting_fit_selects_the_new_fit_card():
@@ -397,7 +398,7 @@ def test_a_manually_converted_fit_keeps_its_columns_editable():
     fit_index = tab.series_type_combo.findData("__convert_to_fit__")
     tab.series_type_combo.setCurrentIndex(fit_index)
 
-    assert chart.fit_data[0].is_manual is True
+    assert chart.fit_data[0].style.is_manual is True
     assert tab.dataset_combo.isEnabled() is True
     assert tab.x_column_combo.isEnabled() is True
     assert tab.y_column_combo.isEnabled() is True
@@ -424,14 +425,14 @@ def test_editing_a_manual_fits_y_column_resnapshots_its_data():
 
     fit = chart.fit_data[0]
     import numpy as np
-    np.testing.assert_array_equal(fit.y_data, dataset.data["y"].to_numpy())
+    np.testing.assert_array_equal(fit.precomputed_y_data, dataset.data["y"].to_numpy())
 
     y2_index = tab.y_column_combo.findData(dataset.column_id("y2"))
     tab.y_column_combo.setCurrentIndex(y2_index)
 
     fit = chart.fit_data[0]
-    assert fit.source_y_column_id == dataset.column_id("y2")
-    np.testing.assert_array_equal(fit.y_data, dataset.data["y2"].to_numpy())
+    assert fit.y_column_id == dataset.column_id("y2")
+    np.testing.assert_array_equal(fit.precomputed_y_data, dataset.data["y2"].to_numpy())
 
 
 def test_editing_a_manual_fits_column_to_an_unresolvable_one_rolls_back_atomically():
@@ -454,16 +455,16 @@ def test_editing_a_manual_fits_column_to_an_unresolvable_one_rolls_back_atomical
     tab.series_type_combo.setCurrentIndex(fit_index)
 
     fit = chart.fit_data[0]
-    original_y_column_id = fit.source_y_column_id
+    original_y_column_id = fit.y_column_id
     import numpy as np
-    original_y_data = fit.y_data.copy()
+    original_y_data = fit.precomputed_y_data.copy()
 
     label_index = tab.y_column_combo.findData(dataset.column_id("label"))
     tab.y_column_combo.setCurrentIndex(label_index)
 
     fit = chart.fit_data[0]
-    assert fit.source_y_column_id == original_y_column_id
-    np.testing.assert_array_equal(fit.y_data, original_y_data)
+    assert fit.y_column_id == original_y_column_id
+    np.testing.assert_array_equal(fit.precomputed_y_data, original_y_data)
     # The controls must also reflect the rollback, not the rejected pick.
     assert tab.y_column_combo.currentData() == original_y_column_id
 
@@ -488,15 +489,15 @@ def test_picking_an_unresolvable_confidence_column_rolls_back_the_whole_edit():
     tab.series_type_combo.setCurrentIndex(fit_index)
 
     fit = chart.fit_data[0]
-    assert fit.confidence_lower_column_id == ""
-    assert fit.confidence_lower is None
+    assert fit.style.confidence_lower_column_id == ""
+    assert fit.style.confidence_lower is None
 
     label_index = tab.confidence_lower_column_combo.findData(dataset.column_id("label"))
     tab.confidence_lower_column_combo.setCurrentIndex(label_index)
 
     fit = chart.fit_data[0]
-    assert fit.confidence_lower_column_id == ""
-    assert fit.confidence_lower is None
+    assert fit.style.confidence_lower_column_id == ""
+    assert fit.style.confidence_lower is None
     assert tab.confidence_lower_column_combo.currentData() == ""
 
 
@@ -532,10 +533,10 @@ def test_an_auto_applied_fit_stays_non_editable():
     False) must keep the pre-existing locked behavior."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Line Chart", chart_type="line")
-    chart.add_fit_data(
-        dataset.id, fit_type="Linear",
+    chart.add_fit_series(
+        dataset.id,
         x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
-        label="A Fit",
+        label="A Fit", style=FitStyle(fit_type="Linear", is_manual=False),
     )
     project.add_item(chart)
 
@@ -543,7 +544,7 @@ def test_an_auto_applied_fit_stays_non_editable():
     tab.set_project(project)
     tab.load(chart)
 
-    assert chart.fit_data[0].is_manual is False
+    assert chart.fit_data[0].style.is_manual is False
     assert tab.dataset_combo.isEnabled() is False
     assert tab.x_column_combo.isEnabled() is False
     assert tab.y_column_combo.isEnabled() is False
@@ -557,10 +558,10 @@ def test_an_auto_applied_custom_fit_stays_non_editable_despite_the_shared_fit_ty
     is_manual is what must actually gate editability."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Line Chart", chart_type="line")
-    chart.add_fit_data(
-        dataset.id, fit_type="Custom",
+    chart.add_fit_series(
+        dataset.id,
         x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
-        label="A Custom Fit",
+        label="A Custom Fit", style=FitStyle(fit_type="Custom", is_manual=False),
     )
     project.add_item(chart)
 
@@ -568,8 +569,8 @@ def test_an_auto_applied_custom_fit_stays_non_editable_despite_the_shared_fit_ty
     tab.set_project(project)
     tab.load(chart)
 
-    assert chart.fit_data[0].fit_type == "Custom"
-    assert chart.fit_data[0].is_manual is False
+    assert chart.fit_data[0].style.fit_type == "Custom"
+    assert chart.fit_data[0].style.is_manual is False
     assert tab.dataset_combo.isEnabled() is False
     assert tab.x_column_combo.isEnabled() is False
     assert tab.y_column_combo.isEnabled() is False
@@ -650,10 +651,10 @@ def test_selecting_fit_on_a_failed_conversion_does_not_crash_when_theres_no_seri
 def test_confidence_column_combos_disabled_while_editing_a_fit():
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Line Chart", chart_type="line")
-    chart.add_fit_data(
-        dataset.id, fit_type="Custom",
+    chart.add_fit_series(
+        dataset.id,
         x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
-        label="A Fit",
+        label="A Fit", style=FitStyle(fit_type="Custom", is_manual=False),
     )
     project.add_item(chart)
 
@@ -691,3 +692,36 @@ def test_apply_to_does_not_recreate_a_series_after_converting_the_only_series_to
 
     assert len(chart.data_series) == 0
     assert len(chart.fit_data) == 1
+
+
+def test_expand_series_emits_series_kind_for_fit_entries():
+    """#304: a FIT-type series at any index emits ("series", obj), not
+    ("fit", obj) -- there is no more separate index space to split on;
+    FIT-type entries live inline in chart.data_series like any other
+    series."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_fit_series(
+        dataset.id, x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
+        label="Fit", style=FitStyle(),
+    )
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+
+    received = []
+    tab.seriesSelected.connect(lambda kind, obj: received.append((kind, obj)))
+    fit_index = len(chart.data_series) - 1
+    tab._expand_series(fit_index)
+
+    # _expand_series re-emits seriesSelected once for its own rebuild (via
+    # _build_expanded_series_card) and once explicitly at the end -- a
+    # pre-existing double-emit unrelated to this task (identical for a
+    # regular, non-FIT series) -- what matters here is that every emission
+    # carries ("series", obj), never ("fit", obj), for a FIT-type entry.
+    assert received
+    assert all(kind == "series" for kind, _obj in received)
+    assert received[-1] == ("series", chart.data_series[fit_index])
+    assert chart.data_series[fit_index].series_type == SeriesType.FIT

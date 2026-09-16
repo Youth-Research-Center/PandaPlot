@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QApplication, QPushButton
 
 from pandaplot.app import build_app_context
 from pandaplot.gui.components.sidebar.chart.tabs.data_tab import DataTab
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.project import Project
@@ -155,18 +156,21 @@ def test_fit_data_rows_have_no_move_buttons(data_tab_with_chart):
     shared between series and fits, so this only holds if all three
     correctly gate the move buttons on "is this a series, not a fit"."""
     data_tab, chart, _ = data_tab_with_chart
-    chart.add_fit_data(
-        source_dataset_id=chart.data_series[0].dataset_id, fit_type="linear",
-        x_data=np.array([1, 2, 3]), y_data=np.array([1, 2, 3]), label="Fit 1",
+    total_series = len(chart.data_series)
+    chart.add_fit_series(
+        chart.data_series[0].dataset_id,
+        x_data=np.array([1, 2, 3]), y_data=np.array([1, 2, 3]),
+        label="Fit 1", style=FitStyle(fit_type="linear"),
     )
     data_tab.load(chart)
-    total_series = len(chart.data_series)
 
     # Collapsed/detail rows only (nothing expanded past the default index 0).
     assert len(_current_generation_move_buttons(data_tab)) == 2 * total_series
 
-    # Expand the fit row (combined index 3, appended after the 3 series) --
-    # if _build_expanded_series_card built move buttons for it too, this
+    # Expand the fit row (appended right after the `total_series` real
+    # series, at its own data_series index -- #304: FIT entries live
+    # inline in data_series now, not a separate appended space) -- if
+    # _build_expanded_series_card built move buttons for it too, this
     # count would grow past 2 * total_series.
     data_tab._expand_series(total_series)
     assert data_tab.selected_index == total_series

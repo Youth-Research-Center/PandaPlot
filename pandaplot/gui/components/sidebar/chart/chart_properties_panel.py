@@ -18,6 +18,7 @@ from pandaplot.gui.components.sidebar.chart.tabs.data_tab import DataTab
 from pandaplot.gui.components.sidebar.chart.tabs.legend_tab import LegendTab
 from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items.chart import restore_chart_state, snapshot_chart_state
 from pandaplot.models.project.items.dataset import Dataset
@@ -96,7 +97,7 @@ class ChartPropertiesPanel(SidebarPanel):
         self.data_tab.dirtyOnly.connect(self._on_dirty_only)
         self.data_tab.seriesSelected.connect(lambda kind, obj: self.style_tab.set_selected(kind, obj))
         self.data_tab.seriesListChanged.connect(
-            lambda ds, fd: self.style_tab.set_series_list(ds, fd, self.data_tab.selected_index)
+            lambda ds: self.style_tab.set_series_list(ds, self.data_tab.selected_index)
         )
         self.data_tab.axesRefreshRequested.connect(self._on_axes_refresh_requested)
         self.style_tab.seriesChipSelected.connect(self.data_tab._expand_series)
@@ -336,7 +337,7 @@ class ChartPropertiesPanel(SidebarPanel):
         if not self.current_chart or chart_id != self.current_chart.id or series_index is None:
             return
 
-        total_items = len(self.current_chart.data_series) + len(self.current_chart.fit_data)
+        total_items = len(self.current_chart.data_series)
         if 0 <= series_index < total_items:
             self.data_tab._expand_series(series_index)
 
@@ -516,12 +517,16 @@ class ChartPropertiesPanel(SidebarPanel):
         # apply -- a freshly-bootstrapped series is never touched by
         # `apply_series_style_to` here.
         current_row = self.data_tab.selected_index
-        if current_row >= 0:
-            total_series = len(chart.data_series)
+        if 0 <= current_row < len(chart.data_series):
+            series = chart.data_series[current_row]
+            if series.series_type == SeriesType.FIT:
+                self.style_tab.apply_fit_style_to(series)
 
-            if current_row < total_series:
-                # Update data series
-                series = chart.data_series[current_row]
+                self.logger.debug(
+                    "Applied style to fit data %d: %s (color=%s)",
+                    current_row, series.label, series.style.color
+                )
+            else:
                 self.style_tab.apply_series_style_to(series)
 
                 self.logger.debug(
@@ -530,17 +535,6 @@ class ChartPropertiesPanel(SidebarPanel):
                     getattr(series.style, "color", None),
                     getattr(getattr(series.style, "marker", None), "marker_color", None),
                 )
-            else:
-                # Update fit data
-                fit_index = current_row - total_series
-                if 0 <= fit_index < len(chart.fit_data):
-                    fit = chart.fit_data[fit_index]
-                    self.style_tab.apply_fit_style_to(fit)
-
-                    self.logger.debug(
-                        "Applied style to fit data %d: %s (color=%s)",
-                        fit_index, fit.label, fit.style.color
-                    )
 
         # Data-tab-owned fields: re-asserts the selected series' y_axis, and
         # creates a default series (dataset/x/y/label/y_axis) if none exist

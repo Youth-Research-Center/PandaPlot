@@ -21,6 +21,7 @@ from pandaplot.gui.components.sidebar.chart_signal.chart_signal_analysis_panel i
     ChartSignalAnalysisPanel,
 )
 from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -691,9 +692,9 @@ class TestChartSignalAnalysisPanelSeriesSelectedEvent:
         assert panel.source_combo.currentData() == ("series", 1)
 
     def test_fit_click_selects_matching_combo_row(self, panel):
-        panel.current_chart.add_fit_data(
-            source_dataset_id="ds-1", fit_type="linear",
-            x_data=[1.0, 2.0, 3.0], y_data=[1.0, 2.0, 3.0], label="Fit 1",
+        panel.current_chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0, 3.0]), y_data=np.array([1.0, 2.0, 3.0]),
+            label="Fit 1", style=FitStyle(fit_type="linear"),
         )
         panel._populate_sources()
         panel.source_combo.setCurrentIndex(0)

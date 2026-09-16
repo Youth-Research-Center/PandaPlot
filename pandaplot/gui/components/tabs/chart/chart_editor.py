@@ -1487,11 +1487,19 @@ class ChartEditorWidget(PWidget):
         artist = getattr(event, "artist", None)
         if artist in self._artist_series_map:
             series_index = self._artist_series_map[artist]
-            total_data_series = len(self.chart.data_series)
-            if series_index < total_data_series:
-                kind, kind_index = "series", series_index
+            series = self.chart.data_series[series_index]
+            if series.series_type == SeriesType.FIT:
+                # populate_series_fit_sources (series_source_picker.py)
+                # tags a FIT-type entry's combo item with its position
+                # within chart.fit_data (a filtered subset of
+                # data_series), not its raw data_series index -- match
+                # that indexing so find_series_fit_combo_index actually
+                # resolves it (#304: FIT entries live inline in
+                # data_series now, at whatever position, so the two
+                # indices generally differ).
+                kind, kind_index = "fit", self.chart.fit_data.index(series)
             else:
-                kind, kind_index = "fit", series_index - total_data_series
+                kind, kind_index = "series", series_index
             self.publish_event(
                 ChartEvents.SERIES_SELECTED,
                 {

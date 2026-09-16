@@ -70,9 +70,11 @@ class DataTab(QWidget):
     # the panel to drive `StyleTab.set_selected(kind, obj)`.
     seriesSelected = Signal(str, object)
     # Emitted at the end of every card-list rebuild with the fresh
-    # (data_series, fit_data) lists -- consumed by `StyleTab.set_series_list`
-    # to keep its own chip row in lockstep with the Data tab's card list.
-    seriesListChanged = Signal(list, list)
+    # data_series list (FIT-type entries included, per #304's unification --
+    # there is no more separate fit_data list) -- consumed by
+    # `StyleTab.set_series_list` to keep its own chip row in lockstep with
+    # the Data tab's card list.
+    seriesListChanged = Signal(list)
     # Emitted whenever a series edit could affect the Y2 axis chip (add/
     # remove/y_axis change) -- consumed by the panel to call
     # `AxesTab.refresh_axis_chips(chart)`, since this tab has no direct
@@ -287,18 +289,19 @@ class DataTab(QWidget):
         configuration form, the Style tab's target (via `seriesSelected`),
         and the selected-card border highlight. Independent of any other
         card's accordion open/closed state (`_expanded_card_indices`) -- see
-        `_toggle_card_expanded` for that purely-visual toggle."""
+        `_toggle_card_expanded` for that purely-visual toggle.
+
+        `index` is a plain `chart.data_series` index -- FIT-type entries
+        live inline in that list (#304), so there is no more separate
+        fit-index space to split on; `seriesSelected` always carries
+        ("series", obj) regardless of the entry's own series_type (the
+        Style tab dispatches on `obj.series_type` itself, per Task 8)."""
         self._expanded_series_index = index
         self._expanded_card_indices.add(index)
         self._rebuild_series_cards()
         if not self.current_chart:
             return
-        if index < len(self.current_chart.data_series):
-            self.seriesSelected.emit("series", self.current_chart.data_series[index])
-        else:
-            self.seriesSelected.emit(
-                "fit", self.current_chart.fit_data[index - len(self.current_chart.data_series)]
-            )
+        self.seriesSelected.emit("series", self.current_chart.data_series[index])
 
     def _toggle_card_expanded(self, index: int):
         """Purely-visual accordion toggle: show/hide a card's read-only
@@ -338,32 +341,23 @@ class DataTab(QWidget):
         tokens = theme_manager.get_design_tokens()
 
         if not self.current_chart:
-            self.seriesListChanged.emit([], [])
+            self.seriesListChanged.emit([])
             self.axesRefreshRequested.emit()
             return
 
-        total_series = len(self.current_chart.data_series)
-
         for index, series in enumerate(self.current_chart.data_series):
+            is_fit = series.series_type == SeriesType.FIT
             if index == self._expanded_series_index:
                 card = self._build_expanded_series_card(index, tokens)
             elif index in self._expanded_card_indices:
-                card = self._build_series_detail_row(series, index, tokens)
+                card = (self._build_fit_detail_row(series, index, tokens) if is_fit
+                        else self._build_series_detail_row(series, index, tokens))
             else:
-                card = self._build_collapsed_series_row(series, index, tokens)
+                card = (self._build_collapsed_fit_row(series, index, tokens) if is_fit
+                        else self._build_collapsed_series_row(series, index, tokens))
             self._series_cards_layout.addWidget(card)
 
-        for fit_offset, fit in enumerate(self.current_chart.fit_data):
-            index = total_series + fit_offset
-            if index == self._expanded_series_index:
-                card = self._build_expanded_series_card(index, tokens)
-            elif index in self._expanded_card_indices:
-                card = self._build_fit_detail_row(fit, index, tokens)
-            else:
-                card = self._build_collapsed_fit_row(fit, index, tokens)
-            self._series_cards_layout.addWidget(card)
-
-        self.seriesListChanged.emit(self.current_chart.data_series, self.current_chart.fit_data)
+        self.seriesListChanged.emit(self.current_chart.data_series)
         self.axesRefreshRequested.emit()
 
     # -- Card-building helpers --------------------------------------------
@@ -394,9 +388,11 @@ class DataTab(QWidget):
     def _build_move_up_button(self, index: int) -> QPushButton:
         """Move this series one position earlier in the plotting order --
         i.e. it now draws *under* the series that used to be right before
-        it (#189). Series-only (fit data has no reorder controls: fits
-        always draw after every series regardless of list position -- see
-        chart_editor.py's separate, always-later fit-plotting loop)."""
+        it (#189). Series-only: FIT-type entries have no move controls of
+        their own (see `_build_collapsed_fit_row`/`_build_fit_detail_row`),
+        though a neighboring series' move button can still swap positions
+        with one -- a FIT entry now renders in its own `data_series` list
+        position like any other series (#304), not always last."""
         button = PButton(
             "▲", role="secondary", icon=True,  # ▲
             on_click=lambda _checked=False, i=index: self._move_series(i, i - 1)
@@ -559,10 +555,10 @@ class DataTab(QWidget):
         outer.addLayout(header)
 
         outer.addLayout(self._build_detail_field_grid(tokens, (
-            ("Dataset:", self._dataset_display_name(fit.source_dataset_id)),
-            ("Fit Type:", fit.fit_type),
-            ("X Column:", self._column_display_name(fit.source_dataset_id, fit.source_x_column_id, fit.source_x_column)),
-            ("Y Column:", self._column_display_name(fit.source_dataset_id, fit.source_y_column_id, fit.source_y_column)),
+            ("Dataset:", self._dataset_display_name(fit.dataset_id)),
+            ("Fit Type:", fit.style.fit_type),
+            ("X Column:", self._column_display_name(fit.dataset_id, fit.x_column_id, fit.x_column)),
+            ("Y Column:", self._column_display_name(fit.dataset_id, fit.y_column_id, fit.y_column)),
         )))
 
         return card
@@ -588,11 +584,9 @@ class DataTab(QWidget):
 
     def _build_expanded_series_card(self, index: int, tokens: dict) -> QWidget:
         """The expanded card for the currently *selected* entry: title + the
-        persistent config form, loaded with `index`'s values (a data-series
-        index, or a fit-data index appended after all series, matching the
-        combined indexing used throughout this tab). Rendered with an
-        accent border (via the "selected" dynamic property) to distinguish
-        it from unselected cards."""
+        persistent config form, loaded with `index`'s (plain data_series
+        index) values. Rendered with an accent border (via the "selected"
+        dynamic property) to distinguish it from unselected cards."""
         card = Card()
         card.set_tokens(tokens)
         card.setProperty("selected", True)  # noqa: FBT003 - Qt bound method, positional-only
@@ -601,12 +595,12 @@ class DataTab(QWidget):
         outer = QVBoxLayout(card)
 
         total_series = len(self.current_chart.data_series)
-        is_fit = index >= total_series
+        series = self.current_chart.data_series[index]
+        is_fit = series.series_type == SeriesType.FIT
         if is_fit:
-            fit = self.current_chart.fit_data[index - total_series]
+            fit = series
             title_text = f"\U0001f527 {fit.label}"
         else:
-            series = self.current_chart.data_series[index]
             title_text = series.label or (
                 f"{series.dataset_id}:"
                 f"{self._column_display_name(series.dataset_id, series.y_column_id, series.y_column)}"
@@ -639,7 +633,7 @@ class DataTab(QWidget):
 
         if is_fit:
             self._load_fit_into_controls(fit)
-            self.seriesSelected.emit("fit", fit)
+            self.seriesSelected.emit("series", fit)
         else:
             self._reset_controls_for_series()
             self._load_series_into_controls(series)
@@ -718,28 +712,34 @@ class DataTab(QWidget):
             self._rebuild_series_cards()
 
     def _remove_series_at(self, index: int):
-        """Remove the data series or fit-data entry at the combined `index`
-        (data-series indices first, then fit-data indices appended after),
-        adjusting selection and accordion state for the index shift."""
+        """Remove the entry at `index` (a plain `chart.data_series` index --
+        FIT-type entries live inline in that list, per #304), adjusting
+        selection and accordion state for the index shift.
+
+        `RemoveFitDataCommand` still expects a `chart.fit_data`-relative
+        index (its own internals are Task 10's, not this task's,
+        territory) -- `chart.fit_data.index(series)` is identity-safe
+        since `fit_data` is just a filtered view over the same list
+        `series` came from."""
         if not self.current_chart:
             return
 
-        total_series = len(self.current_chart.data_series)
-        total_items = total_series + len(self.current_chart.fit_data)
+        total_items = len(self.current_chart.data_series)
         if index < 0 or index >= total_items:
             return
 
-        if index < total_series:
+        series = self.current_chart.data_series[index]
+        if series.series_type == SeriesType.FIT:
+            command = RemoveFitDataCommand(
+                self.app_context,
+                chart_id=self.current_chart.id,
+                fit_index=self.current_chart.fit_data.index(series),
+            )
+        else:
             command = RemoveSeriesCommand(
                 self.app_context,
                 chart_id=self.current_chart.id,
                 series_index=index,
-            )
-        else:
-            command = RemoveFitDataCommand(
-                self.app_context,
-                chart_id=self.current_chart.id,
-                fit_index=index - total_series,
             )
         self.command_executor.execute_command(command)
 
@@ -755,7 +755,7 @@ class DataTab(QWidget):
             if shifted is not None
         }
 
-        remaining_items = len(self.current_chart.data_series) + len(self.current_chart.fit_data)
+        remaining_items = len(self.current_chart.data_series)
         shifted_selected = _shift(self._expanded_series_index)
         if shifted_selected is None:
             shifted_selected = index
@@ -808,15 +808,11 @@ class DataTab(QWidget):
             return
 
         current_row = self._expanded_series_index
-        if current_row < 0:
+        if current_row < 0 or current_row >= len(self.current_chart.data_series):
             return
 
-        total_series = len(self.current_chart.data_series)
-        if current_row < total_series:
-            # Update data series (guard for safety)
-            if current_row >= len(self.current_chart.data_series):
-                return
-            series = self.current_chart.data_series[current_row]
+        series = self.current_chart.data_series[current_row]
+        if series.series_type != SeriesType.FIT:
             if self.dataset_combo.currentData():
                 series.dataset_id = self.dataset_combo.currentData()
             # Combos carry the stable column id as itemData; store ids directly.
@@ -867,15 +863,11 @@ class DataTab(QWidget):
                     getattr(self, "_expanded_card_y_axis_badge_tokens", {}),
                 )
         else:
-            fit_index = current_row - total_series
-            if fit_index < 0 or fit_index >= len(self.current_chart.fit_data):
-                return
-            fit = self.current_chart.fit_data[fit_index]
-            if not fit.is_manual:
+            if not series.style.is_manual:
                 # Auto-applied fits (from the Fit panel): source
                 # dataset/columns are frozen at fit time, not editable.
                 return
-            self._apply_manual_fit_edits(fit)
+            self._apply_manual_fit_edits(series)
 
         # Deliberately `dirtyOnly`, not `configChanged`: pre-refactor, this
         # exact edit path (dataset/X/Y/Y-axis on the selected series) set the
@@ -890,27 +882,27 @@ class DataTab(QWidget):
         """Re-derive a manually-converted fit's data from its (possibly
         just-changed) source dataset/columns -- mirrors the live-edit
         semantics of a regular DataSeries' dataset/X/Y combos, except the
-        result is still a snapshot (FitData.x_data/y_data are plain
-        arrays, not a live reference): it's re-taken on every edit here
-        rather than resolved at render time. Only reached for a
-        manually-converted fit (fit.is_manual) -- see
+        result is still a snapshot (precomputed_x_data/precomputed_y_data
+        are plain arrays, not a live reference): it's re-taken on every
+        edit here rather than resolved at render time. Only reached for a
+        manually-converted fit (fit.style.is_manual) -- see
         _on_series_config_changed.
 
         Applied atomically: X, Y, and any NON-empty confidence column
         pick must all resolve to real data before any of
-        source_dataset_id/source_x_column_id/source_y_column_id/
-        confidence_*_column_id are written, and before
-        x_data/y_data/confidence_lower/confidence_upper are replaced.
-        Committing a source id while leaving stale (or absent) data in
-        place would let a combo show a new source while the chart still
-        plots the old data (or silently drops a confidence band) with no
-        indication anything is wrong -- an edit that can't be fully
-        resolved is rejected as a whole, and the controls are reloaded to
-        reflect the fit's actual, unchanged state instead. An EMPTY
-        confidence column pick ("None") is always valid -- it just means
-        no confidence band.
+        dataset_id/x_column_id/y_column_id/confidence_*_column_id are
+        written, and before precomputed_x_data/precomputed_y_data/
+        confidence_lower/confidence_upper are replaced. Committing a
+        source id while leaving stale (or absent) data in place would let
+        a combo show a new source while the chart still plots the old
+        data (or silently drops a confidence band) with no indication
+        anything is wrong -- an edit that can't be fully resolved is
+        rejected as a whole, and the controls are reloaded to reflect the
+        fit's actual, unchanged state instead. An EMPTY confidence column
+        pick ("None") is always valid -- it just means no confidence
+        band.
         """
-        dataset_id = self.dataset_combo.currentData() or fit.source_dataset_id
+        dataset_id = self.dataset_combo.currentData() or fit.dataset_id
         x_column_id = self.x_column_combo.currentData() or ""
         y_column_id = self.y_column_combo.currentData() or ""
         confidence_lower_column_id = self.confidence_lower_column_combo.currentData() or ""
@@ -931,15 +923,15 @@ class DataTab(QWidget):
             return
         new_x, new_y, new_confidence_lower, new_confidence_upper = resolved
 
-        fit.source_dataset_id = dataset_id
-        fit.source_x_column_id = x_column_id
-        fit.source_y_column_id = y_column_id
-        fit.x_data = new_x
-        fit.y_data = new_y
-        fit.confidence_lower_column_id = confidence_lower_column_id
-        fit.confidence_upper_column_id = confidence_upper_column_id
-        fit.confidence_lower = new_confidence_lower
-        fit.confidence_upper = new_confidence_upper
+        fit.dataset_id = dataset_id
+        fit.x_column_id = x_column_id
+        fit.y_column_id = y_column_id
+        fit.precomputed_x_data = new_x
+        fit.precomputed_y_data = new_y
+        fit.style.confidence_lower_column_id = confidence_lower_column_id
+        fit.style.confidence_upper_column_id = confidence_upper_column_id
+        fit.style.confidence_lower = new_confidence_lower
+        fit.style.confidence_upper = new_confidence_upper
 
     def _on_confidence_column_changed(self):
         """Live-edit reaction for the two confidence-column combos,
@@ -957,16 +949,10 @@ class DataTab(QWidget):
         if self._updating_controls or not self.current_chart:
             return
         current_row = self._expanded_series_index
-        if current_row < 0:
+        if current_row < 0 or current_row >= len(self.current_chart.data_series):
             return
-        total_series = len(self.current_chart.data_series)
-        if current_row < total_series:
-            return
-        fit_index = current_row - total_series
-        if fit_index < 0 or fit_index >= len(self.current_chart.fit_data):
-            return
-        fit = self.current_chart.fit_data[fit_index]
-        if not fit.is_manual:
+        fit = self.current_chart.data_series[current_row]
+        if fit.series_type != SeriesType.FIT or not fit.style.is_manual:
             return
         self._apply_manual_fit_edits(fit)
         self.dirtyOnly.emit()
@@ -1002,15 +988,14 @@ class DataTab(QWidget):
         self.dirtyOnly.emit()
 
     def _convert_selected_series_to_fit(self, index: int):
-        """Convert the data series at `index` into a FitData entry via
-        ConvertSeriesToFitCommand (#298), then select the newly created
-        fit at its new combined index.
+        """Convert the data series at `index` into a FIT-type data series via
+        ConvertSeriesToFitCommand (#298), then select the newly created fit
+        at its new index.
 
-        The new fit is always appended to the end of `fit_data`, and
-        converting one entry moves it from `data_series` to `fit_data`
-        without changing the total item count -- so its new combined
-        index (data-series indices first, then fit-data indices, per this
-        tab's existing convention) is always the last one.
+        The new fit is always appended to the end of `data_series`, and
+        converting one entry removes the original series and appends the
+        fit without changing the total item count -- so its new index is
+        always the last one.
         """
         command = ConvertSeriesToFitCommand(
             self.app_context,
@@ -1038,7 +1023,7 @@ class DataTab(QWidget):
                 self._load_series_into_controls(series)
             return
 
-        new_index = len(self.current_chart.data_series) + len(self.current_chart.fit_data) - 1
+        new_index = len(self.current_chart.data_series) - 1
         self._expanded_series_index = new_index
         self._expanded_card_indices.add(new_index)
         self._rebuild_series_cards()
@@ -1179,7 +1164,7 @@ class DataTab(QWidget):
     def _load_fit_into_controls(self, fit):
         """Load fit data into the configuration controls.
 
-        A manually-converted fit (fit.is_manual, see
+        A manually-converted fit (fit.style.is_manual, see
         ConvertSeriesToFitCommand / #298 follow-up) keeps its
         dataset/X/Y/confidence-column combos editable, since it's a
         "custom fit" whose source data the user can still repoint --
@@ -1189,7 +1174,7 @@ class DataTab(QWidget):
         previous_guard = self._updating_controls
         self._updating_controls = True
         try:
-            is_manual = fit.is_manual
+            is_manual = fit.style.is_manual
             # Dataset/X/Y/confidence columns stay editable only for a
             # manually-converted fit; every other fit-only field (axis,
             # error bars, vector/Z, asymmetric error toggle) has no
@@ -1224,19 +1209,19 @@ class DataTab(QWidget):
             self._update_error_bar_mode_controls()
 
             if is_manual:
-                self._populate_column_combos(fit.source_dataset_id)
-                self._populate_confidence_column_combos(fit.source_dataset_id)
+                self._populate_column_combos(fit.dataset_id)
+                self._populate_confidence_column_combos(fit.dataset_id)
 
                 for i in range(self.dataset_combo.count()):
-                    if self.dataset_combo.itemData(i) == fit.source_dataset_id:
+                    if self.dataset_combo.itemData(i) == fit.dataset_id:
                         self.dataset_combo.setCurrentIndex(i)
                         break
 
                 for combo, column_id in (
-                    (self.x_column_combo, fit.source_x_column_id),
-                    (self.y_column_combo, fit.source_y_column_id),
-                    (self.confidence_lower_column_combo, fit.confidence_lower_column_id),
-                    (self.confidence_upper_column_combo, fit.confidence_upper_column_id),
+                    (self.x_column_combo, fit.x_column_id),
+                    (self.y_column_combo, fit.y_column_id),
+                    (self.confidence_lower_column_combo, fit.style.confidence_lower_column_id),
+                    (self.confidence_upper_column_combo, fit.style.confidence_upper_column_id),
                 ):
                     combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
                     index = combo.findData(column_id)
@@ -1276,22 +1261,12 @@ class DataTab(QWidget):
         if self._updating_controls or not self.current_chart:
             return
         current_row = self._expanded_series_index
-        if current_row < 0:
+        if current_row < 0 or current_row >= len(self.current_chart.data_series):
             return
-        total_series = len(self.current_chart.data_series)
         new_label = self._pending_label or self.series_label_edit.text()
-        changed = False
-        if current_row < total_series:
-            if current_row < len(self.current_chart.data_series):
-                entry = self.current_chart.data_series[current_row]
-                changed = entry.label != new_label
-                entry.label = new_label
-        else:
-            fit_index = current_row - total_series
-            if 0 <= fit_index < len(self.current_chart.fit_data):
-                entry = self.current_chart.fit_data[fit_index]
-                changed = entry.label != new_label
-                entry.label = new_label
+        entry = self.current_chart.data_series[current_row]
+        changed = entry.label != new_label
+        entry.label = new_label
         self._pending_label = new_label
         if changed:
             # Mirrors _on_series_config_changed: mark the panel dirty so the
@@ -1664,7 +1639,7 @@ class DataTab(QWidget):
             previous_guard = self._updating_controls
             self._updating_controls = True
             try:
-                total_items = len(chart.data_series) + len(chart.fit_data)
+                total_items = len(chart.data_series)
                 if same_chart and total_items:
                     self._expanded_series_index = max(
                         0, min(self._expanded_series_index, total_items - 1)
@@ -1686,22 +1661,20 @@ class DataTab(QWidget):
         the previous behavior) and create a default series if none exist yet.
         """
         current_row = self._expanded_series_index
-        if current_row >= 0:
-            total_series = len(chart.data_series)
-            if current_row < total_series:
-                series = chart.data_series[current_row]
+        if 0 <= current_row < len(chart.data_series):
+            series = chart.data_series[current_row]
+            if series.series_type != SeriesType.FIT:
                 series.y_axis = self.series_y_axis_control.currentValue()
 
-        # An empty data_series list alone doesn't mean "uninitialized
-        # chart, bootstrap a default series from whatever the form
-        # currently shows" -- a chart converted to be all-fit (e.g. its
-        # only series was just turned into a manual fit via #298) is
-        # legitimately empty here too, and the form's combos are showing
-        # the SELECTED FIT's own source columns at this point, not blank
-        # defaults. Without the fit_data check, clicking Apply while
-        # editing that fit would silently recreate a duplicate series
-        # alongside it.
-        if not chart.data_series and not chart.fit_data:
+        # An empty data_series list means "uninitialized chart, bootstrap a
+        # default series from whatever the form currently shows". Since FIT
+        # entries live inline in data_series (#304), a chart converted to be
+        # all-fit (e.g. its only series was just turned into a manual fit
+        # via #298) is no longer "empty" here -- data_series still holds the
+        # fit -- so this check alone (with no separate fit_data emptiness
+        # check needed) already avoids silently recreating a duplicate
+        # series alongside it.
+        if not chart.data_series:
             dataset_id = self.dataset_combo.currentData()
             dataset_name = self.dataset_combo.currentText()
             x_column_id = self.x_column_combo.currentData()
