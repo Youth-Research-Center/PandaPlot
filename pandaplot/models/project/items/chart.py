@@ -183,7 +183,6 @@ class Chart(Item):
         # Set chart-specific attributes
         self.chart_type: ChartType = ChartType(chart_type)
         self.data_series: List[DataSeries] = []
-        self.fit_data: List[FitData] = []
         self.config: ChartConfig = ChartConfig()
         self.style: ChartStyle = ChartStyle()
 
@@ -410,64 +409,39 @@ class Chart(Item):
         are stripped or restored."""
         return ChartEvents.CHART_UPDATED, {"chart_id": self.id}
 
-    def add_fit_data(self, source_dataset_id: str, fit_type: str,
-                    x_data: np.ndarray, y_data: np.ndarray,
-                    source_x_column_id: str = "", source_y_column_id: str = "",
-                    label: str = "", **kwargs) -> FitData:
-        """Add fit data to the chart.
+    def add_fit_series(self, source_dataset_id: str, x_data: np.ndarray, y_data: np.ndarray,
+                        label: str, style: FitStyle, *, source_x_column_id: str = "",
+                        source_y_column_id: str = "", source_x_column: str = "",
+                        source_y_column: str = "", y_axis: "YAxis | str" = YAxis.PRIMARY,
+                        visible: bool = True, alpha: float = 1.0) -> DataSeries:
+        """Add a fit as a SeriesType.FIT data series (#304).
 
-        Source columns are referenced by their stable ids
-        (``source_x_column_id`` / ``source_y_column_id``); the caller resolves
-        names to ids against the dataset. This model holds no :class:`Dataset`
-        reference (see :meth:`add_data_series`).
+        `source_dataset_id`/`source_x_column_id`/`source_y_column_id` map onto
+        DataSeries's generic dataset_id/x_column_id/y_column_id fields --
+        for a FIT series these mean "source columns the fit was computed
+        from" rather than a live column reference (resolve_series_data
+        short-circuits to precomputed_x_data/precomputed_y_data instead of
+        reading them), kept only for re-fit and column-rename tracking.
         """
-        if not label:
-            label = f"{fit_type.title()} Fit"
-
-        fit = FitData(
-            source_dataset_id=source_dataset_id,
-            source_x_column_id=source_x_column_id,
-            source_y_column_id=source_y_column_id,
-            fit_type=fit_type,
-            x_data=x_data,
-            y_data=y_data,
-            label=label,
-            **kwargs
+        return self.add_data_series(
+            dataset_id=source_dataset_id,
+            x_column_id=source_x_column_id, y_column_id=source_y_column_id,
+            x_column=source_x_column, y_column=source_y_column,
+            label=label, visible=visible, y_axis=y_axis, alpha=alpha,
+            series_type=SeriesType.FIT, style=style,
+            precomputed_x_data=x_data, precomputed_y_data=y_data,
         )
-        self.fit_data.append(fit)
-        self.update_modified_time()
-        return fit
-    
-    def remove_fit_data(self, index: int) -> bool:
-        """Remove fit data by index."""
-        if 0 <= index < len(self.fit_data):
-            del self.fit_data[index]
-            self.update_modified_time()
-            return True
-        return False
-    
-    def update_fit_data(self, index: int, **kwargs) -> bool:
-        """Update fit data by index."""
-        if 0 <= index < len(self.fit_data):
-            fit = self.fit_data[index]
-            for key, value in kwargs.items():
-                if hasattr(fit, key):
-                    setattr(fit, key, value)
-            self.update_modified_time()
-            return True
-        return False
-    
-    def get_fit_data(self, index: int) -> Optional[FitData]:
-        """Get fit data by index."""
-        if 0 <= index < len(self.fit_data):
-            return self.fit_data[index]
-        return None
-    
-    def clear_fit_data(self) -> None:
-        """Clear all fit data."""
-        self.fit_data.clear()
-        self.update_modified_time()
-    
+
+    @property
+    def fit_data(self) -> List[DataSeries]:
+        """Read-only view of this chart's FIT-type series, in list order.
+
+        Not permanent API surface -- a convenience for call sites that only
+        need "the fits", kept in sync automatically since it's just a
+        filter over data_series (the single source of truth post-#304).
+        """
+        return [s for s in self.data_series if s.series_type == SeriesType.FIT]
+
     def update_config(self, config_updates: Dict[str, Any]) -> None:
         """Update chart configuration."""
         self.config.update(config_updates)

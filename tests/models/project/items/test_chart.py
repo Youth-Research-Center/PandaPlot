@@ -1148,3 +1148,43 @@ def test_dataseries_with_precomputed_data_is_comparable():
     )
     assert a == b  # compare=False on the array fields means only non-array fields matter
     assert [a].index(b) == 0
+
+
+def test_add_fit_series_creates_fit_type_data_series():
+    import numpy as np
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="c", chart_type="line")
+    series = chart.add_fit_series(
+        source_dataset_id="ds1",
+        x_data=np.array([1.0, 2.0]), y_data=np.array([3.0, 4.0]),
+        label="My Fit", style=FitStyle(fit_type="linear"),
+    )
+    assert series.series_type == SeriesType.FIT
+    assert series.dataset_id == "ds1"
+    assert series in chart.data_series
+    assert chart.fit_data == [series]
+
+
+def test_fit_data_property_filters_by_series_type():
+    import numpy as np
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="c", chart_type="line")
+    chart.add_data_series(dataset_id="ds1", y_column_id="y")
+    fit = chart.add_fit_series(
+        source_dataset_id="ds1", x_data=np.array([1.0]), y_data=np.array([2.0]),
+        label="Fit", style=FitStyle(),
+    )
+    assert chart.fit_data == [fit]
+    assert len(chart.data_series) == 2
+
+
+def test_fit_data_has_no_setter():
+    from pandaplot.models.project.items.chart import Chart
+    chart = Chart(name="c", chart_type="line")
+    with pytest.raises(AttributeError):
+        chart.fit_data = []
