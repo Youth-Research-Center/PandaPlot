@@ -64,6 +64,21 @@ def test_no_project_returns_error():
     assert result.error is not None
 
 
+def test_resolve_series_data_short_circuits_for_precomputed_data():
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.chart.series_type import SeriesType
+
+    series = DataSeries(
+        dataset_id="does-not-exist", series_type=SeriesType.FIT, style=FitStyle(),
+        precomputed_x_data=np.array([1.0, 2.0, 3.0]),
+        precomputed_y_data=np.array([4.0, 5.0, 6.0]),
+    )
+    result = resolve_series_data(project=None, series=series)
+    assert result.error is None
+    np.testing.assert_array_equal(result.x_data, [1.0, 2.0, 3.0])
+    np.testing.assert_array_equal(result.y_data, [4.0, 5.0, 6.0])
+
+
 def test_histogram_ignores_stale_x_column():
     project, dataset = _project_with_dataset()
     series = DataSeries(dataset_id=dataset.id, x_column="gone", y_column="b")

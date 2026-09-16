@@ -3,7 +3,7 @@ Chart model for managing chart/visualization items in the project.
 """
 
 import copy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, Dict, List, Optional
@@ -59,6 +59,14 @@ class DataSeries:
     alpha: float = 1.0
     series_type: SeriesType = SeriesType.LINE
     style: Optional[SeriesStyleBase] = None
+    # Set only for SeriesType.FIT: a fit's curve is computed once (curve_fit
+    # or manual entry) and stored as a snapshot rather than re-read from
+    # dataset_id/y_column_id like every other series type. None for every
+    # other type. compare=False: a numpy array's `==` returns an array, not
+    # a bool, which would break dataclass equality (list.index()/`in`/
+    # assert-equality all use __eq__) the instant any DataSeries carries one.
+    precomputed_x_data: Optional[np.ndarray] = field(default=None, compare=False)
+    precomputed_y_data: Optional[np.ndarray] = field(default=None, compare=False)
 
     def __post_init__(self):
         if isinstance(self.y_axis, str):

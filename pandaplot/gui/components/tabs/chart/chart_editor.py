@@ -364,7 +364,15 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     required, magnitude_data optional) and the Colormap/Heatmap Z column
     are resolved the same way, but required ones error out the whole
     series when unresolvable.
+
+    A series carrying precomputed_x_data/precomputed_y_data (SeriesType.FIT)
+    short-circuits immediately to that snapshot, without touching `project`
+    or `series.dataset_id`.
     """
+    if series.precomputed_x_data is not None or series.precomputed_y_data is not None:
+        return SeriesData(series.precomputed_x_data, series.precomputed_y_data,
+                           None, None, None, None, None)
+
     from pandaplot.models.project.items.chart import resolve_series_column
     from pandaplot.models.project.items.dataset import Dataset
 

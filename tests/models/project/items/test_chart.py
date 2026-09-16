@@ -1122,3 +1122,29 @@ class TestChartDependencyHook:
         assert chart.on_items_removed({"ds-1"}) is None
         assert [s.dataset_id for s in chart.data_series] == ["ds-unrelated"]
         assert [f.source_dataset_id for f in chart.fit_data] == ["ds-1"]
+
+
+def test_dataseries_precomputed_fields_default_to_none():
+    from pandaplot.models.project.items.chart import DataSeries
+    series = DataSeries(dataset_id="ds1")
+    assert series.precomputed_x_data is None
+    assert series.precomputed_y_data is None
+
+
+def test_dataseries_with_precomputed_data_is_comparable():
+    """Regression guard: a DataSeries carrying numpy arrays must not raise
+    ValueError from == (list.index()/`in`/assert-equality all use it)."""
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import DataSeries
+
+    a = DataSeries(
+        dataset_id="ds1", series_type=SeriesType.FIT, style=FitStyle(),
+        precomputed_x_data=np.array([1.0, 2.0]), precomputed_y_data=np.array([3.0, 4.0]),
+    )
+    b = DataSeries(
+        dataset_id="ds1", series_type=SeriesType.FIT, style=FitStyle(),
+        precomputed_x_data=np.array([9.0]), precomputed_y_data=np.array([9.0]),
+    )
+    assert a == b  # compare=False on the array fields means only non-array fields matter
+    assert [a].index(b) == 0
