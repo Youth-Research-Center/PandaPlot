@@ -538,17 +538,33 @@ class TestEventBus:
                              "event_type": event_name, "original_event": event_name}
             callback.assert_called_once_with(expected_data)
 
-    def test_pattern_subscribers_are_keyed_by_compiled_pattern(self):
-        """subscribe() should store a compiled re.Pattern, not a raw string, as the key."""
+    def test_pattern_subscribers_are_keyed_by_pattern_string(self):
+        """subscribe() should key by the pattern string, with the compiled
+        regex cached separately, so lookups don't depend on re.compile()'s
+        internal cache returning an identical (is-comparable) object."""
         event_bus = EventBus()
         callback = Mock()
 
         event_bus.subscribe("dataset.*", callback)
 
         keys = list(event_bus._pattern_subscribers.keys())
-        assert len(keys) == 1
-        assert isinstance(keys[0], re.Pattern)
-        assert callback in event_bus._pattern_subscribers[keys[0]]
+        assert keys == ["dataset.*"]
+        assert callback in event_bus._pattern_subscribers["dataset.*"]
+        assert isinstance(event_bus._compiled_patterns["dataset.*"], re.Pattern)
+
+    def test_unsubscribe_survives_regex_compile_cache_eviction(self):
+        """unsubscribe() must find the same subscription even if re.compile()'s
+        internal cache has evicted and later returns a non-identical Pattern
+        object for the same pattern text (re.Pattern has no __eq__/__hash__)."""
+        event_bus = EventBus()
+        callback = Mock()
+
+        event_bus.subscribe("dataset.*", callback)
+        re.purge()  # force re.compile() to produce a fresh, non-identical Pattern next time
+
+        event_bus.unsubscribe("dataset.*", callback)
+
+        assert "dataset.*" not in event_bus._pattern_subscribers
 
     def test_emit_calls_matching_pattern_subscriber(self):
         """A pattern subscriber whose glob matches the emitted event should be called."""
