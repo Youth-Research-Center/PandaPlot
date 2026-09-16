@@ -25,6 +25,7 @@ from pandaplot.models.chart.series_style.heatmap import HeatmapSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.project.items.item import Item
 
 
@@ -355,7 +356,48 @@ class Chart(Item):
     def get_all_datasets(self) -> List[str]:
         """Get all unique dataset IDs used in this chart."""
         return list(set(series.dataset_id for series in self.data_series))
-    
+
+    def referenced_item_ids(self) -> Optional[set]:
+        """Dataset ids referenced by any data series or fit (fit_data is
+        included here for relevance-checking purposes only -- see
+        _strip_references for why it's never actually stripped)."""
+        if not self.data_series and not self.fit_data:
+            return None
+        return (
+            {series.dataset_id for series in self.data_series}
+            | {fit.source_dataset_id for fit in self.fit_data}
+        )
+
+    def _strip_references(self, removed_ids: set) -> Any:
+        """Drop data series referencing a removed dataset. fit_data is
+        deliberately left alone even though it counts toward
+        referenced_item_ids(): a fit renders from its own stored
+        x_data/y_data arrays, not a live dataset lookup, so it stays valid
+        (just no longer re-fittable) after its source dataset is gone.
+
+        Returns None (a real no-op, no snapshot/modified-time bump/event)
+        when removed_ids only overlapped via fit_data -- referenced_item_ids()
+        includes fit_data for relevance detection, but if no data_series
+        actually gets dropped here, nothing about this chart changed."""
+        remaining_series = [
+            series for series in self.data_series if series.dataset_id not in removed_ids
+        ]
+        if len(remaining_series) == len(self.data_series):
+            return None
+        snapshot = snapshot_chart_state(self)
+        self.data_series = remaining_series
+        self.update_modified_time()
+        return snapshot
+
+    def restore_removed_items_snapshot(self, snapshot: Any) -> None:
+        """Undo _strip_references via the chart-state snapshot it returned."""
+        restore_chart_state(self, snapshot)
+
+    def dependency_update_event(self) -> Optional[tuple]:
+        """Event DeleteItemCommand should emit after this chart's series
+        are stripped or restored."""
+        return ChartEvents.CHART_UPDATED, {"chart_id": self.id}
+
     def add_fit_data(self, source_dataset_id: str, fit_type: str,
                     x_data: np.ndarray, y_data: np.ndarray,
                     source_x_column_id: str = "", source_y_column_id: str = "",

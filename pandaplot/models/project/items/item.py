@@ -6,7 +6,14 @@ from typing import Any, Dict, List, Optional
 
 class Item:
     """Base class for all project items."""
-    
+
+    _dependency_aware_classes: set = set()
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if "referenced_item_ids" in cls.__dict__:
+            Item._dependency_aware_classes.add(cls)
+
     def __init__(self, id: Optional[str] = None, name: str = ""):
         self.id: str = id if id else str(uuid.uuid4())
         self.name: str = name
@@ -14,7 +21,50 @@ class Item:
         self.created_at: str = datetime.now().isoformat()
         self.modified_at: str = self.created_at
         self.metadata: Dict[str, Any] = {}
-    
+
+    def referenced_item_ids(self) -> Optional[set]:
+        """Ids of other items this item currently holds a reference to, or
+        None if it has none right now. Must be cheap and side-effect-free
+        -- used only to test relevance before any mutation work. Return
+        None (not an empty set) when there's nothing to check, to skip
+        building a set for the common case."""
+        return None
+
+    def on_items_removed(self, removed_ids: set) -> Any:
+        """Called by DeleteItemCommand with the full set of ids about to
+        disappear (the deleted item plus, recursively, everything under
+        it if it's a Folder). Returns an opaque snapshot for undo, or None
+        if this item wasn't affected. Do not override this -- override
+        referenced_item_ids() and _strip_references() instead."""
+        refs = self.referenced_item_ids()
+        if not refs or not refs & removed_ids:
+            return None
+        return self._strip_references(removed_ids)
+
+    def _strip_references(self, removed_ids: set) -> Any:
+        """Only called when referenced_item_ids() overlaps removed_ids.
+        Snapshot enough state to undo and mutate self to drop references
+        into removed_ids. Must not touch the event bus -- see
+        dependency_update_event()."""
+        raise NotImplementedError(
+            f"{type(self).__name__} overrides referenced_item_ids() but not _strip_references()"
+        )
+
+    def restore_removed_items_snapshot(self, snapshot: Any) -> None:
+        """Undo a prior _strip_references mutation using the snapshot it
+        returned. Must not touch the event bus -- see
+        dependency_update_event()."""
+        raise NotImplementedError
+
+    def dependency_update_event(self) -> Optional[tuple]:
+        """(event_name, payload) DeleteItemCommand should emit via its own
+        event_bus right after a _strip_references or
+        restore_removed_items_snapshot call on this item actually changed
+        it, or None if this item type has nothing to announce. Kept
+        separate from _strip_references/restore_removed_items_snapshot so
+        the pandaplot.models layer never imports the event bus."""
+        return None
+
     def update_modified_time(self):
         """Update the modification timestamp."""
         self.modified_at = datetime.now().isoformat()
