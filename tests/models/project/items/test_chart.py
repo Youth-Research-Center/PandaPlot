@@ -1188,3 +1188,32 @@ def test_fit_data_has_no_setter():
     chart = Chart(name="c", chart_type="line")
     with pytest.raises(AttributeError):
         chart.fit_data = []
+
+
+def test_fit_series_round_trips_through_to_dict_from_dict():
+    import numpy as np
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="c", chart_type="line")
+    chart.add_fit_series(
+        source_dataset_id="ds1", source_x_column_id="xid", source_y_column_id="yid",
+        x_data=np.array([1.0, 2.0]), y_data=np.array([3.0, 4.0]),
+        label="Fit", style=FitStyle(fit_type="linear", fit_params={"a": 1.0}),
+    )
+
+    data = chart.to_dict()
+    assert "fit_data" not in data
+    assert len(data["data_series"]) == 1
+    assert data["data_series"][0]["series_type"] == "fit"
+    assert data["data_series"][0]["precomputed_x_data"] == [1.0, 2.0]
+
+    restored = Chart.from_dict(data)
+    assert len(restored.data_series) == 1
+    fit = restored.fit_data[0]
+    assert fit.series_type == SeriesType.FIT
+    assert fit.dataset_id == "ds1"
+    np.testing.assert_array_equal(fit.precomputed_x_data, [1.0, 2.0])
+    assert fit.style.fit_type == "linear"
+    assert fit.style.fit_params == {"a": 1.0}

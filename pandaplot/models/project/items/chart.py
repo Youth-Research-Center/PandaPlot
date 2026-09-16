@@ -512,45 +512,29 @@ class Chart(Item):
     def to_dict(self) -> Dict[str, Any]:
         """Convert chart to dictionary for serialization."""
         data = super().to_dict()
+        series_dicts = []
+        for series in self.data_series:
+            series_dict = {
+                "dataset_id": series.dataset_id,
+                "x_column": series.x_column,
+                "y_column": series.y_column,
+                "x_column_id": series.x_column_id,
+                "y_column_id": series.y_column_id,
+                "label": series.label,
+                "visible": series.visible,
+                "y_axis": series.y_axis,
+                "alpha": series.alpha,
+                "series_type": series.series_type.value,
+                "style": asdict(series.style) if series.style is not None else None,
+            }
+            if series.precomputed_x_data is not None:
+                series_dict["precomputed_x_data"] = series.precomputed_x_data.tolist()
+            if series.precomputed_y_data is not None:
+                series_dict["precomputed_y_data"] = series.precomputed_y_data.tolist()
+            series_dicts.append(series_dict)
         data.update({
             "chart_type": self.chart_type,
-            "data_series": [
-                {
-                    "dataset_id": series.dataset_id,
-                    "x_column": series.x_column,
-                    "y_column": series.y_column,
-                    "x_column_id": series.x_column_id,
-                    "y_column_id": series.y_column_id,
-                    "label": series.label,
-                    "visible": series.visible,
-                    "y_axis": series.y_axis,
-                    "alpha": series.alpha,
-                    "series_type": series.series_type.value,
-                    "style": asdict(series.style) if series.style is not None else None,
-                } for series in self.data_series
-            ],
-            "fit_data": [
-                {
-                    "source_dataset_id": fit.source_dataset_id,
-                    "source_x_column": fit.source_x_column,
-                    "source_y_column": fit.source_y_column,
-                    "source_x_column_id": fit.source_x_column_id,
-                    "source_y_column_id": fit.source_y_column_id,
-                    "fit_type": fit.fit_type,
-                    "x_data": fit.x_data.tolist(),
-                    "y_data": fit.y_data.tolist(),
-                    "label": fit.label,
-                    "visible": fit.visible,
-                    "fit_params": fit.fit_params,
-                    "fit_stats": fit.fit_stats,
-                    "confidence_lower": fit.confidence_lower.tolist() if fit.confidence_lower is not None else None,
-                    "confidence_upper": fit.confidence_upper.tolist() if fit.confidence_upper is not None else None,
-                    "confidence_lower_column_id": fit.confidence_lower_column_id,
-                    "confidence_upper_column_id": fit.confidence_upper_column_id,
-                    "is_manual": fit.is_manual,
-                    "style": asdict(fit.style) if fit.style is not None else None,
-                } for fit in self.fit_data
-            ],
+            "data_series": series_dicts,
             "config": self.config.to_dict(),
             "style": self.style.to_dict()
         })
@@ -576,12 +560,14 @@ class Chart(Item):
         chart.config.update(data.get("config", {}))
         chart.style.update(data.get("style", {}))
         
-        # Load data series
+        # Load data series (FIT-type entries included -- see #304)
         series_data = data.get("data_series", [])
         for series_dict in series_data:
             series_type = SeriesType(series_dict.get("series_type", chart.chart_type))
             style_dict = series_dict.get("style")
             style = _series_style_from_dict(series_type, style_dict) if style_dict is not None else None
+            precomputed_x = series_dict.get("precomputed_x_data")
+            precomputed_y = series_dict.get("precomputed_y_data")
             series = DataSeries(
                 dataset_id=series_dict["dataset_id"],
                 x_column=series_dict["x_column"],
@@ -594,41 +580,10 @@ class Chart(Item):
                 alpha=series_dict.get("alpha", 1.0),
                 series_type=series_type,
                 style=style,
+                precomputed_x_data=np.array(precomputed_x) if precomputed_x is not None else None,
+                precomputed_y_data=np.array(precomputed_y) if precomputed_y is not None else None,
             )
             chart.data_series.append(series)
-        
-        # Load fit data
-        fit_data_list = data.get("fit_data", [])
-        for fit_dict in fit_data_list:
-            style_dict = fit_dict.get("style")
-            style = FitStyle(**style_dict) if style_dict is not None else None
-            fit = FitData(
-                source_dataset_id=fit_dict["source_dataset_id"],
-                source_x_column=fit_dict["source_x_column"],
-                source_y_column=fit_dict["source_y_column"],
-                source_x_column_id=fit_dict.get("source_x_column_id", ""),
-                source_y_column_id=fit_dict.get("source_y_column_id", ""),
-                fit_type=fit_dict["fit_type"],
-                x_data=np.array(fit_dict["x_data"]),
-                y_data=np.array(fit_dict["y_data"]),
-                label=fit_dict.get("label", ""),
-                visible=fit_dict.get("visible", True),
-                fit_params=fit_dict.get("fit_params", {}),
-                fit_stats=fit_dict.get("fit_stats", {}),
-                confidence_lower=(
-                    np.array(fit_dict["confidence_lower"])
-                    if fit_dict.get("confidence_lower") is not None else None
-                ),
-                confidence_upper=(
-                    np.array(fit_dict["confidence_upper"])
-                    if fit_dict.get("confidence_upper") is not None else None
-                ),
-                confidence_lower_column_id=fit_dict.get("confidence_lower_column_id", ""),
-                confidence_upper_column_id=fit_dict.get("confidence_upper_column_id", ""),
-                is_manual=fit_dict.get("is_manual", False),
-                style=style,
-            )
-            chart.fit_data.append(fit)
 
         return chart
 
@@ -793,10 +748,11 @@ def assign_fit_column_ids(fit: "FitData", dataset: Any) -> None:
 def snapshot_chart_state(chart: "Chart") -> Dict[str, Any]:
     """Capture the mutable chart state that the properties panel can change.
 
-    The whole fit_data list is deep-copied, same as data_series -- a
-    manually-converted fit's source dataset/columns and x_data/y_data are
-    genuinely editable from the Data tab (#298 follow-up), not just its
-    style/label, so Reset/undo needs to be able to revert those too.
+    FIT-type series are deep-copied as part of data_series like any other
+    series (#304) -- a manually-converted fit's source dataset/columns and
+    precomputed_x_data/precomputed_y_data are genuinely editable from the
+    Data tab (#298 follow-up), not just its style/label, so Reset/undo
+    needs to be able to revert those too.
     """
     return {
         "config": copy.deepcopy(chart.config),
@@ -804,7 +760,6 @@ def snapshot_chart_state(chart: "Chart") -> Dict[str, Any]:
         "chart_type": chart.chart_type,
         "name": chart.name,
         "data_series": [copy.deepcopy(s) for s in chart.data_series],
-        "fit_data": [copy.deepcopy(f) for f in chart.fit_data],
     }
 
 
@@ -815,6 +770,5 @@ def restore_chart_state(chart: "Chart", snapshot: Dict[str, Any]) -> None:
     chart.chart_type = snapshot["chart_type"]
     chart.name = snapshot["name"]
     chart.data_series = [copy.deepcopy(s) for s in snapshot["data_series"]]
-    chart.fit_data = [copy.deepcopy(f) for f in snapshot["fit_data"]]
     chart.update_modified_time()
 

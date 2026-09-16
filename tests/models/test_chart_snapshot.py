@@ -152,6 +152,24 @@ def test_restore_reverts_a_manual_fits_source_and_data_edits():
     np.testing.assert_array_equal(restored.y_data, np.array([3.0, 4.0]))
 
 
+def test_snapshot_restore_round_trips_fit_series():
+    """(#304) FIT series live in data_series now, not a separate fit_data
+    list -- snapshot/restore must round-trip them through data_series
+    alone, same as any other series."""
+    chart = Chart(name="c", chart_type="line")
+    chart.add_fit_series(
+        source_dataset_id="ds1", x_data=np.array([1.0]), y_data=np.array([2.0]),
+        label="Fit", style=FitStyle(color="#123456"),
+    )
+    snap = snapshot_chart_state(chart)
+    chart.data_series.clear()
+    assert chart.fit_data == []
+
+    restore_chart_state(chart, snap)
+    assert len(chart.fit_data) == 1
+    assert chart.fit_data[0].style.color == "#123456"
+
+
 def test_restore_reverts_fit_line_style():
     """Regression test for a bug that survived until this phase: only
     color/line_width/alpha were snapshotted, so line_style silently kept
