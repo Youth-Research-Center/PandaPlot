@@ -15,6 +15,7 @@ class EventBus:
         self.logger = logging.getLogger(self.__class__.__name__)
         self._subscribers = defaultdict(list)
         self._pattern_subscribers = defaultdict(list)
+        self._compiled_patterns: Dict[str, re.Pattern] = {}
         self.logger.debug("EventBus initialized")
 
     def subscribe(self, event_pattern: str, callback: Callable[[Dict[str, Any]], None]) -> None:
@@ -27,10 +28,16 @@ class EventBus:
         self.logger.debug("Subscribing to event pattern: %s", event_pattern)
         
         if "*" in event_pattern:
-            # Convert glob pattern to regex
-            regex_pattern = event_pattern.replace(".", r"\.").replace("*", ".*")
-            self._pattern_subscribers[regex_pattern].append(callback)
-            self.logger.debug("Added pattern subscriber for: %s (regex: %s)", event_pattern, regex_pattern)
+            # Convert glob pattern to regex, compiling once so emit() doesn't
+            # re-match against a raw string on every call. Keyed by the pattern
+            # string (not the compiled object) since re.Pattern has no
+            # __eq__/__hash__ and re.compile()'s cache can evict and return a
+            # non-identical object for the same pattern text later.
+            if event_pattern not in self._compiled_patterns:
+                regex_pattern = event_pattern.replace(".", r"\.").replace("*", ".*")
+                self._compiled_patterns[event_pattern] = re.compile(regex_pattern)
+            self._pattern_subscribers[event_pattern].append(callback)
+            self.logger.debug("Added pattern subscriber for: %s", event_pattern)
         else:
             self._subscribers[event_pattern].append(callback)
             self.logger.debug("Added direct subscriber for: %s", event_pattern)
@@ -45,9 +52,11 @@ class EventBus:
         self.logger.debug("Unsubscribing from event pattern: %s", event_pattern)
         
         if "*" in event_pattern:
-            regex_pattern = event_pattern.replace(".", r"\.").replace("*", ".*")
-            if callback in self._pattern_subscribers.get(regex_pattern, []):
-                self._pattern_subscribers[regex_pattern].remove(callback)
+            if callback in self._pattern_subscribers.get(event_pattern, []):
+                self._pattern_subscribers[event_pattern].remove(callback)
+                if not self._pattern_subscribers[event_pattern]:
+                    del self._pattern_subscribers[event_pattern]
+                    self._compiled_patterns.pop(event_pattern, None)
                 self.logger.debug("Removed pattern subscriber for: %s", event_pattern)
             else:
                 self.logger.warning("Callback not found in pattern subscribers for: %s", event_pattern)
@@ -92,18 +101,25 @@ class EventBus:
                 except Exception as e:
                     self.logger.error("Error in event callback for '%s': %s", event_level, str(e), exc_info=True)
             
-            # Emit to pattern subscribers
+            # Emit to pattern subscribers. Snapshot pattern, compiled regex,
+            # and callbacks together: a callback (for this pattern or an
+            # earlier one in the snapshot) can call unsubscribe() on the
+            # final subscription for some pattern, which deletes that
+            # pattern's entries from both _pattern_subscribers and
+            # _compiled_patterns mid-emit.
             pattern_matches = 0
-            for pattern, callbacks in self._pattern_subscribers.items():
-                if re.match(pattern, event_level):
+            for pattern_str, compiled_pattern, callbacks in [
+                (p, self._compiled_patterns[p], cbs) for p, cbs in self._pattern_subscribers.items()
+            ]:
+                if compiled_pattern.match(event_level):
                     pattern_matches += len(callbacks)
-                    for callback in callbacks:
+                    for callback in list(callbacks):
                         try:
                             callback(event_data)
                             total_callbacks_called += 1
                         except Exception as e:
-                            self.logger.error("Error in pattern callback for '%s' (pattern: %s): %s", 
-                                            event_level, pattern, str(e), exc_info=True)
+                            self.logger.error("Error in pattern callback for '%s' (pattern: %s): %s",
+                                            event_level, pattern_str, str(e), exc_info=True)
             
             if subscriber_count > 0 or pattern_matches > 0:
                 self.logger.debug("Emitted event '%s' to %d direct subscribers and %d pattern matches", 
@@ -118,3 +134,4 @@ class EventBus:
         """Clear all subscriptions - useful for testing."""
         self._subscribers.clear()
         self._pattern_subscribers.clear()
+        self._compiled_patterns.clear()

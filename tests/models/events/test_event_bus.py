@@ -1,3 +1,4 @@
+import re
 from unittest.mock import Mock, call
 
 from pandaplot.models.events.event_bus import EventBus
@@ -536,6 +537,103 @@ class TestEventBus:
             expected_data = {"data": f"data_for_{event_name}",
                              "event_type": event_name, "original_event": event_name}
             callback.assert_called_once_with(expected_data)
+
+    def test_pattern_subscribers_are_keyed_by_pattern_string(self):
+        """subscribe() should key by the pattern string, with the compiled
+        regex cached separately, so lookups don't depend on re.compile()'s
+        internal cache returning an identical (is-comparable) object."""
+        event_bus = EventBus()
+        callback = Mock()
+
+        event_bus.subscribe("dataset.*", callback)
+
+        keys = list(event_bus._pattern_subscribers.keys())
+        assert keys == ["dataset.*"]
+        assert callback in event_bus._pattern_subscribers["dataset.*"]
+        assert isinstance(event_bus._compiled_patterns["dataset.*"], re.Pattern)
+
+    def test_unsubscribe_survives_regex_compile_cache_eviction(self):
+        """unsubscribe() must find the same subscription even if re.compile()'s
+        internal cache has evicted and later returns a non-identical Pattern
+        object for the same pattern text (re.Pattern has no __eq__/__hash__)."""
+        event_bus = EventBus()
+        callback = Mock()
+
+        event_bus.subscribe("dataset.*", callback)
+        re.purge()  # force re.compile() to produce a fresh, non-identical Pattern next time
+
+        event_bus.unsubscribe("dataset.*", callback)
+
+        assert "dataset.*" not in event_bus._pattern_subscribers
+
+    def test_emit_survives_pattern_callback_unsubscribing_itself(self):
+        """A pattern callback that unsubscribes its own (last) subscription
+        during emit() must not raise RuntimeError from mutating
+        _pattern_subscribers while emit() iterates over it."""
+        event_bus = EventBus()
+
+        def self_unsubscribing_callback(event_data):
+            event_bus.unsubscribe("dataset.*", self_unsubscribing_callback)
+
+        event_bus.subscribe("dataset.*", self_unsubscribing_callback)
+
+        event_bus.emit("dataset.changed", {"key": "value"})
+
+        assert "dataset.*" not in event_bus._pattern_subscribers
+
+    def test_emit_survives_earlier_pattern_callback_unsubscribing_a_later_pattern(self):
+        """A callback for one pattern that unsubscribes the last callback of a
+        *different*, later pattern must not make emit() KeyError when it
+        later looks up that now-deleted pattern's compiled regex."""
+        event_bus = EventBus()
+        later_callback = Mock()
+
+        def unsubscribes_other_pattern(event_data):
+            event_bus.unsubscribe("other.*", later_callback)
+
+        event_bus.subscribe("dataset.*", unsubscribes_other_pattern)
+        event_bus.subscribe("other.*", later_callback)
+
+        event_bus.emit("dataset.changed", {"key": "value"})
+
+        assert "other.*" not in event_bus._pattern_subscribers
+        later_callback.assert_not_called()
+
+    def test_emit_calls_matching_pattern_subscriber(self):
+        """A pattern subscriber whose glob matches the emitted event should be called."""
+        event_bus = EventBus()
+        callback = Mock()
+
+        event_bus.subscribe("dataset.*", callback)
+        event_bus.emit("dataset.changed", {"key": "value"})
+
+        expected_data = {
+            "key": "value",
+            "event_type": "dataset.changed",
+            "original_event": "dataset.changed",
+        }
+        callback.assert_called_once_with(expected_data)
+
+    def test_emit_does_not_call_non_matching_pattern_subscriber(self):
+        """A pattern subscriber whose glob does not match the emitted event should not be called."""
+        event_bus = EventBus()
+        callback = Mock()
+
+        event_bus.subscribe("dataset.*", callback)
+        event_bus.emit("other.event")
+
+        callback.assert_not_called()
+
+    def test_unsubscribe_pattern_callback(self):
+        """unsubscribe() should remove a pattern callback so it no longer receives events."""
+        event_bus = EventBus()
+        callback = Mock()
+
+        event_bus.subscribe("dataset.*", callback)
+        event_bus.unsubscribe("dataset.*", callback)
+        event_bus.emit("dataset.changed")
+
+        callback.assert_not_called()
 
     def test_real_world_usage_scenario(self):
         """Test a realistic usage scenario."""
