@@ -22,29 +22,28 @@ def flush_pending_edits(app_context: AppContext) -> bool:
 
 
 def confirm_discard_unsaved_changes(app_context: AppContext, *, will_autosave: bool = False) -> bool:
-    """Return True if it's fine to proceed (no project loaded, or no
-    unsaved changes, the user confirmed proceeding and (for an autosaving
-    caller) the save actually succeeded); False if the caller should
-    cancel whatever it was about to do.
+    """Return True if it's fine to proceed (no project loaded, no unsaved
+    changes, the autosave succeeded, or the user confirmed discarding);
+    False if the caller should cancel whatever it was about to do.
 
     `will_autosave` must be True for a caller whose proceeding is followed
     by `app.launch()`'s unconditional `_flush_save_on_quit` (currently
     ExitCommand and PandaMainWindow.closeEvent, the two paths that end the
     process) -- those never actually discard an *already-saved-once*
-    project's edits, so the prompt must not claim they will.
-    CloseProjectCommand (the default, project-only close) genuinely
-    discards, so it keeps the "will be discarded" wording, as does exiting
-    a never-saved project (`_flush_save_on_quit` has no file path to write
-    to, so it really is discarded).
+    project's edits. CloseProjectCommand (the default, project-only close)
+    genuinely discards, so it still asks, as does exiting a never-saved
+    project (`_flush_save_on_quit` has no file path to write to, so it
+    really is discarded).
 
-    For the autosaving case, this performs that save synchronously, right
-    here, once the user confirms -- rather than just trusting
-    `_flush_save_on_quit` to make good on the promise later. That deferred
-    save runs after the point of no return (mid-`aboutToQuit`) and swallows
-    every exception into a log line, so a disk-full/permission/serialization
-    failure would otherwise silently exit the app having lost the edits it
-    just promised to keep. Doing it here means a failure can still cancel
-    the shutdown and leave the project (and its unsaved state) intact.
+    For the autosaving case there's nothing to confirm -- proceeding always
+    saves and staying leaves the user exactly where they were -- so this
+    skips the question and just performs that save synchronously, right
+    here, surfacing a dialog only if it actually fails. Doing it here
+    (rather than trusting `_flush_save_on_quit` to make good on it later)
+    means a disk-full/permission/serialization failure can still cancel the
+    shutdown and leave the project (and its unsaved state) intact, instead
+    of `_flush_save_on_quit` swallowing it into a log line after the point
+    of no return (mid-`aboutToQuit`).
     """
     if not flush_pending_edits(app_context):
         app_context.get_ui_controller().show_error_message(
@@ -61,18 +60,13 @@ def confirm_discard_unsaved_changes(app_context: AppContext, *, will_autosave: b
     ui_controller = app_context.get_ui_controller()
     file_path = app_state.project_file_path
     autosaving = will_autosave and bool(file_path)
-    consequence = (
-        "They will be saved automatically before exiting."
-        if autosaving
-        else "Continuing now will discard them."
-    )
-    proceed = ui_controller.show_question(
-        "Unsaved Changes",
-        f"Project '{project_name}' has unsaved changes.\n"
-        f"{consequence}\n\nDo you want to continue?",
-    )
-    if not proceed or not autosaving:
-        return proceed
+
+    if not autosaving:
+        return ui_controller.show_question(
+            "Unsaved Changes",
+            f"Project '{project_name}' has unsaved changes.\n"
+            "Continuing now will discard them.\n\nDo you want to continue?",
+        )
 
     if app_state.is_saving:
         # A SaveProjectCommand (manual or auto-save) is already writing

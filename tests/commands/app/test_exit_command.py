@@ -339,7 +339,7 @@ class TestExitCommandUnsavedChangesGuard:
         app_context.event_bus.emit.assert_called_once_with(AppEvents.APP_CLOSING)
 
     def test_asks_and_proceeds_when_modified_and_confirmed(self):
-        app_context, _ = self._make_context(has_project=True, is_modified=True)
+        app_context, _ = self._make_context(has_project=True, is_modified=True, project_file_path=None)
         app_context.get_ui_controller.return_value.show_question.return_value = True
         command = ExitCommand(app_context)
 
@@ -348,27 +348,12 @@ class TestExitCommandUnsavedChangesGuard:
         app_context.event_bus.emit.assert_called_once_with(AppEvents.APP_CLOSING)
 
     def test_cancels_when_modified_and_declined(self):
-        app_context, _ = self._make_context(has_project=True, is_modified=True)
+        app_context, _ = self._make_context(has_project=True, is_modified=True, project_file_path=None)
         app_context.get_ui_controller.return_value.show_question.return_value = False
         command = ExitCommand(app_context)
 
         assert command.execute() is CommandResult.NOOP
         app_context.event_bus.emit.assert_not_called()
-
-    def test_prompt_says_autosave_not_discard_for_an_already_saved_project(self):
-        """Regression (PR #235 review): app.launch()'s aboutToQuit handler
-        unconditionally flushes a save for an existing saved project before
-        the process exits, so this prompt must not claim continuing will
-        discard those edits."""
-        app_context, _ = self._make_context(has_project=True, is_modified=True, project_file_path="/p.pplot")
-        app_context.get_ui_controller.return_value.show_question.return_value = True
-        command = ExitCommand(app_context)
-
-        command.execute()
-
-        _, message = app_context.get_ui_controller.return_value.show_question.call_args[0]
-        assert "saved automatically" in message
-        assert "discard" not in message
 
     def test_prompt_says_discard_for_a_never_saved_project(self):
         """A project with no file path yet has nothing for
@@ -382,21 +367,23 @@ class TestExitCommandUnsavedChangesGuard:
         _, message = app_context.get_ui_controller.return_value.show_question.call_args[0]
         assert "discard" in message
 
-    def test_confirming_an_autosave_actually_saves_before_exiting(self):
-        """Regression (PR #235 review): the prompt promises an automatic
-        save, but the actual save previously only happened later, in
-        app._flush_save_on_quit -- after the point of no return, with every
-        exception swallowed into a log line. Make sure the save genuinely
-        runs (and clears is_modified) as part of confirming, not just the
-        promise of one."""
+    def test_exits_without_asking_and_saves_for_an_already_saved_project(self):
+        """Regression (#410): there's nothing to confirm for an autosaving
+        exit -- proceeding always saves and staying leaves the user exactly
+        where they were -- so this must save and exit straight away, with
+        no question dialog at all. It also guards against the old bug where
+        the actual save only happened later, in app._flush_save_on_quit --
+        after the point of no return, with every exception swallowed into a
+        log line: make sure the save genuinely runs (and clears
+        is_modified) as part of exiting, not just a promised one."""
         app_context, app_state = self._make_context(has_project=True, is_modified=True, project_file_path="/p.pplot")
-        app_context.get_ui_controller.return_value.show_question.return_value = True
         project_manager = Mock()
         app_context.get_manager.return_value = project_manager
         command = ExitCommand(app_context)
 
         assert command.execute() is CommandResult.SUCCESS
 
+        app_context.get_ui_controller.return_value.show_question.assert_not_called()
         project_manager.save_project.assert_called_once_with(app_state.current_project, "/p.pplot")
         app_state.mark_saved.assert_called_once()
         app_context.event_bus.emit.assert_called_once_with(AppEvents.APP_CLOSING)
@@ -408,7 +395,6 @@ class TestExitCommandUnsavedChangesGuard:
         lost the edits it just promised to keep. The save must instead be
         checked here, before committing to the exit."""
         app_context, app_state = self._make_context(has_project=True, is_modified=True, project_file_path="/p.pplot")
-        app_context.get_ui_controller.return_value.show_question.return_value = True
         project_manager = Mock()
         project_manager.save_project.side_effect = OSError("disk full")
         app_context.get_manager.return_value = project_manager
@@ -424,7 +410,6 @@ class TestExitCommandUnsavedChangesGuard:
         Refuse to proceed instead (the user can just try exiting again once
         the in-flight save finishes)."""
         app_context, app_state = self._make_context(has_project=True, is_modified=True, project_file_path="/p.pplot")
-        app_context.get_ui_controller.return_value.show_question.return_value = True
         app_state.is_saving = True
         project_manager = Mock()
         app_context.get_manager.return_value = project_manager
