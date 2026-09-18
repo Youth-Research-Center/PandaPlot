@@ -30,6 +30,19 @@ To run the PandaPlot application, execute the following command from the root di
 uv run python -m pandaplot.app
 ```
 
+## Packaging and Deployment
+PandaPlot uses `pyside6-deploy` (and Nuitka) to create standalone executables/installers.
+
+To test the deployment configuration without compiling:
+```bash
+uv run python scripts/build_installer.py --dry-run
+```
+
+To build the executable installer:
+```bash
+uv run python scripts/build_installer.py
+```
+
 ## Running Tests
 ```bash
 uv run pytest

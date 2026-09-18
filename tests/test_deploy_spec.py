@@ -1,0 +1,40 @@
+"""Tests for pysidedeploy.spec deployment configuration."""
+
+import configparser
+import shutil
+import subprocess
+from pathlib import Path
+
+
+def test_pysidedeploy_spec_exists():
+    """Verify that pysidedeploy.spec exists at root directory."""
+    spec_path = Path("pysidedeploy.spec")
+    assert spec_path.is_file(), "pysidedeploy.spec file is missing from project root"
+
+
+def test_pysidedeploy_spec_contents():
+    """Verify key configuration options in pysidedeploy.spec."""
+    spec_path = Path("pysidedeploy.spec")
+    parser = configparser.ConfigParser()
+    parser.read(spec_path)
+
+    assert parser.has_section("app")
+    assert parser.get("app", "title") == "PandaPlot"
+    assert parser.get("app", "input_file") == "pandaplot/app.py"
+    assert parser.get("app", "project_file") == "pyproject.toml"
+
+    assert parser.has_section("qt")
+    modules = [m.strip() for m in parser.get("qt", "modules").split(",")]
+    for expected_mod in ("Core", "Gui", "Widgets"):
+        assert expected_mod in modules
+
+
+def test_pyside6_deploy_dry_run():
+    """Verify that pyside6-deploy dry run succeeds without errors or missing module warnings."""
+    deploy_executable = shutil.which("pyside6-deploy") or "pyside6-deploy"
+    cmd = [deploy_executable, "-c", "pysidedeploy.spec", "--dry-run"]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    assert result.returncode == 0, f"pyside6-deploy dry-run failed:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+    assert "WARNING:root:[DEPLOY] Found 'import PySide6'" not in result.stderr
+    assert "WARNING:root:[DEPLOY] Unable to resolve a valid project file" not in result.stderr

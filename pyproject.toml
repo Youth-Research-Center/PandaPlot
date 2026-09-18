@@ -31,6 +31,9 @@ dev = [
     "vulture>=2.16",
 ]
 
+[tool.pyside6-project]
+files = ["pandaplot/app.py"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = ["pandaplot_storybook"]
