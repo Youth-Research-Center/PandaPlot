@@ -515,6 +515,18 @@ class Chart(Item):
         data = super().to_dict()
         series_dicts = []
         for series in self.data_series:
+            style_dict = asdict(series.style) if series.style is not None else None
+            if style_dict is not None:
+                # asdict() doesn't know about JSON serializability -- any
+                # ndarray-valued style field (e.g. FitStyle's
+                # confidence_lower/confidence_upper) needs converting to a
+                # plain list here, or json.dumps() (ChartDataManager.save)
+                # raises TypeError. Generic over all style fields so any
+                # future ndarray-valued field is covered too, not just
+                # today's two.
+                for key, value in style_dict.items():
+                    if isinstance(value, np.ndarray):
+                        style_dict[key] = value.tolist()
             series_dict = {
                 "dataset_id": series.dataset_id,
                 "x_column": series.x_column,
@@ -526,7 +538,7 @@ class Chart(Item):
                 "y_axis": series.y_axis,
                 "alpha": series.alpha,
                 "series_type": series.series_type.value,
-                "style": asdict(series.style) if series.style is not None else None,
+                "style": style_dict,
             }
             if series.precomputed_x_data is not None:
                 series_dict["precomputed_x_data"] = series.precomputed_x_data.tolist()
