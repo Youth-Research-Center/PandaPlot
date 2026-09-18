@@ -732,19 +732,6 @@ def assign_series_column_ids(series: "DataSeries", dataset: Any) -> None:
                 series.style.z_column_id = cid
 
 
-def assign_fit_column_ids(fit: "FitData", dataset: Any) -> None:
-    """Fill a fit's source ``*_column_id`` fields from its name fields."""
-    if dataset is None:
-        return
-    for name_field, id_field in (("source_x_column", "source_x_column_id"),
-                                 ("source_y_column", "source_y_column_id")):
-        name = getattr(fit, name_field, "")
-        if name:
-            cid = dataset.column_id(name)
-            if cid is not None:
-                setattr(fit, id_field, cid)
-
-
 def snapshot_chart_state(chart: "Chart") -> Dict[str, Any]:
     """Capture the mutable chart state that the properties panel can change.
 
