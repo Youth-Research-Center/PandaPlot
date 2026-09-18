@@ -59,12 +59,28 @@ jobs:
           fi
         shell: bash
 
-      - name: Upload Build Artifacts
-        if: inputs.dry_run == false
+      - name: Archive build output (preserves executable permissions)
+        # actions/upload-artifact normalizes uploaded file modes to 0644,
+        # which would silently strip the executable bit off the Linux
+        # binary and the one inside the macOS .app bundle. Tar it up on
+        # this runner first so the permissions survive inside the archive.
+        if: inputs.dry_run == false && runner.os != 'Windows'
+        run: tar -czf deployment.tar.gz -C deployment .
+        shell: bash
+
+      - name: Upload Build Artifacts (Windows)
+        if: inputs.dry_run == false && runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: pandaplot-installer-${{ runner.os }}
           path: deployment/
+
+      - name: Upload Build Artifacts (Linux/macOS)
+        if: inputs.dry_run == false && runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pandaplot-installer-${{ runner.os }}
+          path: deployment.tar.gz
 
   release:
     name: Publish Release
@@ -88,18 +104,19 @@ jobs:
       - name: Prepare release assets and checksums
         run: |
           mkdir -p release_assets
-          release_assets_dir="$(pwd)/release_assets"
           for dir in artifacts/*/; do
             os_name="$(basename "$dir")"
             for f in "$dir"*; do
               name="$(basename "$f")"
               if [ -d "$f" ]; then
-                # e.g. a macOS .app bundle -- sha256sum/gh release can only
-                # handle files, so archive directory outputs into one first.
-                (cd "$dir" && zip -r -q "$release_assets_dir/${os_name}-${name}.zip" "$name")
-              else
-                cp "$f" "$release_assets_dir/${os_name}-${name}"
+                # The build job archives Linux/macOS output into a .tar.gz
+                # before upload (to preserve executable permissions) and
+                # Windows uploads a single .exe, so a directory here means
+                # that changed without updating this step to match.
+                echo "::error::Unexpected directory artifact '$f' -- build job should upload a single archived/executable file per platform." >&2
+                exit 1
               fi
+              cp "$f" "release_assets/${os_name}-${name}"
             done
           done
 
