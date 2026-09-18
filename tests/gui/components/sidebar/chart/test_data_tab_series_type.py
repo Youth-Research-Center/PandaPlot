@@ -50,9 +50,38 @@ def test_series_type_combo_offers_only_the_chart_types_allowed_series_types():
     tab.load(chart)
 
     offered = {tab.series_type_combo.itemData(i) for i in range(tab.series_type_combo.count())}
-    # FIT is now in the allowed_series_types, so it appears both as a regular series type
-    # and as a conversion action (see test_selecting_fit_converts_the_series_to_fit_data below).
-    assert offered == {SeriesType.BAR, SeriesType.SCATTER, SeriesType.FIT, "__convert_to_fit__"}
+    # SeriesType.FIT is now a member of allowed_series_types (needed so
+    # set_chart_type doesn't force-retype existing fits away), but the
+    # combo must still filter it out of the regular-type loop -- only the
+    # "__convert_to_fit__" action item represents "Fit" here. Picking
+    # SeriesType.FIT directly would fall through to chart.retype_series(...)
+    # and produce a FIT series with no curve snapshot (out of scope; see
+    # design spec Non-Goals) -- see final-review finding #2.
+    assert offered == {SeriesType.BAR, SeriesType.SCATTER, "__convert_to_fit__"}
+
+
+def test_series_type_combo_has_exactly_one_fit_entry_using_the_convert_sentinel():
+    """Regression test for final-review finding #2: the combo must never
+    list SeriesType.FIT itself (which would retype the series in place,
+    losing its curve snapshot) -- only the "__convert_to_fit__" action
+    item may be labeled "Fit"."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"))
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+
+    fit_labeled_rows = [
+        i for i in range(tab.series_type_combo.count())
+        if tab.series_type_combo.itemText(i) == "Fit"
+    ]
+    assert len(fit_labeled_rows) == 1
+    assert tab.series_type_combo.itemData(fit_labeled_rows[0]) == "__convert_to_fit__"
+    # SeriesType.FIT itself must not be selectable from this combo at all.
+    assert tab.series_type_combo.findData(SeriesType.FIT) == -1
 
 
 def test_series_type_combo_selects_the_current_series_own_type():

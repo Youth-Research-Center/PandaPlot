@@ -518,6 +518,37 @@ class TestSetChartTypeRetypesSeries:
         assert isinstance(retyped.style, VectorSeriesStyle)
         assert retyped.style.vector_color == "#222222"
 
+    def test_a_fit_series_survives_a_chart_type_change_to_one_that_disallows_fit(self):
+        """Regression test for final-review Important finding #3: switching
+        to a chart type whose allowed_series_types has no SeriesType.FIT
+        (e.g. colormap) must NOT force-retype an existing fit -- a fit's
+        precomputed_x_data/precomputed_y_data snapshot has no equivalent in
+        any other series type, so retyping it would silently destroy
+        fit_type/fit_params/fit_stats/confidence bands. This matches the
+        pre-#304 behavior where chart.fit_data was a separate list
+        set_chart_type never touched -- a chart can legitimately end up
+        carrying a FIT series its own chart type doesn't formally allow."""
+        chart = Chart(name="C", chart_type="line")
+        chart.add_data_series(dataset_id="ds1", x_column_id="x", y_column_id="y")
+        fit_style = FitStyle(fit_type="linear", confidence_lower=np.array([0.5, 1.5]),
+                              confidence_upper=np.array([1.5, 2.5]))
+        chart.add_fit_series(
+            source_dataset_id="ds1",
+            x_data=np.array([1.0, 2.0]), y_data=np.array([2.0, 4.0]),
+            label="My Fit", style=fit_style,
+        )
+
+        chart.set_chart_type("colormap")
+
+        fit = chart.data_series[1]
+        assert fit.series_type == SeriesType.FIT
+        assert fit.style is fit_style
+        np.testing.assert_array_equal(fit.precomputed_x_data, [1.0, 2.0])
+        np.testing.assert_array_equal(fit.precomputed_y_data, [2.0, 4.0])
+        assert fit.style.fit_type == "linear"
+        np.testing.assert_array_equal(fit.style.confidence_lower, [0.5, 1.5])
+        np.testing.assert_array_equal(fit.style.confidence_upper, [1.5, 2.5])
+
 
 class TestRetypeSeries:
     """Chart.retype_series retypes a single series explicitly -- the same

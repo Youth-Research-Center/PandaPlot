@@ -282,6 +282,18 @@ class Chart(Item):
         which allows {VECTOR, LINE}) is left untouched -- mixed series types
         are legitimate. Retyped series become the new type's own
         `default_series_type`, via `retype_series`.
+
+        FIT-type series are always skipped here, regardless of whether the
+        new chart type's `allowed_series_types` includes SeriesType.FIT:
+        a fit's `precomputed_x_data`/`precomputed_y_data` snapshot has no
+        equivalent in any other series type, so force-retyping it away
+        (via `retype_series`) would silently destroy fit_type/fit_params/
+        fit_stats/confidence bands -- unlike an ordinary series retype,
+        which just swaps styling. This matches pre-#304 behavior, where
+        `chart.fit_data` was a separate list `set_chart_type` never
+        touched. A chart type that doesn't formally allow FIT can end up
+        carrying a leftover FIT series -- that's the intended,
+        minimally-destructive outcome, not a bug.
         """
         new_type = ChartType(chart_type)
         if new_type == self.chart_type:
@@ -289,6 +301,8 @@ class Chart(Item):
         self.chart_type = new_type
         spec = CHART_TYPE_SPECS[new_type]
         for index, series in enumerate(self.data_series):
+            if series.series_type == SeriesType.FIT:
+                continue
             if series.series_type not in spec.allowed_series_types:
                 self.retype_series(index, spec.default_series_type)
         self.update_modified_time()
@@ -626,10 +640,12 @@ def resolve_numeric_column(dataset: Any, column_id: str) -> Optional[np.ndarray]
     which is always treated as purely numeric -- unlike a live DataSeries
     reference. Non-numeric values coerce to NaN
     (pandas.to_numeric(errors="coerce")) rather than raising, and the
-    dtype is always JSON-serializable, since Chart.to_dict() later calls
-    .tolist() on it for json.dumps() during project save with no custom
-    encoder (a non-numeric dtype like datetime64 would otherwise fail
-    that save -- and since ProjectDataManager.save() truncates the
+    dtype is always JSON-serializable, since Chart.to_dict() generically
+    converts any ndarray-valued field of a series' style dict (including
+    a fit's confidence_lower/confidence_upper) to a plain list via
+    .tolist() before json.dumps() runs during project save, with no
+    custom encoder (a non-numeric dtype like datetime64 would otherwise
+    fail that save -- and since ProjectDataManager.save() truncates the
     project's zip before writing, a failed save can destroy the
     previously-saved project file). Returns None if the column can't be
     resolved at all (missing dataset, unknown id, or the id resolves to
