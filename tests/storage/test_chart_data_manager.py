@@ -82,6 +82,20 @@ def test_a_genuinely_legacy_flat_shaped_chart_loads_through_both_migrations():
 
     # migrate_chart_legacy_to_v1's effect: series got a nested style.
     assert loaded.data_series[0].style.color == "#112233"
+    # migrate_chart_v1_to_v2's effect: axis-prefixed config keys are now
+    # real typed AxisConfig attributes.
+    assert loaded.config.title == "Legacy Chart"
+    assert loaded.config.show_legend is True
+    assert loaded.config.x.label == "Time (s)"
+    assert loaded.config.x.min == -5.0
+    assert loaded.config.x.max == 5.0
+    assert loaded.config.x.show_grid is False
+    assert loaded.config.y.scale == "log"
+    assert loaded.config.y.log_base == 2.0
+    # An axis key never present in the legacy file still gets its correct
+    # per-axis default.
+    assert loaded.config.y.side == "left"
+    assert loaded.config.y2.side == "right"
 
 
 def test_saving_a_fit_series_with_confidence_bands_round_trips_through_real_json():
