@@ -11,6 +11,7 @@ from typing import Optional
 from PySide6.QtWidgets import QComboBox
 
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec, quick_plot_compatible
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.project import Project
@@ -29,6 +30,13 @@ def populate_series_fit_sources(combo: QComboBox, chart: Optional[Chart]) -> tup
     any_series_excluded = False
     if chart is not None:
         for i, series in enumerate(chart.data_series):
+            if series.series_type == SeriesType.FIT:
+                # Not actually excluded -- every FIT series is listed by
+                # the fit-specific loop below, via chart.fit_data. Skipping
+                # here without setting any_series_excluded avoids a
+                # misleading "other series types aren't shown" hint when
+                # the chart's only non-plain-series entries are fits.
+                continue
             if not SERIES_TYPE_SPECS[series.series_type].supports_curve_analysis:
                 any_series_excluded = True
                 continue

@@ -70,6 +70,24 @@ class TestPopulateSeriesFitSources:
         populate_series_fit_sources(combo, chart)
         assert combo.itemData(1) == ("fit", 0)
 
+    def test_a_chart_with_only_a_fit_does_not_report_any_series_excluded(self, chart):
+        """Regression test for final-review Minor finding #6: a FIT-type
+        entry in chart.data_series hits the loop's supports_curve_analysis
+        check and used to set any_series_excluded=True even though the fit
+        IS listed, just via the separate fit-listing loop below. A chart
+        whose only non-plain-series entry is a fit must not report any
+        exclusion at all."""
+        only_fit_chart = Chart(id="fit-only", name="Fit Only")
+        only_fit_chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]),
+            label="Fit 1", style=FitStyle(fit_type="linear"),
+        )
+        combo = QComboBox()
+        has_sources, any_excluded = populate_series_fit_sources(combo, only_fit_chart)
+        assert has_sources is True
+        assert any_excluded is False
+        assert combo.itemData(0) == ("fit", 0)
+
 
 class TestSeriesSourceHint:
     def test_no_sources_no_exclusion(self):

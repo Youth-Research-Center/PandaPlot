@@ -366,7 +366,7 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     short-circuits immediately to that snapshot, without touching `project`
     or `series.dataset_id`.
     """
-    if series.precomputed_x_data is not None or series.precomputed_y_data is not None:
+    if series.precomputed_x_data is not None and series.precomputed_y_data is not None:
         return SeriesData(series.precomputed_x_data, series.precomputed_y_data,
                            None, None, None, None, None)
 
@@ -1344,7 +1344,7 @@ class ChartEditorWidget(PWidget):
 
             legend = None
             placement_kwargs = {}
-            if config.show_legend and (self.chart.data_series or self.chart.fit_data):
+            if config.show_legend and self.chart.data_series:
                 # Combine handles/labels from both axes since twinx() legends
                 # are independent by default.
                 handles, labels = self.chart_canvas.axes.get_legend_handles_labels()
