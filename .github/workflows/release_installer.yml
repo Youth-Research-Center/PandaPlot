@@ -73,6 +73,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
 
     steps:
       - name: Checkout repository
@@ -86,10 +88,18 @@ jobs:
       - name: Prepare release assets and checksums
         run: |
           mkdir -p release_assets
+          release_assets_dir="$(pwd)/release_assets"
           for dir in artifacts/*/; do
             os_name="$(basename "$dir")"
             for f in "$dir"*; do
-              cp -r "$f" "release_assets/${os_name}-$(basename "$f")"
+              name="$(basename "$f")"
+              if [ -d "$f" ]; then
+                # e.g. a macOS .app bundle -- sha256sum/gh release can only
+                # handle files, so archive directory outputs into one first.
+                (cd "$dir" && zip -r -q "$release_assets_dir/${os_name}-${name}.zip" "$name")
+              else
+                cp "$f" "$release_assets_dir/${os_name}-${name}"
+              fi
             done
           done
 
@@ -99,14 +109,14 @@ jobs:
 
       - name: Extract CHANGELOG section for this version
         run: |
-          awk -v ver="${{ inputs.version }}" '
+          awk -v ver="$RELEASE_VERSION" '
             index($0, "## [" ver "]") == 1 { found=1; next }
             found && /^## \[/ { exit }
             found { print }
           ' CHANGELOG.md > changelog_section.md
 
           if [ ! -s changelog_section.md ]; then
-            echo "_No CHANGELOG.md entry found for \`${{ inputs.version }}\` — remember to rename \`[Unreleased]\` to \`[${{ inputs.version }}]\` before releasing._" > changelog_section.md
+            echo "_No CHANGELOG.md entry found for \`$RELEASE_VERSION\` — remember to rename \`[Unreleased]\` to \`[$RELEASE_VERSION]\` before releasing._" > changelog_section.md
           fi
 
       - name: Build release notes
@@ -124,7 +134,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ inputs.version }}" \
+          gh release create "$RELEASE_VERSION" \
             release_assets/* \
-            --title "PandaPlot ${{ inputs.version }}" \
+            --title "PandaPlot $RELEASE_VERSION" \
             --notes-file release_notes.md

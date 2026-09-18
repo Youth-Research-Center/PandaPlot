@@ -47,10 +47,10 @@ def setup_logging(
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
-    # Console handler. sys.stdout is None in a windowed build with no
-    # attached console (e.g. --windows-console-mode=disable), where
-    # StreamHandler() would raise on first write.
-    if cli_level is not None and sys.stdout is not None:
+    # Console handler. StreamHandler() defaults to sys.stderr, which is None
+    # in a windowed build with no attached console (e.g.
+    # --windows-console-mode=disable), where it would raise on first write.
+    if cli_level is not None and sys.stderr is not None:
         console_handler = logging.StreamHandler()
         console_handler.setLevel(cli_level)
         console_handler.setFormatter(formatter)

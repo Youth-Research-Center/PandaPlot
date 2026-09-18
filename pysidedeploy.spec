@@ -7,7 +7,7 @@ title = PandaPlot
 project_dir = .
 
 # source file entry point path. default = main.py
-input_file = pandaplot/app.py
+input_file = pandaplot\app.py
 
 # directory where the executable output is generated
 exec_directory = deployment
@@ -21,7 +21,7 @@ icon = pandaplot/gui/resources/icons/app_icon.ico
 [python]
 
 # python path
-python_path =
+python_path = C:\vso\PandaPlot\.venv\Scripts\python.exe
 
 # python packages to install
 packages = Nuitka==4.0
@@ -34,13 +34,13 @@ android_packages = buildozer==1.5.0,cython==0.29.33
 # paths to required qml files. comma separated
 # normally all the qml files required by the project are added automatically
 # design studio projects include the qml files using qt resources
-qml_files =
+qml_files = 
 
 # excluded qml plugin binaries
-excluded_qml_plugins =
+excluded_qml_plugins = 
 
 # qt modules used. comma separated
-modules = Core,Gui,Widgets
+modules = Widgets
 
 # qt plugins used by the application. only relevant for desktop deployment
 # for qt plugins used in android application see [android][plugins]
@@ -49,26 +49,26 @@ plugins = accessiblebridge,egldeviceintegrations,generic,iconengines,imageformat
 [android]
 
 # path to pyside wheel
-wheel_pyside =
+wheel_pyside = 
 
 # path to shiboken wheel
-wheel_shiboken =
+wheel_shiboken = 
 
 # plugins to be copied to libs folder of the packaged application. comma separated
-plugins =
+plugins = 
 
 [nuitka]
 
 # usage description for permissions requested by the app as found in the info.plist file
 # of the app bundle. comma separated
 # eg = extra_args = --show-modules --follow-stdlib
-macos.permissions =
+macos.permissions = 
 
 # mode of using nuitka. accepts standalone or onefile. default = onefile
 mode = onefile
 
 # specify any extra nuitka arguments
-extra_args = --quiet --noinclude-qt-translations --windows-console-mode=disable
+extra_args = --quiet --noinclude-qt-translations --windows-console-mode=disable --include-data-dir=pandaplot/gui/resources/icons=pandaplot/gui/resources/icons --include-data-dir=examples=examples
 
 [buildozer]
 
@@ -78,19 +78,20 @@ extra_args = --quiet --noinclude-qt-translations --windows-console-mode=disable
 mode = debug
 
 # path to pyside6 and shiboken6 recipe dir
-recipe_dir =
+recipe_dir = 
 
 # path to extra qt android .jar files to be loaded by the application
-jars_dir =
+jars_dir = 
 
 # if empty, uses default ndk path downloaded by buildozer
-ndk_path =
+ndk_path = 
 
 # if empty, uses default sdk path downloaded by buildozer
-sdk_path =
+sdk_path = 
 
 # other libraries to be loaded at app startup. comma separated.
-local_libs =
+local_libs = 
 
 # architecture of deployed platform
-arch =
+arch = 
+
