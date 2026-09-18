@@ -38,10 +38,16 @@ To test the deployment configuration without compiling:
 uv run python scripts/build_installer.py --dry-run
 ```
 
-To build the executable installer:
+To build the executable installer locally:
 ```bash
 uv run python scripts/build_installer.py
 ```
+
+### GitHub Actions Release Workflow
+Automated builds can be triggered manually via GitHub Actions under the **Actions** tab -> **Build Release Installer** workflow (`workflow_dispatch`). This workflow compiles installers across Linux, Windows, and macOS, uploading the resulting executables as build artifacts.
+
+### Troubleshooting Notes
+- **`dumpbin` Warning (Windows)**: You may see `RuntimeWarning: [DEPLOY] Unable to find dumpbin...`. `dumpbin.exe` is a Visual Studio C++ tool used by `pyside6-deploy` to automatically scan binary dependencies. On developer environments without MSVC in PATH, `pyside6-deploy` falls back to the Qt modules listed in `pysidedeploy.spec` (`modules = Core,Gui,Widgets`), which works as intended. In GitHub Actions, the `ilammy/msvc-dev-cmd` action initializes the MSVC toolchain (including `dumpbin`).
 
 ## Running Tests
 ```bash

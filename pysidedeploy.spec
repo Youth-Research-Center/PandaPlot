@@ -16,7 +16,7 @@ exec_directory = deployment
 project_file = pyproject.toml
 
 # application icon
-icon = pandaplot/gui/resources/icons/app_icon.png
+icon = pandaplot/gui/resources/icons/app_icon.ico
 
 [python]
 

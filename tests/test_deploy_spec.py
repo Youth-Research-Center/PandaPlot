@@ -5,6 +5,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 def test_pysidedeploy_spec_exists():
     """Verify that pysidedeploy.spec exists at root directory."""
@@ -31,9 +33,25 @@ def test_pysidedeploy_spec_contents():
 
 def test_pyside6_deploy_dry_run():
     """Verify that pyside6-deploy dry run succeeds without errors or missing module warnings."""
-    deploy_executable = shutil.which("pyside6-deploy") or "pyside6-deploy"
-    cmd = [deploy_executable, "-c", "pysidedeploy.spec", "--dry-run"]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    deploy_executable = shutil.which("pyside6-deploy")
+    if deploy_executable:
+        cmd = [deploy_executable, "-c", "pysidedeploy.spec", "--dry-run"]
+    elif shutil.which("uv"):
+        cmd = ["uv", "run", "pyside6-deploy", "-c", "pysidedeploy.spec", "--dry-run"]
+    else:
+        pytest.skip("Neither pyside6-deploy nor uv is available on PATH")
+
+    repo_root = Path(__file__).resolve().parent.parent
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=repo_root,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as err:
+        pytest.fail(f"pyside6-deploy execution failed: {err}")
 
     assert result.returncode == 0, f"pyside6-deploy dry-run failed:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     assert "WARNING:root:[DEPLOY] Found 'import PySide6'" not in result.stderr

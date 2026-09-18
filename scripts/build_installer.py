@@ -25,17 +25,24 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    repo_root = Path(__file__).resolve().parent.parent
+    spec_path = args.spec if args.spec.is_absolute() else (repo_root / args.spec).resolve()
+
+    if not spec_path.is_file():
+        print(f"Error: Deployment spec file not found at {spec_path}", file=sys.stderr)
+        return 1
+
     deploy_executable = shutil.which("pyside6-deploy")
     if deploy_executable:
-        cmd = [deploy_executable, "-c", str(args.spec)]
+        cmd = [deploy_executable, "-c", str(spec_path)]
     else:
-        cmd = ["uv", "run", "pyside6-deploy", "-c", str(args.spec)]
+        cmd = ["uv", "run", "pyside6-deploy", "-c", str(spec_path)]
 
     if args.dry_run:
         cmd.append("--dry-run")
 
-    print(f"Running: {' '.join(cmd)}")
-    result = subprocess.run(cmd)
+    print(f"Running: {' '.join(cmd)} (cwd: {repo_root})")
+    result = subprocess.run(cmd, cwd=repo_root)
     return result.returncode
 
 

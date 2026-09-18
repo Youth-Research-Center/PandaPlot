@@ -1,0 +1,56 @@
+name: Build Release Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Perform a dry run build without full compilation'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Build Installer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install C++ compiler tools (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build Installer Executable
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            uv run python scripts/build_installer.py --dry-run
+          else
+            uv run python scripts/build_installer.py
+          fi
+        shell: bash
+
+      - name: Upload Build Artifacts
+        if: inputs.dry_run == false
+        uses: actions/upload-artifact@v4
+        with:
+          name: pandaplot-installer-${{ runner.os }}
+          path: deployment/
