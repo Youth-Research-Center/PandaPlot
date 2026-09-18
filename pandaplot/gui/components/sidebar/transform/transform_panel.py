@@ -46,10 +46,6 @@ class TransformPanel(SidebarPanel):
         self.current_dataset_tab = None
         self.current_dataset = None
         self._last_transform_error: Optional[str] = None
-        # Whether a dataset is currently active (see enable_controls) --
-        # combined with the field-completeness checks in
-        # _update_apply_enabled to decide whether Apply is clickable.
-        self._dataset_available = False
 
         # Initialize transform controller
         self.transform_controller = TransformController(app_context)
@@ -384,7 +380,7 @@ class TransformPanel(SidebarPanel):
             "TransformPanel controller error for dataset %s: %s", dataset_id, error_message
         )
         self._last_transform_error = error_message
-        self.preview_text.setPlainText(f"Transform failed: {error_message}")
+        self._set_preview_message(f"Transform failed: {error_message}", is_error=True)
     
     def on_controller_preview_ready(self, dataset_id: str, preview_data):
         """Handle preview data from controller."""
@@ -475,7 +471,6 @@ class TransformPanel(SidebarPanel):
         # Apply has its own, stricter condition (see _update_apply_enabled) --
         # a dataset being active doesn't by itself mean Apply has anything
         # valid to do yet.
-        self._dataset_available = enabled
         self._update_apply_enabled()
 
     def _update_apply_enabled(self):
@@ -485,15 +480,39 @@ class TransformPanel(SidebarPanel):
         regardless, and clicking it with something missing failed
         silently (a logger.warning() with no visible feedback) -- this
         lets the user see at a glance that they're not done yet, instead
-        of only finding out after the click does nothing."""
+        of only finding out after the click does nothing.
+
+        Reads source_column_list's own enabled state (set by enable_controls)
+        rather than tracking a separate "dataset available" flag, so there's
+        only one piece of state to keep in sync instead of two."""
         ready = (
-            self._dataset_available
+            self.source_column_list.isEnabled()
             and bool(self.get_selected_columns())
             and bool(self.new_column_name.text().strip())
             and bool(self.function_text.toPlainText().strip())
         )
         self.apply_btn.setEnabled(ready)
-    
+        # A prior validation/transform error's red styling (see
+        # _set_preview_message) should not linger once the user has actually
+        # changed one of the fields it complained about.
+        self.preview_text.setStyleSheet("")
+
+    def _set_preview_message(self, message: str, *, is_error: bool = False):
+        """Write a message to preview_text, visually marking error states
+        (#227) so a validation failure or transform error is obvious at a
+        glance rather than looking like any other preview text -- errors get
+        a leading warning icon and the theme's danger color, mirroring the
+        red-text treatment fit_panel.py already uses for its own validation
+        errors."""
+        if is_error:
+            tokens = self.app_context.get_manager(ThemeManager).get_design_tokens()
+            danger = tokens.get("status_danger", "#DC3545")
+            self.preview_text.setStyleSheet(f"color: {danger};")
+            message = f"⚠ {message}"
+        else:
+            self.preview_text.setStyleSheet("")
+        self.preview_text.setPlainText(message)
+
     def on_transform_type_changed(self, transform_type: str):
         """Handle transform type selection change."""
         # Update function placeholder based on type
@@ -565,14 +584,14 @@ class TransformPanel(SidebarPanel):
         """Update the preview with sample transformation results."""
         selected_columns = self.get_selected_columns()
         if not self.current_dataset or not selected_columns:
-            self.preview_text.setPlainText("No data available for preview")
+            self._set_preview_message("No data available for preview")
             return
         
         source_column = selected_columns[0]  # Use first selected column for preview
         function_code = self.function_text.toPlainText().strip()
         
         if not function_code:
-            self.preview_text.setPlainText("Enter a function to preview")
+            self._set_preview_message("Enter a function to preview")
             return
         
         try:
@@ -600,10 +619,10 @@ class TransformPanel(SidebarPanel):
                     for i, value in enumerate(preview_result["transformed_values"]):
                         preview_text += f"  {i+1}: {value}\n"
                     
-                    self.preview_text.setPlainText(preview_text)
+                    self._set_preview_message(preview_text)
                 else:
                     error_msg = preview_result.get("error", "Preview generation failed") if preview_result else "Preview unavailable"
-                    self.preview_text.setPlainText(f"Preview error: {error_msg}")
+                    self._set_preview_message(f"Preview error: {error_msg}", is_error=True)
             else:
                 # Fallback to simple preview without controller
                 df = self.current_dataset.get_dataframe()
@@ -617,13 +636,13 @@ class TransformPanel(SidebarPanel):
                 preview_text += "Transformed:\n"
                 preview_text += "  (Preview will be calculated on apply)\n"
                 
-                self.preview_text.setPlainText(preview_text)
-            
+                self._set_preview_message(preview_text)
+
             # Preview updated - could publish preview event if needed
             pass
-            
+
         except Exception as e:
-            self.preview_text.setPlainText(f"Preview error: {str(e)}")
+            self._set_preview_message(f"Preview error: {str(e)}", is_error=True)
     
     def apply_transform(self):
         """Apply the transformation to the dataset.
@@ -640,7 +659,7 @@ class TransformPanel(SidebarPanel):
         selected_columns = self.get_selected_columns()
         if not self.current_dataset or not selected_columns:
             self.logger.warning("TransformPanel: no dataset or source column selected for transform")
-            self.preview_text.setPlainText("Select a source column before applying.")
+            self._set_preview_message("Select a source column before applying.", is_error=True)
             return
 
         source_column = selected_columns[0]  # Use first selected column for transformation
@@ -650,12 +669,12 @@ class TransformPanel(SidebarPanel):
 
         if not new_column_name:
             self.logger.warning("TransformPanel: no new column name provided")
-            self.preview_text.setPlainText("Enter a name for the new column before applying.")
+            self._set_preview_message("Enter a name for the new column before applying.", is_error=True)
             return
 
         if not function_code:
             self.logger.warning("TransformPanel: no transformation function provided")
-            self.preview_text.setPlainText("Enter a function before applying.")
+            self._set_preview_message("Enter a function before applying.", is_error=True)
             return
 
         try:
@@ -663,7 +682,7 @@ class TransformPanel(SidebarPanel):
             dataset_id = getattr(self.current_dataset, "id", None)
             if not dataset_id:
                 self.logger.warning("TransformPanel: dataset id not available; aborting transform")
-                self.preview_text.setPlainText("No dataset selected.")
+                self._set_preview_message("No dataset selected.", is_error=True)
                 return
 
             # Apply transformation through controller
@@ -688,11 +707,11 @@ class TransformPanel(SidebarPanel):
                 # already wrote the specific message to preview_text; fall back to a
                 # generic one only if that signal wasn't the source of the failure.
                 if not self._last_transform_error:
-                    self.preview_text.setPlainText("Transform failed - see logs for details")
+                    self._set_preview_message("Transform failed - see logs for details", is_error=True)
 
         except Exception as e:
             self.logger.error("TransformPanel: transform failed: %s", e, exc_info=True)
-            self.preview_text.setPlainText(f"Transform failed: {e}")
+            self._set_preview_message(f"Transform failed: {e}", is_error=True)
     
     def clear_panel(self):
         """Reset panel to initial state."""

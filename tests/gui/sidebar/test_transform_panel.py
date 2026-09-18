@@ -53,7 +53,7 @@ def test_controller_transform_failed_surfaces_message_in_preview(transform_panel
     )
 
     assert transform_panel.preview_text.toPlainText() == (
-        "Transform failed: Column 'a_x2' already exists. Choose a different name or enable replace option."
+        "⚠ Transform failed: Column 'a_x2' already exists. Choose a different name or enable replace option."
     )
 
 
@@ -91,7 +91,7 @@ def test_apply_transform_generic_failure_surfaces_message_when_no_signal_fired(t
 
     transform_panel.apply_transform()
 
-    assert transform_panel.preview_text.toPlainText() == "Transform failed - see logs for details"
+    assert transform_panel.preview_text.toPlainText() == "⚠ Transform failed - see logs for details"
 
 
 class TestApplyValidationFeedback:
@@ -106,7 +106,7 @@ class TestApplyValidationFeedback:
 
         transform_panel.apply_transform()
 
-        assert transform_panel.preview_text.toPlainText() == "Select a source column before applying."
+        assert transform_panel.preview_text.toPlainText() == "⚠ Select a source column before applying."
 
     def test_empty_new_column_name_writes_a_visible_message(self, transform_panel):
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
@@ -119,7 +119,7 @@ class TestApplyValidationFeedback:
 
         transform_panel.apply_transform()
 
-        assert transform_panel.preview_text.toPlainText() == "Enter a name for the new column before applying."
+        assert transform_panel.preview_text.toPlainText() == "⚠ Enter a name for the new column before applying."
 
     def test_empty_function_writes_a_visible_message(self, transform_panel):
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
@@ -130,7 +130,7 @@ class TestApplyValidationFeedback:
 
         transform_panel.apply_transform()
 
-        assert transform_panel.preview_text.toPlainText() == "Enter a function before applying."
+        assert transform_panel.preview_text.toPlainText() == "⚠ Enter a function before applying."
 
     def test_missing_dataset_id_writes_a_visible_message(self, transform_panel):
         transform_panel.current_dataset = Mock(id=None, data=Mock(columns=["a"]))
@@ -141,7 +141,45 @@ class TestApplyValidationFeedback:
 
         transform_panel.apply_transform()
 
-        assert transform_panel.preview_text.toPlainText() == "No dataset selected."
+        assert transform_panel.preview_text.toPlainText() == "⚠ No dataset selected."
+
+
+class TestPreviewErrorStyling:
+    """An error message in preview_text should be visually distinct (#227
+    review follow-up) rather than reading like any other preview text --
+    it gets a red-ish stylesheet, cleared once the offending field changes."""
+
+    def test_validation_error_applies_a_non_empty_stylesheet(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        # No item selected -- triggers the "select a source column" error.
+
+        transform_panel.apply_transform()
+
+        assert transform_panel.preview_text.styleSheet() != ""
+
+    def test_successful_preview_clears_any_error_styling(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        transform_panel.apply_transform()  # No column selected -- leaves an error style behind.
+        assert transform_panel.preview_text.styleSheet() != ""
+
+        transform_panel.source_column_list.item(0).setSelected(True)
+
+        assert transform_panel.preview_text.styleSheet() == ""
+
+    def test_editing_a_field_after_an_error_clears_the_error_styling(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        # function_text left empty -- triggers the "enter a function" error.
+        transform_panel.apply_transform()
+        assert transform_panel.preview_text.styleSheet() != ""
+
+        transform_panel.function_text.setPlainText("x * 2")
+
+        assert transform_panel.preview_text.styleSheet() == ""
 
 
 class TestApplyButtonEnablement:
