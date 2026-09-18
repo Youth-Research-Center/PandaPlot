@@ -33,12 +33,17 @@ def main() -> int:
         print(f"Error: Deployment spec file not found at {spec_path}", file=sys.stderr)
         return 1
 
-    # pyside6-deploy copies the final executable into exec_directory but never
-    # creates it, so a fresh clone fails with FileNotFoundError on that copy.
+    # pyside6-deploy resolves exec_directory relative to its own working
+    # directory (not the spec's project_dir), then copies the final
+    # executable there without creating it first, so a fresh clone fails
+    # with FileNotFoundError on that copy. Resolve it the same way here,
+    # against the same working directory we run the subprocess with below,
+    # so the two stay in sync even if that working directory ever changes.
+    build_cwd = repo_root
     spec_config = configparser.ConfigParser()
     spec_config.read(spec_path)
     exec_directory = spec_config.get("app", "exec_directory", fallback="deployment")
-    (repo_root / exec_directory).mkdir(parents=True, exist_ok=True)
+    (build_cwd / exec_directory).mkdir(parents=True, exist_ok=True)
 
     deploy_executable = shutil.which("pyside6-deploy")
     if deploy_executable:
@@ -49,8 +54,8 @@ def main() -> int:
     if args.dry_run:
         cmd.append("--dry-run")
 
-    print(f"Running: {' '.join(cmd)} (cwd: {repo_root})")
-    result = subprocess.run(cmd, cwd=repo_root)
+    print(f"Running: {' '.join(cmd)} (cwd: {build_cwd})")
+    result = subprocess.run(cmd, cwd=build_cwd)
     return result.returncode
 
 

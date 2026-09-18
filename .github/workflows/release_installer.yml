@@ -86,7 +86,7 @@ jobs:
           for dir in artifacts/*/; do
             os_name="$(basename "$dir")"
             for f in "$dir"*; do
-              cp "$f" "release_assets/${os_name}-$(basename "$f")"
+              cp -r "$f" "release_assets/${os_name}-$(basename "$f")"
             done
           done
 
