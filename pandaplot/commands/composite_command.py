@@ -68,10 +68,17 @@ class CompositeCommand(Command):
     least loud rather than silent.
     """
 
-    def __init__(self, commands: Optional[Iterable[Command]] = None):
+    def __init__(self, commands: Optional[Iterable[Command]] = None, display_name: Optional[str] = None, *, already_executed: bool = False):
         super().__init__()
         self.commands: List[Command] = list(commands) if commands is not None else []
-        self._executed: List[Command] = []
+        self._executed: List[Command] = list(self.commands) if already_executed else []
+        self._already_executed = already_executed
+        self._custom_display_name: Optional[str] = display_name
+
+    def display_name(self) -> str:
+        if self._custom_display_name:
+            return self._custom_display_name
+        return super().display_name()
 
     def add_command(self, command: Command) -> None:
         """Add a sub-command to the composite."""
@@ -94,6 +101,12 @@ class CompositeCommand(Command):
                     "independent execute_command() call, which a composite has no way to fold "
                     "into a single atomic undo/redo unit."
                 )
+
+        if self._already_executed:
+            self._already_executed = False
+            if not self.commands or not self._executed:
+                return CommandResult.NOOP
+            return CommandResult.SUCCESS
 
         executed: List[Command] = []
 
