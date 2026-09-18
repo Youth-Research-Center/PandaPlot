@@ -33,6 +33,9 @@ MANIFEST
 *.spec
 !pysidedeploy.spec
 
+# pyside6-deploy build output
+deployment/
+
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt

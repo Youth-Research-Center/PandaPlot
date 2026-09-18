@@ -2,6 +2,7 @@
 """Build installer executable for PandaPlot using pyside6-deploy."""
 
 import argparse
+import configparser
 import shutil
 import subprocess
 import sys
@@ -31,6 +32,13 @@ def main() -> int:
     if not spec_path.is_file():
         print(f"Error: Deployment spec file not found at {spec_path}", file=sys.stderr)
         return 1
+
+    # pyside6-deploy copies the final executable into exec_directory but never
+    # creates it, so a fresh clone fails with FileNotFoundError on that copy.
+    spec_config = configparser.ConfigParser()
+    spec_config.read(spec_path)
+    exec_directory = spec_config.get("app", "exec_directory", fallback="deployment")
+    (repo_root / exec_directory).mkdir(parents=True, exist_ok=True)
 
     deploy_executable = shutil.which("pyside6-deploy")
     if deploy_executable:
