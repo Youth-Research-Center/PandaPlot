@@ -8,6 +8,10 @@ on:
         required: false
         type: boolean
         default: false
+      version:
+        description: 'Release tag to publish the installers under (e.g. v1.0.0). Ignored for dry runs.'
+        required: false
+        type: string
 
 jobs:
   build:
@@ -19,6 +23,13 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
+      - name: Validate inputs
+        if: inputs.dry_run == false && inputs.version == ''
+        run: |
+          echo "::error::'version' is required when dry_run is false (it's the tag the release will be published under)."
+          exit 1
+        shell: bash
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -54,3 +65,51 @@ jobs:
         with:
           name: pandaplot-installer-${{ runner.os }}
           path: deployment/
+
+  release:
+    name: Publish Release
+    needs: build
+    if: inputs.dry_run == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets and checksums
+        run: |
+          mkdir -p release_assets
+          for dir in artifacts/*/; do
+            os_name="$(basename "$dir")"
+            for f in "$dir"*; do
+              cp "$f" "release_assets/${os_name}-$(basename "$f")"
+            done
+          done
+
+          cd release_assets
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Build release notes
+        run: |
+          {
+            echo "Automated installer build from commit ${{ github.sha }} (workflow run ${{ github.run_id }})."
+            echo
+            echo "## SHA256 Checksums"
+            echo '```'
+            cat release_assets/SHA256SUMS.txt
+            echo '```'
+          } > release_notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ inputs.version }}" \
+            release_assets/* \
+            --title "PandaPlot ${{ inputs.version }}" \
+            --notes-file release_notes.md
