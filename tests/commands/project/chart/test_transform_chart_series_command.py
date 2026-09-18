@@ -11,6 +11,7 @@ from pandaplot.commands.project.chart.transform_chart_series_command import (
     TransformChartSeriesCommand,
 )
 from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ProjectEvents
@@ -33,8 +34,9 @@ def ctx():
     y_id = dataset.column_id("sq")
     chart.add_data_series(dataset_id="ds-1", x_column_id=x_id, y_column_id=y_id,
                           x_column="t", y_column="sq", label="Squared")
-    chart.add_fit_data(source_dataset_id="ds-1", fit_type="quadratic",
-                       x_data=t, y_data=t ** 2, label="Quadratic Fit", source_x_column="t")
+    chart.add_fit_series(source_dataset_id="ds-1", x_data=t, y_data=t ** 2,
+                         label="Quadratic Fit", source_x_column="t",
+                         style=FitStyle(fit_type="quadratic"))
     project.add_item(chart)
 
     app_context = Mock(spec=AppContext)

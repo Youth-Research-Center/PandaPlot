@@ -369,15 +369,15 @@ class Chart(Item):
         return list(set(series.dataset_id for series in self.data_series))
 
     def referenced_item_ids(self) -> Optional[set]:
-        """Dataset ids referenced by any data series or fit (fit_data is
-        included here for relevance-checking purposes only -- see
-        _strip_references for why it's never actually stripped)."""
-        if not self.data_series and not self.fit_data:
+        """Dataset ids referenced by any data series, including FIT-type
+        ones (fit_data is a filtered view of data_series post-#304, so its
+        dataset ids -- via DataSeries.dataset_id, holding each fit's
+        source_dataset_id -- are already covered by data_series; see
+        _strip_references for why FIT-type entries are never actually
+        stripped despite counting toward this set)."""
+        if not self.data_series:
             return None
-        return (
-            {series.dataset_id for series in self.data_series}
-            | {fit.source_dataset_id for fit in self.fit_data}
-        )
+        return {series.dataset_id for series in self.data_series}
 
     def _strip_references(self, removed_ids: set) -> Any:
         """Drop data series referencing a removed dataset. fit_data is
@@ -391,7 +391,8 @@ class Chart(Item):
         includes fit_data for relevance detection, but if no data_series
         actually gets dropped here, nothing about this chart changed."""
         remaining_series = [
-            series for series in self.data_series if series.dataset_id not in removed_ids
+            series for series in self.data_series
+            if series.series_type == SeriesType.FIT or series.dataset_id not in removed_ids
         ]
         if len(remaining_series) == len(self.data_series):
             return None
@@ -608,9 +609,10 @@ def resolve_series_column(dataset: Any, column_id: str,
 def resolve_numeric_column(dataset: Any, column_id: str) -> Optional[np.ndarray]:
     """Resolve a column id to a JSON-safe numeric numpy array snapshot.
 
-    Used for fit data (FitData.x_data/y_data/confidence_lower/
-    confidence_upper), which is always treated as purely numeric --
-    unlike a live DataSeries reference. Non-numeric values coerce to NaN
+    Used for fit data (a FIT-type DataSeries's precomputed_x_data/
+    precomputed_y_data and its style's confidence_lower/confidence_upper),
+    which is always treated as purely numeric -- unlike a live DataSeries
+    reference. Non-numeric values coerce to NaN
     (pandas.to_numeric(errors="coerce")) rather than raising, and the
     dtype is always JSON-serializable, since Chart.to_dict() later calls
     .tolist() on it for json.dumps() during project save with no custom

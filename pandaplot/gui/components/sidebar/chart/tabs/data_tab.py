@@ -41,7 +41,7 @@ from pandaplot.utils.item_display_options import dataset_display_options
 
 # itemData for the Series Type combo's non-retype "Fit" entry -- selecting
 # it doesn't retype the series in place like a real SeriesType; it converts
-# the series into a FitData entry instead (see
+# the series into a SeriesType.FIT DataSeries instead (see
 # DataTab._convert_selected_series_to_fit and #298). Kept distinct from any
 # SeriesType member so `currentData()` can tell the two apart.
 _CONVERT_TO_FIT = "__convert_to_fit__"
@@ -236,7 +236,7 @@ class DataTab(QWidget):
 
         # Only meaningful right before converting a series to a fit (see
         # _convert_selected_series_to_fit): read at that moment to snapshot
-        # optional confidence-band columns into the new FitData. Not
+        # optional confidence-band columns into the new FIT-type DataSeries. Not
         # persisted on DataSeries itself -- there is nothing to restore
         # from the model on reload, so these simply reset to "None" each
         # time _load_series_into_controls repopulates them.
@@ -969,7 +969,7 @@ class DataTab(QWidget):
         same as selecting a different series does.
 
         Selecting the "Fit" sentinel entry is not a retype: it converts
-        the series into a FitData entry instead (see
+        the series into a SeriesType.FIT DataSeries instead (see
         _convert_selected_series_to_fit) and returns early, since the
         series at `current_row` no longer exists in `data_series` once
         that conversion runs.

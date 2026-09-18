@@ -220,9 +220,10 @@ def test_redo_converts_again(app_context_with_chart):
 
 def test_datetime_x_column_is_coerced_to_numeric_and_json_safe(app_context_with_chart):
     """Regression test for final-review Fix 1 (#298): a non-numeric (e.g.
-    datetime64) source column must not be snapshotted as-is into
-    FitData.x_data/y_data. Chart.to_dict() calls .tolist() on those
-    arrays and the project save path json.dumps()s the result with no
+    datetime64) source column must not be snapshotted as-is into the
+    FIT-type DataSeries's precomputed_x_data/precomputed_y_data.
+    Chart.to_dict() calls .tolist() on those arrays and the project save
+    path json.dumps()s the result with no
     custom encoder, so a raw datetime64 dtype would make the project
     fail to save -- and since ProjectDataManager.save() truncates the
     zip before writing, a failed save can destroy the previously-saved

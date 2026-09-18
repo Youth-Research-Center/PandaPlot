@@ -67,39 +67,43 @@ class TestFitDataConfidenceBandRoundTrip:
 
     def test_confidence_bands_survive_to_dict_from_dict(self):
         chart = Chart(name="C", chart_type="line")
-        chart.add_fit_data(
-            source_dataset_id="ds1", fit_type="linear",
+        chart.add_fit_series(
+            source_dataset_id="ds1",
             x_data=np.array([1.0, 2.0, 3.0]), y_data=np.array([1.0, 2.0, 3.0]),
             label="Fit",
-            confidence_lower=np.array([0.5, 1.5, 2.5]),
-            confidence_upper=np.array([1.5, 2.5, 3.5]),
+            style=FitStyle(
+                fit_type="linear",
+                confidence_lower=np.array([0.5, 1.5, 2.5]),
+                confidence_upper=np.array([1.5, 2.5, 3.5]),
+            ),
         )
 
         restored = Chart.from_dict(chart.to_dict())
 
         fit = restored.fit_data[0]
-        assert fit.confidence_lower is not None
-        assert fit.confidence_upper is not None
-        assert list(fit.confidence_lower) == [0.5, 1.5, 2.5]
-        assert list(fit.confidence_upper) == [1.5, 2.5, 3.5]
-        assert isinstance(fit.confidence_lower, np.ndarray)
-        assert isinstance(fit.confidence_upper, np.ndarray)
+        assert fit.style.confidence_lower is not None
+        assert fit.style.confidence_upper is not None
+        assert list(fit.style.confidence_lower) == [0.5, 1.5, 2.5]
+        assert list(fit.style.confidence_upper) == [1.5, 2.5, 3.5]
+        assert isinstance(fit.style.confidence_lower, np.ndarray)
+        assert isinstance(fit.style.confidence_upper, np.ndarray)
 
     def test_absent_confidence_bands_round_trip_as_none(self):
         """A fit with no computed confidence band (the common case) must
         round-trip to None, not to a stray empty array or a crash."""
         chart = Chart(name="C", chart_type="line")
-        chart.add_fit_data(
-            source_dataset_id="ds1", fit_type="linear",
+        chart.add_fit_series(
+            source_dataset_id="ds1",
             x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]),
             label="Fit",
+            style=FitStyle(fit_type="linear"),
         )
 
         restored = Chart.from_dict(chart.to_dict())
 
         fit = restored.fit_data[0]
-        assert fit.confidence_lower is None
-        assert fit.confidence_upper is None
+        assert fit.style.confidence_lower is None
+        assert fit.style.confidence_upper is None
 
 
 class TestChartTypeIsChartTypeEnum:
@@ -1071,8 +1075,9 @@ class TestChartDependencyHook:
     def test_referenced_item_ids_includes_series_and_fit_dataset_ids(self):
         chart = Chart(id="chart-1", name="Chart")
         chart.add_data_series("ds-1", label="s1")
-        chart.add_fit_data("ds-2", fit_type="linear", label="f1",
-                          x_data=np.array([1.0]), y_data=np.array([2.0]))
+        chart.add_fit_series(source_dataset_id="ds-2", label="f1",
+                              x_data=np.array([1.0]), y_data=np.array([2.0]),
+                              style=FitStyle(fit_type="linear"))
 
         assert chart.referenced_item_ids() == {"ds-1", "ds-2"}
 
@@ -1109,19 +1114,22 @@ class TestChartDependencyHook:
         assert chart.dependency_update_event() == (ChartEvents.CHART_UPDATED, {"chart_id": "chart-1"})
 
     def test_on_items_removed_is_a_no_op_when_only_a_fit_overlaps(self):
-        """A chart whose only reference to a removed dataset is via
-        fit_data (not data_series) must not be treated as changed --
-        fit_data is included in referenced_item_ids() for relevance
-        detection only and is never stripped, so stripping nothing should
+        """A chart whose only reference to a removed dataset is via a
+        FIT-type series (never a plain, non-fit data series) must not be
+        treated as changed -- FIT-type series are deliberately excluded
+        from stripping in _strip_references (a fit renders from its own
+        stored curve data, not a live dataset lookup, so it stays valid
+        after its source dataset is gone), so removing nothing should
         report nothing changed rather than a spurious snapshot/event."""
         chart = Chart(id="chart-1", name="Fit-only chart")
         chart.add_data_series("ds-unrelated", label="s1")
-        chart.add_fit_data("ds-1", fit_type="linear", label="f1",
-                          x_data=np.array([1.0]), y_data=np.array([2.0]))
+        chart.add_fit_series(source_dataset_id="ds-1", label="f1",
+                              x_data=np.array([1.0]), y_data=np.array([2.0]),
+                              style=FitStyle(fit_type="linear"))
 
         assert chart.on_items_removed({"ds-1"}) is None
-        assert [s.dataset_id for s in chart.data_series] == ["ds-unrelated"]
-        assert [f.source_dataset_id for f in chart.fit_data] == ["ds-1"]
+        assert [s.dataset_id for s in chart.data_series] == ["ds-unrelated", "ds-1"]
+        assert [f.dataset_id for f in chart.fit_data] == ["ds-1"]
 
 
 def test_dataseries_precomputed_fields_default_to_none():
