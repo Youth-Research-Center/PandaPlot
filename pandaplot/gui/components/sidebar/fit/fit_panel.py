@@ -26,6 +26,7 @@ from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import DataSeries, resolve_series_column
@@ -415,12 +416,23 @@ class FitPanel(SidebarPanel):
         if chart_id != self.current_chart.id or event_data.get("kind") != "series":
             return
         index = event_data.get("index")
-        # series_combo mirrors chart.data_series 1:1, in order, followed by
-        # a trailing "Custom..." entry -- so the series' own index in the
-        # chart is also its row here.
         if index is None or not (0 <= index < len(self.current_chart.data_series)):
             return
-        self.series_combo.setCurrentIndex(index)
+        series = self.current_chart.data_series[index]
+        # series_combo excludes FIT-type entries (see load_chart_object),
+        # so it no longer mirrors chart.data_series 1:1 by index -- find
+        # the clicked series' own row by identity instead of the chart
+        # index directly. Not `findData()`/`==`: DataSeries is a plain
+        # dataclass whose precomputed_x_data/precomputed_y_data compare
+        # as equal-when-both-None, so two distinct series can be
+        # `==`-equal (see chart.py's `compare=False` fields) -- `is`
+        # avoids matching the wrong row. A fit click can't reach here at
+        # all (kind == "fit" for those, filtered above), so this is
+        # always a plain series and always present in the combo.
+        for row in range(self.series_combo.count()):
+            if self.series_combo.itemData(row) is series:
+                self.series_combo.setCurrentIndex(row)
+                break
 
     def _show_scipy_warning(self):
         """Show warning if scipy is not available."""
@@ -760,6 +772,15 @@ class FitPanel(SidebarPanel):
             return
 
         for series in chart.data_series:
+            if series.series_type == SeriesType.FIT:
+                # A fit isn't a valid source for a new fit (#304): its
+                # dataset_id/x_column/y_column mean "source columns the
+                # fit was computed from", not a live column to re-read --
+                # get_current_data() would silently re-fit the ORIGINAL
+                # source data instead of the fit's own curve, and fail
+                # outright once that source dataset is gone (which a fit
+                # is specifically designed to survive).
+                continue
             if series.label:
                 label = series.label
             else:

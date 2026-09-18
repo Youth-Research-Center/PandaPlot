@@ -176,7 +176,16 @@ def _legacy_col_match(series_id: str, series_name: str, fit_id: str, fit_name: s
 def _resolve_legacy_fit_y_axis(fit: dict, original_series: list) -> str:
     """Reproduce chart_editor.py's removed per-render fit/series axis
     match, once, against the chart's pre-migration series list -- see
-    migrate_chart_v2_to_v3's docstring."""
+    migrate_chart_v2_to_v3's docstring.
+
+    The old per-render match only ever moved a fit to secondary -- it
+    looked for a matching series that was ALSO on the secondary axis and
+    used primary otherwise, never "whichever matching series comes
+    first". So a primary-axis match earlier in the list must not shadow
+    a secondary-axis match later in it (e.g. the same columns plotted on
+    both axes): only a secondary match is searched for here, primary is
+    purely the fallback.
+    """
     source_dataset_id = fit.get("source_dataset_id", "")
     source_x_column_id = fit.get("source_x_column_id", "")
     source_x_column = fit.get("source_x_column", "")
@@ -184,6 +193,7 @@ def _resolve_legacy_fit_y_axis(fit: dict, original_series: list) -> str:
     source_y_column = fit.get("source_y_column", "")
     for series in original_series:
         if (series.get("series_type") != "fit"
+                and series.get("y_axis") == "secondary"
                 and series.get("dataset_id", "") == source_dataset_id
                 and _legacy_col_match(
                     series.get("x_column_id", ""), series.get("x_column", ""),
@@ -191,7 +201,7 @@ def _resolve_legacy_fit_y_axis(fit: dict, original_series: list) -> str:
                 and _legacy_col_match(
                     series.get("y_column_id", ""), series.get("y_column", ""),
                     source_y_column_id, source_y_column)):
-            return series.get("y_axis", "primary")
+            return "secondary"
     return "primary"
 
 

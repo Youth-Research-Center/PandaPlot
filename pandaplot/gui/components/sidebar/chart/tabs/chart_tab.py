@@ -123,9 +123,19 @@ class ChartTab(QWidget):
         # -- that simply don't list FIT in their allowed_series_types. This
         # is applied after the "no series yet" fallback above, so a chart
         # holding only a FIT series (nothing left to protect) still reports
-        # every chart type as compatible, same as a genuinely empty set.
+        # every 2-D chart type as compatible, same as a genuinely empty set.
+        has_fit = SeriesType.FIT in series_types
         series_types.discard(SeriesType.FIT)
         compatible = compatible_chart_types_for_series(series_types)
+        if has_fit:
+            # FIT is 2-D-only (its renderer plots on a plain matplotlib
+            # Axes, not mplot3d) -- discarding it above must not let an
+            # otherwise-empty series_types (a fit-only chart) fall back to
+            # "every chart type is compatible" and offer a 3-D switch a
+            # fit can't actually render on. No chart can hold both a FIT
+            # and a 3-D series (allowed_series_types never mixes 2-D/3-D),
+            # so this only ever narrows a fit-only or fit+2-D-series set.
+            compatible = frozenset(t for t in compatible if not CHART_TYPE_SPECS[t].is_3d)
         model = self.chart_type_control.model()
         for index in range(self.chart_type_control.count()):
             target_type = self.chart_type_control.itemData(index)

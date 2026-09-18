@@ -388,11 +388,10 @@ class DataTab(QWidget):
     def _build_move_up_button(self, index: int) -> QPushButton:
         """Move this series one position earlier in the plotting order --
         i.e. it now draws *under* the series that used to be right before
-        it (#189). Series-only: FIT-type entries have no move controls of
-        their own (see `_build_collapsed_fit_row`/`_build_fit_detail_row`),
-        though a neighboring series' move button can still swap positions
-        with one -- a FIT entry now renders in its own `data_series` list
-        position like any other series (#304), not always last."""
+        it (#189). Shared by plain-series and FIT-type rows alike: a FIT
+        entry renders in its own `data_series` list position like any
+        other series (#304), not always last, so it needs the same
+        reorder affordance."""
         button = PButton(
             "▲", role="secondary", icon=True,  # ▲
             on_click=lambda _checked=False, i=index: self._move_series(i, i - 1)
@@ -474,6 +473,9 @@ class DataTab(QWidget):
         name_label.setStyleSheet(f"color: {tokens.get('text_primary', '#000')};")
         row.addWidget(name_label, 1)
 
+        total_series = len(self.current_chart.data_series)
+        row.addWidget(self._build_move_up_button(index))
+        row.addWidget(self._build_move_down_button(index, total_series))
         row.addWidget(self._build_trash_button(index))
         row.addWidget(self._build_chevron_button(index, expanded=False))
 
@@ -550,6 +552,9 @@ class DataTab(QWidget):
         name_label = QLabel(f"\U0001f527 {fit.label}")
         name_label.setStyleSheet(f"color: {tokens.get('text_primary', '#000')};")
         header.addWidget(name_label, 1)
+        total_series = len(self.current_chart.data_series)
+        header.addWidget(self._build_move_up_button(index))
+        header.addWidget(self._build_move_down_button(index, total_series))
         header.addWidget(self._build_trash_button(index))
         header.addWidget(self._build_chevron_button(index, expanded=True))
         outer.addLayout(header)
@@ -619,8 +624,8 @@ class DataTab(QWidget):
             self._expanded_card_y_axis_badge = badge
             self._expanded_card_y_axis_badge_tokens = tokens
             header.addWidget(badge)
-            header.addWidget(self._build_move_up_button(index))
-            header.addWidget(self._build_move_down_button(index, total_series))
+        header.addWidget(self._build_move_up_button(index))
+        header.addWidget(self._build_move_down_button(index, total_series))
         header.addWidget(self._build_trash_button(index))
         chevron = PButton(
             "▾", role="secondary", icon=True, enabled=False

@@ -58,13 +58,20 @@ def _resolve_source_y_axis(
     instead of on every render, since a fit's y_axis is now a first-class
     field like any other series'. Falls back to YAxis.PRIMARY when no
     matching series is found (the source series was removed, or the fit
-    isn't tied to a live series at all)."""
+    isn't tied to a live series at all). The old per-render match only
+    ever moved a fit to secondary -- it looked for a matching series that
+    was ALSO on the secondary axis and used primary otherwise, never
+    "whichever matching series happens to come first" -- so a primary
+    match earlier in the list must not shadow a secondary match later in
+    it (e.g. the same columns plotted on both axes): only a secondary
+    match is searched for here, primary is purely the fallback."""
     for series in chart.data_series:
         if (series.series_type != SeriesType.FIT
+                and series.y_axis == YAxis.SECONDARY
                 and series.dataset_id == source_dataset_id
                 and _col_match(series.x_column_id, series.x_column, source_x_column_id, source_x_column)
                 and _col_match(series.y_column_id, series.y_column, source_y_column_id, source_y_column)):
-            return series.y_axis
+            return YAxis.SECONDARY
     return YAxis.PRIMARY
 
 

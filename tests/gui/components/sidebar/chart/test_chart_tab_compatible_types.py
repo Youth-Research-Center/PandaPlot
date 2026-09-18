@@ -136,3 +136,31 @@ def test_a_chart_holding_a_fit_still_allows_switching_to_colormap_and_heatmap():
 
     assert _is_option_enabled(tab, ChartType.COLORMAP) is True
     assert _is_option_enabled(tab, ChartType.HEATMAP) is True
+
+
+def test_a_fit_only_chart_does_not_allow_switching_to_3d_types():
+    """A chart holding ONLY a fit reduces `series_types` to the empty set
+    after discarding SeriesType.FIT (nothing else left to protect), which
+    `compatible_chart_types_for_series` treats as "everything compatible"
+    by design (a genuinely new chart has nothing to protect either) --
+    but a fit's renderer plots on a plain matplotlib Axes, not mplot3d, so
+    "everything" must not include 3-D targets it can't actually render
+    on. Before the fix, an empty-after-discard series_types silently
+    allowed 3-D switches for a fit-only chart."""
+    tab = ChartTab()
+    chart = Chart(name="Fit-Only Chart", chart_type="line")
+    chart.add_fit_series(
+        source_dataset_id="ds1",
+        x_data=np.array([1.0, 2.0, 3.0]),
+        y_data=np.array([1.0, 2.0, 3.0]),
+        label="Fit",
+        style=FitStyle(fit_type="linear"),
+    )
+    tab.load(chart)
+
+    assert _is_option_enabled(tab, ChartType.SCATTER3D) is False
+    assert _is_option_enabled(tab, ChartType.SURFACE) is False
+    # Still allows every 2-D target, matching the "nothing to protect"
+    # empty-set behavior for everything except 3-D.
+    assert _is_option_enabled(tab, ChartType.COLORMAP) is True
+    assert _is_option_enabled(tab, ChartType.SCATTER) is True
