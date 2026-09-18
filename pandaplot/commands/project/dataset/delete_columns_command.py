@@ -6,6 +6,7 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project.items import Chart
@@ -18,6 +19,10 @@ from pandaplot.models.state.app_state import AppState
 class ChartReferenceMatch:
     chart: Chart
     series_indices: List[int]
+    # Real chart.data_series indices of matched FIT-type series (#304 folded
+    # the old separate chart.fit_data list into chart.data_series, so these
+    # are no longer fit_data-relative positions -- same index space as
+    # series_indices/error_only_indices/confidence_only_indices below).
     fit_indices: List[int]
     error_only_indices: List[int]
     confidence_only_indices: List[int]
@@ -45,15 +50,16 @@ def _error_field_targets(series):
 
 def _confidence_field_targets(fit):
     """Return (container, id_field) pairs for a manually-converted fit's
-    optional confidence-band column references (#298 follow-up) --
-    like a series' error-bar columns, these are optional metadata whose
+    optional confidence-band column references (#298 follow-up) -- these
+    live on fit.style (FitStyle) since #304 folded FitData into DataSeries.
+    Like a series' error-bar columns, these are optional metadata whose
     absence doesn't invalidate the fit, so a delete should clear them
     rather than remove the whole fit. Unlike the error-bar fields, these
     have no separate legacy name-fallback field (added after stable ids
     became the norm), so there's no name_field to pair with."""
     return [
-        (fit, "confidence_lower_column_id"),
-        (fit, "confidence_upper_column_id"),
+        (fit.style, "confidence_lower_column_id"),
+        (fit.style, "confidence_upper_column_id"),
     ]
 
 
@@ -84,8 +90,12 @@ class DeleteColumnsCommand(Command):
         self.project = None
         self.dataset = None
 
-        # chart_id -> {"series": [(index, DataSeries)], "fits": [(index, FitData)]}
-        # populated when columns being deleted are referenced by chart series/fits
+        # chart_id -> {"series": [(index, DataSeries)], "fits": [(index, DataSeries)]}
+        # populated when columns being deleted are referenced by chart series/fits.
+        # Both "series" and "fits" indices are real chart.data_series positions
+        # (#304 folded the old separate chart.fit_data list into data_series),
+        # so restoring them on undo requires merging both groups into a single
+        # ascending-by-index pass -- see _restore_chart_references.
         self.removed_chart_refs = {}
 
         # chart_id -> [(series_index, old_x_error_column, old_y_error_column)]
@@ -281,18 +291,21 @@ class DeleteColumnsCommand(Command):
     ) -> List[ChartReferenceMatch]:
         """Find charts whose series/fits reference this dataset's columns.
 
-        Returns a list of (chart, data_series indices, fit_data indices,
-        error-only data_series indices, confidence-only fit_data indices)
-        for every chart with at least one matching reference. A series
-        lands in error-only indices (instead of data_series indices) when
-        the only matching reference is one of its optional columns
-        (x_error_column/y_error_column/magnitude_column), since that
-        series still renders fine without error bars and shouldn't be
-        removed. Likewise, a manually-converted fit lands in
-        confidence-only indices (instead of fit_data indices) when the
-        only matching reference is one of its optional confidence-band
-        columns (#298 follow-up) -- the fit's curve is still valid
-        without a confidence band.
+        Returns a list of (chart, data_series indices, FIT-type data_series
+        indices, error-only data_series indices, confidence-only FIT-type
+        data_series indices) for every chart with at least one matching
+        reference. All four index lists share the same index space: real
+        positions in chart.data_series (#304 folded the old separate
+        chart.fit_data list into data_series, so "fit" indices are no
+        longer fit_data-relative). A series lands in error-only indices
+        (instead of the plain data_series indices) when the only matching
+        reference is one of its optional columns (x_error_column/
+        y_error_column/magnitude_column), since that series still renders
+        fine without error bars and shouldn't be removed. Likewise, a
+        manually-converted fit lands in confidence-only indices (instead
+        of the fit indices) when the only matching reference is one of its
+        optional confidence-band columns (#298 follow-up) -- the fit's
+        curve is still valid without a confidence band.
         """
         if not self.project:
             return []
@@ -312,9 +325,15 @@ class DeleteColumnsCommand(Command):
         for item in self.project.get_all_items():
             if not isinstance(item, Chart):
                 continue
+            # Non-FIT series only here: a FIT-type DataSeries reuses the same
+            # generic dataset_id/x_column_id/y_column_id fields to mean "source
+            # columns the fit was computed from" (see Chart.add_fit_series), so
+            # without this exclusion a fit would double-match here AND in
+            # fit_idx below.
             series_idx = [
                 i for i, series in enumerate(item.data_series)
-                if series.dataset_id == self.dataset_id
+                if series.series_type != SeriesType.FIT
+                and series.dataset_id == self.dataset_id
                 and (refs(series.x_column_id, series.x_column)
                      or refs(series.y_column_id, series.y_column)
                      or (isinstance(series.style, VectorSeriesStyle)
@@ -323,19 +342,22 @@ class DeleteColumnsCommand(Command):
             ]
             error_only_idx = [
                 i for i, series in enumerate(item.data_series)
-                if i not in series_idx and series.dataset_id == self.dataset_id
+                if series.series_type != SeriesType.FIT
+                and i not in series_idx and series.dataset_id == self.dataset_id
                 and any(refs(getattr(container, id_field), getattr(container, name_field))
                         for container, id_field, name_field in _error_field_targets(series))
             ]
             fit_idx = [
-                i for i, fit in enumerate(item.fit_data)
-                if fit.source_dataset_id == self.dataset_id
-                and (refs(fit.source_x_column_id, fit.source_x_column)
-                     or refs(fit.source_y_column_id, fit.source_y_column))
+                i for i, fit in enumerate(item.data_series)
+                if fit.series_type == SeriesType.FIT
+                and fit.dataset_id == self.dataset_id
+                and (refs(fit.x_column_id, fit.x_column)
+                     or refs(fit.y_column_id, fit.y_column))
             ]
             confidence_only_idx = [
-                i for i, fit in enumerate(item.fit_data)
-                if i not in fit_idx and fit.source_dataset_id == self.dataset_id
+                i for i, fit in enumerate(item.data_series)
+                if fit.series_type == SeriesType.FIT
+                and i not in fit_idx and fit.dataset_id == self.dataset_id
                 and any(refs(getattr(container, id_field), "")
                         for container, id_field in _confidence_field_targets(fit))
             ]
@@ -379,7 +401,7 @@ class DeleteColumnsCommand(Command):
             error_only_idx = match.error_only_indices
             confidence_only_idx = match.confidence_only_indices
             removed_series = [(i, chart.data_series[i]) for i in series_idx]
-            removed_fits = [(i, chart.fit_data[i]) for i in fit_idx]
+            removed_fits = [(i, chart.data_series[i]) for i in fit_idx]
 
             # Clear error-only references using original indices before any
             # deletion shifts the list, so `i` still points at the right series.
@@ -412,25 +434,29 @@ class DeleteColumnsCommand(Command):
             # having no confidence band, which is what actually happened here.
             cleared_fits = []
             for i in confidence_only_idx:
-                fit = chart.fit_data[i]
+                fit = chart.data_series[i]
                 old_values = [
-                    (fit, "confidence_lower_column_id", fit.confidence_lower_column_id),
-                    (fit, "confidence_upper_column_id", fit.confidence_upper_column_id),
-                    (fit, "confidence_lower", fit.confidence_lower),
-                    (fit, "confidence_upper", fit.confidence_upper),
+                    (fit.style, "confidence_lower_column_id", fit.style.confidence_lower_column_id),
+                    (fit.style, "confidence_upper_column_id", fit.style.confidence_upper_column_id),
+                    (fit.style, "confidence_lower", fit.style.confidence_lower),
+                    (fit.style, "confidence_upper", fit.style.confidence_upper),
                 ]
-                if fit.confidence_lower_column_id and fit.confidence_lower_column_id in deleted_ids:
-                    fit.confidence_lower_column_id = ""
-                    fit.confidence_lower = None
-                if fit.confidence_upper_column_id and fit.confidence_upper_column_id in deleted_ids:
-                    fit.confidence_upper_column_id = ""
-                    fit.confidence_upper = None
+                if fit.style.confidence_lower_column_id and fit.style.confidence_lower_column_id in deleted_ids:
+                    fit.style.confidence_lower_column_id = ""
+                    fit.style.confidence_lower = None
+                if fit.style.confidence_upper_column_id and fit.style.confidence_upper_column_id in deleted_ids:
+                    fit.style.confidence_upper_column_id = ""
+                    fit.style.confidence_upper = None
                 cleared_fits.append((i, old_values))
 
-            for i in sorted(series_idx, reverse=True):
+            # series_idx and fit_idx are disjoint real chart.data_series indices
+            # (series_idx explicitly excludes FIT-type series above) into the
+            # SAME list post-#304, so they must be deleted together in one
+            # descending pass -- deleting from two independently-sorted passes
+            # over the same list would shift the second pass's indices out from
+            # under it.
+            for i in sorted(set(series_idx) | set(fit_idx), reverse=True):
                 del chart.data_series[i]
-            for i in sorted(fit_idx, reverse=True):
-                del chart.fit_data[i]
 
             if removed_series or removed_fits or cleared_series or cleared_fits:
                 chart.update_modified_time()
@@ -464,10 +490,16 @@ class DeleteColumnsCommand(Command):
             if not isinstance(chart, Chart):
                 continue
             removed = self.removed_chart_refs.get(chart_id, {"series": [], "fits": []})
-            for i, series in sorted(removed["series"], key=lambda pair: pair[0]):
+            # "series" and "fits" entries are both real chart.data_series
+            # indices into the SAME list post-#304 (a FIT-type series is no
+            # longer a separate chart.fit_data list), so they must be merged
+            # into one ascending-by-index pass before inserting -- reinserting
+            # all "series" entries first and only then all "fits" entries
+            # (each group internally ascending) silently misplaces items
+            # whenever a removed fit's original index falls between two
+            # removed series' original indices (or vice versa).
+            for i, series in sorted(removed["series"] + removed["fits"], key=lambda pair: pair[0]):
                 chart.data_series.insert(i, series)
-            for i, fit in sorted(removed["fits"], key=lambda pair: pair[0]):
-                chart.fit_data.insert(i, fit)
 
             for i, old_values in self.cleared_error_refs.get(chart_id, []):
                 if 0 <= i < len(chart.data_series):
@@ -475,11 +507,12 @@ class DeleteColumnsCommand(Command):
                         setattr(container, field, value)
 
             # Restore confidence-only clears -- reached only after fit
-            # reinsertion above, so `i` (an original, pre-deletion index)
-            # once again points at the right fit in the fully-reconstructed
-            # list, same as the error-refs restore just above.
+            # reinsertion above, so `i` (an original, pre-deletion real
+            # data_series index) once again points at the right fit in the
+            # fully-reconstructed list, same as the error-refs restore just
+            # above.
             for i, old_values in self.cleared_confidence_refs.get(chart_id, []):
-                if 0 <= i < len(chart.fit_data):
+                if 0 <= i < len(chart.data_series):
                     for container, field, value in old_values:
                         setattr(container, field, value)
 
