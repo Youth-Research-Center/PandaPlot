@@ -209,6 +209,21 @@ class TestPreviewErrorStyling:
         assert transform_panel._preview_has_error is False
         assert transform_panel.preview_text.toPlainText() == ""
 
+    def test_toggling_replace_after_an_error_clears_the_error_styling(self, transform_panel):
+        """Regression: a duplicate-column failure tells the user to enable
+        Replace, but toggling that checkbox didn't invoke
+        _update_apply_enabled -- only selection/text signals did -- so the
+        stale red failure stayed displayed even after following its own
+        suggested fix."""
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._set_preview_message("Column 'a_x2' already exists.", is_error=True)
+        assert transform_panel._preview_has_error is True
+
+        transform_panel.replace_column_check.setChecked(True)
+
+        assert transform_panel._preview_has_error is False
+        assert transform_panel.preview_text.toPlainText() == ""
+
 
 class TestApplyButtonEnablement:
     """Regression (#227 broader UX ask): disable Apply until the fields it
@@ -219,6 +234,7 @@ class TestApplyButtonEnablement:
         assert transform_panel.apply_btn.isEnabled() is False
 
     def test_apply_stays_disabled_until_every_field_is_filled(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1")
         transform_panel.enable_controls(enabled=True)
         assert transform_panel.apply_btn.isEnabled() is False
 
@@ -232,7 +248,22 @@ class TestApplyButtonEnablement:
         transform_panel.function_text.setPlainText("x * 2")
         assert transform_panel.apply_btn.isEnabled() is True
 
+    def test_apply_stays_disabled_when_dataset_id_is_unavailable(self, transform_panel):
+        """Regression: readiness used to only check that controls were
+        enabled, not that current_dataset actually had a usable id -- so
+        Apply could become clickable for a dataset apply_transform() was
+        guaranteed to then reject."""
+        transform_panel.current_dataset = Mock(id=None)
+        transform_panel.enable_controls(enabled=True)
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        transform_panel.function_text.setPlainText("x * 2")
+
+        assert transform_panel.apply_btn.isEnabled() is False
+
     def test_clearing_the_function_disables_apply_again(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1")
         transform_panel.enable_controls(enabled=True)
         transform_panel._populate_column_list(["a"])
         transform_panel.source_column_list.item(0).setSelected(True)
@@ -245,6 +276,7 @@ class TestApplyButtonEnablement:
         assert transform_panel.apply_btn.isEnabled() is False
 
     def test_disabling_controls_disables_apply_regardless_of_filled_fields(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1")
         transform_panel.enable_controls(enabled=True)
         transform_panel._populate_column_list(["a"])
         transform_panel.source_column_list.item(0).setSelected(True)

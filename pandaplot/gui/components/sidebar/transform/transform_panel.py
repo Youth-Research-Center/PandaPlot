@@ -359,6 +359,10 @@ class TransformPanel(SidebarPanel):
         self.source_column_list.itemSelectionChanged.connect(self.on_source_column_changed)
         self.new_column_name.textChanged.connect(self._update_apply_enabled)
         self.function_text.textChanged.connect(self._update_apply_enabled)
+        # Doesn't affect Apply's ready-state, but a duplicate-column failure
+        # tells the user to enable Replace, so toggling it needs to clear
+        # that error message too (see _update_apply_enabled).
+        self.replace_column_check.toggled.connect(self._update_apply_enabled)
         # Connect transform controller signals
         self.transform_controller.transform_completed.connect(self.on_controller_transform_completed)
         self.transform_controller.transform_failed.connect(self.on_controller_transform_failed)
@@ -481,9 +485,13 @@ class TransformPanel(SidebarPanel):
 
         Reads source_column_list's own enabled state (set by enable_controls)
         rather than tracking a separate "dataset available" flag, so there's
-        only one piece of state to keep in sync instead of two."""
+        only one piece of state to keep in sync instead of two. Also checks
+        current_dataset's id directly -- a dataset can be active (controls
+        enabled) with an id that's still unavailable, which apply_transform()
+        would otherwise reject after the fact."""
         ready = (
             self.source_column_list.isEnabled()
+            and bool(getattr(self.current_dataset, "id", None))
             and bool(self.get_selected_columns())
             and bool(self.new_column_name.text().strip())
             and bool(self.function_text.toPlainText().strip())
