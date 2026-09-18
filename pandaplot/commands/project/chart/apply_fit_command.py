@@ -11,8 +11,10 @@ from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.events import ChartEvents
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events.event_types import DatasetEvents, ProjectEvents
 from pandaplot.models.project.items import Dataset, Note
+from pandaplot.models.project.items.chart import YAxis
 from pandaplot.models.state import AppContext
 
 # Maps a short fit-type name to its chart color. `fit_type` from the fit panel is a
@@ -34,6 +36,36 @@ def _resolve_fit_style(fit_type: str) -> tuple[str, str]:
         if short_name in fit_type:
             return short_name, color
     return fit_type, "#ff0000"
+
+
+def _col_match(series_id: str, series_name: str, source_id: str, source_name: str) -> bool:
+    if series_id and source_id:
+        return series_id == source_id
+    return series_name == source_name
+
+
+def _resolve_source_y_axis(
+    chart, source_dataset_id: str,
+    source_x_column_id: str, source_x_column: str,
+    source_y_column_id: str, source_y_column: str,
+) -> "YAxis":
+    """A new fit has no y_axis of its own -- it takes its source series'
+    axis, so the fit overlays the curve it was computed from instead of
+    always landing on the primary axis regardless of where that series
+    actually plots. Matches by dataset id plus (stable id, name-fallback)
+    column matching, same as chart_editor.py's now-removed per-render
+    fit/series matching used to (#304) -- done once at creation time
+    instead of on every render, since a fit's y_axis is now a first-class
+    field like any other series'. Falls back to YAxis.PRIMARY when no
+    matching series is found (the source series was removed, or the fit
+    isn't tied to a live series at all)."""
+    for series in chart.data_series:
+        if (series.series_type != SeriesType.FIT
+                and series.dataset_id == source_dataset_id
+                and _col_match(series.x_column_id, series.x_column, source_x_column_id, source_x_column)
+                and _col_match(series.y_column_id, series.y_column, source_y_column_id, source_y_column)):
+            return series.y_axis
+    return YAxis.PRIMARY
 
 
 class ApplyFitCommand(Command):
@@ -272,6 +304,11 @@ class ApplyFitCommand(Command):
             source_y_column=self.source_y_column,
             label=label,
             style=style,
+            y_axis=_resolve_source_y_axis(
+                chart, self.source_dataset_id,
+                self.source_x_column_id, self.source_x_column,
+                self.source_y_column_id, self.source_y_column,
+            ),
         )
 
         self.added_index = len(chart.data_series) - 1

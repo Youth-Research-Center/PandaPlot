@@ -580,6 +580,41 @@ class TestRetypeSeries:
         assert isinstance(series.style, VectorSeriesStyle)
         assert series.style.vector_color == "#445566"
 
+    def test_retyping_a_fit_series_is_a_no_op(self):
+        """A FIT series' precomputed_x_data/precomputed_y_data has no
+        equivalent in any other series type -- retyping it away would
+        silently orphan that data (resolve_series_data keeps rendering
+        the frozen fit curve since it checks precomputed data before
+        series_type). Explicitly out of scope (#304's non-goals); this
+        must fail safe as a no-op, not corrupt the series, even when a
+        caller (e.g. a stale/mis-populated UI control) doesn't itself
+        exclude FIT before calling retype_series."""
+        import numpy as np
+        from pandaplot.models.chart.fit_style import FitStyle
+
+        chart = Chart(name="C", chart_type="line")
+        fit = chart.add_fit_series(
+            source_dataset_id="ds1", x_data=np.array([1.0]), y_data=np.array([2.0]),
+            label="Fit", style=FitStyle(),
+        )
+
+        chart.retype_series(0, "line")
+
+        assert chart.data_series[0] is fit
+        assert fit.series_type == SeriesType.FIT
+        assert fit.precomputed_x_data is not None
+
+    def test_retyping_to_fit_is_a_no_op(self):
+        chart = Chart(name="C", chart_type="line")
+        chart.add_data_series(dataset_id="ds1", x_column_id="x", y_column_id="y",
+                               style=LineSeriesStyle(color="#112233"))
+        original_style = chart.data_series[0].style
+
+        chart.retype_series(0, "fit")
+
+        assert chart.data_series[0].series_type == SeriesType.LINE
+        assert chart.data_series[0].style is original_style
+
     def test_retyping_to_the_same_type_is_a_no_op(self):
         chart = Chart(name="C", chart_type="line")
         chart.add_data_series(dataset_id="ds1", x_column_id="x", y_column_id="y",

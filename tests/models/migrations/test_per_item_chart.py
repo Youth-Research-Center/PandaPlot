@@ -552,6 +552,37 @@ def test_migrate_chart_v2_to_v3_folds_fit_data_into_data_series():
     assert fit_entry["y_axis"] == "primary"
 
 
+def test_migrate_chart_v2_to_v3_matches_a_fit_to_its_secondary_axis_source_series():
+    """A legacy fit had no y_axis of its own -- chart_editor.py's removed
+    render loop matched it to its source series (by dataset id + column
+    id/name) on every render to borrow that series' axis. The migration
+    must reproduce that match once, not default every fit to primary
+    (#304 final-review finding)."""
+    from pandaplot.models.migrations.per_item.chart import migrate_chart_v2_to_v3
+
+    raw = {
+        "chart_type": "line",
+        "data_series": [{
+            "dataset_id": "ds1", "series_type": "line", "style": {},
+            "x_column_id": "xid", "y_column_id": "yid",
+            "x_column": "X", "y_column": "Y", "y_axis": "secondary",
+        }],
+        "fit_data": [{
+            "source_dataset_id": "ds1",
+            "source_x_column_id": "xid", "source_y_column_id": "yid",
+            "source_x_column": "X", "source_y_column": "Y",
+            "fit_type": "linear",
+            "x_data": [1.0, 2.0], "y_data": [3.0, 4.0],
+            "label": "My Fit", "visible": True,
+            "style": {"color": "#ff7f0e", "line_style": "dashed", "line_width": 2.0, "alpha": 1.0},
+        }],
+    }
+
+    migrated = migrate_chart_v2_to_v3(raw)
+
+    assert migrated["data_series"][1]["y_axis"] == "secondary"
+
+
 def test_migrate_chart_dispatches_through_v2_to_v3(monkeypatch=None):
     from pandaplot.models.migrations.per_item.chart import migrate_chart
 

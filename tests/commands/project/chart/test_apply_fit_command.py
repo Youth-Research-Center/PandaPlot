@@ -89,6 +89,52 @@ def test_execute_adds_fit_to_chart(app_context_with_chart, fit_results):
     assert fit.style.fit_stats == {"r_squared": 0.99}
 
 
+def test_execute_places_fit_on_the_same_axis_as_its_source_series(app_context_with_chart, fit_results):
+    """A fit's y_axis is resolved from its source series at creation time
+    (#304 -- old chart_editor.py dynamically matched fit-to-series on
+    every render to borrow the axis; that matching is now done once, here,
+    since a fit is a normal DataSeries with its own y_axis field)."""
+    app_context, project, chart, source = app_context_with_chart
+    chart.add_data_series(
+        source.id, x_column_id="x_id", y_column_id="y_id",
+        x_column="x", y_column="y", y_axis="secondary", label="Secondary series",
+    )
+
+    command = ApplyFitCommand(
+        app_context=app_context,
+        chart_id=chart.id,
+        fit_results=fit_results,
+        source_dataset_id=source.id,
+        source_x_column_id="x_id",
+        source_y_column_id="y_id",
+        source_x_column="x",
+        source_y_column="y",
+        label="Linear fit",
+    )
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert chart.fit_data[0].y_axis == "secondary"
+
+
+def test_execute_defaults_to_primary_axis_when_no_source_series_matches(app_context_with_chart, fit_results):
+    app_context, project, chart, source = app_context_with_chart
+
+    command = ApplyFitCommand(
+        app_context=app_context,
+        chart_id=chart.id,
+        fit_results=fit_results,
+        source_dataset_id=source.id,
+        source_x_column_id="x_id",
+        source_y_column_id="y_id",
+        source_x_column="x",
+        source_y_column="y",
+        label="Linear fit",
+    )
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert chart.fit_data[0].y_axis == "primary"
+
+
 def test_undo_restores_original_series_order(app_context_with_chart, fit_results):
     """Undo must remove exactly the fit series added by this command,
     leaving any pre-existing series at their original positions -- this

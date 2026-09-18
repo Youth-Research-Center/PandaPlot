@@ -222,10 +222,24 @@ class Chart(Item):
         no line concept), but adding one back on the reverse retype would be
         an unrequested rendering change -- left as an explicit follow-up
         style edit instead.
+
+        A FIT series is never retyped, in either direction: its
+        `precomputed_x_data`/`precomputed_y_data` snapshot has no equivalent
+        in any other series type, so retyping it away would silently orphan
+        that data (resolve_series_data would keep rendering the frozen fit
+        curve under the new type's style, since it checks precomputed data
+        before series_type). Retyping *to* FIT via this generic path would
+        likewise produce a FIT series with no curve data at all. Both are
+        explicitly out of scope (#304's non-goals) -- this is a no-op, not
+        an error, so a caller that reaches this without itself excluding
+        FIT (e.g. a stale/mis-populated UI control) fails safe instead of
+        corrupting the series.
         """
         series = self.data_series[index]
         new_type = SeriesType(series_type)
         if series.series_type == new_type:
+            return
+        if series.series_type == SeriesType.FIT or new_type == SeriesType.FIT:
             return
         old_style = series.style
         base_color = (

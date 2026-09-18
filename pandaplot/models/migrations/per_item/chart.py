@@ -167,6 +167,34 @@ def migrate_chart_v1_to_v2(raw: dict) -> dict:
     return new_raw
 
 
+def _legacy_col_match(series_id: str, series_name: str, fit_id: str, fit_name: str) -> bool:
+    if series_id and fit_id:
+        return series_id == fit_id
+    return series_name == fit_name
+
+
+def _resolve_legacy_fit_y_axis(fit: dict, original_series: list) -> str:
+    """Reproduce chart_editor.py's removed per-render fit/series axis
+    match, once, against the chart's pre-migration series list -- see
+    migrate_chart_v2_to_v3's docstring."""
+    source_dataset_id = fit.get("source_dataset_id", "")
+    source_x_column_id = fit.get("source_x_column_id", "")
+    source_x_column = fit.get("source_x_column", "")
+    source_y_column_id = fit.get("source_y_column_id", "")
+    source_y_column = fit.get("source_y_column", "")
+    for series in original_series:
+        if (series.get("series_type") != "fit"
+                and series.get("dataset_id", "") == source_dataset_id
+                and _legacy_col_match(
+                    series.get("x_column_id", ""), series.get("x_column", ""),
+                    source_x_column_id, source_x_column)
+                and _legacy_col_match(
+                    series.get("y_column_id", ""), series.get("y_column", ""),
+                    source_y_column_id, source_y_column)):
+            return series.get("y_axis", "primary")
+    return "primary"
+
+
 def migrate_chart_v2_to_v3(raw: dict) -> dict:
     """Fold each of raw["fit_data"]'s legacy entries into raw["data_series"]
     as a "series_type": "fit" entry (#304), then drop "fit_data" entirely.
@@ -175,12 +203,14 @@ def migrate_chart_v2_to_v3(raw: dict) -> dict:
     nested it there -- every other series type reads opacity from its own
     top-level "alpha" instead, so this pulls it back out to the series
     dict's "alpha" and drops it from style (FitStyle no longer has an
-    alpha field). Old fits had no y_axis of their own (chart_editor.py's
-    removed fit-rendering loop matched a fit to its source series purely
-    to borrow that series' axis) -- "primary" is the same fallback that
-    matching used when no source series matched, so this is not a
-    behavior regression, just made explicit and stored per-series like
-    every other type.
+    alpha field). Old fits had no y_axis of their own -- chart_editor.py's
+    removed fit-rendering loop matched a fit to its source series on every
+    render purely to borrow that series' axis, so this reproduces that
+    match once here (against the chart's *original* data_series, matching
+    dataset id plus stable-id/name-fallback column pairs, same as the
+    removed render-time match did) and falls back to "primary" only when
+    no source series matches -- doing it unconditionally would silently
+    lose a secondary-axis fit's placement on every legacy project load.
     """
     fit_entries = raw.get("fit_data")
     if not fit_entries:
@@ -188,8 +218,10 @@ def migrate_chart_v2_to_v3(raw: dict) -> dict:
         new_raw.pop("fit_data", None)
         return new_raw
 
-    data_series = list(raw.get("data_series", []))
+    original_series = raw.get("data_series", [])
+    data_series = list(original_series)
     for fit in fit_entries:
+        y_axis = _resolve_legacy_fit_y_axis(fit, original_series)
         style = dict(fit.get("style") or {})
         alpha = style.pop("alpha", 1.0)
         style["fit_type"] = fit.get("fit_type", "")
@@ -208,7 +240,7 @@ def migrate_chart_v2_to_v3(raw: dict) -> dict:
             "y_column_id": fit.get("source_y_column_id", ""),
             "label": fit.get("label", ""),
             "visible": fit.get("visible", True),
-            "y_axis": "primary",
+            "y_axis": y_axis,
             "alpha": alpha,
             "series_type": "fit",
             "style": style,
