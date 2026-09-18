@@ -75,6 +75,9 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
@@ -94,10 +97,22 @@ jobs:
           sha256sum -- * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      - name: Extract CHANGELOG section for this version
+        run: |
+          awk -v ver="${{ inputs.version }}" '
+            index($0, "## [" ver "]") == 1 { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > changelog_section.md
+
+          if [ ! -s changelog_section.md ]; then
+            echo "_No CHANGELOG.md entry found for \`${{ inputs.version }}\` — remember to rename \`[Unreleased]\` to \`[${{ inputs.version }}]\` before releasing._" > changelog_section.md
+          fi
+
       - name: Build release notes
         run: |
           {
-            echo "Automated installer build from commit ${{ github.sha }} (workflow run ${{ github.run_id }})."
+            cat changelog_section.md
             echo
             echo "## SHA256 Checksums"
             echo '```'

@@ -43,8 +43,14 @@ To build the executable installer locally:
 uv run python scripts/build_installer.py
 ```
 
+On Windows, the packaged executable runs without a console window (`--windows-console-mode=disable` in `pysidedeploy.spec`); logs still go to `~/.pandaplot/application.log` for debugging (set `PANDAPLOT_DEBUG=1` for verbose file logging).
+
 ### GitHub Actions Release Workflow
-Automated builds can be triggered manually via GitHub Actions under the **Actions** tab -> **Build Release Installer** workflow (`workflow_dispatch`). This workflow compiles installers across Linux, Windows, and macOS, uploading the resulting executables as build artifacts.
+Builds are triggered manually via GitHub Actions under the **Actions** tab -> **Build Release Installer** workflow (`workflow_dispatch`), with two inputs:
+- `dry_run`: inspect the deploy commands without compiling (skips the release step entirely)
+- `version`: the tag to publish under (e.g. `v1.0.0`); required unless `dry_run` is set
+
+The workflow compiles installers across Linux, Windows, and macOS, then publishes them all to a single [GitHub Release](../../releases) under that tag, with SHA256 checksums for every installer listed in the release notes (see [CHANGELOG.md](CHANGELOG.md) for what to move from `Unreleased` into a versioned entry before running a release — the workflow pulls that section into the release notes automatically).
 
 ### Troubleshooting Notes
 - **`dumpbin` Warning (Windows)**: You may see `RuntimeWarning: [DEPLOY] Unable to find dumpbin...`. `dumpbin.exe` is a Visual Studio C++ tool used by `pyside6-deploy` to automatically scan binary dependencies. On developer environments without MSVC in PATH, `pyside6-deploy` falls back to the Qt modules listed in `pysidedeploy.spec` (`modules = Core,Gui,Widgets`), which works as intended. In GitHub Actions, the `ilammy/msvc-dev-cmd` action initializes the MSVC toolchain (including `dumpbin`).
