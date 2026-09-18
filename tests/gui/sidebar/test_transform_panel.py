@@ -151,7 +151,7 @@ class TestApplyValidationFeedback:
 
         transform_panel.apply_transform()
 
-        assert transform_panel.preview_text.toPlainText() == "⚠ No dataset selected."
+        assert transform_panel.preview_text.toPlainText() == "⚠ Selected dataset is unavailable. Try reselecting it."
 
 
 class TestPreviewErrorStyling:
@@ -190,6 +190,10 @@ class TestPreviewErrorStyling:
         transform_panel.source_column_list.item(0).setSelected(True)
 
         assert transform_panel._preview_has_error is False
+        # Regression: only the red styling used to clear, leaving the stale
+        # (and now wrong) "select a source column" text still displayed
+        # after a column had actually just been selected.
+        assert transform_panel.preview_text.toPlainText() == ""
 
     def test_editing_a_field_after_an_error_clears_the_error_styling(self, transform_panel):
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
@@ -203,6 +207,7 @@ class TestPreviewErrorStyling:
         transform_panel.function_text.setPlainText("x * 2")
 
         assert transform_panel._preview_has_error is False
+        assert transform_panel.preview_text.toPlainText() == ""
 
 
 class TestApplyButtonEnablement:

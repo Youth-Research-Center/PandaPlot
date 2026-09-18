@@ -489,10 +489,15 @@ class TransformPanel(SidebarPanel):
             and bool(self.function_text.toPlainText().strip())
         )
         self.apply_btn.setEnabled(ready)
-        # A prior validation/transform error's red styling (see
-        # _set_preview_message) should not linger once the user has actually
-        # changed one of the fields it complained about.
-        self._style_preview_text(is_error=False)
+        # A prior validation/transform error should not linger, un-styled but
+        # still displayed and now potentially inaccurate (e.g. "select a
+        # source column" after one has just been selected), once the user
+        # has actually changed one of the fields it complained about. Guard
+        # on _preview_has_error so an unrelated keystroke doesn't re-style
+        # and clear a message that was never an error to begin with.
+        if self._preview_has_error:
+            self.preview_text.clear()
+            self._style_preview_text(is_error=False)
 
     def _style_preview_text(self, *, is_error: bool):
         """(Re)apply preview_text's themed QSS -- background, border, font,
@@ -708,7 +713,7 @@ class TransformPanel(SidebarPanel):
             dataset_id = getattr(self.current_dataset, "id", None)
             if not dataset_id:
                 self.logger.warning("TransformPanel: dataset id not available; aborting transform")
-                self._set_preview_message("No dataset selected.", is_error=True)
+                self._set_preview_message("Selected dataset is unavailable. Try reselecting it.", is_error=True)
                 return
 
             # Apply transformation through controller
