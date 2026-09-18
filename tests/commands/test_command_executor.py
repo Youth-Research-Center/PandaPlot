@@ -657,8 +657,7 @@ class TestMaxUndoLevels:
     
     def test_max_undo_levels_enforcement(self):
         """Test that max undo levels are enforced."""
-        executor = CommandExecutor()
-        executor.max_undo_levels = 3
+        executor = CommandExecutor(max_undo_levels=3)
         
         # Execute more commands than max levels
         commands = [MockCommand(f"Command{i}") for i in range(5)]
@@ -671,51 +670,101 @@ class TestMaxUndoLevels:
         assert executor.undo_stack[1] is commands[3]  # Command3
         assert executor.undo_stack[2] is commands[4]  # Command4
     
-    def test_max_undo_levels_zero(self):
-        """Test behavior when max undo levels is 0."""
-        executor = CommandExecutor()
-        executor.max_undo_levels = 0
-        
-        command = MockCommand("TestCommand")
-        executor.execute_command(command)
-        
-        # Should not keep any commands
-        assert len(executor.undo_stack) == 0
-        assert not executor.can_undo()
-    
-    def test_max_undo_levels_modification(self):
-        """Test behavior when max undo levels is modified after commands."""
-        executor = CommandExecutor()
-        
-        # Add some commands within normal max_undo_levels
-        commands = [MockCommand(f"Command{i}") for i in range(3)]
+    def test_set_max_undo_levels_truncates_stack_and_cleans_up(self):
+        """Test set_max_undo_levels dynamically truncates undo stack and cleans up evicted commands."""
+        executor = CommandExecutor(max_undo_levels=10)
+        commands = [MockCommand(f"Command{i}") for i in range(5)]
         for cmd in commands:
             executor.execute_command(cmd)
         
-        assert len(executor.undo_stack) == 3
+        assert len(executor.undo_stack) == 5
+        executor.set_max_undo_levels(2)
         
-        # Modify max levels to be lower
-        executor.max_undo_levels = 2
-        
-        # The existing stack is not automatically trimmed
-        assert len(executor.undo_stack) == 3
-        
-        # Add a new command - this will add to stack (4 total) then remove 1 (3 remaining)
-        # The trimming logic only removes one element when size > max_undo_levels
-        new_cmd = MockCommand("NewCommand")
-        executor.execute_command(new_cmd)
-        
-        # Stack size should still be 3 (added 1, removed 1)
-        assert len(executor.undo_stack) == 3
-        assert executor.undo_stack[-1] is new_cmd
-        
-        # Verify that future commands will maintain the trimming behavior
-        another_cmd = MockCommand("AnotherCommand")
-        executor.execute_command(another_cmd)
-        
-        # Still 3 commands (one in, one out)
-        assert len(executor.undo_stack) == 3
-        assert executor.undo_stack[-1] is another_cmd
+        # Should truncate to 2 and cleanup evicted commands
+        assert len(executor.undo_stack) == 2
+        assert executor.undo_stack[0] is commands[3]
+        assert executor.undo_stack[1] is commands[4]
+        assert commands[0].cleanup_count == 1
+        assert commands[1].cleanup_count == 1
+        assert commands[2].cleanup_count == 1
+        assert commands[3].cleanup_count == 0
+
+
+class NamedMockCommand(MockCommand):
+    def __init__(self, name="NamedMockCommand", label="Named Mock"):
+        super().__init__(name)
+        self.label = label
+
+    def display_name(self) -> str:
+        return self.label
+
+
+class TestHistoryDescriptions:
+    """Test cases for get_undo_history_descriptions and get_redo_history_descriptions."""
+
+    def test_get_undo_and_redo_history_descriptions(self):
+        executor = CommandExecutor()
+        cmd1 = NamedMockCommand("CreateNoteCommand", "Create note")
+        cmd2 = NamedMockCommand("EditNoteCommand", "Edit note")
+
+        executor.execute_command(cmd1)
+        executor.execute_command(cmd2)
+
+        assert executor.get_undo_history_descriptions() == ["Create note", "Edit note"]
+        assert executor.get_redo_history_descriptions() == []
+
+        executor.undo()
+
+        assert executor.get_undo_history_descriptions() == ["Create note"]
+        assert executor.get_redo_history_descriptions() == ["Edit note"]
+
+
+class TestBatchContextManager:
+    """Test cases for CommandExecutor.batch context manager."""
+
+    def test_batch_groups_subcommands_into_single_composite_command(self):
+        executor = CommandExecutor()
+        cmd1 = MockCommand("Command1")
+        cmd2 = MockCommand("Command2")
+
+        with executor.batch("Batch Action"):
+            executor.execute_command(cmd1)
+            executor.execute_command(cmd2)
+
+        assert len(executor.undo_stack) == 1
+        composite = executor.undo_stack[0]
+        assert composite.display_name() == "Batch Action"
+        assert cmd1.execute_count == 1
+        assert cmd2.execute_count == 1
+
+        # Undo undoes composite as a single unit
+        executor.undo()
+        assert cmd1.undone
+        assert cmd2.undone
+        assert len(executor.undo_stack) == 0
+        assert len(executor.redo_stack) == 1
+
+    def test_empty_batch_does_not_push_composite_command(self):
+        executor = CommandExecutor()
+        with executor.batch("Empty Batch"):
+            pass
+
+        assert len(executor.undo_stack) == 0
+
+    def test_failed_batch_rolls_back_executed_subcommands(self):
+        executor = CommandExecutor()
+        cmd1 = MockCommand("Command1")
+
+        try:
+            with executor.batch("Failing Batch"):
+                executor.execute_command(cmd1)
+                raise RuntimeError("Batch error")
+        except RuntimeError:
+            pass
+
+        assert cmd1.executed
+        assert cmd1.undone
+        assert len(executor.undo_stack) == 0
 
 
 class NonModifyingMockCommand(MockCommand):
