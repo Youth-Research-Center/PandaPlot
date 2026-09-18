@@ -42,6 +42,10 @@ class TransformPanel(SidebarPanel):
     """
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
+        # Set before super().__init__() -- that call runs _init_ui() then
+        # _apply_theme(), and _apply_theme() needs this to style preview_text
+        # correctly on the very first render.
+        self._preview_has_error = False
         super().__init__(app_context=app_context, parent=parent)
         self.current_dataset_tab = None
         self.current_dataset = None
@@ -159,18 +163,11 @@ class TransformPanel(SidebarPanel):
             }}
         """)
         
-        # Style preview text area
-        self.preview_text.setStyleSheet(f"""
-            QTextEdit {{
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-                font-family: monospace;
-                color: {base_fg};
-                padding: 4px;
-            }}
-        """)
-        
+        # Style preview text area, preserving whatever error state it's
+        # currently in (see _style_preview_text) so a theme switch doesn't
+        # wipe a validation error's color along with the rest of the QSS.
+        self._style_preview_text(is_error=self._preview_has_error)
+
     def create_header_section(self, layout):
         """Create header section showing current dataset info."""
         header_group = QGroupBox("Active Dataset")
@@ -495,7 +492,35 @@ class TransformPanel(SidebarPanel):
         # A prior validation/transform error's red styling (see
         # _set_preview_message) should not linger once the user has actually
         # changed one of the fields it complained about.
-        self.preview_text.setStyleSheet("")
+        self._style_preview_text(is_error=False)
+
+    def _style_preview_text(self, *, is_error: bool):
+        """(Re)apply preview_text's themed QSS -- background, border, font,
+        padding -- swapping only the foreground color for the danger token
+        when `is_error`. A bare setStyleSheet("") or a color-only rule would
+        instead replace the whole stylesheet _apply_theme() installs,
+        dropping the border/background/padding along with it."""
+        self._preview_has_error = is_error
+        theme_manager = self.app_context.get_manager(ThemeManager)
+        palette = theme_manager.get_surface_palette()
+        card_bg = palette.get("card_bg", "#ffffff")
+        card_border = palette.get("card_border", "#dee2e6")
+        base_fg = palette.get("base_fg", "#333333")
+        if is_error:
+            tokens = theme_manager.get_design_tokens()
+            color = tokens.get("status_danger", "#DC3545")
+        else:
+            color = base_fg
+        self.preview_text.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 4px;
+                font-family: monospace;
+                color: {color};
+                padding: 4px;
+            }}
+        """)
 
     def _set_preview_message(self, message: str, *, is_error: bool = False):
         """Write a message to preview_text, visually marking error states
@@ -504,13 +529,9 @@ class TransformPanel(SidebarPanel):
         a leading warning icon and the theme's danger color, mirroring the
         red-text treatment fit_panel.py already uses for its own validation
         errors."""
+        self._style_preview_text(is_error=is_error)
         if is_error:
-            tokens = self.app_context.get_manager(ThemeManager).get_design_tokens()
-            danger = tokens.get("status_danger", "#DC3545")
-            self.preview_text.setStyleSheet(f"color: {danger};")
             message = f"⚠ {message}"
-        else:
-            self.preview_text.setStyleSheet("")
         self.preview_text.setPlainText(message)
 
     def on_transform_type_changed(self, transform_type: str):
@@ -656,9 +677,14 @@ class TransformPanel(SidebarPanel):
         dataset-id branch is the only one still normally reachable through
         the UI, but all are covered in case apply_transform() is invoked
         directly (e.g. a keyboard shortcut, or a test)."""
+        if not self.current_dataset:
+            self.logger.warning("TransformPanel: no dataset selected for transform")
+            self._set_preview_message("No dataset selected.", is_error=True)
+            return
+
         selected_columns = self.get_selected_columns()
-        if not self.current_dataset or not selected_columns:
-            self.logger.warning("TransformPanel: no dataset or source column selected for transform")
+        if not selected_columns:
+            self.logger.warning("TransformPanel: no source column selected for transform")
             self._set_preview_message("Select a source column before applying.", is_error=True)
             return
 

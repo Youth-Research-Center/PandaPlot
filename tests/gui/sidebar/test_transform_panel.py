@@ -99,6 +99,16 @@ class TestApplyValidationFeedback:
     used to silently do nothing on a validation failure -- only a
     logger.warning(), no visible feedback at all."""
 
+    def test_no_dataset_at_all_writes_a_dataset_specific_message(self, transform_panel):
+        """Regression: this used to share the "select a source column"
+        message with the no-column case below, which was misleading when
+        there was no dataset active to select a column from at all."""
+        transform_panel.current_dataset = None
+
+        transform_panel.apply_transform()
+
+        assert transform_panel.preview_text.toPlainText() == "⚠ No dataset selected."
+
     def test_no_source_column_selected_writes_a_visible_message(self, transform_panel):
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
         transform_panel._populate_column_list(["a"])
@@ -149,24 +159,37 @@ class TestPreviewErrorStyling:
     review follow-up) rather than reading like any other preview text --
     it gets a red-ish stylesheet, cleared once the offending field changes."""
 
-    def test_validation_error_applies_a_non_empty_stylesheet(self, transform_panel):
+    def test_validation_error_marks_preview_text_as_errored(self, transform_panel):
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
         transform_panel._populate_column_list(["a"])
         # No item selected -- triggers the "select a source column" error.
 
         transform_panel.apply_transform()
 
-        assert transform_panel.preview_text.styleSheet() != ""
+        assert transform_panel._preview_has_error is True
+
+    def test_error_styling_keeps_the_base_theme_qss(self, transform_panel):
+        """Regression: setting an error color used to replace preview_text's
+        whole stylesheet, dropping the background/border/padding _apply_theme()
+        installs -- not just the foreground color."""
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+
+        transform_panel.apply_transform()
+
+        style = transform_panel.preview_text.styleSheet()
+        assert "border" in style
+        assert "background-color" in style
 
     def test_successful_preview_clears_any_error_styling(self, transform_panel):
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
         transform_panel._populate_column_list(["a"])
         transform_panel.apply_transform()  # No column selected -- leaves an error style behind.
-        assert transform_panel.preview_text.styleSheet() != ""
+        assert transform_panel._preview_has_error is True
 
         transform_panel.source_column_list.item(0).setSelected(True)
 
-        assert transform_panel.preview_text.styleSheet() == ""
+        assert transform_panel._preview_has_error is False
 
     def test_editing_a_field_after_an_error_clears_the_error_styling(self, transform_panel):
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
@@ -175,11 +198,11 @@ class TestPreviewErrorStyling:
         transform_panel.new_column_name.setText("b")
         # function_text left empty -- triggers the "enter a function" error.
         transform_panel.apply_transform()
-        assert transform_panel.preview_text.styleSheet() != ""
+        assert transform_panel._preview_has_error is True
 
         transform_panel.function_text.setPlainText("x * 2")
 
-        assert transform_panel.preview_text.styleSheet() == ""
+        assert transform_panel._preview_has_error is False
 
 
 class TestApplyButtonEnablement:
