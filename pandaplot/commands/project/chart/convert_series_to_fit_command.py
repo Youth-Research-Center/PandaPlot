@@ -1,4 +1,4 @@
-"""Command for converting a data series into a fit-data entry on a chart."""
+"""Command for converting a data series into a FIT-type DataSeries on a chart."""
 
 import copy
 from typing import Optional, override
@@ -8,25 +8,27 @@ from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.events import ChartEvents
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import (
     DataSeries,
-    FitData,
     resolve_manual_fit_source_data,
 )
 from pandaplot.models.state import AppContext
 
 
 class ConvertSeriesToFitCommand(Command):
-    """Command to convert an existing DataSeries into a FitData entry (#298).
+    """Command to convert an existing DataSeries into a SeriesType.FIT
+    DataSeries (#298, unified onto DataSeries by #304).
 
     Snapshots the source dataset's X/Y (and optional confidence lower/
-    upper) columns into FitData.x_data/y_data/confidence_lower/
-    confidence_upper at the moment of conversion -- matching
-    ApplyFitCommand's existing behavior where a fit's data is a snapshot,
-    not a live reference (unlike DataSeries, which resolves column ids
-    live). Error-bar/vector/Z columns configured on the source series are
-    dropped -- FitData has no such concepts.
+    upper) columns into precomputed_x_data/precomputed_y_data and
+    style.confidence_lower/confidence_upper at the moment of conversion --
+    matching ApplyFitCommand's existing behavior where a fit's data is a
+    snapshot, not a live reference (unlike an ordinary DataSeries, which
+    resolves column ids live). Error-bar/vector/Z columns configured on
+    the source series are dropped -- a FIT series' style has no such
+    concepts.
     """
 
     def __init__(
@@ -46,12 +48,12 @@ class ConvertSeriesToFitCommand(Command):
         self.confidence_upper_column_id = confidence_upper_column_id
 
         # State for undo/redo, mirroring ApplyFitCommand's caching: the
-        # FitData is built once (first execute()) and reused on redo, and
-        # the original series is snapshotted once so undo can restore it
-        # at its original position.
+        # FIT-type DataSeries is built once (first execute()) and reused
+        # on redo, and the original series is snapshotted once so undo
+        # can restore it at its original position.
         self.removed_series: Optional[DataSeries] = None
         self.added_fit_index: Optional[int] = None
-        self._fit: Optional[FitData] = None
+        self._fit: Optional[DataSeries] = None
         self._chart_finder = ChartFinder(app_context)
 
     def _find_dataset(self, dataset_id: str) -> Optional[Dataset]:
@@ -62,7 +64,7 @@ class ConvertSeriesToFitCommand(Command):
         dataset = project.find_item(dataset_id)
         return dataset if isinstance(dataset, Dataset) else None
 
-    def _build_fit(self, series: DataSeries) -> Optional[FitData]:
+    def _build_fit(self, series: DataSeries) -> Optional[DataSeries]:
         dataset = self._find_dataset(series.dataset_id)
         resolved = resolve_manual_fit_source_data(
             dataset,
@@ -75,20 +77,22 @@ class ConvertSeriesToFitCommand(Command):
             return None
         x_data, y_data, confidence_lower, confidence_upper = resolved
 
-        return FitData(
-            source_dataset_id=series.dataset_id,
-            source_x_column_id=series.x_column_id,
-            source_y_column_id=series.y_column_id,
+        style = FitStyle(
             fit_type="Custom",
-            x_data=x_data,
-            y_data=y_data,
-            label=series.label or "Custom Fit",
             confidence_lower=confidence_lower,
             confidence_upper=confidence_upper,
             confidence_lower_column_id=self.confidence_lower_column_id,
             confidence_upper_column_id=self.confidence_upper_column_id,
             is_manual=True,
-            style=FitStyle(),
+        )
+        return DataSeries(
+            dataset_id=series.dataset_id,
+            x_column_id=series.x_column_id, y_column_id=series.y_column_id,
+            label=series.label or "Custom Fit",
+            y_axis=series.y_axis,
+            series_type=SeriesType.FIT,
+            style=style,
+            precomputed_x_data=x_data, precomputed_y_data=y_data,
         )
 
     @override
@@ -133,8 +137,8 @@ class ConvertSeriesToFitCommand(Command):
             self.removed_series = copy.deepcopy(series)
 
         chart.remove_data_series(self.series_index)
-        chart.fit_data.append(self._fit)
-        self.added_fit_index = len(chart.fit_data) - 1
+        chart.data_series.append(self._fit)
+        self.added_fit_index = len(chart.data_series) - 1
         chart.update_modified_time()
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
@@ -156,7 +160,7 @@ class ConvertSeriesToFitCommand(Command):
             )
             return CommandResult.FAILURE
 
-        chart.remove_fit_data(self.added_fit_index)
+        chart.remove_data_series(self.added_fit_index)
         chart.data_series.insert(self.series_index, copy.deepcopy(self.removed_series))
         chart.update_modified_time()
 

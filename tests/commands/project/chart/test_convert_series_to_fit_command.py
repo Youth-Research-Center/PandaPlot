@@ -13,6 +13,7 @@ from pandaplot.commands.project.chart.convert_series_to_fit_command import (
     ConvertSeriesToFitCommand,
 )
 from pandaplot.models.chart.fit_style import FitStyle
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart
 
@@ -69,19 +70,24 @@ def test_execute_moves_series_to_fit_data(app_context_with_chart):
     command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=0)
 
     assert command.execute() is CommandResult.SUCCESS
-    assert len(chart.data_series) == 0
+    # The converted series is now a FIT-type entry IN data_series (the
+    # unified list, #304) -- not removed from it -- so the count stays 1;
+    # chart.fit_data is just a read-only filtered view over data_series.
+    assert len(chart.data_series) == 1
     assert len(chart.fit_data) == 1
 
     fit = chart.fit_data[0]
-    assert fit.source_dataset_id == "ds-1"
-    assert fit.fit_type == "Custom"
+    assert fit is chart.data_series[0]
+    assert fit.series_type == SeriesType.FIT
+    assert fit.dataset_id == "ds-1"
+    assert fit.style.fit_type == "Custom"
     assert fit.label == "My Series"
-    np.testing.assert_array_equal(fit.x_data, np.array([1.0, 2.0, 3.0]))
-    np.testing.assert_array_equal(fit.y_data, np.array([10.0, 20.0, 30.0]))
-    assert fit.confidence_lower is None
-    assert fit.confidence_upper is None
+    np.testing.assert_array_equal(fit.precomputed_x_data, np.array([1.0, 2.0, 3.0]))
+    np.testing.assert_array_equal(fit.precomputed_y_data, np.array([10.0, 20.0, 30.0]))
+    assert fit.style.confidence_lower is None
+    assert fit.style.confidence_upper is None
     assert isinstance(fit.style, FitStyle)
-    assert fit.is_manual is True
+    assert fit.style.is_manual is True
 
 
 def test_execute_snapshots_confidence_columns_when_given(app_context_with_chart, dataset):
@@ -95,10 +101,10 @@ def test_execute_snapshots_confidence_columns_when_given(app_context_with_chart,
     assert command.execute() is CommandResult.SUCCESS
 
     fit = chart.fit_data[0]
-    np.testing.assert_array_equal(fit.confidence_lower, np.array([9.0, 19.0, 29.0]))
-    np.testing.assert_array_equal(fit.confidence_upper, np.array([11.0, 21.0, 31.0]))
-    assert fit.confidence_lower_column_id == dataset.column_id("y_lower")
-    assert fit.confidence_upper_column_id == dataset.column_id("y_upper")
+    np.testing.assert_array_equal(fit.style.confidence_lower, np.array([9.0, 19.0, 29.0]))
+    np.testing.assert_array_equal(fit.style.confidence_upper, np.array([11.0, 21.0, 31.0]))
+    assert fit.style.confidence_lower_column_id == dataset.column_id("y_lower")
+    assert fit.style.confidence_upper_column_id == dataset.column_id("y_upper")
 
 
 def test_fit_data_is_independent_of_later_source_mutations(app_context_with_chart, dataset):
@@ -108,20 +114,20 @@ def test_fit_data_is_independent_of_later_source_mutations(app_context_with_char
     assert command.execute() is CommandResult.SUCCESS
     fit = chart.fit_data[0]
 
-    original_x = fit.x_data.copy()
-    original_y = fit.y_data.copy()
+    original_x = fit.precomputed_x_data.copy()
+    original_y = fit.precomputed_y_data.copy()
 
     # Mutate the source DataFrame in place, mirroring EditCommand's
-    # iloc-based cell edit. If FitData.x_data/y_data alias the DataFrame's
-    # block memory (e.g. via a non-copying to_numpy()), this mutation
-    # would leak into the "frozen" fit data.
+    # iloc-based cell edit. If precomputed_x_data/y_data alias the
+    # DataFrame's block memory (e.g. via a non-copying to_numpy()), this
+    # mutation would leak into the "frozen" fit data.
     dataset.data.iloc[0, dataset.data.columns.get_loc("x")] = 999.0
     dataset.data.iloc[0, dataset.data.columns.get_loc("y")] = 888.0
 
-    np.testing.assert_array_equal(fit.x_data, original_x)
-    np.testing.assert_array_equal(fit.y_data, original_y)
-    assert fit.x_data[0] != 999.0
-    assert fit.y_data[0] != 888.0
+    np.testing.assert_array_equal(fit.precomputed_x_data, original_x)
+    np.testing.assert_array_equal(fit.precomputed_y_data, original_y)
+    assert fit.precomputed_x_data[0] != 999.0
+    assert fit.precomputed_y_data[0] != 888.0
 
 
 def test_execute_out_of_range_returns_failure(app_context_with_chart, caplog):
@@ -170,6 +176,36 @@ def test_undo_restores_the_original_series(app_context_with_chart, chart_with_se
     assert restored.label == original_series.label
 
 
+def test_undo_restores_the_original_series_at_its_original_position(app_context_with_chart, dataset):
+    """With another series present, undo must reinsert the converted
+    series at its original z-order index, not just anywhere -- this
+    exercises the real-index bookkeeping (series_index/added_fit_index)
+    directly, per Task 9's real-index-vs-equality lesson."""
+    app_context, chart = app_context_with_chart
+    chart.add_data_series(
+        dataset.id,
+        x_column_id=dataset.column_id("x"),
+        y_column_id=dataset.column_id("y"),
+        label="Second Series",
+    )
+    # chart.data_series is now [My Series, Second Series].
+
+    command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=1)
+    assert command.execute() is CommandResult.SUCCESS
+
+    # "Second Series" was replaced in-place by its FIT counterpart, so
+    # data_series still holds 2 entries: [My Series, <fit>].
+    assert len(chart.data_series) == 2
+    assert len(chart.fit_data) == 1
+
+    command.undo()
+
+    assert len(chart.data_series) == 2
+    assert len(chart.fit_data) == 0
+    assert chart.data_series[0].label == "My Series"
+    assert chart.data_series[1].label == "Second Series"
+
+
 def test_redo_converts_again(app_context_with_chart):
     app_context, chart = app_context_with_chart
     command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=0)
@@ -178,7 +214,7 @@ def test_redo_converts_again(app_context_with_chart):
     command.undo()
     command.redo()
 
-    assert len(chart.data_series) == 0
+    assert len(chart.data_series) == 1
     assert len(chart.fit_data) == 1
 
 
@@ -225,8 +261,8 @@ def test_datetime_x_column_is_coerced_to_numeric_and_json_safe(app_context_with_
     assert command.execute() is CommandResult.SUCCESS
 
     fit = next(f for f in chart.fit_data if f.label == "Datetime Series")
-    assert np.issubdtype(fit.x_data.dtype, np.number)
-    assert np.issubdtype(fit.y_data.dtype, np.number)
+    assert np.issubdtype(fit.precomputed_x_data.dtype, np.number)
+    assert np.issubdtype(fit.precomputed_y_data.dtype, np.number)
 
     # Must round-trip through Chart.to_dict() -> json.dumps() without
     # raising (this is what the project save path does).
@@ -332,9 +368,9 @@ def test_a_column_with_some_unconvertible_values_still_succeeds(app_context_with
 
     assert command.execute() is CommandResult.SUCCESS
     fit = next(f for f in chart.fit_data if f.label == "Mixed Series")
-    assert fit.x_data[0] == 1.0
-    assert np.isnan(fit.x_data[1])
-    assert fit.x_data[2] == 3.0
+    assert fit.precomputed_x_data[0] == 1.0
+    assert np.isnan(fit.precomputed_x_data[1])
+    assert fit.precomputed_x_data[2] == 3.0
 
 
 def test_empty_series_label_falls_back_to_custom_fit(app_context_with_chart, dataset):

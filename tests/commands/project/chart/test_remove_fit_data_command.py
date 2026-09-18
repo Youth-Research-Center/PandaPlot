@@ -8,22 +8,22 @@ import pytest
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.remove_fit_data_command import RemoveFitDataCommand
-from pandaplot.models.project.items.chart import Chart, FitData
+from pandaplot.models.chart.fit_style import FitStyle
+from pandaplot.models.project.items.chart import Chart
 
 
 @pytest.fixture
 def chart_with_fit():
     chart = Chart(id="chart-1", name="C")
-    fit = FitData(
+    fit = chart.add_fit_series(
         source_dataset_id="ds-1",
         source_x_column="x",
         source_y_column="y",
-        fit_type="linear",
         x_data=np.array([1.0, 2.0, 3.0]),
         y_data=np.array([1.0, 2.0, 3.0]),
         label="Linear Fit",
+        style=FitStyle(fit_type="linear"),
     )
-    chart.fit_data.append(fit)
     return chart, fit
 
 
@@ -102,9 +102,36 @@ def test_undo_restores_the_removed_fit(app_context_with_chart, chart_with_fit):
     assert len(chart.fit_data) == 1
     restored = chart.fit_data[0]
     assert restored.label == original_fit.label
-    assert restored.source_dataset_id == original_fit.source_dataset_id
-    np.testing.assert_array_equal(restored.x_data, original_fit.x_data)
-    np.testing.assert_array_equal(restored.y_data, original_fit.y_data)
+    assert restored.dataset_id == original_fit.dataset_id
+    np.testing.assert_array_equal(restored.precomputed_x_data, original_fit.precomputed_x_data)
+    np.testing.assert_array_equal(restored.precomputed_y_data, original_fit.precomputed_y_data)
+
+
+def test_undo_restores_the_removed_fit_at_its_original_index(app_context_with_chart, chart_with_fit):
+    """With multiple fits present, undo must reinsert the removed fit at
+    its original z-order index (data_series position), not just append
+    it back at the end -- exercises the real-index bookkeeping
+    (_removed_real_index)."""
+    app_context, chart = app_context_with_chart
+    chart.add_fit_series(
+        source_dataset_id="ds-2",
+        x_data=np.array([4.0, 5.0]),
+        y_data=np.array([4.0, 5.0]),
+        label="Second Fit",
+        style=FitStyle(fit_type="linear"),
+    )
+    # chart.fit_data is now [Linear Fit, Second Fit].
+
+    command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
+    assert command.execute() is CommandResult.SUCCESS
+    assert len(chart.fit_data) == 1
+    assert chart.fit_data[0].label == "Second Fit"
+
+    command.undo()
+
+    assert len(chart.fit_data) == 2
+    assert chart.fit_data[0].label == "Linear Fit"
+    assert chart.fit_data[1].label == "Second Fit"
 
 
 def test_redo_removes_fit_data_again(app_context_with_chart):
@@ -119,8 +146,6 @@ def test_redo_removes_fit_data_again(app_context_with_chart):
 
 
 def test_undo_restores_the_fit_with_its_typed_style_object_intact(app_context_with_chart):
-    from pandaplot.models.chart.fit_style import FitStyle
-
     app_context, chart = app_context_with_chart
     chart.fit_data[0].style = FitStyle(color="#abcdef", band_fill_enabled=False)
     command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)

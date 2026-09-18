@@ -76,17 +76,43 @@ def test_execute_adds_fit_to_chart(app_context_with_chart, fit_results):
 
     fit = chart.fit_data[0]
 
-    assert fit.fit_type == "linear"
-    assert list(fit.x_data) == [1.0, 2.0, 3.0]
-    assert list(fit.y_data) == [2.0, 4.0, 6.0]
-    assert fit.source_dataset_id == source.id
-    assert fit.source_x_column_id == "x_id"
-    assert fit.source_y_column_id == "y_id"
-    assert fit.source_x_column == "x"
-    assert fit.source_y_column == "y"
+    assert fit.style.fit_type == "linear"
+    assert list(fit.precomputed_x_data) == [1.0, 2.0, 3.0]
+    assert list(fit.precomputed_y_data) == [2.0, 4.0, 6.0]
+    assert fit.dataset_id == source.id
+    assert fit.x_column_id == "x_id"
+    assert fit.y_column_id == "y_id"
+    assert fit.x_column == "x"
+    assert fit.y_column == "y"
     assert fit.label == "Linear fit"
-    assert fit.fit_params == {"slope": 2.0, "intercept": 0.0}
-    assert fit.fit_stats == {"r_squared": 0.99}
+    assert fit.style.fit_params == {"slope": 2.0, "intercept": 0.0}
+    assert fit.style.fit_stats == {"r_squared": 0.99}
+
+
+def test_undo_restores_original_series_order(app_context_with_chart, fit_results):
+    """Undo must remove exactly the fit series added by this command,
+    leaving any pre-existing series at their original positions -- this
+    exercises the real-index (added_index) bookkeeping directly."""
+    app_context, project, chart, source = app_context_with_chart
+    chart.add_data_series(source.id, x_column_id="x_id", y_column_id="y_id", label="Existing")
+
+    command = ApplyFitCommand(
+        app_context=app_context,
+        chart_id=chart.id,
+        fit_results=fit_results,
+        source_dataset_id=source.id,
+        source_x_column_id="x_id",
+        source_y_column_id="y_id",
+    )
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert len(chart.data_series) == 2
+    assert command.added_index == 1
+
+    command.undo()
+
+    assert len(chart.data_series) == 1
+    assert chart.data_series[0].label == "Existing"
 
 
 def test_execute_creates_report_note_and_dataset(app_context_with_chart, fit_results):
@@ -236,9 +262,9 @@ def test_redo_adds_fit_and_report_again(app_context_with_chart, fit_results):
     assert len(chart.fit_data) == 1
 
     fit = chart.fit_data[0]
-    assert fit.fit_type == "linear"
-    assert list(fit.x_data) == [1.0, 2.0, 3.0]
-    assert list(fit.y_data) == [2.0, 4.0, 6.0]
+    assert fit.style.fit_type == "linear"
+    assert list(fit.precomputed_x_data) == [1.0, 2.0, 3.0]
+    assert list(fit.precomputed_y_data) == [2.0, 4.0, 6.0]
 
     assert project.find_item(command.report_note_id) is not None
     assert project.find_item(command.result_dataset_id) is not None

@@ -278,7 +278,9 @@ def test_selecting_fit_converts_the_series_to_fit_data():
     fit_index = tab.series_type_combo.findData("__convert_to_fit__")
     tab.series_type_combo.setCurrentIndex(fit_index)
 
-    assert len(chart.data_series) == 0
+    # The converted series is now a FIT-type entry IN data_series (the
+    # unified list, #304), not removed from it.
+    assert len(chart.data_series) == 1
     assert len(chart.fit_data) == 1
     fit = chart.fit_data[0]
     assert fit.style.fit_type == "Custom"
@@ -359,9 +361,10 @@ def test_selecting_fit_selects_the_new_fit_card():
     fit_index = tab.series_type_combo.findData("__convert_to_fit__")
     tab.series_type_combo.setCurrentIndex(fit_index)
 
-    # One series remains (index 0), the new fit lands right after it.
+    # One series remains (index 0), the new fit lands right after it --
+    # the fit is a FIT-type entry IN data_series, not removed from it.
     assert tab.selected_index == 1
-    assert len(chart.data_series) == 1
+    assert len(chart.data_series) == 2
     assert len(chart.fit_data) == 1
 
 
@@ -685,12 +688,14 @@ def test_apply_to_does_not_recreate_a_series_after_converting_the_only_series_to
     fit_index = tab.series_type_combo.findData("__convert_to_fit__")
     tab.series_type_combo.setCurrentIndex(fit_index)
 
-    assert len(chart.data_series) == 0
+    # The fit is a FIT-type entry IN data_series (the unified list, #304),
+    # not removed from it -- data_series is never "empty" here.
+    assert len(chart.data_series) == 1
     assert len(chart.fit_data) == 1
 
     tab.apply_to(chart)
 
-    assert len(chart.data_series) == 0
+    assert len(chart.data_series) == 1
     assert len(chart.fit_data) == 1
 
 

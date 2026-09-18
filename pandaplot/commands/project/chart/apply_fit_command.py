@@ -255,26 +255,26 @@ class ApplyFitCommand(Command):
         short_fit_name, fit_color = _resolve_fit_style(results.fit_type)
         label = self.label or f"{short_fit_name} Fit: ({results.equation})"
 
-        chart.add_fit_data(
-            source_dataset_id=self.source_dataset_id,
-            source_x_column_id=self.source_x_column_id,
-            source_y_column_id=self.source_y_column_id,
+        style = FitStyle(
+            color=fit_color, line_style="dashed", line_width=2.0,
             fit_type=results.fit_type,
-            x_data=results.x_fit,
-            y_data=results.y_fit,
-            source_x_column=self.source_x_column,
-            source_y_column=self.source_y_column,
-            label=label,
-            style=FitStyle(color=fit_color, line_style="dashed", line_width=2.0),
             fit_params=results.params,
-            fit_stats={
-                "r_squared": results.r_squared,
-            },
+            fit_stats={"r_squared": results.r_squared},
             confidence_lower=results.confidence_lower,
             confidence_upper=results.confidence_upper,
         )
+        chart.add_fit_series(
+            source_dataset_id=self.source_dataset_id,
+            x_data=results.x_fit, y_data=results.y_fit,
+            source_x_column_id=self.source_x_column_id,
+            source_y_column_id=self.source_y_column_id,
+            source_x_column=self.source_x_column,
+            source_y_column=self.source_y_column,
+            label=label,
+            style=style,
+        )
 
-        self.added_index = len(chart.fit_data) - 1
+        self.added_index = len(chart.data_series) - 1
 
         self.app_context.event_bus.emit(
             ChartEvents.CHART_UPDATED,
@@ -304,7 +304,7 @@ class ApplyFitCommand(Command):
             )
             return CommandResult.FAILURE
 
-        chart.remove_fit_data(self.added_index)
+        chart.remove_data_series(self.added_index)
 
         self.app_context.event_bus.emit(
             ChartEvents.CHART_UPDATED,
