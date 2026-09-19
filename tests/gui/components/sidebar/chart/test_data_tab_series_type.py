@@ -367,6 +367,33 @@ def test_selecting_fit_converts_the_series_to_fit_data():
     assert fit.dataset_id == dataset.id
 
 
+def test_selecting_fit_keeps_the_series_original_render_position():
+    """Regression test: ConvertSeriesToFitCommand used to always append the
+    new fit at the END of chart.data_series regardless of which series was
+    converted, silently moving a non-last series' fit on top of every
+    series after it in render order -- contradicting the design (a FIT
+    entry renders in its own data_series position like any other series,
+    see the move-controls docstrings). Converting the FIRST of three
+    series must leave it first, now as a fit."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+                           label="A")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+                           label="B")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+                           label="C")
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+    tab._convert_selected_series_to_fit(0)
+
+    assert [s.label for s in chart.data_series] == ["A", "B", "C"]
+    assert chart.data_series[0].series_type == SeriesType.FIT
+
+
 def test_the_disabled_series_type_combo_shows_fit_not_the_converted_series_own_type():
     """Regression test: reported live as "when I transform a series to fit
     it shows as scatter." _load_fit_into_controls disables the combo but

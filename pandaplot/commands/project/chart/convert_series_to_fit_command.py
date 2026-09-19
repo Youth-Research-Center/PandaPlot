@@ -137,8 +137,8 @@ class ConvertSeriesToFitCommand(Command):
             self.removed_series = copy.deepcopy(series)
 
         chart.remove_data_series(self.series_index)
-        chart.data_series.append(self._fit)
-        self.added_fit_index = len(chart.data_series) - 1
+        chart.data_series.insert(self.series_index, self._fit)
+        self.added_fit_index = self.series_index
         chart.update_modified_time()
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
