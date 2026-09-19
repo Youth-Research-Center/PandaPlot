@@ -47,12 +47,12 @@ def resolve_series_xy(
         if not (0 <= source_index < len(chart.fit_data)):
             raise ValueError("Selected fit no longer exists.")
         fit = chart.fit_data[source_index]
-        dataset = app_state.current_project.find_item(fit.source_dataset_id)
+        dataset = app_state.current_project.find_item(fit.dataset_id)
         if not isinstance(dataset, Dataset):
             dataset = None
-        x_label = resolve_series_column(dataset, fit.source_x_column_id, fit.source_x_column) or "x"
-        x = pd.Series(np.asarray(fit.x_data), dtype="float64")
-        y = pd.Series(np.asarray(fit.y_data), dtype="float64")
+        x_label = resolve_series_column(dataset, fit.x_column_id, fit.x_column) or "x"
+        x = pd.Series(np.asarray(fit.precomputed_x_data), dtype="float64")
+        y = pd.Series(np.asarray(fit.precomputed_y_data), dtype="float64")
         return x, y, x_label, fit.label
 
     if not (0 <= source_index < len(chart.data_series)):

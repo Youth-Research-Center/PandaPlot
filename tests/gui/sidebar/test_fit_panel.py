@@ -168,6 +168,35 @@ def test_get_current_data_resolves_id_only_series(app_context):
     assert len(y_data) == 4
 
 
+def test_load_chart_object_excludes_fit_series_from_the_source_combo(app_context):
+    """A fit isn't a valid source for a new fit (#304): its dataset_id/
+    x_column/y_column mean "source columns the fit was computed from",
+    not a live column to re-read -- offering it here would let a user
+    silently re-fit the ORIGINAL source data (not the fit's own curve),
+    and fail outright once that source dataset is gone (which a fit is
+    specifically designed to survive)."""
+    from pandaplot.models.chart.fit_style import FitStyle
+
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    chart.add_fit_series(
+        source_dataset_id=dataset.id, x_data=np.array([1.0]), y_data=np.array([2.0]),
+        label="A Fit", style=FitStyle(fit_type="linear"),
+    )
+
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+
+    labels = [panel.series_combo.itemText(i) for i in range(panel.series_combo.count())]
+    assert not any("Fit" in label or "\U0001f527" in label for label in labels)
+    # Plain series + trailing "Custom..." entry, no fit row.
+    assert panel.series_combo.count() == 2
+
+
 def test_load_chart_object_clears_stale_fit_results_across_charts(app_context):
     dataset, chart_a = _make_dataset_and_chart_with_id_only_series()
     _, chart_b = _make_dataset_and_chart_with_id_only_series()

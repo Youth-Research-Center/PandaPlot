@@ -65,10 +65,9 @@ def test_restore_reverts_background_style_fields():
 
 def test_restore_only_touches_fit_style_fields():
     chart = _make_chart()
-    chart.add_fit_data(
-        "ds1", "Linear",
-        np.array([1.0]), np.array([2.0]),
-        style=FitStyle(color="#ff0000", line_width=2.0),
+    chart.add_fit_series(
+        "ds1", x_data=np.array([1.0]), y_data=np.array([2.0]),
+        label="Fit", style=FitStyle(color="#ff0000", line_width=2.0, fit_type="Linear"),
     )
     snap = snapshot_chart_state(chart)
 
@@ -84,20 +83,23 @@ def test_restore_only_touches_fit_style_fields():
 def test_restore_reverts_fit_alpha():
     """Regression: fit opacity (alpha) must be part of the snapshot/restore
     cycle, same as color and line_width -- otherwise Revert silently leaves
-    an opacity edit in place."""
+    an opacity edit in place. Post-#304, a fit's opacity is the generic
+    DataSeries.alpha field (FitStyle carries no alpha of its own)."""
     chart = _make_chart()
-    chart.add_fit_data(
-        "ds1", "Linear",
-        np.array([1.0]), np.array([2.0]),
-        style=FitStyle(alpha=1.0),
+    chart.add_fit_series(
+        source_dataset_id="ds1",
+        x_data=np.array([1.0]), y_data=np.array([2.0]),
+        label="Linear",
+        style=FitStyle(),
+        alpha=1.0,
     )
     snap = snapshot_chart_state(chart)
 
-    chart.fit_data[0].style.alpha = 0.3
+    chart.fit_data[0].alpha = 0.3
 
     restore_chart_state(chart, snap)
 
-    assert chart.fit_data[0].style.alpha == 1.0
+    assert chart.fit_data[0].alpha == 1.0
 
 
 def test_restore_reverts_fit_label():
@@ -106,10 +108,9 @@ def test_restore_reverts_fit_label():
     `fit.style` was), so Undo left a fit-data label edit in place even
     though the equivalent data-series edit correctly reverted."""
     chart = _make_chart()
-    chart.add_fit_data(
-        "ds1", "Linear",
-        np.array([1.0]), np.array([2.0]),
-        label="Original Fit",
+    chart.add_fit_series(
+        "ds1", x_data=np.array([1.0]), y_data=np.array([2.0]),
+        label="Original Fit", style=FitStyle(fit_type="Linear"),
     )
     snap = snapshot_chart_state(chart)
 
@@ -127,29 +128,47 @@ def test_restore_reverts_a_manual_fits_source_and_data_edits():
     (and ApplyChartPropertiesCommand's own undo/redo) must revert those
     edits too, not just style/label."""
     chart = _make_chart()
-    chart.add_fit_data(
-        "ds1", "Custom",
-        np.array([1.0, 2.0]), np.array([3.0, 4.0]),
+    chart.add_fit_series(
+        "ds1", x_data=np.array([1.0, 2.0]), y_data=np.array([3.0, 4.0]),
+        label="Custom Fit",
+        style=FitStyle(fit_type="Custom", is_manual=True),
         source_x_column_id="x-col", source_y_column_id="y-col",
-        is_manual=True,
     )
     snap = snapshot_chart_state(chart)
 
     fit = chart.fit_data[0]
-    fit.source_dataset_id = "ds2"
-    fit.source_x_column_id = "x-col-2"
-    fit.source_y_column_id = "y-col-2"
-    fit.x_data = np.array([99.0, 98.0])
-    fit.y_data = np.array([97.0, 96.0])
+    fit.dataset_id = "ds2"
+    fit.x_column_id = "x-col-2"
+    fit.y_column_id = "y-col-2"
+    fit.precomputed_x_data = np.array([99.0, 98.0])
+    fit.precomputed_y_data = np.array([97.0, 96.0])
 
     restore_chart_state(chart, snap)
 
     restored = chart.fit_data[0]
-    assert restored.source_dataset_id == "ds1"
-    assert restored.source_x_column_id == "x-col"
-    assert restored.source_y_column_id == "y-col"
-    np.testing.assert_array_equal(restored.x_data, np.array([1.0, 2.0]))
-    np.testing.assert_array_equal(restored.y_data, np.array([3.0, 4.0]))
+    assert restored.dataset_id == "ds1"
+    assert restored.x_column_id == "x-col"
+    assert restored.y_column_id == "y-col"
+    np.testing.assert_array_equal(restored.precomputed_x_data, np.array([1.0, 2.0]))
+    np.testing.assert_array_equal(restored.precomputed_y_data, np.array([3.0, 4.0]))
+
+
+def test_snapshot_restore_round_trips_fit_series():
+    """(#304) FIT series live in data_series now, not a separate fit_data
+    list -- snapshot/restore must round-trip them through data_series
+    alone, same as any other series."""
+    chart = Chart(name="c", chart_type="line")
+    chart.add_fit_series(
+        source_dataset_id="ds1", x_data=np.array([1.0]), y_data=np.array([2.0]),
+        label="Fit", style=FitStyle(color="#123456"),
+    )
+    snap = snapshot_chart_state(chart)
+    chart.data_series.clear()
+    assert chart.fit_data == []
+
+    restore_chart_state(chart, snap)
+    assert len(chart.fit_data) == 1
+    assert chart.fit_data[0].style.color == "#123456"
 
 
 def test_restore_reverts_fit_line_style():
@@ -157,10 +176,9 @@ def test_restore_reverts_fit_line_style():
     color/line_width/alpha were snapshotted, so line_style silently kept
     whatever the user changed it to even after Revert/Cancel."""
     chart = _make_chart()
-    chart.add_fit_data(
-        "ds1", "Linear",
-        np.array([1.0]), np.array([2.0]),
-        style=FitStyle(line_style="solid"),
+    chart.add_fit_series(
+        "ds1", x_data=np.array([1.0]), y_data=np.array([2.0]),
+        label="Fit", style=FitStyle(line_style="solid", fit_type="Linear"),
     )
     snap = snapshot_chart_state(chart)
 

@@ -7,8 +7,9 @@ Chart series come in two flavours:
 
 * **data series** (:class:`DataSeries`) reference a dataset column by id; the
   x/y values are read live from that dataset.
-* **fit series** (:class:`FitData`) carry their own resampled ``x_data`` /
-  ``y_data`` arrays.
+* **fit series** (``SeriesType.FIT``, a normal :class:`DataSeries`) carry
+  their own resampled ``precomputed_x_data`` / ``precomputed_y_data``
+  arrays instead of a live column reference.
 
 This command unifies both so the Chart Analysis panel can offer the full set of
 analysis operations regardless of which kind of series the user picked.

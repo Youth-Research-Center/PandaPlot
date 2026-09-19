@@ -7,20 +7,25 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import ChartEvents
-from pandaplot.models.project.items.chart import FitData
+from pandaplot.models.project.items.chart import DataSeries
 from pandaplot.models.state import AppContext
 
 
 class RemoveFitDataCommand(Command):
-    """Command to remove fit data from an existing chart."""
+    """Command to remove a FIT-type DataSeries from an existing chart.
 
-    def __init__(self, app_context: AppContext, chart_id: str, fit_index: int):
+    `series_index` is a plain `chart.data_series` index -- FIT-type
+    entries live inline in that list at whatever position, like any other
+    series (#304) -- there is no separate fit-relative index space to
+    translate into or out of."""
+
+    def __init__(self, app_context: AppContext, chart_id: str, series_index: int):
         super().__init__()
         self.app_context = app_context
         self.ui_controller: UIController = app_context.get_ui_controller()
         self.chart_id = chart_id
-        self.fit_index = fit_index
-        self.removed_fit_data: Optional[FitData] = None
+        self.series_index = series_index
+        self.removed_fit_data: Optional[DataSeries] = None
         self._chart_finder = ChartFinder(app_context)
 
     @override
@@ -36,21 +41,20 @@ class RemoveFitDataCommand(Command):
             )
             return CommandResult.FAILURE
 
-        if self.fit_index < 0 or self.fit_index >= len(chart.fit_data):
+        if self.series_index < 0 or self.series_index >= len(chart.data_series):
             self.logger.warning(
-                "RemoveFitDataCommand.execute: fit_index %s out of range for chart '%s' (%d fits)",
-                self.fit_index, self.chart_id, len(chart.fit_data),
+                "RemoveFitDataCommand.execute: series_index %s out of range for chart '%s' (%d series)",
+                self.series_index, self.chart_id, len(chart.data_series),
             )
             self.ui_controller.show_error_message(
-                "Remove Fit Error", f"Fit index {self.fit_index} is out of range."
+                "Remove Fit Error", f"Series index {self.series_index} is out of range."
             )
             return CommandResult.FAILURE
 
-        # Snapshot the fit data before removing
-        fit = chart.fit_data[self.fit_index]
+        fit = chart.data_series[self.series_index]
         self.removed_fit_data = copy.deepcopy(fit)
 
-        chart.remove_fit_data(self.fit_index)
+        chart.remove_data_series(self.series_index)
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
             "chart_id": self.chart_id,
@@ -69,9 +73,9 @@ class RemoveFitDataCommand(Command):
             )
             return CommandResult.FAILURE
 
-        # Re-create and insert at original position
+        # Re-create and insert at the original real data_series position.
         fit = copy.deepcopy(self.removed_fit_data)
-        chart.fit_data.insert(self.fit_index, fit)
+        chart.data_series.insert(self.series_index, fit)
         chart.update_modified_time()
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {

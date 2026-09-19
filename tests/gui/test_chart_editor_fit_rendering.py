@@ -27,15 +27,14 @@ def _chart_with_one_fit(project, dataset):
     chart = Chart(name="Fit Chart", chart_type="scatter")
     chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"),
                           y_column_id=dataset.column_id("y"), label="Series A")
-    chart.add_fit_data(
+    chart.add_fit_series(
         source_dataset_id=dataset.id,
         source_x_column_id=dataset.column_id("x"),
         source_y_column_id=dataset.column_id("y"),
-        fit_type="linear",
         x_data=np.array([1.0, 2.0, 3.0]),
         y_data=np.array([1.0, 2.0, 3.0]),
         label="Linear Fit",
-        style=FitStyle(color="#ff0000"),
+        style=FitStyle(color="#ff0000", fit_type="linear"),
     )
     project.add_item(chart)
     return chart
@@ -71,17 +70,19 @@ def test_confidence_band_for_a_secondary_axis_fit_is_drawn_on_that_axis():
     chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"),
                           y_column_id=dataset.column_id("y"), label="Series A",
                           y_axis="secondary")
-    chart.add_fit_data(
+    chart.add_fit_series(
         source_dataset_id=dataset.id,
         source_x_column_id=dataset.column_id("x"),
         source_y_column_id=dataset.column_id("y"),
-        fit_type="linear",
         x_data=np.array([1.0, 2.0, 3.0]),
         y_data=np.array([1.0, 2.0, 3.0]),
         label="Linear Fit",
-        style=FitStyle(color="#00ff00"),
-        confidence_lower=np.array([0.5, 1.5, 2.5]),
-        confidence_upper=np.array([1.5, 2.5, 3.5]),
+        style=FitStyle(
+            color="#00ff00", fit_type="linear",
+            confidence_lower=np.array([0.5, 1.5, 2.5]),
+            confidence_upper=np.array([1.5, 2.5, 3.5]),
+        ),
+        y_axis="secondary",
     )
     project.add_item(chart)
 
@@ -111,15 +112,15 @@ def test_fit_line_alpha_is_rendered():
     chart = Chart(name="Fit Alpha Chart", chart_type="line")
     chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"),
                           y_column_id=dataset.column_id("y"), label="Series A")
-    chart.add_fit_data(
+    chart.add_fit_series(
         source_dataset_id=dataset.id,
         source_x_column_id=dataset.column_id("x"),
         source_y_column_id=dataset.column_id("y"),
-        fit_type="linear",
         x_data=np.array([1.0, 2.0, 3.0]),
         y_data=np.array([1.0, 2.0, 3.0]),
         label="Linear Fit",
-        style=FitStyle(color="#ff0000", alpha=0.4),
+        style=FitStyle(color="#ff0000", fit_type="linear"),
+        alpha=0.4,
     )
     project.add_item(chart)
 
@@ -146,17 +147,19 @@ def test_band_fill_disabled_draws_no_confidence_band():
     chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"),
                           y_column_id=dataset.column_id("y"), label="Series A",
                           y_axis="secondary")
-    chart.add_fit_data(
+    chart.add_fit_series(
         source_dataset_id=dataset.id,
         source_x_column_id=dataset.column_id("x"),
         source_y_column_id=dataset.column_id("y"),
-        fit_type="linear",
         x_data=np.array([1.0, 2.0, 3.0]),
         y_data=np.array([1.0, 2.0, 3.0]),
         label="Linear Fit",
-        style=FitStyle(color="#00ff00", band_fill_enabled=False),
-        confidence_lower=np.array([0.5, 1.5, 2.5]),
-        confidence_upper=np.array([1.5, 2.5, 3.5]),
+        style=FitStyle(
+            color="#00ff00", fit_type="linear", band_fill_enabled=False,
+            confidence_lower=np.array([0.5, 1.5, 2.5]),
+            confidence_upper=np.array([1.5, 2.5, 3.5]),
+        ),
+        y_axis="secondary",
     )
     project.add_item(chart)
 
@@ -168,3 +171,50 @@ def test_band_fill_disabled_draws_no_confidence_band():
         "band_fill_enabled=False should suppress the confidence band"
     )
     assert len(editor.chart_canvas.axes.collections) == 0  # no band drawn
+
+
+def test_reordering_a_fit_relative_to_a_plain_series_changes_render_order():
+    """Regression/coverage test for the spec's z-order acceptance
+    criterion (final-review Important finding #5): "Reordering a FIT
+    series relative to other series (drag/move_data_series) changes its
+    draw order, verified with a new test." Series later in data_series
+    draw on top of earlier ones (Chart.move_data_series's own docstring,
+    #189) -- this builds [fit, line], renders, checks draw order, then
+    reorders to [line, fit] via move_data_series, re-renders, and confirms
+    the artist order actually changed to match."""
+    _qapp()
+    app_context = build_app_context()
+    project = Project(name="Fit Z-Order Project")
+    df = pd.DataFrame({"x": [1, 2, 3], "y": [1, 4, 9]})
+    dataset = Dataset(name="ds1", data=df)
+    project.add_item(dataset)
+    app_context.app_state.load_project(project)
+
+    chart = Chart(name="Z-Order Chart", chart_type="line")
+    chart.add_fit_series(
+        source_dataset_id=dataset.id,
+        source_x_column_id=dataset.column_id("x"),
+        source_y_column_id=dataset.column_id("y"),
+        x_data=np.array([1.0, 2.0, 3.0]),
+        y_data=np.array([1.0, 2.0, 3.0]),
+        label="Linear Fit",
+        style=FitStyle(color="#ff0000", fit_type="linear"),
+    )
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"),
+                          y_column_id=dataset.column_id("y"), label="Series A")
+    project.add_item(chart)
+
+    editor = ChartEditorWidget(app_context=app_context, chart=chart, parent=None)
+    editor.update_chart()
+
+    colors_before = [line.get_color() for line in editor.chart_canvas.axes.get_lines()]
+    assert colors_before[0] == "#ff0000", "fit (index 0) must draw before the plain series"
+
+    assert chart.move_data_series(0, 1) is True
+    editor.update_chart()
+
+    colors_after = [line.get_color() for line in editor.chart_canvas.axes.get_lines()]
+    assert colors_after[-1] == "#ff0000", (
+        "after reordering to [line, fit], the fit must now draw last (on top)"
+    )
+    assert colors_before != colors_after, "reordering must actually change the render order"

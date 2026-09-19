@@ -13,6 +13,7 @@ from typing import Callable
 from pandaplot.gui.components.tabs.chart.series_renderers.bar import render_bar_series
 from pandaplot.gui.components.tabs.chart.series_renderers.bar3d import render_bar3d_series
 from pandaplot.gui.components.tabs.chart.series_renderers.colormap import render_colormap_series
+from pandaplot.gui.components.tabs.chart.series_renderers.fit import render_fit_series
 from pandaplot.gui.components.tabs.chart.series_renderers.heatmap import render_heatmap_series
 from pandaplot.gui.components.tabs.chart.series_renderers.hist import render_hist_series
 from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
@@ -39,6 +40,7 @@ SERIES_RENDERERS: dict[SeriesType, Callable] = {
     SeriesType.WIREFRAME: render_wireframe_series,
     SeriesType.BAR3D: render_bar3d_series,
     SeriesType.TRISURF: render_trisurf_series,
+    SeriesType.FIT: render_fit_series,
 }
 
 # The render functions whose contract is to return None when they have
@@ -75,4 +77,5 @@ __all__ = [
     "render_wireframe_series",
     "render_bar3d_series",
     "render_trisurf_series",
+    "render_fit_series",
 ]

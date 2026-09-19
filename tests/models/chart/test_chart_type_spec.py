@@ -47,12 +47,12 @@ def test_vector_spec_matches_former_chart_role_spec_values():
 
 
 def test_allowed_series_types_per_chart_type():
-    lsv = {SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}
-    assert CHART_TYPE_SPECS[ChartType.LINE].allowed_series_types == lsv
-    assert CHART_TYPE_SPECS[ChartType.SCATTER].allowed_series_types == lsv
-    assert CHART_TYPE_SPECS[ChartType.VECTOR].allowed_series_types == lsv
-    assert CHART_TYPE_SPECS[ChartType.BAR].allowed_series_types == {SeriesType.BAR, SeriesType.SCATTER}
-    assert CHART_TYPE_SPECS[ChartType.HIST].allowed_series_types == {SeriesType.HIST}
+    lsv_fit = {SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR, SeriesType.FIT}
+    assert CHART_TYPE_SPECS[ChartType.LINE].allowed_series_types == lsv_fit
+    assert CHART_TYPE_SPECS[ChartType.SCATTER].allowed_series_types == lsv_fit
+    assert CHART_TYPE_SPECS[ChartType.VECTOR].allowed_series_types == lsv_fit
+    assert CHART_TYPE_SPECS[ChartType.BAR].allowed_series_types == {SeriesType.BAR, SeriesType.SCATTER, SeriesType.FIT}
+    assert CHART_TYPE_SPECS[ChartType.HIST].allowed_series_types == {SeriesType.HIST, SeriesType.FIT}
 
 
 def test_allowed_series_types_is_genuinely_immutable():
@@ -199,3 +199,16 @@ def test_compatible_chart_types_for_series_single_vector_matches_existing_vector
     assert ChartType.LINE in result
     assert ChartType.SCATTER in result
     assert ChartType.VECTOR in result
+
+
+def test_allows_fit_chart_types_include_fit_series_type():
+    from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
+    from pandaplot.models.chart.series_type import SeriesType
+
+    for chart_type, spec in CHART_TYPE_SPECS.items():
+        if spec.allows_fit:
+            assert SeriesType.FIT in spec.allowed_series_types, (
+                f"{chart_type}: allows_fit=True but FIT missing from allowed_series_types"
+            )
+        else:
+            assert SeriesType.FIT not in spec.allowed_series_types

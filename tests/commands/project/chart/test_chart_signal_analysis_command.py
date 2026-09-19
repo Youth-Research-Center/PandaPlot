@@ -18,6 +18,7 @@ from pandaplot.commands.project.chart.chart_signal_analysis_command import (
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
 )
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -41,8 +42,9 @@ def ctx():
     y_id = dataset.column_id("signal")
     chart.add_data_series(dataset_id="ds-1", x_column_id=x_id, y_column_id=y_id,
                           x_column="t", y_column="signal", label="Signal")
-    chart.add_fit_data(source_dataset_id="ds-1", fit_type="custom",
-                       x_data=t, y_data=signal, label="Signal Fit", source_x_column="t")
+    chart.add_fit_series(source_dataset_id="ds-1", x_data=t, y_data=signal,
+                         label="Signal Fit", source_x_column="t",
+                         style=FitStyle(fit_type="custom"))
     project.add_item(chart)
 
     app_context = Mock(spec=AppContext)
@@ -364,7 +366,7 @@ class TestChartSignalAnalysisCommandPlotResult:
         assert command.execute() is CommandResult.SUCCESS
 
         original_chart = project.find_item("chart-1")
-        assert len(original_chart.data_series) == 1  # untouched
+        assert len(original_chart.data_series) == 2  # untouched (data series + fit series)
 
         new_charts = [
             item for item in project.get_all_items()

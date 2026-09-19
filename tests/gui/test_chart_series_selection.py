@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication
 from pandaplot.app import build_app_context
 from pandaplot.gui.components.sidebar.chart.chart_properties_panel import ChartPropertiesPanel
 from pandaplot.gui.components.tabs.chart.chart_editor import ChartEditorWidget
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart
@@ -121,23 +122,29 @@ def test_bar_series_legend_handle_resolves_to_series_index():
     assert resolved == [0, 1]
 
 
-def test_fit_series_pick_event_resolves_to_offset_index():
+def test_fit_series_pick_event_resolves_to_its_own_data_series_index():
+    """A FIT series is just another entry in chart.data_series (#304): once
+    it renders through the unified per-series loop instead of a separate
+    fit-only pass, its pick-event index is its own plain position in
+    chart.data_series, like every other series type -- no "total data
+    series + fit offset" combined-index scheme anymore."""
     _qapp()
     app_ctx = build_app_context()
     project, dataset, chart = _make_project_and_chart()
-    chart.add_fit_data(
-        dataset.id, fit_type="linear",
+    fit_index = len(chart.data_series)
+    chart.add_fit_series(
+        dataset.id,
         x_data=pd.array([1, 2, 3]), y_data=pd.array([1, 2, 3]),
         source_x_column_id="x", source_y_column_id="y1", label="Fit 1",
+        style=FitStyle(fit_type="linear"),
     )
     app_ctx.app_state.load_project(project)
 
     widget = ChartEditorWidget(app_context=app_ctx, chart=chart, parent=None)
 
-    total_data_series = len(chart.data_series)
     fit_artist = next(
         artist for artist, idx in widget._artist_series_map.items()
-        if idx == total_data_series
+        if idx == fit_index
     )
 
     listener = MagicMock()
@@ -146,7 +153,62 @@ def test_fit_series_pick_event_resolves_to_offset_index():
 
     listener.assert_called_once()
     event_data = listener.call_args[0][0]
-    assert event_data["series_index"] == total_data_series
+    assert event_data["series_index"] == fit_index
+
+
+def test_fit_series_pick_event_resolves_by_identity_not_equality():
+    """Regression test (review finding on Task 9): two FIT series that are
+    ``==``-equal (same dataset_id/x_column_id/y_column_id/label/style --
+    ``DataSeries.precomputed_x_data``/``precomputed_y_data`` are
+    ``compare=False``) but hold different snapshotted curve data must still
+    resolve to their OWN distinct position in ``chart.fit_data``.
+    ``chart.fit_data.index(series)`` would return the position of the
+    FIRST equal match instead of the actual series clicked -- this must use
+    an identity (``is``) search instead."""
+    _qapp()
+    app_ctx = build_app_context()
+    project, dataset, chart = _make_project_and_chart()
+
+    shared_style = FitStyle(fit_type="linear")
+    first_fit_index = len(chart.data_series)
+    chart.add_fit_series(
+        dataset.id,
+        x_data=pd.array([1, 2, 3]), y_data=pd.array([1, 2, 3]),
+        source_x_column_id="x", source_y_column_id="y1", label="Fit",
+        style=shared_style,
+    )
+    second_fit_index = len(chart.data_series)
+    chart.add_fit_series(
+        dataset.id,
+        # Same dataset/columns/label/style as the first fit -- only the
+        # snapshotted curve data differs.
+        x_data=pd.array([4, 5, 6]), y_data=pd.array([7, 8, 9]),
+        source_x_column_id="x", source_y_column_id="y1", label="Fit",
+        style=shared_style,
+    )
+    # Sanity: the two fits really do compare equal (the bug's precondition).
+    assert chart.data_series[first_fit_index] == chart.data_series[second_fit_index]
+    assert chart.fit_data[0] is chart.data_series[first_fit_index]
+    assert chart.fit_data[1] is chart.data_series[second_fit_index]
+
+    app_ctx.app_state.load_project(project)
+    widget = ChartEditorWidget(app_context=app_ctx, chart=chart, parent=None)
+
+    second_fit_artist = next(
+        artist for artist, idx in widget._artist_series_map.items()
+        if idx == second_fit_index
+    )
+
+    listener = MagicMock()
+    app_ctx.event_bus.subscribe(ChartEvents.SERIES_SELECTED, listener)
+    widget._on_pick_event(SimpleNamespace(artist=second_fit_artist))
+
+    listener.assert_called_once()
+    event_data = listener.call_args[0][0]
+    assert event_data["kind"] == "fit"
+    # Must resolve to the SECOND fit's own fit_data-relative index (1), not
+    # the first equal match's index (0).
+    assert event_data["index"] == 1
 
 
 def test_hover_over_pickable_artist_shows_pointing_hand_cursor():
