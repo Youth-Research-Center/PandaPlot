@@ -68,7 +68,10 @@ macos.permissions =
 mode = onefile
 
 # specify any extra nuitka arguments
-extra_args = --quiet --noinclude-qt-translations --windows-console-mode=disable --include-data-dir=pandaplot/gui/resources/icons=pandaplot/gui/resources/icons --include-data-dir=examples=examples
+# --assume-yes-for-downloads: Windows onefile/standalone builds need Nuitka's
+# Dependency Walker helper, which Nuitka otherwise prompts to download; in
+# non-interactive CI that prompt defaults to "no" and the build silently fails.
+extra_args = --quiet --noinclude-qt-translations --windows-console-mode=disable --assume-yes-for-downloads --include-data-dir=pandaplot/gui/resources/icons=pandaplot/gui/resources/icons --include-data-dir=examples=examples
 
 [buildozer]
 

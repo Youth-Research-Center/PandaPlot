@@ -9,6 +9,21 @@ import sys
 from pathlib import Path
 
 
+def _expected_exe_format(mode: str) -> str:
+    """Mirrors PySide6's deploy_lib.finalize(): the extension pyside6-deploy
+    gives the final copied executable/bundle for each platform and mode."""
+    if sys.platform == "win32":
+        exe_format = ".exe"
+    elif sys.platform == "darwin":
+        exe_format = ".app"
+    else:
+        exe_format = ".bin"
+
+    if mode == "standalone" and sys.platform != "darwin":
+        exe_format = ".dist"
+    return exe_format
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Build PandaPlot desktop executable installer using pyside6-deploy."
@@ -56,7 +71,28 @@ def main() -> int:
 
     print(f"Running: {' '.join(cmd)} (cwd: {build_cwd})")
     result = subprocess.run(cmd, cwd=build_cwd)
-    return result.returncode
+    if result.returncode != 0:
+        return result.returncode
+
+    if args.dry_run:
+        return 0
+
+    # pyside6-deploy swallows Nuitka/deploy failures internally and always
+    # exits 0 (see PySide6.scripts.deploy.main's bare `except Exception:
+    # print(...)`), so a non-zero returncode above can't be relied on to
+    # detect a failed build. Verify the expected output actually exists.
+    title = spec_config.get("app", "title", fallback="app")
+    mode = spec_config.get("nuitka", "mode", fallback="onefile")
+    output_path = build_cwd / exec_directory / f"{title}{_expected_exe_format(mode)}"
+    if not output_path.exists():
+        print(
+            f"Error: pyside6-deploy reported success but no output was produced at "
+            f"{output_path}. Check the build log above for the underlying failure.",
+            file=sys.stderr,
+        )
+        return 1
+
+    return 0
 
 
 if __name__ == "__main__":
