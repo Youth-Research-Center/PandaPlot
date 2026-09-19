@@ -42,9 +42,9 @@ class TransformPanel(SidebarPanel):
     """
 
     def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
-        # Set before super().__init__() -- that call runs _init_ui() then
-        # _apply_theme(), and _apply_theme() needs this to style preview_text
-        # correctly on the very first render.
+        # Set before self._initialize() below -- that call runs _init_ui()
+        # then _apply_theme(), and _apply_theme() needs this to style
+        # preview_text correctly on the very first render.
         self._preview_has_error = False
         super().__init__(app_context=app_context, parent=parent)
         self.current_dataset_tab = None
