@@ -45,7 +45,7 @@ def app_context_with_chart(chart_with_fit):
 
 def test_execute_removes_fit_data(app_context_with_chart):
     app_context, chart = app_context_with_chart
-    command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
+    command = RemoveFitDataCommand(app_context, chart_id="chart-1", series_index=0)
 
     assert command.execute() is CommandResult.SUCCESS
     assert len(chart.fit_data) == 0
@@ -53,7 +53,7 @@ def test_execute_removes_fit_data(app_context_with_chart):
 
 def test_execute_out_of_range_returns_false(app_context_with_chart, caplog):
     app_context, chart = app_context_with_chart
-    command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=5)
+    command = RemoveFitDataCommand(app_context, chart_id="chart-1", series_index=5)
 
     with caplog.at_level(logging.WARNING):
         assert command.execute() is CommandResult.FAILURE
@@ -72,7 +72,7 @@ def test_execute_logs_a_warning_when_chart_not_found(caplog):
     app_context.get_app_state.return_value = app_state
     app_context.event_bus = Mock()
 
-    command = RemoveFitDataCommand(app_context, chart_id="missing", fit_index=0)
+    command = RemoveFitDataCommand(app_context, chart_id="missing", series_index=0)
 
     with caplog.at_level(logging.WARNING):
         assert command.execute() is CommandResult.FAILURE
@@ -83,7 +83,7 @@ def test_execute_logs_a_warning_when_chart_not_found(caplog):
 def test_undo_logs_a_warning_when_nothing_to_undo(app_context_with_chart, caplog):
     app_context, chart = app_context_with_chart
 
-    command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
+    command = RemoveFitDataCommand(app_context, chart_id="chart-1", series_index=0)
 
     with caplog.at_level(logging.WARNING):
         command.undo()
@@ -94,7 +94,7 @@ def test_undo_restores_the_removed_fit(app_context_with_chart, chart_with_fit):
     app_context, chart = app_context_with_chart
     _, original_fit = chart_with_fit
 
-    command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
+    command = RemoveFitDataCommand(app_context, chart_id="chart-1", series_index=0)
     command.execute()
 
     command.undo()
@@ -110,8 +110,7 @@ def test_undo_restores_the_removed_fit(app_context_with_chart, chart_with_fit):
 def test_undo_restores_the_removed_fit_at_its_original_index(app_context_with_chart, chart_with_fit):
     """With multiple fits present, undo must reinsert the removed fit at
     its original z-order index (data_series position), not just append
-    it back at the end -- exercises the real-index bookkeeping
-    (_removed_real_index)."""
+    it back at the end."""
     app_context, chart = app_context_with_chart
     chart.add_fit_series(
         source_dataset_id="ds-2",
@@ -122,7 +121,7 @@ def test_undo_restores_the_removed_fit_at_its_original_index(app_context_with_ch
     )
     # chart.fit_data is now [Linear Fit, Second Fit].
 
-    command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
+    command = RemoveFitDataCommand(app_context, chart_id="chart-1", series_index=0)
     assert command.execute() is CommandResult.SUCCESS
     assert len(chart.fit_data) == 1
     assert chart.fit_data[0].label == "Second Fit"
@@ -136,7 +135,7 @@ def test_undo_restores_the_removed_fit_at_its_original_index(app_context_with_ch
 
 def test_redo_removes_fit_data_again(app_context_with_chart):
     app_context, chart = app_context_with_chart
-    command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
+    command = RemoveFitDataCommand(app_context, chart_id="chart-1", series_index=0)
 
     command.execute()
     command.undo()
@@ -148,7 +147,7 @@ def test_redo_removes_fit_data_again(app_context_with_chart):
 def test_undo_restores_the_fit_with_its_typed_style_object_intact(app_context_with_chart):
     app_context, chart = app_context_with_chart
     chart.fit_data[0].style = FitStyle(color="#abcdef", band_fill_enabled=False)
-    command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
+    command = RemoveFitDataCommand(app_context, chart_id="chart-1", series_index=0)
     command.execute()
 
     command.undo()
@@ -161,7 +160,7 @@ def test_undo_restores_the_fit_with_its_typed_style_object_intact(app_context_wi
 
 def test_cleanup_releases_the_removed_fit_data_snapshot(app_context_with_chart):
     app_context, chart = app_context_with_chart
-    command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
+    command = RemoveFitDataCommand(app_context, chart_id="chart-1", series_index=0)
 
     command.execute()
     assert command.removed_fit_data is not None

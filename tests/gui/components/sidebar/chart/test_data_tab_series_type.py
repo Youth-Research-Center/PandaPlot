@@ -805,14 +805,16 @@ def test_apply_to_does_not_recreate_a_series_after_converting_the_only_series_to
     assert len(chart.fit_data) == 1
 
 
-def test_remove_series_at_resolves_fit_index_by_identity_not_equality():
-    """Regression test (review finding on Task 9): `_remove_series_at` must
-    find a FIT series' position in `chart.fit_data` by identity (`is`), not
-    `==`/`.index()`. Two FIT series that share dataset_id/x_column_id/
-    y_column_id/label/style (DataSeries.precomputed_x_data/y_data are
-    compare=False) compare `==`-equal despite holding different snapshotted
-    curve data -- `.index()` would silently resolve to the position of the
-    FIRST equal match rather than the actual series being removed."""
+def test_remove_series_at_passes_the_real_data_series_index_for_a_fit():
+    """`_remove_series_at` must hand `RemoveFitDataCommand` the same plain
+    `chart.data_series` index it was given -- FIT-type entries live inline
+    in that list at whatever position, like any other series (#304), so
+    there's no separate fit-relative index space to translate into.
+    Regression test: this used to require resolving a `chart.fit_data`-
+    relative index by identity (`is`, not `==`/`.index()`, since two FIT
+    series with identical dataset/columns/label/style but different
+    snapshotted curve data compare `==`-equal); that whole translation
+    step is gone now that RemoveFitDataCommand takes a real index too."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Line Chart", chart_type="line")
 
@@ -831,9 +833,9 @@ def test_remove_series_at_resolves_fit_index_by_identity_not_equality():
         source_x_column_id=dataset.column_id("x"), source_y_column_id=dataset.column_id("y"),
         label="Fit", style=shared_style,
     )
-    # Sanity: the two fits really do compare equal (the bug's precondition).
+    # Sanity: the two fits really do compare equal, so a resolution
+    # scheme relying on `==`/`.index()` would resolve to the wrong one.
     assert chart.data_series[0] == chart.data_series[1]
-    second_fit = chart.data_series[1]
 
     tab = DataTab(app_context=app_context)
     tab.set_project(project)
@@ -845,10 +847,7 @@ def test_remove_series_at_resolves_fit_index_by_identity_not_equality():
         tab._remove_series_at(1)
 
     mock_command_cls.assert_called_once()
-    # Must resolve to the SECOND fit's own fit_data-relative index (1), not
-    # the first equal match's index (0) that `.index()` would have returned.
-    assert mock_command_cls.call_args.kwargs["fit_index"] == 1
-    assert chart.fit_data[1] is second_fit
+    assert mock_command_cls.call_args.kwargs["series_index"] == 1
 
 
 def test_expand_series_emits_series_kind_for_fit_entries():

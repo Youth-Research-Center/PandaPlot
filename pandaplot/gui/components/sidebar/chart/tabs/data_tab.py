@@ -719,15 +719,7 @@ class DataTab(QWidget):
     def _remove_series_at(self, index: int):
         """Remove the entry at `index` (a plain `chart.data_series` index --
         FIT-type entries live inline in that list, per #304), adjusting
-        selection and accordion state for the index shift.
-
-        `RemoveFitDataCommand` still expects a `chart.fit_data`-relative
-        index (its own internals are Task 10's, not this task's,
-        territory). We find that index by identity (`is`), not `==`/
-        `.index()`: `DataSeries` is a plain dataclass whose precomputed
-        curve data is `compare=False`, so two distinct FIT series that
-        otherwise share dataset/columns/label/style can compare equal
-        and `.index()` would silently resolve to the wrong one."""
+        selection and accordion state for the index shift."""
         if not self.current_chart:
             return
 
@@ -740,9 +732,7 @@ class DataTab(QWidget):
             command = RemoveFitDataCommand(
                 self.app_context,
                 chart_id=self.current_chart.id,
-                fit_index=next(
-                    i for i, s in enumerate(self.current_chart.fit_data) if s is series
-                ),
+                series_index=index,
             )
         else:
             command = RemoveSeriesCommand(
