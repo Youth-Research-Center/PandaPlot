@@ -84,6 +84,56 @@ def test_series_type_combo_has_exactly_one_fit_entry_using_the_convert_sentinel(
     assert tab.series_type_combo.findData(SeriesType.FIT) == -1
 
 
+def test_series_type_combo_omits_the_fit_conversion_action_on_3d_charts():
+    """A FIT series has only 2-D (x, y) curve data and its renderer plots
+    on a plain Axes, not mplot3d -- offering "Fit" as a conversion action
+    on a 3-D chart would leave a 2-D-only renderer attached to 3-D axes,
+    with no chart-type switch involved to have warned about it (#304
+    final-review finding)."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="3D Scatter Chart", chart_type="scatter3d")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+                           series_type=SeriesType.SCATTER3D)
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+
+    fit_labeled_rows = [
+        i for i in range(tab.series_type_combo.count())
+        if tab.series_type_combo.itemText(i) == "Fit"
+    ]
+    assert fit_labeled_rows == []
+    assert tab.series_type_combo.findData("__convert_to_fit__") == -1
+
+
+def test_series_type_combo_omits_the_fit_conversion_action_on_colormap_charts():
+    """A Colormap chart has allows_fit=False (same as a 3-D chart type,
+    just for a different reason: FIT isn't a member of its
+    allowed_series_types at all) -- offering "Fit" there would let
+    ConvertSeriesToFitCommand (which has no chart-type check of its own)
+    produce a FIT series the chart type can't actually render. Regression
+    test: the combo used to gate this entry on `spec.is_3d` alone, which
+    missed Colormap/Heatmap."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Colormap Chart", chart_type="colormap")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+                           series_type=SeriesType.SCATTER)
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+
+    fit_labeled_rows = [
+        i for i in range(tab.series_type_combo.count())
+        if tab.series_type_combo.itemText(i) == "Fit"
+    ]
+    assert fit_labeled_rows == []
+    assert tab.series_type_combo.findData("__convert_to_fit__") == -1
+
+
 def test_series_type_combo_selects_the_current_series_own_type():
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Vector Chart", chart_type="vector")
