@@ -21,41 +21,11 @@ from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.project.items.chart import (
     Chart,
     DataSeries,
-    FitData,
     assign_series_column_ids,
     resolve_manual_fit_source_data,
     restore_chart_state,
     snapshot_chart_state,
 )
-
-
-class TestFitDataStyle:
-    """FitData.style is authoritative, auto-derived like DataSeries.style."""
-
-    def test_style_auto_derives_to_a_default_fitstyle(self):
-        fit = FitData(source_dataset_id="ds1", fit_type="linear",
-                       x_data=np.array([1.0]), y_data=np.array([2.0]), label="Fit")
-
-        assert isinstance(fit.style, FitStyle)
-        assert fit.style.color == "#ff7f0e"
-        assert fit.style.band_fill_enabled is True
-
-    def test_style_is_respected_when_passed_explicitly(self):
-        fit = FitData(source_dataset_id="ds1", fit_type="linear",
-                       x_data=np.array([1.0]), y_data=np.array([2.0]), label="Fit",
-                       style=FitStyle(color="#112233", band_fill_enabled=False))
-
-        assert fit.style.color == "#112233"
-        assert fit.style.band_fill_enabled is False
-
-    def test_flat_style_fields_no_longer_exist(self):
-        fit = FitData(source_dataset_id="ds1", fit_type="linear",
-                       x_data=np.array([1.0]), y_data=np.array([2.0]), label="Fit")
-
-        assert not hasattr(fit, "color")
-        assert not hasattr(fit, "line_style")
-        assert not hasattr(fit, "line_width")
-        assert not hasattr(fit, "alpha")
 
 
 class TestFitDataConfidenceBandRoundTrip:

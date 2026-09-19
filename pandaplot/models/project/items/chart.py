@@ -106,43 +106,6 @@ class DataSeries:
         return error_bars is not None and error_bars.has_error_data
 
 
-@dataclass
-class FitData:
-    """Represents fitted curve data.
-
-    Source columns are referenced by stable id (``source_*_column_id``); the
-    ``source_*_column`` name fields are a legacy/fallback populated only when
-    loading old projects. The fit line itself renders from ``x_data``/``y_data``,
-    so the source columns are metadata (display + series↔fit matching).
-    """
-    source_dataset_id: str
-    fit_type: str
-    x_data: np.ndarray
-    y_data: np.ndarray
-    label: str
-    source_x_column_id: str = ""
-    source_y_column_id: str = ""
-    source_x_column: str = ""
-    source_y_column: str = ""
-    visible: bool = True
-    fit_params: Optional[Dict[str, Any]] = None
-    fit_stats: Optional[Dict[str, Any]] = None
-    confidence_lower: np.ndarray | None = None
-    confidence_upper: np.ndarray | None = None
-    confidence_lower_column_id: str = ""
-    confidence_upper_column_id: str = ""
-    is_manual: bool = False
-    style: Optional[FitStyle] = None
-
-    def __post_init__(self):
-        if self.fit_params is None:
-            self.fit_params = {}
-        if self.fit_stats is None:
-            self.fit_stats = {}
-        if self.style is None:
-            self.style = FitStyle()
-
-
 def _series_style_from_dict(series_type: SeriesType, style_dict: Dict[str, Any]) -> SeriesStyleBase:
     """Reconstruct a series' ``style`` from its serialized dict.
 
