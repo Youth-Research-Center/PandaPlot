@@ -20,6 +20,9 @@ dependencies = [
 [dependency-groups]
 dev = [
     "bandit>=1.9.4",
+    # Needed by Nuitka/pyside6-deploy on macOS to convert the .ico app icon
+    # to a native .icns; without it the deploy build fails.
+    "imageio>=2.31.0",
     "pip-audit>=2.10.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
