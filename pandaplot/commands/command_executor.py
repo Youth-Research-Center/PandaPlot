@@ -1,7 +1,9 @@
 import logging
-from typing import Callable, List, Optional
+from contextlib import contextmanager
+from typing import Callable, Generator, List, Optional
 
 from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.composite_command import CompositeCommand
 
 
 class CommandExecutor:
@@ -12,13 +14,15 @@ class CommandExecutor:
 
     def __init__(self, on_history_changed: Optional[Callable[[], None]] = None,
                  on_project_modified: Optional[Callable[[], None]] = None,
-                 on_undo_redo_error: Optional[Callable[[str, str], None]] = None):
+                 on_undo_redo_error: Optional[Callable[[str, str], None]] = None,
+                 max_undo_levels: int = 10):
         self.logger = logging.getLogger(self.__class__.__name__)
 
         # Undo/Redo functionality
         self.undo_stack: List[Command] = []
         self.redo_stack: List[Command] = []
-        self.max_undo_levels = 10
+        self.max_undo_levels = max(1, max_undo_levels)
+        self._batch_stack: List[List[Command]] = []
 
         # Called after a command that marks_project_modified() succeeds; wired
         # by app.py to AppState.mark_modified.
@@ -131,6 +135,12 @@ class CommandExecutor:
             if result is CommandResult.FAILURE:
                 self.logger.warning("Command execution failed: %s", command_name)
                 return False
+
+            if self._batch_stack:
+                self._batch_stack[-1].append(command)
+                self._notify_project_modified(command)
+                self.logger.info("Successfully executed sub-command in batch: %s", command_name)
+                return True
 
             if command.occupies_undo_slot():
                 if track_undo:
@@ -259,6 +269,15 @@ class CommandExecutor:
         self._notify_history_changed()
         return True
     
+    def set_max_undo_levels(self, max_undo_levels: int) -> None:
+        """Dynamically update the maximum undo stack size. Truncates older history
+        and runs cleanup on evicted commands if current size exceeds new max."""
+        self.max_undo_levels = max(1, max_undo_levels)
+        while len(self.undo_stack) > self.max_undo_levels:
+            removed_command = self.undo_stack.pop(0)
+            self._safe_cleanup(removed_command)
+        self._notify_history_changed()
+
     def can_undo(self) -> bool:
         """Check if undo is available."""
         return len(self.undo_stack) > 0
@@ -278,6 +297,42 @@ class CommandExecutor:
         if self.redo_stack:
             return str(self.redo_stack[-1])
         return None
+
+    def get_undo_history_descriptions(self) -> List[str]:
+        """Get human-readable display names for all commands on the undo stack (oldest to newest)."""
+        return [self._safe_display_name(cmd) for cmd in self.undo_stack]
+
+    def get_redo_history_descriptions(self) -> List[str]:
+        """Get human-readable display names for all commands on the redo stack (oldest to newest)."""
+        return [self._safe_display_name(cmd) for cmd in self.redo_stack]
+
+    @contextmanager
+    def batch(self, description: Optional[str] = None) -> Generator[None, None, None]:
+        """Context manager to record multiple command executions into a single atomic CompositeCommand.
+
+        Sub-commands executed within the context via execute_command() are intercepted and collected.
+        Upon exiting the block, if any sub-commands were recorded, they are executed as a single unit on the stack.
+        If an exception occurs within the block, any already-executed commands in the batch are undone.
+        """
+        batch_commands: List[Command] = []
+        self._batch_stack.append(batch_commands)
+        try:
+            yield
+        except Exception:
+            self._batch_stack.pop()
+            # Rollback any commands executed during the failed batch block
+            for cmd in reversed(batch_commands):
+                try:
+                    cmd.undo()
+                except Exception as rollback_err:
+                    self.logger.error("Error rolling back batch sub-command %s: %s", cmd.__class__.__name__, rollback_err, exc_info=True)
+            raise
+        else:
+            self._batch_stack.pop()
+            if batch_commands:
+                composite = CompositeCommand(commands=batch_commands, display_name=description, already_executed=True)
+                # Outer execute_command call handles stack management and project modified notification
+                self.execute_command(composite)
     
     def clear_history(self):
         """Clear undo/redo history."""
