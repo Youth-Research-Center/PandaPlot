@@ -86,6 +86,95 @@ def test_confirm_discard_still_returns_true_without_asking_when_flush_finds_noth
     app_context.get_ui_controller.return_value.show_question.assert_not_called()
 
 
+def test_confirm_discard_asks_plain_discard_question_without_offer_save():
+    app_context, _app_state = _make_app_context(is_modified=True)
+    app_context.get_ui_controller.return_value.show_question.return_value = True
+
+    result = confirm_discard_unsaved_changes(app_context)
+
+    assert result is True
+    app_context.get_ui_controller.return_value.show_question.assert_called_once()
+    app_context.get_ui_controller.return_value.show_save_discard_cancel.assert_not_called()
+
+
+def test_confirm_discard_falls_back_to_plain_question_when_offer_save_but_never_saved():
+    """No file path to save to (never-saved project) -- offering "Save and
+    Close" would need a Save As dialog this guard doesn't own, so it falls
+    back to the plain discard/cancel question."""
+    app_context, _app_state = _make_app_context(is_modified=True)
+    app_context.get_ui_controller.return_value.show_question.return_value = True
+
+    result = confirm_discard_unsaved_changes(app_context, offer_save=True)
+
+    assert result is True
+    app_context.get_ui_controller.return_value.show_question.assert_called_once()
+    app_context.get_ui_controller.return_value.show_save_discard_cancel.assert_not_called()
+
+
+def test_confirm_discard_offers_save_when_project_has_a_file_path():
+    app_context, app_state = _make_app_context(is_modified=True)
+    app_state.project_file_path = "/tmp/p.pplot"
+    ui_controller = app_context.get_ui_controller.return_value
+    ui_controller.show_save_discard_cancel.return_value = "discard"
+
+    result = confirm_discard_unsaved_changes(app_context, offer_save=True)
+
+    assert result is True
+    ui_controller.show_save_discard_cancel.assert_called_once()
+    ui_controller.show_question.assert_not_called()
+
+
+def test_confirm_discard_cancel_choice_refuses_to_proceed():
+    app_context, app_state = _make_app_context(is_modified=True)
+    app_state.project_file_path = "/tmp/p.pplot"
+    app_context.get_ui_controller.return_value.show_save_discard_cancel.return_value = "cancel"
+
+    result = confirm_discard_unsaved_changes(app_context, offer_save=True)
+
+    assert result is False
+
+
+def test_confirm_discard_save_choice_saves_and_proceeds():
+    app_context, app_state = _make_app_context(is_modified=True)
+    app_state.project_file_path = "/tmp/p.pplot"
+    app_context.get_ui_controller.return_value.show_save_discard_cancel.return_value = "save"
+    project_manager = Mock()
+    app_context.get_manager.return_value = project_manager
+
+    result = confirm_discard_unsaved_changes(app_context, offer_save=True)
+
+    assert result is True
+    project_manager.save_project.assert_called_once_with(app_state.current_project, "/tmp/p.pplot")
+    app_state.mark_saved.assert_called_once()
+
+
+def test_confirm_discard_save_choice_reports_failure_and_refuses_to_proceed():
+    app_context, app_state = _make_app_context(is_modified=True)
+    app_state.project_file_path = "/tmp/p.pplot"
+    app_context.get_ui_controller.return_value.show_save_discard_cancel.return_value = "save"
+    project_manager = Mock()
+    project_manager.save_project.side_effect = OSError("disk full")
+    app_context.get_manager.return_value = project_manager
+
+    result = confirm_discard_unsaved_changes(app_context, offer_save=True)
+
+    assert result is False
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+    app_state.mark_saved.assert_not_called()
+
+
+def test_confirm_discard_save_choice_refuses_when_a_save_is_already_in_progress():
+    app_context, app_state = _make_app_context(is_modified=True)
+    app_state.project_file_path = "/tmp/p.pplot"
+    app_state.is_saving = True
+    app_context.get_ui_controller.return_value.show_save_discard_cancel.return_value = "save"
+
+    result = confirm_discard_unsaved_changes(app_context, offer_save=True)
+
+    assert result is False
+    app_context.get_ui_controller.return_value.show_info_message.assert_called_once()
+
+
 def test_confirm_discard_cancels_and_reports_an_error_when_flush_fails(monkeypatch):
     """Regression (PR #352 review): a failed flush is otherwise
     indistinguishable from a successful one -- swallowing it here would read

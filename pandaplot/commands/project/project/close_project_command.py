@@ -34,9 +34,11 @@ class CloseProjectCommand(Command):
 
             project_name = app_state.current_project.name if app_state.current_project else "Unknown"
 
-            # Give the user a chance to save/cancel if there are unsaved
-            # changes -- previously this closed silently and discarded them.
-            if not confirm_discard_unsaved_changes(self.app_context):
+            # Give the user a chance to save/discard/cancel if there are
+            # unsaved changes -- previously this only offered discard/cancel,
+            # even though closing (unlike exiting) has no save-on-quit
+            # safety net (#409).
+            if not confirm_discard_unsaved_changes(self.app_context, offer_save=True):
                 self.logger.info("Close project cancelled by user (unsaved changes)")
                 return CommandResult.NOOP
 
