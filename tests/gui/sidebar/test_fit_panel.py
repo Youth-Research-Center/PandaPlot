@@ -163,7 +163,7 @@ def test_get_current_data_resolves_id_only_series(app_context):
     result = panel.get_current_data()
 
     assert result is not None
-    df, mask, x_data, y_data, series = result
+    _df, _mask, x_data, y_data, _series = result
     assert len(x_data) == 4
     assert len(y_data) == 4
 
@@ -984,14 +984,14 @@ def test_get_current_data_uses_custom_source_when_selected(app_context):
     result = panel.get_current_data()
 
     assert result is not None
-    df, mask, x_data, y_data, series = result
+    _df, _mask, x_data, y_data, series = result
     assert series.dataset_id == dataset_b.id
     assert list(x_data) == [5, 6, 7, 8]
     assert list(y_data) == [1.0, 2.0, 3.0, 4.0]
 
 
 def test_resolve_selected_series_returns_none_when_custom_selection_incomplete(app_context):
-    project, dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
+    project, _dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
 
     panel = FitPanel(app_context)
     panel.app_context.app_state = Mock()
@@ -1161,7 +1161,7 @@ def test_perform_fit_is_a_no_op_while_a_fit_is_already_pending(app_context):
 
 
 def test_update_data_points_display_keeps_fit_button_disabled_while_pending(app_context):
-    panel, executed = _build_panel_ready_to_fit(app_context)
+    panel, _executed = _build_panel_ready_to_fit(app_context)
 
     panel._perform_fit()
     assert panel._pending_fit_command is not None

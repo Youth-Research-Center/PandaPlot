@@ -19,7 +19,6 @@ import re
 import struct
 import uuid
 from dataclasses import dataclass
-from typing import Optional
 
 from markdown import markdown
 
@@ -167,7 +166,7 @@ def render_equation(latex: str, *, color: str, fontsize: float, display: bool) -
             format="png",
             transparent=True,
         )
-    except Exception as exc:  # invalid syntax, unknown symbol, etc.
+    except Exception as exc:  # noqa: BLE001 -- invalid syntax, unknown symbol, etc. from untrusted mathtext input; render fails gracefully instead of crashing
         logger.debug("mathtext failed to render %r: %s", latex, exc)
         result = RenderedEquation("", 0, 0, 0.0, ok=False, latex=latex)
         _equation_cache[key] = result
@@ -246,7 +245,7 @@ def restore_code_regions(text: str, blocks: list[str], token: str) -> str:
 
 def _extract_image_sizes(
     text: str,
-) -> tuple[str, list[tuple[Optional[str], Optional[str]]], str]:
+) -> tuple[str, list[tuple[str | None, str | None]], str]:
     """Strip `=WxH` size modifiers from image links, stashing them by index.
 
     Each stripped modifier is tagged onto its link target (re-wrapped in
@@ -258,7 +257,7 @@ def _extract_image_sizes(
     fragment is never mistaken for one.
     """
     token = uuid.uuid4().hex
-    sizes: list[tuple[Optional[str], Optional[str]]] = []
+    sizes: list[tuple[str | None, str | None]] = []
 
     def _stash(m: re.Match) -> str:
         if is_escaped_at(text, m.start()):
@@ -275,7 +274,7 @@ def _extract_image_sizes(
 
 
 def _apply_image_sizes(
-    html: str, sizes: list[tuple[Optional[str], Optional[str]]], token: str
+    html: str, sizes: list[tuple[str | None, str | None]], token: str
 ) -> str:
     """Reapply width/height attributes stashed by `_extract_image_sizes`."""
     if not sizes:

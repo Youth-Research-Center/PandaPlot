@@ -360,7 +360,7 @@ class TestAddResultsToProjectAsyncDispatch:
         (the dataset was created regardless), but *displaying* that outcome
         must not overwrite whatever the panel now shows if the user
         switched datasets while the commit was in flight."""
-        panel, fake_command, executed = self._ready(app_context)
+        panel, fake_command, _executed = self._ready(app_context)
 
         panel.add_results_to_project()
         panel.current_dataset_id = "ds-2"
@@ -373,7 +373,7 @@ class TestAddResultsToProjectAsyncDispatch:
         assert panel.run_btn.isEnabled() is True
 
     def test_failure_path_reenables_add_button_and_stops_spinner(self, app_context):
-        panel, fake_command, executed = self._ready(app_context)
+        panel, fake_command, _executed = self._ready(app_context)
 
         panel.add_results_to_project()
         fake_command.on_complete(CommandResult.FAILURE)

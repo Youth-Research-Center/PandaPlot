@@ -1,6 +1,6 @@
 """Dialog for picking a destination ImageGallery/album from a project-wide tree."""
 
-from typing import Dict, Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
@@ -17,8 +17,8 @@ class GalleryDestinationPickerDialog(PDialog):
     a tree, for choosing a Move/Copy destination.
     """
 
-    def __init__(self, app_context: AppContext, project, current_gallery_id: Optional[str] = None,
-                 parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, project, current_gallery_id: str | None = None,
+                 parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.project = project
         self.current_gallery_id = current_gallery_id
@@ -52,8 +52,8 @@ class GalleryDestinationPickerDialog(PDialog):
     def _populate_tree(self) -> None:
         self.tree.clear()
         galleries = [item for item in self.project.get_all_items() if isinstance(item, ImageGallery)]
-        by_id: Dict[str, ImageGallery] = {gallery.id: gallery for gallery in galleries}
-        tree_items: Dict[str, QTreeWidgetItem] = {}
+        by_id: dict[str, ImageGallery] = {gallery.id: gallery for gallery in galleries}
+        tree_items: dict[str, QTreeWidgetItem] = {}
 
         def _tree_item_for(gallery: ImageGallery) -> QTreeWidgetItem:
             if gallery.id in tree_items:
@@ -85,7 +85,7 @@ class GalleryDestinationPickerDialog(PDialog):
     def _refresh_ok_enabled(self) -> None:
         self.ok_button.setEnabled(bool(self.tree.selectedItems()))
 
-    def get_selected_gallery_id(self) -> Optional[str]:
+    def get_selected_gallery_id(self) -> str | None:
         """Return the id of the selected gallery/album, or None if nothing is selected."""
         selected = self.tree.selectedItems()
         if not selected:

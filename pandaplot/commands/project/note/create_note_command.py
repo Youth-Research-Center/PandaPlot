@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -15,8 +15,8 @@ class CreateNoteCommand(Command):
     Command to create a new note in the project.
     """
 
-    def __init__(self, app_context: AppContext, note_name: Optional[str] = None,
-                 content: str = "", folder_id: Optional[str] = None):
+    def __init__(self, app_context: AppContext, note_name: str | None = None,
+                 content: str = "", folder_id: str | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -89,8 +89,8 @@ class CreateNoteCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to create note: {str(e)}"
-            self.logger.error("CreateNoteCommand Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to create note: {e!s}"
+            self.logger.exception("CreateNoteCommand Error: %s", error_msg)
             self.ui_controller.show_error_message(
                 "Create Note Error", error_msg)
             return CommandResult.FAILURE
@@ -134,8 +134,8 @@ class CreateNoteCommand(Command):
                 return CommandResult.NOOP
 
         except Exception as e:
-            error_msg = f"Failed to undo create note: {str(e)}"
-            self.logger.error("CreateNoteCommand Undo Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to undo create note: {e!s}"
+            self.logger.exception("CreateNoteCommand Undo Error: %s", error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 
@@ -173,8 +173,8 @@ class CreateNoteCommand(Command):
                 return CommandResult.FAILURE
 
         except Exception as e:
-            error_msg = f"Failed to redo create note: {str(e)}"
-            self.logger.error("CreateNoteCommand Redo Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to redo create note: {e!s}"
+            self.logger.exception("CreateNoteCommand Redo Error: %s", error_msg)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return CommandResult.FAILURE
 

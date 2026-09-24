@@ -2,7 +2,7 @@
 Dialog for basic image operations: crop, rotate, and resize.
 """
 
-from typing import Optional, override
+from typing import ClassVar, override
 
 from PySide6.QtCore import QBuffer, QIODevice, QRect, Qt
 from PySide6.QtGui import QImage, QImageReader, QImageWriter, QKeySequence, QShortcut
@@ -63,7 +63,7 @@ class ImageEditorDialog(PDialog):
     """
 
     def __init__(self, app_context: AppContext, image: Image,
-                 image_bytes: bytes, parent: Optional[QWidget] = None):
+                 image_bytes: bytes, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.image_model = image
         self.original_bytes = image_bytes
@@ -80,7 +80,7 @@ class ImageEditorDialog(PDialog):
         )
         self._updating_resize_spinboxes = False
         self._updating_crop_spinboxes = False
-        self._resolved_format: Optional[tuple[str, str]] = None
+        self._resolved_format: tuple[str, str] | None = None
         self._transforms: list[Transform] = []
         self._undo_stack: list[list[Transform]] = []
         self._redo_stack: list[list[Transform]] = []
@@ -429,9 +429,9 @@ class ImageEditorDialog(PDialog):
     def _on_canvas_crop_rect_changed(self, rect: QRect) -> None:
         self._write_crop_spinboxes(rect)
 
-    _ASPECT_RATIOS = {"1:1": 1.0, "16:9": 16 / 9, "4:3": 4 / 3}
+    _ASPECT_RATIOS: ClassVar[dict[str, float]] = {"1:1": 1.0, "16:9": 16 / 9, "4:3": 4 / 3}
 
-    def _resolve_aspect_ratio_for_label(self, label: str) -> Optional[float]:
+    def _resolve_aspect_ratio_for_label(self, label: str) -> float | None:
         """Resolves an aspect-combo label to a lock ratio (or None for
         "Free"). "Original" is resolved against self.aspect_ratio at call
         time (not memoized), so it always reflects the working image's
@@ -502,7 +502,7 @@ class ImageEditorDialog(PDialog):
         self._sync_control_values()
         self._update_info_label()
 
-    def _detect_actual_format(self) -> Optional[str]:
+    def _detect_actual_format(self) -> str | None:
         """The Qt format name (e.g. "PNG", "JPEG") QImageReader detects
         from original_bytes' own header/magic, independent of whatever
         self.image_ext claims. Needed because image_ext can be wrong: a

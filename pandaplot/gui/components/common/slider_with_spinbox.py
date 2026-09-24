@@ -52,7 +52,7 @@ class SliderWithSpinbox(QWidget):
     def value(self) -> float:
         return self._spinbox.value()
 
-    def setValue(self, value: float):  # noqa: N802
+    def setValue(self, value: float):
         self._set_value(value, emit=False)
 
     def set_tokens(self, tokens: dict):

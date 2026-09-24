@@ -1,7 +1,7 @@
 """Modal dialog showing one image at a time from an ordered list, with
 Previous/Next navigation across the list without closing the dialog."""
 
-from typing import Callable, List, Optional
+from collections.abc import Callable
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QFontMetrics, QKeyEvent, QPixmap, QResizeEvent
@@ -31,10 +31,10 @@ class ImageLightboxDialog(QDialog):
     fixed constants.
     """
 
-    def __init__(self, images: List[Image], start_index: int,
-                 load_pixmap: Callable[[Image], Optional[QPixmap]],
-                 parent: Optional[QWidget] = None, *,
-                 on_edit: Optional[Callable[[Image], None]] = None):
+    def __init__(self, images: list[Image], start_index: int,
+                 load_pixmap: Callable[[Image], QPixmap | None],
+                 parent: QWidget | None = None, *,
+                 on_edit: Callable[[Image], None] | None = None):
         super().__init__(parent)
         self._images = images
         self._index = start_index
@@ -46,7 +46,7 @@ class ImageLightboxDialog(QDialog):
 
         self.image_label = QLabel()
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.mousePressEvent = lambda event: self.close()  # noqa: ARG005 - Qt event signature
+        self.image_label.mousePressEvent = lambda event: self.close()
         self.image_label.setMinimumSize(1, 1)
         self.image_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
 

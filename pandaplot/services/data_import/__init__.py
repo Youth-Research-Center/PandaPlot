@@ -25,10 +25,15 @@ from pandaplot.services.data_import.import_options import (
 
 __all__ = [
     "CSV_EXTENSIONS",
+    "CSV_FORMAT",
     "ENCODING_FALLBACKS",
     "EXCEL_EXTENSIONS",
+    "EXCEL_FORMAT",
     "JSON_EXTENSIONS",
+    "JSON_FORMAT",
+    "NAMED_DELIMITERS",
     "SUPPORTED_EXTENSIONS",
+    "ImportOptions",
     "UnsupportedFileError",
     "default_options",
     "detect_format",
@@ -37,9 +42,4 @@ __all__ = [
     "list_excel_sheets",
     "read_dataframe",
     "sniff_delimiter",
-    "CSV_FORMAT",
-    "EXCEL_FORMAT",
-    "JSON_FORMAT",
-    "NAMED_DELIMITERS",
-    "ImportOptions",
 ]

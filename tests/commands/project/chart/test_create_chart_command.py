@@ -61,7 +61,7 @@ def test_execute_emits_chart_created_event(app_context_with_project):
     command.execute()
 
     app_context.event_bus.emit.assert_called_once()
-    event_name, event_data = app_context.event_bus.emit.call_args[0]
+    _event_name, event_data = app_context.event_bus.emit.call_args[0]
     assert event_data["chart_id"] == chart.id
 
 
@@ -114,7 +114,7 @@ def test_cleanup_does_not_raise_and_keeps_chart_for_redo(app_context_with_projec
     """cleanup() must not null out self.chart -- redo() calls execute(),
     which re-adds self.chart, so it needs to stay alive for the lifetime of
     the command even after cleanup() (see Command.cleanup)."""
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     chart = _chart()
     command = CreateChartCommand(app_context, chart)
     command.execute()

@@ -1,7 +1,8 @@
 import logging
 import re
 from collections import defaultdict
-from typing import Any, Callable, Dict
+from collections.abc import Callable
+from typing import Any
 
 from .event_types import EventHierarchy
 
@@ -15,10 +16,10 @@ class EventBus:
         self.logger = logging.getLogger(self.__class__.__name__)
         self._subscribers = defaultdict(list)
         self._pattern_subscribers = defaultdict(list)
-        self._compiled_patterns: Dict[str, re.Pattern] = {}
+        self._compiled_patterns: dict[str, re.Pattern] = {}
         self.logger.debug("EventBus initialized")
 
-    def subscribe(self, event_pattern: str, callback: Callable[[Dict[str, Any]], None]) -> None:
+    def subscribe(self, event_pattern: str, callback: Callable[[dict[str, Any]], None]) -> None:
         """Subscribe to events matching a pattern.
         
         Args:
@@ -42,7 +43,7 @@ class EventBus:
             self._subscribers[event_pattern].append(callback)
             self.logger.debug("Added direct subscriber for: %s", event_pattern)
 
-    def unsubscribe(self, event_pattern: str, callback: Callable[[Dict[str, Any]], None]) -> None:
+    def unsubscribe(self, event_pattern: str, callback: Callable[[dict[str, Any]], None]) -> None:
         """Remove a subscription.
         
         Args:
@@ -67,7 +68,7 @@ class EventBus:
             else:
                 self.logger.warning("Callback not found in direct subscribers for: %s", event_pattern)
 
-    def emit(self, event_type: str, data: Dict[str, Any] | None = None) -> None:
+    def emit(self, event_type: str, data: dict[str, Any] | None = None) -> None:
         """Emit an event with automatic hierarchy support.
         
         Args:
@@ -98,8 +99,8 @@ class EventBus:
                 try:
                     callback(event_data)
                     total_callbacks_called += 1
-                except Exception as e:
-                    self.logger.error("Error in event callback for '%s': %s", event_level, str(e), exc_info=True)
+                except Exception:
+                    self.logger.exception("Error in event callback for '%s'", event_level)
             
             # Emit to pattern subscribers. Snapshot pattern, compiled regex,
             # and callbacks together: a callback (for this pattern or an
@@ -117,9 +118,8 @@ class EventBus:
                         try:
                             callback(event_data)
                             total_callbacks_called += 1
-                        except Exception as e:
-                            self.logger.error("Error in pattern callback for '%s' (pattern: %s): %s",
-                                            event_level, pattern_str, str(e), exc_info=True)
+                        except Exception:
+                            self.logger.exception("Error in pattern callback for '%s' (pattern: %s)", event_level, pattern_str)
             
             if subscriber_count > 0 or pattern_matches > 0:
                 self.logger.debug("Emitted event '%s' to %d direct subscribers and %d pattern matches", 

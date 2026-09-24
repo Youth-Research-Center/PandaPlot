@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Type, override
+from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -30,15 +30,15 @@ class DeleteItemCommand(Command):
         self.confirm = confirm
 
         # Store state for undo
-        self.deleted_item_data: Optional[Dict[str, Any]] = None
-        self.deleted_item_class: Optional[Type[Item]] = None
-        self.parent_item: Optional[Item] = None
+        self.deleted_item_data: dict[str, Any] | None = None
+        self.deleted_item_class: type[Item] | None = None
+        self.parent_item: Item | None = None
 
         # Items whose on_items_removed() hook fired because they referenced
         # something being deleted, keyed by item id -- captured fresh in
         # execute()/redo() (via _apply_dependency_cleanup) so undo() can
         # restore each one to its exact prior state.
-        self._snapshots: Dict[str, Any] = {}
+        self._snapshots: dict[str, Any] = {}
 
     def _collect_ids_under(self, item: Item) -> set:
         """item.id plus, recursively, every child id if item is a Folder --
@@ -163,8 +163,8 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to delete item: {str(e)}"
-            self.logger.error("DeleteItemCommand Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to delete item: {e!s}"
+            self.logger.exception("DeleteItemCommand Error: %s", error_msg)
             self.ui_controller.show_error_message(
                 "Delete Item Error", error_msg)
             return CommandResult.FAILURE
@@ -221,8 +221,8 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to undo delete item: {str(e)}"
-            self.logger.error("DeleteItemCommand Undo Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to undo delete item: {e!s}"
+            self.logger.exception("DeleteItemCommand Undo Error: %s", error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 
@@ -277,8 +277,8 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to redo delete item: {str(e)}"
-            self.logger.error("DeleteItemCommand Redo Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to redo delete item: {e!s}"
+            self.logger.exception("DeleteItemCommand Redo Error: %s", error_msg)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return CommandResult.FAILURE
 

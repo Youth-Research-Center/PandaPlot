@@ -22,7 +22,7 @@ chart type allows neither (e.g. a pure histogram chart).
 """
 
 import copy
-from typing import Literal, Optional, override
+from typing import Literal, override
 
 import pandas as pd
 
@@ -58,8 +58,8 @@ class TransformChartSeriesCommand(Command):
         source_index: int,
         target: Target,
         expression: str,
-        result_name: Optional[str] = None,
-        folder_id: Optional[str] = None,
+        result_name: str | None = None,
+        folder_id: str | None = None,
     ):
         super().__init__()
         self.app_context = app_context
@@ -75,11 +75,11 @@ class TransformChartSeriesCommand(Command):
         self.folder_id = folder_id
 
         # State for undo/redo.
-        self.result_dataset_id: Optional[str] = None
-        self.added_series_index: Optional[int] = None
+        self.result_dataset_id: str | None = None
+        self.added_series_index: int | None = None
         self._chart_finder = ChartFinder(app_context)
 
-    def _get_chart(self) -> Optional[Chart]:
+    def _get_chart(self) -> Chart | None:
         return self._chart_finder.find(self.chart_id)
 
     def run_transform(self) -> tuple[pd.DataFrame, str]:
@@ -282,7 +282,7 @@ class TransformChartSeriesCommand(Command):
             self.ui_controller.show_error_message("Chart Transform Error", str(e))
             return CommandResult.FAILURE
         except Exception as e:
-            self.logger.error("Transform-chart-series failed: %s", e, exc_info=True)
+            self.logger.exception("Transform-chart-series failed")
             self.ui_controller.show_error_message("Chart Transform Error", str(e))
             return CommandResult.FAILURE
 
@@ -303,8 +303,8 @@ class TransformChartSeriesCommand(Command):
 
             remove_result_dataset(self.app_state, self.result_dataset_id)
             return CommandResult.SUCCESS
-        except Exception as e:
-            self.logger.error("Failed to undo transform-chart-series: %s", e, exc_info=True)
+        except Exception:
+            self.logger.exception("Failed to undo transform-chart-series")
             return CommandResult.FAILURE
 
     @override

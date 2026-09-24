@@ -20,7 +20,7 @@ class _FakeMainWindow:
         self.title = None
         self._is_closing = False
 
-    def setWindowTitle(self, title):  # noqa: N802 - matches Qt's method name
+    def setWindowTitle(self, title):
         self.title = title
 
 

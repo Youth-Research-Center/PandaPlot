@@ -120,13 +120,12 @@ def test_execute_logs_warning_when_add_rows_fails(mock_app_context, sample_proje
     sample_project.find_item.return_value = dataset
     command = EditBatchCommand(mock_app_context, "ds-1", 0, 0, [[1, 2], [3, 4]])
 
-    with caplog.at_level(logging.WARNING):
-        with pytest.MonkeyPatch.context() as mp:
-            mp.setattr(
-                "pandaplot.commands.project.dataset.edit_batch_command.AddRowsCommand.execute",
-                lambda self: CommandResult.FAILURE,
-            )
-            assert command.execute() is CommandResult.FAILURE
+    with caplog.at_level(logging.WARNING), pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "pandaplot.commands.project.dataset.edit_batch_command.AddRowsCommand.execute",
+            lambda self: CommandResult.FAILURE,
+        )
+        assert command.execute() is CommandResult.FAILURE
     assert "failed to add" in caplog.text.lower() and "rows" in caplog.text.lower()
 
 

@@ -37,9 +37,9 @@ from pandaplot.models.chart.series_type import SeriesType
 
 
 def _series_data(**overrides):
-    defaults = dict(x_data=[1, 2, 3], y_data=[4, 5, 6], x_err=None, y_err=None,
-                     x_err_minus=None, y_err_minus=None, error=None,
-                     u_data=None, v_data=None, magnitude_data=None)
+    defaults = {"x_data": [1, 2, 3], "y_data": [4, 5, 6], "x_err": None, "y_err": None,
+                     "x_err_minus": None, "y_err_minus": None, "error": None,
+                     "u_data": None, "v_data": None, "magnitude_data": None}
     defaults.update(overrides)
     return SeriesData(**defaults)
 
@@ -590,7 +590,7 @@ def test_render_colormap_series_uses_the_shared_color_limits_not_its_own_data():
     the shared-scale design actually reaches the renderer."""
     from pandaplot.gui.components.tabs.chart.series_renderers.colormap import render_colormap_series
 
-    fig, ax = plt.subplots()
+    _fig, ax = plt.subplots()
     data = _series_data(z_data=[0.1, 0.5, 0.9])
     style = ColormapSeriesStyle()
 
@@ -686,11 +686,11 @@ def test_render_heatmap_series_returns_none_when_ungriddable():
 
 # --- Heatmap contour rendering (#191) ---
 
-_HEATMAP_XYZ = dict(
-    x_data=[0, 1, 2, 0, 1, 2, 0, 1, 2],
-    y_data=[0, 0, 0, 1, 1, 1, 2, 2, 2],
-    z_data=[1, 2, 3, 2, 3, 4, 3, 4, 5],
-)
+_HEATMAP_XYZ = {
+    "x_data": [0, 1, 2, 0, 1, 2, 0, 1, 2],
+    "y_data": [0, 0, 0, 1, 1, 1, 2, 2, 2],
+    "z_data": [1, 2, 3, 2, 3, 4, 3, 4, 5],
+}
 
 
 @pytest.mark.parametrize("gridding", ["grid", "binned", "interpolated", "triangulated"])

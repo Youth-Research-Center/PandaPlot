@@ -4,14 +4,14 @@ exists -- kept here for interface parity even though every current style key
 is already a declared field, so an unmigrated call site keeps working
 unmodified against a ChartStyle instance."""
 from dataclasses import dataclass, field, fields
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar
 
 
 @dataclass
 class ChartStyle:
     figure_size: tuple = (10, 6)
-    figure_background_color: Optional[str] = "#ffffff"
-    axes_background_color: Optional[str] = "#ffffff"
+    figure_background_color: str | None = "#ffffff"
+    axes_background_color: str | None = "#ffffff"
     font_size: int = 12
     font_family: str = "Arial"
     dpi: int = 100

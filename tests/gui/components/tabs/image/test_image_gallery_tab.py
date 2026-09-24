@@ -990,7 +990,7 @@ class TestImageGalleryTabDragDropOntoAlbum:
         album_item = tab.grid.item(album_index)
 
         mime = QMimeData()
-        mime.setData("application/x-pandaplot-image-ids", f"{image_a.id}\n{image_b.id}".encode("utf-8"))
+        mime.setData("application/x-pandaplot-image-ids", f"{image_a.id}\n{image_b.id}".encode())
 
         tab.grid._handle_drop_on_item(album_item, mime)
 
@@ -1223,7 +1223,7 @@ class TestImageGalleryTabLongNameTruncation:
 
         displayed = tab.grid.item(0).text()
         assert displayed != long_name
-        assert displayed.endswith("…") or displayed.endswith("...")
+        assert displayed.endswith(("…", "..."))
         assert tab.grid.item(0).toolTip() == long_name
 
     def test_long_name_elided_in_list_view_with_full_name_as_tooltip(self, app_context):

@@ -1,7 +1,7 @@
 """Command for converting a data series into a fit-data entry on a chart."""
 
 import copy
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
@@ -49,12 +49,12 @@ class ConvertSeriesToFitCommand(Command):
         # FitData is built once (first execute()) and reused on redo, and
         # the original series is snapshotted once so undo can restore it
         # at its original position.
-        self.removed_series: Optional[DataSeries] = None
-        self.added_fit_index: Optional[int] = None
-        self._fit: Optional[FitData] = None
+        self.removed_series: DataSeries | None = None
+        self.added_fit_index: int | None = None
+        self._fit: FitData | None = None
         self._chart_finder = ChartFinder(app_context)
 
-    def _find_dataset(self, dataset_id: str) -> Optional[Dataset]:
+    def _find_dataset(self, dataset_id: str) -> Dataset | None:
         app_state = self.app_context.get_app_state()
         project = app_state.current_project if app_state.has_project else None
         if project is None:
@@ -62,7 +62,7 @@ class ConvertSeriesToFitCommand(Command):
         dataset = project.find_item(dataset_id)
         return dataset if isinstance(dataset, Dataset) else None
 
-    def _build_fit(self, series: DataSeries) -> Optional[FitData]:
+    def _build_fit(self, series: DataSeries) -> FitData | None:
         dataset = self._find_dataset(series.dataset_id)
         resolved = resolve_manual_fit_source_data(
             dataset,

@@ -57,7 +57,7 @@ class CloseProjectCommand(Command):
             self.logger.info("Project closed successfully")
             return CommandResult.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"Failed to close project: {e}")
             self.ui_controller.show_error_message("Close Project Error", str(e))
             return CommandResult.FAILURE

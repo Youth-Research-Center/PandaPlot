@@ -15,7 +15,7 @@ Modeled on two sibling panels:
   when nothing has changed since the last successful Run.
 """
 
-from typing import Optional, override
+from typing import override
 
 import numpy as np
 from PySide6.QtWidgets import (
@@ -68,13 +68,13 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for signal analysis operations on chart data/fit series."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
 
-        self.current_chart: Optional[Chart] = None
-        self.current_chart_id: Optional[str] = None
+        self.current_chart: Chart | None = None
+        self.current_chart_id: str | None = None
 
-        self.last_result: Optional[SignalAnalysisResult] = None
+        self.last_result: SignalAnalysisResult | None = None
         self._last_run_params = None
         self._pending_command = None
 
@@ -98,7 +98,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         # and replayed once add_results_to_project()'s _on_complete has made
         # its display decision against the untouched dispatch-time context
         # -- see both sites below.
-        self._deferred_tab_change: Optional[dict] = None
+        self._deferred_tab_change: dict | None = None
 
         # Cache for _range_command(): a fresh ChartSignalAnalysisCommand
         # per call would re-run NaN-drop/to_numeric series resolution on
@@ -107,7 +107,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         # _resolved_xy_cache actually pay off across the segment-label and
         # sampling-rate-default refreshes that both run on every spinbox tick.
         self._range_command_key = None
-        self._range_command_cache: Optional[ChartSignalAnalysisCommand] = None
+        self._range_command_cache: ChartSignalAnalysisCommand | None = None
 
         # Bumped by _populate_sources() (tab change, chart update, or a
         # backing-dataset edit) -- an in-flight preview/commit captures the
@@ -341,7 +341,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         """Return (kind, index) for the selected series, or None."""
         return self.source_combo.currentData()
 
-    def _current_analysis_type(self) -> Optional[SignalAnalysisType]:
+    def _current_analysis_type(self) -> SignalAnalysisType | None:
         return self.analysis_combo.currentData()
 
     def _build_parameters(self) -> dict:
@@ -386,7 +386,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self._build_parameters(),
         )
 
-    def _build_command(self) -> Optional[ChartSignalAnalysisCommand]:
+    def _build_command(self) -> ChartSignalAnalysisCommand | None:
         params = self._get_dispatch_params()
         if params is None:
             return None
@@ -462,7 +462,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             try:
                 self.results_text.setText(SignalPanel._format_result(result))
                 self.add_btn.setEnabled(True)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
@@ -618,7 +618,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- chart context --------------------------------------------------------
 
-    def _range_command(self, kind: str, index: int) -> Optional[ChartSignalAnalysisCommand]:
+    def _range_command(self, kind: str, index: int) -> ChartSignalAnalysisCommand | None:
         """Return a command to resolve the selected series, reused across
         calls for the same (chart, source) so its _resolved_xy_cache
         actually amortizes the NaN-drop/to_numeric resolution work.
@@ -675,7 +675,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self._update_range_labels()
         self._refresh_sampling_rate_default()
 
-    def _format_point(self, point: Optional[tuple[float, float]]) -> str:
+    def _format_point(self, point: tuple[float, float] | None) -> str:
         if point is None:
             return "–"
         x, y = point

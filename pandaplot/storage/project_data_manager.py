@@ -112,7 +112,7 @@ class ProjectDataManager:
             self.logger.info(
                 f"Loaded item {item_id} of type {info['type']} from {path}")
             return item
-        except Exception as ex:
+        except Exception as ex:  # noqa: BLE001 -- Best-effort item load -- one corrupt/incompatible item must not abort loading the rest of the project
             self.logger.error(f"Failed to load item {item_id}: {ex}")
 
     def _add_items_to_project(self, project: Project, items: dict[str, Item], project_tree: list[dict]) -> None:

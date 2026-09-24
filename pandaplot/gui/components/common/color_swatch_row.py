@@ -42,10 +42,10 @@ class ColorSwatchRow(QWidget):
 
         self._refresh_swatch_appearance()
 
-    def currentColor(self) -> str:  # noqa: N802
+    def currentColor(self) -> str:
         return self._current_color
 
-    def setCurrentColor(self, hex_color: str):  # noqa: N802
+    def setCurrentColor(self, hex_color: str):
         self._current_color = hex_color
         self._refresh_swatch_appearance()
 

@@ -739,7 +739,7 @@ class AxesTab(QWidget):
 
         tick_format = axis.tick_format
         format_index = form["format_combo"].findData(tick_format)
-        form["format_combo"].setCurrentIndex(format_index if format_index >= 0 else 0)
+        form["format_combo"].setCurrentIndex(max(format_index, 0))
         form["format_custom_edit"].setText(axis.tick_format_custom)
         form["format_custom_edit"].setEnabled(tick_format == "custom")
 

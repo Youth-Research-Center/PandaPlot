@@ -3,7 +3,7 @@ Note model for managing text-based note items in the project.
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pandaplot.models.project.items.item import Item
 
@@ -16,8 +16,8 @@ class Note(Item):
     It's part of the hierarchical project structure.
     """
     
-    def __init__(self, id: Optional[str] = None, name: str = "", content: str = "", 
-                 tags: Optional[List[str]] = None):
+    def __init__(self, id: str | None = None, name: str = "", content: str = "", 
+                 tags: list[str] | None = None):
         super().__init__(id, name)
         
         # Set note-specific attributes
@@ -41,7 +41,7 @@ class Note(Item):
             self.tags.remove(tag)
             self.update_modified_time()
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert note to dictionary for serialization."""
         data = super().to_dict()
         data.update({
@@ -51,7 +51,7 @@ class Note(Item):
         return data
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Note":
+    def from_dict(cls, data: dict[str, Any]) -> "Note":
         """Create note from dictionary."""
         note = cls(
             id=data.get("id"),
@@ -61,7 +61,7 @@ class Note(Item):
         )
         # Set inherited attributes
         note.parent_id = data.get("parent_id")
-        note.created_at = data.get("created_at", datetime.now().isoformat())
+        note.created_at = data.get("created_at", datetime.now().isoformat())  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones
         note.modified_at = data.get("modified_at", note.created_at)
         note.metadata = data.get("metadata", {})
         return note

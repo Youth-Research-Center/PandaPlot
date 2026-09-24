@@ -71,7 +71,7 @@ class ChartTab(PWidget):
                 try:
                     update_fn(self, self.get_tab_title())
                 except Exception:
-                    pass
+                    self.logger.debug("Failed to update tab title on parent container", exc_info=True)
 
     def on_chart_updated(self, event_data: dict):
         """Handle chart update events from other components."""

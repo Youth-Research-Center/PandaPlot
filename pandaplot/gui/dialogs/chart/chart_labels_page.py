@@ -1,6 +1,5 @@
 """Step 3 of the chart creation wizard: title/subtitle, X/Y axis labels,
 legend/grid toggles."""
-from typing import Optional
 
 from PySide6.QtWidgets import (
     QFormLayout,
@@ -23,7 +22,7 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class ChartLabelsPage(PWizardPage):
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self._initialize()
 

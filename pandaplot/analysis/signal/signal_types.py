@@ -8,7 +8,7 @@ plus the result container used to surface analysis output in the application.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 
@@ -58,7 +58,7 @@ class SignalAnalysisInfo:
     uses_threshold: bool = False
 
     # UI defaults
-    windows: List[str] = field(
+    windows: list[str] = field(
         default_factory=lambda: [
             "hann",
             "hamming",
@@ -70,7 +70,7 @@ class SignalAnalysisInfo:
     default_nperseg: int = 256
     default_overlap: float = 0.5
 
-SIGNAL_ANALYSES: Dict[SignalAnalysisType, SignalAnalysisInfo] = {
+SIGNAL_ANALYSES: dict[SignalAnalysisType, SignalAnalysisInfo] = {
 
     SignalAnalysisType.FFT: SignalAnalysisInfo(
         analysis_type=SignalAnalysisType.FFT,
@@ -145,11 +145,11 @@ class SignalAnalysisResult:
     analysis_type: SignalAnalysisType
     analysis_name: str
 
-    source_columns: List[str]
+    source_columns: list[str]
 
     data: pd.DataFrame
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def result_name(self) -> str:
         """Generate a default dataset name."""

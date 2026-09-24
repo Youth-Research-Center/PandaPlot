@@ -32,10 +32,10 @@ class ValueComboBox(QComboBox):
 
         self.currentIndexChanged.connect(self._on_current_index_changed)
 
-    def currentValue(self) -> object:  # noqa: N802
+    def currentValue(self) -> object:
         return self.currentData()
 
-    def setCurrentValue(self, value: object):  # noqa: N802
+    def setCurrentValue(self, value: object):
         index = self.findData(value)
         if index < 0:
             return

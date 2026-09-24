@@ -7,7 +7,6 @@ from the data so they can be shown to the user. Missing values (NaN) are ignored
 when fitting parameters and are passed through untransformed.
 """
 
-from typing import Optional
 
 import pandas as pd
 
@@ -134,7 +133,7 @@ class PreprocessingEngine:
     def transform(
         method: PreprocessingMethod,
         series: pd.Series,
-        params: Optional[dict] = None,
+        params: dict | None = None,
     ) -> PreprocessingResult:
         """Dispatch to the transformation for ``method``.
 

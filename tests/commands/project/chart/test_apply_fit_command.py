@@ -55,7 +55,7 @@ def fit_results():
 
 
 def test_execute_adds_fit_to_chart(app_context_with_chart, fit_results):
-    app_context, project, chart, source = app_context_with_chart
+    app_context, _project, chart, source = app_context_with_chart
 
     command = ApplyFitCommand(
         app_context=app_context,
@@ -173,7 +173,7 @@ def test_execute_logs_a_warning_when_chart_not_found(fit_results, caplog):
 
 
 def test_undo_logs_a_warning_when_nothing_to_undo(app_context_with_chart, fit_results, caplog):
-    app_context, project, chart, source = app_context_with_chart
+    app_context, _project, chart, source = app_context_with_chart
 
     command = ApplyFitCommand(
         app_context=app_context,
@@ -278,7 +278,7 @@ def test_undo_emits_item_removed_with_item_id_for_note_and_dataset(app_context_w
     """TabContainer closes an open tab via PROJECT_ITEM_REMOVED's "item_id"
     key; both the report note and the (otherwise non-bubbling)
     DATASET_DELETED removal must carry it so an open tab actually closes."""
-    app_context, project, chart, source = app_context_with_chart
+    app_context, _project, chart, source = app_context_with_chart
 
     command = ApplyFitCommand(
         app_context=app_context,
@@ -307,7 +307,7 @@ def test_undo_emits_item_removed_with_item_id_for_note_and_dataset(app_context_w
 
 
 def test_cleanup_releases_the_added_index_and_report_ids(app_context_with_chart, fit_results):
-    app_context, project, chart, source = app_context_with_chart
+    app_context, _project, chart, source = app_context_with_chart
 
     command = ApplyFitCommand(
         app_context=app_context,

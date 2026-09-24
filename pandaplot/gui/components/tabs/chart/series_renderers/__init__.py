@@ -8,7 +8,7 @@ shape (bins for hist, resolve_fill_baseline for line), ignored by the
 renderers that don't need them, so callers can dispatch through one call
 site instead of branching to decide which arguments to gather.
 """
-from typing import Callable
+from collections.abc import Callable
 
 from pandaplot.gui.components.tabs.chart.series_renderers.bar import render_bar_series
 from pandaplot.gui.components.tabs.chart.series_renderers.bar3d import render_bar3d_series
@@ -62,17 +62,17 @@ SERIES_RENDERERS_REPORTING_NO_DATA: frozenset[SeriesType] = frozenset({
 __all__ = [
     "SERIES_RENDERERS",
     "SERIES_RENDERERS_REPORTING_NO_DATA",
-    "render_line_series",
-    "render_scatter_series",
+    "render_bar3d_series",
     "render_bar_series",
-    "render_hist_series",
-    "render_vector_series",
     "render_colormap_series",
     "render_heatmap_series",
-    "render_scatter3d_series",
+    "render_hist_series",
     "render_line3d_series",
+    "render_line_series",
+    "render_scatter3d_series",
+    "render_scatter_series",
     "render_surface_series",
-    "render_wireframe_series",
-    "render_bar3d_series",
     "render_trisurf_series",
+    "render_vector_series",
+    "render_wireframe_series",
 ]

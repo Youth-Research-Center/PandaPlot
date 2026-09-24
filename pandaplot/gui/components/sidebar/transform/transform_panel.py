@@ -5,7 +5,7 @@ Adapted from transform_tab.py to provide a compact sidebar interface
 for applying transformations to dataset tabs.
 """
 
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -42,7 +42,7 @@ class TransformPanel(SidebarPanel):
     Designed for sidebar integration with conditional visibility.
     """
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None=None):
         # Set before self._initialize() below -- that call runs _init_ui()
         # then _apply_theme(), and _apply_theme() needs this to style
         # preview_text correctly on the very first render.
@@ -50,7 +50,7 @@ class TransformPanel(SidebarPanel):
         super().__init__(app_context=app_context, parent=parent)
         self.current_dataset_tab = None
         self.current_dataset = None
-        self._last_transform_error: Optional[str] = None
+        self._last_transform_error: str | None = None
 
         # Initialize transform controller
         self.transform_controller = TransformController(app_context)
@@ -402,7 +402,7 @@ class TransformPanel(SidebarPanel):
                     row_count = len(df)
                     col_count = len(df.columns)
                     self.row_count_label.setText(f"{row_count} rows, {col_count} columns")
-                except Exception:
+                except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
                     self.row_count_label.setText("Data info unavailable")
             else:
                 self.row_count_label.setText("")
@@ -442,8 +442,8 @@ class TransformPanel(SidebarPanel):
             try:
                 df = self.current_dataset.data
                 self.available_columns = list(df.columns)
-            except Exception as e:
-                self.logger.error("TransformPanel: error getting columns: %s", e, exc_info=True)
+            except Exception:
+                self.logger.exception("TransformPanel: error getting columns")
         self._populate_column_list(self.available_columns)
 
     def enable_controls(self, *, enabled: bool):
@@ -663,10 +663,9 @@ class TransformPanel(SidebarPanel):
                 self._set_preview_message(preview_text)
 
             # Preview updated - could publish preview event if needed
-            pass
 
-        except Exception as e:
-            self._set_preview_message(f"Preview error: {str(e)}", is_error=True)
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            self._set_preview_message(f"Preview error: {e!s}", is_error=True)
     
     def apply_transform(self):
         """Apply the transformation to the dataset.
@@ -739,7 +738,7 @@ class TransformPanel(SidebarPanel):
                     self._set_preview_message("Transform failed - see logs for details", is_error=True)
 
         except Exception as e:
-            self.logger.error("TransformPanel: transform failed: %s", e, exc_info=True)
+            self.logger.exception("TransformPanel: transform failed")
             self._set_preview_message(f"Transform failed: {e}", is_error=True)
     
     def clear_panel(self):

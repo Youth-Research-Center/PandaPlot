@@ -235,7 +235,7 @@ class ChartCanvas(FigureCanvas):
                                 new_icon = self.navigation_toolbar._icon(
                                     f"{NAV_ICON_FILES[action_name]}.png")
                                 action.setIcon(new_icon)
-                        except Exception as e:
+                        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
                             # If regeneration fails, continue with other actions
                             logger.debug(
                                 "Failed to regenerate icon for %s: %s", action_name, e)

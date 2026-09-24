@@ -56,7 +56,7 @@ def test_save_content_defaults_to_undo_tracked():
 
     widget.save_content()
 
-    command, kwargs = widget.app_context.get_command_executor.return_value.execute_command.call_args
+    _command, kwargs = widget.app_context.get_command_executor.return_value.execute_command.call_args
     assert kwargs.get("track_undo", True) is True
 
 

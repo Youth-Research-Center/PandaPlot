@@ -8,7 +8,7 @@ analysis engine (#268).
 """
 
 import re
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -62,10 +62,10 @@ _EXPRESSION_REFERENCE_HTML = (
 class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for expression transforms on chart data/fit series."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self.current_chart: Optional[Chart] = None
-        self.current_chart_id: Optional[str] = None
+        self.current_chart: Chart | None = None
+        self.current_chart_id: str | None = None
 
         self._initialize()
         self._connect_signals()
@@ -225,7 +225,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     def _selected_source(self):
         return self.source_combo.currentData()
 
-    def _make_command(self) -> Optional[TransformChartSeriesCommand]:
+    def _make_command(self) -> TransformChartSeriesCommand | None:
         source = self._selected_source()
         if source is None or self.current_chart_id is None:
             return None
@@ -261,7 +261,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
                 f"Result: {len(df)} points → dataset '{self.result_name.text().strip() or default_name}'",
             ]
             self.preview_text.setText(format_series_result_preview(header_lines, df))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.preview_text.setText(format_preview_error(e))
 
     def apply(self):

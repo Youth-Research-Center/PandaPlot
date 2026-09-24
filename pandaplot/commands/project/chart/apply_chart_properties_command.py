@@ -1,6 +1,7 @@
 """Command for applying chart property changes (Apply button)."""
 
-from typing import Any, Callable, Dict, Optional, override
+from collections.abc import Callable
+from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
@@ -19,7 +20,7 @@ class ApplyChartPropertiesCommand(Command):
 
     def __init__(self, app_context: AppContext, chart_id: str,
                  apply_fn: Callable[[Chart], None],
-                 old_snapshot: Optional[Dict[str, Any]] = None):
+                 old_snapshot: dict[str, Any] | None = None):
         super().__init__()
         self.app_context = app_context
         self.ui_controller: UIController = app_context.get_ui_controller()
@@ -28,8 +29,8 @@ class ApplyChartPropertiesCommand(Command):
         # Baseline for undo. The panel edits the chart live, so the state at
         # execute() time already contains the user's changes; callers pass the
         # snapshot taken when the chart was loaded into the panel.
-        self.old_snapshot: Optional[Dict[str, Any]] = old_snapshot
-        self.new_snapshot: Optional[Dict[str, Any]] = None
+        self.old_snapshot: dict[str, Any] | None = old_snapshot
+        self.new_snapshot: dict[str, Any] | None = None
         self._chart_finder = ChartFinder(app_context)
 
     def _emit_update(self, chart: Chart) -> None:

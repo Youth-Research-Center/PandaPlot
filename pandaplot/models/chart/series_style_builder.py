@@ -13,7 +13,6 @@ style with a z_column_id and no color at all).
 This drives the whole thing off SERIES_TYPE_SPECS instead, so a new series
 type is picked up by all four call sites the moment it's registered there.
 """
-from typing import Optional
 
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style import SeriesStyleBase
@@ -24,7 +23,7 @@ from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 def build_series_style(
     series_type: "str | SeriesType",
     color: str = "",
-    error_bars: Optional[ErrorBarConfig] = None,
+    error_bars: ErrorBarConfig | None = None,
     u_column_id: str = "",
     v_column_id: str = "",
     magnitude_column_id: str = "",

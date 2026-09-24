@@ -1,4 +1,5 @@
-from typing import Any, Callable, Optional, Tuple, override
+from collections.abc import Callable
+from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -36,7 +37,7 @@ class SaveProjectCommand(Command):
         # applied to whatever project happens to be current if the active
         # project changed (opened/created/closed) while this save was
         # writing to disk in the background.
-        self._dispatch_project: Optional[Project] = None
+        self._dispatch_project: Project | None = None
 
         # Task state
         self.is_saving = False
@@ -136,7 +137,7 @@ class SaveProjectCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to initiate project save: {e}"
-            self.logger.error("SaveProjectCommand Error: %s", error_msg, exc_info=True)
+            self.logger.exception("SaveProjectCommand Error: %s", error_msg)
             self.ui_controller.show_error_message("Save Project Error", error_msg)
             self.is_saving = False  # Reset flag on error
             # Safe even if begin_save() was never reached (a no-op flip):
@@ -195,8 +196,8 @@ class SaveProjectCommand(Command):
             return {"success": True, "error": None, "path": save_path, "project": project}
 
         except Exception as e:
-            error_msg = f"Error during project save: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Error during project save: {e!s}"
+            self.logger.exception(error_msg)
             return {"success": False, "error": error_msg, "path": None, "project": None}
 
     def _on_save_result(self, result: dict):
@@ -268,23 +269,23 @@ class SaveProjectCommand(Command):
                 self.logger.error(f"Save failed: {error_msg}")
 
         except Exception as e:
-            self.logger.error(f"Error handling save result: {e}", exc_info=True)
-            self.ui_controller.show_error_message("Save Error", f"Error processing save result: {str(e)}")
+            self.logger.exception("Error handling save result")
+            self.ui_controller.show_error_message("Save Error", f"Error processing save result: {e!s}")
 
-    def _on_save_error(self, error_info: Tuple[Any, Any, str]):
+    def _on_save_error(self, error_info: tuple[Any, Any, str]):
         """Handle error during save task."""
         try:
             self.is_saving = False
             error_type, error_value, error_traceback = error_info
-            error_msg = f"Save failed with {error_type.__name__}: {str(error_value)}"
+            error_msg = f"Save failed with {error_type.__name__}: {error_value!s}"
 
             self.logger.error(f"Save task error: {error_msg}")
             self.logger.error(f"Traceback: {error_traceback}")
 
             self.ui_controller.show_error_message("Save Project Error", error_msg)
 
-        except Exception as e:
-            self.logger.error(f"Error handling save error: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error handling save error")
 
     def _on_save_finished(self):
         """Handle completion of save task (success or failure). Always
@@ -295,8 +296,8 @@ class SaveProjectCommand(Command):
             self.app_state.end_save()
             self.logger.info("Save task finished")
 
-        except Exception as e:
-            self.logger.error(f"Error in save finished handler: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error in save finished handler")
 
     def _on_save_progress(self, progress: float):
         """Handle progress updates from save task."""
@@ -306,8 +307,8 @@ class SaveProjectCommand(Command):
                 percentage = int(progress * 100)
                 self.logger.debug(f"Save progress: {percentage}%")
 
-        except Exception as e:
-            self.logger.error(f"Error handling save progress: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error handling save progress")
 
     @override
     def undo(self) -> CommandResult:
@@ -363,6 +364,6 @@ class SaveProjectAsCommand(SaveProjectCommand):
 
         except Exception as e:
             error_msg = f"Failed to save project as: {e}"
-            self.logger.error("SaveProjectAsCommand Error: %s", error_msg, exc_info=True)
+            self.logger.exception("SaveProjectAsCommand Error: %s", error_msg)
             self.ui_controller.show_error_message("Save Project As Error", error_msg)
             raise

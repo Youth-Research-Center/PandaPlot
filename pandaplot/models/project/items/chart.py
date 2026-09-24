@@ -6,7 +6,7 @@ import copy
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -58,7 +58,7 @@ class DataSeries:
     y_axis: YAxis = YAxis.PRIMARY
     alpha: float = 1.0
     series_type: SeriesType = SeriesType.LINE
-    style: Optional[SeriesStyleBase] = None
+    style: SeriesStyleBase | None = None
 
     def __post_init__(self):
         if isinstance(self.y_axis, str):
@@ -117,14 +117,14 @@ class FitData:
     source_x_column: str = ""
     source_y_column: str = ""
     visible: bool = True
-    fit_params: Optional[Dict[str, Any]] = None
-    fit_stats: Optional[Dict[str, Any]] = None
+    fit_params: dict[str, Any] | None = None
+    fit_stats: dict[str, Any] | None = None
     confidence_lower: np.ndarray | None = None
     confidence_upper: np.ndarray | None = None
     confidence_lower_column_id: str = ""
     confidence_upper_column_id: str = ""
     is_manual: bool = False
-    style: Optional[FitStyle] = None
+    style: FitStyle | None = None
 
     def __post_init__(self):
         if self.fit_params is None:
@@ -135,7 +135,7 @@ class FitData:
             self.style = FitStyle()
 
 
-def _series_style_from_dict(series_type: SeriesType, style_dict: Dict[str, Any]) -> SeriesStyleBase:
+def _series_style_from_dict(series_type: SeriesType, style_dict: dict[str, Any]) -> SeriesStyleBase:
     """Reconstruct a series' ``style`` from its serialized dict.
 
     ``dataclasses.asdict()`` flattens nested dataclasses (``marker``,
@@ -163,15 +163,15 @@ class Chart(Item):
     Supports multiple data series from different datasets.
     """
     
-    def __init__(self, id: Optional[str] = None, name: str = "",
+    def __init__(self, id: str | None = None, name: str = "",
                  chart_type: "str | ChartType" = ChartType.LINE):
         # Call parent constructor with CHART item type
         super().__init__(id, name)
 
         # Set chart-specific attributes
         self.chart_type: ChartType = ChartType(chart_type)
-        self.data_series: List[DataSeries] = []
-        self.fit_data: List[FitData] = []
+        self.data_series: list[DataSeries] = []
+        self.fit_data: list[FitData] = []
         self.config: ChartConfig = ChartConfig()
         self.style: ChartStyle = ChartStyle()
 
@@ -347,17 +347,17 @@ class Chart(Item):
             return True
         return False
     
-    def get_data_series(self, index: int) -> Optional[DataSeries]:
+    def get_data_series(self, index: int) -> DataSeries | None:
         """Get a data series by index."""
         if 0 <= index < len(self.data_series):
             return self.data_series[index]
         return None
     
-    def get_all_datasets(self) -> List[str]:
+    def get_all_datasets(self) -> list[str]:
         """Get all unique dataset IDs used in this chart."""
-        return list(set(series.dataset_id for series in self.data_series))
+        return list({series.dataset_id for series in self.data_series})
 
-    def referenced_item_ids(self) -> Optional[set]:
+    def referenced_item_ids(self) -> set | None:
         """Dataset ids referenced by any data series or fit (fit_data is
         included here for relevance-checking purposes only -- see
         _strip_references for why it's never actually stripped)."""
@@ -393,7 +393,7 @@ class Chart(Item):
         """Undo _strip_references via the chart-state snapshot it returned."""
         restore_chart_state(self, snapshot)
 
-    def dependency_update_event(self) -> Optional[tuple]:
+    def dependency_update_event(self) -> tuple | None:
         """Event DeleteItemCommand should emit after this chart's series
         are stripped or restored."""
         return ChartEvents.CHART_UPDATED, {"chart_id": self.id}
@@ -445,7 +445,7 @@ class Chart(Item):
             return True
         return False
     
-    def get_fit_data(self, index: int) -> Optional[FitData]:
+    def get_fit_data(self, index: int) -> FitData | None:
         """Get fit data by index."""
         if 0 <= index < len(self.fit_data):
             return self.fit_data[index]
@@ -456,18 +456,18 @@ class Chart(Item):
         self.fit_data.clear()
         self.update_modified_time()
     
-    def update_config(self, config_updates: Dict[str, Any]) -> None:
+    def update_config(self, config_updates: dict[str, Any]) -> None:
         """Update chart configuration."""
         self.config.update(config_updates)
         self.update_modified_time()
     
-    def update_style(self, style_updates: Dict[str, Any]) -> None:
+    def update_style(self, style_updates: dict[str, Any]) -> None:
         """Update chart style."""
         self.style.update(style_updates)
         self.update_modified_time()
     
-    def set_labels(self, title: Optional[str] = None, x_label: Optional[str] = None, 
-                  y_label: Optional[str] = None) -> None:
+    def set_labels(self, title: str | None = None, x_label: str | None = None, 
+                  y_label: str | None = None) -> None:
         """Set chart labels."""
         if title is not None:
             self.config.title = title
@@ -480,7 +480,7 @@ class Chart(Item):
             self.config.y.label = y_label
         self.update_modified_time()
     
-    def get_config_summary(self) -> Dict[str, Any]:
+    def get_config_summary(self) -> dict[str, Any]:
         """Get a summary of the chart configuration."""
         return {
             "chart_type": self.chart_type,
@@ -523,7 +523,7 @@ class Chart(Item):
 
         return False
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert chart to dictionary for serialization."""
         data = super().to_dict()
         data.update({
@@ -571,7 +571,7 @@ class Chart(Item):
         return data
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Chart":
+    def from_dict(cls, data: dict[str, Any]) -> "Chart":
         """Create chart from dictionary."""
         chart = cls(
             id=data.get("id"),
@@ -581,7 +581,7 @@ class Chart(Item):
         
         # Set inherited attributes
         chart.parent_id = data.get("parent_id")
-        chart.created_at = data.get("created_at", datetime.now().isoformat())
+        chart.created_at = data.get("created_at", datetime.now().isoformat())  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones
         chart.modified_at = data.get("modified_at", chart.created_at)
         chart.metadata = data.get("metadata", {})
         
@@ -648,7 +648,7 @@ class Chart(Item):
 
 
 def resolve_series_column(dataset: Any, column_id: str,
-                          fallback_name: str) -> Optional[str]:
+                          fallback_name: str) -> str | None:
     """Resolve a column reference to its current DataFrame name.
 
     Prefers the stable ``column_id`` (via the dataset's id->name registry) so a
@@ -664,7 +664,7 @@ def resolve_series_column(dataset: Any, column_id: str,
     return fallback_name or None
 
 
-def resolve_numeric_column(dataset: Any, column_id: str) -> Optional[np.ndarray]:
+def resolve_numeric_column(dataset: Any, column_id: str) -> np.ndarray | None:
     """Resolve a column id to a JSON-safe numeric numpy array snapshot.
 
     Used for fit data (FitData.x_data/y_data/confidence_lower/
@@ -704,7 +704,7 @@ def resolve_manual_fit_source_data(
     y_column_id: str,
     confidence_lower_column_id: str = "",
     confidence_upper_column_id: str = "",
-) -> Optional[tuple[np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None] | None:
     """Resolve X, Y, and optional confidence-lower/confidence-upper columns for a manual fit.
 
     Returns a 4-tuple of numpy arrays (x_data, y_data, confidence_lower, confidence_upper)
@@ -784,11 +784,10 @@ def assign_series_column_ids(series: "DataSeries", dataset: Any) -> None:
                 if cid is not None:
                     setattr(series.style, id_field, cid)
 
-    if isinstance(series.style, (ColormapSeriesStyle, HeatmapSeriesStyle)):
-        if not series.style.z_column_id and series.style.z_column:
-            cid = dataset.column_id(series.style.z_column)
-            if cid is not None:
-                series.style.z_column_id = cid
+    if isinstance(series.style, (ColormapSeriesStyle, HeatmapSeriesStyle)) and not series.style.z_column_id and series.style.z_column:
+        cid = dataset.column_id(series.style.z_column)
+        if cid is not None:
+            series.style.z_column_id = cid
 
 
 def assign_fit_column_ids(fit: "FitData", dataset: Any) -> None:
@@ -804,7 +803,7 @@ def assign_fit_column_ids(fit: "FitData", dataset: Any) -> None:
                 setattr(fit, id_field, cid)
 
 
-def snapshot_chart_state(chart: "Chart") -> Dict[str, Any]:
+def snapshot_chart_state(chart: "Chart") -> dict[str, Any]:
     """Capture the mutable chart state that the properties panel can change.
 
     The whole fit_data list is deep-copied, same as data_series -- a
@@ -822,7 +821,7 @@ def snapshot_chart_state(chart: "Chart") -> Dict[str, Any]:
     }
 
 
-def restore_chart_state(chart: "Chart", snapshot: Dict[str, Any]) -> None:
+def restore_chart_state(chart: "Chart", snapshot: dict[str, Any]) -> None:
     """Restore chart state captured by snapshot_chart_state."""
     chart.config = copy.deepcopy(snapshot["config"])
     chart.style = copy.deepcopy(snapshot["style"])

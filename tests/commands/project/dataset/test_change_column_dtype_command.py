@@ -37,7 +37,7 @@ class TestChangeColumnDtypeCommand:
         """A column of whole-number ints (e.g. 1, 2, 3) must actually become
         float64 when the user picks 'Decimal' -- pd.to_numeric alone keeps
         such a column as int64 since every value downcasts cleanly."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -112,7 +112,7 @@ class TestChangeColumnDtypeCommandLogging:
         return project
 
     def test_execute_logs_warning_when_no_project(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
         command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
 
@@ -121,7 +121,7 @@ class TestChangeColumnDtypeCommandLogging:
         assert "no project" in caplog.text.lower()
 
     def test_execute_logs_warning_when_current_project_none(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
         command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
@@ -131,7 +131,7 @@ class TestChangeColumnDtypeCommandLogging:
         assert "current_project is None" in caplog.text
 
     def test_execute_logs_warning_when_dataset_not_found(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         sample_project.find_item.return_value = None
@@ -142,7 +142,7 @@ class TestChangeColumnDtypeCommandLogging:
         assert "missing-ds" in caplog.text
 
     def test_execute_logs_warning_when_item_not_a_dataset(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         sample_project.find_item.return_value = object()
@@ -153,7 +153,7 @@ class TestChangeColumnDtypeCommandLogging:
         assert "ds-1" in caplog.text and "not a Dataset" in caplog.text
 
     def test_execute_logs_warning_when_dataset_empty(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame())
@@ -165,7 +165,7 @@ class TestChangeColumnDtypeCommandLogging:
         assert "ds-1" in caplog.text and "no data" in caplog.text.lower()
 
     def test_execute_logs_warning_when_column_index_out_of_range(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2]}))
@@ -177,7 +177,7 @@ class TestChangeColumnDtypeCommandLogging:
         assert "5" in caplog.text
 
     def test_execute_logs_warning_when_conversion_fails(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2]}))
@@ -189,7 +189,7 @@ class TestChangeColumnDtypeCommandLogging:
         assert "ds-1" in caplog.text and "conversion" in caplog.text.lower()
 
     def test_undo_logs_warning_when_nothing_to_undo(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
 
         with caplog.at_level(logging.WARNING):
@@ -197,7 +197,7 @@ class TestChangeColumnDtypeCommandLogging:
         assert "ds-1" in caplog.text
 
     def test_redo_logs_warning_when_nothing_to_redo(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
 
         with caplog.at_level(logging.WARNING):

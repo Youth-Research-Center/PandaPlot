@@ -167,7 +167,7 @@ class TestCropCanvasAspectLockBoundaryClamping:
         # This specific scenario is only interesting if the naive
         # intersection (which would produce QRect(0,150,200,50), ratio 4.0)
         # would actually have violated bounds without the fix.
-        assert not QRect(0, 150, 200, 50) == result
+        assert QRect(0, 150, 200, 50) != result
 
 
 class TestCropCanvasClampAspectLockedRectFinalBoundsClamp:
@@ -255,7 +255,7 @@ class TestCropCanvasWidgetRectExclusiveConvention:
 
         display = canvas._display_rect()
         crop_widget_rect = canvas._crop_widget_rect()
-        top, bottom, left, right = canvas._overlay_strip_rects(display, crop_widget_rect)
+        _top, bottom, _left, right = canvas._overlay_strip_rects(display, crop_widget_rect)
 
         assert bottom.top() == 120
         assert bottom.top() + bottom.height() - 1 == display.bottom()  # reaches the true last row

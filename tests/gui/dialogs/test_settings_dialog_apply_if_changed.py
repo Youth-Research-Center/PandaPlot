@@ -79,9 +79,8 @@ def test_apply_settings_does_not_advance_state_when_command_fails(tmp_path):
     dialog.auto_save_check.setChecked(not dialog.auto_save_check.isChecked())
     original_before = dict(dialog.original_settings)
 
-    with patch.object(executor, "execute_command", return_value=False):
-        with patch.object(QMessageBox, "warning") as mock_warning:
-            dialog.apply_settings()
+    with patch.object(executor, "execute_command", return_value=False), patch.object(QMessageBox, "warning") as mock_warning:
+        dialog.apply_settings()
 
     assert dialog.original_settings == original_before
     changed_signal_handler.assert_not_called()
@@ -174,10 +173,12 @@ def test_accept_settings_does_not_close_when_apply_fails(tmp_path):
     executor = dialog.app_context.get_command_executor()
     dialog.auto_save_check.setChecked(not dialog.auto_save_check.isChecked())
 
-    with patch.object(executor, "execute_command", return_value=False):
-        with patch.object(QMessageBox, "warning") as mock_warning:
-            with patch.object(dialog, "accept") as mock_accept:
-                dialog.accept_settings()
+    with (
+        patch.object(executor, "execute_command", return_value=False),
+        patch.object(QMessageBox, "warning") as mock_warning,
+        patch.object(dialog, "accept") as mock_accept,
+    ):
+        dialog.accept_settings()
 
     mock_accept.assert_not_called()
     mock_warning.assert_called_once()

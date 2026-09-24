@@ -5,7 +5,7 @@ Dataset model for managing data table items in the project.
 import uuid
 from collections import OrderedDict
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -26,16 +26,16 @@ class Dataset(Item):
     cascade into every reference. See ``column_name`` / ``column_id``.
     """
 
-    def __init__(self, id: Optional[str] = None, name: str = "",
-                 data: Optional[pd.DataFrame] = None, source_file: Optional[str] = None):
+    def __init__(self, id: str | None = None, name: str = "",
+                 data: pd.DataFrame | None = None, source_file: str | None = None):
         super().__init__(id, name)
 
         # Set dataset-specific attributes
         # column_ids maps a stable column id -> its current name, ordered to
         # match the DataFrame's columns.
-        self.column_ids: "OrderedDict[str, str]" = OrderedDict()
+        self.column_ids: OrderedDict[str, str] = OrderedDict()
         self.data: pd.DataFrame = data if data is not None else pd.DataFrame()
-        self.source_file: Optional[str] = source_file
+        self.source_file: str | None = source_file
         self._sync_column_ids()
 
     def set_data(self, data: pd.DataFrame) -> None:
@@ -70,24 +70,24 @@ class Dataset(Item):
         """
         current_names = [str(c) for c in self.data.columns] if self.data is not None else []
         id_by_name = {name: cid for cid, name in self.column_ids.items()}
-        synced: "OrderedDict[str, str]" = OrderedDict()
+        synced: OrderedDict[str, str] = OrderedDict()
         for name in current_names:
             cid = id_by_name.pop(name, None) or str(uuid.uuid4())
             synced[cid] = name
         self.column_ids = synced
 
-    def column_name(self, column_id: str) -> Optional[str]:
+    def column_name(self, column_id: str) -> str | None:
         """Return the current name for a column id, or None if unknown."""
         return self.column_ids.get(column_id)
 
-    def column_id(self, name: str) -> Optional[str]:
+    def column_id(self, name: str) -> str | None:
         """Return the stable id for a column name, or None if not found."""
         for cid, col_name in self.column_ids.items():
             if col_name == name:
                 return cid
         return None
 
-    def rename_column(self, old_name: str, new_name: str) -> Optional[str]:
+    def rename_column(self, old_name: str, new_name: str) -> str | None:
         """Update the registry entry for ``old_name`` in place, keeping its id.
 
         Does not touch the DataFrame — the caller renames the column so the
@@ -100,7 +100,7 @@ class Dataset(Item):
         self.column_ids[cid] = new_name
         return cid
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert dataset to dictionary for serialization."""
         data = super().to_dict()
         data.update({
@@ -115,7 +115,7 @@ class Dataset(Item):
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Dataset":
+    def from_dict(cls, data: dict[str, Any]) -> "Dataset":
         """Create dataset from dictionary."""
         dataset = cls(
             id=data.get("id"),
@@ -125,7 +125,7 @@ class Dataset(Item):
 
         # Set inherited attributes
         dataset.parent_id = data.get("parent_id")
-        dataset.created_at = data.get("created_at", datetime.now().isoformat())
+        dataset.created_at = data.get("created_at", datetime.now().isoformat())  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones
         dataset.modified_at = data.get("modified_at", dataset.created_at)
 
         # Restore the saved column-id registry. The DataFrame is loaded

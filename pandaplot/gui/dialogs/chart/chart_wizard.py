@@ -1,5 +1,6 @@
 """Top-level chart creation wizard: Type step, then Data step."""
-from typing import Callable, Optional, override
+from collections.abc import Callable
+from typing import override
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QPixmap
@@ -21,11 +22,11 @@ class ChartWizard(PWizard):
         self,
         app_context: AppContext,
         parent=None,
-        initial_dataset_id: Optional[str] = None,
-        initial_column_ids: Optional[list[str]] = None,
-        initial_title: Optional[str] = None,
-        datasets: Optional[list[tuple[str, str]]] = None,
-        columns_provider: Optional[Callable[[str], list[tuple[str, str]]]] = None,
+        initial_dataset_id: str | None = None,
+        initial_column_ids: list[str] | None = None,
+        initial_title: str | None = None,
+        datasets: list[tuple[str, str]] | None = None,
+        columns_provider: Callable[[str], list[tuple[str, str]]] | None = None,
         project=None,
     ):
         self._initial_dataset_id = initial_dataset_id

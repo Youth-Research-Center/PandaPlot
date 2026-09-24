@@ -8,7 +8,7 @@ summary in the application as data (a tidy table) and as a written report.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 
@@ -16,7 +16,7 @@ import pandas as pd
 # stable identifier used in the results table; the value is the human-readable
 # label shown to the user. Keeping this as a single ordered mapping means the
 # engine, the results table, and the report all stay in the same order.
-DESCRIPTIVE_STATS: Dict[str, str] = {
+DESCRIPTIVE_STATS: dict[str, str] = {
     "count": "Count",
     "missing": "Missing",
     "mean": "Mean",
@@ -46,9 +46,9 @@ class DescriptiveStatsResult:
     results dataset, and what :meth:`report` renders into prose.
     """
 
-    source_columns: List[str]
+    source_columns: list[str]
     stats: pd.DataFrame
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dataframe(self) -> pd.DataFrame:
         """Return the tidy statistics table (Statistic + one column per variable)."""
@@ -70,7 +70,7 @@ class DescriptiveStatsResult:
         The report leads with a per-column table and follows with a short
         plain-language paragraph per column describing centre, spread and shape.
         """
-        lines: List[str] = ["# Descriptive Statistics Report", ""]
+        lines: list[str] = ["# Descriptive Statistics Report", ""]
         lines.append("Columns analysed: " + ", ".join(f"**{c}**" for c in self.source_columns))
         lines.append("")
 
@@ -92,7 +92,7 @@ class DescriptiveStatsResult:
 
         return "\n".join(lines).rstrip() + "\n"
 
-    def _column_narrative(self, col: str, by_col: Dict[str, Any]) -> List[str]:
+    def _column_narrative(self, col: str, by_col: dict[str, Any]) -> list[str]:
         """Build the prose bullet list for a single column."""
 
         def val(stat_key: str) -> str:
@@ -103,7 +103,7 @@ class DescriptiveStatsResult:
             f"### {col}",
             f"- **{val('count')}** valid observations ({val('missing')} missing).",
             f"- Centre: mean **{val('mean')}**, median **{val('median')}**.",
-            f"- Spread: std. deviation **{val('std')}**, IQR **{val('iqr')}** "
-            f"(range {val('min')} to {val('max')}).",
+            (f"- Spread: std. deviation **{val('std')}**, IQR **{val('iqr')}** "
+            f"(range {val('min')} to {val('max')})."),
             f"- Shape: skewness **{val('skewness')}**, excess kurtosis **{val('kurtosis')}**.",
         ]

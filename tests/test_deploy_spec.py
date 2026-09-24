@@ -49,6 +49,7 @@ def test_pyside6_deploy_dry_run():
             text=True,
             timeout=60,
             cwd=repo_root,
+            check=False,
         )
     except (subprocess.TimeoutExpired, FileNotFoundError) as err:
         pytest.fail(f"pyside6-deploy execution failed: {err}")

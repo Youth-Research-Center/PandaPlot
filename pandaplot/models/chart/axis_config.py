@@ -8,7 +8,6 @@ ChartConfig's construction seeds the correct per-axis value (y.side="left",
 y2.side="right", y/y2.label_rotation=90) rather than this class guessing.
 """
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -25,7 +24,7 @@ class AxisConfig:
     tick_format_custom: str = ""
     show_grid: bool = True
     font_size: int = 12
-    side: Optional[str] = None
+    side: str | None = None
     log_base: float = 10.0
     tick_direction: str = "out"
     minor_ticks: bool = False

@@ -5,7 +5,7 @@ grouped by note; double-clicking a match opens that note and jumps the editor
 to the matched text.
 """
 
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QTextDocument, QTextOption
@@ -51,7 +51,7 @@ class _HighlightDelegate(QStyledItemDelegate):
         self.highlight = "#ffe08a"
         self.highlight_fg = "#000000"
 
-    def _document(self, index) -> Optional[QTextDocument]:
+    def _document(self, index) -> QTextDocument | None:
         snippet = index.data(_ROLE_SNIPPET)
         if not snippet:
             return None
@@ -126,7 +126,7 @@ def _is_dark(hex_color: str) -> bool:
 class SearchPanel(SidebarPanel):
     """Search-across-notes panel shown in the sidebar."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.app_state = app_context.get_app_state()
 
@@ -335,7 +335,7 @@ class SearchPanel(SidebarPanel):
 
     def _on_item_activated(self, item: QTreeWidgetItem, _column: int):
         note_id = item.data(0, _ROLE_NOTE_ID)
-        match: Optional[NoteMatch] = item.data(0, _ROLE_MATCH)
+        match: NoteMatch | None = item.data(0, _ROLE_MATCH)
         if not note_id:
             return
 

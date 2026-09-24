@@ -9,7 +9,7 @@ the same pattern applied to AnalysisCommand.
 """
 
 import uuid
-from typing import Optional, override
+from typing import override
 
 from pandaplot.analysis import SignalAnalysisResult
 from pandaplot.commands.base_command import Command, CommandResult
@@ -25,8 +25,8 @@ class ApplySignalAnalysisResultCommand(Command):
     def __init__(
         self,
         app_context: AppContext,
-        result_name: Optional[str],
-        folder_id: Optional[str],
+        result_name: str | None,
+        folder_id: str | None,
         result: SignalAnalysisResult,
     ):
         super().__init__()
@@ -36,8 +36,8 @@ class ApplySignalAnalysisResultCommand(Command):
         self.folder_id = folder_id
         self.result = result
 
-        self.result_dataset_id: Optional[str] = None
-        self._dataset: Optional[Dataset] = None
+        self.result_dataset_id: str | None = None
+        self._dataset: Dataset | None = None
 
     @override
     def execute(self) -> CommandResult:
@@ -80,8 +80,8 @@ class ApplySignalAnalysisResultCommand(Command):
             )
             return CommandResult.SUCCESS
 
-        except Exception as e:
-            self.logger.error("Failed to apply signal analysis result: %s", e, exc_info=True)
+        except Exception:
+            self.logger.exception("Failed to apply signal analysis result")
             return CommandResult.FAILURE
 
     @override
@@ -108,8 +108,8 @@ class ApplySignalAnalysisResultCommand(Command):
                 )
             return CommandResult.SUCCESS
 
-        except Exception as e:
-            self.logger.error("Failed to undo signal analysis: %s", e, exc_info=True)
+        except Exception:
+            self.logger.exception("Failed to undo signal analysis")
             return CommandResult.FAILURE
 
     @override

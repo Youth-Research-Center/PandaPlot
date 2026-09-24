@@ -3,7 +3,7 @@ Modern Settings dialog for the pandaplot application.
 Provides a user interface for changing application preferences with modern PySide6 styling.
 """
 
-from typing import Any, Dict, Optional, override
+from typing import Any, override
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor
@@ -70,8 +70,8 @@ class SettingsDialog(PDialog):
     
     def __init__(self, app_context, parent=None):
         super().__init__(app_context=app_context, parent=parent)
-        self.original_settings: Dict[str, Any] = {}
-        self.current_settings: Dict[str, Any] = {}
+        self.original_settings: dict[str, Any] = {}
+        self.current_settings: dict[str, Any] = {}
         self._config_manager = self.app_context.get_manager(ConfigManager)
         self._applying = False  # guard to prevent feedback loops
         self._chart_size_unit = LengthUnit.CM
@@ -495,7 +495,7 @@ class SettingsDialog(PDialog):
         on a no-op reload would silently discard a pending, not-yet-applied
         pick.
         """
-        cfg: Optional[ApplicationConfig] = None
+        cfg: ApplicationConfig | None = None
         if self._config_manager is not None:
             cfg = self._config_manager.config
         if cfg is None:
@@ -537,7 +537,7 @@ class SettingsDialog(PDialog):
         # Subscribe to both updated and reset events
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
     
-    def _on_config_event(self, data: Dict[str, Any]):
+    def _on_config_event(self, data: dict[str, Any]):
         if self._applying:
             return
         config = data.get("config")
@@ -573,7 +573,7 @@ class SettingsDialog(PDialog):
         color = self.current_settings["accent_color"]
         self.accent_color_btn.setStyleSheet(f"background-color: {color}; border-radius: 4px;")
     
-    def get_current_settings_from_ui(self) -> Dict[str, Any]:
+    def get_current_settings_from_ui(self) -> dict[str, Any]:
         """Get current settings from UI controls."""
         return {
             "auto_save": self.auto_save_check.isChecked(),

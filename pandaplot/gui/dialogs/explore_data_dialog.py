@@ -5,7 +5,8 @@ Shows the currently open project's datasets to jump straight into one, or
 import data or create a blank dataset instead.
 """
 
-from typing import Callable, override
+from collections.abc import Callable
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (

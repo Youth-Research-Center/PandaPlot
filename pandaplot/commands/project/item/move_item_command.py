@@ -1,4 +1,4 @@
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -15,8 +15,8 @@ class MoveItemCommand(Command):
     """
 
     # TODO(#198): avoid optional types
-    def __init__(self, app_context: AppContext, item_id: Optional[str] = None, item_type: Optional[str] = None,
-                 source_folder_id: Optional[str] = None, target_folder_id: Optional[str] = None):
+    def __init__(self, app_context: AppContext, item_id: str | None = None, item_type: str | None = None,
+                 source_folder_id: str | None = None, target_folder_id: str | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -50,10 +50,10 @@ class MoveItemCommand(Command):
         # folder just before this move detached it. undo() reuses it so a
         # successful restore puts the item back at its exact original
         # position instead of appending it after its former siblings.
-        self._source_index: Optional[int] = None
+        self._source_index: int | None = None
 
     @staticmethod
-    def _resolve_folder(project: Project, folder_id: Optional[str]) -> Optional[Item]:
+    def _resolve_folder(project: Project, folder_id: str | None) -> Item | None:
         """Resolve a folder_id/'root' sentinel (as stored on this command) to
         the actual folder item, for snapshotting its state before a
         compensating rollback (see execute()/undo())."""
@@ -189,7 +189,7 @@ class MoveItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to move item '{item_name}': {str(e)}"
+            error_msg = f"Failed to move item '{item_name}': {e!s}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Move Item Error", error_msg)
             raise
@@ -276,7 +276,7 @@ class MoveItemCommand(Command):
                     if item is not None:
                         item_name = getattr(item, "name", self.item_id)
 
-            error_msg = f"Failed to undo move of '{item_name}': {str(e)}"
+            error_msg = f"Failed to undo move of '{item_name}': {e!s}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             if self._rolled_back:

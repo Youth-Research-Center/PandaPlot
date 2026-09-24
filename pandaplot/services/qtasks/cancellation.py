@@ -1,12 +1,12 @@
 import inspect
 import threading
-from typing import Any, Callable, Dict
+from collections.abc import Callable
+from typing import Any
 
 
 class TaskCancelledError(Exception):
     """Exception raised when a task is cancelled during execution."""
 
-    pass
 
 
 class CancellationToken:
@@ -40,7 +40,7 @@ class CancellationToken:
             raise TaskCancelledError("Task was cancelled.")
 
 
-def build_cancellation_kwargs(fn: Callable[..., Any], token: CancellationToken) -> Dict[str, Any]:
+def build_cancellation_kwargs(fn: Callable[..., Any], token: CancellationToken) -> dict[str, Any]:
     """Inspect fn's signature and return the is_cancelled/cancellation_token
     kwargs it should be called with, based on which of them it declares (or,
     if it accepts **kwargs, both).
@@ -58,7 +58,7 @@ def build_cancellation_kwargs(fn: Callable[..., Any], token: CancellationToken) 
         param = params.get(name)
         return param is not None and param.kind in keyword_capable_kinds
 
-    kwargs: Dict[str, Any] = {}
+    kwargs: dict[str, Any] = {}
     if accepts_as_keyword("is_cancelled") or has_var_keyword:
         kwargs["is_cancelled"] = token.is_cancelled
     if accepts_as_keyword("cancellation_token") or has_var_keyword:

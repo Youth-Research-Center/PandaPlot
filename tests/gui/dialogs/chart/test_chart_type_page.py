@@ -86,7 +86,7 @@ def test_importing_chart_type_page_does_not_import_matplotlib():
         "import pandaplot.gui.dialogs.chart.chart_type_page; "
         "assert 'matplotlib' not in sys.modules, 'matplotlib was imported eagerly'"
     )
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
 
 

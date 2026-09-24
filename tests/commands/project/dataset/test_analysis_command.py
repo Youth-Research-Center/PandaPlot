@@ -134,7 +134,7 @@ class TestAnalysisCommand:
         assert command.execute() is CommandResult.SUCCESS  # dispatched
         assert outcomes == [CommandResult.FAILURE]
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
-        title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
+        _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
         assert "boom" in message
 
     def test_on_complete_reports_success_once_applied(self, ctx):
