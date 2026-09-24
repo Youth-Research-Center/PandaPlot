@@ -1261,3 +1261,63 @@ def test_fit_series_round_trips_through_to_dict_from_dict():
     np.testing.assert_array_equal(fit.precomputed_x_data, [1.0, 2.0])
     assert fit.style.fit_type == "linear"
     assert fit.style.fit_params == {"a": 1.0}
+
+
+def _fill_chart():
+    """Four line series; A (index 0) fills to D (index 3)."""
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="c", chart_type="line")
+    for label in ("A", "B", "C", "D"):
+        chart.add_data_series("ds", x_column="x", y_column="y", label=label)
+    chart.data_series[0].style.fill_to_index = 3
+    return chart
+
+
+def test_removing_a_series_before_a_fill_target_shifts_the_target_down():
+    chart = _fill_chart()
+    chart.remove_data_series(1)  # drop B; D moves from 3 to 2
+    assert chart.data_series[0].style.fill_to_index == 2
+    assert chart.data_series[2].label == "D"
+
+
+def test_removing_the_fill_target_itself_falls_back_to_the_baseline():
+    chart = _fill_chart()
+    chart.remove_data_series(3)
+    assert chart.data_series[0].style.fill_to_index == -1
+
+
+def test_moving_series_keeps_fill_targets_on_the_same_series():
+    chart = _fill_chart()
+    chart.move_data_series(3, 1)  # order: A, D, B, C
+    assert chart.data_series[chart.data_series[0].style.fill_to_index].label == "D"
+    chart.move_data_series(0, 2)  # order: D, B, A, C -- the filling series itself moves
+    filler = next(s for s in chart.data_series if s.label == "A")
+    assert chart.data_series[filler.style.fill_to_index].label == "D"
+
+
+def test_stripping_a_removed_datasets_series_remaps_fill_targets():
+    chart = _fill_chart()
+    chart.data_series[1].dataset_id = "gone"  # B is stripped
+    chart._strip_references({"gone"})
+    assert [s.label for s in chart.data_series] == ["A", "C", "D"]
+    assert chart.data_series[0].style.fill_to_index == 2
+
+
+def test_fill_targets_round_trip():
+    chart = _fill_chart()
+    snapshot = chart.fill_targets()
+    assert snapshot == [3, -1, -1, -1]
+    chart.data_series[0].style.fill_to_index = -1
+    chart.restore_fill_targets(snapshot)
+    assert chart.data_series[0].style.fill_to_index == 3
+
+
+def test_fill_targets_skip_styles_without_a_fill_target():
+    import numpy as np
+
+    from pandaplot.models.chart.fit_style import FitStyle
+
+    chart = _fill_chart()
+    chart.add_fit_series("ds", x_data=np.array([1.0]), y_data=np.array([1.0]), label="F", style=FitStyle())
+    assert chart.fill_targets()[-1] is None

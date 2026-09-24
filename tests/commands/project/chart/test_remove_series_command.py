@@ -164,3 +164,26 @@ def test_removes_and_restores_a_fit_series_at_its_original_index(app_context_wit
     assert isinstance(restored.style, FitStyle)
     assert restored.style.color == "#abcdef"
     np.testing.assert_array_equal(restored.precomputed_y_data, np.array([3.0, 4.0]))
+
+
+def test_remove_then_undo_restores_fill_targets_exactly(app_context_with_chart):
+    """Removing a fit (or any series) must not retarget another series'
+    fill (PR #416 review), and undo must bring back a fill that pointed at
+    the removed series itself, not leave it on the baseline."""
+    app_context, chart = app_context_with_chart
+    chart.add_data_series("ds-1", x_column="x", y_column="y", label="A")
+    chart.add_fit_series("ds-1", x_data=np.array([1.0]), y_data=np.array([1.0]), label="Fit", style=FitStyle())
+    chart.add_data_series("ds-1", x_column="x", y_column="y", label="C")
+    chart.data_series[0].style.fill_to_index = 2  # A fills to C
+
+    remove_fit = RemoveSeriesCommand(app_context, chart_id=chart.id, series_index=1)
+    assert remove_fit.execute() is CommandResult.SUCCESS
+    assert chart.data_series[0].style.fill_to_index == 1  # still C
+    assert remove_fit.undo() is CommandResult.SUCCESS
+    assert chart.data_series[0].style.fill_to_index == 2
+
+    remove_target = RemoveSeriesCommand(app_context, chart_id=chart.id, series_index=2)
+    assert remove_target.execute() is CommandResult.SUCCESS
+    assert chart.data_series[0].style.fill_to_index == -1
+    assert remove_target.undo() is CommandResult.SUCCESS
+    assert chart.data_series[0].style.fill_to_index == 2

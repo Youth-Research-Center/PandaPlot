@@ -521,3 +521,30 @@ def test_cleanup_releases_the_undo_snapshots():
     assert command.removed_chart_refs == {}
     assert command.cleared_error_refs == {}
     assert command.cleared_confidence_refs == {}
+
+
+def test_delete_and_undo_keep_fill_targets_on_the_same_series(env):
+    """Deleting a column drops the series/fits that plot it; the survivors'
+    fill_to_index must follow their target series, and undo must restore
+    the original positions exactly (PR #416 review)."""
+    app_context, dataset, _, _, _ = env
+    chart = Chart(name="fills")
+    chart.add_fit_series(dataset.id, np.array([1.0]), np.array([2.0]), "FitA", FitStyle(fit_type="Linear"),
+                         source_x_column_id=dataset.column_id("a"), source_y_column_id=dataset.column_id("a"))
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("c"), y_column_id=dataset.column_id("c"), label="B")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("a"), y_column_id=dataset.column_id("a"), label="C")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("d"), y_column_id=dataset.column_id("d"), label="D")
+    chart.data_series[1].style.fill_to_index = 3  # B fills to D
+    chart.data_series[3].style.fill_to_index = 2  # D fills to C, which gets removed
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
+    assert command.execute() is CommandResult.SUCCESS
+    assert [s.label for s in chart.data_series] == ["B", "D"]
+    assert chart.data_series[0].style.fill_to_index == 1
+    assert chart.data_series[1].style.fill_to_index == -1
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert [s.label for s in chart.data_series] == ["FitA", "B", "C", "D"]
+    assert chart.data_series[1].style.fill_to_index == 3
+    assert chart.data_series[3].style.fill_to_index == 2

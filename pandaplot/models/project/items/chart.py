@@ -6,7 +6,7 @@ import copy
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -313,9 +313,12 @@ class Chart(Item):
         return series
     
     def remove_data_series(self, index: int) -> bool:
-        """Remove a data series by index."""
+        """Remove a data series by index, remapping every remaining series'
+        `fill_to_index` so fills keep their target (a fill that pointed at
+        the removed series falls back to the baseline)."""
         if 0 <= index < len(self.data_series):
             del self.data_series[index]
+            self._remap_fill_targets(lambda target: -1 if target == index else (target - 1 if target > index else target))
             self.update_modified_time()
             return True
         return False
@@ -328,14 +331,50 @@ class Chart(Item):
         chart editor's render loop plots them in list order, and matplotlib
         draws each artist over whatever it already added -- so this list
         order *is* the z-index, and moving an entry here is how a series is
-        brought to front/back relative to the others (#189).
+        brought to front/back relative to the others (#189). Every series'
+        `fill_to_index` is remapped by the same permutation, so fills follow
+        their target series.
         """
         if not (0 <= from_index < len(self.data_series)) or not (0 <= to_index < len(self.data_series)):
             return False
+        order = list(range(len(self.data_series)))
+        order.insert(to_index, order.pop(from_index))
+        new_position = {old: new for new, old in enumerate(order)}
         series = self.data_series.pop(from_index)
         self.data_series.insert(to_index, series)
+        self._remap_fill_targets(lambda target: new_position.get(target, -1))
         self.update_modified_time()
         return True
+
+    def _remap_fill_targets(self, new_index_of: Callable[[int], int]) -> None:
+        """Rewrite every series' `fill_to_index` after `data_series` changed
+        shape, so each fill keeps pointing at the same *series* rather than
+        whichever one now sits at the old position. `new_index_of` maps an
+        old position to its new one, or -1 (fill to the baseline) when that
+        series is gone. Only styles with a fill target (LineSeriesStyle)
+        carry the field; -1 already means "baseline" and stays as is."""
+        for series in self.data_series:
+            target = getattr(series.style, "fill_to_index", -1)
+            if target >= 0:
+                series.style.fill_to_index = new_index_of(target)
+
+    def fill_targets(self) -> List[Optional[int]]:
+        """Each series' `fill_to_index` by position (None for a style with
+        no fill target). Undo paths snapshot this before removing series and
+        hand it back to `restore_fill_targets` once the list is restored to
+        the same shape -- a forward removal clears references to the removed
+        series, which remapping alone can't bring back."""
+        return [getattr(series.style, "fill_to_index", None) for series in self.data_series]
+
+    def restore_fill_targets(self, targets: List[Optional[int]]) -> None:
+        """Write back a `fill_targets()` snapshot by position. A no-op when
+        the list has a different length than `data_series` (the snapshot
+        doesn't describe this list)."""
+        if len(targets) != len(self.data_series):
+            return
+        for series, target in zip(self.data_series, targets, strict=True):
+            if target is not None and hasattr(series.style, "fill_to_index"):
+                series.style.fill_to_index = target
 
     def update_data_series(self, index: int, **kwargs) -> bool:
         """Update a data series by index."""
@@ -380,14 +419,16 @@ class Chart(Item):
         when removed_ids only overlapped via fit_data -- referenced_item_ids()
         includes fit_data for relevance detection, but if no data_series
         actually gets dropped here, nothing about this chart changed."""
-        remaining_series = [
-            series for series in self.data_series
+        kept = [
+            index for index, series in enumerate(self.data_series)
             if series.series_type == SeriesType.FIT or series.dataset_id not in removed_ids
         ]
-        if len(remaining_series) == len(self.data_series):
+        if len(kept) == len(self.data_series):
             return None
         snapshot = snapshot_chart_state(self)
-        self.data_series = remaining_series
+        new_position = {old: new for new, old in enumerate(kept)}
+        self.data_series = [self.data_series[index] for index in kept]
+        self._remap_fill_targets(lambda target: new_position.get(target, -1))
         self.update_modified_time()
         return snapshot
 

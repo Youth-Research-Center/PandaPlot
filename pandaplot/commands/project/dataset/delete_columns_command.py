@@ -90,12 +90,13 @@ class DeleteColumnsCommand(Command):
         self.project = None
         self.dataset = None
 
-        # chart_id -> {"series": [(index, DataSeries)], "fits": [(index, DataSeries)]}
+        # chart_id -> {"series": [(index, DataSeries)], "fits": [(index, DataSeries)], "fill_targets": [Optional[int]]}
         # populated when columns being deleted are referenced by chart series/fits.
         # Both "series" and "fits" indices are real chart.data_series positions
         # (#304 folded the old separate chart.fit_data list into data_series),
         # so restoring them on undo requires merging both groups into a single
         # ascending-by-index pass -- see _restore_chart_references.
+        # "fill_targets" is chart.fill_targets() taken before removal, restored on undo.
         self.removed_chart_refs = {}
 
         # chart_id -> [(series_index, old_x_error_column, old_y_error_column)]
@@ -455,8 +456,9 @@ class DeleteColumnsCommand(Command):
             # descending pass -- deleting from two independently-sorted passes
             # over the same list would shift the second pass's indices out from
             # under it.
+            fill_targets_before = chart.fill_targets()
             for i in sorted(set(series_idx) | set(fit_idx), reverse=True):
-                del chart.data_series[i]
+                chart.remove_data_series(i)
 
             if removed_series or removed_fits or cleared_series or cleared_fits:
                 chart.update_modified_time()
@@ -464,6 +466,7 @@ class DeleteColumnsCommand(Command):
                     self.removed_chart_refs[chart.id] = {
                         "series": removed_series,
                         "fits": removed_fits,
+                        "fill_targets": fill_targets_before,
                     }
                 if cleared_series:
                     self.cleared_error_refs[chart.id] = cleared_series
@@ -500,6 +503,12 @@ class DeleteColumnsCommand(Command):
             # removed series' original indices (or vice versa).
             for i, series in sorted(removed["series"] + removed["fits"], key=lambda pair: pair[0]):
                 chart.data_series.insert(i, series)
+
+            # Removal remapped the surviving series' fill targets and dropped
+            # those that pointed at a removed series; the list is back to its
+            # pre-deletion shape here, so restore every target by position.
+            if removed.get("fill_targets") is not None:
+                chart.restore_fill_targets(removed["fill_targets"])
 
             for i, old_values in self.cleared_error_refs.get(chart_id, []):
                 if 0 <= i < len(chart.data_series):
