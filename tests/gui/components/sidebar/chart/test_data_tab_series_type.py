@@ -474,6 +474,33 @@ def test_selecting_fit_selects_the_new_fit_card():
     assert len(chart.fit_data) == 1
 
 
+def test_converting_a_non_last_series_selects_the_new_fit_not_the_last_card():
+    """Regression test (PR #416 review): the fit replaces the converted
+    series at its own position, so selection must stay on that position.
+    Selecting `len(data_series) - 1` instead expanded the LAST series (a
+    plain Line series here) and loaded it into the form and Style tab."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Line Chart", chart_type="line")
+    for label in ("A", "B", "C"):
+        chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+                              label=label)
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+    tab._expand_series(0)
+
+    fit_index = tab.series_type_combo.findData("__convert_to_fit__")
+    tab.series_type_combo.setCurrentIndex(fit_index)
+
+    assert chart.data_series[0].series_type == SeriesType.FIT
+    assert tab.selected_index == 0
+    # The form shows the fit, not series C.
+    assert tab.series_type_combo.currentData() == "__convert_to_fit__"
+    assert tab.series_label_edit.text() == "A"
+
+
 def test_converting_to_fit_is_undoable():
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Line Chart", chart_type="line")

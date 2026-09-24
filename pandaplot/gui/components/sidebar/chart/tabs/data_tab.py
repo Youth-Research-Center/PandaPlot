@@ -988,13 +988,11 @@ class DataTab(QWidget):
 
     def _convert_selected_series_to_fit(self, index: int):
         """Convert the data series at `index` into a FIT-type data series via
-        ConvertSeriesToFitCommand (#298), then select the newly created fit
-        at its new index.
+        ConvertSeriesToFitCommand (#298), then select the newly created fit.
 
-        The new fit is always appended to the end of `data_series`, and
-        converting one entry removes the original series and appends the
-        fit without changing the total item count -- so its new index is
-        always the last one.
+        The fit replaces the converted series at the same `data_series`
+        position (it keeps its render order, #304), so the new fit's index
+        is `index` itself.
         """
         command = ConvertSeriesToFitCommand(
             self.app_context,
@@ -1022,9 +1020,8 @@ class DataTab(QWidget):
                 self._load_series_into_controls(series)
             return
 
-        new_index = len(self.current_chart.data_series) - 1
-        self._expanded_series_index = new_index
-        self._expanded_card_indices.add(new_index)
+        self._expanded_series_index = index
+        self._expanded_card_indices.add(index)
         self._rebuild_series_cards()
 
     def _on_error_symmetry_toggled(self):

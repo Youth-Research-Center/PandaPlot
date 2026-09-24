@@ -179,7 +179,7 @@ def test_undo_restores_the_original_series(app_context_with_chart, chart_with_se
 def test_undo_restores_the_original_series_at_its_original_position(app_context_with_chart, dataset):
     """With another series present, undo must reinsert the converted
     series at its original z-order index, not just anywhere -- this
-    exercises the real-index bookkeeping (series_index/added_fit_index)
+    exercises the real-index bookkeeping (series_index)
     directly, per Task 9's real-index-vs-equality lesson."""
     app_context, chart = app_context_with_chart
     chart.add_data_series(
@@ -404,8 +404,8 @@ def test_cleanup_releases_bookkeeping(app_context_with_chart):
     command.execute()
 
     assert command.removed_series is not None
-    assert command.added_fit_index is not None
+    assert command._fit is not None
 
     command.cleanup()
     assert command.removed_series is None
-    assert command.added_fit_index is None
+    assert command._fit is None

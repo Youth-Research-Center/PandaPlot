@@ -50,9 +50,8 @@ class ConvertSeriesToFitCommand(Command):
         # State for undo/redo, mirroring ApplyFitCommand's caching: the
         # FIT-type DataSeries is built once (first execute()) and reused
         # on redo, and the original series is snapshotted once so undo
-        # can restore it at its original position.
+        # can put it back in the same data_series slot.
         self.removed_series: Optional[DataSeries] = None
-        self.added_fit_index: Optional[int] = None
         self._fit: Optional[DataSeries] = None
         self._chart_finder = ChartFinder(app_context)
 
@@ -136,9 +135,10 @@ class ConvertSeriesToFitCommand(Command):
             self._fit = fit
             self.removed_series = copy.deepcopy(series)
 
-        chart.remove_data_series(self.series_index)
-        chart.data_series.insert(self.series_index, self._fit)
-        self.added_fit_index = self.series_index
+        # A straight slot swap, not remove+insert: the fit takes over the
+        # series' position, so nothing else in data_series moves (and no
+        # other series' fill_to_index needs remapping).
+        chart.data_series[self.series_index] = self._fit
         chart.update_modified_time()
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
@@ -151,17 +151,15 @@ class ConvertSeriesToFitCommand(Command):
     @override
     def undo(self) -> CommandResult:
         chart = self._chart_finder.find(self.chart_id)
-        if chart is None or self.removed_series is None or self.added_fit_index is None:
+        if chart is None or self.removed_series is None or not (0 <= self.series_index < len(chart.data_series)):
             self.logger.warning(
                 "ConvertSeriesToFitCommand.undo: cannot undo for chart '%s' (chart "
-                "found=%s, removed_series set=%s, added_fit_index set=%s)",
-                self.chart_id, chart is not None,
-                self.removed_series is not None, self.added_fit_index is not None,
+                "found=%s, removed_series set=%s, series_index=%s)",
+                self.chart_id, chart is not None, self.removed_series is not None, self.series_index,
             )
             return CommandResult.FAILURE
 
-        chart.remove_data_series(self.added_fit_index)
-        chart.data_series.insert(self.series_index, copy.deepcopy(self.removed_series))
+        chart.data_series[self.series_index] = copy.deepcopy(self.removed_series)
         chart.update_modified_time()
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
@@ -177,9 +175,8 @@ class ConvertSeriesToFitCommand(Command):
 
     @override
     def cleanup(self) -> None:
-        """Release the removed-series/added-fit bookkeeping held for undo
+        """Release the removed-series/fit bookkeeping held for undo
         once this command is dropped from the stacks for good (see
         Command.cleanup)."""
         self.removed_series = None
-        self.added_fit_index = None
         self._fit = None
