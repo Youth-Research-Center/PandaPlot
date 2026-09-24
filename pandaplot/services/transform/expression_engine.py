@@ -6,7 +6,7 @@ evaluate expressions through one implementation instead of two.
 """
 
 import re
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -31,9 +31,9 @@ _NUMPY_FUNCTIONS = [
 ]
 
 
-def build_safe_globals() -> Dict[str, Any]:
+def build_safe_globals() -> dict[str, Any]:
     """Build the globals dict used to eval() a transform expression."""
-    safe_globals: Dict[str, Any] = {
+    safe_globals: dict[str, Any] = {
         "pd": pd,
         "np": np,
         "abs": abs,
@@ -77,14 +77,14 @@ def validate_expression(expression: str) -> tuple[bool, str]:
         compile(expression, "<transform>", "eval")
     except SyntaxError as e:
         return False, f"Syntax error: {e}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- Validating an untrusted, user-authored expression -- arbitrary/unknown exceptions are expected here
         return False, f"Code validation error: {e}"
 
     return True, ""
 
 
 def evaluate_expression(
-    expression: str, local_vars: Dict[str, Any], safe_globals: Dict[str, Any] | None = None,
+    expression: str, local_vars: dict[str, Any], safe_globals: dict[str, Any] | None = None,
 ) -> Any:
     """Evaluate a transform expression against local_vars.
 
@@ -93,10 +93,10 @@ def evaluate_expression(
     """
     if safe_globals is None:
         safe_globals = build_safe_globals()
-    return eval(expression, safe_globals, local_vars)  # noqa: S307 - validated by validate_expression at every call site
+    return eval(expression, safe_globals, local_vars)
 
 
-def get_transformation_templates() -> Dict[str, List[Dict[str, str]]]:
+def get_transformation_templates() -> dict[str, list[dict[str, str]]]:
     """Predefined transform-expression templates by category, used by the
     "Insert function" menu in both the dataset and chart Transform panels."""
     return {

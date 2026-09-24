@@ -13,7 +13,6 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
 
-
 # These mirror the real get_surface_palette() output (ThemeManager,
 # pandaplot/services/theme/theme_manager.py) for the LIGHT/DARK themes --
 # card_hover/card_pressed are surface_white darkened via
@@ -99,11 +98,11 @@ def _contrast_ratio(fg: str, bg: str) -> float:
 def _rule(stylesheet: str, selector: str) -> dict:
     match = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", stylesheet)
     assert match, f"{selector} not found in stylesheet"
-    return dict(
-        (key.strip(), value.strip())
+    return {
+        key.strip(): value.strip()
         for key, value in (decl.split(":", 1)
                            for decl in match.group(1).split(";") if ":" in decl)
-    )
+    }
 
 
 @pytest.mark.parametrize("palette", [LIGHT_PALETTE, DARK_PALETTE], ids=["light", "dark"])

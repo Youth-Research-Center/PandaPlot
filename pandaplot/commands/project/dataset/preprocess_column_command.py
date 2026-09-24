@@ -3,7 +3,7 @@ Preprocess column command for applying preprocessing transformations
 (centering, standardizing, scaling) with undo/redo support.
 """
 
-from typing import Any, Dict, List, Optional, Tuple, override
+from typing import Any, override
 
 import pandas as pd
 
@@ -23,7 +23,7 @@ class PreprocessColumnCommand(Command):
     columns, creating a new (or replacing an existing) column per source column.
     """
 
-    def __init__(self, app_context: AppContext, dataset_id: str, config: Dict[str, Any]):
+    def __init__(self, app_context: AppContext, dataset_id: str, config: dict[str, Any]):
         """
         Initialize the preprocessing command.
 
@@ -45,14 +45,14 @@ class PreprocessColumnCommand(Command):
         self.config = config
 
         self.method = PreprocessingMethod(config["method"])
-        self.source_columns: List[str] = list(config["source_columns"])
-        self.params: Dict[str, Any] = config.get("params", {})
+        self.source_columns: list[str] = list(config["source_columns"])
+        self.params: dict[str, Any] = config.get("params", {})
         self.replace_existing: bool = config.get("replace_existing", False)
-        self.column_names: Dict[str, str] = config.get("column_names", {})
+        self.column_names: dict[str, str] = config.get("column_names", {})
 
         # State for undo/redo: (target_column, existed_before, original_data)
-        self.dataset: Optional[Dataset] = None
-        self._undo_state: List[Tuple[str, bool, Optional[pd.Series]]] = []
+        self.dataset: Dataset | None = None
+        self._undo_state: list[tuple[str, bool, pd.Series | None]] = []
 
     def _target_name(self, source_column: str) -> str:
         """Resolve the result column name for a source column."""
@@ -84,8 +84,8 @@ class PreprocessColumnCommand(Command):
 
             df = self.dataset.data.copy()
             self._undo_state = []
-            added_columns: List[str] = []
-            replaced_columns: List[str] = []
+            added_columns: list[str] = []
+            replaced_columns: list[str] = []
 
             for source_column in self.source_columns:
                 result = PreprocessingEngine.transform(
@@ -111,7 +111,7 @@ class PreprocessColumnCommand(Command):
             )
             return CommandResult.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error("Preprocessing execution failed: %s", e)
             self.ui_controller.show_error_message("Preprocessing Error", str(e))
             return CommandResult.FAILURE
@@ -128,8 +128,8 @@ class PreprocessColumnCommand(Command):
                 return CommandResult.FAILURE
 
             df = self.dataset.data.copy()
-            removed_positions: List[int] = []
-            restored_columns: List[str] = []
+            removed_positions: list[int] = []
+            restored_columns: list[str] = []
             # Reverse order so re-created columns are handled before their sources.
             for target, existed_before, original in reversed(self._undo_state):
                 if existed_before and original is not None:
@@ -144,7 +144,7 @@ class PreprocessColumnCommand(Command):
             self.logger.info("Preprocessing undone (%s)", self.method.value)
             return CommandResult.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error("Preprocessing undo failed: %s", e)
             return CommandResult.FAILURE
 
@@ -193,7 +193,7 @@ class PreprocessColumnCommand(Command):
         command is dropped from the stacks for good (see Command.cleanup)."""
         self._undo_state = []
 
-    def _get_dataset(self) -> Optional[Dataset]:
+    def _get_dataset(self) -> Dataset | None:
         """Get the dataset from the app context."""
         try:
             project = get_current_project(self.app_context)
@@ -202,7 +202,7 @@ class PreprocessColumnCommand(Command):
                 if isinstance(item, Dataset):
                     return item
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error("Error getting dataset: %s", e)
             return None
 

@@ -46,7 +46,7 @@ def _save_now(app_context: AppContext, app_state: AppState, project_name: str) -
     try:
         project_manager = app_context.get_manager(ProjectManager)
         project_manager.save_project(app_state.current_project, app_state.project_file_path)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
         ui_controller.show_error_message(
             "Save Failed",
             f"Project '{project_name}' could not be saved:\n{e}\n\n"

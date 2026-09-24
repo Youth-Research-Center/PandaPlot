@@ -41,7 +41,7 @@ def _all_label_texts(widget):
 def test_dataset_rename_rebuilds_dataset_combo():
     _qapp()
     app_context = build_app_context()
-    project, dataset, chart = _make_project()
+    project, dataset, _chart = _make_project()
 
     panel = ChartPropertiesPanel(app_context=app_context)
     panel.set_project(project)
@@ -55,7 +55,7 @@ def test_dataset_rename_rebuilds_dataset_combo():
 def test_unrelated_item_rename_does_not_touch_dataset_combo(monkeypatch):
     _qapp()
     app_context = build_app_context()
-    project, dataset, chart = _make_project()
+    project, _dataset, chart = _make_project()
 
     panel = ChartPropertiesPanel(app_context=app_context)
     panel.set_project(project)

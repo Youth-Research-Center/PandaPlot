@@ -76,7 +76,7 @@ class TestCreateImageGalleryCommandNoProject:
         return app_context, app_state, ui_controller
 
     def test_execute_returns_false_when_user_declines_project_offer(self, mock_app_context):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, ui_controller = mock_app_context
         ui_controller.show_action_or_cancel.return_value = False
 
         command = CreateImageGalleryCommand(app_context, gallery_name="Trip")

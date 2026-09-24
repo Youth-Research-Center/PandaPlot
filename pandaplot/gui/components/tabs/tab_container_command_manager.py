@@ -7,7 +7,6 @@ commands. Mirrors the existing ProjectPanelCommandManager pattern
 (pandaplot/gui/components/sidebar/project/project_command_manager.py).
 """
 import logging
-from typing import Optional
 
 from pandaplot.commands.project.chart import CreateChartFromWizardCommand
 from pandaplot.commands.project.dataset.create_empty_dataset_command import CreateEmptyDatasetCommand
@@ -75,7 +74,7 @@ class TabContainerCommandManager:
         command = CreateChartFromWizardCommand(self.app_context)
         self.app_context.get_command_executor().execute_command(command)
 
-    def create_chart_from_dataset(self, dataset_id: str, preselected_column_ids: Optional[list[str]] = None):
+    def create_chart_from_dataset(self, dataset_id: str, preselected_column_ids: list[str] | None = None):
         """Open the chart creation wizard for a dataset.
 
         The wizard is non-blocking, so no chart exists when this returns. The

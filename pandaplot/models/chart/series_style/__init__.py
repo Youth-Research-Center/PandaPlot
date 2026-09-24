@@ -20,18 +20,18 @@ from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.chart.series_style.wireframe import WireframeSeriesStyle
 
 __all__ = [
-    "SeriesStyleBase",
-    "LineSeriesStyle",
-    "ScatterSeriesStyle",
+    "Bar3DSeriesStyle",
     "BarSeriesStyle",
-    "HistSeriesStyle",
-    "VectorSeriesStyle",
     "ColormapSeriesStyle",
     "HeatmapSeriesStyle",
-    "Scatter3DSeriesStyle",
+    "HistSeriesStyle",
     "Line3DSeriesStyle",
+    "LineSeriesStyle",
+    "Scatter3DSeriesStyle",
+    "ScatterSeriesStyle",
+    "SeriesStyleBase",
     "SurfaceSeriesStyle",
-    "WireframeSeriesStyle",
-    "Bar3DSeriesStyle",
     "TrisurfSeriesStyle",
+    "VectorSeriesStyle",
+    "WireframeSeriesStyle",
 ]

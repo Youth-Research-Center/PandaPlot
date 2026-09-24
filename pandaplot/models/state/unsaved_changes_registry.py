@@ -50,6 +50,6 @@ class UnsavedChangesRegistry:
             try:
                 if source.has_unsaved_changes() and not source.save():
                     all_flushed = False
-            except Exception:
+            except Exception:  # noqa: BLE001 -- Best-effort flush -- one source's failure must not stop the others from being attempted
                 all_flushed = False
         return all_flushed

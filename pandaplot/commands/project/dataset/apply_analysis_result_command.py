@@ -10,7 +10,7 @@ actually pushes onto the undo stack. See docs/arch/09-architectural-issues.md,
 "Analysis operations block the Qt main thread".
 """
 
-from typing import Optional, Union, override
+from typing import override
 
 import numpy as np
 import pandas as pd
@@ -31,10 +31,10 @@ class ApplyAnalysisResultCommand(Command):
         app_context: AppContext,
         dataset_id: str,
         new_column_name: str,
-        result_series: Union[pd.Series, np.ndarray],
+        result_series: pd.Series | np.ndarray,
         *,
         column_existed_before: bool,
-        original_data: Optional[pd.Series],
+        original_data: pd.Series | None,
     ):
         super().__init__()
         self.app_context = app_context
@@ -45,9 +45,9 @@ class ApplyAnalysisResultCommand(Command):
         self.column_existed_before = column_existed_before
         self.original_data = original_data
 
-        self.dataset: Optional[Dataset] = None
+        self.dataset: Dataset | None = None
 
-    def _get_dataset(self) -> Optional[Dataset]:
+    def _get_dataset(self) -> Dataset | None:
         project = get_current_project(self.app_context)
         if project is not None:
             dataset_item = project.find_item(self.dataset_id)
@@ -96,7 +96,7 @@ class ApplyAnalysisResultCommand(Command):
             )
             return CommandResult.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"ApplyAnalysisResultCommand execution failed: {e}")
             self.ui_controller.show_error_message("Analysis Error", str(e))
             return CommandResult.FAILURE
@@ -152,7 +152,7 @@ class ApplyAnalysisResultCommand(Command):
             self.logger.info("Analysis undone successfully: %s", self.new_column_name)
             return CommandResult.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"ApplyAnalysisResultCommand undo failed: {e}")
             return CommandResult.FAILURE
 

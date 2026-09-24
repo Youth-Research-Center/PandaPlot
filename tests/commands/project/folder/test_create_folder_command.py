@@ -58,7 +58,7 @@ class TestCreateFolderCommand:
 
     def test_init_with_parameters(self, mock_app_context):
         """Test command initialization with parameters."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         folder_name = "Test Folder"
         parent_id = "test-parent-123"
         
@@ -83,7 +83,7 @@ class TestCreateFolderCommand:
 
     def test_execute_no_current_project(self, mock_app_context):
         """Test execute when has_project is True but current_project is None."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
         
@@ -94,7 +94,7 @@ class TestCreateFolderCommand:
 
     def test_execute_no_current_project_logs_a_warning(self, mock_app_context, caplog):
         """Test execute logs a warning when has_project is True but current_project is None."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -108,7 +108,7 @@ class TestCreateFolderCommand:
 
     def test_execute_with_default_name_generation(self, mock_app_context, sample_project):
         """Test execute with default name generation when no existing folders."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -128,7 +128,7 @@ class TestCreateFolderCommand:
 
     def test_execute_with_existing_folders_name_generation(self, mock_app_context, sample_project):
         """Test execute with default name generation when folders already exist."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -147,7 +147,7 @@ class TestCreateFolderCommand:
 
     def test_execute_with_specified_name(self, mock_app_context, sample_project):
         """Test execute with a specified folder name."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -171,7 +171,7 @@ class TestCreateFolderCommand:
 
     def test_execute_with_parent_id(self, mock_app_context, sample_project):
         """Test execute with a specific parent_id."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -207,7 +207,7 @@ class TestCreateFolderCommand:
 
     def test_execute_with_whitespace_name(self, mock_app_context, sample_project):
         """Test execute with name that has leading/trailing whitespace."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -239,7 +239,7 @@ class TestCreateFolderCommand:
 
     def test_undo_successful(self, mock_app_context, sample_project):
         """Test successful undo operation."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -268,7 +268,7 @@ class TestCreateFolderCommand:
 
     def test_undo_no_folder_id(self, mock_app_context, sample_project):
         """Test undo when no folder_id is set."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -280,7 +280,7 @@ class TestCreateFolderCommand:
 
     def test_undo_no_project(self, mock_app_context):
         """Test undo when no project is loaded."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
         
         command = CreateFolderCommand(app_context)
@@ -313,7 +313,7 @@ class TestCreateFolderCommand:
 
     def test_redo_successful(self, mock_app_context, sample_project):
         """Test successful redo operation."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -340,7 +340,7 @@ class TestCreateFolderCommand:
 
     def test_redo_no_folder(self, mock_app_context, sample_project):
         """Test redo when no folder is available."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -352,7 +352,7 @@ class TestCreateFolderCommand:
 
     def test_redo_no_project(self, mock_app_context):
         """Test redo when no project is loaded."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
         
         command = CreateFolderCommand(app_context, "Test Folder")
@@ -365,7 +365,7 @@ class TestCreateFolderCommand:
 
     def test_redo_no_current_project_logs_a_warning(self, mock_app_context, sample_project, caplog):
         """Test redo logs a warning when has_project is True but current_project is None."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -408,7 +408,7 @@ class TestCreateFolderCommand:
 
     def test_folder_properties(self, mock_app_context, sample_project):
         """Test that the created Folder object has correct properties."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -430,7 +430,7 @@ class TestCreateFolderCommand:
     @patch("uuid.uuid4")
     def test_folder_id_generation(self, mock_uuid, mock_app_context, sample_project):
         """Test that folder ID is generated correctly."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -452,7 +452,7 @@ class TestCreateFolderCommand:
 
     def test_command_state_isolation(self, mock_app_context):
         """Test that multiple command instances don't interfere with each other."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         
         command1 = CreateFolderCommand(app_context, "Folder 1", "parent1")
         command2 = CreateFolderCommand(app_context, "Folder 2", "parent2")
@@ -471,7 +471,7 @@ class TestCreateFolderCommand:
     def test_cleanup_releases_cached_project_reference(self, mock_app_context, sample_project):
         """Test cleanup releases the cached project reference, leaving
         created_folder/created_folder_id untouched (needed by redo)."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -488,7 +488,7 @@ class TestCreateFolderCommand:
 
     def test_event_data_structure(self, mock_app_context, sample_project):
         """Test that events contain all expected data."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         

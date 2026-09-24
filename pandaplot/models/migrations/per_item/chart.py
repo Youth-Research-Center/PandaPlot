@@ -5,7 +5,7 @@ object -- unlike cross-item migrations (see migrations/cross_item/),
 these cannot look up another item's data (e.g. a dataset), only reshape
 the chart's own dict.
 """
-from typing import Callable
+from collections.abc import Callable
 
 from pandaplot.models.migrations.schema_version import CURRENT_SCHEMA_VERSION
 

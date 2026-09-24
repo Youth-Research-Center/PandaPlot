@@ -1,14 +1,13 @@
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 
 def setup_logging(
     log_file: str | Path = "application.log",
     level: int = logging.INFO,
-    cli_level: Optional[int] = logging.INFO,
-    file_level: Optional[int] = logging.DEBUG,
+    cli_level: int | None = logging.INFO,
+    file_level: int | None = logging.DEBUG,
     datefmt: str = "%Y-%m-%d %H:%M:%S"
 ):
     """

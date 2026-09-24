@@ -62,7 +62,7 @@ def _chart_updated_calls(app_context):
 
 
 def test_delete_removes_column_and_cascades_referencing_series_and_fits(env):
-    app_context, dataset, other, chart, untouched_chart = env
+    app_context, dataset, _other, chart, untouched_chart = env
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
 
     assert command.execute() is CommandResult.SUCCESS
@@ -125,7 +125,7 @@ def test_redo_reapplies_deletion_and_removes_references_again(env):
 
 
 def test_redo_failure_surfaces_error_message(env):
-    app_context, dataset, _, chart, _ = env
+    app_context, dataset, _, _chart, _ = env
     ui_controller = app_context.get_ui_controller.return_value
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
     command.execute()
@@ -141,7 +141,7 @@ def test_redo_failure_surfaces_error_message(env):
 
 
 def test_events_emitted_only_for_affected_charts(env):
-    app_context, dataset, _, chart, untouched_chart = env
+    app_context, dataset, _, chart, _untouched_chart = env
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
     command.execute()
 
@@ -336,7 +336,7 @@ def test_execute_logs_a_warning_when_no_project_open(env, caplog):
 
 
 def test_execute_logs_a_warning_when_dataset_not_found(env, caplog):
-    app_context, dataset, _, _, _ = env
+    app_context, _dataset, _, _, _ = env
     command = DeleteColumnsCommand(app_context, "missing-ds", ["a"])
 
     with caplog.at_level(logging.WARNING):
@@ -345,7 +345,7 @@ def test_execute_logs_a_warning_when_dataset_not_found(env, caplog):
 
 
 def test_execute_logs_a_warning_when_item_is_not_a_dataset(env, caplog):
-    app_context, dataset, _, chart, _ = env
+    app_context, _dataset, _, chart, _ = env
     # 'chart' is already registered in the project (see env fixture) but is a
     # Chart, not a Dataset.
     command = DeleteColumnsCommand(app_context, chart.id, ["a"])

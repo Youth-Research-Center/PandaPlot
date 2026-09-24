@@ -39,7 +39,7 @@ def _make_project_and_chart():
 def test_chart_editor_artist_picking_and_event_publishing():
     _qapp()
     app_ctx = build_app_context()
-    project, dataset, chart = _make_project_and_chart()
+    project, _dataset, chart = _make_project_and_chart()
     app_ctx.app_state.load_project(project)
 
     widget = ChartEditorWidget(app_context=app_ctx, chart=chart, parent=None)
@@ -75,7 +75,7 @@ def test_chart_editor_artist_picking_and_event_publishing():
 def test_chart_properties_panel_handles_series_selected_event():
     _qapp()
     app_ctx = build_app_context()
-    project, dataset, chart = _make_project_and_chart()
+    project, _dataset, chart = _make_project_and_chart()
     app_ctx.app_state.load_project(project)
 
     panel = ChartPropertiesPanel(app_context=app_ctx)
@@ -152,7 +152,7 @@ def test_fit_series_pick_event_resolves_to_offset_index():
 def test_hover_over_pickable_artist_shows_pointing_hand_cursor():
     _qapp()
     app_ctx = build_app_context()
-    project, dataset, chart = _make_project_and_chart()
+    project, _dataset, chart = _make_project_and_chart()
     app_ctx.app_state.load_project(project)
 
     widget = ChartEditorWidget(app_context=app_ctx, chart=chart, parent=None)
@@ -195,7 +195,7 @@ def test_pick_event_ignored_while_toolbar_pan_zoom_active():
     gesture must not also steal the sidebar selection (#341 review)."""
     _qapp()
     app_ctx = build_app_context()
-    project, dataset, chart = _make_project_and_chart()
+    project, _dataset, chart = _make_project_and_chart()
     app_ctx.app_state.load_project(project)
 
     widget = ChartEditorWidget(app_context=app_ctx, chart=chart, parent=None)
@@ -219,7 +219,7 @@ def test_hover_cursor_ignored_while_toolbar_pan_zoom_active():
     fighting it on every move (#341 review)."""
     _qapp()
     app_ctx = build_app_context()
-    project, dataset, chart = _make_project_and_chart()
+    project, _dataset, chart = _make_project_and_chart()
     app_ctx.app_state.load_project(project)
 
     widget = ChartEditorWidget(app_context=app_ctx, chart=chart, parent=None)
@@ -242,7 +242,7 @@ def test_throttled_hover_event_is_flushed_by_trailing_timer():
     mid-gesture (#341 review)."""
     _qapp()
     app_ctx = build_app_context()
-    project, dataset, chart = _make_project_and_chart()
+    project, _dataset, chart = _make_project_and_chart()
     app_ctx.app_state.load_project(project)
 
     widget = ChartEditorWidget(app_context=app_ctx, chart=chart, parent=None)
@@ -277,7 +277,7 @@ def test_pending_hover_event_is_dropped_on_canvas_leave():
     arrow cursor the leave handler just set (#341 review)."""
     _qapp()
     app_ctx = build_app_context()
-    project, dataset, chart = _make_project_and_chart()
+    project, _dataset, chart = _make_project_and_chart()
     app_ctx.app_state.load_project(project)
 
     widget = ChartEditorWidget(app_context=app_ctx, chart=chart, parent=None)

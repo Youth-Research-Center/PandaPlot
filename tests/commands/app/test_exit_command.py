@@ -394,7 +394,7 @@ class TestExitCommandUnsavedChangesGuard:
         permission/serialization failure would silently exit the app having
         lost the edits it just promised to keep. The save must instead be
         checked here, before committing to the exit."""
-        app_context, app_state = self._make_context(has_project=True, is_modified=True, project_file_path="/p.pplot")
+        app_context, _app_state = self._make_context(has_project=True, is_modified=True, project_file_path="/p.pplot")
         project_manager = Mock()
         project_manager.save_project.side_effect = OSError("disk full")
         app_context.get_manager.return_value = project_manager

@@ -16,8 +16,8 @@ accessibility themes, dynamic chart color palettes.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
@@ -25,6 +25,8 @@ from PySide6.QtWidgets import QApplication
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ConfigEvents, ThemeEvents
 from pandaplot.models.state.config import ApplicationConfig, Theme
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -37,7 +39,7 @@ class ThemeContext:
 
 
 class ThemeManager:
-    def __init__(self, event_bus: EventBus, config_provider, qt_app: Optional[QApplication] = None):
+    def __init__(self, event_bus: EventBus, config_provider, qt_app: QApplication | None = None):
         """Create manager.
 
         Args:
@@ -47,8 +49,8 @@ class ThemeManager:
         """
         self._bus = event_bus
         self._provider = config_provider
-        self._app: Optional[QApplication] = qt_app
-        self._current: Optional[ThemeContext] = None
+        self._app: QApplication | None = qt_app
+        self._current: ThemeContext | None = None
         # Subscribe to configuration lifecycle events
         self._bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
 
@@ -121,8 +123,8 @@ class ThemeManager:
                 hover = c.lighter(110).name()
                 pressed = c.darker(115).name()
                 text_color = self._contrasting_text_color(c).name()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            logger.debug("Could not derive hover/pressed/text colors from accent %r; using fallback", accent, exc_info=True)
 
         tokens = self.get_design_tokens()
         danger = tokens["status_danger"]
@@ -131,8 +133,8 @@ class ThemeManager:
             dc = QColor(danger)
             if dc.isValid():
                 danger_pressed = dc.darker(115).name()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            logger.debug("Could not derive danger_pressed color from %r; using fallback", danger, exc_info=True)
 
         # accent_disabled is a lightened, still fairly saturated variant of
         # accent (e.g. #7683FF for the default #4A56C6) -- text_hint (a
@@ -430,4 +432,4 @@ class ThemeManager:
         self.apply_from_config(cfg)
 
 
-__all__ = ["ThemeManager", "ThemeContext"]
+__all__ = ["ThemeContext", "ThemeManager"]

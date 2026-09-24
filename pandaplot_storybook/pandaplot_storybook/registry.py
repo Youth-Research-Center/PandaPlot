@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Union
 
 from PySide6.QtWidgets import QWidget
 
@@ -41,7 +41,7 @@ class FloatControl:
     maximum: float
 
 
-Control = Union[TextControl, BoolControl, ChoiceControl, IntControl, FloatControl]
+Control = TextControl | BoolControl | ChoiceControl | IntControl | FloatControl
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,14 +76,14 @@ def get_story(name: str) -> StoryDef:
 
 
 __all__ = [
-    "TextControl",
     "BoolControl",
     "ChoiceControl",
-    "IntControl",
-    "FloatControl",
     "Control",
+    "FloatControl",
+    "IntControl",
     "StoryDef",
-    "story",
+    "TextControl",
     "all_story_names",
     "get_story",
+    "story",
 ]

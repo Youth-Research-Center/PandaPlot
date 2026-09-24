@@ -8,7 +8,7 @@ wants and appends whatever rows and columns are needed to reach it, as a single
 undoable step.
 """
 
-from typing import Any, List, Optional, override
+from typing import Any, override
 
 import pandas as pd
 from PySide6.QtWidgets import QDialog
@@ -37,9 +37,9 @@ class AddRowsColumnsCommand(Command):
     with `AddRowsColumnsDialog`.
     """
 
-    def __init__(self, app_context: AppContext, dataset_id: Optional[str] = None,
-                 target_rows: Optional[int] = None,
-                 target_columns: Optional[int] = None):
+    def __init__(self, app_context: AppContext, dataset_id: str | None = None,
+                 target_rows: int | None = None,
+                 target_columns: int | None = None):
         """
         Initialize the AddRowsColumnsCommand.
 
@@ -60,11 +60,11 @@ class AddRowsColumnsCommand(Command):
         self.target_columns = target_columns
 
         # Store state for undo
-        self.original_data: Optional[pd.DataFrame] = None
+        self.original_data: pd.DataFrame | None = None
         self.project = None
-        self.dataset: Optional[Dataset] = None
-        self.added_row_positions: List[int] = []
-        self.added_column_positions: List[int] = []
+        self.dataset: Dataset | None = None
+        self.added_row_positions: list[int] = []
+        self.added_column_positions: list[int] = []
 
     @override
     def execute(self) -> CommandResult:
@@ -92,9 +92,8 @@ class AddRowsColumnsCommand(Command):
             # Ask for the target dataset and size unless they were provided
             # programmatically (or already resolved by a previous execute(),
             # which is what redo() replays).
-            if self.target_rows is None or self.target_columns is None:
-                if not self._prompt_for_target():
-                    return CommandResult.FAILURE
+            if (self.target_rows is None or self.target_columns is None) and not self._prompt_for_target():
+                return CommandResult.FAILURE
 
             dataset = self._resolve_dataset()
             if dataset is None:
@@ -153,8 +152,8 @@ class AddRowsColumnsCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to add rows/columns: {str(e)}"
-            self.logger.error("AddRowsColumnsCommand Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to add rows/columns: {e!s}"
+            self.logger.exception("AddRowsColumnsCommand Error: %s", error_msg)
             self.ui_controller.show_error_message("Add Rows / Columns Error", error_msg)
             return CommandResult.FAILURE
 
@@ -196,7 +195,7 @@ class AddRowsColumnsCommand(Command):
         self.target_columns = dialog.get_target_columns()
         return True
 
-    def _resolve_dataset(self) -> Optional[Dataset]:
+    def _resolve_dataset(self) -> Dataset | None:
         """Look up the target dataset, reporting why it is unusable if it is."""
         assert self.project is not None
         if not self.dataset_id:
@@ -304,7 +303,7 @@ class AddRowsColumnsCommand(Command):
                 self.dataset_id, self.dataset is not None, self.original_data is not None,
             )
             return CommandResult.FAILURE
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error("AddRowsColumnsCommand Undo Error: %s", e)
             return CommandResult.FAILURE
 

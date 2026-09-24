@@ -5,7 +5,6 @@
 from anywhere in the app's menu/command wiring without eagerly loading
 matplotlib (see tests/gui/test_main_menu_lazy_imports.py).
 """
-from typing import Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -31,7 +30,7 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class ChartTypePage(PWizardPage):
     emptyRequested = Signal()
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self._preview_canvas = None
         self._tokens: dict = {}
@@ -119,7 +118,7 @@ class ChartTypePage(PWizardPage):
             icon_color = accent if row == self.type_list.currentRow() else text_secondary
             item.setIcon(chart_type_icon(chart_type, icon_color))
 
-    def _on_type_changed(self, current: Optional[QListWidgetItem], _previous):
+    def _on_type_changed(self, current: QListWidgetItem | None, _previous):
         if current is None:
             return
         self._render_preview(current.data(Qt.ItemDataRole.UserRole))
@@ -148,7 +147,7 @@ class ChartTypePage(PWizardPage):
         self.preview_container.layout().addWidget(canvas)
         self._preview_canvas = canvas
 
-    def selected_chart_type(self) -> Optional[str]:
+    def selected_chart_type(self) -> str | None:
         item = self.type_list.currentItem()
         return item.data(Qt.ItemDataRole.UserRole) if item is not None else None
 

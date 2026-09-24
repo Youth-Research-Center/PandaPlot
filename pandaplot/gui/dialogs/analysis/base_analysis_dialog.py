@@ -2,7 +2,7 @@
 Base dialog for analysis operations.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -28,7 +28,7 @@ class BaseAnalysisDialog(QDialog):
     Base dialog for analysis operations with common UI components.
     """
     
-    def __init__(self, parent, dataset: Dataset, default_y_column: Optional[str] = None):
+    def __init__(self, parent, dataset: Dataset, default_y_column: str | None = None):
         super().__init__(parent)
         self.dataset = dataset
         self.default_y_column = default_y_column
@@ -136,7 +136,7 @@ class BaseAnalysisDialog(QDialog):
         self.x_column_combo.currentIndexChanged.connect(self._update_range_labels)
         self.y_column_combo.currentIndexChanged.connect(self._update_range_labels)
 
-    def _resolve_point(self, row_number: int) -> Optional[tuple]:
+    def _resolve_point(self, row_number: int) -> tuple | None:
         """Return the resolved (x, y) at a 1-based row number, or None."""
         if self.dataset is None or self.dataset.data is None:
             return None
@@ -155,7 +155,7 @@ class BaseAnalysisDialog(QDialog):
         except (TypeError, ValueError):
             return None
 
-    def _format_point(self, point: Optional[tuple]) -> str:
+    def _format_point(self, point: tuple | None) -> str:
         if point is None:
             return "–"
         x, y = point
@@ -215,7 +215,7 @@ class BaseAnalysisDialog(QDialog):
         """Preview the analysis - to be implemented by subclasses."""
         self.preview_text.setText("Preview not implemented for this analysis type.")
     
-    def get_analysis_config(self) -> Dict[str, Any]:
+    def get_analysis_config(self) -> dict[str, Any]:
         """Get analysis configuration - to be implemented by subclasses."""
         base_config = {
             "x_column": self.x_column_combo.currentText(),

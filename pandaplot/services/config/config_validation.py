@@ -15,7 +15,6 @@ warnings or further mutate already-corrected fields).
 from __future__ import annotations
 
 import re
-from typing import List
 
 from pandaplot.models.state.config import AppearanceConfig, ApplicationConfig
 
@@ -29,13 +28,13 @@ MAX_EDITOR_FONT = 48
 _HEX_COLOR_RE = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 
 
-def validate_config(cfg: ApplicationConfig) -> List[str]:
+def validate_config(cfg: ApplicationConfig) -> list[str]:
     """Validate & normalise the configuration in-place.
 
     Returns:
         List of warning messages describing corrections performed.
     """
-    warnings: List[str] = []
+    warnings: list[str] = []
 
     # Delegate to section-level validators first (ensures minima etc.)
     cfg.validate()

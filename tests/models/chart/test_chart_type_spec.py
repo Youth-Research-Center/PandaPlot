@@ -91,7 +91,7 @@ def test_default_series_type_matches_chart_type():
 def test_supports_error_bars_is_computed_not_duplicated_from_series_type_spec():
     from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 
-    for _chart_type, spec in CHART_TYPE_SPECS.items():
+    for spec in CHART_TYPE_SPECS.values():
         assert spec.supports_error_bars == SERIES_TYPE_SPECS[spec.default_series_type].supports_error_bars
 
 

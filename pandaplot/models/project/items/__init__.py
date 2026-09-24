@@ -6,12 +6,12 @@ from pandaplot.models.project.items.item import Item, ItemCollection
 from pandaplot.models.project.items.note import Note
 
 __all__ = [
-    "Item",
-    "ItemCollection",
-    "Note",
     "Chart",
     "Dataset",
     "Folder",
     "Image",
     "ImageGallery",
+    "Item",
+    "ItemCollection",
+    "Note",
 ]

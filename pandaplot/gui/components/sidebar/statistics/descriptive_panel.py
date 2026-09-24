@@ -4,7 +4,7 @@ statistics (mean, standard deviation, quartiles, etc.) for dataset columns,
 previewing a report, and adding the results to the project as data.
 """
 
-from typing import List, Optional, override
+from typing import override
 
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -32,11 +32,11 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class DescriptiveStatsPanel(SidebarPanel):
     """Side panel for computing descriptive statistics on dataset columns."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self.current_dataset: Optional[Dataset] = None
-        self.current_dataset_id: Optional[str] = None
-        self.last_result: Optional[DescriptiveStatsResult] = None
+        self.current_dataset: Dataset | None = None
+        self.current_dataset_id: str | None = None
+        self.last_result: DescriptiveStatsResult | None = None
 
         self._initialize()
 
@@ -138,10 +138,10 @@ class DescriptiveStatsPanel(SidebarPanel):
     # Actions
     # ------------------------------------------------------------------
 
-    def _selected_columns(self) -> List[str]:
+    def _selected_columns(self) -> list[str]:
         return [item.text() for item in self.column_list.selectedItems()]
 
-    def _build_command(self) -> Optional[DescriptiveStatsCommand]:
+    def _build_command(self) -> DescriptiveStatsCommand | None:
         if not self.current_dataset_id:
             self.results_text.setText("❌ No dataset selected.")
             return None
@@ -166,7 +166,7 @@ class DescriptiveStatsPanel(SidebarPanel):
             return
         try:
             result = command.compute()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.last_result = None
             self.add_btn.setEnabled(False)
             self.results_text.setText(f"❌ Computation failed: {e}")
@@ -205,7 +205,7 @@ class DescriptiveStatsPanel(SidebarPanel):
     # Dataset context handling
     # ------------------------------------------------------------------
 
-    def _numeric_columns(self) -> List[str]:
+    def _numeric_columns(self) -> list[str]:
         if not self.current_dataset or self.current_dataset.data is None:
             return []
         import pandas as pd

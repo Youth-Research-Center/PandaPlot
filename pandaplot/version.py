@@ -23,7 +23,7 @@ def _load_project_metadata() -> dict:
         with open(pyproject_path, "rb") as f:
             data = tomllib.load(f)
         return data.get("project", {})
-    except Exception:
+    except Exception:  # noqa: BLE001 -- Best-effort metadata read; falls back to an empty dict if pyproject.toml is missing/malformed
         return {}
 
 

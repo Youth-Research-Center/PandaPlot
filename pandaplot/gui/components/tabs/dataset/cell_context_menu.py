@@ -25,8 +25,8 @@ class CellContextMenu(QMenu):
         theme_manager = self.app_context.get_manager(ThemeManager)
         self.setStyleSheet(theme_manager.build_context_menu_stylesheet())
 
-        rows = list(set(index.row() for index in self.indexes))
-        cols = list(set(index.column() for index in self.indexes))
+        rows = list({index.row() for index in self.indexes})
+        cols = list({index.column() for index in self.indexes})
         rows.sort()
         cols.sort()
         

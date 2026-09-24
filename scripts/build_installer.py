@@ -70,7 +70,7 @@ def main() -> int:
         cmd.append("--dry-run")
 
     print(f"Running: {' '.join(cmd)} (cwd: {build_cwd})")
-    result = subprocess.run(cmd, cwd=build_cwd)
+    result = subprocess.run(cmd, cwd=build_cwd, check=False)
     if result.returncode != 0:
         return result.returncode
 

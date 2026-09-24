@@ -7,7 +7,7 @@ TransformChartSeriesCommand.
 """
 
 import uuid
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -94,7 +94,7 @@ def resolve_series_xy(
     return x, y, x_label, label
 
 
-def unique_sibling_name(project, folder_id: Optional[str], name: str) -> str:
+def unique_sibling_name(project, folder_id: str | None, name: str) -> str:
     """Return `name`, or `name (N)` for the smallest N >= 2 not already used
     by a sibling in `folder_id` (or the project root when None).
 
@@ -117,7 +117,7 @@ def unique_sibling_name(project, folder_id: Optional[str], name: str) -> str:
 
 
 def create_result_dataset(
-    app_state: AppState, folder_id: Optional[str], name: str, results_df: pd.DataFrame,
+    app_state: AppState, folder_id: str | None, name: str, results_df: pd.DataFrame,
 ) -> Dataset:
     """Materialize `results_df` as a new, uniquely-named Dataset in the
     project, under `folder_id`, and announce it via the generic

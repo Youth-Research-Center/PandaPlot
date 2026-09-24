@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import List, Union, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -17,10 +17,10 @@ from pandaplot.models.state.app_state import AppState
 @dataclass
 class ChartReferenceMatch:
     chart: Chart
-    series_indices: List[int]
-    fit_indices: List[int]
-    error_only_indices: List[int]
-    confidence_only_indices: List[int]
+    series_indices: list[int]
+    fit_indices: list[int]
+    error_only_indices: list[int]
+    confidence_only_indices: list[int]
 
 
 def _error_field_targets(series):
@@ -64,7 +64,7 @@ class DeleteColumnsCommand(Command):
     """
 
     def __init__(self, app_context: AppContext, dataset_id: str, 
-                 column_specs: Union[List[int], List[str]]):
+                 column_specs: list[int] | list[str]):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -270,15 +270,15 @@ class DeleteColumnsCommand(Command):
             self.logger.info(f"Deleted {len(self.column_names)} columns from dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return CommandResult.SUCCESS
 
-        except Exception as e:
-            error_msg = f"Failed to delete {len(self.column_specs) if self.column_specs else 0} columns: {str(e)}"
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+            error_msg = f"Failed to delete {len(self.column_specs) if self.column_specs else 0} columns: {e!s}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Delete Columns Error", error_msg)
             return CommandResult.FAILURE
 
     def _find_chart_references(
-        self, column_names: List[str]
-    ) -> List[ChartReferenceMatch]:
+        self, column_names: list[str]
+    ) -> list[ChartReferenceMatch]:
         """Find charts whose series/fits reference this dataset's columns.
 
         Returns a list of (chart, data_series indices, fit_data indices,
@@ -308,7 +308,7 @@ class DeleteColumnsCommand(Command):
         def refs(id_value, name_value) -> bool:
             return (id_value in id_set and id_value) or name_value in column_set
 
-        matches: List[ChartReferenceMatch] = []
+        matches: list[ChartReferenceMatch] = []
         for item in self.project.get_all_items():
             if not isinstance(item, Chart):
                 continue
@@ -346,7 +346,7 @@ class DeleteColumnsCommand(Command):
         return matches
 
     def _perform_deletion(
-        self, references: List[ChartReferenceMatch]
+        self, references: list[ChartReferenceMatch]
     ) -> None:
         """Drop the columns from the dataset and remove dependent chart references."""
         # Resolve the deleted columns' stable ids *before* dropping (set_data
@@ -552,7 +552,7 @@ class DeleteColumnsCommand(Command):
                 self.dataset_id, self.dataset is not None, self.original_data is not None, bool(self.column_positions),
             )
             return CommandResult.FAILURE
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"DeleteColumnsCommand Undo Error: {e}")
             return CommandResult.FAILURE
 
@@ -565,7 +565,7 @@ class DeleteColumnsCommand(Command):
             self._perform_deletion(references)
             self.logger.info(f"Redid deleting {len(self.column_names)} columns from dataset '{self.dataset.name}'")
             return CommandResult.SUCCESS
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             error_msg = f"Failed to redo deleting {len(self.column_names)} columns: {e}"
             self.logger.error(f"DeleteColumnsCommand Redo Error: {error_msg}")
             self.ui_controller.show_error_message("Delete Columns Error", error_msg)

@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -14,7 +14,7 @@ class CreateFolderCommand(Command):
     Command to create a new folder in the project structure.
     """
 
-    def __init__(self, app_context: AppContext, folder_name: Optional[str] = None, parent_id: Optional[str] = None):
+    def __init__(self, app_context: AppContext, folder_name: str | None = None, parent_id: str | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -95,8 +95,8 @@ class CreateFolderCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to create folder: {str(e)}"
-            self.logger.error("CreateFolderCommand Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to create folder: {e!s}"
+            self.logger.exception("CreateFolderCommand Error: %s", error_msg)
             self.ui_controller.show_error_message(
                 "Create Folder Error", error_msg)
             return CommandResult.FAILURE
@@ -141,8 +141,8 @@ class CreateFolderCommand(Command):
                 return CommandResult.NOOP
 
         except Exception as e:
-            error_msg = f"Failed to undo create folder: {str(e)}"
-            self.logger.error("CreateFolderCommand Undo Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to undo create folder: {e!s}"
+            self.logger.exception("CreateFolderCommand Undo Error: %s", error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 
@@ -181,8 +181,8 @@ class CreateFolderCommand(Command):
                 return CommandResult.FAILURE
 
         except Exception as e:
-            error_msg = f"Failed to redo create folder: {str(e)}"
-            self.logger.error("CreateFolderCommand Redo Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to redo create folder: {e!s}"
+            self.logger.exception("CreateFolderCommand Redo Error: %s", error_msg)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return CommandResult.FAILURE
 

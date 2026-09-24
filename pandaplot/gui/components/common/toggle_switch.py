@@ -27,10 +27,10 @@ class ToggleSwitch(QWidget):
         self.setFixedSize(_TRACK_WIDTH, _TRACK_HEIGHT)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-    def isChecked(self) -> bool:  # noqa: N802 (Qt naming convention)
+    def isChecked(self) -> bool:
         return self._checked
 
-    def setChecked(self, *, checked: bool):  # noqa: N802
+    def setChecked(self, *, checked: bool):
         if checked == self._checked:
             return
         self._checked = checked
@@ -41,11 +41,11 @@ class ToggleSwitch(QWidget):
         self._tokens = tokens
         self.update()
 
-    def mousePressEvent(self, event: QMouseEvent):  # noqa: N802
+    def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
             self.setChecked(checked=not self._checked)
 
-    def paintEvent(self, event):  # noqa: N802
+    def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 

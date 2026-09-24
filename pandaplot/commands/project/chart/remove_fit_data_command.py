@@ -1,7 +1,7 @@
 """Command for removing fit data from a chart."""
 
 import copy
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
@@ -20,7 +20,7 @@ class RemoveFitDataCommand(Command):
         self.ui_controller: UIController = app_context.get_ui_controller()
         self.chart_id = chart_id
         self.fit_index = fit_index
-        self.removed_fit_data: Optional[FitData] = None
+        self.removed_fit_data: FitData | None = None
         self._chart_finder = ChartFinder(app_context)
 
     @override

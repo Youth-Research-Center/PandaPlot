@@ -72,7 +72,7 @@ class RenameItemCommand(Command):
             return CommandResult.SUCCESS
         except Exception as e:
             error_msg = f"Failed to rename item: {e}"
-            self.logger.error(error_msg, exc_info=True)
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message(
                 "Rename Item Error", error_msg)
             raise
@@ -119,7 +119,7 @@ class RenameItemCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to undo rename item: {e}"
-            self.logger.error(error_msg, exc_info=True)
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 

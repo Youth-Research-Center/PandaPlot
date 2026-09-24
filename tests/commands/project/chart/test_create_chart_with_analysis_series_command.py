@@ -124,7 +124,7 @@ class TestCreateChartWithAnalysisSeriesCommand:
         assert len(restored_chart.data_series) == 1
 
     def test_fails_when_dataset_command_never_produced_a_dataset(self, ctx):
-        app_context, project, chart = ctx
+        app_context, _project, chart = ctx
         dataset_command = Mock()
         dataset_command.result_dataset_id = None
 

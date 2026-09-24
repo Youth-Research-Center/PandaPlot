@@ -1,4 +1,4 @@
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -28,7 +28,7 @@ class ProjectViewPanel(SidebarPanel):
     This follows the MVC pattern by listening to events from the app state.
     """
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None=None):
         super().__init__(app_context=app_context, parent=parent)
         self.app_state = app_context.get_app_state()
 
@@ -184,13 +184,7 @@ class ProjectViewPanel(SidebarPanel):
 
         # Extract new name from the item text (remove emoji prefix)
         new_text = item.text(0)
-        if new_text.startswith("📁 "):
-            new_name = new_text[2:].strip()
-        elif new_text.startswith("📝 "):
-            new_name = new_text[2:].strip()
-        elif new_text.startswith("📊 "):
-            new_name = new_text[2:].strip()
-        elif new_text.startswith("📈 "):
+        if new_text.startswith(("📁 ", "📝 ", "📊 ", "📈 ")):
             new_name = new_text[2:].strip()
         else:
             new_name = new_text.strip()

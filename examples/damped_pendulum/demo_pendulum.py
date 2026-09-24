@@ -84,7 +84,7 @@ def demo_pendulum():
     # Show plot if possible
     try:
         plt.show()
-    except Exception:
+    except Exception:  # noqa: BLE001 -- Demo script best-effort display -- environment may not support showing a plot window
         print("   - Cannot display plot in this environment")
     
     # Create the full project

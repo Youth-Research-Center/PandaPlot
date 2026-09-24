@@ -1,7 +1,7 @@
 """Dialog offering the ways to get a project open, shown from the Welcome
 tab's "Create or Open a Project" getting-started step."""
 
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -29,7 +29,7 @@ class CreateOrOpenProjectDialog(PDialog):
 
     def __init__(self, app_context, parent=None):
         super().__init__(app_context=app_context, parent=parent)
-        self.selected_action: Optional[str] = None
+        self.selected_action: str | None = None
         self._initialize()
 
     @override

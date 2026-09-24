@@ -1,4 +1,4 @@
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.project.load_project_command import LoadProjectCommand
@@ -20,7 +20,7 @@ class OpenProjectCommand(Command):
         super().__init__()
         self.app_context = app_context
         self.project_manager = app_context.get_manager(ProjectManager)
-        self.load_command: Optional[LoadProjectCommand] = None
+        self.load_command: LoadProjectCommand | None = None
         self.was_executed = False
 
     @override
@@ -89,8 +89,8 @@ class OpenProjectCommand(Command):
 
             return CommandResult.SUCCESS
 
-        except Exception as e:
-            error_msg = f"Failed to open project: {str(e)}"
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+            error_msg = f"Failed to open project: {e!s}"
             self.logger.error(error_msg)
             self.app_context.ui_controller.show_error_message("Open Project Error", error_msg)
             self.was_executed = False
@@ -124,8 +124,6 @@ class OpenProjectCommand(Command):
         if self.load_command:
             try:
                 self.load_command.cleanup()
-            except Exception as e:
-                self.logger.error(
-                    "Error cleaning up wrapped LoadProjectCommand: %s", str(e), exc_info=True,
-                )
+            except Exception:
+                self.logger.exception("Error cleaning up wrapped LoadProjectCommand")
             self.load_command = None

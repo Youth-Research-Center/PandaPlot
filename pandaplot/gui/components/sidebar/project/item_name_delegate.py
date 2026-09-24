@@ -19,13 +19,7 @@ class ItemNameDelegate(QStyledItemDelegate):
         full_text = index.data(Qt.ItemDataRole.DisplayRole)
         if isinstance(full_text, str):
             # Remove emoji prefix
-            if full_text.startswith("📁 "):
-                name_only = full_text[2:].strip()
-            elif full_text.startswith("📝 "):
-                name_only = full_text[2:].strip()
-            elif full_text.startswith("📊 "):
-                name_only = full_text[2:].strip()
-            elif full_text.startswith("📈 "):
+            if full_text.startswith(("📁 ", "📝 ", "📊 ", "📈 ")):
                 name_only = full_text[2:].strip()
             else:
                 name_only = full_text.strip()
@@ -39,7 +33,6 @@ class ItemNameDelegate(QStyledItemDelegate):
     def setEditorData(self, editor, index):
         """Set the editor data to just the name portion."""
         # This is handled in createEditor
-        pass
 
     @override
     def setModelData(self, editor, model, index):

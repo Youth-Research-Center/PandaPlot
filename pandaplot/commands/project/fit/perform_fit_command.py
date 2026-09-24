@@ -10,7 +10,8 @@ to split out. occupies_undo_slot() is still False: computing a fit preview
 was never a meaningful undoable user action.
 """
 
-from typing import Callable, Optional, override
+from collections.abc import Callable
+from typing import override
 
 from pandaplot.commands.background_task_command import BackgroundTaskCommand
 from pandaplot.commands.base_command import CommandResult
@@ -38,7 +39,7 @@ class PerformFitCommand(BackgroundTaskCommand):
         x_min: float | None = None,
         x_max: float | None = None,
         task_scheduler: TaskScheduler,
-        on_complete: Optional[Callable[[CommandResult], None]] = None):
+        on_complete: Callable[[CommandResult], None] | None = None):
         super().__init__(on_complete=on_complete)
 
         self.fit_service = fit_service
@@ -58,8 +59,8 @@ class PerformFitCommand(BackgroundTaskCommand):
         self.x_min = x_min
         self.x_max = x_max
 
-        self.result: Optional[FitResult] = None
-        self.error_message: Optional[str] = None
+        self.result: FitResult | None = None
+        self.error_message: str | None = None
 
     @override
     def execute(self) -> CommandResult:

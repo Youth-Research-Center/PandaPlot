@@ -6,7 +6,6 @@ import sys
 from unittest.mock import Mock
 
 import pytest
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.tabs.tab import CustomTabWidget
@@ -22,11 +21,11 @@ def qapp():
 def _rule(stylesheet: str, selector: str) -> dict:
     match = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", stylesheet)
     assert match, f"{selector} not found in stylesheet"
-    return dict(
-        (key.strip(), value.strip())
+    return {
+        key.strip(): value.strip()
         for key, value in (decl.split(":", 1)
                            for decl in match.group(1).split(";") if ":" in decl)
-    )
+    }
 
 
 def test_close_button_hover_color_derives_from_status_danger_token():

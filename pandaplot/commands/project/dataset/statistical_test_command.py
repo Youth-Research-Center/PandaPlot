@@ -4,7 +4,7 @@ as a new dataset, with undo/redo support.
 """
 
 import uuid
-from typing import List, Optional, override
+from typing import override
 
 from pandaplot.analysis import StatsEngine, StatTestResult, StatTestType
 from pandaplot.commands.base_command import Command, CommandResult
@@ -26,14 +26,14 @@ class StatisticalTestCommand(Command):
         app_context: AppContext,
         source_dataset_id: str,
         test_type: StatTestType,
-        column_names: List[str],
+        column_names: list[str],
         alpha: float = 0.05,
         alternative: str = "two-sided",
         popmean: float = 0.0,
         *,
         equal_var: bool = True,
-        result_name: Optional[str] = None,
-        folder_id: Optional[str] = None,
+        result_name: str | None = None,
+        folder_id: str | None = None,
     ):
         super().__init__()
         self.app_context = app_context
@@ -51,8 +51,8 @@ class StatisticalTestCommand(Command):
         self.folder_id = folder_id
 
         # State for undo/redo.
-        self.result_dataset_id: Optional[str] = None
-        self.result: Optional[StatTestResult] = None
+        self.result_dataset_id: str | None = None
+        self.result: StatTestResult | None = None
 
     def run_test(self) -> StatTestResult:
         """Run the test and return the result without touching the project.
@@ -114,7 +114,7 @@ class StatisticalTestCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            self.logger.error("Statistical test failed: %s", e, exc_info=True)
+            self.logger.exception("Statistical test failed")
             self.ui_controller.show_error_message("Statistical Test Error", str(e))
             return CommandResult.FAILURE
 
@@ -138,8 +138,8 @@ class StatisticalTestCommand(Command):
                 })
             self.logger.info("Undone statistical test results dataset '%s'", self.result_dataset_id)
             return CommandResult.SUCCESS
-        except Exception as e:
-            self.logger.error("Failed to undo statistical test: %s", e, exc_info=True)
+        except Exception:
+            self.logger.exception("Failed to undo statistical test")
             return CommandResult.FAILURE
 
     @override
@@ -154,7 +154,7 @@ class StatisticalTestCommand(Command):
         self.result_dataset_id = None
         self.result = None
 
-    def _get_source_dataset(self) -> Optional[Dataset]:
+    def _get_source_dataset(self) -> Dataset | None:
         project = get_current_project(self.app_context)
         if not project:
             return None
