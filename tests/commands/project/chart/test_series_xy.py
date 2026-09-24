@@ -47,10 +47,21 @@ class TestResolveSeriesXY:
 
     def test_resolves_a_fit(self, app_state):
         state, chart = app_state
-        x, y, x_label, y_label = resolve_series_xy(state, chart, "fit", 0)
+        x, y, x_label, y_label = resolve_series_xy(state, chart, "fit", 1)
         assert x_label == "t"
         assert y_label == "Quadratic Fit"
         assert len(x) == 11
+
+    def test_fit_index_is_its_real_data_series_position(self, app_state):
+        state, chart = app_state
+        # The fixture's fit sits at data_series index 1, after "Squared".
+        _, _, _, y_label = resolve_series_xy(state, chart, "fit", 1)
+        assert y_label == "Quadratic Fit"
+
+    def test_fit_kind_pointing_at_a_non_fit_series_raises(self, app_state):
+        state, chart = app_state
+        with pytest.raises(ValueError, match="no longer exists"):
+            resolve_series_xy(state, chart, "fit", 0)
 
     def test_missing_series_index_raises(self, app_state):
         state, chart = app_state

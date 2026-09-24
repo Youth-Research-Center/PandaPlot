@@ -68,7 +68,7 @@ class TestPopulateSeriesFitSources:
         )
         combo = QComboBox()
         populate_series_fit_sources(combo, chart)
-        assert combo.itemData(1) == ("fit", 0)
+        assert combo.itemData(1) == ("fit", 1)
 
     def test_a_chart_with_only_a_fit_does_not_report_any_series_excluded(self, chart):
         """Regression test for final-review Minor finding #6: a FIT-type

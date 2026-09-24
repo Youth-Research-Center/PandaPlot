@@ -71,7 +71,7 @@ class TestAnalyzeChartSeriesCommand:
 
     def test_integral_on_fit_series(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="fit", analysis_type=AnalysisType.INTEGRAL)
+        command = _cmd(ctx, source_kind="fit", source_index=1, analysis_type=AnalysisType.INTEGRAL)
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
         int_col = [c for c in result.data.columns if c != "t"][0]
@@ -88,7 +88,7 @@ class TestAnalyzeChartSeriesCommand:
 
     def test_arc_length_on_fit_series(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="fit", analysis_type=AnalysisType.ARC_LENGTH)
+        command = _cmd(ctx, source_kind="fit", source_index=1, analysis_type=AnalysisType.ARC_LENGTH)
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
         arc_col = [c for c in result.data.columns if c != "t"][0]
@@ -226,7 +226,7 @@ class TestAnalyzeChartSeriesCommand:
         # Point the fit at a non-Dataset item id (the chart itself) to
         # simulate a stale/mistyped reference.
         chart.fit_data[0].source_dataset_id = "chart-1"
-        command = _cmd(ctx, source_kind="fit", analysis_type=AnalysisType.INTEGRAL)
+        command = _cmd(ctx, source_kind="fit", source_index=1, analysis_type=AnalysisType.INTEGRAL)
         assert command.execute() is CommandResult.SUCCESS
 
     def test_resolve_point_returns_xy_at_index(self, ctx):

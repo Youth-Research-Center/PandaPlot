@@ -111,7 +111,7 @@ class TestTransformChartSeriesCommand:
 
     def test_transform_on_fit_series(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="fit", target="y", expression="np.sqrt(y)")
+        command = _cmd(ctx, source_kind="fit", source_index=1, target="y", expression="np.sqrt(y)")
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
         transformed_col = [c for c in result.data.columns if c != "t"][0]
@@ -260,7 +260,7 @@ class TestTransformChartSeriesCommand:
     def test_new_series_from_a_fit_source_uses_default_style(self, ctx):
         _, project = ctx
         chart = project.find_item("chart-1")
-        command = _cmd(ctx, source_kind="fit", source_index=0)
+        command = _cmd(ctx, source_kind="fit", source_index=1)
         assert command.execute() is CommandResult.SUCCESS
         new_series = chart.data_series[command.added_series_index]
         assert new_series.series_type == SeriesType.LINE
@@ -273,7 +273,7 @@ class TestTransformChartSeriesCommand:
         _, project = ctx
         chart = project.find_item("chart-1")
         chart.chart_type = ChartType.VECTOR
-        command = _cmd(ctx, source_kind="fit", source_index=0)
+        command = _cmd(ctx, source_kind="fit", source_index=1)
         assert command.execute() is CommandResult.SUCCESS
         new_series = chart.data_series[command.added_series_index]
         assert new_series.series_type == SeriesType.LINE
@@ -285,7 +285,7 @@ class TestTransformChartSeriesCommand:
         _, project = ctx
         chart = project.find_item("chart-1")
         chart.chart_type = ChartType.BAR
-        command = _cmd(ctx, source_kind="fit", source_index=0)
+        command = _cmd(ctx, source_kind="fit", source_index=1)
         assert command.execute() is CommandResult.SUCCESS
         new_series = chart.data_series[command.added_series_index]
         assert new_series.series_type == SeriesType.SCATTER
@@ -299,7 +299,7 @@ class TestTransformChartSeriesCommand:
         chart = project.find_item("chart-1")
         chart.chart_type = ChartType.HIST
         datasets_before = [item for item in project.get_all_items() if isinstance(item, Dataset)]
-        command = _cmd(ctx, source_kind="fit", source_index=0)
+        command = _cmd(ctx, source_kind="fit", source_index=1)
 
         assert command.execute() is CommandResult.FAILURE
 

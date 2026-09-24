@@ -700,10 +700,10 @@ class TestChartSignalAnalysisPanelSeriesSelectedEvent:
         panel.source_combo.setCurrentIndex(0)
 
         panel._on_series_selected_event(
-            {"chart_id": "chart-1", "kind": "fit", "index": 0}
+            {"chart_id": "chart-1", "kind": "fit", "index": 1}
         )
 
-        assert panel.source_combo.currentData() == ("fit", 0)
+        assert panel.source_combo.currentData() == ("fit", 1)
 
     def test_ignores_event_for_a_different_chart(self, panel):
         panel.source_combo.setCurrentIndex(0)

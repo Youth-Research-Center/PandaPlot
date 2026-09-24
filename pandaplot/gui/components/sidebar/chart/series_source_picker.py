@@ -22,8 +22,10 @@ def populate_series_fit_sources(combo: QComboBox, chart: Optional[Chart]) -> tup
     """(Re)fill `combo` with the chart's eligible series/fit entries.
 
     Each item's data is a ``(kind, index)`` tuple, ``kind`` one of
-    ``"series"``/``"fit"``. Returns ``(has_sources, any_series_excluded)``
-    so the caller can set its own hint text/enabled state.
+    ``"series"``/``"fit"`` and ``index`` the entry's real
+    ``chart.data_series`` position for either kind (fits live inline in
+    that list, #304). Returns ``(has_sources, any_series_excluded)`` so the
+    caller can set its own hint text/enabled state.
     """
     combo.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
     combo.clear()
@@ -31,19 +33,19 @@ def populate_series_fit_sources(combo: QComboBox, chart: Optional[Chart]) -> tup
     if chart is not None:
         for i, series in enumerate(chart.data_series):
             if series.series_type == SeriesType.FIT:
-                # Not actually excluded -- every FIT series is listed by
-                # the fit-specific loop below, via chart.fit_data. Skipping
-                # here without setting any_series_excluded avoids a
-                # misleading "other series types aren't shown" hint when
-                # the chart's only non-plain-series entries are fits.
+                # Listed by the fit pass below instead -- not "excluded".
                 continue
             if not SERIES_TYPE_SPECS[series.series_type].supports_curve_analysis:
                 any_series_excluded = True
                 continue
             label = series.label or f"Series {i + 1}"
             combo.addItem(f"📈 {label}", ("series", i))
-        for i, fit in enumerate(chart.fit_data):
-            label = fit.label or f"Fit {i + 1}"
+        fit_number = 0
+        for i, series in enumerate(chart.data_series):
+            if series.series_type != SeriesType.FIT:
+                continue
+            fit_number += 1
+            label = series.label or f"Fit {fit_number}"
             combo.addItem(f"〰 {label}  (fit)", ("fit", i))
     combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
     return combo.count() > 0, any_series_excluded

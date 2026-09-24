@@ -1487,38 +1487,19 @@ class ChartEditorWidget(PWidget):
         artist = getattr(event, "artist", None)
         if artist in self._artist_series_map:
             series_index = self._artist_series_map[artist]
-            series = self.chart.data_series[series_index]
-            if series.series_type == SeriesType.FIT:
-                # populate_series_fit_sources (series_source_picker.py)
-                # tags a FIT-type entry's combo item with its position
-                # within chart.fit_data (a filtered subset of
-                # data_series), not its raw data_series index -- match
-                # that indexing so find_series_fit_combo_index actually
-                # resolves it (#304: FIT entries live inline in
-                # data_series now, at whatever position, so the two
-                # indices generally differ).
-                # Identity (`is`) search, not `==`/`.index()`: DataSeries
-                # is a plain dataclass whose precomputed curve data is
-                # compare=False, so two distinct FIT series sharing
-                # dataset/columns/label/style can compare equal, and
-                # `.index()` would silently resolve to the wrong one.
-                kind, kind_index = "fit", next(
-                    i for i, s in enumerate(self.chart.fit_data) if s is series
-                )
-            else:
-                kind, kind_index = "series", series_index
+            kind = "fit" if self.chart.data_series[series_index].series_type == SeriesType.FIT else "series"
             self.publish_event(
                 ChartEvents.SERIES_SELECTED,
                 {
                     "chart_id": self.chart.id,
-                    # Kept for the properties panel's flat data_series+fit_data
-                    # indexing (see ChartPropertiesPanel._on_series_selected_event).
+                    # Consumed by the properties panel's Data tab.
                     "series_index": series_index,
-                    # kind/index: the (series|fit, per-kind index) shape other
-                    # series/fit-scoped sidebar panels (Analysis, Signal
-                    # Analysis, Transform, Fit) key their own source pickers on.
+                    # kind/index: what the series/fit-scoped sidebar panels
+                    # (Analysis, Signal Analysis, Transform, Fit) key their
+                    # source pickers on. index is the same real data_series
+                    # position as series_index, for fits too (#304).
                     "kind": kind,
-                    "index": kind_index,
+                    "index": series_index,
                 },
             )
 

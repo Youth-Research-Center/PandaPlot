@@ -83,7 +83,7 @@ class TestChartSignalAnalysisCommandCommitPath:
 
     def test_execute_adds_fft_results_dataset_for_fit_series(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="fit", analysis_type=SignalAnalysisType.FFT, sampling_rate=1000)
+        command = _cmd(ctx, source_kind="fit", source_index=1, analysis_type=SignalAnalysisType.FFT, sampling_rate=1000)
         assert command.execute() is CommandResult.SUCCESS
 
         results = project.find_item(command.result_dataset_id)

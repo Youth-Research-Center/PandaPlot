@@ -156,15 +156,11 @@ def test_fit_series_pick_event_resolves_to_its_own_data_series_index():
     assert event_data["series_index"] == fit_index
 
 
-def test_fit_series_pick_event_resolves_by_identity_not_equality():
-    """Regression test (review finding on Task 9): two FIT series that are
-    ``==``-equal (same dataset_id/x_column_id/y_column_id/label/style --
-    ``DataSeries.precomputed_x_data``/``precomputed_y_data`` are
-    ``compare=False``) but hold different snapshotted curve data must still
-    resolve to their OWN distinct position in ``chart.fit_data``.
-    ``chart.fit_data.index(series)`` would return the position of the
-    FIRST equal match instead of the actual series clicked -- this must use
-    an identity (``is``) search instead."""
+def test_fit_series_pick_event_reports_its_real_data_series_index():
+    """Two `==`-equal FIT series (same dataset/columns/label/style; their
+    curve data is `compare=False`) must each report their OWN `data_series`
+    position as the event's `index` -- no equality-based lookup is involved
+    anywhere."""
     _qapp()
     app_ctx = build_app_context()
     project, dataset, chart = _make_project_and_chart()
@@ -206,9 +202,8 @@ def test_fit_series_pick_event_resolves_by_identity_not_equality():
     listener.assert_called_once()
     event_data = listener.call_args[0][0]
     assert event_data["kind"] == "fit"
-    # Must resolve to the SECOND fit's own fit_data-relative index (1), not
-    # the first equal match's index (0).
-    assert event_data["index"] == 1
+    assert event_data["index"] == second_fit_index
+    assert event_data["series_index"] == second_fit_index
 
 
 def test_hover_over_pickable_artist_shows_pointing_hand_cursor():

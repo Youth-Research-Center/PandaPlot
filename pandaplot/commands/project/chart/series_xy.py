@@ -12,6 +12,7 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Dataset
@@ -44,9 +45,12 @@ def resolve_series_xy(
     applied.
     """
     if source_kind == "fit":
-        if not (0 <= source_index < len(chart.fit_data)):
+        # `source_index` is the fit's own chart.data_series position (#304:
+        # fits live inline in that list), not a fit-only index.
+        if (not (0 <= source_index < len(chart.data_series))
+                or chart.data_series[source_index].series_type != SeriesType.FIT):
             raise ValueError("Selected fit no longer exists.")
-        fit = chart.fit_data[source_index]
+        fit = chart.data_series[source_index]
         dataset = app_state.current_project.find_item(fit.dataset_id)
         if not isinstance(dataset, Dataset):
             dataset = None
