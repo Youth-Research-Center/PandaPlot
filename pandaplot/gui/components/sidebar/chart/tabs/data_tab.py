@@ -1478,17 +1478,7 @@ class DataTab(QWidget):
             if not self.current_chart:
                 return
             spec = CHART_TYPE_SPECS[self.current_chart.chart_type]
-            # SeriesType.FIT is excluded here even though it's now a member
-            # of every allows_fit chart type's allowed_series_types (needed
-            # so set_chart_type doesn't force-retype existing fits away --
-            # see Chart.set_chart_type) -- listing it here would duplicate
-            # the "Fit" entry added below and, if picked, would fall
-            # through to chart.retype_series(...), producing a FIT series
-            # with no curve snapshot (retyping to/from FIT via
-            # retype_series is out of scope; see the design spec's
-            # Non-Goals). The only "Fit" entry a user can pick is the
-            # _CONVERT_TO_FIT action item.
-            for series_type in sorted(spec.allowed_series_types - {SeriesType.FIT}, key=lambda t: t.value):
+            for series_type in sorted(spec.allowed_series_types, key=lambda t: t.value):
                 self.series_type_combo.addItem(series_type.value.title(), series_type)
             # "Fit" is a conversion action, not a real SeriesType -- offered
             # regardless of the chart's own allowed_series_types, since fit
@@ -1496,11 +1486,10 @@ class DataTab(QWidget):
             # on chart types with allows_fit=False: a FIT series has only
             # 2-D (x, y) curve data and its renderer plots on a plain Axes,
             # so converting a series to Fit on a 3-D chart (mplot3d axes)
-            # or a Colormap/Heatmap chart (FIT isn't in its
-            # allowed_series_types) would produce a series the chart type
-            # can't actually render, without even a chart-type switch to
-            # have warned about it. Appended last so it never affects the
-            # default-index lookup below.
+            # or a Colormap/Heatmap chart (allows_fit=False) would produce
+            # a series the chart type can't actually render, without even
+            # a chart-type switch to have warned about it. Appended last so
+            # it never affects the default-index lookup below.
             if spec.allows_fit:
                 self.series_type_combo.addItem("Fit", _CONVERT_TO_FIT)
             default_index = self.series_type_combo.findData(spec.default_series_type)

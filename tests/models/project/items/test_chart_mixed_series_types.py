@@ -40,11 +40,12 @@ class TestMixedSeriesTypesOnOneChart:
         includes SCATTER. This test still demonstrates the specific
         vector+line coexistence the class is about; the full set is
         asserted exactly so the stale narrower matrix can't creep
-        back in unnoticed."""
+        back in unnoticed. SeriesType.FIT is never a member -- see
+        ChartTypeSpec.allowed_series_types (PR #416 review)."""
         allowed = CHART_TYPE_SPECS[ChartType.VECTOR].allowed_series_types
 
         assert {SeriesType.VECTOR, SeriesType.LINE} <= allowed
-        assert allowed == {SeriesType.VECTOR, SeriesType.LINE, SeriesType.SCATTER, SeriesType.FIT}
+        assert allowed == {SeriesType.VECTOR, SeriesType.LINE, SeriesType.SCATTER}
 
     def test_chart_holds_one_vector_and_one_line_series_with_distinct_styles(self):
         chart, vector_series, line_series = _mixed_chart()

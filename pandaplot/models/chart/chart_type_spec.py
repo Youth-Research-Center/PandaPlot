@@ -27,6 +27,10 @@ class ChartTypeSpec:
     # plain `set` value is still mutable in place (`spec.allowed_series_
     # types.add(...)`), which would silently corrupt every chart using
     # this shared, module-level registry entry. frozenset closes that gap.
+    #
+    # Never contains SeriesType.FIT: a fit isn't a user-selectable series
+    # type. Where a fit can be created is `allows_fit`, and an existing fit
+    # survives any chart-type switch (Chart.set_chart_type never retypes it).
     allowed_series_types: frozenset[SeriesType]
     allows_fit: bool
     default_series_type: SeriesType
@@ -46,28 +50,28 @@ class ChartTypeSpec:
 CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
     ChartType.LINE: ChartTypeSpec(
         display_name="Line", roles=("x", "y"), required_roles=("y",),
-        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR, SeriesType.FIT}),
+        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}),
         allows_fit=True, default_series_type=SeriesType.LINE,
     ),
     ChartType.SCATTER: ChartTypeSpec(
         display_name="Scatter", roles=("x", "y"), required_roles=("y",),
-        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR, SeriesType.FIT}),
+        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}),
         allows_fit=True, default_series_type=SeriesType.SCATTER,
     ),
     ChartType.BAR: ChartTypeSpec(
         display_name="Bar", roles=("x", "y"), required_roles=("y",),
-        allowed_series_types=frozenset({SeriesType.BAR, SeriesType.SCATTER, SeriesType.FIT}),
+        allowed_series_types=frozenset({SeriesType.BAR, SeriesType.SCATTER}),
         allows_fit=True, default_series_type=SeriesType.BAR,
     ),
     ChartType.HIST: ChartTypeSpec(
         display_name="Histogram", roles=("values",), required_roles=("values",),
-        allowed_series_types=frozenset({SeriesType.HIST, SeriesType.FIT}),
+        allowed_series_types=frozenset({SeriesType.HIST}),
         allows_fit=True, default_series_type=SeriesType.HIST,
     ),
     ChartType.VECTOR: ChartTypeSpec(
         display_name="Vector", roles=("x", "y", "u", "v", "magnitude"),
         required_roles=("x", "y", "u", "v"),
-        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR, SeriesType.FIT}),
+        allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}),
         allows_fit=True, default_series_type=SeriesType.VECTOR,
     ),
     ChartType.COLORMAP: ChartTypeSpec(
@@ -172,22 +176,31 @@ def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]") -> 
     series types on a chart -- not just the nominal type's static
     default_series_type (see `compatible_chart_types`).
 
-    Compatible iff EVERY series type is in the target's allowed_series_types,
-    i.e. the switch force-retypes none of the chart's existing series. An
-    empty `series_types` (a new chart) has nothing to protect, so every type
-    qualifies.
+    Compatible iff EVERY non-FIT series type is in the target's
+    allowed_series_types, i.e. the switch force-retypes none of the chart's
+    existing series. An empty `series_types` (a new chart) has nothing to
+    protect, so every type qualifies.
+
+    SeriesType.FIT never narrows the result through allowed_series_types
+    (no chart type lists it, and Chart.set_chart_type never retypes a fit),
+    so a fit survives a switch even to a type that can't create fits (e.g.
+    Colormap). It does rule out every 3-D target: a fit only has 2-D curve
+    data and its renderer draws on a plain Axes, not mplot3d.
 
     Fixes a gap in `compatible_chart_types`: a mixed chart (e.g. Scatter
     holding both SCATTER and VECTOR) would otherwise report Bar as safe,
     silently discarding the VECTOR series' config on switch.
     """
     types = frozenset(series_types)
-    if not types:
-        return frozenset(CHART_TYPE_SPECS.keys())
-    return frozenset(
+    has_fit = SeriesType.FIT in types
+    types -= {SeriesType.FIT}
+    compatible = frozenset(
         target for target, spec in CHART_TYPE_SPECS.items()
         if types <= spec.allowed_series_types
     )
+    if has_fit:
+        compatible = frozenset(target for target in compatible if not CHART_TYPE_SPECS[target].is_3d)
+    return compatible
 
 
 def get_chart_type_spec(chart_type: "str | ChartType") -> ChartTypeSpec:

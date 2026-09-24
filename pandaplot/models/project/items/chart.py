@@ -260,16 +260,15 @@ class Chart(Item):
         are legitimate. Retyped series become the new type's own
         `default_series_type`, via `retype_series`.
 
-        FIT-type series are always skipped here, regardless of whether the
-        new chart type's `allowed_series_types` includes SeriesType.FIT:
-        a fit's `precomputed_x_data`/`precomputed_y_data` snapshot has no
-        equivalent in any other series type, so force-retyping it away
-        (via `retype_series`) would silently destroy fit_type/fit_params/
-        fit_stats/confidence bands -- unlike an ordinary series retype,
-        which just swaps styling. This matches pre-#304 behavior, where
-        `chart.fit_data` was a separate list `set_chart_type` never
-        touched. A chart type that doesn't formally allow FIT can end up
-        carrying a leftover FIT series -- that's the intended,
+        FIT-type series are always skipped here. No chart type lists
+        SeriesType.FIT in its `allowed_series_types` (see ChartTypeSpec), so
+        without this skip every fit would be force-retyped away -- and a
+        fit's `precomputed_x_data`/`precomputed_y_data` snapshot has no
+        equivalent in any other series type, so that would silently destroy
+        fit_type/fit_params/fit_stats/confidence bands. This matches pre-#304
+        behavior, where `chart.fit_data` was a separate list `set_chart_type`
+        never touched. A fit can therefore stay on a chart type that can't
+        create fits (allows_fit=False) -- that's the intended,
         minimally-destructive outcome, not a bug.
         """
         new_type = ChartType(chart_type)

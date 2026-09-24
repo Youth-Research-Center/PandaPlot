@@ -50,13 +50,8 @@ def test_series_type_combo_offers_only_the_chart_types_allowed_series_types():
     tab.load(chart)
 
     offered = {tab.series_type_combo.itemData(i) for i in range(tab.series_type_combo.count())}
-    # SeriesType.FIT is now a member of allowed_series_types (needed so
-    # set_chart_type doesn't force-retype existing fits away), but the
-    # combo must still filter it out of the regular-type loop -- only the
-    # "__convert_to_fit__" action item represents "Fit" here. Picking
-    # SeriesType.FIT directly would fall through to chart.retype_series(...)
-    # and produce a FIT series with no curve snapshot (out of scope; see
-    # design spec Non-Goals) -- see final-review finding #2.
+    # SeriesType.FIT itself is never offered -- only the
+    # "__convert_to_fit__" action item represents "Fit" here.
     assert offered == {SeriesType.BAR, SeriesType.SCATTER, "__convert_to_fit__"}
 
 

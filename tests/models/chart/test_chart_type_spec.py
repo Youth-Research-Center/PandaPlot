@@ -47,12 +47,12 @@ def test_vector_spec_matches_former_chart_role_spec_values():
 
 
 def test_allowed_series_types_per_chart_type():
-    lsv_fit = {SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR, SeriesType.FIT}
-    assert CHART_TYPE_SPECS[ChartType.LINE].allowed_series_types == lsv_fit
-    assert CHART_TYPE_SPECS[ChartType.SCATTER].allowed_series_types == lsv_fit
-    assert CHART_TYPE_SPECS[ChartType.VECTOR].allowed_series_types == lsv_fit
-    assert CHART_TYPE_SPECS[ChartType.BAR].allowed_series_types == {SeriesType.BAR, SeriesType.SCATTER, SeriesType.FIT}
-    assert CHART_TYPE_SPECS[ChartType.HIST].allowed_series_types == {SeriesType.HIST, SeriesType.FIT}
+    lsv = {SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}
+    assert CHART_TYPE_SPECS[ChartType.LINE].allowed_series_types == lsv
+    assert CHART_TYPE_SPECS[ChartType.SCATTER].allowed_series_types == lsv
+    assert CHART_TYPE_SPECS[ChartType.VECTOR].allowed_series_types == lsv
+    assert CHART_TYPE_SPECS[ChartType.BAR].allowed_series_types == {SeriesType.BAR, SeriesType.SCATTER}
+    assert CHART_TYPE_SPECS[ChartType.HIST].allowed_series_types == {SeriesType.HIST}
 
 
 def test_allowed_series_types_is_genuinely_immutable():
@@ -201,14 +201,22 @@ def test_compatible_chart_types_for_series_single_vector_matches_existing_vector
     assert ChartType.VECTOR in result
 
 
-def test_allows_fit_chart_types_include_fit_series_type():
-    from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
-    from pandaplot.models.chart.series_type import SeriesType
-
+def test_no_chart_type_lists_fit_in_allowed_series_types():
+    """FIT isn't a user-selectable series type -- `allows_fit` says where a
+    fit can be created, and set_chart_type never retypes one -- so listing
+    it in allowed_series_types only forced every consumer to subtract it
+    again (PR #416 review)."""
     for chart_type, spec in CHART_TYPE_SPECS.items():
-        if spec.allows_fit:
-            assert SeriesType.FIT in spec.allowed_series_types, (
-                f"{chart_type}: allows_fit=True but FIT missing from allowed_series_types"
-            )
-        else:
-            assert SeriesType.FIT not in spec.allowed_series_types
+        assert SeriesType.FIT not in spec.allowed_series_types, chart_type
+
+
+def test_compatible_chart_types_for_series_ignores_fit_but_rules_out_3d():
+    from pandaplot.models.chart.chart_type_spec import compatible_chart_types_for_series
+
+    with_fit = compatible_chart_types_for_series(frozenset({SeriesType.LINE, SeriesType.FIT}))
+    assert with_fit == compatible_chart_types_for_series(frozenset({SeriesType.LINE}))
+
+    fit_only = compatible_chart_types_for_series(frozenset({SeriesType.FIT}))
+    assert fit_only == frozenset(t for t, spec in CHART_TYPE_SPECS.items() if not spec.is_3d)
+    # A fit may be carried onto a chart type that can't create fits.
+    assert ChartType.COLORMAP in fit_only
