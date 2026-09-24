@@ -79,12 +79,17 @@ def test_series_type_combo_has_exactly_one_fit_entry_using_the_convert_sentinel(
     assert tab.series_type_combo.findData(SeriesType.FIT) == -1
 
 
-def test_series_type_combo_omits_the_fit_conversion_action_on_3d_charts():
+def _fit_entry_row(tab):
+    return tab.series_type_combo.findData("__convert_to_fit__")
+
+
+def test_series_type_combo_disables_the_fit_conversion_action_on_3d_charts():
     """A FIT series has only 2-D (x, y) curve data and its renderer plots
     on a plain Axes, not mplot3d -- offering "Fit" as a conversion action
     on a 3-D chart would leave a 2-D-only renderer attached to 3-D axes,
     with no chart-type switch involved to have warned about it (#304
-    final-review finding)."""
+    final-review finding). The entry stays in the combo (so an existing
+    fit is still labeled "Fit"), just disabled."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="3D Scatter Chart", chart_type="scatter3d")
     chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
@@ -95,22 +100,19 @@ def test_series_type_combo_omits_the_fit_conversion_action_on_3d_charts():
     tab.set_project(project)
     tab.load(chart)
 
-    fit_labeled_rows = [
-        i for i in range(tab.series_type_combo.count())
-        if tab.series_type_combo.itemText(i) == "Fit"
-    ]
-    assert fit_labeled_rows == []
-    assert tab.series_type_combo.findData("__convert_to_fit__") == -1
+    row = _fit_entry_row(tab)
+    assert row >= 0
+    assert tab.series_type_combo.model().item(row).isEnabled() is False
 
 
-def test_series_type_combo_omits_the_fit_conversion_action_on_colormap_charts():
+def test_series_type_combo_disables_the_fit_conversion_action_on_colormap_charts():
     """A Colormap chart has allows_fit=False (same as a 3-D chart type,
     just for a different reason: FIT isn't a member of its
     allowed_series_types at all) -- offering "Fit" there would let
     ConvertSeriesToFitCommand (which has no chart-type check of its own)
-    produce a FIT series the chart type can't actually render. Regression
-    test: the combo used to gate this entry on `spec.is_3d` alone, which
-    missed Colormap/Heatmap."""
+    produce a FIT series the chart type can't actually render. The entry
+    stays in the combo (so an existing fit is still labeled "Fit"), just
+    disabled."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Colormap Chart", chart_type="colormap")
     chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
@@ -121,12 +123,9 @@ def test_series_type_combo_omits_the_fit_conversion_action_on_colormap_charts():
     tab.set_project(project)
     tab.load(chart)
 
-    fit_labeled_rows = [
-        i for i in range(tab.series_type_combo.count())
-        if tab.series_type_combo.itemText(i) == "Fit"
-    ]
-    assert fit_labeled_rows == []
-    assert tab.series_type_combo.findData("__convert_to_fit__") == -1
+    row = _fit_entry_row(tab)
+    assert row >= 0
+    assert tab.series_type_combo.model().item(row).isEnabled() is False
 
 
 def test_series_type_combo_selects_the_current_series_own_type():
@@ -985,3 +984,49 @@ def test_fit_rows_show_a_y_axis_badge():
     labels = [w.text() for w in tab.findChildren(QLabel)]
     assert "\U0001f527 A Fit" in labels
     assert "Y₂" in labels
+
+
+def test_a_fit_carried_onto_a_colormap_chart_still_shows_fit_in_the_disabled_combo():
+    """PR #416 review: a fit may stay on a Colormap chart (ChartTab allows
+    the switch), where fits can't be *created* -- the combo must still
+    label the existing fit "Fit" rather than falling back to "Colormap"."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Colormap Chart", chart_type="colormap")
+    chart.add_fit_series(
+        dataset.id,
+        x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
+        label="A Fit", style=FitStyle(fit_type="Linear"),
+    )
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+
+    assert tab.series_type_combo.currentData() == "__convert_to_fit__"
+    assert tab.series_type_combo.isEnabled() is False
+
+
+def test_switching_chart_type_while_a_fit_is_selected_keeps_the_fit_controls():
+    """refresh_vector_fields runs after a live chart-type change; it used to
+    reload a selected fit through the regular-series path, re-enabling its
+    locked source fields and showing a plain series type."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_fit_series(
+        dataset.id,
+        x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
+        label="A Fit", style=FitStyle(fit_type="Linear", is_manual=False),
+    )
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+
+    chart.set_chart_type("colormap")
+    tab.refresh_vector_fields()
+
+    assert tab.series_type_combo.currentData() == "__convert_to_fit__"
+    assert tab.series_type_combo.isEnabled() is False
+    assert tab.dataset_combo.isEnabled() is False

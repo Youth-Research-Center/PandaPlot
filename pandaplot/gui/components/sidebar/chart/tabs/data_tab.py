@@ -586,11 +586,7 @@ class DataTab(QWidget):
 
         outer.addWidget(self._series_form_widget)
 
-        if series.series_type == SeriesType.FIT:
-            self._load_fit_into_controls(series)
-        else:
-            self._reset_controls_for_series()
-            self._load_series_into_controls(series)
+        self._load_entry_into_controls(series)
         self.seriesSelected.emit("series", series)
 
         return card
@@ -1109,6 +1105,16 @@ class DataTab(QWidget):
         finally:
             self._updating_controls = previous_guard
 
+    def _load_entry_into_controls(self, series: DataSeries) -> None:
+        """Load the selected entry into the form, dispatching on its own
+        type: a FIT series locks the fields a fit has no use for (see
+        _load_fit_into_controls); every other type goes through the regular
+        series path."""
+        if series.series_type == SeriesType.FIT:
+            self._load_fit_into_controls(series)
+        else:
+            self._load_series_into_controls(series)
+
     def _load_fit_into_controls(self, fit):
         """Load fit data into the configuration controls.
 
@@ -1480,18 +1486,20 @@ class DataTab(QWidget):
             spec = CHART_TYPE_SPECS[self.current_chart.chart_type]
             for series_type in sorted(spec.allowed_series_types, key=lambda t: t.value):
                 self.series_type_combo.addItem(series_type.value.title(), series_type)
-            # "Fit" is a conversion action, not a real SeriesType -- offered
-            # regardless of the chart's own allowed_series_types, since fit
-            # entries have always been chart-type-agnostic (#298), EXCEPT
-            # on chart types with allows_fit=False: a FIT series has only
-            # 2-D (x, y) curve data and its renderer plots on a plain Axes,
-            # so converting a series to Fit on a 3-D chart (mplot3d axes)
-            # or a Colormap/Heatmap chart (allows_fit=False) would produce
-            # a series the chart type can't actually render, without even
-            # a chart-type switch to have warned about it. Appended last so
-            # it never affects the default-index lookup below.
-            if spec.allows_fit:
-                self.series_type_combo.addItem("Fit", _CONVERT_TO_FIT)
+            # "Fit" is a conversion action, not a real SeriesType (see
+            # _CONVERT_TO_FIT). Always present so a FIT series that stays on
+            # a chart type which can't create fits (allows_fit=False: a 3-D
+            # chart, or Colormap/Heatmap -- ChartTab lets a fit carry over
+            # into those) is still labeled "Fit" by _load_fit_into_controls.
+            # There the entry is disabled: converting would produce a series
+            # that chart type can't render (a FIT renderer draws 2-D curves
+            # on a plain Axes). Appended last so it never affects the
+            # default-index lookup below.
+            self.series_type_combo.addItem("Fit", _CONVERT_TO_FIT)
+            if not spec.allows_fit:
+                fit_item = self.series_type_combo.model().item(self.series_type_combo.count() - 1)
+                fit_item.setEnabled(False)
+                fit_item.setToolTip(f"Fits aren't available on {spec.display_name} charts.")
             default_index = self.series_type_combo.findData(spec.default_series_type)
             self.series_type_combo.setCurrentIndex(default_index if default_index >= 0 else 0)
         finally:
@@ -1549,7 +1557,7 @@ class DataTab(QWidget):
             self._update_vector_field_visibility()
             self._update_z_column_field_visibility()
             return
-        self._load_series_into_controls(self.current_chart.data_series[current_row])
+        self._load_entry_into_controls(self.current_chart.data_series[current_row])
 
     def _on_dataset_changed(self):
         """Handle dataset selection change."""
