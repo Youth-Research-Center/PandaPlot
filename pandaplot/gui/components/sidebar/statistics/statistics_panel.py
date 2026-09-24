@@ -3,7 +3,7 @@ Statistics panel: a guided side panel for running the most common statistical
 hypothesis tests on dataset columns and adding the results to the project as data.
 """
 
-from typing import List, Optional, override
+from typing import override
 
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -34,11 +34,11 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class StatisticsPanel(SidebarPanel):
     """Side panel for guided statistical testing on dataset columns."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self.current_dataset: Optional[Dataset] = None
-        self.current_dataset_id: Optional[str] = None
-        self.last_result: Optional[StatTestResult] = None
+        self.current_dataset: Dataset | None = None
+        self.current_dataset_id: str | None = None
+        self.last_result: StatTestResult | None = None
 
         self._initialize()
 
@@ -177,8 +177,8 @@ class StatisticsPanel(SidebarPanel):
 
     def _build_input_widgets(self, input_mode: InputMode):
         self._clear_layout(self.input_layout)
-        self.column_combos: List[QComboBox] = []
-        self.group_list: Optional[QListWidget] = None
+        self.column_combos: list[QComboBox] = []
+        self.group_list: QListWidget | None = None
 
         columns = self._numeric_columns()
 
@@ -247,7 +247,7 @@ class StatisticsPanel(SidebarPanel):
     # Actions
     # ------------------------------------------------------------------
 
-    def _selected_columns(self) -> List[str]:
+    def _selected_columns(self) -> list[str]:
         info = STAT_TESTS[self._current_test_type()]
         if info.input_mode == InputMode.MANY:
             if self.group_list is None:
@@ -255,7 +255,7 @@ class StatisticsPanel(SidebarPanel):
             return [item.text() for item in self.group_list.selectedItems()]
         return [combo.currentText() for combo in self.column_combos if combo.currentText()]
 
-    def _build_command(self) -> Optional[StatisticalTestCommand]:
+    def _build_command(self) -> StatisticalTestCommand | None:
         if not self.current_dataset_id:
             self.results_text.setText("❌ No dataset selected.")
             return None
@@ -292,7 +292,7 @@ class StatisticsPanel(SidebarPanel):
             return
         try:
             result = command.run_test()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.last_result = None
             self.add_btn.setEnabled(False)
             self.results_text.setText(f"❌ Test failed: {e}")
@@ -343,7 +343,7 @@ class StatisticsPanel(SidebarPanel):
     # Dataset context handling
     # ------------------------------------------------------------------
 
-    def _numeric_columns(self) -> List[str]:
+    def _numeric_columns(self) -> list[str]:
         if not self.current_dataset or self.current_dataset.data is None:
             return []
         import pandas as pd

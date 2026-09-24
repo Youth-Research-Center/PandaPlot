@@ -10,7 +10,6 @@ it can insert them, while columns overwritten in place must be announced with
 show column lists key off the ``dataset_id`` in the same payloads.
 """
 
-from typing import List
 
 import pandas as pd
 
@@ -26,8 +25,8 @@ def emit_columns_changed(
     app_context: AppContext,
     dataset_id: str,
     df: pd.DataFrame,
-    added_columns: List[str],
-    replaced_columns: List[str],
+    added_columns: list[str],
+    replaced_columns: list[str],
 ) -> None:
     """Emit the appropriate events for columns added and/or overwritten.
 

@@ -92,7 +92,7 @@ def test_series_type_combo_defaults_to_the_chart_types_own_default_series_type()
     touches this combo before creating a series on an empty Vector chart
     must still get a Vector series, not a Line one missing its U/V
     columns."""
-    app_context, project, dataset = _app_context_with_project()
+    app_context, project, _dataset = _app_context_with_project()
     chart = Chart(name="Vector Chart", chart_type="vector")
     project.add_item(chart)
 
@@ -189,7 +189,7 @@ def test_uv_fields_appear_right_after_x_and_y_in_the_form():
     are after error columns instead after x and y columns." The form is a
     QGridLayout with explicit row numbers -- U/V must sit at the rows
     immediately following X/Y, ahead of every error-bar row."""
-    app_context, project, dataset = _app_context_with_project()
+    app_context, _project, _dataset = _app_context_with_project()
     tab = DataTab(app_context=app_context)
 
     layout = tab._series_form_widget.layout()
@@ -243,7 +243,7 @@ def test_error_bar_fields_are_grouped_by_axis_not_by_sign():
     axis and not by plus/minus. I think this is more intuitive for the
     user." Row order must be X(+), X(-), Y(+), Y(-), not X(+), Y(+),
     X(-), Y(-)."""
-    app_context, project, dataset = _app_context_with_project()
+    app_context, _project, _dataset = _app_context_with_project()
     tab = DataTab(app_context=app_context)
 
     layout = tab._series_form_widget.layout()

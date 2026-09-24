@@ -42,7 +42,7 @@ class TestRenameItemCommandLogging:
         return project
 
     def test_execute_logs_a_warning_when_no_project_loaded(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
 
         command = RenameItemCommand(app_context, item_id="item-123", new_name="New Name")
@@ -52,7 +52,7 @@ class TestRenameItemCommandLogging:
         assert "RenameItemCommand.execute" in caplog.text
 
     def test_execute_logs_a_warning_when_current_project_is_none(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -63,7 +63,7 @@ class TestRenameItemCommandLogging:
         assert "RenameItemCommand.execute" in caplog.text
 
     def test_execute_logs_a_warning_when_item_not_found(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         sample_project.find_item.return_value = None
@@ -75,7 +75,7 @@ class TestRenameItemCommandLogging:
         assert "missing-item" in caplog.text
 
     def test_cleanup_releases_old_name(self, mock_app_context):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
 
         command = RenameItemCommand(app_context, item_id="item-123", new_name="New Name")
         command.old_name = "Old Name"
@@ -85,7 +85,7 @@ class TestRenameItemCommandLogging:
         assert command.old_name is None
 
     def test_undo_logs_a_warning_when_current_project_is_none(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -97,7 +97,7 @@ class TestRenameItemCommandLogging:
         assert "RenameItemCommand.undo" in caplog.text
 
     def test_undo_logs_a_warning_when_item_not_found(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         sample_project.find_item.return_value = None

@@ -12,5 +12,5 @@ def test_app_import_does_not_pull_heavy_optional_modules():
         f"assert '{m}' not in sys.modules, '{m} was imported at startup'" for m in HEAVY_MODULES
     )
     code = f"import sys; import pandaplot.app; {checks}"
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr

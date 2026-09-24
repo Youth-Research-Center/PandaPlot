@@ -54,7 +54,7 @@ def test_controller_transform_failed_surfaces_message_in_preview(transform_panel
     )
 
     assert transform_panel.preview_text.toPlainText() == (
-        "Transform failed: Column 'a_x2' already exists. Choose a different name or enable replace option."
+        "⚠ Transform failed: Column 'a_x2' already exists. Choose a different name or enable replace option."
     )
 
 
@@ -92,7 +92,202 @@ def test_apply_transform_generic_failure_surfaces_message_when_no_signal_fired(t
 
     transform_panel.apply_transform()
 
-    assert transform_panel.preview_text.toPlainText() == "Transform failed - see logs for details"
+    assert transform_panel.preview_text.toPlainText() == "⚠ Transform failed - see logs for details"
+
+
+class TestApplyValidationFeedback:
+    """Regression (#227): clicking Apply without first clicking Preview
+    used to silently do nothing on a validation failure -- only a
+    logger.warning(), no visible feedback at all."""
+
+    def test_no_dataset_at_all_writes_a_dataset_specific_message(self, transform_panel):
+        """Regression: this used to share the "select a source column"
+        message with the no-column case below, which was misleading when
+        there was no dataset active to select a column from at all."""
+        transform_panel.current_dataset = None
+
+        transform_panel.apply_transform()
+
+        assert transform_panel.preview_text.toPlainText() == "⚠ No dataset selected."
+
+    def test_no_source_column_selected_writes_a_visible_message(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        # No item selected.
+
+        transform_panel.apply_transform()
+
+        assert transform_panel.preview_text.toPlainText() == "⚠ Select a source column before applying."
+
+    def test_empty_new_column_name_writes_a_visible_message(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.function_text.setPlainText("x * 2")
+        # Selecting a column auto-suggests a name; clear it back out to
+        # exercise the "no name" branch specifically.
+        transform_panel.new_column_name.clear()
+
+        transform_panel.apply_transform()
+
+        assert transform_panel.preview_text.toPlainText() == "⚠ Enter a name for the new column before applying."
+
+    def test_empty_function_writes_a_visible_message(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        # function_text left empty.
+
+        transform_panel.apply_transform()
+
+        assert transform_panel.preview_text.toPlainText() == "⚠ Enter a function before applying."
+
+    def test_missing_dataset_id_writes_a_visible_message(self, transform_panel):
+        transform_panel.current_dataset = Mock(id=None, data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        transform_panel.function_text.setPlainText("x * 2")
+
+        transform_panel.apply_transform()
+
+        assert transform_panel.preview_text.toPlainText() == "⚠ Selected dataset is unavailable. Try reselecting it."
+
+
+class TestPreviewErrorStyling:
+    """An error message in preview_text should be visually distinct (#227
+    review follow-up) rather than reading like any other preview text --
+    it gets a red-ish stylesheet, cleared once the offending field changes."""
+
+    def test_validation_error_marks_preview_text_as_errored(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        # No item selected -- triggers the "select a source column" error.
+
+        transform_panel.apply_transform()
+
+        assert transform_panel._preview_has_error is True
+
+    def test_error_styling_keeps_the_base_theme_qss(self, transform_panel):
+        """Regression: setting an error color used to replace preview_text's
+        whole stylesheet, dropping the background/border/padding _apply_theme()
+        installs -- not just the foreground color."""
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+
+        transform_panel.apply_transform()
+
+        style = transform_panel.preview_text.styleSheet()
+        assert "border" in style
+        assert "background-color" in style
+
+    def test_successful_preview_clears_any_error_styling(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        transform_panel.apply_transform()  # No column selected -- leaves an error style behind.
+        assert transform_panel._preview_has_error is True
+
+        transform_panel.source_column_list.item(0).setSelected(True)
+
+        assert transform_panel._preview_has_error is False
+        # Regression: only the red styling used to clear, leaving the stale
+        # (and now wrong) "select a source column" text still displayed
+        # after a column had actually just been selected.
+        assert transform_panel.preview_text.toPlainText() == ""
+
+    def test_editing_a_field_after_an_error_clears_the_error_styling(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        # function_text left empty -- triggers the "enter a function" error.
+        transform_panel.apply_transform()
+        assert transform_panel._preview_has_error is True
+
+        transform_panel.function_text.setPlainText("x * 2")
+
+        assert transform_panel._preview_has_error is False
+        assert transform_panel.preview_text.toPlainText() == ""
+
+    def test_toggling_replace_after_an_error_clears_the_error_styling(self, transform_panel):
+        """Regression: a duplicate-column failure tells the user to enable
+        Replace, but toggling that checkbox didn't invoke
+        _update_apply_enabled -- only selection/text signals did -- so the
+        stale red failure stayed displayed even after following its own
+        suggested fix."""
+        transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+        transform_panel._set_preview_message("Column 'a_x2' already exists.", is_error=True)
+        assert transform_panel._preview_has_error is True
+
+        transform_panel.replace_column_check.setChecked(True)
+
+        assert transform_panel._preview_has_error is False
+        assert transform_panel.preview_text.toPlainText() == ""
+
+
+class TestApplyButtonEnablement:
+    """Regression (#227 broader UX ask): disable Apply until the fields it
+    needs are actually filled in, instead of leaving it clickable for a
+    guaranteed-to-fail click."""
+
+    def test_apply_disabled_with_no_dataset(self, transform_panel):
+        assert transform_panel.apply_btn.isEnabled() is False
+
+    def test_apply_stays_disabled_until_every_field_is_filled(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1")
+        transform_panel.enable_controls(enabled=True)
+        assert transform_panel.apply_btn.isEnabled() is False
+
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        assert transform_panel.apply_btn.isEnabled() is False
+
+        transform_panel.new_column_name.setText("b")
+        assert transform_panel.apply_btn.isEnabled() is False
+
+        transform_panel.function_text.setPlainText("x * 2")
+        assert transform_panel.apply_btn.isEnabled() is True
+
+    def test_apply_stays_disabled_when_dataset_id_is_unavailable(self, transform_panel):
+        """Regression: readiness used to only check that controls were
+        enabled, not that current_dataset actually had a usable id -- so
+        Apply could become clickable for a dataset apply_transform() was
+        guaranteed to then reject."""
+        transform_panel.current_dataset = Mock(id=None)
+        transform_panel.enable_controls(enabled=True)
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        transform_panel.function_text.setPlainText("x * 2")
+
+        assert transform_panel.apply_btn.isEnabled() is False
+
+    def test_clearing_the_function_disables_apply_again(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1")
+        transform_panel.enable_controls(enabled=True)
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        transform_panel.function_text.setPlainText("x * 2")
+        assert transform_panel.apply_btn.isEnabled() is True
+
+        transform_panel.function_text.clear()
+
+        assert transform_panel.apply_btn.isEnabled() is False
+
+    def test_disabling_controls_disables_apply_regardless_of_filled_fields(self, transform_panel):
+        transform_panel.current_dataset = Mock(id="dataset-1")
+        transform_panel.enable_controls(enabled=True)
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.new_column_name.setText("b")
+        transform_panel.function_text.setPlainText("x * 2")
+        assert transform_panel.apply_btn.isEnabled() is True
+
+        transform_panel.enable_controls(enabled=False)
+
+        assert transform_panel.apply_btn.isEnabled() is False
 
 
 class TestSourceColumnMarkers:

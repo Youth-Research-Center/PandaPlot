@@ -6,7 +6,6 @@ excluding series types with no meaningful ordered (x, y) curve (bar/hist/
 vector/colormap/heatmap/3-D) -- and want the same combo item shape.
 """
 
-from typing import Optional
 
 from PySide6.QtWidgets import QComboBox
 
@@ -17,7 +16,7 @@ from pandaplot.models.project.project import Project
 from pandaplot.utils.item_display_options import disambiguated_display_options
 
 
-def populate_series_fit_sources(combo: QComboBox, chart: Optional[Chart]) -> tuple[bool, bool]:
+def populate_series_fit_sources(combo: QComboBox, chart: Chart | None) -> tuple[bool, bool]:
     """(Re)fill `combo` with the chart's eligible series/fit entries.
 
     Each item's data is a ``(kind, index)`` tuple, ``kind`` one of
@@ -59,7 +58,7 @@ def find_series_fit_combo_index(combo: QComboBox, kind: str, index: int) -> int:
     return -1
 
 
-def populate_chart_target_combo(combo: QComboBox, project: "Optional[Project]") -> None:
+def populate_chart_target_combo(combo: QComboBox, project: "Project | None") -> None:
     """(Re)fill `combo` with the "Plot result" destination choices:
     "➕ New chart" (data=None, always first and selected by default) followed
     by every chart in the project whose type allows a plotted analysis
@@ -85,7 +84,7 @@ def populate_chart_target_combo(combo: QComboBox, project: "Optional[Project]") 
     combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
 
 
-def refresh_chart_target_combo_preserving_selection(combo: QComboBox, project: "Optional[Project]") -> None:
+def refresh_chart_target_combo_preserving_selection(combo: QComboBox, project: "Project | None") -> None:
     """Like populate_chart_target_combo(), but keeps the current selection
     if it's still a valid entry afterward, instead of always resetting to
     "New chart". Use this for a refresh triggered by an unrelated

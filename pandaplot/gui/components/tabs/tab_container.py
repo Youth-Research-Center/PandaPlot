@@ -1,4 +1,4 @@
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QApplication, QSplitter, QVBoxLayout, QWidget
@@ -412,11 +412,11 @@ class TabContainer(PWidget):
             self.tabs[item_id] = new_tab
             target_pane.setCurrentIndex(tab_index)
             return True
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.logger.error("Failed to open tab for item %s: %s", item_id, str(e))
             return False
 
-    def get_tab_widget(self, item_id: str) -> Optional[QWidget]:
+    def get_tab_widget(self, item_id: str) -> QWidget | None:
         """Return the live tab widget for `item_id` if it's currently open, else None."""
         return self.tabs.get(item_id)
 
@@ -603,7 +603,7 @@ class TabContainer(PWidget):
         target_pane.setCurrentIndex(target_pane.indexOf(welcome_tab))
         self._activate_pane(target_pane)
 
-    def create_chart_from_dataset(self, dataset_id: str, preselected_column_ids: Optional[list[str]] = None):
+    def create_chart_from_dataset(self, dataset_id: str, preselected_column_ids: list[str] | None = None):
         """Open the chart creation wizard for a dataset.
 
         Thin pass-through to TabContainerCommandManager, kept on TabContainer
@@ -720,9 +720,8 @@ class TabContainer(PWidget):
         dataset_id = event_data.get("dataset_id")
         # Find and refresh the relevant dataset tab
         for tab_widget in self.tabs.values():
-            if hasattr(tab_widget, "dataset") and tab_widget.dataset.id == dataset_id:
-                if hasattr(tab_widget, "load_dataset_data"):
-                    tab_widget.load_dataset_data()  # Refresh to show new analysis column
+            if hasattr(tab_widget, "dataset") and tab_widget.dataset.id == dataset_id and hasattr(tab_widget, "load_dataset_data"):
+                tab_widget.load_dataset_data()  # Refresh to show new analysis column
 
 
 # TODO(#220): ensure tab name is updated on item name change

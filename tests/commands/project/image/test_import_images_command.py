@@ -191,7 +191,8 @@ class TestImportImagesCommandModifiedTime:
     def test_copied_local_file_uses_file_mtime(self, app_context_with_project, gallery_id, tmp_path):
         png_path = tmp_path / "photo.png"
         _write_test_png(png_path)
-        expected_mtime_iso = datetime.datetime.fromtimestamp(os.path.getmtime(png_path)).isoformat()
+        # Must match the naive local time the production code under test computes.
+        expected_mtime_iso = datetime.datetime.fromtimestamp(os.path.getmtime(png_path)).isoformat()  # noqa: DTZ006
 
         command = ImportImagesCommand(
             app_context_with_project, gallery_id=gallery_id,
@@ -206,7 +207,8 @@ class TestImportImagesCommandModifiedTime:
     def test_external_local_file_uses_file_mtime(self, app_context_with_project, gallery_id, tmp_path):
         png_path = tmp_path / "photo.png"
         _write_test_png(png_path)
-        expected_mtime_iso = datetime.datetime.fromtimestamp(os.path.getmtime(png_path)).isoformat()
+        # Must match the naive local time the production code under test computes.
+        expected_mtime_iso = datetime.datetime.fromtimestamp(os.path.getmtime(png_path)).isoformat()  # noqa: DTZ006
 
         command = ImportImagesCommand(
             app_context_with_project, gallery_id=gallery_id,
@@ -224,13 +226,13 @@ class TestImportImagesCommandModifiedTime:
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
 
-        before = datetime.datetime.now()
+        before = datetime.datetime.now()  # noqa: DTZ005 -- must match the naive local time the production constructor-default uses
         command = ImportImagesCommand(
             app_context_with_project, gallery_id=gallery_id,
             sources=["https://example.com/pic.png"], copy_into_project=True,
         )
         command.execute()
-        after = datetime.datetime.now()
+        after = datetime.datetime.now()  # noqa: DTZ005 -- must match the naive local time the production constructor-default uses
 
         image = app_context_with_project.get_app_state().current_project.find_item(gallery_id).get_items()[0]
         modified = datetime.datetime.fromisoformat(image.modified_at)

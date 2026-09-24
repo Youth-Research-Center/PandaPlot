@@ -1,5 +1,6 @@
 import os
-from typing import Any, Callable, Optional, Tuple, override
+from collections.abc import Callable
+from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.project.unsaved_changes import flush_pending_edits
@@ -12,7 +13,7 @@ from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.session import SessionPersistenceManager
 
 
-def _same_path(a: Optional[str], b: Optional[str]) -> bool:
+def _same_path(a: str | None, b: str | None) -> bool:
     """Compare two project file paths for "is this the same file", tolerant
     of relative-vs-absolute and symlink differences."""
     if not a or not b:
@@ -33,7 +34,7 @@ class LoadProjectCommand(Command):
     """
 
     def __init__(self, app_context: AppContext, file_path: str,
-                 on_loaded: Optional[Callable[[Project], None]] = None):
+                 on_loaded: Callable[[Project], None] | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -44,13 +45,13 @@ class LoadProjectCommand(Command):
         # Called after the project has been loaded into app state (e.g. so the
         # caller can restore session tabs once the project is actually ready).
         self.on_loaded = on_loaded
-        self.previous_project: Optional[Project] = None
-        self.previous_file_path: Optional[str] = None
+        self.previous_project: Project | None = None
+        self.previous_file_path: str | None = None
         # Whether the previous project had unsaved changes, so undo() can
         # restore that dirty state rather than letting load_project() reset
         # it to "no changes" -- see undo().
         self.previous_was_modified = False
-        self.loaded_project: Optional[Project] = None
+        self.loaded_project: Project | None = None
         # Whether loaded_project had unsaved changes when undo() last swapped
         # away from it (e.g. a note edit flushed during that same undo()),
         # so redo()'s cached fast path can restore that dirty state rather
@@ -140,7 +141,7 @@ class LoadProjectCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to initiate project load: {e}"
-            self.logger.error("LoadProjectCommand Error: %s", error_msg, exc_info=True)
+            self.logger.exception("LoadProjectCommand Error: %s", error_msg)
             self.ui_controller.show_error_message("Load Project Error", error_msg)
             self.is_loading = False  # Reset flag on error
             return CommandResult.FAILURE
@@ -193,8 +194,8 @@ class LoadProjectCommand(Command):
             return {"success": True, "error": None, "project": loaded_project, "file_path": self.file_path}
 
         except Exception as e:
-            error_msg = f"Error during project load: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Error during project load: {e!s}"
+            self.logger.exception(error_msg)
             return {"success": False, "error": error_msg, "project": None, "file_path": self.file_path}
 
     def _on_load_result(self, result: dict):
@@ -295,8 +296,8 @@ class LoadProjectCommand(Command):
                     if self.on_loaded:
                         try:
                             self.on_loaded(project)
-                        except Exception as e:  # noqa: BLE001
-                            self.logger.error("on_loaded callback failed: %s", e, exc_info=True)
+                        except Exception:
+                            self.logger.exception("on_loaded callback failed")
                 else:
                     error_msg = "Missing project or file path in load result"
                     self.ui_controller.show_error_message("Load Failed", error_msg)
@@ -307,23 +308,23 @@ class LoadProjectCommand(Command):
                 self.logger.error(f"Load failed: {error_msg}")
 
         except Exception as e:
-            self.logger.error(f"Error handling load result: {e}", exc_info=True)
-            self.ui_controller.show_error_message("Load Error", f"Error processing load result: {str(e)}")
+            self.logger.exception("Error handling load result")
+            self.ui_controller.show_error_message("Load Error", f"Error processing load result: {e!s}")
 
-    def _on_load_error(self, error_info: Tuple[Any, Any, str]):
+    def _on_load_error(self, error_info: tuple[Any, Any, str]):
         """Handle error during load task."""
         try:
             self.is_loading = False
             error_type, error_value, error_traceback = error_info
-            error_msg = f"Load failed with {error_type.__name__}: {str(error_value)}"
+            error_msg = f"Load failed with {error_type.__name__}: {error_value!s}"
 
             self.logger.error(f"Load task error: {error_msg}")
             self.logger.error(f"Traceback: {error_traceback}")
 
             self.ui_controller.show_error_message("Load Project Error", error_msg)
 
-        except Exception as e:
-            self.logger.error(f"Error handling load error: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error handling load error")
 
     def _on_load_finished(self):
         """Handle completion of load task (success or failure)."""
@@ -331,8 +332,8 @@ class LoadProjectCommand(Command):
             self.is_loading = False
             self.logger.info("Load task finished")
 
-        except Exception as e:
-            self.logger.error(f"Error in load finished handler: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error in load finished handler")
 
     def _on_load_progress(self, progress: float):
         """Handle progress updates from load task."""
@@ -342,8 +343,8 @@ class LoadProjectCommand(Command):
                 percentage = int(progress * 100)
                 self.logger.debug(f"Load progress: {percentage}%")
 
-        except Exception as e:
-            self.logger.error(f"Error handling load progress: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error handling load progress")
 
     def undo(self) -> CommandResult:
         """Undo the load project command."""

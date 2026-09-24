@@ -1,4 +1,4 @@
-from typing import Any, List, override
+from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -12,7 +12,7 @@ from pandaplot.models.state.app_context import AppContext
 
 
 class EditBatchCommand(Command):
-    def __init__(self, app_context: AppContext, dataset_id: str, start_row: int, start_column: int, new_data: List[List[Any]]):
+    def __init__(self, app_context: AppContext, dataset_id: str, start_row: int, start_column: int, new_data: list[list[Any]]):
         super().__init__()
         self.app_context = app_context
         self.ui_controller: UIController = app_context.get_ui_controller()
@@ -240,8 +240,8 @@ class EditBatchCommand(Command):
 
             return CommandResult.SUCCESS
             
-        except Exception as e:
-            error_msg = f"Failed to perform batch edit at starting position ({self.start_row}, {self.start_column}): {str(e)}"
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+            error_msg = f"Failed to perform batch edit at starting position ({self.start_row}, {self.start_column}): {e!s}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Batch Edit Error", error_msg)
             self.dataset = None
@@ -259,7 +259,7 @@ class EditBatchCommand(Command):
             for command in reversed(self.executed_commands):
                 try:
                     command.undo()
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
                     self.logger.error(f"Failed to undo expansion command: {e}")
 
             self.dataset.set_data(self.dataset.data)
@@ -295,7 +295,7 @@ class EditBatchCommand(Command):
         for command in self.executed_commands:
             try:
                 command.redo()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
                 self.logger.error(f"Failed to redo expansion command: {e}")
 
         # Then reapply the cell changes
@@ -324,9 +324,6 @@ class EditBatchCommand(Command):
         for command in self.executed_commands:
             try:
                 command.cleanup()
-            except Exception as e:
-                self.logger.error(
-                    "Error cleaning up sub-command '%s': %s",
-                    command.__class__.__name__, str(e), exc_info=True,
-                )
+            except Exception:
+                self.logger.exception("Error cleaning up sub-command '%s'", command.__class__.__name__)
         self.executed_commands = []

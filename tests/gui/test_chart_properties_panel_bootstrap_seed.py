@@ -38,7 +38,7 @@ def _make_project_with_dataset():
 def test_bootstrap_seed_writes_typed_style_for_line_chart():
     _qapp()
     app_context = build_app_context()
-    project, dataset = _make_project_with_dataset()
+    project, _dataset = _make_project_with_dataset()
 
     chart = Chart(name="Chart", chart_type="line")
     project.add_item(chart)
@@ -70,7 +70,7 @@ def test_bootstrap_seed_writes_typed_style_for_line_chart():
 def test_bootstrap_seed_is_noop_for_vector_chart_style_fields():
     _qapp()
     app_context = build_app_context()
-    project, dataset = _make_project_with_dataset()
+    project, _dataset = _make_project_with_dataset()
 
     chart = Chart(name="Chart", chart_type="vector")
     project.add_item(chart)

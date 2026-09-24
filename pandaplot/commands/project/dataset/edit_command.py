@@ -1,4 +1,4 @@
-from typing import Tuple, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -10,7 +10,7 @@ from pandaplot.models.state.app_context import AppContext
 
 
 class EditCommand(Command):
-    def __init__(self, app_context: AppContext, dataset_id: str, index: Tuple[int, int], old_value, new_value):
+    def __init__(self, app_context: AppContext, dataset_id: str, index: tuple[int, int], old_value, new_value):
         super().__init__()
         self.app_context = app_context
         self.ui_controller: UIController = app_context.get_ui_controller()
@@ -86,8 +86,8 @@ class EditCommand(Command):
                     end_index=(self.index[0], self.index[1])
                 ).to_dict())
             return CommandResult.SUCCESS
-        except Exception as e:
-            error_msg = f"Failed to edit cell at index: {self.index} {str(e)}"
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+            error_msg = f"Failed to edit cell at index: {self.index} {e!s}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Edit Error", error_msg)
             self.dataset = None

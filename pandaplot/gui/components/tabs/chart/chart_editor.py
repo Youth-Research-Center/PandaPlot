@@ -1,7 +1,7 @@
 import time
 import warnings
 from contextlib import contextmanager
-from typing import Optional, override
+from typing import override
 
 import numpy as np
 from matplotlib.ticker import (
@@ -166,7 +166,7 @@ def apply_axis_ticks(
         def _safe_custom(v, _, _fmt=custom_fmt):
             try:
                 return _fmt.format(v)
-            except Exception:
+            except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
                 return str(v)
         axis.set_major_formatter(FuncFormatter(_safe_custom))
     else:
@@ -427,7 +427,7 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
                       u_data=u_data, v_data=v_data, magnitude_data=magnitude_data, z_data=z_data)
 
 
-def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> Optional[tuple[float, float]]:
+def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> tuple[float, float] | None:
     """Compute (min, max) across every series plotted against the given
     axis (`prefix` in "x", "y", "y2", "z"). All series contribute to "x"
     and to "z" (a 3-D chart has no secondary anything to filter by);
@@ -681,7 +681,7 @@ class ChartEditorWidget(PWidget):
                 default_width_cm = getattr(chart_display, "default_width_cm", default_width_cm) or default_width_cm
                 default_height_cm = getattr(chart_display, "default_height_cm", default_height_cm) or default_height_cm
         except Exception:
-            pass
+            self.logger.debug("Could not read chart-display defaults from config; using hardcoded fallback", exc_info=True)
 
         # Resolve the initial canvas size/DPI, preferring per-chart overrides
         # (chart.config) over the app-wide Settings defaults fetched above.
@@ -779,7 +779,6 @@ class ChartEditorWidget(PWidget):
     def load_chart_config(self):
         """Load chart configuration into UI controls."""
         # No configuration UI to load since it's now in the side panel
-        pass
 
     def _resolve_fill_baseline(self, project, series_index, fill_base, fill_to_index, query, *, horizontal=False):
         """Resolve the second bound for a series' area fill: either the
@@ -1148,36 +1147,36 @@ class ChartEditorWidget(PWidget):
                 dpi, pad=chart_padding, w_pad=chart_padding_w, h_pad=chart_padding_h, top_margin=top_margin,
             )
 
-            x_label_color = config.get("x_label_color", "#000000")
-            y_match_label = config.get("y_match_x_label_color", True)
+            x_label_color = config.x.label_color
+            y_match_label = config.y.match_x_label_color
             y_label_color = resolve_axis_color(
-                "y", config.get("y_label_color", "#000000"), y_match_label, x_label_color)
+                "y", config.y.label_color, y_match_label, x_label_color)
             self.chart_canvas.axes.set_xlabel(
-                config.get("x_label", ""), color=x_label_color,
-                fontfamily=config.get("x_font_family", "DejaVu Sans"),
-                fontweight="bold" if config.get("x_title_bold", False) else "normal",
-                fontstyle="italic" if config.get("x_title_italic", False) else "normal",
-                rotation=config.get("x_label_rotation", 0),
+                config.x.label, color=x_label_color,
+                fontfamily=config.x.font_family,
+                fontweight="bold" if config.x.title_bold else "normal",
+                fontstyle="italic" if config.x.title_italic else "normal",
+                rotation=config.x.label_rotation,
             )
             self.chart_canvas.axes.set_ylabel(
-                config.get("y_label", ""), color=y_label_color,
-                fontfamily=config.get("y_font_family", "DejaVu Sans"),
-                fontweight="bold" if config.get("y_title_bold", False) else "normal",
-                fontstyle="italic" if config.get("y_title_italic", False) else "normal",
-                rotation=config.get("y_label_rotation", 90),
+                config.y.label, color=y_label_color,
+                fontfamily=config.y.font_family,
+                fontweight="bold" if config.y.title_bold else "normal",
+                fontstyle="italic" if config.y.title_italic else "normal",
+                rotation=config.y.label_rotation,
             )
-            x_scale = config.get("x_scale", "linear")
-            y_scale = config.get("y_scale", "linear")
-            self.chart_canvas.axes.set_xscale(x_scale, **resolve_scale_kwargs(x_scale, config.get("x_log_base", 10.0)))
-            self.chart_canvas.axes.set_yscale(y_scale, **resolve_scale_kwargs(y_scale, config.get("y_log_base", 10.0)))
-            self.chart_canvas.axes.xaxis.label.set_size(config.get("x_font_size", 12))
-            self.chart_canvas.axes.yaxis.label.set_size(config.get("y_font_size", 12))
+            x_scale = config.x.scale
+            y_scale = config.y.scale
+            self.chart_canvas.axes.set_xscale(x_scale, **resolve_scale_kwargs(x_scale, config.x.log_base))
+            self.chart_canvas.axes.set_yscale(y_scale, **resolve_scale_kwargs(y_scale, config.y.log_base))
+            self.chart_canvas.axes.xaxis.label.set_size(config.x.font_size)
+            self.chart_canvas.axes.yaxis.label.set_size(config.y.font_size)
             if not is_3d:
                 # Which side the Y axis is drawn on is a 2-D concept:
                 # mplot3d's own YAxis has no tick_left/tick_right at all
                 # (calling them raises AttributeError), and the axis's
                 # position on a 3-D chart follows the camera angle instead.
-                if config.get("y_side", "left") == "right":
+                if config.y.side == "right":
                     self.chart_canvas.axes.yaxis.tick_right()
                     self.chart_canvas.axes.yaxis.set_label_position("right")
                 else:
@@ -1186,15 +1185,15 @@ class ChartEditorWidget(PWidget):
 
             if is_3d:
                 self.chart_canvas.axes.set_zlabel(
-                    config.get("z_label", ""), color=x_label_color,
-                    fontfamily=config.get("z_font_family", "DejaVu Sans"),
-                    fontweight="bold" if config.get("z_title_bold", False) else "normal",
-                    fontstyle="italic" if config.get("z_title_italic", False) else "normal",
+                    config.z.label, color=x_label_color,
+                    fontfamily=config.z.font_family,
+                    fontweight="bold" if config.z.title_bold else "normal",
+                    fontstyle="italic" if config.z.title_italic else "normal",
                 )
-                z_scale = config.get("z_scale", "linear")
+                z_scale = config.z.scale
                 self.chart_canvas.axes.set_zscale(
-                    z_scale, **resolve_scale_kwargs(z_scale, config.get("z_log_base", 10.0)))
-                self.chart_canvas.axes.zaxis.label.set_size(config.get("z_font_size", 12))
+                    z_scale, **resolve_scale_kwargs(z_scale, config.z.log_base))
+                self.chart_canvas.axes.zaxis.label.set_size(config.z.font_size)
                 # The camera angle. Matplotlib's interactive drag-to-rotate
                 # still moves it freely from here -- this is the view every
                 # (re-)render starts from, not a lock.
@@ -1202,124 +1201,123 @@ class ChartEditorWidget(PWidget):
                     elev=config.view_elev, azim=config.view_azim)
 
             if self.chart_canvas.axes2 is not None:
-                y2_match_label = config.get("y2_match_x_label_color", True)
+                y2_match_label = config.y2.match_x_label_color
                 y2_label_color = resolve_axis_color(
-                    "y2", config.get("y2_label_color", "#000000"), y2_match_label, x_label_color)
+                    "y2", config.y2.label_color, y2_match_label, x_label_color)
                 self.chart_canvas.axes2.set_ylabel(
-                    config.get("y2_label", ""), color=y2_label_color,
-                    fontfamily=config.get("y2_font_family", "DejaVu Sans"),
-                    fontweight="bold" if config.get("y2_title_bold", False) else "normal",
-                    fontstyle="italic" if config.get("y2_title_italic", False) else "normal",
-                    rotation=config.get("y2_label_rotation", 90),
+                    config.y2.label, color=y2_label_color,
+                    fontfamily=config.y2.font_family,
+                    fontweight="bold" if config.y2.title_bold else "normal",
+                    fontstyle="italic" if config.y2.title_italic else "normal",
+                    rotation=config.y2.label_rotation,
                 )
-                y2_scale = config.get("y2_scale", "linear")
+                y2_scale = config.y2.scale
                 self.chart_canvas.axes2.set_yscale(
-                    y2_scale, **resolve_scale_kwargs(y2_scale, config.get("y2_log_base", 10.0)))
-                self.chart_canvas.axes2.yaxis.label.set_size(config.get("y2_font_size", 12))
-                if config.get("y2_side", "right") == "left":
+                    y2_scale, **resolve_scale_kwargs(y2_scale, config.y2.log_base))
+                self.chart_canvas.axes2.yaxis.label.set_size(config.y2.font_size)
+                if config.y2.side == "left":
                     self.chart_canvas.axes2.yaxis.tick_left()
                     self.chart_canvas.axes2.yaxis.set_label_position("left")
                 else:
                     self.chart_canvas.axes2.yaxis.tick_right()
                     self.chart_canvas.axes2.yaxis.set_label_position("right")
 
-                if not config.get("y2_auto_limits", True):
-                    self.chart_canvas.axes2.set_ylim(
-                        config.get("y2_min", 0.0), config.get("y2_max", 1.0))
+                if not config.y2.auto_limits:
+                    self.chart_canvas.axes2.set_ylim(config.y2.min, config.y2.max)
 
                 apply_axis_ticks(
                     self.chart_canvas.axes2.yaxis,
-                    config.get("y2_tick_mode", "auto"), config.get("y2_tick_count", 5),
-                    config.get("y2_tick_step", 1.0), config.get("y2_tick_format", "auto"),
-                    config.get("y2_tick_format_custom", ""),
-                    direction=config.get("y2_tick_direction", "out"),
-                    minor_enabled=config.get("y2_minor_ticks", False),
-                    minor_direction=config.get("y2_minor_tick_direction", "out"),
+                    config.y2.tick_mode, config.y2.tick_count,
+                    config.y2.tick_step, config.y2.tick_format,
+                    config.y2.tick_format_custom,
+                    direction=config.y2.tick_direction,
+                    minor_enabled=config.y2.minor_ticks,
+                    minor_direction=config.y2.minor_tick_direction,
                     major_color=resolve_axis_color(
-                        "y2", config.get("y2_major_tick_color", "#000000"),
-                        config.get("y2_match_x_colors", True),
-                        config.get("x_major_tick_color", "#000000")),
+                        "y2", config.y2.major_tick_color,
+                        config.y2.match_x_colors,
+                        config.x.major_tick_color),
                     minor_color=resolve_axis_color(
-                        "y2", config.get("y2_minor_tick_color", "#000000"),
-                        config.get("y2_match_x_colors", True),
-                        config.get("x_minor_tick_color", "#000000")),
+                        "y2", config.y2.minor_tick_color,
+                        config.y2.match_x_colors,
+                        config.x.minor_tick_color),
                     labelcolor=resolve_axis_color(
-                        "y2", config.get("y2_tick_label_color", "#000000"),
-                        config.get("y2_match_x_colors", True),
-                        config.get("x_tick_label_color", "#000000")))
+                        "y2", config.y2.tick_label_color,
+                        config.y2.match_x_colors,
+                        config.x.tick_label_color))
 
                 apply_tick_label_font(
                     self.chart_canvas.axes2.yaxis,
-                    config.get("y2_tick_label_font_size", 10),
-                    config.get("y2_tick_label_font_family", "DejaVu Sans"),
-                    bold=config.get("y2_tick_label_bold", False),
-                    italic=config.get("y2_tick_label_italic", False),
-                    rotation=config.get("y2_tick_label_rotation", 0),
+                    config.y2.tick_label_font_size,
+                    config.y2.tick_label_font_family,
+                    bold=config.y2.tick_label_bold,
+                    italic=config.y2.tick_label_italic,
+                    rotation=config.y2.tick_label_rotation,
                 )
 
-                if config.get("show_grid_y2", True):
+                if config.y2.show_grid:
                     self.chart_canvas.axes2.grid(visible=True, axis="y", alpha=config.grid_alpha)
                 else:
                     self.chart_canvas.axes2.grid(visible=False, axis="y")
-                if config.get("y2_show_minor_grid", False):
+                if config.y2.show_minor_grid:
                     self.chart_canvas.axes2.grid(
                         visible=True, axis="y", which="minor", alpha=config.minor_grid_alpha)
                 else:
                     self.chart_canvas.axes2.grid(visible=False, axis="y", which="minor")
 
-            if not config.get("x_auto_limits", True):
-                self.chart_canvas.axes.set_xlim(config.get("x_min", 0.0), config.get("x_max", 1.0))
-            if not config.get("y_auto_limits", True):
-                self.chart_canvas.axes.set_ylim(config.get("y_min", 0.0), config.get("y_max", 1.0))
-            if is_3d and not config.get("z_auto_limits", True):
-                self.chart_canvas.axes.set_zlim(config.get("z_min", 0.0), config.get("z_max", 1.0))
+            if not config.x.auto_limits:
+                self.chart_canvas.axes.set_xlim(config.x.min, config.x.max)
+            if not config.y.auto_limits:
+                self.chart_canvas.axes.set_ylim(config.y.min, config.y.max)
+            if is_3d and not config.z.auto_limits:
+                self.chart_canvas.axes.set_zlim(config.z.min, config.z.max)
 
             apply_axis_ticks(
                 self.chart_canvas.axes.xaxis,
-                config.get("x_tick_mode", "auto"), config.get("x_tick_count", 5),
-                config.get("x_tick_step", 1.0), config.get("x_tick_format", "auto"),
-                config.get("x_tick_format_custom", ""),
-                direction=config.get("x_tick_direction", "out"),
-                minor_enabled=config.get("x_minor_ticks", False),
-                minor_direction=config.get("x_minor_tick_direction", "out"),
-                major_color=config.get("x_major_tick_color", "#000000"),
-                minor_color=config.get("x_minor_tick_color", "#000000"),
-                labelcolor=config.get("x_tick_label_color", "#000000"))
+                config.x.tick_mode, config.x.tick_count,
+                config.x.tick_step, config.x.tick_format,
+                config.x.tick_format_custom,
+                direction=config.x.tick_direction,
+                minor_enabled=config.x.minor_ticks,
+                minor_direction=config.x.minor_tick_direction,
+                major_color=config.x.major_tick_color,
+                minor_color=config.x.minor_tick_color,
+                labelcolor=config.x.tick_label_color)
             apply_tick_label_font(
                 self.chart_canvas.axes.xaxis,
-                config.get("x_tick_label_font_size", 10),
-                config.get("x_tick_label_font_family", "DejaVu Sans"),
-                bold=config.get("x_tick_label_bold", False),
-                italic=config.get("x_tick_label_italic", False),
-                rotation=config.get("x_tick_label_rotation", 0),
+                config.x.tick_label_font_size,
+                config.x.tick_label_font_family,
+                bold=config.x.tick_label_bold,
+                italic=config.x.tick_label_italic,
+                rotation=config.x.tick_label_rotation,
             )
             apply_axis_ticks(
                 self.chart_canvas.axes.yaxis,
-                config.get("y_tick_mode", "auto"), config.get("y_tick_count", 5),
-                config.get("y_tick_step", 1.0), config.get("y_tick_format", "auto"),
-                config.get("y_tick_format_custom", ""),
-                direction=config.get("y_tick_direction", "out"),
-                minor_enabled=config.get("y_minor_ticks", False),
-                minor_direction=config.get("y_minor_tick_direction", "out"),
+                config.y.tick_mode, config.y.tick_count,
+                config.y.tick_step, config.y.tick_format,
+                config.y.tick_format_custom,
+                direction=config.y.tick_direction,
+                minor_enabled=config.y.minor_ticks,
+                minor_direction=config.y.minor_tick_direction,
                 major_color=resolve_axis_color(
-                    "y", config.get("y_major_tick_color", "#000000"),
-                    config.get("y_match_x_colors", True),
-                    config.get("x_major_tick_color", "#000000")),
+                    "y", config.y.major_tick_color,
+                    config.y.match_x_colors,
+                    config.x.major_tick_color),
                 minor_color=resolve_axis_color(
-                    "y", config.get("y_minor_tick_color", "#000000"),
-                    config.get("y_match_x_colors", True),
-                    config.get("x_minor_tick_color", "#000000")),
+                    "y", config.y.minor_tick_color,
+                    config.y.match_x_colors,
+                    config.x.minor_tick_color),
                 labelcolor=resolve_axis_color(
-                    "y", config.get("y_tick_label_color", "#000000"),
-                    config.get("y_match_x_colors", True),
-                    config.get("x_tick_label_color", "#000000")))
+                    "y", config.y.tick_label_color,
+                    config.y.match_x_colors,
+                    config.x.tick_label_color))
             apply_tick_label_font(
                 self.chart_canvas.axes.yaxis,
-                config.get("y_tick_label_font_size", 10),
-                config.get("y_tick_label_font_family", "DejaVu Sans"),
-                bold=config.get("y_tick_label_bold", False),
-                italic=config.get("y_tick_label_italic", False),
-                rotation=config.get("y_tick_label_rotation", 0),
+                config.y.tick_label_font_size,
+                config.y.tick_label_font_family,
+                bold=config.y.tick_label_bold,
+                italic=config.y.tick_label_italic,
+                rotation=config.y.tick_label_rotation,
             )
 
             if is_3d:
@@ -1330,35 +1328,35 @@ class ChartEditorWidget(PWidget):
                 # forms are X/Y/Y2 only), so it simply follows X's colors.
                 apply_axis_ticks(
                     self.chart_canvas.axes.zaxis,
-                    config.get("z_tick_mode", "auto"), config.get("z_tick_count", 5),
-                    config.get("z_tick_step", 1.0), config.get("z_tick_format", "auto"),
-                    config.get("z_tick_format_custom", ""),
-                    direction=config.get("z_tick_direction", "out"),
-                    minor_enabled=config.get("z_minor_ticks", False),
-                    minor_direction=config.get("z_minor_tick_direction", "out"),
-                    major_color=config.get("x_major_tick_color", "#000000"),
-                    minor_color=config.get("x_minor_tick_color", "#000000"),
-                    labelcolor=config.get("x_tick_label_color", "#000000"))
+                    config.z.tick_mode, config.z.tick_count,
+                    config.z.tick_step, config.z.tick_format,
+                    config.z.tick_format_custom,
+                    direction=config.z.tick_direction,
+                    minor_enabled=config.z.minor_ticks,
+                    minor_direction=config.z.minor_tick_direction,
+                    major_color=config.x.major_tick_color,
+                    minor_color=config.x.minor_tick_color,
+                    labelcolor=config.x.tick_label_color)
                 apply_tick_label_font(
                     self.chart_canvas.axes.zaxis,
-                    config.get("x_tick_label_font_size", 10),
-                    config.get("x_tick_label_font_family", "DejaVu Sans"),
-                    bold=config.get("x_tick_label_bold", False),
-                    italic=config.get("x_tick_label_italic", False),
-                    rotation=config.get("x_tick_label_rotation", 0),
+                    config.x.tick_label_font_size,
+                    config.x.tick_label_font_family,
+                    bold=config.x.tick_label_bold,
+                    italic=config.x.tick_label_italic,
+                    rotation=config.x.tick_label_rotation,
                 )
 
             apply_spine_colors(
                 self.chart_canvas.axes, self.chart_canvas.axes2,
-                config.get("x_spine_color", "#000000"),
+                config.x.spine_color,
                 resolve_axis_color(
-                    "y", config.get("y_spine_color", "#000000"),
-                    config.get("y_match_x_colors", True),
-                    config.get("x_spine_color", "#000000")),
+                    "y", config.y.spine_color,
+                    config.y.match_x_colors,
+                    config.x.spine_color),
                 resolve_axis_color(
-                    "y2", config.get("y2_spine_color", "#000000"),
-                    config.get("y2_match_x_colors", True),
-                    config.get("x_spine_color", "#000000")))
+                    "y2", config.y2.spine_color,
+                    config.y2.match_x_colors,
+                    config.x.spine_color))
 
             grid_alpha = config.grid_alpha
             minor_grid_alpha = config.minor_grid_alpha
@@ -1370,24 +1368,24 @@ class ChartEditorWidget(PWidget):
                 # Show it when any of the three axes wants a grid.
                 self.chart_canvas.axes.grid(
                     visible=(
-                        config.get("show_grid_x", True)
-                        or config.get("show_grid_y", True)
-                        or config.get("show_grid_z", True)
+                        config.x.show_grid
+                        or config.y.show_grid
+                        or config.z.show_grid
                     ))
             else:
-                if config.get("show_grid_x", True):
+                if config.x.show_grid:
                     self.chart_canvas.axes.grid(visible=True, axis="x", alpha=grid_alpha)
                 else:
                     self.chart_canvas.axes.grid(visible=False, axis="x")
-                if config.get("x_show_minor_grid", False):
+                if config.x.show_minor_grid:
                     self.chart_canvas.axes.grid(visible=True, axis="x", which="minor", alpha=minor_grid_alpha)
                 else:
                     self.chart_canvas.axes.grid(visible=False, axis="x", which="minor")
-                if config.get("show_grid_y", True):
+                if config.y.show_grid:
                     self.chart_canvas.axes.grid(visible=True, axis="y", alpha=grid_alpha)
                 else:
                     self.chart_canvas.axes.grid(visible=False, axis="y")
-                if config.get("y_show_minor_grid", False):
+                if config.y.show_minor_grid:
                     self.chart_canvas.axes.grid(visible=True, axis="y", which="minor", alpha=minor_grid_alpha)
                 else:
                     self.chart_canvas.axes.grid(visible=False, axis="y", which="minor")
@@ -1435,12 +1433,12 @@ class ChartEditorWidget(PWidget):
                                 self._artist_series_map[handle_art] = series_idx
                                 self._artist_series_map[text_art] = series_idx
 
-            tight_layout_kwargs = dict(
-                pad=config.chart_padding,
-                w_pad=config.chart_padding_w,
-                h_pad=config.chart_padding_h,
-                rect=(0, 0, 1, config.top_margin),
-            )
+            tight_layout_kwargs = {
+                "pad": config.chart_padding,
+                "w_pad": config.chart_padding_w,
+                "h_pad": config.chart_padding_h,
+                "rect": (0, 0, 1, config.top_margin),
+            }
             # Reserve room for the secondary axis label/ticks so they aren't
             # clipped at the right edge of the figure.
             apply_layout_with_legend(
@@ -1464,7 +1462,7 @@ class ChartEditorWidget(PWidget):
 
         except Exception as e:
             self.logger.exception("Error updating chart")
-            self.update_status(f"Chart error: {str(e)}")
+            self.update_status(f"Chart error: {e!s}")
 
     def _axes_children(self) -> set:
         """All child artists across the primary and (if present) secondary axes."""
@@ -1698,8 +1696,8 @@ class ChartEditorWidget(PWidget):
             try:
                 self.chart_canvas.reset_zoom()
                 self.update_status("Zoom reset")
-            except Exception as e:
-                self.update_status(f"Zoom reset error: {str(e)}")
+            except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+                self.update_status(f"Zoom reset error: {e!s}")
 
             # Reset status after 2 seconds
             QTimer.singleShot(2000, lambda: self.update_status("Ready"))

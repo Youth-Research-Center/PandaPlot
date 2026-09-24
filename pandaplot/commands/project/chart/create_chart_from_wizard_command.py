@@ -6,7 +6,7 @@ as soon as the wizard is on screen, and the chart is built later in
 `_on_wizard_finished`, driven by the wizard's `finished(int)` signal.
 """
 
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog
@@ -36,19 +36,19 @@ _DEFAULT_SERIES_COLORS = [
 class CreateChartFromWizardCommand(Command):
     """Opens `ChartWizard` non-blocking; on acceptance builds a `Chart` from it."""
 
-    def __init__(self, app_context: AppContext, dataset_id: Optional[str] = None,
-                 preselected_column_ids: Optional[list[str]] = None):
+    def __init__(self, app_context: AppContext, dataset_id: str | None = None,
+                 preselected_column_ids: list[str] | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
         self.ui_controller: UIController = app_context.get_ui_controller()
 
-        self.created_chart_id: Optional[str] = None
-        self.created_chart: Optional[Chart] = None
-        self._resolved_parent_id: Optional[str] = None
-        self.dataset_id: Optional[str] = dataset_id
+        self.created_chart_id: str | None = None
+        self.created_chart: Chart | None = None
+        self._resolved_parent_id: str | None = None
+        self.dataset_id: str | None = dataset_id
         self.preselected_column_ids: list[str] = preselected_column_ids or []
-        self._dialog: Optional[QDialog] = None
+        self._dialog: QDialog | None = None
 
     @override
     def marks_project_modified(self) -> bool:
@@ -90,7 +90,7 @@ class CreateChartFromWizardCommand(Command):
             return f"{dataset_name}:{y_column_name}"
         return dataset_name
 
-    def _resolve_parent_id(self, project, series_configs: list[dict]) -> Optional[str]:
+    def _resolve_parent_id(self, project, series_configs: list[dict]) -> str | None:
         """Folder for the new chart: the shared folder of every dataset its
         series use, or the project root if they don't share one.
 
@@ -190,13 +190,13 @@ class CreateChartFromWizardCommand(Command):
             dialog.activateWindow()
             return CommandResult.SUCCESS
 
-        except Exception as e:
-            error_msg = f"Failed to open chart wizard: {str(e)}"
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+            error_msg = f"Failed to open chart wizard: {e!s}"
             self.logger.error(f"CreateChartFromWizardCommand Error: {error_msg}")
             self.ui_controller.show_error_message("Create Chart Error", error_msg)
             return CommandResult.FAILURE
 
-    def _on_wizard_finished(self, result: int, dialog: Optional[QDialog] = None) -> None:
+    def _on_wizard_finished(self, result: int, dialog: QDialog | None = None) -> None:
         """Runs once the user actually finishes the wizard (Finish or Cancel).
 
         `execute()` returning True now only means "the wizard opened
@@ -242,7 +242,7 @@ class CreateChartFromWizardCommand(Command):
                     height_cm = getattr(chart_display, "default_height_cm", height_cm) or height_cm
                     dpi = getattr(chart_display, "dpi", dpi) or dpi
             except Exception:
-                pass
+                self.logger.debug("Could not read chart-display defaults from config; using hardcoded fallback", exc_info=True)
             chart.config.width_cm = width_cm
             chart.config.height_cm = height_cm
             chart.config.dpi = dpi
@@ -255,8 +255,8 @@ class CreateChartFromWizardCommand(Command):
                 )
                 chart.config.subtitle = dialog.get_subtitle()
                 chart.config.show_legend = dialog.get_show_legend()
-                chart.config["show_grid_x"] = dialog.get_show_grid()
-                chart.config["show_grid_y"] = dialog.get_show_grid()
+                chart.config.x.show_grid = dialog.get_show_grid()
+                chart.config.y.show_grid = dialog.get_show_grid()
                 series_type = SeriesType(chart.chart_type)
                 for index, series_config in enumerate(series_configs):
                     # Cycle through the same default palette data_tab.py's
@@ -306,8 +306,8 @@ class CreateChartFromWizardCommand(Command):
                 error_msg = f"Failed to create chart '{chart.name}'."
                 self.logger.error(f"CreateChartFromWizardCommand Error: {error_msg}")
                 self.ui_controller.show_error_message("Create Chart Error", error_msg)
-        except Exception as e:
-            error_msg = f"Failed to create chart: {str(e)}"
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+            error_msg = f"Failed to create chart: {e!s}"
             self.logger.error(f"CreateChartFromWizardCommand Error: {error_msg}")
             self.ui_controller.show_error_message("Create Chart Error", error_msg)
         finally:

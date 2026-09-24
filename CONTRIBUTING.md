@@ -20,7 +20,8 @@ Contributions are welcome! If you would like to contribute to PandaPlot, please 
     uv run pip-audit
     uv run vulture pandaplot
     ```
-7.  Submit a pull request.
+7.  If your change is user-facing, add an entry under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md).
+8.  Submit a pull request.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for an overview of the codebase, and [pandaplot_storybook/README.md](pandaplot_storybook/README.md) if you're working on shared PySide6 widgets.
 

@@ -77,7 +77,7 @@ class NoteTab(PWidget):
                 try:
                     update_fn(self, new_title)
                 except Exception:
-                    pass
+                    self.logger.debug("Failed to update tab title on parent container", exc_info=True)
 
     def get_tab_title(self) -> str:
         """Get the title for this tab."""
@@ -110,7 +110,7 @@ class NoteTab(PWidget):
         (see PR #352 review)."""
         try:
             return self.note_editor.save_content(track_undo=False)
-        except Exception:
+        except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             return False
 
     def has_unsaved_changes(self) -> bool:

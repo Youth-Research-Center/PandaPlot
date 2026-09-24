@@ -41,7 +41,7 @@ class TestCreateEmptyDatasetCommand:
         caller), no dialog opens and the dataset keeps today's fixed
         3-column/1-row/'' shape -- there is no channel to pass rows/cols/fill
         without the dialog, so this path is intentionally unchanged."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -65,7 +65,7 @@ class TestCreateEmptyDatasetCommand:
     def test_dialog_accepted_builds_float64_dataframe_with_nan(
         self, mock_app_context, sample_project
     ):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -92,7 +92,7 @@ class TestCreateEmptyDatasetCommand:
         assert dataset.data["Column1"].isna().all()
 
     def test_dialog_accepted_with_zero_fill_value(self, mock_app_context, sample_project):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -117,7 +117,7 @@ class TestCreateEmptyDatasetCommand:
         assert dataset.data["Column1"].tolist() == [0.0, 0.0, 0.0]
 
     def test_dialog_cancelled_aborts_creation(self, mock_app_context, sample_project):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -143,7 +143,7 @@ class TestCreateEmptyDatasetCommand:
         with self.dataset_name already set, which took the 'programmatic name'
         branch and silently rebuilt the dataset as the legacy 1x3/'' shape
         instead of the shape originally chosen in the dialog."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -204,7 +204,7 @@ class TestCreateEmptyDatasetCommand:
         assert "no project" in caplog.text.lower()
 
     def test_execute_logs_warning_when_current_project_none(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -216,7 +216,7 @@ class TestCreateEmptyDatasetCommand:
         assert "current_project is None" in caplog.text
 
     def test_undo_logs_warning_when_nothing_to_undo(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
         command = CreateEmptyDatasetCommand(app_context, dataset_name="Never executed")
 
@@ -226,7 +226,7 @@ class TestCreateEmptyDatasetCommand:
         assert result is CommandResult.FAILURE
 
     def test_redo_logs_warning_when_no_dataset_name(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         command = CreateEmptyDatasetCommand(app_context)
 
         with caplog.at_level(logging.WARNING):
@@ -235,7 +235,7 @@ class TestCreateEmptyDatasetCommand:
         assert result is CommandResult.FAILURE
 
     def test_cleanup_releases_the_dataset_id_and_project_reference(self, mock_app_context, sample_project):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         command = CreateEmptyDatasetCommand(app_context, dataset_name="Programmatic")
         command.dataset_id = "ds-1"
         command.project = sample_project

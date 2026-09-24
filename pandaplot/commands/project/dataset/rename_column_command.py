@@ -1,6 +1,6 @@
 """Command for renaming a dataset column, cascading to chart/fit references."""
 
-from typing import List, Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -30,8 +30,8 @@ class RenameColumnCommand(Command):
         self.dataset_id = dataset_id
         self.column_index = column_index
         self.new_name = new_name.strip()
-        self.old_name: Optional[str] = None
-        self.dataset: Optional[Dataset] = None
+        self.old_name: str | None = None
+        self.dataset: Dataset | None = None
         self._applied: bool = False
 
     @override
@@ -96,7 +96,7 @@ class RenameColumnCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to rename column: {e}"
-            self.logger.error(error_msg, exc_info=True)
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Rename Column Error", error_msg)
             return CommandResult.FAILURE
 
@@ -134,7 +134,7 @@ class RenameColumnCommand(Command):
                 "chart": chart,
             })
 
-    def _charts_referencing_column(self, current_name: str) -> List[Chart]:
+    def _charts_referencing_column(self, current_name: str) -> list[Chart]:
         """Return charts whose series/fits reference the renamed column.
 
         Matched by column id (via the dataset registry) with a name fallback
@@ -181,7 +181,7 @@ class RenameColumnCommand(Command):
             names = (fit.source_x_column, fit.source_y_column)
             return current_name in names or self.old_name in names
 
-        affected: List[Chart] = []
+        affected: list[Chart] = []
         for item in project.get_all_items():
             if not isinstance(item, Chart):
                 continue

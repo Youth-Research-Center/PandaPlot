@@ -4,7 +4,8 @@ Provides a generic framework for panels that should appear/disappear based on co
 """
 
 import logging
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QWidget
@@ -31,8 +32,8 @@ class ConditionalPanelManager(QObject):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.sidebar = sidebar
         self.tab_container = tab_container
-        self.registered_panels: Dict[str, Dict[str, Any]] = {}
-        self.current_tab_widget: Optional[QWidget] = None
+        self.registered_panels: dict[str, dict[str, Any]] = {}
+        self.current_tab_widget: QWidget | None = None
 
         # Connect to tab change events
         self._connect_tab_events()
@@ -107,7 +108,7 @@ class ConditionalPanelManager(QObject):
                     self.logger.debug("Panel '%s' visibility changed -> %s", panel_name, should_be_visible)
                     
             except Exception:
-                self.logger.error("Error evaluating condition for panel '%s'", panel_name, exc_info=True)
+                self.logger.exception("Error evaluating condition for panel '%s'", panel_name)
     
     def _update_panel_visibility(self, panel_name: str, *, should_be_visible: bool):
         """
@@ -126,9 +127,8 @@ class ConditionalPanelManager(QObject):
         
         if should_be_visible:
             # Show the panel if it exists and no panel is currently active
-            if panel_name in self.sidebar.panel_area.panels:
-                if not self.sidebar.active_panel:
-                    self.sidebar.show_panel(panel_name)
+            if panel_name in self.sidebar.panel_area.panels and not self.sidebar.active_panel:
+                self.sidebar.show_panel(panel_name)
         else:
             # Hide the panel if it's currently active
             if self.sidebar.active_panel == panel_name:
@@ -141,7 +141,7 @@ class ConditionalPanelManager(QObject):
                     if not self.sidebar.is_collapsed:
                         self.sidebar.toggle()
     
-    def _find_alternative_visible_panel(self) -> Optional[str]:
+    def _find_alternative_visible_panel(self) -> str | None:
         """
         Find an alternative panel that should be visible.
         

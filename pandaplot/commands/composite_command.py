@@ -1,4 +1,4 @@
-from typing import Iterable, List, Optional
+from collections.abc import Iterable
 
 from pandaplot.commands.base_command import Command, CommandResult
 
@@ -68,10 +68,10 @@ class CompositeCommand(Command):
     least loud rather than silent.
     """
 
-    def __init__(self, commands: Optional[Iterable[Command]] = None):
+    def __init__(self, commands: Iterable[Command] | None = None):
         super().__init__()
-        self.commands: List[Command] = list(commands) if commands is not None else []
-        self._executed: List[Command] = []
+        self.commands: list[Command] = list(commands) if commands is not None else []
+        self._executed: list[Command] = []
 
     def add_command(self, command: Command) -> None:
         """Add a sub-command to the composite."""
@@ -95,7 +95,7 @@ class CompositeCommand(Command):
                     "into a single atomic undo/redo unit."
                 )
 
-        executed: List[Command] = []
+        executed: list[Command] = []
 
         for cmd in self.commands:
             try:
@@ -110,11 +110,8 @@ class CompositeCommand(Command):
 
                 if res is not CommandResult.NOOP:
                     executed.append(cmd)
-            except Exception as e:
-                self.logger.error(
-                    "Sub-command %s raised exception during execute(): %s; rolling back %d completed sub-commands",
-                    cmd.__class__.__name__, e, len(executed), exc_info=True,
-                )
+            except Exception:
+                self.logger.exception("Sub-command %s raised exception during execute(); rolling back %d completed sub-commands", cmd.__class__.__name__, len(executed))
                 self._rollback(executed)
                 return CommandResult.FAILURE
 
@@ -124,16 +121,13 @@ class CompositeCommand(Command):
         return CommandResult.SUCCESS
 
     def undo(self) -> CommandResult:
-        undone: List[Command] = []
+        undone: list[Command] = []
 
         for cmd in reversed(self._executed):
             try:
                 res = cmd.undo()
-            except Exception as e:
-                self.logger.error(
-                    "Sub-command %s raised exception during undo(): %s; rolling back %d undone sub-commands",
-                    cmd.__class__.__name__, e, len(undone), exc_info=True,
-                )
+            except Exception:
+                self.logger.exception("Sub-command %s raised exception during undo(); rolling back %d undone sub-commands", cmd.__class__.__name__, len(undone))
                 self._rollback_undo(undone)
                 self._executed = []
                 return CommandResult.FAILURE
@@ -193,16 +187,13 @@ class CompositeCommand(Command):
         return CommandResult.SUCCESS
 
     def redo(self) -> CommandResult:
-        redone: List[Command] = []
+        redone: list[Command] = []
 
         for cmd in self._executed:
             try:
                 res = cmd.redo()
-            except Exception as e:
-                self.logger.error(
-                    "Sub-command %s raised exception during redo(): %s; rolling back %d redone sub-commands",
-                    cmd.__class__.__name__, e, len(redone), exc_info=True,
-                )
+            except Exception:
+                self.logger.exception("Sub-command %s raised exception during redo(); rolling back %d redone sub-commands", cmd.__class__.__name__, len(redone))
                 self._rollback(redone)
                 self._executed = []
                 return CommandResult.FAILURE
@@ -265,13 +256,10 @@ class CompositeCommand(Command):
         for cmd in self.commands:
             try:
                 cmd.cleanup()
-            except Exception as e:
-                self.logger.error(
-                    "Error cleaning up sub-command %s: %s",
-                    cmd.__class__.__name__, e, exc_info=True,
-                )
+            except Exception:
+                self.logger.exception("Error cleaning up sub-command %s", cmd.__class__.__name__)
 
-    def _rollback(self, executed: List[Command]) -> bool:
+    def _rollback(self, executed: list[Command]) -> bool:
         """Returns whether every compensating undo() call fully succeeded
         (reported SUCCESS, didn't raise). The FAILURE/exception callers below
         log-and-move-on regardless (see class caveat), but the ABORTED
@@ -293,15 +281,12 @@ class CompositeCommand(Command):
                         cmd.__class__.__name__, res,
                     )
                     all_succeeded = False
-            except Exception as e:
-                self.logger.error(
-                    "Error rolling back sub-command %s: %s",
-                    cmd.__class__.__name__, e, exc_info=True,
-                )
+            except Exception:
+                self.logger.exception("Error rolling back sub-command %s", cmd.__class__.__name__)
                 all_succeeded = False
         return all_succeeded
 
-    def _rollback_undo(self, undone: List[Command]) -> bool:
+    def _rollback_undo(self, undone: list[Command]) -> bool:
         """Re-apply sub-commands already undone earlier in this same undo()
         call, so a failure partway through never leaves a partial mutation
         in place. Mirrors _rollback(), but redo()es instead of undo()ing
@@ -319,11 +304,8 @@ class CompositeCommand(Command):
                         cmd.__class__.__name__, res,
                     )
                     all_succeeded = False
-            except Exception as e:
-                self.logger.error(
-                    "Error rolling back (re-applying) sub-command %s: %s",
-                    cmd.__class__.__name__, e, exc_info=True,
-                )
+            except Exception:
+                self.logger.exception("Error rolling back (re-applying) sub-command %s", cmd.__class__.__name__)
                 all_succeeded = False
         return all_succeeded
 

@@ -49,7 +49,7 @@ def test_nan_float_displays_as_empty_string(mock_app_context, sample_dataset):
     index = model.index(1, 0)
     value = model.data(index, Qt.ItemDataRole.DisplayRole)
 
-    assert value == "", f"Expected empty string for NaN, got: {repr(value)}"
+    assert value == "", f"Expected empty string for NaN, got: {value!r}"
 
 
 def test_normal_float_displays_as_string(mock_app_context, sample_dataset):
@@ -60,7 +60,7 @@ def test_normal_float_displays_as_string(mock_app_context, sample_dataset):
     index = model.index(0, 0)
     value = model.data(index, Qt.ItemDataRole.DisplayRole)
 
-    assert value == "1.5", f"Expected '1.5', got: {repr(value)}"
+    assert value == "1.5", f"Expected '1.5', got: {value!r}"
 
 
 def test_literal_nan_string_displays_as_nan(mock_app_context, sample_dataset):
@@ -71,7 +71,7 @@ def test_literal_nan_string_displays_as_nan(mock_app_context, sample_dataset):
     index = model.index(1, 1)
     value = model.data(index, Qt.ItemDataRole.DisplayRole)
 
-    assert value == "nan", f"Expected 'nan' string, got: {repr(value)}"
+    assert value == "nan", f"Expected 'nan' string, got: {value!r}"
 
 
 def test_edit_role_also_handles_nan(mock_app_context, sample_dataset):
@@ -82,7 +82,7 @@ def test_edit_role_also_handles_nan(mock_app_context, sample_dataset):
     index = model.index(1, 0)
     value = model.data(index, Qt.ItemDataRole.EditRole)
 
-    assert value == "", f"Expected empty string for NaN in EditRole, got: {repr(value)}"
+    assert value == "", f"Expected empty string for NaN in EditRole, got: {value!r}"
 
 
 def test_other_role_returns_none(mock_app_context, sample_dataset):

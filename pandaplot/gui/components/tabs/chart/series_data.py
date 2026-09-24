@@ -6,19 +6,19 @@ originated) so the series_renderers/ package can import it without a
 circular dependency on chart_editor.py.
 """
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
 class SeriesData:
     x_data: Any
     y_data: Any
-    x_err: Optional[Any]
-    y_err: Optional[Any]
-    x_err_minus: Optional[Any]
-    y_err_minus: Optional[Any]
-    error: Optional[str]
-    u_data: Optional[Any] = None
-    v_data: Optional[Any] = None
-    magnitude_data: Optional[Any] = None
-    z_data: Optional[Any] = None
+    x_err: Any | None
+    y_err: Any | None
+    x_err_minus: Any | None
+    y_err_minus: Any | None
+    error: str | None
+    u_data: Any | None = None
+    v_data: Any | None = None
+    magnitude_data: Any | None = None
+    z_data: Any | None = None

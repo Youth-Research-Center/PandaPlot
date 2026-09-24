@@ -6,7 +6,7 @@ import copy
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -25,6 +25,7 @@ from pandaplot.models.chart.series_style.heatmap import HeatmapSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.project.items.item import Item
 
 
@@ -57,7 +58,7 @@ class DataSeries:
     y_axis: YAxis = YAxis.PRIMARY
     alpha: float = 1.0
     series_type: SeriesType = SeriesType.LINE
-    style: Optional[SeriesStyleBase] = None
+    style: SeriesStyleBase | None = None
 
     def __post_init__(self):
         if isinstance(self.y_axis, str):
@@ -116,14 +117,14 @@ class FitData:
     source_x_column: str = ""
     source_y_column: str = ""
     visible: bool = True
-    fit_params: Optional[Dict[str, Any]] = None
-    fit_stats: Optional[Dict[str, Any]] = None
+    fit_params: dict[str, Any] | None = None
+    fit_stats: dict[str, Any] | None = None
     confidence_lower: np.ndarray | None = None
     confidence_upper: np.ndarray | None = None
     confidence_lower_column_id: str = ""
     confidence_upper_column_id: str = ""
     is_manual: bool = False
-    style: Optional[FitStyle] = None
+    style: FitStyle | None = None
 
     def __post_init__(self):
         if self.fit_params is None:
@@ -134,7 +135,7 @@ class FitData:
             self.style = FitStyle()
 
 
-def _series_style_from_dict(series_type: SeriesType, style_dict: Dict[str, Any]) -> SeriesStyleBase:
+def _series_style_from_dict(series_type: SeriesType, style_dict: dict[str, Any]) -> SeriesStyleBase:
     """Reconstruct a series' ``style`` from its serialized dict.
 
     ``dataclasses.asdict()`` flattens nested dataclasses (``marker``,
@@ -162,15 +163,15 @@ class Chart(Item):
     Supports multiple data series from different datasets.
     """
     
-    def __init__(self, id: Optional[str] = None, name: str = "",
+    def __init__(self, id: str | None = None, name: str = "",
                  chart_type: "str | ChartType" = ChartType.LINE):
         # Call parent constructor with CHART item type
         super().__init__(id, name)
 
         # Set chart-specific attributes
         self.chart_type: ChartType = ChartType(chart_type)
-        self.data_series: List[DataSeries] = []
-        self.fit_data: List[FitData] = []
+        self.data_series: list[DataSeries] = []
+        self.fit_data: list[FitData] = []
         self.config: ChartConfig = ChartConfig()
         self.style: ChartStyle = ChartStyle()
 
@@ -187,78 +188,13 @@ class Chart(Item):
 
         Chart-level fields (title, legend, grid globals, colormap, figure
         size/dpi/background, ...) get real dataclass defaults on
-        `ChartConfig`/`ChartStyle` -- see #146.
-
-        Axis-prefixed fields (x_label, x_min, show_grid_x, z_scale, ...) are
-        not yet typed (tracked as a follow-up PR; see ChartConfig's
-        docstring), but still need their historical defaults pre-populated
-        into `config._legacy` here -- axes_tab.py/chart_editor.py read them
-        via `.get(key, default)` with a matching inline default, so the two
-        are equivalent at read time either way, but leaving `_legacy` empty
-        here would silently drop these keys from a freshly created chart's
-        `to_dict()` output until the Axes tab was opened/applied at least
-        once, changing the persisted JSON shape for never-touched charts.
+        `ChartConfig`/`ChartStyle`; per-axis fields (label, min/max, ticks,
+        colors, fonts, ...) get theirs from `AxisConfig`, nested on
+        `ChartConfig.x`/`.y`/`.y2`/`.z` with the correct per-axis defaults
+        already baked in (e.g. `y.side="left"`, `y2.side="right"`) -- see
+        #146.
         """
         self.config = ChartConfig(title=self.name)
-        self.config._legacy.update({
-            "x_label": "",
-            "y_label": "",
-            "y2_label": "",
-            "show_grid_x": True,
-            "show_grid_y": True,
-            "show_grid_y2": True,
-            "x_font_size": 12,
-            "y_font_size": 12,
-            "y2_font_size": 12,
-            "x_scale": "linear",
-            "y_scale": "linear",
-            "y2_scale": "linear",
-            "y_side": "left",
-            "y2_side": "right",
-            "x_auto_limits": True,
-            "y_auto_limits": True,
-            "y2_auto_limits": True,
-            "x_min": 0.0,
-            "x_max": 1.0,
-            "y_min": 0.0,
-            "y_max": 1.0,
-            "y2_min": 0.0,
-            "y2_max": 1.0,
-            "x_tick_mode": "auto",
-            "y_tick_mode": "auto",
-            "y2_tick_mode": "auto",
-            "x_tick_count": 5,
-            "y_tick_count": 5,
-            "y2_tick_count": 5,
-            "x_tick_step": 1.0,
-            "y_tick_step": 1.0,
-            "y2_tick_step": 1.0,
-            "x_tick_format": "auto",
-            "y_tick_format": "auto",
-            "y2_tick_format": "auto",
-            "x_tick_format_custom": "",
-            "y_tick_format_custom": "",
-            "y2_tick_format_custom": "",
-            # Z axis (3-D chart types only -- see ChartTypeSpec.is_3d).
-            # Mirrors the x/y/y2 key families above one-for-one so AxesTab
-            # can drive it through the same prefix-keyed read/write helpers
-            # instead of a parallel Z-only code path. Written for every
-            # chart (2-D charts simply never render them), which is what
-            # keeps a chart that switches 2-D -> 3-D from starting out with
-            # a half-populated Z axis.
-            "z_label": "",
-            "z_scale": "linear",
-            "z_auto_limits": True,
-            "z_min": 0.0,
-            "z_max": 1.0,
-            "z_tick_mode": "auto",
-            "z_tick_count": 5,
-            "z_tick_step": 1.0,
-            "z_tick_format": "auto",
-            "z_tick_format_custom": "",
-            "z_font_size": 12,
-            "show_grid_z": True,
-        })
         self.style = ChartStyle()
     
     def retype_series(self, index: int, series_type: "str | SeriesType") -> None:
@@ -411,16 +347,57 @@ class Chart(Item):
             return True
         return False
     
-    def get_data_series(self, index: int) -> Optional[DataSeries]:
+    def get_data_series(self, index: int) -> DataSeries | None:
         """Get a data series by index."""
         if 0 <= index < len(self.data_series):
             return self.data_series[index]
         return None
     
-    def get_all_datasets(self) -> List[str]:
+    def get_all_datasets(self) -> list[str]:
         """Get all unique dataset IDs used in this chart."""
-        return list(set(series.dataset_id for series in self.data_series))
-    
+        return list({series.dataset_id for series in self.data_series})
+
+    def referenced_item_ids(self) -> set | None:
+        """Dataset ids referenced by any data series or fit (fit_data is
+        included here for relevance-checking purposes only -- see
+        _strip_references for why it's never actually stripped)."""
+        if not self.data_series and not self.fit_data:
+            return None
+        return (
+            {series.dataset_id for series in self.data_series}
+            | {fit.source_dataset_id for fit in self.fit_data}
+        )
+
+    def _strip_references(self, removed_ids: set) -> Any:
+        """Drop data series referencing a removed dataset. fit_data is
+        deliberately left alone even though it counts toward
+        referenced_item_ids(): a fit renders from its own stored
+        x_data/y_data arrays, not a live dataset lookup, so it stays valid
+        (just no longer re-fittable) after its source dataset is gone.
+
+        Returns None (a real no-op, no snapshot/modified-time bump/event)
+        when removed_ids only overlapped via fit_data -- referenced_item_ids()
+        includes fit_data for relevance detection, but if no data_series
+        actually gets dropped here, nothing about this chart changed."""
+        remaining_series = [
+            series for series in self.data_series if series.dataset_id not in removed_ids
+        ]
+        if len(remaining_series) == len(self.data_series):
+            return None
+        snapshot = snapshot_chart_state(self)
+        self.data_series = remaining_series
+        self.update_modified_time()
+        return snapshot
+
+    def restore_removed_items_snapshot(self, snapshot: Any) -> None:
+        """Undo _strip_references via the chart-state snapshot it returned."""
+        restore_chart_state(self, snapshot)
+
+    def dependency_update_event(self) -> tuple | None:
+        """Event DeleteItemCommand should emit after this chart's series
+        are stripped or restored."""
+        return ChartEvents.CHART_UPDATED, {"chart_id": self.id}
+
     def add_fit_data(self, source_dataset_id: str, fit_type: str,
                     x_data: np.ndarray, y_data: np.ndarray,
                     source_x_column_id: str = "", source_y_column_id: str = "",
@@ -468,7 +445,7 @@ class Chart(Item):
             return True
         return False
     
-    def get_fit_data(self, index: int) -> Optional[FitData]:
+    def get_fit_data(self, index: int) -> FitData | None:
         """Get fit data by index."""
         if 0 <= index < len(self.fit_data):
             return self.fit_data[index]
@@ -479,18 +456,18 @@ class Chart(Item):
         self.fit_data.clear()
         self.update_modified_time()
     
-    def update_config(self, config_updates: Dict[str, Any]) -> None:
+    def update_config(self, config_updates: dict[str, Any]) -> None:
         """Update chart configuration."""
         self.config.update(config_updates)
         self.update_modified_time()
     
-    def update_style(self, style_updates: Dict[str, Any]) -> None:
+    def update_style(self, style_updates: dict[str, Any]) -> None:
         """Update chart style."""
         self.style.update(style_updates)
         self.update_modified_time()
     
-    def set_labels(self, title: Optional[str] = None, x_label: Optional[str] = None, 
-                  y_label: Optional[str] = None) -> None:
+    def set_labels(self, title: str | None = None, x_label: str | None = None, 
+                  y_label: str | None = None) -> None:
         """Set chart labels."""
         if title is not None:
             self.config.title = title
@@ -498,12 +475,12 @@ class Chart(Item):
             if title != self.name:
                 self.name = title
         if x_label is not None:
-            self.config["x_label"] = x_label
+            self.config.x.label = x_label
         if y_label is not None:
-            self.config["y_label"] = y_label
+            self.config.y.label = y_label
         self.update_modified_time()
     
-    def get_config_summary(self) -> Dict[str, Any]:
+    def get_config_summary(self) -> dict[str, Any]:
         """Get a summary of the chart configuration."""
         return {
             "chart_type": self.chart_type,
@@ -511,7 +488,7 @@ class Chart(Item):
             "datasets": self.get_all_datasets(),
             "title": self.config.title,
             "has_legend": self.config.show_legend,
-            "has_grid": self.config.get("show_grid_x", True) or self.config.get("show_grid_y", True)
+            "has_grid": self.config.x.show_grid or self.config.y.show_grid
         }
     
     def search_chart(self, query: str, project: Any = None) -> bool:
@@ -546,7 +523,7 @@ class Chart(Item):
 
         return False
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert chart to dictionary for serialization."""
         data = super().to_dict()
         data.update({
@@ -594,7 +571,7 @@ class Chart(Item):
         return data
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Chart":
+    def from_dict(cls, data: dict[str, Any]) -> "Chart":
         """Create chart from dictionary."""
         chart = cls(
             id=data.get("id"),
@@ -604,7 +581,7 @@ class Chart(Item):
         
         # Set inherited attributes
         chart.parent_id = data.get("parent_id")
-        chart.created_at = data.get("created_at", datetime.now().isoformat())
+        chart.created_at = data.get("created_at", datetime.now().isoformat())  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones
         chart.modified_at = data.get("modified_at", chart.created_at)
         chart.metadata = data.get("metadata", {})
         
@@ -671,7 +648,7 @@ class Chart(Item):
 
 
 def resolve_series_column(dataset: Any, column_id: str,
-                          fallback_name: str) -> Optional[str]:
+                          fallback_name: str) -> str | None:
     """Resolve a column reference to its current DataFrame name.
 
     Prefers the stable ``column_id`` (via the dataset's id->name registry) so a
@@ -687,7 +664,7 @@ def resolve_series_column(dataset: Any, column_id: str,
     return fallback_name or None
 
 
-def resolve_numeric_column(dataset: Any, column_id: str) -> Optional[np.ndarray]:
+def resolve_numeric_column(dataset: Any, column_id: str) -> np.ndarray | None:
     """Resolve a column id to a JSON-safe numeric numpy array snapshot.
 
     Used for fit data (FitData.x_data/y_data/confidence_lower/
@@ -727,7 +704,7 @@ def resolve_manual_fit_source_data(
     y_column_id: str,
     confidence_lower_column_id: str = "",
     confidence_upper_column_id: str = "",
-) -> Optional[tuple[np.ndarray, np.ndarray, Optional[np.ndarray], Optional[np.ndarray]]]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None] | None:
     """Resolve X, Y, and optional confidence-lower/confidence-upper columns for a manual fit.
 
     Returns a 4-tuple of numpy arrays (x_data, y_data, confidence_lower, confidence_upper)
@@ -807,11 +784,10 @@ def assign_series_column_ids(series: "DataSeries", dataset: Any) -> None:
                 if cid is not None:
                     setattr(series.style, id_field, cid)
 
-    if isinstance(series.style, (ColormapSeriesStyle, HeatmapSeriesStyle)):
-        if not series.style.z_column_id and series.style.z_column:
-            cid = dataset.column_id(series.style.z_column)
-            if cid is not None:
-                series.style.z_column_id = cid
+    if isinstance(series.style, (ColormapSeriesStyle, HeatmapSeriesStyle)) and not series.style.z_column_id and series.style.z_column:
+        cid = dataset.column_id(series.style.z_column)
+        if cid is not None:
+            series.style.z_column_id = cid
 
 
 def assign_fit_column_ids(fit: "FitData", dataset: Any) -> None:
@@ -827,7 +803,7 @@ def assign_fit_column_ids(fit: "FitData", dataset: Any) -> None:
                 setattr(fit, id_field, cid)
 
 
-def snapshot_chart_state(chart: "Chart") -> Dict[str, Any]:
+def snapshot_chart_state(chart: "Chart") -> dict[str, Any]:
     """Capture the mutable chart state that the properties panel can change.
 
     The whole fit_data list is deep-copied, same as data_series -- a
@@ -845,7 +821,7 @@ def snapshot_chart_state(chart: "Chart") -> Dict[str, Any]:
     }
 
 
-def restore_chart_state(chart: "Chart", snapshot: Dict[str, Any]) -> None:
+def restore_chart_state(chart: "Chart", snapshot: dict[str, Any]) -> None:
     """Restore chart state captured by snapshot_chart_state."""
     chart.config = copy.deepcopy(snapshot["config"])
     chart.style = copy.deepcopy(snapshot["style"])

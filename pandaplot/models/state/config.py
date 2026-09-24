@@ -17,9 +17,10 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Dict, Mapping
+from typing import Any
 
 CONFIG_VERSION = "1.0.0"  # Increment when structure changes (migration hook)
 
@@ -68,10 +69,8 @@ class AppearanceConfig:
 	sidebar_position: str = "left"  # Which side the sidebar is docked on ("left"/"right")
 
 	def validate(self) -> None:
-		if self.interface_font_size < 8:
-			self.interface_font_size = 8
-		if self.editor_font_size < 8:
-			self.editor_font_size = 8
+		self.interface_font_size = max(self.interface_font_size, 8)
+		self.editor_font_size = max(self.editor_font_size, 8)
 		if self.sidebar_position not in ("left", "right"):
 			self.sidebar_position = "left"
 
@@ -85,8 +84,7 @@ class EditorConfig:
 	def validate(self) -> None:
 		if self.tab_size <= 0:
 			self.tab_size = 4
-		if self.tab_size > 16:  # Arbitrary upper bound to prevent absurd values
-			self.tab_size = 16
+		self.tab_size = min(self.tab_size, 16)
 
 
 @dataclass(slots=True)
@@ -99,7 +97,7 @@ class ProjectConfig:
 	# Example future field (commented):
 	# default_chart_type: str = "line"
 
-	def validate(self) -> None:  # noqa: D401 (simple placeholder)
+	def validate(self) -> None:
 		"""No validation rules yet."""
 		return
 
@@ -131,18 +129,12 @@ class ChartDisplayConfig:
 					self.measurement_unit = LengthUnit[str(self.measurement_unit).upper()]  # by name
 				except (KeyError, AttributeError):
 					self.measurement_unit = LengthUnit.CM
-		if self.dpi < 50:
-			self.dpi = 50
-		if self.dpi > 600:
-			self.dpi = 600
-		if self.default_width_cm < MIN_CHART_WIDTH_CM:
-			self.default_width_cm = MIN_CHART_WIDTH_CM
-		if self.default_width_cm > MAX_CHART_WIDTH_CM:
-			self.default_width_cm = MAX_CHART_WIDTH_CM
-		if self.default_height_cm < MIN_CHART_HEIGHT_CM:
-			self.default_height_cm = MIN_CHART_HEIGHT_CM
-		if self.default_height_cm > MAX_CHART_HEIGHT_CM:
-			self.default_height_cm = MAX_CHART_HEIGHT_CM
+		self.dpi = max(self.dpi, 50)
+		self.dpi = min(self.dpi, 600)
+		self.default_width_cm = max(self.default_width_cm, MIN_CHART_WIDTH_CM)
+		self.default_width_cm = min(self.default_width_cm, MAX_CHART_WIDTH_CM)
+		self.default_height_cm = max(self.default_height_cm, MIN_CHART_HEIGHT_CM)
+		self.default_height_cm = min(self.default_height_cm, MAX_CHART_HEIGHT_CM)
 
 
 @dataclass(slots=True)
@@ -175,11 +167,11 @@ class ApplicationConfig:
 
 	# ----- construction helpers -------------------------------------------------
 	@classmethod
-	def default(cls) -> "ApplicationConfig":
+	def default(cls) -> ApplicationConfig:
 		return cls()
 
 	# ----- serialization --------------------------------------------------------
-	def to_dict(self) -> Dict[str, Any]:
+	def to_dict(self) -> dict[str, Any]:
 		"""Return a JSON‑safe dict.
 
 		We avoid ``asdict`` for nested Enum normalisation.
@@ -225,7 +217,7 @@ class ApplicationConfig:
 		"""
 
 		# Sections mapping: section_name -> (instance, dataclass type)
-		sections: Dict[str, Any] = {
+		sections: dict[str, Any] = {
 			"auto_save": self.auto_save,
 			"appearance": self.appearance,
 			"editor": self.editor,
@@ -298,7 +290,7 @@ class ApplicationConfig:
 							except ValueError:
 								try:
 									sval_enum = enum_type[sval.upper()]
-								except Exception:  # noqa: BLE001
+								except Exception:  # noqa: BLE001, S112 -- best-effort config coercion; an invalid enum value is skipped so the field keeps its current/default value
 									continue
 							setattr(section_obj, skey, sval_enum)
 						continue
@@ -323,23 +315,21 @@ class ApplicationConfig:
 								pass
 						continue
 					if isinstance(current, int):
-						if isinstance(sval, (int, float)):
-							setattr(section_obj, skey, int(sval))
-						elif isinstance(sval, str) and sval.isdigit():
+						if isinstance(sval, (int, float)) or isinstance(sval, str) and sval.isdigit():
 							setattr(section_obj, skey, int(sval))
 						continue
 					if isinstance(current, str):
 						if isinstance(sval, str):
 							setattr(section_obj, skey, sval)
 						continue
-				except Exception:  # noqa: BLE001 - defensive; skip invalid
+				except Exception:  # noqa: BLE001, S112 - defensive; skip invalid values so config loading tolerates a malformed field instead of failing entirely
 					continue
 
 		self.validate()
 
 	# ----- factory / parsing ----------------------------------------------------
 	@classmethod
-	def from_mapping(cls, data: Mapping[str, Any]) -> "ApplicationConfig":
+	def from_mapping(cls, data: Mapping[str, Any]) -> ApplicationConfig:
 		cfg = cls.default()
 		if not isinstance(data, Mapping):
 			return cfg
@@ -348,11 +338,11 @@ class ApplicationConfig:
 		return cfg
 
 	@classmethod
-	def from_dict(cls, data: Dict[str, Any]) -> "ApplicationConfig":  # alias
+	def from_dict(cls, data: dict[str, Any]) -> ApplicationConfig:  # alias
 		return cls.from_mapping(data)
 
 	@classmethod
-	def from_json(cls, raw: str) -> "ApplicationConfig":
+	def from_json(cls, raw: str) -> ApplicationConfig:
 		try:
 			data = json.loads(raw)
 		except Exception:  # noqa: BLE001
@@ -362,7 +352,7 @@ class ApplicationConfig:
 		return cls.from_mapping(data)
 
 	# ----- utility --------------------------------------------------------------
-	def clone(self) -> "ApplicationConfig":
+	def clone(self) -> ApplicationConfig:
 		return copy.deepcopy(self)
 
 	def reset_defaults(self) -> None:
@@ -379,11 +369,11 @@ class ApplicationConfig:
 # Public export surface
 __all__ = [
 	"CONFIG_VERSION",
-	"Theme",
-	"LengthUnit",
-	"AutoSaveConfig",
 	"AppearanceConfig",
-	"EditorConfig",
-	"ProjectConfig",
 	"ApplicationConfig",
+	"AutoSaveConfig",
+	"EditorConfig",
+	"LengthUnit",
+	"ProjectConfig",
+	"Theme",
 ]

@@ -63,4 +63,4 @@ def test_close_is_still_called_and_flag_cleared_when_cleanup_raises():
 
     window.close.assert_called_once()
     assert window._is_closing is False
-    window.logger.error.assert_called_once()
+    window.logger.exception.assert_called_once()

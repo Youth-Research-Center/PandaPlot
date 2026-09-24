@@ -791,7 +791,9 @@ def test_note_editor_insert_image_refreshes_preview_only_mode(qapp):
     mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
     mock_dialog.get_selected_image.return_value = image
 
-    with patch("pandaplot.gui.components.tabs.note.note_editor.NoteImagePickerDialog", return_value=mock_dialog):
-        with patch.object(editor, "update_preview") as mock_update:
-            editor.insert_image_from_picker()
-            mock_update.assert_called_once()
+    with (
+        patch("pandaplot.gui.components.tabs.note.note_editor.NoteImagePickerDialog", return_value=mock_dialog),
+        patch.object(editor, "update_preview") as mock_update,
+    ):
+        editor.insert_image_from_picker()
+        mock_update.assert_called_once()

@@ -1,7 +1,8 @@
 import os
 import uuid
+from collections.abc import Callable
 from dataclasses import replace
-from typing import Any, Callable, List, Optional, Tuple, override
+from typing import Any, override
 
 import pandas as pd
 
@@ -37,7 +38,7 @@ class ImportDataCommand(Command):
     the undo stack.
     """
 
-    def __init__(self, app_context: AppContext, folder_id: Optional[str] = None):
+    def __init__(self, app_context: AppContext, folder_id: str | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -48,16 +49,16 @@ class ImportDataCommand(Command):
         self.file_path = None  # Path to the data file, can be set later
         self.dataset_name = None
         # Parse options chosen in the wizard; drives the background read.
-        self.import_options: Optional[ImportOptions] = None
+        self.import_options: ImportOptions | None = None
         # Excel worksheets to import, in workbook order, as chosen in the
         # wizard. None for CSV/TSV/JSON or until the wizard has run.
-        self.selected_sheets: Optional[List[str]] = None
+        self.selected_sheets: list[str] | None = None
 
         # Datasets read by the background task, kept alive for
         # test/introspection purposes; the real, undo-tracked effect of
         # adding them to the project happens via AddImportedDatasetsCommand
         # (see _on_import_result and occupies_undo_slot()).
-        self.imported_datasets: List[Dataset] = []
+        self.imported_datasets: list[Dataset] = []
         self.project = None
 
         # Task state
@@ -148,7 +149,7 @@ class ImportDataCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to initiate data import: {e}"
-            self.logger.error("ImportDataCommand Error: %s", error_msg, exc_info=True)
+            self.logger.exception("ImportDataCommand Error: %s", error_msg)
             self.ui_controller.show_error_message("Import Data Error", error_msg)
             self.is_importing = False  # Reset flag on error
             return CommandResult.FAILURE
@@ -184,7 +185,7 @@ class ImportDataCommand(Command):
         self.selected_sheets = dialog.get_selected_sheets() or None
         return True
 
-    def _read_frames(self) -> List[Tuple[str, pd.DataFrame]]:
+    def _read_frames(self) -> list[tuple[str, pd.DataFrame]]:
         """
         Read the file into (dataset_name, dataframe) pairs, honoring the parse
         options chosen in the wizard. Excel workbooks yield one pair per
@@ -234,8 +235,8 @@ class ImportDataCommand(Command):
             # Read the data file into one or more (name, dataframe) pairs
             try:
                 frames = self._read_frames()
-            except Exception as e:
-                return {"success": False, "error": f"Failed to read file: {str(e)}", "datasets": []}
+            except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+                return {"success": False, "error": f"Failed to read file: {e!s}", "datasets": []}
 
             if progress_callback:
                 progress_callback(0.6)  # File read successfully
@@ -272,8 +273,8 @@ class ImportDataCommand(Command):
             }
 
         except Exception as e:
-            error_msg = f"Error during data import: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Error during data import: {e!s}"
+            self.logger.exception(error_msg)
             return {"success": False, "error": error_msg, "datasets": []}
 
     def _on_import_result(self, result: dict):
@@ -282,7 +283,7 @@ class ImportDataCommand(Command):
             self.is_importing = False
 
             if result.get("success", False):
-                datasets: List[Dataset] = result.get("datasets") or []
+                datasets: list[Dataset] = result.get("datasets") or []
                 file_path = result.get("file_path")
 
                 # Assign on main thread to avoid thread safety issues
@@ -354,23 +355,23 @@ class ImportDataCommand(Command):
                 self.logger.error(f"Import failed: {error_msg}")
 
         except Exception as e:
-            self.logger.error(f"Error handling import result: {e}", exc_info=True)
-            self.ui_controller.show_error_message("Import Error", f"Error processing import result: {str(e)}")
+            self.logger.exception("Error handling import result")
+            self.ui_controller.show_error_message("Import Error", f"Error processing import result: {e!s}")
 
-    def _on_import_error(self, error_info: Tuple[Any, Any, str]):
+    def _on_import_error(self, error_info: tuple[Any, Any, str]):
         """Handle error during import task."""
         try:
             self.is_importing = False
             error_type, error_value, error_traceback = error_info
-            error_msg = f"Import failed with {error_type.__name__}: {str(error_value)}"
+            error_msg = f"Import failed with {error_type.__name__}: {error_value!s}"
 
             self.logger.error(f"Import task error: {error_msg}")
             self.logger.error(f"Traceback: {error_traceback}")
 
             self.ui_controller.show_error_message("Import Data Error", error_msg)
 
-        except Exception as e:
-            self.logger.error(f"Error handling import error: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error handling import error")
 
     def _on_import_finished(self):
         """Handle completion of import task (success or failure)."""
@@ -378,8 +379,8 @@ class ImportDataCommand(Command):
             self.is_importing = False
             self.logger.info("Import task finished")
 
-        except Exception as e:
-            self.logger.error(f"Error in import finished handler: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error in import finished handler")
 
     def _on_import_progress(self, progress: float):
         """Handle progress updates from import task."""
@@ -389,8 +390,8 @@ class ImportDataCommand(Command):
                 percentage = int(progress * 100)
                 self.logger.debug(f"Import progress: {percentage}%")
 
-        except Exception as e:
-            self.logger.error(f"Error handling import progress: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error handling import progress")
 
     @override
     def undo(self) -> CommandResult:

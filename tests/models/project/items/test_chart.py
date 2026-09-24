@@ -17,6 +17,7 @@ from pandaplot.models.chart.series_style import (
     VectorSeriesStyle,
 )
 from pandaplot.models.chart.series_type import SeriesType
+from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.project.items.chart import (
     Chart,
     DataSeries,
@@ -872,6 +873,39 @@ class TestChartConfigHasColorMapDefaults:
         assert restored.config["color_vmax"] == 42.0
 
 
+class TestChartConfigAxisFieldsRoundTripThroughToDictFromDict:
+    """Chart.config.x/.y/.y2/.z (AxisConfig, #146 PR2) must survive a
+    to_dict()/from_dict() round trip via Chart.from_dict()'s
+    `chart.config.update(data.get("config", {}))` call -- a regression
+    test for a real bug caught during implementation: the top-level "x"/
+    "y"/"y2"/"z" keys in the serialized dict are themselves ChartConfig
+    field names, so update()/__setitem__ must reconstruct them into
+    AxisConfig instances rather than blindly overwriting the field with
+    the raw nested dict."""
+
+    def test_a_modified_axis_field_survives_the_round_trip(self):
+        chart = Chart(name="C", chart_type="line")
+        chart.config.x.min = -5.0
+        chart.config.x.label = "Time (s)"
+        chart.config.y2.tick_mode = "count"
+
+        restored = Chart.from_dict(chart.to_dict())
+
+        assert restored.config.x.min == -5.0
+        assert restored.config.x.label == "Time (s)"
+        assert restored.config.y2.tick_mode == "count"
+        # An axis never touched keeps its own correct per-axis default.
+        assert restored.config.y.side == "left"
+        assert restored.config.y2.side == "right"
+
+    def test_serialized_config_has_no_leftover_flat_axis_keys(self):
+        chart = Chart(name="C", chart_type="line")
+        data = chart.to_dict()["config"]
+        assert "x_label" not in data
+        assert "show_grid_x" not in data
+        assert data["x"]["label"] == ""
+
+
 class TestRetypeSeriesToColormapCarriesOverMarker:
     """ColormapSeriesStyle.marker is a MarkerStyle field like Line/Scatter's
     -- retype_series' existing generic
@@ -1026,3 +1060,65 @@ class TestResolveManualFitSourceData:
         assert resolve_manual_fit_source_data(
             dataset, x_id, y_id, confidence_upper_column_id=text_id
         ) is None
+
+
+class TestChartDependencyHook:
+    def test_referenced_item_ids_is_none_when_no_series_or_fits(self):
+        chart = Chart(id="chart-1", name="Empty")
+
+        assert chart.referenced_item_ids() is None
+
+    def test_referenced_item_ids_includes_series_and_fit_dataset_ids(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+        chart.add_fit_data("ds-2", fit_type="linear", label="f1",
+                          x_data=np.array([1.0]), y_data=np.array([2.0]))
+
+        assert chart.referenced_item_ids() == {"ds-1", "ds-2"}
+
+    def test_on_items_removed_returns_none_without_overlap(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+
+        assert chart.on_items_removed({"ds-unrelated"}) is None
+        assert [s.dataset_id for s in chart.data_series] == ["ds-1"]
+
+    def test_on_items_removed_strips_matching_series(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+        chart.add_data_series("ds-2", label="s2")
+
+        snapshot = chart.on_items_removed({"ds-1"})
+
+        assert snapshot is not None
+        assert [s.dataset_id for s in chart.data_series] == ["ds-2"]
+
+    def test_restore_removed_items_snapshot_round_trips(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+        chart.add_data_series("ds-2", label="s2")
+        snapshot = chart.on_items_removed({"ds-1"})
+
+        chart.restore_removed_items_snapshot(snapshot)
+
+        assert [s.dataset_id for s in chart.data_series] == ["ds-1", "ds-2"]
+
+    def test_dependency_update_event_returns_chart_updated(self):
+        chart = Chart(id="chart-1", name="Chart")
+
+        assert chart.dependency_update_event() == (ChartEvents.CHART_UPDATED, {"chart_id": "chart-1"})
+
+    def test_on_items_removed_is_a_no_op_when_only_a_fit_overlaps(self):
+        """A chart whose only reference to a removed dataset is via
+        fit_data (not data_series) must not be treated as changed --
+        fit_data is included in referenced_item_ids() for relevance
+        detection only and is never stripped, so stripping nothing should
+        report nothing changed rather than a spurious snapshot/event."""
+        chart = Chart(id="chart-1", name="Fit-only chart")
+        chart.add_data_series("ds-unrelated", label="s1")
+        chart.add_fit_data("ds-1", fit_type="linear", label="f1",
+                          x_data=np.array([1.0]), y_data=np.array([2.0]))
+
+        assert chart.on_items_removed({"ds-1"}) is None
+        assert [s.dataset_id for s in chart.data_series] == ["ds-unrelated"]
+        assert [f.source_dataset_id for f in chart.fit_data] == ["ds-1"]

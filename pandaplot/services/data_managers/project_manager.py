@@ -118,9 +118,6 @@ class ProjectManager:
                 return False
                 
             path = Path(file_path)
-            if path.suffix not in self.supported_extensions:
-                return False
-            
-            return True
-        except Exception:
+            return path.suffix in self.supported_extensions
+        except Exception:  # noqa: BLE001 -- Best-effort file-validity check -- any error means the file isn't a valid project
             return False

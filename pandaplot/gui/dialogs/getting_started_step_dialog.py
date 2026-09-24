@@ -2,7 +2,8 @@
 no concrete navigation target from the welcome tab (they describe actions
 that only make sense inside an already-open project)."""
 
-from typing import Sequence, override
+from collections.abc import Sequence
+from typing import override
 
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout
 

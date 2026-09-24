@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from pandaplot.models.events import EventBus
 from pandaplot.models.events.event_types import ProjectEvents
@@ -16,7 +15,7 @@ class AppState:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.event_bus = event_bus
 
-        self._current_project: Optional[Project] = None
+        self._current_project: Project | None = None
         self._is_modified: bool = False
         # Bumped on every mark_modified() call, even while already dirty --
         # lets an async operation (e.g. SaveProjectCommand) snapshot "what
@@ -33,12 +32,12 @@ class AppState:
         self._save_in_progress: bool = False
 
     @property
-    def current_project(self) -> Optional[Project]:
+    def current_project(self) -> Project | None:
         """Get the currently loaded project."""
         return self._current_project
 
     @property
-    def project_file_path(self) -> Optional[str]:
+    def project_file_path(self) -> str | None:
         """Get the file path of the currently loaded project."""
         return self._current_project.project_file_path if self._current_project else None
 
@@ -96,7 +95,7 @@ class AppState:
         self._is_modified = True
         self.event_bus.emit(ProjectEvents.PROJECT_MODIFIED_CHANGED, {"is_modified": True})
 
-    def mark_saved(self, at_revision: Optional[int] = None) -> None:
+    def mark_saved(self, at_revision: int | None = None) -> None:
         """Flag the current project as having no unsaved changes.
 
         `at_revision` should be the `modification_revision` captured when

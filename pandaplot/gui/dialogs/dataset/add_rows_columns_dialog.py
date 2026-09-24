@@ -1,6 +1,6 @@
 """Dialog for growing an existing dataset to a desired table size."""
 
-from typing import List, NamedTuple, Optional
+from typing import NamedTuple
 
 from PySide6.QtWidgets import (
     QComboBox,
@@ -40,9 +40,9 @@ class AddRowsColumnsDialog(QDialog):
     never ask for data to be dropped.
     """
 
-    def __init__(self, datasets: List[DatasetSize],
-                 initial_dataset_id: Optional[str] = None,
-                 parent: Optional[QWidget] = None):
+    def __init__(self, datasets: list[DatasetSize],
+                 initial_dataset_id: str | None = None,
+                 parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Add Rows / Columns")
         self.setModal(True)
@@ -51,7 +51,7 @@ class AddRowsColumnsDialog(QDialog):
         self._setup_ui()
 
         index = self.dataset_combo.findData(initial_dataset_id)
-        self.dataset_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.dataset_combo.setCurrentIndex(max(index, 0))
         # setCurrentIndex only fires when the index actually changes, so seed
         # the size widgets from the selection explicitly.
         self._on_dataset_changed()
@@ -100,7 +100,7 @@ class AddRowsColumnsDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
 
-    def _selected_dataset(self) -> Optional[DatasetSize]:
+    def _selected_dataset(self) -> DatasetSize | None:
         dataset_id = self.dataset_combo.currentData()
         for dataset in self._datasets:
             if dataset.id == dataset_id:
@@ -141,7 +141,7 @@ class AddRowsColumnsDialog(QDialog):
                  or self.columns_spinbox.value() > dataset.columns)
         ok_button.setEnabled(grows)
 
-    def get_dataset_id(self) -> Optional[str]:
+    def get_dataset_id(self) -> str | None:
         return self.dataset_combo.currentData()
 
     def get_target_rows(self) -> int:

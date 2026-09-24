@@ -9,7 +9,7 @@ actually lands on the undo stack -- it owns the add/remove of a set of
 already-built Dataset objects, independent of how they were produced.
 """
 
-from typing import List, Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -24,9 +24,9 @@ class AddImportedDatasetsCommand(Command):
     def __init__(
         self,
         app_context: AppContext,
-        datasets: List[Dataset],
-        folder_id: Optional[str] = None,
-        file_path: Optional[str] = None,
+        datasets: list[Dataset],
+        folder_id: str | None = None,
+        file_path: str | None = None,
     ):
         super().__init__()
         self.app_context = app_context
@@ -60,8 +60,8 @@ class AddImportedDatasetsCommand(Command):
                 )
             self.logger.info("AddImportedDatasetsCommand: added %d dataset(s)", len(self.datasets))
             return CommandResult.SUCCESS
-        except Exception as e:
-            self.logger.error("AddImportedDatasetsCommand Execute Error: %s", str(e), exc_info=True)
+        except Exception:
+            self.logger.exception("AddImportedDatasetsCommand Execute Error")
             return CommandResult.FAILURE
 
     @override
@@ -81,8 +81,8 @@ class AddImportedDatasetsCommand(Command):
                 )
             self.logger.info("AddImportedDatasetsCommand: undid addition of %d dataset(s)", len(self.dataset_ids))
             return CommandResult.SUCCESS
-        except Exception as e:
-            self.logger.error("AddImportedDatasetsCommand Undo Error: %s", str(e), exc_info=True)
+        except Exception:
+            self.logger.exception("AddImportedDatasetsCommand Undo Error")
             return CommandResult.FAILURE
 
     @override

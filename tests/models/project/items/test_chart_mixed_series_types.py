@@ -58,7 +58,7 @@ class TestMixedSeriesTypesOnOneChart:
         assert line_series.style.color == "#00ff00"
 
     def test_each_series_dispatches_to_its_own_renderer(self):
-        chart, vector_series, line_series = _mixed_chart()
+        _chart, vector_series, line_series = _mixed_chart()
 
         assert SERIES_RENDERERS[vector_series.series_type] is render_vector_series
         assert SERIES_RENDERERS[line_series.series_type] is render_line_series
@@ -84,7 +84,7 @@ class TestMixedSeriesTypesOnOneChart:
         assert restored_line.style.line_width == 3.0
 
     def test_mutating_one_series_style_does_not_affect_the_other(self):
-        chart, vector_series, line_series = _mixed_chart()
+        _chart, vector_series, line_series = _mixed_chart()
 
         vector_series.style.vector_color = "#123456"
 

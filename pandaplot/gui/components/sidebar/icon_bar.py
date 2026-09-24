@@ -1,4 +1,4 @@
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent
@@ -33,9 +33,9 @@ class IconBar(PWidget):
 
         # Drag-to-dock state. The empty area of the icon bar acts as a drag
         # handle: dragging it toward an edge re-docks the sidebar on that side.
-        self._press_pos: Optional[QPoint] = None
+        self._press_pos: QPoint | None = None
         self._dragging: bool = False
-        self._drop_overlay: Optional[QWidget] = None
+        self._drop_overlay: QWidget | None = None
 
         self._initialize()
 

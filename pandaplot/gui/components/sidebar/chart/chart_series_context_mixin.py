@@ -4,7 +4,6 @@ Used by ChartAnalysisPanel, ChartSignalAnalysisPanel, and ChartTransformPanel
 to centralize current-chart and selected-source event handling (see #284).
 """
 
-from typing import Optional
 
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     find_series_fit_combo_index,
@@ -37,8 +36,8 @@ class ChartSeriesContextMixin:
     "plot result on" destination combo). Default is a no-op.
     """
 
-    current_chart: Optional[Chart]
-    current_chart_id: Optional[str]
+    current_chart: Chart | None
+    current_chart_id: str | None
 
     def setup_chart_series_context_subscriptions(self) -> None:
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
@@ -55,7 +54,7 @@ class ChartSeriesContextMixin:
     def _refresh_chart_references(self) -> None:
         pass
 
-    def _resolve_updated_chart(self, event_data: dict) -> Optional[Chart]:
+    def _resolve_updated_chart(self, event_data: dict) -> Chart | None:
         """Resolve the chart a CHART_UPDATED event refers to, or None if it
         doesn't resolve to a real Chart. Some emitters (e.g.
         ChartPropertiesPanel's live-edit publish, which fires on every

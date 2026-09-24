@@ -1,9 +1,10 @@
 """
 Note tab widget for displaying and editing notes in the main tab container.
 """
+import logging
 import os
 import re
-from typing import Dict, Optional, Set, override
+from typing import override
 from urllib.parse import unquote
 
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
@@ -65,6 +66,8 @@ _LINK_DEFINITION_RE = re.compile(r"^[ \t]{0,3}\[([^\]]+)\]:\s*(?:<([^>]*)>|(\S+)
 # edit/remove the `=WxH` modifier by hand.
 _DEFAULT_INSERT_MAX_WIDTH = 500
 
+logger = logging.getLogger(__name__)
+
 
 def get_project_base_dir(app_context: AppContext) -> str:
     """Get base directory for relative path resolution based on current project path."""
@@ -74,7 +77,7 @@ def get_project_base_dir(app_context: AppContext) -> str:
         if project and project.project_file_path:
             return os.path.dirname(os.path.abspath(project.project_file_path))
     except Exception:
-        pass
+        logger.debug("Could not resolve project base dir; falling back to cwd", exc_info=True)
     return os.getcwd()
 
 
@@ -88,7 +91,7 @@ def get_image_gallery_path(project, image_item: Image) -> str:
     return image_item.name
 
 
-def load_qimage_for_item(image_item: Image) -> Optional[QImage]:
+def load_qimage_for_item(image_item: Image) -> QImage | None:
     """Load QImage from Image item bytes or source file.
 
     Hits the network/disk for "external" images, so callers on a hot path
@@ -98,7 +101,7 @@ def load_qimage_for_item(image_item: Image) -> Optional[QImage]:
         data = image_item.get_bytes()
         if data is None and image_item.source_file:
             source = image_item.source_file
-            if source.startswith("http://") or source.startswith("https://"):
+            if source.startswith(("http://", "https://")):
                 import requests
                 resp = requests.get(source, timeout=5)
                 resp.raise_for_status()
@@ -111,11 +114,11 @@ def load_qimage_for_item(image_item: Image) -> Optional[QImage]:
             if qimg.loadFromData(data):
                 return qimg
     except Exception:
-        pass
+        logger.debug("Could not load image bytes for note preview", exc_info=True)
     return None
 
 
-def get_cached_qimage(image_item: Image, cache: Dict[str, Optional[QImage]]) -> Optional[QImage]:
+def get_cached_qimage(image_item: Image, cache: dict[str, QImage | None]) -> QImage | None:
     """Load an Image item's QImage, memoised by id in `cache`.
 
     Avoids re-decoding bytes (and re-fetching external URLs/files) on every
@@ -131,7 +134,7 @@ def get_cached_qimage(image_item: Image, cache: Dict[str, Optional[QImage]]) -> 
     return qimg
 
 
-def _add_key_and_decoded(keys: Set[str], target: Optional[str]) -> None:
+def _add_key_and_decoded(keys: set[str], target: str | None) -> None:
     if not target:
         return
     keys.add(target)
@@ -140,7 +143,7 @@ def _add_key_and_decoded(keys: Set[str], target: Optional[str]) -> None:
         keys.add(decoded)
 
 
-def extract_referenced_image_keys(source: str) -> Set[str]:
+def extract_referenced_image_keys(source: str) -> set[str]:
     """Return the set of image link targets referenced in note `source`.
 
     Used to skip loading/registering gallery images that the note doesn't
@@ -161,7 +164,7 @@ def extract_referenced_image_keys(source: str) -> Set[str]:
     a same-named external gallery image.
     """
     protected_source, _, _ = protect_code_regions(source)
-    keys: Set[str] = set()
+    keys: set[str] = set()
 
     for match in _IMAGE_REF_RE.finditer(protected_source):
         if is_escaped_at(protected_source, match.start()):
@@ -169,7 +172,7 @@ def extract_referenced_image_keys(source: str) -> Set[str]:
         target = match.group(1) if match.group(1) is not None else match.group(2)
         _add_key_and_decoded(keys, target)
 
-    definitions: Dict[str, str] = {}
+    definitions: dict[str, str] = {}
     for def_match in _LINK_DEFINITION_RE.finditer(protected_source):
         target = def_match.group(2) if def_match.group(2) is not None else def_match.group(3)
         if target:
@@ -188,8 +191,8 @@ def extract_referenced_image_keys(source: str) -> Set[str]:
 def register_project_image_resources(
     document: QTextDocument,
     app_context: AppContext,
-    cache: Optional[Dict[str, Optional[QImage]]] = None,
-    referenced_keys: Optional[Set[str]] = None,
+    cache: dict[str, QImage | None] | None = None,
+    referenced_keys: set[str] | None = None,
 ) -> str:
     """Configure document base URL and register referenced gallery images as resources.
 
@@ -246,7 +249,7 @@ def register_project_image_resources(
                         continue
                     document.addResource(QTextDocument.ResourceType.ImageResource, url, qimg)
     except Exception:
-        pass
+        logger.debug("Could not register gallery images as note document resources", exc_info=True)
 
     return base_dir
 
@@ -257,13 +260,13 @@ class NotePreviewBrowser(QTextBrowser):
     project gallery images for note preview rendering.
     """
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(parent)
         self.app_context = app_context
         self.setOpenExternalLinks(True)
         # Memoises decoded gallery images by id; cleared by the owning editor
         # when project images actually change (see NoteEditorWidget).
-        self.image_cache: Dict[str, Optional[QImage]] = {}
+        self.image_cache: dict[str, QImage | None] = {}
 
     @override
     def loadResource(self, type_: int, name: QUrl):
@@ -281,7 +284,7 @@ class NotePreviewBrowser(QTextBrowser):
 
         return super().loadResource(type_, name)
 
-    def _resolve_gallery_image(self, name: QUrl) -> Optional[QImage]:
+    def _resolve_gallery_image(self, name: QUrl) -> QImage | None:
         """Resolve `name` to a gallery image by exact id or exact gallery path only.
 
         No fuzzy filename/stem matching, and no match against source_file:
@@ -310,7 +313,7 @@ class NotePreviewBrowser(QTextBrowser):
                     if qimg is not None and not qimg.isNull():
                         return qimg
         except Exception:
-            pass
+            logger.debug("Could not resolve note image resource %r", name.toString(), exc_info=True)
         return None
 
 
@@ -595,8 +598,8 @@ class NoteEditorWidget(PWidget):
             self.update_status("PDF exported ✓")
             QTimer.singleShot(2000, lambda: self.update_status("Ready"))
         except Exception as e:
-            self.logger.error("Failed to export note to PDF: %s", e, exc_info=True)
-            self.update_status(f"Error: {str(e)}")
+            self.logger.exception("Failed to export note to PDF")
+            self.update_status(f"Error: {e!s}")
 
     def create_toolbar_actions(self, toolbar: QToolBar):
         """Create toolbar actions for text formatting."""
@@ -815,7 +818,7 @@ class NoteEditorWidget(PWidget):
         return False
 
     @staticmethod
-    def _snapshot_has_image_descendant(item_data: Optional[dict]) -> bool:
+    def _snapshot_has_image_descendant(item_data: dict | None) -> bool:
         """Best-effort check of a deleted item's serialized snapshot
         (Item.to_dict()) for an embedded Image.
 
@@ -989,8 +992,8 @@ class NoteEditorWidget(PWidget):
             QTimer.singleShot(2000, lambda: self.update_status("Ready"))
             return True
 
-        except Exception as e:
-            self.update_status(f"Error: {str(e)}")
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            self.update_status(f"Error: {e!s}")
             return False
 
     def auto_save(self):

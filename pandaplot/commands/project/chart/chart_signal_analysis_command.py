@@ -16,7 +16,8 @@ then -- once the result is back -- running ApplySignalAnalysisResultCommand,
 which is the command that actually occupies an undo slot.
 """
 
-from typing import Any, Callable, Dict, Optional, override
+from collections.abc import Callable
+from typing import Any, override
 
 import pandas as pd
 
@@ -56,14 +57,14 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
         source_kind: SourceKind,
         source_index: int,
         analysis_type: SignalAnalysisType,
-        sampling_rate: Optional[float] = None,
-        parameters: Optional[Dict[str, Any]] = None,
-        result_name: Optional[str] = None,
-        folder_id: Optional[str] = None,
+        sampling_rate: float | None = None,
+        parameters: dict[str, Any] | None = None,
+        result_name: str | None = None,
+        folder_id: str | None = None,
         *,
         plot_result: bool = False,
-        plot_target_chart_id: Optional[str] = None,
-        on_complete: Optional[Callable[[CommandResult], None]] = None,
+        plot_target_chart_id: str | None = None,
+        on_complete: Callable[[CommandResult], None] | None = None,
     ):
         super().__init__(on_complete=on_complete)
 
@@ -84,18 +85,18 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
         self.plot_result = plot_result
         self.plot_target_chart_id = plot_target_chart_id
 
-        self.result_dataset_id: Optional[str] = None
-        self.result: Optional[SignalAnalysisResult] = None
+        self.result_dataset_id: str | None = None
+        self.result: SignalAnalysisResult | None = None
 
         # Cache for _resolve_xy_cached: the resolved series don't change over
         # the command's lifetime, and the UI calls it repeatedly (once per
         # segment bound, on every spinbox tick) to resolve/bound indices.
-        self._resolved_xy_cache: Optional[tuple[pd.Series, pd.Series, str, str]] = None
+        self._resolved_xy_cache: tuple[pd.Series, pd.Series, str, str] | None = None
         self._chart_finder = ChartFinder(app_context)
 
     # -- source resolution ------------------------------------------------
 
-    def _get_chart(self) -> Optional[Chart]:
+    def _get_chart(self) -> Chart | None:
         return self._chart_finder.find(self.chart_id)
 
     def _resolve_xy(self, chart: Chart) -> tuple[pd.Series, pd.Series, str, str]:
@@ -130,7 +131,7 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
         except (ValueError, AttributeError):
             return 0
 
-    def resolve_point(self, index: int) -> Optional[tuple[float, float]]:
+    def resolve_point(self, index: int) -> tuple[float, float] | None:
         """Return the resolved (x, y) at a source-series index, or None.
 
         Used by the UI to show the actual data point a segment start/end
@@ -147,7 +148,7 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
         except (ValueError, AttributeError):
             return None
 
-    def resolve_segment_x(self, start: int = 0, end: Optional[int] = None) -> Optional[pd.Series]:
+    def resolve_segment_x(self, start: int = 0, end: int | None = None) -> pd.Series | None:
         """Return the resolved x values for the [start:end) segment (the
         same exclusive-end convention as parameters["end_index"]), or None
         if the chart/series is unavailable.
@@ -184,7 +185,7 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
         y_segment.name = y_label
         return y_segment
 
-    def _extra_kwargs(self) -> Dict[str, Any]:
+    def _extra_kwargs(self) -> dict[str, Any]:
         """Signal-specific kwargs for SignalEngine.run_analysis: everything
         in `parameters` except the segment bounds, which are consumed here
         rather than passed through (SignalEngine has no such parameters)."""
@@ -201,7 +202,7 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
             **self._extra_kwargs(),
         )
 
-    def run_analysis_async(self, on_complete: Callable[[Optional[SignalAnalysisResult], Optional[str]], None]) -> None:
+    def run_analysis_async(self, on_complete: Callable[[SignalAnalysisResult | None, str | None], None]) -> None:
         """Non-undoable preview path: computes a SignalAnalysisResult on a
         background thread and reports it (or an error message) via
         on_complete(result, error). Does not touch the project."""
@@ -279,7 +280,7 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            self.logger.error("Chart signal analysis failed: %s", e, exc_info=True)
+            self.logger.exception("Chart signal analysis failed")
             self.ui_controller.show_error_message("Chart Signal Analysis Error", str(e))
             self._is_running = False
             return CommandResult.FAILURE

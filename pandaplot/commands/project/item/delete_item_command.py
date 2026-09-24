@@ -1,10 +1,10 @@
-from typing import Any, Dict, Optional, Type, override
+from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.project.items import Item
+from pandaplot.models.project.items import Item, ItemCollection
 from pandaplot.models.state import AppContext, AppState
 
 
@@ -12,6 +12,12 @@ class DeleteItemCommand(Command):
     """
     Generic command to delete any project item using to_dict/from_dict serialization.
     This command works with any item type that extends the Item base class.
+
+    Also cascades to any item that references something being deleted (directly,
+    or as part of deleting a Folder that contains it) via Item.on_items_removed --
+    e.g. a Chart's data_series referencing a Dataset. This command has no
+    knowledge of which item types have dependencies or what those dependencies
+    look like; that lives entirely on the dependent item's own class.
     """
 
     def __init__(self, app_context: AppContext, item_id: str, *, confirm: bool = True):
@@ -24,9 +30,61 @@ class DeleteItemCommand(Command):
         self.confirm = confirm
 
         # Store state for undo
-        self.deleted_item_data: Optional[Dict[str, Any]] = None
-        self.deleted_item_class: Optional[Type[Item]] = None
-        self.parent_item: Optional[Item] = None
+        self.deleted_item_data: dict[str, Any] | None = None
+        self.deleted_item_class: type[Item] | None = None
+        self.parent_item: Item | None = None
+
+        # Items whose on_items_removed() hook fired because they referenced
+        # something being deleted, keyed by item id -- captured fresh in
+        # execute()/redo() (via _apply_dependency_cleanup) so undo() can
+        # restore each one to its exact prior state.
+        self._snapshots: dict[str, Any] = {}
+
+    def _collect_ids_under(self, item: Item) -> set:
+        """item.id plus, recursively, every child id if item is a Folder --
+        project.remove_item() cascades to children the same way."""
+        ids = {item.id}
+        if isinstance(item, ItemCollection):
+            for child in item.get_items():
+                ids |= self._collect_ids_under(child)
+        return ids
+
+    def _apply_dependency_cleanup(self, project, removed_ids: set) -> None:
+        """Call on_items_removed() on every item whose class has ever
+        overridden referenced_item_ids(), snapshotting each one that was
+        actually affected so undo() can restore it exactly. Recomputes
+        from scratch every call, so it's safe to call again from redo()
+        after undo() has put those references back."""
+        self._snapshots = {}
+        dependency_classes = tuple(Item._dependency_aware_classes)
+        if not dependency_classes:
+            return
+        # Not atomic: if on_items_removed() raises partway through, items
+        # already stripped before the exception are not rolled back. Accepted
+        # since execute() returning FAILURE means this command never reaches
+        # the undo stack anyway.
+        for other in project.get_all_items():
+            if other.id in removed_ids or not isinstance(other, dependency_classes):
+                continue
+            snapshot = other.on_items_removed(removed_ids)
+            if snapshot is not None:
+                self._snapshots[other.id] = snapshot
+                self._emit_dependency_update_event(other)
+
+    def _restore_dependency_cleanup(self, project) -> None:
+        """Undo _apply_dependency_cleanup: restore every affected item to
+        what it was right before this command's execute()/redo() ran."""
+        for item_id, snapshot in self._snapshots.items():
+            item = project.find_item(item_id)
+            if item is not None:
+                item.restore_removed_items_snapshot(snapshot)
+                self._emit_dependency_update_event(item)
+
+    def _emit_dependency_update_event(self, item: Item) -> None:
+        event = item.dependency_update_event()
+        if event is not None:
+            name, payload = event
+            self.app_context.event_bus.emit(name, payload)
 
     @override
     def execute(self) -> CommandResult:
@@ -80,6 +138,11 @@ class DeleteItemCommand(Command):
                 if not response:
                     return CommandResult.FAILURE
 
+            # Cascade to any item referencing something this delete is
+            # about to remove, before it actually disappears -- otherwise
+            # those references silently dangle (see class docstring).
+            self._apply_dependency_cleanup(project, self._collect_ids_under(item))
+
             # Remove the item from the project
             project.remove_item(item)
 
@@ -100,8 +163,8 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to delete item: {str(e)}"
-            self.logger.error("DeleteItemCommand Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to delete item: {e!s}"
+            self.logger.exception("DeleteItemCommand Error: %s", error_msg)
             self.ui_controller.show_error_message(
                 "Delete Item Error", error_msg)
             return CommandResult.FAILURE
@@ -134,6 +197,9 @@ class DeleteItemCommand(Command):
             # Add the item back to the project
             project.add_item(restored_item, parent_id=parent_id)
 
+            # Restore any items this delete had cascaded into.
+            self._restore_dependency_cleanup(project)
+
             # Get item info for logging
             item_name = getattr(restored_item, "name", self.item_id)
             item_type = self.deleted_item_class.__name__.lower()
@@ -155,8 +221,8 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to undo delete item: {str(e)}"
-            self.logger.error("DeleteItemCommand Undo Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to undo delete item: {e!s}"
+            self.logger.exception("DeleteItemCommand Undo Error: %s", error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 
@@ -182,6 +248,11 @@ class DeleteItemCommand(Command):
                 self.logger.warning("DeleteItemCommand.redo: item '%s' not found", self.item_id)
                 return CommandResult.FAILURE
 
+            # Re-run the dependency cascade -- undo() put those references
+            # back, so this recomputes fresh rather than assuming last
+            # time's result still applies.
+            self._apply_dependency_cleanup(project, self._collect_ids_under(item))
+
             # Remove the item from the project
             project.remove_item(item)
 
@@ -206,8 +277,8 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to redo delete item: {str(e)}"
-            self.logger.error("DeleteItemCommand Redo Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to redo delete item: {e!s}"
+            self.logger.exception("DeleteItemCommand Redo Error: %s", error_msg)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return CommandResult.FAILURE
 
@@ -219,3 +290,4 @@ class DeleteItemCommand(Command):
         self.deleted_item_data = None
         self.deleted_item_class = None
         self.parent_item = None
+        self._snapshots = {}

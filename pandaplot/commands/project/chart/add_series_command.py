@@ -1,6 +1,6 @@
 """Command for adding a data series to a chart."""
 
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
@@ -19,7 +19,7 @@ class AddSeriesCommand(Command):
         self.ui_controller: UIController = app_context.get_ui_controller()
         self.chart_id = chart_id
         self.series = series
-        self.added_index: Optional[int] = None
+        self.added_index: int | None = None
         self._chart_finder = ChartFinder(app_context)
 
     @override

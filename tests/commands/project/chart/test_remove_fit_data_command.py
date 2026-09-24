@@ -81,7 +81,7 @@ def test_execute_logs_a_warning_when_chart_not_found(caplog):
 
 
 def test_undo_logs_a_warning_when_nothing_to_undo(app_context_with_chart, caplog):
-    app_context, chart = app_context_with_chart
+    app_context, _chart = app_context_with_chart
 
     command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
 
@@ -135,7 +135,7 @@ def test_undo_restores_the_fit_with_its_typed_style_object_intact(app_context_wi
 
 
 def test_cleanup_releases_the_removed_fit_data_snapshot(app_context_with_chart):
-    app_context, chart = app_context_with_chart
+    app_context, _chart = app_context_with_chart
     command = RemoveFitDataCommand(app_context, chart_id="chart-1", fit_index=0)
 
     command.execute()

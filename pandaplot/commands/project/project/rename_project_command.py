@@ -1,6 +1,6 @@
 """Command for renaming the current project itself (not a project tree item)."""
 
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -24,7 +24,7 @@ class RenameProjectCommand(Command):
         self.ui_controller: UIController = app_context.get_ui_controller()
 
         self.new_name = new_name.strip()
-        self.old_name: Optional[str] = None
+        self.old_name: str | None = None
         self._applied: bool = False
 
     @override
@@ -58,7 +58,7 @@ class RenameProjectCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to rename project: {e}"
-            self.logger.error(error_msg, exc_info=True)
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Rename Project Error", error_msg)
             return CommandResult.FAILURE
 

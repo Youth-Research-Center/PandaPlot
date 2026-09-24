@@ -6,11 +6,11 @@ from pandaplot.commands.project.project.rename_project_command import RenameProj
 from pandaplot.commands.project.project.save_project_command import SaveProjectAsCommand, SaveProjectCommand
 
 __all__ = [
-    "OpenProjectCommand",
-    "NewProjectCommand",
-    "SaveProjectCommand",
-    "SaveProjectAsCommand",
-    "LoadProjectCommand",
     "CloseProjectCommand",
-    "RenameProjectCommand"
+    "LoadProjectCommand",
+    "NewProjectCommand",
+    "OpenProjectCommand",
+    "RenameProjectCommand",
+    "SaveProjectAsCommand",
+    "SaveProjectCommand"
 ]

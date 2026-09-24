@@ -67,12 +67,12 @@ def quantize_cm(value_cm: float, unit: LengthUnit) -> float:
 
 
 __all__ = [
-    "to_cm",
+    "format_size",
     "from_cm",
-    "unit_suffix",
+    "quantize_cm",
+    "to_cm",
+    "unit_bounds",
     "unit_decimals",
     "unit_step",
-    "unit_bounds",
-    "format_size",
-    "quantize_cm",
+    "unit_suffix",
 ]

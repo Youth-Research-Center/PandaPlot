@@ -11,7 +11,7 @@ transformed data and the parameters that were fitted from it.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 
@@ -44,7 +44,7 @@ class PreprocessingInfo:
     default_range_max: float = 1.0
 
 
-PREPROCESSING_METHODS: Dict[PreprocessingMethod, PreprocessingInfo] = {
+PREPROCESSING_METHODS: dict[PreprocessingMethod, PreprocessingInfo] = {
 
     PreprocessingMethod.CENTER: PreprocessingInfo(
         method=PreprocessingMethod.CENTER,
@@ -119,9 +119,9 @@ class PreprocessingResult:
     data: pd.Series
 
     # Parameters fitted from the data (mean, std, min, max, median, iqr, ...).
-    statistics: Dict[str, float] = field(default_factory=dict)
+    statistics: dict[str, float] = field(default_factory=dict)
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def result_name(self) -> str:
         """Generate a default result column name."""
@@ -129,6 +129,6 @@ class PreprocessingResult:
         return f"{self.source_column}_{suffix}"
 
 
-def list_methods() -> List[PreprocessingInfo]:
+def list_methods() -> list[PreprocessingInfo]:
     """Return the catalog of transformations in display order."""
     return [PREPROCESSING_METHODS[m] for m in PreprocessingMethod]

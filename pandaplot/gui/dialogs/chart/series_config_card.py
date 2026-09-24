@@ -3,7 +3,6 @@ dataset picker, per-role column pickers, an optional error-bars toggle, and
 a remove button. Collapsible to a one-line summary via `set_collapsed`,
 mirroring the accordion pattern used by the Chart Properties panel's Data tab.
 """
-from typing import Optional
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
@@ -41,16 +40,16 @@ class SeriesConfigCard(Card):
     configChanged = Signal()
     datasetChanged = Signal(str)
 
-    def __init__(self, role_spec: ChartTypeSpec, parent: Optional[QWidget] = None, index: int = 0):
+    def __init__(self, role_spec: ChartTypeSpec, parent: QWidget | None = None, index: int = 0):
         super().__init__(parent)
         self._role_spec = role_spec
         self._role_combos: dict[str, QComboBox] = {}
-        self.error_bars_check: Optional[QCheckBox] = None
-        self.error_asymmetric_check: Optional[QCheckBox] = None
-        self.x_error_column_combo: Optional[QComboBox] = None
-        self.y_error_column_combo: Optional[QComboBox] = None
-        self.x_error_minus_column_combo: Optional[QComboBox] = None
-        self.y_error_minus_column_combo: Optional[QComboBox] = None
+        self.error_bars_check: QCheckBox | None = None
+        self.error_asymmetric_check: QCheckBox | None = None
+        self.x_error_column_combo: QComboBox | None = None
+        self.y_error_column_combo: QComboBox | None = None
+        self.x_error_minus_column_combo: QComboBox | None = None
+        self.y_error_minus_column_combo: QComboBox | None = None
         self._collapsed = False
         self._tokens: dict = {}
         self._index = index

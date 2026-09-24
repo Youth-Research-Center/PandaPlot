@@ -3,7 +3,7 @@ Command to add multiple columns to a dataset at once.
 """
 
 from enum import Enum
-from typing import Any, List, Literal, Optional, override
+from typing import Any, Literal, override
 
 import pandas as pd
 
@@ -30,10 +30,10 @@ class AddColumnsCommand(Command):
     When multiple columns are added at the same reference position, they are inserted consecutively.
     """
 
-    def __init__(self, app_context: AppContext, dataset_id: str, column_names: List[str],
-                 reference_positions: List[int],
+    def __init__(self, app_context: AppContext, dataset_id: str, column_names: list[str],
+                 reference_positions: list[int],
                  side: Literal["left", "right"] = "right",
-                 default_values: Optional[List[Any]] = None):
+                 default_values: list[Any] | None = None):
         """
         Initialize the AddColumnsCommand.
         
@@ -195,8 +195,8 @@ class AddColumnsCommand(Command):
             self.logger.info(f"Added {len(self.column_names)} columns to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return CommandResult.SUCCESS
             
-        except Exception as e:
-            error_msg = f"Failed to add columns: {str(e)}"
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+            error_msg = f"Failed to add columns: {e!s}"
             self.logger.error(f"AddColumnsCommand Error: {error_msg}")
             self.ui_controller.show_error_message("Add Columns Error", error_msg)
             return CommandResult.FAILURE
@@ -282,7 +282,7 @@ class AddColumnsCommand(Command):
         
         return groups
     
-    def _insert_column_block(self, data: pd.DataFrame, position: int, column_names: List[str], default_values: List[Any]) -> pd.DataFrame:
+    def _insert_column_block(self, data: pd.DataFrame, position: int, column_names: list[str], default_values: list[Any]) -> pd.DataFrame:
         """
         Insert multiple columns as a block at the specified position.
 
@@ -356,7 +356,7 @@ class AddColumnsCommand(Command):
                 self.dataset_id, self.dataset is not None, self.original_data is not None,
             )
             return CommandResult.FAILURE
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"AddColumnsCommand Undo Error: {e}")
             return CommandResult.FAILURE
 

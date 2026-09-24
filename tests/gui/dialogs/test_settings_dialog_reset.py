@@ -76,9 +76,8 @@ def test_reset_to_defaults_is_a_noop_when_already_default(tmp_path):
     dialog = _isolated_dialog(tmp_path)
     executor = dialog.app_context.get_command_executor()
 
-    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
-        with patch.object(QMessageBox, "warning") as mock_warning:
-            dialog.reset_to_defaults()
+    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes), patch.object(QMessageBox, "warning") as mock_warning:
+        dialog.reset_to_defaults()
 
     assert executor.can_undo() is False
     mock_warning.assert_not_called()
@@ -95,10 +94,12 @@ def test_reset_to_defaults_warns_and_keeps_old_values_when_save_fails(tmp_path):
     executor = dialog.app_context.get_command_executor()
     undo_count_before = len(executor.undo_stack)
 
-    with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
-        with patch.object(dialog._config_manager, "save", return_value=False):
-            with patch.object(QMessageBox, "warning") as mock_warning:
-                dialog.reset_to_defaults()
+    with (
+        patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes),
+        patch.object(dialog._config_manager, "save", return_value=False),
+        patch.object(QMessageBox, "warning") as mock_warning,
+    ):
+        dialog.reset_to_defaults()
 
     mock_warning.assert_called_once()
     assert dialog._config_manager.config.appearance.theme == Theme.DARK
