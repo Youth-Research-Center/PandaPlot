@@ -12,7 +12,7 @@ from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style import LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Dataset
-from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items.chart import Chart, YAxis
 from pandaplot.models.project.project import Project
 
 
@@ -908,3 +908,85 @@ def test_expand_series_emits_series_kind_for_fit_entries():
     assert all(kind == "series" for kind, _obj in received)
     assert received[-1] == ("series", chart.data_series[fit_index])
     assert chart.data_series[fit_index].series_type == SeriesType.FIT
+
+
+def _chart_with_auto_fit(dataset, *, y_axis=YAxis.PRIMARY):
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_fit_series(
+        dataset.id,
+        x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
+        label="A Fit", style=FitStyle(fit_type="Linear", is_manual=False), y_axis=y_axis,
+    )
+    return chart
+
+
+def test_a_fits_y_axis_control_is_enabled_and_shows_the_fits_own_axis():
+    """PR #416 review: a fit's y_axis is a real field now (#304), so the
+    Data tab must let the user change it. It used to be locked, leaving a
+    fit stuck on whatever axis it got at creation."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = _chart_with_auto_fit(dataset, y_axis=YAxis.SECONDARY)
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+
+    assert tab.series_y_axis_control.isEnabled() is True
+    assert tab.series_y_axis_control.currentValue() == YAxis.SECONDARY
+
+
+def test_changing_an_auto_fits_y_axis_writes_it_and_marks_dirty():
+    app_context, project, dataset = _app_context_with_project()
+    chart = _chart_with_auto_fit(dataset)
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+    dirty_calls = []
+    tab.dirtyOnly.connect(lambda: dirty_calls.append(True))
+
+    tab.series_y_axis_control.setCurrentValue(YAxis.SECONDARY)
+    tab._on_series_config_changed()
+
+    assert chart.data_series[0].y_axis == YAxis.SECONDARY
+    assert dirty_calls
+    # The auto-applied fit's frozen source columns stay untouched.
+    assert tab.dataset_combo.isEnabled() is False
+
+
+def test_apply_to_writes_the_selected_fits_y_axis():
+    app_context, project, dataset = _app_context_with_project()
+    chart = _chart_with_auto_fit(dataset)
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+    tab.series_y_axis_control.setCurrentValue(YAxis.SECONDARY)
+
+    tab.apply_to(chart)
+
+    assert chart.data_series[0].y_axis == YAxis.SECONDARY
+
+
+def test_fit_rows_show_a_y_axis_badge():
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"), label="S")
+    chart.add_fit_series(
+        dataset.id,
+        x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
+        label="A Fit", style=FitStyle(fit_type="Linear"), y_axis=YAxis.SECONDARY,
+    )
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)  # series 0 selected; the fit (index 1) renders as a collapsed row
+
+    from PySide6.QtWidgets import QLabel
+    labels = [w.text() for w in tab.findChildren(QLabel)]
+    assert "\U0001f527 A Fit" in labels
+    assert "Y₂" in labels

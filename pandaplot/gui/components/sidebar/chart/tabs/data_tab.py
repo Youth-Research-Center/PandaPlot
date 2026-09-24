@@ -346,15 +346,12 @@ class DataTab(QWidget):
             return
 
         for index, series in enumerate(self.current_chart.data_series):
-            is_fit = series.series_type == SeriesType.FIT
             if index == self._expanded_series_index:
                 card = self._build_expanded_series_card(index, tokens)
             elif index in self._expanded_card_indices:
-                card = (self._build_fit_detail_row(series, index, tokens) if is_fit
-                        else self._build_series_detail_row(series, index, tokens))
+                card = self._build_series_detail_row(series, index, tokens)
             else:
-                card = (self._build_collapsed_fit_row(series, index, tokens) if is_fit
-                        else self._build_collapsed_series_row(series, index, tokens))
+                card = self._build_collapsed_series_row(series, index, tokens)
             self._series_cards_layout.addWidget(card)
 
         self.seriesListChanged.emit(self.current_chart.data_series)
@@ -439,7 +436,8 @@ class DataTab(QWidget):
         card.setCursor(Qt.CursorShape.PointingHandCursor)
 
     def _build_collapsed_series_row(self, series, index: int, tokens: dict) -> QWidget:
-        """A chip-like collapsed row: color square, name, Y-axis badge, trash, chevron."""
+        """A chip-like collapsed row (any series type, FIT included): color
+        square, name, Y-axis badge, move, trash, chevron."""
         card = Card()
         card.set_tokens(tokens)
         self._install_select_on_click(card, index)
@@ -447,32 +445,11 @@ class DataTab(QWidget):
 
         row.addWidget(self._make_swatch(series.style.swatch_color, tokens))
 
-        name_label = QLabel(series.label or f"{series.dataset_id}:{self._column_display_name(series.dataset_id, series.y_column_id, series.y_column)}")
+        name_label = QLabel(self._series_display_name(series))
         name_label.setStyleSheet(f"color: {tokens.get('text_primary', '#000')};")
         row.addWidget(name_label, 1)
 
         row.addWidget(self._build_y_axis_badge(series.y_axis, tokens))
-        total_series = len(self.current_chart.data_series)
-        row.addWidget(self._build_move_up_button(index))
-        row.addWidget(self._build_move_down_button(index, total_series))
-        row.addWidget(self._build_trash_button(index))
-        row.addWidget(self._build_chevron_button(index, expanded=False))
-
-        return card
-
-    def _build_collapsed_fit_row(self, fit, index: int, tokens: dict) -> QWidget:
-        """Collapsed row for a fit-data entry (no Y-axis picker for fits)."""
-        card = Card()
-        card.set_tokens(tokens)
-        self._install_select_on_click(card, index)
-        row = QHBoxLayout(card)
-
-        row.addWidget(self._make_swatch(fit.style.color, tokens))
-
-        name_label = QLabel(f"\U0001f527 {fit.label}")  # wrench emoji
-        name_label.setStyleSheet(f"color: {tokens.get('text_primary', '#000')};")
-        row.addWidget(name_label, 1)
-
         total_series = len(self.current_chart.data_series)
         row.addWidget(self._build_move_up_button(index))
         row.addWidget(self._build_move_down_button(index, total_series))
@@ -489,6 +466,16 @@ class DataTab(QWidget):
             if isinstance(dataset, Dataset):
                 return dataset.name
         return dataset_id
+
+    def _series_display_name(self, series: DataSeries) -> str:
+        """Card/row title for `series`: a FIT entry shows its label behind a
+        wrench marker, every other type its label (or dataset:Y column when
+        unlabeled)."""
+        if series.series_type == SeriesType.FIT:
+            return f"\U0001f527 {series.label}"
+        return series.label or (
+            f"{series.dataset_id}:{self._column_display_name(series.dataset_id, series.y_column_id, series.y_column)}"
+        )
 
     def _build_detail_field_grid(self, tokens: dict, fields: tuple) -> QGridLayout:
         """A read-only label/value grid matching the editable form's own
@@ -520,7 +507,7 @@ class DataTab(QWidget):
 
         header = QHBoxLayout()
         header.addWidget(self._make_swatch(series.style.swatch_color, tokens))
-        name_label = QLabel(series.label or f"{series.dataset_id}:{self._column_display_name(series.dataset_id, series.y_column_id, series.y_column)}")
+        name_label = QLabel(self._series_display_name(series))
         name_label.setStyleSheet(f"color: {tokens.get('text_primary', '#000')};")
         header.addWidget(name_label, 1)
         header.addWidget(self._build_y_axis_badge(series.y_axis, tokens))
@@ -531,40 +518,14 @@ class DataTab(QWidget):
         header.addWidget(self._build_chevron_button(index, expanded=True))
         outer.addLayout(header)
 
-        outer.addLayout(self._build_detail_field_grid(tokens, (
-            ("Dataset:", self._dataset_display_name(series.dataset_id)),
+        fields = [("Dataset:", self._dataset_display_name(series.dataset_id))]
+        if series.series_type == SeriesType.FIT:
+            fields.append(("Fit Type:", series.style.fit_type))
+        fields += [
             ("X Column:", self._column_display_name(series.dataset_id, series.x_column_id, series.x_column)),
             ("Y Column:", self._column_display_name(series.dataset_id, series.y_column_id, series.y_column)),
-        )))
-
-        return card
-
-    def _build_fit_detail_row(self, fit, index: int, tokens: dict) -> QWidget:
-        """Read-only detail view for a fit card that's accordion-expanded but
-        not the currently selected entry (see `_build_series_detail_row`)."""
-        card = Card()
-        card.set_tokens(tokens)
-        self._install_select_on_click(card, index)
-        outer = QVBoxLayout(card)
-
-        header = QHBoxLayout()
-        header.addWidget(self._make_swatch(fit.style.color, tokens))
-        name_label = QLabel(f"\U0001f527 {fit.label}")
-        name_label.setStyleSheet(f"color: {tokens.get('text_primary', '#000')};")
-        header.addWidget(name_label, 1)
-        total_series = len(self.current_chart.data_series)
-        header.addWidget(self._build_move_up_button(index))
-        header.addWidget(self._build_move_down_button(index, total_series))
-        header.addWidget(self._build_trash_button(index))
-        header.addWidget(self._build_chevron_button(index, expanded=True))
-        outer.addLayout(header)
-
-        outer.addLayout(self._build_detail_field_grid(tokens, (
-            ("Dataset:", self._dataset_display_name(fit.dataset_id)),
-            ("Fit Type:", fit.style.fit_type),
-            ("X Column:", self._column_display_name(fit.dataset_id, fit.x_column_id, fit.x_column)),
-            ("Y Column:", self._column_display_name(fit.dataset_id, fit.y_column_id, fit.y_column)),
-        )))
+        ]
+        outer.addLayout(self._build_detail_field_grid(tokens, tuple(fields)))
 
         return card
 
@@ -601,29 +562,18 @@ class DataTab(QWidget):
 
         total_series = len(self.current_chart.data_series)
         series = self.current_chart.data_series[index]
-        is_fit = series.series_type == SeriesType.FIT
-        if is_fit:
-            fit = series
-            title_text = f"\U0001f527 {fit.label}"
-        else:
-            title_text = series.label or (
-                f"{series.dataset_id}:"
-                f"{self._column_display_name(series.dataset_id, series.y_column_id, series.y_column)}"
-            )
 
         header = QHBoxLayout()
-        title_label = QLabel(title_text)
+        title_label = QLabel(self._series_display_name(series))
         title_label.setStyleSheet(f"font-weight: 600; color: {tokens.get('text_primary', '#000')};")
         header.addWidget(title_label, 1)
         # Keep a reference so _on_series_config_changed can refresh this
         # badge in place on a live Y-axis edit, without a full card rebuild
         # (see that method's docstring for why a rebuild is unsafe there).
-        self._expanded_card_y_axis_badge = None
-        if not is_fit:
-            badge = self._build_y_axis_badge(series.y_axis, tokens)
-            self._expanded_card_y_axis_badge = badge
-            self._expanded_card_y_axis_badge_tokens = tokens
-            header.addWidget(badge)
+        badge = self._build_y_axis_badge(series.y_axis, tokens)
+        self._expanded_card_y_axis_badge = badge
+        self._expanded_card_y_axis_badge_tokens = tokens
+        header.addWidget(badge)
         header.addWidget(self._build_move_up_button(index))
         header.addWidget(self._build_move_down_button(index, total_series))
         header.addWidget(self._build_trash_button(index))
@@ -636,13 +586,12 @@ class DataTab(QWidget):
 
         outer.addWidget(self._series_form_widget)
 
-        if is_fit:
-            self._load_fit_into_controls(fit)
-            self.seriesSelected.emit("series", fit)
+        if series.series_type == SeriesType.FIT:
+            self._load_fit_into_controls(series)
         else:
             self._reset_controls_for_series()
             self._load_series_into_controls(series)
-            self.seriesSelected.emit("series", series)
+        self.seriesSelected.emit("series", series)
 
         return card
 
@@ -811,13 +760,20 @@ class DataTab(QWidget):
             return
 
         series = self.current_chart.data_series[current_row]
-        if series.series_type != SeriesType.FIT:
+        is_fit = series.series_type == SeriesType.FIT
+        new_y_axis = self.series_y_axis_control.currentValue()
+        if is_fit and not series.style.is_manual and series.y_axis == new_y_axis:
+            # Auto-applied fits (from the Fit panel): source dataset/columns
+            # are frozen at fit time -- the Y axis is their only editable
+            # field here, and it didn't change.
+            return
+        series.y_axis = new_y_axis
+        if not is_fit:
             if self.dataset_combo.currentData():
                 series.dataset_id = self.dataset_combo.currentData()
             # Combos carry the stable column id as itemData; store ids directly.
             series.x_column_id = self.x_column_combo.currentData() or ""
             series.y_column_id = self.y_column_combo.currentData() or ""
-            series.y_axis = self.series_y_axis_control.currentValue()
             error_bars = getattr(series.style, "error_bars", None)
             if error_bars is not None:
                 error_bars.x_error_column_id = self.x_error_column_combo.currentData() or ""
@@ -831,42 +787,38 @@ class DataTab(QWidget):
                 series.style.magnitude_column_id = self.magnitude_column_combo.currentData() or ""
             if self._selected_series_needs_z_column():
                 series.style.z_column_id = self.z_column_combo.currentData() or ""
-
-            # Refresh the Axes-tab Y2 chip immediately so switching a series
-            # to the secondary axis is reflected without waiting for Apply
-            # or a full chart reload. This only touches the axis_chips
-            # SegmentedControl (not this tab's card list), so it's safe to
-            # request from here.
-            self.axesRefreshRequested.emit()
-
-            # Re-emit `seriesSelected` for the still-selected series: the
-            # panel wires this to `StyleTab.set_selected`, which re-checks
-            # whether the Error Bars card should show now that an error
-            # column may have just been added/cleared here. (The Style tab
-            # lives on a different tab and has no other way to learn about
-            # this edit.)
-            self.seriesSelected.emit("series", series)
-
-            # Update the expanded card's own Y1/Y2 badge in place too.
-            # Deliberately NOT calling `_rebuild_series_cards()` from this
-            # handler: that tears down and rebuilds the card list, including
-            # detaching/reattaching `_series_form_widget` (which hosts the
-            # very control that triggered this handler) - the same
-            # reentrancy hazard already fixed once for live-edit handlers
-            # touching the reparented series form widget. Updating the
-            # existing badge label in place avoids that entirely.
-            if getattr(self, "_expanded_card_y_axis_badge", None) is not None:
-                self._apply_y_axis_badge_style(
-                    self._expanded_card_y_axis_badge,
-                    series.y_axis,
-                    getattr(self, "_expanded_card_y_axis_badge_tokens", {}),
-                )
-        else:
-            if not series.style.is_manual:
-                # Auto-applied fits (from the Fit panel): source
-                # dataset/columns are frozen at fit time, not editable.
-                return
+        elif series.style.is_manual:
             self._apply_manual_fit_edits(series)
+
+        # Refresh the Axes-tab Y2 chip immediately so switching a series
+        # to the secondary axis is reflected without waiting for Apply
+        # or a full chart reload. This only touches the axis_chips
+        # SegmentedControl (not this tab's card list), so it's safe to
+        # request from here.
+        self.axesRefreshRequested.emit()
+
+        # Re-emit `seriesSelected` for the still-selected series: the
+        # panel wires this to `StyleTab.set_selected`, which re-checks
+        # whether the Error Bars card should show now that an error
+        # column may have just been added/cleared here. (The Style tab
+        # lives on a different tab and has no other way to learn about
+        # this edit.)
+        self.seriesSelected.emit("series", series)
+
+        # Update the expanded card's own Y1/Y2 badge in place too.
+        # Deliberately NOT calling `_rebuild_series_cards()` from this
+        # handler: that tears down and rebuilds the card list, including
+        # detaching/reattaching `_series_form_widget` (which hosts the
+        # very control that triggered this handler) - the same
+        # reentrancy hazard already fixed once for live-edit handlers
+        # touching the reparented series form widget. Updating the
+        # existing badge label in place avoids that entirely.
+        if getattr(self, "_expanded_card_y_axis_badge", None) is not None:
+            self._apply_y_axis_badge_style(
+                self._expanded_card_y_axis_badge,
+                series.y_axis,
+                getattr(self, "_expanded_card_y_axis_badge_tokens", {}),
+            )
 
         # Deliberately `dirtyOnly`, not `configChanged`: pre-refactor, this
         # exact edit path (dataset/X/Y/Y-axis on the selected series) set the
@@ -1172,15 +1124,18 @@ class DataTab(QWidget):
         try:
             is_manual = fit.style.is_manual
             # Dataset/X/Y/confidence columns stay editable only for a
-            # manually-converted fit; every other fit-only field (axis,
-            # error bars, vector/Z, asymmetric error toggle) has no
+            # manually-converted fit; every other fit-only field
+            # (error bars, vector/Z, asymmetric error toggle) has no
             # meaning for a fit at all and is always disabled here.
             self.dataset_combo.setEnabled(is_manual)
             self.x_column_combo.setEnabled(is_manual)
             self.y_column_combo.setEnabled(is_manual)
             self.confidence_lower_column_combo.setEnabled(is_manual)
             self.confidence_upper_column_combo.setEnabled(is_manual)
-            self.series_y_axis_control.setEnabled(False)
+            # A fit's y_axis is a first-class field (#304) -- editable for
+            # manual and auto-applied fits alike.
+            self.series_y_axis_control.setEnabled(True)
+            self.series_y_axis_control.setCurrentValue(fit.y_axis)
             self.x_error_column_combo.setEnabled(False)
             self.y_error_column_combo.setEnabled(False)
             self.u_column_combo.setEnabled(False)
@@ -1676,9 +1631,7 @@ class DataTab(QWidget):
         """
         current_row = self._expanded_series_index
         if 0 <= current_row < len(chart.data_series):
-            series = chart.data_series[current_row]
-            if series.series_type != SeriesType.FIT:
-                series.y_axis = self.series_y_axis_control.currentValue()
+            chart.data_series[current_row].y_axis = self.series_y_axis_control.currentValue()
 
         # An empty data_series list means "uninitialized chart, bootstrap a
         # default series from whatever the form currently shows". Since FIT
