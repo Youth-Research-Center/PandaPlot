@@ -7,8 +7,8 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.fit_style import FitStyle
-from pandaplot.models.events import ChartEvents
 from pandaplot.models.chart.series_type import SeriesType
+from pandaplot.models.events import ChartEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import (
     DataSeries,

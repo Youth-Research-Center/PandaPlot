@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Chart
 from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.utils.item_display_options import chart_display_options
@@ -129,9 +130,12 @@ class CreateVisualizationDialog(PDialog):
         layout.addWidget(scroll_area)
 
     def _create_chart_item(self, chart: Chart, display_name: str) -> QPushButton:
-        series_count = len(chart.data_series)
+        fit_count = sum(1 for series in chart.data_series if series.series_type == SeriesType.FIT)
+        series_count = len(chart.data_series) - fit_count
         type_name = get_chart_type_spec(chart.chart_type).display_name
         detail_text = f"{type_name} chart · {series_count} series"
+        if fit_count:
+            detail_text += f" · {fit_count} fit{'s' if fit_count != 1 else ''}"
         button = QPushButton()
         button.setObjectName("ChartItemButton")
         button.setMinimumHeight(56)

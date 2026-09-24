@@ -560,6 +560,7 @@ class TestRetypeSeries:
         caller (e.g. a stale/mis-populated UI control) doesn't itself
         exclude FIT before calling retype_series."""
         import numpy as np
+
         from pandaplot.models.chart.fit_style import FitStyle
 
         chart = Chart(name="C", chart_type="line")
@@ -1196,6 +1197,7 @@ def test_dataseries_with_precomputed_data_is_comparable():
 
 def test_add_fit_series_creates_fit_type_data_series():
     import numpy as np
+
     from pandaplot.models.chart.fit_style import FitStyle
     from pandaplot.models.chart.series_type import SeriesType
     from pandaplot.models.project.items.chart import Chart
@@ -1214,6 +1216,7 @@ def test_add_fit_series_creates_fit_type_data_series():
 
 def test_fit_data_property_filters_by_series_type():
     import numpy as np
+
     from pandaplot.models.chart.fit_style import FitStyle
     from pandaplot.models.project.items.chart import Chart
 
@@ -1236,6 +1239,7 @@ def test_fit_data_has_no_setter():
 
 def test_fit_series_round_trips_through_to_dict_from_dict():
     import numpy as np
+
     from pandaplot.models.chart.fit_style import FitStyle
     from pandaplot.models.chart.series_type import SeriesType
     from pandaplot.models.project.items.chart import Chart

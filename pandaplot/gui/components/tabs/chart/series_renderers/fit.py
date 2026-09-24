@@ -2,6 +2,8 @@
 fit-rendering loop exactly (line via render_line_series + confidence band
 via fill_between), now dispatched through SERIES_RENDERERS like every
 other type (#304)."""
+from matplotlib.axes import Axes
+
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData
 from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.models.chart.fit_style import FitStyle
@@ -9,8 +11,9 @@ from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import LineSeriesStyle
 
 
-def render_fit_series(axes, series_data: SeriesData, style: FitStyle,
+def render_fit_series(axes: Axes, series_data: SeriesData, style: FitStyle,
                        label: str, alpha: float, *, visible: bool, extra: dict) -> None:
+    """Draw a fit's curve (as a marker-less line) plus its optional confidence band on `axes`."""
     line_style_adapter = LineSeriesStyle(
         color=style.color,
         line_style=style.line_style,

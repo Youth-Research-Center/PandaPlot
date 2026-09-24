@@ -1349,7 +1349,7 @@ class StyleTab(QWidget):
         dataset = project.find_item(series.dataset_id) if project else None
         return resolve_series_column(dataset, series.y_column_id, series.y_column) or ""
 
-    def set_series_list(self, data_series, selected_index: int = 0):
+    def set_series_list(self, data_series: list["DataSeries"], selected_index: int = 0) -> None:
         """Sync `style_series_chips` with the same combined series list
         (including FIT-type entries) the Data tab's cards are built from,
         keeping its selection in lockstep with `selected_index`

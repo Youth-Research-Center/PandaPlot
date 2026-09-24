@@ -42,7 +42,7 @@ class FitStyle(SeriesStyleBase):
     confidence_upper_column_id: str = ""
     is_manual: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.fit_params is None:
             self.fit_params = {}
         if self.fit_stats is None:

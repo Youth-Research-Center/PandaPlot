@@ -10,11 +10,11 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.fit_style import FitStyle
-from pandaplot.models.events import ChartEvents
 from pandaplot.models.chart.series_type import SeriesType
+from pandaplot.models.events import ChartEvents
 from pandaplot.models.events.event_types import DatasetEvents, ProjectEvents
 from pandaplot.models.project.items import Dataset, Note
-from pandaplot.models.project.items.chart import YAxis
+from pandaplot.models.project.items.chart import Chart, YAxis
 from pandaplot.models.state import AppContext
 
 # Maps a short fit-type name to its chart color. `fit_type` from the fit panel is a
@@ -45,7 +45,7 @@ def _col_match(series_id: str, series_name: str, source_id: str, source_name: st
 
 
 def _resolve_source_y_axis(
-    chart, source_dataset_id: str,
+    chart: "Chart", source_dataset_id: str,
     source_x_column_id: str, source_x_column: str,
     source_y_column_id: str, source_y_column: str,
 ) -> "YAxis":
