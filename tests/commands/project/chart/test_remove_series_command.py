@@ -2,10 +2,12 @@
 import logging
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.remove_series_command import RemoveSeriesCommand
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart, DataSeries
@@ -139,3 +141,26 @@ def test_cleanup_releases_the_removed_series_data_snapshot(app_context_with_char
 
     command.cleanup()
     assert command.removed_series_data is None
+
+
+def test_removes_and_restores_a_fit_series_at_its_original_index(app_context_with_chart):
+    """FIT-type entries live inline in data_series (#304), so the plain
+    series-removal command handles them too -- undo must put the fit back
+    at its own position with its typed style and curve data intact."""
+    app_context, chart = app_context_with_chart
+    chart.add_fit_series("ds-1", x_data=np.array([1.0, 2.0]), y_data=np.array([3.0, 4.0]),
+                         label="Fit A", style=FitStyle(fit_type="linear", color="#abcdef"))
+    chart.add_fit_series("ds-1", x_data=np.array([5.0]), y_data=np.array([6.0]),
+                         label="Fit B", style=FitStyle(fit_type="linear"))
+
+    command = RemoveSeriesCommand(app_context, chart_id=chart.id, series_index=0)
+    assert command.execute() is CommandResult.SUCCESS
+    assert [s.label for s in chart.data_series] == ["Fit B"]
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert [s.label for s in chart.data_series] == ["Fit A", "Fit B"]
+    restored = chart.data_series[0]
+    assert restored.series_type == SeriesType.FIT
+    assert isinstance(restored.style, FitStyle)
+    assert restored.style.color == "#abcdef"
+    np.testing.assert_array_equal(restored.precomputed_y_data, np.array([3.0, 4.0]))

@@ -827,15 +827,13 @@ def test_apply_to_does_not_recreate_a_series_after_converting_the_only_series_to
 
 
 def test_remove_series_at_passes_the_real_data_series_index_for_a_fit():
-    """`_remove_series_at` must hand `RemoveFitDataCommand` the same plain
-    `chart.data_series` index it was given -- FIT-type entries live inline
-    in that list at whatever position, like any other series (#304), so
-    there's no separate fit-relative index space to translate into.
+    """`_remove_series_at` must hand `RemoveSeriesCommand` the same plain
+    `chart.data_series` index it was given, for a FIT entry too.
     Regression test: this used to require resolving a `chart.fit_data`-
     relative index by identity (`is`, not `==`/`.index()`, since two FIT
     series with identical dataset/columns/label/style but different
     snapshotted curve data compare `==`-equal); that whole translation
-    step is gone now that RemoveFitDataCommand takes a real index too."""
+    step is gone now that fits are removed like any other series."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Line Chart", chart_type="line")
 
@@ -863,7 +861,7 @@ def test_remove_series_at_passes_the_real_data_series_index_for_a_fit():
     tab.load(chart)
 
     with patch(
-        "pandaplot.gui.components.sidebar.chart.tabs.data_tab.RemoveFitDataCommand"
+        "pandaplot.gui.components.sidebar.chart.tabs.data_tab.RemoveSeriesCommand"
     ) as mock_command_cls:
         tab._remove_series_at(1)
 

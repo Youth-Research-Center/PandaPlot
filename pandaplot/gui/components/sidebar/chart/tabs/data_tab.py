@@ -21,7 +21,6 @@ from PySide6.QtWidgets import (
 from pandaplot.commands.project.chart import (
     AddSeriesCommand,
     ConvertSeriesToFitCommand,
-    RemoveFitDataCommand,
     RemoveSeriesCommand,
     ReorderSeriesCommand,
 )
@@ -672,19 +671,11 @@ class DataTab(QWidget):
         if index < 0 or index >= total_items:
             return
 
-        series = self.current_chart.data_series[index]
-        if series.series_type == SeriesType.FIT:
-            command = RemoveFitDataCommand(
-                self.app_context,
-                chart_id=self.current_chart.id,
-                series_index=index,
-            )
-        else:
-            command = RemoveSeriesCommand(
-                self.app_context,
-                chart_id=self.current_chart.id,
-                series_index=index,
-            )
+        command = RemoveSeriesCommand(
+            self.app_context,
+            chart_id=self.current_chart.id,
+            series_index=index,
+        )
         self.command_executor.execute_command(command)
 
         def _shift(i):
