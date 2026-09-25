@@ -364,11 +364,19 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
 
     A series carrying precomputed_x_data/precomputed_y_data (SeriesType.FIT)
     short-circuits immediately to that snapshot, without touching `project`
-    or `series.dataset_id`.
+    or `series.dataset_id`. A FIT series without that snapshot returns an
+    error instead of resolving live data.
     """
     if series.precomputed_x_data is not None and series.precomputed_y_data is not None:
         return SeriesData(series.precomputed_x_data, series.precomputed_y_data,
                            None, None, None, None, None)
+
+    if series.series_type == SeriesType.FIT:
+        # A fit only ever plots its stored curve; without one (e.g. a legacy
+        # fit_data entry that had no x_data/y_data) it must not fall through
+        # to the live-dataset path below, which would hand the renderer
+        # x_data=None and fail the whole chart instead of just this entry.
+        return SeriesData(None, None, None, None, None, None, "fit has no stored curve data")
 
     from pandaplot.models.project.items.chart import resolve_series_column
     from pandaplot.models.project.items.dataset import Dataset

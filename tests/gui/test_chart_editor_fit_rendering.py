@@ -14,8 +14,9 @@ from PySide6.QtWidgets import QApplication
 from pandaplot.app import build_app_context
 from pandaplot.gui.components.tabs.chart.chart_editor import ChartEditorWidget
 from pandaplot.models.chart.fit_style import FitStyle
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Dataset
-from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items.chart import Chart, DataSeries
 from pandaplot.models.project.project import Project
 
 
@@ -218,3 +219,31 @@ def test_reordering_a_fit_relative_to_a_plain_series_changes_render_order():
         "after reordering to [line, fit], the fit must now draw last (on top)"
     )
     assert colors_before != colors_after, "reordering must actually change the render order"
+
+
+def test_a_fit_without_stored_curve_data_is_skipped_without_breaking_the_chart():
+    """PR #416 review: a legacy fit_data entry with no x_data migrates to a
+    FIT series with no curve; rendering it used to raise and take the
+    whole chart down. Only that entry is skipped now."""
+    _qapp()
+    app_context = build_app_context()
+    project = Project(name="Broken Fit Project")
+    dataset = Dataset(name="ds1", data=pd.DataFrame({"x": [1, 2, 3], "y": [1, 4, 9]}))
+    project.add_item(dataset)
+    app_context.app_state.load_project(project)
+
+    chart = Chart(name="Chart", chart_type="line")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"),
+                          y_column_id=dataset.column_id("y"), label="Series A")
+    chart.data_series.append(
+        DataSeries(dataset_id=dataset.id, series_type=SeriesType.FIT, style=FitStyle(), label="Broken Fit")
+    )
+    project.add_item(chart)
+
+    editor = ChartEditorWidget(app_context=app_context, chart=chart, parent=None)
+    editor.update_chart()
+
+    assert len(editor.chart_canvas.axes.get_lines()) >= 1  # Series A still drawn
+    status = editor.status_label.text()
+    assert status.startswith("Skipped:")
+    assert "Broken Fit" in status
