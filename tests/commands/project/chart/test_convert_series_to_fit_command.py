@@ -409,3 +409,54 @@ def test_cleanup_releases_bookkeeping(app_context_with_chart):
     command.cleanup()
     assert command.removed_series is None
     assert command._fit is None
+
+
+def test_the_fit_keeps_the_series_opacity_visibility_and_column_names(app_context_with_chart):
+    """The fit takes over the series' slot, so it keeps the generic
+    DataSeries fields the series had -- not just dataset/ids/label/axis."""
+    app_context, chart = app_context_with_chart
+    series = chart.data_series[0]
+    series.alpha = 0.4
+    series.visible = False
+    series.x_column = "x"
+    series.y_column = "y"
+
+    command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=0)
+    assert command.execute() is CommandResult.SUCCESS
+
+    fit = chart.data_series[0]
+    assert fit.series_type == SeriesType.FIT
+    assert fit.alpha == 0.4
+    assert fit.visible is False
+    assert fit.x_column == "x"
+    assert fit.y_column == "y"
+
+
+def test_converting_an_existing_fit_is_refused_and_leaves_it_untouched(app_context_with_chart):
+    app_context, chart = app_context_with_chart
+    chart.data_series.clear()
+    auto_fit = chart.add_fit_series(
+        "ds-1", x_data=np.array([1.0, 2.0]), y_data=np.array([5.0, 6.0]),
+        label="Linear Fit", style=FitStyle(fit_type="Linear", fit_params={"a": 1.0}),
+    )
+
+    command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=0)
+
+    assert command.execute() is CommandResult.FAILURE
+    assert chart.data_series[0] is auto_fit
+    assert auto_fit.style.fit_type == "Linear"
+    np.testing.assert_array_equal(auto_fit.precomputed_y_data, np.array([5.0, 6.0]))
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+
+
+@pytest.mark.parametrize("chart_type", ["colormap", "scatter3d"])
+def test_converting_on_a_chart_type_that_does_not_allow_fits_is_refused(app_context_with_chart, chart_type):
+    app_context, chart = app_context_with_chart
+    chart.set_chart_type(chart_type)
+    original_type = chart.data_series[0].series_type
+
+    command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=0)
+
+    assert command.execute() is CommandResult.FAILURE
+    assert chart.data_series[0].series_type == original_type
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once()

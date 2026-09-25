@@ -6,6 +6,7 @@ from typing import override
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events import ChartEvents
@@ -87,8 +88,11 @@ class ConvertSeriesToFitCommand(Command):
         return DataSeries(
             dataset_id=series.dataset_id,
             x_column_id=series.x_column_id, y_column_id=series.y_column_id,
+            x_column=series.x_column, y_column=series.y_column,
             label=series.label or "Custom Fit",
+            visible=series.visible,
             y_axis=series.y_axis,
+            alpha=series.alpha,
             series_type=SeriesType.FIT,
             style=style,
             precomputed_x_data=x_data, precomputed_y_data=y_data,
@@ -119,6 +123,26 @@ class ConvertSeriesToFitCommand(Command):
             return CommandResult.FAILURE
 
         series = chart.data_series[self.series_index]
+
+        spec = CHART_TYPE_SPECS[chart.chart_type]
+        if not spec.allows_fit:
+            self.logger.warning(
+                "ConvertSeriesToFitCommand.execute: chart '%s' is a %s chart, which doesn't allow fits",
+                self.chart_id, spec.display_name,
+            )
+            self.ui_controller.show_error_message(
+                "Convert to Fit Error", f"Fits aren't available on {spec.display_name} charts."
+            )
+            return CommandResult.FAILURE
+        if series.series_type == SeriesType.FIT:
+            # Re-converting would re-snapshot the fit's source columns and
+            # silently replace its curve/fit_type/fit_params with raw data.
+            self.logger.warning(
+                "ConvertSeriesToFitCommand.execute: series at index %s on chart '%s' is already a fit",
+                self.series_index, self.chart_id,
+            )
+            self.ui_controller.show_error_message("Convert to Fit Error", "That entry is already a fit.")
+            return CommandResult.FAILURE
 
         if self._fit is None:
             fit = self._build_fit(series)
