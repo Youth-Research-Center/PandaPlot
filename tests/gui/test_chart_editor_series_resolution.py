@@ -82,11 +82,19 @@ def test_resolve_series_data_short_circuits_for_precomputed_data():
 
 
 def test_a_fit_without_stored_curve_data_returns_an_error_instead_of_reading_a_dataset():
-    series = DataSeries(dataset_id="ds-1", series_type=SeriesType.FIT, style=FitStyle())
+    """A FIT series without precomputed_x_data/precomputed_y_data (e.g. a
+    legacy migrated fit_data entry with no x_data/y_data) must be caught by
+    the FIT-specific check itself -- not merely happen to trip some other
+    generic check first. Uses a real project/dataset and a real
+    y_column_id/y_column so the 'no project loaded'/'no Y column
+    configured' checks don't fire before the FIT branch is reached."""
+    project, dataset = _project_with_dataset()
+    series = DataSeries(dataset_id=dataset.id, series_type=SeriesType.FIT, style=FitStyle(),
+                        y_column_id=dataset.column_id("b"), y_column="b")
 
-    data = resolve_series_data(None, series)
+    data = resolve_series_data(project, series)
 
-    assert data.error
+    assert data.error == "fit has no stored curve data"
     assert data.x_data is None
     assert data.y_data is None
 

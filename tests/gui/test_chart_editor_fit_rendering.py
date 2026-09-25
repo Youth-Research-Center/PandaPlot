@@ -236,7 +236,8 @@ def test_a_fit_without_stored_curve_data_is_skipped_without_breaking_the_chart()
     chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"),
                           y_column_id=dataset.column_id("y"), label="Series A")
     chart.data_series.append(
-        DataSeries(dataset_id=dataset.id, series_type=SeriesType.FIT, style=FitStyle(), label="Broken Fit")
+        DataSeries(dataset_id=dataset.id, series_type=SeriesType.FIT, style=FitStyle(), label="Broken Fit",
+                   y_column_id=dataset.column_id("y"), y_column="y")
     )
     project.add_item(chart)
 
