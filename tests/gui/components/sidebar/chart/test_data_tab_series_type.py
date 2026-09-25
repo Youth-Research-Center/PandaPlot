@@ -1203,3 +1203,34 @@ def test_selecting_the_disabled_fit_entry_does_not_convert_on_a_colormap_chart()
     assert len(chart.fit_data) == 0
     # Controls are reloaded back to the series' real, unchanged type.
     assert tab.series_type_combo.currentData() == SeriesType.SCATTER
+
+
+def test_forcing_the_series_type_combo_on_a_selected_fit_changes_nothing():
+    """The combo is disabled for a fit, but _on_series_type_changed is
+    reachable programmatically. retype_series is a no-op for FIT, and the
+    handler then used to reload the fit through the plain-series loader --
+    re-enabling an auto fit's locked source combos and marking dirty."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_fit_series(
+        dataset.id,
+        x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
+        label="A Fit", style=FitStyle(fit_type="Linear", is_manual=False),
+    )
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+    dirty_calls = []
+    tab.dirtyOnly.connect(lambda: dirty_calls.append(True))
+
+    tab.series_type_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+    tab.series_type_combo.setCurrentIndex(tab.series_type_combo.findData(SeriesType.LINE))
+    tab.series_type_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+    tab._on_series_type_changed()
+
+    assert chart.data_series[0].series_type == SeriesType.FIT
+    assert tab.series_type_combo.currentData() == "__convert_to_fit__"
+    assert tab.dataset_combo.isEnabled() is False
+    assert dirty_calls == []

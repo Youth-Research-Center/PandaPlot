@@ -972,9 +972,16 @@ class DataTab(QWidget):
         new_type = self.series_type_combo.currentData()
         if new_type is None:
             return
+        series = self.current_chart.data_series[current_row]
+        if series.series_type == SeriesType.FIT:
+            # The combo is disabled for a fit (see _load_fit_into_controls), so
+            # this is only reachable programmatically. A fit is never retyped
+            # (Chart.retype_series is a no-op for FIT) or re-converted -- just
+            # put the fit's own controls back.
+            self._load_entry_into_controls(series)
+            return
         if new_type == _CONVERT_TO_FIT:
             if not CHART_TYPE_SPECS[self.current_chart.chart_type].allows_fit:
-                series = self.current_chart.data_series[current_row]
                 self._load_entry_into_controls(series)
                 return
             self._convert_selected_series_to_fit(current_row)
