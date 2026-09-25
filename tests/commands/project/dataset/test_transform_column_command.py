@@ -135,6 +135,127 @@ class TestTransformColumnCommand:
         assert _emitted(event_bus, DatasetOperationEvents.DATASET_COLUMN_REMOVED)
 
 
+class TestFormulaColumnRegistration:
+    """Issue #154: a transform can additionally record its expression on the
+    resulting column, so it can be recomputed later instead of being frozen at
+    the values this one run produced."""
+
+    def test_a_plain_transform_registers_no_formula(self, ctx):
+        _app_context, dataset, _ = ctx
+        command = TransformColumnCommand(_app_context, "ds-1", _config("a_x2"))
+        assert command.execute() is CommandResult.SUCCESS
+        assert dataset.formula_columns == {}
+
+    def test_as_formula_records_the_expression_and_source_ids(self, ctx):
+        app_context, dataset, _ = ctx
+        a_id = dataset.column_id("a")
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2") | {"as_formula": True})
+        assert command.execute() is CommandResult.SUCCESS
+
+        spec = dataset.formula_column_by_name("a_x2")
+        assert spec is not None
+        assert spec.expression == "value * 2"
+        assert spec.transform_type == "column"
+        assert spec.source_column_ids == [a_id]
+        assert spec.live is False
+
+    def test_live_implies_a_formula_column(self, ctx):
+        app_context, dataset, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2") | {"live": True})
+        assert command.execute() is CommandResult.SUCCESS
+
+        spec = dataset.formula_column_by_name("a_x2")
+        assert spec is not None
+        assert spec.live is True
+
+    def test_undo_removes_the_registered_formula(self, ctx):
+        app_context, dataset, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2") | {"as_formula": True})
+        command.execute()
+
+        assert command.undo() is CommandResult.SUCCESS
+        assert dataset.formula_columns == {}
+
+    def test_undo_restores_a_previous_formula_on_a_replaced_column(self, ctx):
+        app_context, dataset, _ = ctx
+        first = TransformColumnCommand(app_context, "ds-1", _config("a_x2") | {"as_formula": True})
+        first.execute()
+
+        second = TransformColumnCommand(app_context, "ds-1", {
+            "new_column_name": "a_x2", "transform_type": "column", "source_columns": ["a"],
+            "expression": "value * 3", "replace_existing": True, "as_formula": True, "live": True,
+        })
+        second.execute()
+        assert dataset.formula_column_by_name("a_x2").expression == "value * 3"
+
+        assert second.undo() is CommandResult.SUCCESS
+        spec = dataset.formula_column_by_name("a_x2")
+        assert spec.expression == "value * 2"
+        assert spec.live is False
+
+    def test_a_plain_rerun_detaches_a_previously_registered_formula(self, ctx):
+        """A plain (non-formula) transform re-run over a column that used to
+        be a live formula column must drop the stale spec -- otherwise the
+        next source-column edit would have the live-recompute listener
+        silently overwrite these fresh static values with the old formula's
+        output."""
+        app_context, dataset, _ = ctx
+        first = TransformColumnCommand(app_context, "ds-1", _config("a_x2") | {"as_formula": True, "live": True})
+        first.execute()
+        assert dataset.formula_column_by_name("a_x2") is not None
+
+        second = TransformColumnCommand(app_context, "ds-1", _config("a_x2", expression="value * 100", replace=True))
+        assert second.execute() is CommandResult.SUCCESS
+        assert list(dataset.data["a_x2"]) == [100.0, 200.0, 300.0]
+        assert dataset.formula_column_by_name("a_x2") is None
+
+        assert second.undo() is CommandResult.SUCCESS
+        spec = dataset.formula_column_by_name("a_x2")
+        assert spec is not None
+        assert spec.live is True
+        assert list(dataset.data["a_x2"]) == [2.0, 4.0, 6.0]
+
+    def test_a_formula_reading_its_own_column_is_rejected(self, ctx):
+        app_context, dataset, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", {
+            "new_column_name": "a", "transform_type": "column", "source_columns": ["a"],
+            "expression": "value * 2", "replace_existing": True, "as_formula": True,
+        })
+        assert command.execute() is CommandResult.FAILURE
+        assert "circular" in command.error_message.lower()
+        # Rejected before anything was applied.
+        assert list(dataset.data["a"]) == [1.0, 2.0, 3.0]
+
+    def test_a_two_column_cycle_is_rejected_at_creation_time(self, ctx):
+        app_context, _dataset, _ = ctx
+        # b = a * 2
+        TransformColumnCommand(app_context, "ds-1", {
+            "new_column_name": "b", "transform_type": "column", "source_columns": ["a"],
+            "expression": "value * 2", "as_formula": True,
+        }).execute()
+        # Now try to redefine a = b * 2, which would close the loop.
+        command = TransformColumnCommand(app_context, "ds-1", {
+            "new_column_name": "a", "transform_type": "column", "source_columns": ["b"],
+            "expression": "value * 2", "replace_existing": True, "as_formula": True,
+        })
+        assert command.execute() is CommandResult.FAILURE
+        assert "circular" in command.error_message.lower()
+
+    def test_a_valid_chain_is_accepted(self, ctx):
+        app_context, dataset, _ = ctx
+        assert TransformColumnCommand(app_context, "ds-1", {
+            "new_column_name": "b", "transform_type": "column", "source_columns": ["a"],
+            "expression": "value * 2", "as_formula": True,
+        }).execute() is CommandResult.SUCCESS
+        assert TransformColumnCommand(app_context, "ds-1", {
+            "new_column_name": "c", "transform_type": "column", "source_columns": ["b"],
+            "expression": "value + 1", "as_formula": True,
+        }).execute() is CommandResult.SUCCESS
+
+        assert list(dataset.data["c"]) == [3.0, 5.0, 7.0]
+        assert set(dataset.formula_columns) == {dataset.column_id("b"), dataset.column_id("c")}
+
+
 def _make_command(app_context=None):
     app_context = app_context or Mock(spec=AppContext)
     return TransformColumnCommand(

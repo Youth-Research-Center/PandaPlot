@@ -21,6 +21,7 @@ from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.session import SessionPersistenceManager
 from pandaplot.services.theme import ThemeManager
+from pandaplot.services.transform.formula_recompute_manager import FormulaRecomputeManager
 from pandaplot.storage.chart_data_manager import ChartDataManager
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
 from pandaplot.storage.folder_data_manager import FolderDataManager
@@ -85,6 +86,10 @@ def build_app_context() -> AppContext:
     theme_manager = ThemeManager(event_bus, config_manager)
     auto_save_manager = AutoSaveManager(event_bus, config_manager, app_state)
     session_manager = SessionPersistenceManager(config_manager)
+    # Subscribes itself to the dataset events every data-mutating command
+    # already emits, so live formula columns (#154) recompute uniformly --
+    # including on undo/redo, which re-emits the same events.
+    formula_recompute_manager = FormulaRecomputeManager(event_bus, app_state)
     ui_controller = UIController()
     # Every command passes through CommandExecutor, so it's the single choke
     # point to flag the project as having unsaved changes -- see
@@ -107,7 +112,7 @@ def build_app_context() -> AppContext:
     # intentionally not registered here -- it's an implementation detail
     # owned by ProjectManager, not something commands should fetch directly.
     unsaved_changes_registry = UnsavedChangesRegistry()
-    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_manager, tab_factory, unsaved_changes_registry]
+    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_manager, tab_factory, unsaved_changes_registry, formula_recompute_manager]
 
     app_context = AppContext(app_state=app_state, event_bus=event_bus, managers=managers)
     # AutoSaveManager needs the AppContext itself (to construct SaveProjectCommand),
@@ -288,5 +293,4 @@ if __name__ == "__main__":
     # TODO(#215): chart creation/properties panel fixes; scrollable chart area
     # TODO(#216): improve project info display in sidebar
     # TODO(#217): dataset tab: lazy disk loading, sorting/filtering, export
-    # TODO(#154): support formulas in dataset tab
     # TODO(#218): encapsulate project data manager inside project manager
