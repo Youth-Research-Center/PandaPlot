@@ -19,7 +19,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.fit.fit_panel import CUSTOM_SERIES_SENTINEL, FitPanel
-from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items.chart import Chart, restore_chart_state, snapshot_chart_state
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
@@ -1403,6 +1403,45 @@ class TestFitPanelSeriesSelectedEvent:
         )
 
         assert panel.series_combo.currentIndex() == 0
+
+    def test_series_click_still_selects_after_a_reset_replaced_the_series_objects(self, app_context):
+        """PR #416 review: Reset (and undo of a dataset delete) swap
+        deep-copied DataSeries into the chart and publish CHART_UPDATED
+        with only chart_id. The combo kept the old objects, so the
+        identity-based click sync never matched again."""
+        dataset, chart = self._make_two_series_chart()
+        project = Mock()
+        project.find_item = Mock(return_value=dataset)
+
+        panel = FitPanel(app_context)
+        panel.show()
+        panel.app_context.app_state = Mock()
+        panel.app_context.app_state.current_project = project
+        panel.load_chart_object(chart)
+
+        restore_chart_state(chart, snapshot_chart_state(chart))  # new DataSeries objects
+        panel._on_chart_updated({"chart_id": "chart-1"})
+        panel._on_series_selected_event({"chart_id": "chart-1", "kind": "series", "index": 1})
+
+        assert panel.series_combo.currentData() is chart.data_series[1]
+
+    def test_a_chart_id_only_update_that_replaced_nothing_keeps_the_fit_results(self, app_context):
+        """A live style edit publishes the same chart_id-only event without
+        replacing any series -- it must not reload (which clears results)."""
+        dataset, chart = self._make_two_series_chart()
+        project = Mock()
+        project.find_item = Mock(return_value=dataset)
+
+        panel = FitPanel(app_context)
+        panel.show()
+        panel.app_context.app_state = Mock()
+        panel.app_context.app_state.current_project = project
+        panel.load_chart_object(chart)
+        panel.fit_results = _make_fake_fit_result()
+
+        panel._on_chart_updated({"chart_id": "chart-1"})
+
+        assert panel.fit_results is not None
 
 
 def test_apply_stays_disabled_with_a_tooltip_on_a_chart_type_that_does_not_allow_fits(app_context):

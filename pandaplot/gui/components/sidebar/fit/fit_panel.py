@@ -490,6 +490,22 @@ class FitPanel(SidebarPanel):
             y_column_id=y_column_id,
         )
 
+    def _series_combo_is_stale(self) -> bool:
+        """Whether series_combo no longer holds the current chart's own
+        (non-FIT) DataSeries objects -- e.g. after restore_chart_state (the
+        properties panel's Reset, or undo of a dataset delete) swapped
+        deep copies into chart.data_series."""
+        if self.current_chart is None:
+            return False
+        combo_series = [
+            self.series_combo.itemData(row) for row in range(self.series_combo.count())
+            if isinstance(self.series_combo.itemData(row), DataSeries)
+        ]
+        chart_series = [s for s in self.current_chart.data_series if s.series_type != SeriesType.FIT]
+        return len(combo_series) != len(chart_series) or any(
+            combo is not current for combo, current in zip(combo_series, chart_series, strict=True)
+        )
+
     def get_current_data(self):
         """Get data from selected chart series."""
         if not self.current_project:
@@ -918,9 +934,19 @@ class FitPanel(SidebarPanel):
         chart = event_data.get("chart")
 
         if not chart:
-            return
-
-        if self.current_chart and chart.id != self.current_chart.id:
+            # Some emitters send only chart_id: the properties panel's live
+            # edits and Reset, and a dataset delete's undo (via
+            # Chart.dependency_update_event). Reset/undo go through
+            # restore_chart_state, which swaps deep-copied DataSeries into
+            # the same Chart object -- reload for those so series_combo
+            # doesn't keep the old objects, but not for a plain style edit,
+            # which replaced nothing (reloading clears the fit results).
+            if self.current_chart is None or event_data.get("chart_id") != self.current_chart.id:
+                return
+            if not self._series_combo_is_stale():
+                return
+            chart = self.current_chart
+        elif self.current_chart and chart.id != self.current_chart.id:
             return
 
         # Skip doing the reload now while the panel isn't visible, but
