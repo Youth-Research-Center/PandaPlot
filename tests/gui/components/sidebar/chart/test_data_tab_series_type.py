@@ -1126,3 +1126,35 @@ def test_switching_chart_type_while_a_fit_is_selected_keeps_the_fit_controls():
     assert tab.series_type_combo.currentData() == "__convert_to_fit__"
     assert tab.series_type_combo.isEnabled() is False
     assert tab.dataset_combo.isEnabled() is False
+
+
+def test_selecting_the_disabled_fit_entry_does_not_convert_on_a_colormap_chart():
+    """Regression test for final-review Minor B: _on_series_type_changed
+    relied on Qt to block a click on the disabled "Fit" row -- but the
+    handler itself is reachable directly (e.g. programmatically forcing
+    the combo's index under blockSignals, then invoking the slot) without
+    going through Qt's own disabled-item click guard. On a chart type
+    whose CHART_TYPE_SPECS.allows_fit is False (Colormap), the handler
+    must refuse the conversion instead of trusting the combo state."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Colormap Chart", chart_type="colormap")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+                           series_type=SeriesType.SCATTER)
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+
+    fit_index = tab.series_type_combo.findData("__convert_to_fit__")
+    tab.series_type_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+    tab.series_type_combo.setCurrentIndex(fit_index)
+    tab.series_type_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+
+    tab._on_series_type_changed()
+
+    assert len(chart.data_series) == 1
+    assert chart.data_series[0].series_type == SeriesType.SCATTER
+    assert len(chart.fit_data) == 0
+    # Controls are reloaded back to the series' real, unchanged type.
+    assert tab.series_type_combo.currentData() == SeriesType.SCATTER

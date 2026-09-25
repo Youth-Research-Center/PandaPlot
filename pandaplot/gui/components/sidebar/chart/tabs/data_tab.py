@@ -953,6 +953,13 @@ class DataTab(QWidget):
         _convert_selected_series_to_fit) and returns early, since the
         series at `current_row` no longer exists in `data_series` once
         that conversion runs.
+
+        The "Fit" entry is disabled in the combo (but not removed) on a
+        chart type whose CHART_TYPE_SPECS.allows_fit is False -- normally
+        Qt itself blocks a click on a disabled row, but this handler is
+        reachable directly (e.g. programmatically forcing the combo onto
+        that row), so it re-checks allows_fit itself rather than trusting
+        the combo's current selection.
         """
         if self._updating_controls or not self.current_chart:
             return
@@ -963,6 +970,10 @@ class DataTab(QWidget):
         if new_type is None:
             return
         if new_type == _CONVERT_TO_FIT:
+            if not CHART_TYPE_SPECS[self.current_chart.chart_type].allows_fit:
+                series = self.current_chart.data_series[current_row]
+                self._load_entry_into_controls(series)
+                return
             self._convert_selected_series_to_fit(current_row)
             return
         self.current_chart.retype_series(current_row, new_type)
