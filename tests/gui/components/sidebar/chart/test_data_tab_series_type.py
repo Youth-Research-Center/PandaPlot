@@ -960,11 +960,11 @@ def test_toggling_a_manual_fits_y_axis_does_not_repoint_it_when_its_source_datas
     into the fit's dataset_id/x_column_id/y_column_id or resnapshot its
     curve -- _on_series_y_axis_changed must write ONLY y_axis.
 
-    The axis toggle is driven by a real click on the segmented control's
-    Y2 button (matching how a user actually triggers this), not by calling
-    the handler directly -- that's the only thing that reproduces the bug
-    against the pre-fix code, since the old code's bug was specifically in
-    what `series_y_axis_control.currentValueChanged` was wired to."""
+    The `set_project` refresh after removing dataset A is what makes the
+    combos show dataset B (as the real panel does on a tab switch), which is
+    the state the bug needs. The axis toggle is a real click on the Y2
+    button rather than a direct handler call, so the test also covers what
+    `series_y_axis_control.currentValueChanged` is wired to."""
     app_context, project, dataset_a = _app_context_with_project()
     dataset_b = Dataset(name="ds2", data=pd.DataFrame({"x": [10, 20], "y": [30, 40]}))
     project.add_item(dataset_b)
