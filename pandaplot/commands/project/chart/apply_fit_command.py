@@ -344,6 +344,26 @@ class ApplyFitCommand(Command):
 
     @override
     def redo(self) -> CommandResult:
+        # Check the allows_fit guard *before* falling into execute()'s
+        # shared logic: if the chart's type changed to a disallowed one
+        # between the original execute/undo and this redo (round-2 review,
+        # Minor 2), execute() would return FAILURE, which CommandExecutor
+        # still pushes onto the undo stack -- a later undo of that phantom
+        # entry would then act on self.added_index against whatever is
+        # really at that position now. ABORTED instead leaves this command
+        # on the redo stack untouched, as if this call never happened.
+        chart = self._chart_finder.find(self.chart_id)
+        if chart is not None:
+            spec = CHART_TYPE_SPECS[chart.chart_type]
+            if not spec.allows_fit:
+                self.logger.warning(
+                    "ApplyFitCommand.redo: chart '%s' is now a %s chart, which doesn't allow fits -- refusing without touching it",
+                    self.chart_id, spec.display_name,
+                )
+                self.ui_controller.show_error_message(
+                    "Apply Fit Error", f"Fits aren't available on {spec.display_name} charts."
+                )
+                return CommandResult.ABORTED
         return self.execute()
 
     @override

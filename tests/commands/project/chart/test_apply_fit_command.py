@@ -433,3 +433,30 @@ def test_execute_refuses_a_chart_type_that_does_not_allow_fits(app_context_with_
     assert chart.data_series == []
     assert len(project.get_all_items()) == items_before
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+
+
+def test_redo_refuses_without_corrupting_data_series_if_chart_type_changed_since_undo(app_context_with_chart, fit_results):
+    """Round-2 review (Minor 2): if the chart's type was switched to one
+    that disallows fits between an undo and a later redo, redo() must
+    refuse cleanly -- via ABORTED -- rather than leave a phantom entry on
+    the undo stack whose added_index no longer matches what's really at
+    that position in chart.data_series."""
+    app_context, _project, chart, source = app_context_with_chart
+
+    command = ApplyFitCommand(
+        app_context=app_context,
+        chart_id=chart.id,
+        fit_results=fit_results,
+        source_dataset_id=source.id,
+        source_x_column_id="x_id",
+        source_y_column_id="y_id",
+    )
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert command.undo() is CommandResult.SUCCESS
+    series_after_undo = list(chart.data_series)
+
+    chart.set_chart_type("colormap")
+
+    assert command.redo() is CommandResult.ABORTED
+    assert chart.data_series == series_after_undo
