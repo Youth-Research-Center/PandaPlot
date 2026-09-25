@@ -264,7 +264,7 @@ class DataTab(QWidget):
         self.dataset_combo.currentTextChanged.connect(self._on_dataset_changed)
         self.x_column_combo.currentTextChanged.connect(self._on_series_config_changed)
         self.y_column_combo.currentTextChanged.connect(self._on_series_config_changed)
-        self.series_y_axis_control.currentValueChanged.connect(self._on_series_config_changed)
+        self.series_y_axis_control.currentValueChanged.connect(self._on_series_y_axis_changed)
         self.x_error_column_combo.currentIndexChanged.connect(self._on_series_config_changed)
         self.y_error_column_combo.currentIndexChanged.connect(self._on_series_config_changed)
         self.x_error_minus_column_combo.currentIndexChanged.connect(self._on_series_config_changed)
@@ -738,6 +738,11 @@ class DataTab(QWidget):
 
         Label changes are intentionally deferred to editingFinished handled by
         _on_label_committed to avoid disruptive list refresh while typing.
+
+        The Y axis is handled separately by `_on_series_y_axis_changed`
+        (wired directly to `series_y_axis_control.currentValueChanged`) --
+        see that method's docstring for why a Y-axis-only toggle must never
+        run through this method's source-field writes below.
         """
         if self._updating_controls or not self.current_chart:
             return
@@ -748,13 +753,10 @@ class DataTab(QWidget):
 
         series = self.current_chart.data_series[current_row]
         is_fit = series.series_type == SeriesType.FIT
-        new_y_axis = self.series_y_axis_control.currentValue()
-        if is_fit and not series.style.is_manual and series.y_axis == new_y_axis:
+        if is_fit and not series.style.is_manual:
             # Auto-applied fits (from the Fit panel): source dataset/columns
-            # are frozen at fit time -- the Y axis is their only editable
-            # field here, and it didn't change.
+            # are frozen at fit time -- nothing here applies to them.
             return
-        series.y_axis = new_y_axis
         if not is_fit:
             if self.dataset_combo.currentData():
                 series.dataset_id = self.dataset_combo.currentData()
@@ -774,7 +776,7 @@ class DataTab(QWidget):
                 series.style.magnitude_column_id = self.magnitude_column_combo.currentData() or ""
             if self._selected_series_needs_z_column():
                 series.style.z_column_id = self.z_column_combo.currentData() or ""
-        elif series.style.is_manual:
+        else:
             self._apply_manual_fit_edits(series)
 
         # Refresh the Axes-tab Y2 chip immediately so switching a series
@@ -814,6 +816,50 @@ class DataTab(QWidget):
         # instead would make the panel's shared `_on_any_tab_config_changed`
         # publish CHART_UPDATED for every keystroke-driven combo change here,
         # which is a behavior change the refactor isn't meant to introduce.
+        self.dirtyOnly.emit()
+
+    def _on_series_y_axis_changed(self):
+        """Handle a Y-axis toggle for the selected entry, of ANY series
+        type (FIT included) -- wired directly to
+        `series_y_axis_control.currentValueChanged` rather than sharing
+        `_on_series_config_changed`.
+
+        A fit's y_axis is intentionally user-editable independently of its
+        source (no auto-follow, per design), but the shared dataset/X/Y
+        combos are NOT a reliable read of a fit's source at the moment
+        this fires: if the fit's source dataset has since been removed
+        from the project, `_load_fit_into_controls` can't select it in
+        `dataset_combo`, so `_populate_column_combos` returns early and
+        the combos silently keep showing whatever dataset/columns were
+        last loaded there (e.g. a different, previously-selected series).
+        Routing a Y-axis-only toggle through `_apply_manual_fit_edits`
+        (as `_on_series_config_changed` used to) could then silently
+        repoint the fit at that stale dataset and replace its curve.
+        This slot writes ONLY `series.y_axis` for the selected entry, for
+        every series type, and never touches dataset/x/y/precomputed
+        data.
+        """
+        if self._updating_controls or not self.current_chart:
+            return
+
+        current_row = self._expanded_series_index
+        if current_row < 0 or current_row >= len(self.current_chart.data_series):
+            return
+
+        series = self.current_chart.data_series[current_row]
+        new_y_axis = self.series_y_axis_control.currentValue()
+        if series.y_axis == new_y_axis:
+            return
+        series.y_axis = new_y_axis
+
+        self.axesRefreshRequested.emit()
+        self.seriesSelected.emit("series", series)
+        if getattr(self, "_expanded_card_y_axis_badge", None) is not None:
+            self._apply_y_axis_badge_style(
+                self._expanded_card_y_axis_badge,
+                series.y_axis,
+                getattr(self, "_expanded_card_y_axis_badge_tokens", {}),
+            )
         self.dirtyOnly.emit()
 
     def _apply_manual_fit_edits(self, fit):

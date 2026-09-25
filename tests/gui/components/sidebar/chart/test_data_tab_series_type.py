@@ -940,12 +940,110 @@ def test_changing_an_auto_fits_y_axis_writes_it_and_marks_dirty():
     tab.dirtyOnly.connect(lambda: dirty_calls.append(True))
 
     tab.series_y_axis_control.setCurrentValue(YAxis.SECONDARY)
-    tab._on_series_config_changed()
+    tab._on_series_y_axis_changed()
 
     assert chart.data_series[0].y_axis == YAxis.SECONDARY
     assert dirty_calls
     # The auto-applied fit's frozen source columns stay untouched.
     assert tab.dataset_combo.isEnabled() is False
+
+
+def test_toggling_a_manual_fits_y_axis_does_not_repoint_it_when_its_source_dataset_is_gone():
+    """Regression test for final-review Important 1: a manual fit's source
+    dataset can be deleted out from under it (fits deliberately survive via
+    Chart._strip_references). When the fit is then selected, the shared
+    dataset/X/Y combos can't select the missing dataset, so
+    _populate_column_combos returns early and they keep showing whatever
+    dataset/columns were last loaded (here: the OTHER series' dataset B).
+
+    Toggling only the Y axis must never let that stale combo state leak
+    into the fit's dataset_id/x_column_id/y_column_id or resnapshot its
+    curve -- _on_series_y_axis_changed must write ONLY y_axis."""
+    app_context, project, dataset_a = _app_context_with_project()
+    dataset_b = Dataset(name="ds2", data=pd.DataFrame({"x": [10, 20], "y": [30, 40]}))
+    project.add_item(dataset_b)
+
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_data_series(
+        dataset_b.id, x_column_id=dataset_b.column_id("x"), y_column_id=dataset_b.column_id("y"),
+        label="Regular",
+    )
+    chart.add_fit_series(
+        dataset_a.id,
+        x_data=dataset_a.data["x"].to_numpy(), y_data=dataset_a.data["y"].to_numpy(),
+        source_x_column_id=dataset_a.column_id("x"), source_y_column_id=dataset_a.column_id("y"),
+        label="Manual Fit", style=FitStyle(fit_type="Custom", is_manual=True),
+    )
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+    # Select the regular series first so the shared combos show dataset B.
+    tab._expand_series(0)
+    assert tab.dataset_combo.currentData() == dataset_b.id
+
+    # Now remove the fit's source dataset from the project.
+    project.remove_item(dataset_a)
+
+    fit = chart.data_series[1]
+    original_dataset_id = fit.dataset_id
+    original_x_column_id = fit.x_column_id
+    original_y_column_id = fit.y_column_id
+    import numpy as np
+    original_x_data = fit.precomputed_x_data.copy()
+    original_y_data = fit.precomputed_y_data.copy()
+
+    # Select the fit -- combos can't select the now-missing dataset A, so
+    # they keep showing dataset B (stale, per _load_fit_into_controls /
+    # _populate_column_combos' early-return-on-missing-dataset behavior).
+    tab._expand_series(1)
+
+    tab.series_y_axis_control.setCurrentValue(YAxis.SECONDARY)
+    tab._on_series_y_axis_changed()
+
+    fit = chart.data_series[1]
+    assert fit.y_axis == YAxis.SECONDARY
+    assert fit.dataset_id == original_dataset_id
+    assert fit.x_column_id == original_x_column_id
+    assert fit.y_column_id == original_y_column_id
+    np.testing.assert_array_equal(fit.precomputed_x_data, original_x_data)
+    np.testing.assert_array_equal(fit.precomputed_y_data, original_y_data)
+
+
+def test_toggling_a_manual_fits_y_axis_does_not_resnapshot_its_data_even_when_source_is_present():
+    """Regression test for final-review Important 1: even when the fit's
+    source dataset is still present (so the combos correctly show it), a
+    Y-axis-only toggle must not re-derive precomputed_x_data/
+    precomputed_y_data from the dataset's CURRENT values -- only
+    _apply_manual_fit_edits (a real dataset/X/Y edit) should do that."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_fit_series(
+        dataset.id,
+        x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
+        source_x_column_id=dataset.column_id("x"), source_y_column_id=dataset.column_id("y"),
+        label="Manual Fit", style=FitStyle(fit_type="Custom", is_manual=True),
+    )
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+
+    fit = chart.data_series[0]
+    import numpy as np
+    original_y_data = fit.precomputed_y_data.copy()
+
+    # Mutate the source dataset's values in place after the fit was created.
+    dataset.data["y"] = dataset.data["y"] * 100
+
+    tab.series_y_axis_control.setCurrentValue(YAxis.SECONDARY)
+    tab._on_series_y_axis_changed()
+
+    fit = chart.data_series[0]
+    assert fit.y_axis == YAxis.SECONDARY
+    np.testing.assert_array_equal(fit.precomputed_y_data, original_y_data)
 
 
 def test_apply_to_writes_the_selected_fits_y_axis():
