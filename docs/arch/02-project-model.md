@@ -6,7 +6,7 @@
 Project (ItemCollection)
 └── items: List[Item | ItemCollection]
     ├── Dataset      (wraps pandas.DataFrame)
-    ├── Chart        (DataSeries + FitData + ChartConfiguration)
+    ├── Chart        (DataSeries, incl. FIT-type fits + ChartConfiguration)
     ├── Note         (markdown text + tags)
     └── Folder       (ItemCollection — nested container)
 ```
@@ -48,24 +48,26 @@ Datasets are the primary data source for charts and analyses.
 
 ```
 Chart
-├── chart_type: ChartType       # LINE, SCATTER, BAR, HISTOGRAM, BOX, VIOLIN
+├── chart_type: ChartType       # LINE, SCATTER, BAR, HIST, VECTOR, COLORMAP, HEATMAP, 3-D types
 ├── config: ChartConfiguration  # title, axis labels, legend, grid
-├── series: list[DataSeries]    # One or more data series
-└── fit_data: list[FitData]     # Attached curve fits
+└── data_series: list[DataSeries]  # Plot order = z-order; fits are FIT-type entries in this list
 
 DataSeries
-├── dataset_id: str             # Reference to a Dataset
-├── x_column: str               # Column name for X axis
-├── y_column: str               # Column name for Y axis
-└── style: SeriesStyle          # color, line width, marker
+├── dataset_id: str             # Reference to a Dataset (for a fit: the source dataset)
+├── x_column_id / y_column_id   # Stable column ids (x_column / y_column: name fallback)
+├── series_type: SeriesType     # LINE, SCATTER, ..., FIT
+├── y_axis: YAxis               # PRIMARY or SECONDARY
+├── style: SeriesStyleBase      # Per-type style class (FitStyle for FIT)
+└── precomputed_x_data / precomputed_y_data  # FIT only: the fitted curve snapshot
 
-FitData
-├── fit_type: FitType           # LINEAR, QUADRATIC, EXPONENTIAL, etc.
-├── parameters: list[float]     # Fitted coefficients
-├── errors: list[float]         # Standard errors
-├── r_squared: float            # Goodness of fit
-└── series_index: int           # Which DataSeries was fitted
+FitStyle (style of a FIT series)
+├── color / line_style / line_width, band_fill_*  # Curve and confidence-band look
+├── fit_type / fit_params / fit_stats             # What was fitted, and how well
+├── confidence_lower / confidence_upper           # Band arrays (+ *_column_id for manual fits)
+└── is_manual: bool                               # Converted from a series (editable source)
 ```
+
+`Chart.fit_data` is a read-only convenience view that filters `data_series` to its FIT entries.
 
 ### Note (`models/project/items/note.py`)
 

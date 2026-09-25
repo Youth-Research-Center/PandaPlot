@@ -81,7 +81,7 @@ User selects data series and fit type (Linear / Quadratic / Exponential / Power 
     ├── FitService.perform_fit(chart, series, fit_config)
     │   ├── Extract x, y arrays from Dataset columns
     │   └── scipy.optimize.curve_fit() → parameters, errors, R²
-    ├── FitData object attached to Chart
+    ├── SeriesType.FIT DataSeries (style: FitStyle) added to Chart.data_series
     └── ChartTab re-renders with fit curve overlaid
 ```
 

@@ -57,28 +57,29 @@ FitService.perform_fit(chart, series_index, fit_config)
 │   → popt (parameters), pcov (covariance matrix)
 ├── Compute standard errors: sqrt(diag(pcov))
 ├── Compute R²: 1 - SS_res / SS_tot
-└── Return FitData(parameters, errors, r_squared, fit_type)
+└── Return FitResult(x_fit, y_fit, parameters, errors, r_squared, fit_type)
 ```
 
-### FitData Rendering
+A fit is stored as a `SeriesType.FIT` `DataSeries` (folded into `chart.data_series` alongside every other series type, #304), not a separate model -- `chart.fit_data` is a read-only, filtered view over `data_series` for callers that only need "the fits". Its curve is a one-time snapshot in `precomputed_x_data`/`precomputed_y_data` rather than a live column reference, and its fit-only metadata (`fit_type`/`fit_params`/`fit_stats`/confidence band) lives on `DataSeries.style` (a `FitStyle`).
 
-`ChartTab` → `ChartRenderEngine`:
-1. Evaluate fit function over a fine x grid: `x_fit = linspace(x.min(), x.max(), 500)`
-2. Call `y_fit = fit_func(x_fit, *parameters)`
-3. Overlay as dashed line on the matplotlib axes
-4. Display equation and R² in the chart legend
+### Fit Rendering
+
+`ChartTab` → `ChartRenderEngine` dispatches a FIT-type series through the same `SERIES_RENDERERS` table as every other series type (`series_renderers/fit.py`):
+1. Plot `precomputed_x_data`/`precomputed_y_data` as a dashed line
+2. Overlay the confidence band, if configured
+3. Display equation and R² in the chart legend
 
 ### ApplyFitCommand
 
 ```
 ApplyFitCommand.execute()
 ├── FitService.perform_fit(...)
-├── chart.fit_data.append(fit_data)
-└── EventBus.emit(FitEvents.FIT_APPLIED, {"chart_id": ..., "fit_index": ...})
+├── chart.add_fit_series(x_data=x_fit, y_data=y_fit, style=FitStyle(...))
+└── EventBus.emit(ChartEvents.CHART_UPDATED, {"chart_id": ..., "update_type": "fit_added"})
 
 ApplyFitCommand.undo()
-├── chart.fit_data.pop(fit_index)
-└── EventBus.emit(FitEvents.FIT_REMOVED, {...})
+├── chart.remove_data_series(added_index)
+└── EventBus.emit(ChartEvents.CHART_UPDATED, {"chart_id": ..., "update_type": "fit_removed"})
 ```
 
 ## TransformColumnCommand (`commands/project/dataset/`)

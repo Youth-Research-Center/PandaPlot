@@ -3,7 +3,8 @@ Chart model for managing chart/visualization items in the project.
 """
 
 import copy
-from dataclasses import asdict, dataclass
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
@@ -59,6 +60,14 @@ class DataSeries:
     alpha: float = 1.0
     series_type: SeriesType = SeriesType.LINE
     style: SeriesStyleBase | None = None
+    # Set only for SeriesType.FIT: a fit's curve is computed once (curve_fit
+    # or manual entry) and stored as a snapshot rather than re-read from
+    # dataset_id/y_column_id like every other series type. None for every
+    # other type. compare=False: a numpy array's `==` returns an array, not
+    # a bool, which would break dataclass equality (list.index()/`in`/
+    # assert-equality all use __eq__) the instant any DataSeries carries one.
+    precomputed_x_data: np.ndarray | None = field(default=None, compare=False)
+    precomputed_y_data: np.ndarray | None = field(default=None, compare=False)
 
     def __post_init__(self):
         if isinstance(self.y_axis, str):
@@ -98,43 +107,6 @@ class DataSeries:
         return error_bars is not None and error_bars.has_error_data
 
 
-@dataclass
-class FitData:
-    """Represents fitted curve data.
-
-    Source columns are referenced by stable id (``source_*_column_id``); the
-    ``source_*_column`` name fields are a legacy/fallback populated only when
-    loading old projects. The fit line itself renders from ``x_data``/``y_data``,
-    so the source columns are metadata (display + series↔fit matching).
-    """
-    source_dataset_id: str
-    fit_type: str
-    x_data: np.ndarray
-    y_data: np.ndarray
-    label: str
-    source_x_column_id: str = ""
-    source_y_column_id: str = ""
-    source_x_column: str = ""
-    source_y_column: str = ""
-    visible: bool = True
-    fit_params: dict[str, Any] | None = None
-    fit_stats: dict[str, Any] | None = None
-    confidence_lower: np.ndarray | None = None
-    confidence_upper: np.ndarray | None = None
-    confidence_lower_column_id: str = ""
-    confidence_upper_column_id: str = ""
-    is_manual: bool = False
-    style: FitStyle | None = None
-
-    def __post_init__(self):
-        if self.fit_params is None:
-            self.fit_params = {}
-        if self.fit_stats is None:
-            self.fit_stats = {}
-        if self.style is None:
-            self.style = FitStyle()
-
-
 def _series_style_from_dict(series_type: SeriesType, style_dict: dict[str, Any]) -> SeriesStyleBase:
     """Reconstruct a series' ``style`` from its serialized dict.
 
@@ -151,6 +123,10 @@ def _series_style_from_dict(series_type: SeriesType, style_dict: dict[str, Any])
         style_dict["marker"] = MarkerStyle(**style_dict["marker"])
     if "error_bars" in style_dict and isinstance(style_dict["error_bars"], dict):
         style_dict["error_bars"] = ErrorBarConfig(**style_dict["error_bars"])
+    if style_dict.get("confidence_lower") is not None:
+        style_dict["confidence_lower"] = np.array(style_dict["confidence_lower"])
+    if style_dict.get("confidence_upper") is not None:
+        style_dict["confidence_upper"] = np.array(style_dict["confidence_upper"])
     return SERIES_TYPE_SPECS[series_type].style_cls(**style_dict)
 
 
@@ -171,7 +147,6 @@ class Chart(Item):
         # Set chart-specific attributes
         self.chart_type: ChartType = ChartType(chart_type)
         self.data_series: list[DataSeries] = []
-        self.fit_data: list[FitData] = []
         self.config: ChartConfig = ChartConfig()
         self.style: ChartStyle = ChartStyle()
 
@@ -211,10 +186,24 @@ class Chart(Item):
         no line concept), but adding one back on the reverse retype would be
         an unrequested rendering change -- left as an explicit follow-up
         style edit instead.
+
+        A FIT series is never retyped, in either direction: its
+        `precomputed_x_data`/`precomputed_y_data` snapshot has no equivalent
+        in any other series type, so retyping it away would silently orphan
+        that data (resolve_series_data would keep rendering the frozen fit
+        curve under the new type's style, since it checks precomputed data
+        before series_type). Retyping *to* FIT via this generic path would
+        likewise produce a FIT series with no curve data at all. Both are
+        explicitly out of scope (#304's non-goals) -- this is a no-op, not
+        an error, so a caller that reaches this without itself excluding
+        FIT (e.g. a stale/mis-populated UI control) fails safe instead of
+        corrupting the series.
         """
         series = self.data_series[index]
         new_type = SeriesType(series_type)
         if series.series_type == new_type:
+            return
+        if series.series_type == SeriesType.FIT or new_type == SeriesType.FIT:
             return
         old_style = series.style
         base_color = (
@@ -271,6 +260,17 @@ class Chart(Item):
         which allows {VECTOR, LINE}) is left untouched -- mixed series types
         are legitimate. Retyped series become the new type's own
         `default_series_type`, via `retype_series`.
+
+        FIT-type series are always skipped here. No chart type lists
+        SeriesType.FIT in its `allowed_series_types` (see ChartTypeSpec), so
+        without this skip every fit would be force-retyped away -- and a
+        fit's `precomputed_x_data`/`precomputed_y_data` snapshot has no
+        equivalent in any other series type, so that would silently destroy
+        fit_type/fit_params/fit_stats/confidence bands. This matches pre-#304
+        behavior, where `chart.fit_data` was a separate list `set_chart_type`
+        never touched. A fit can therefore stay on a chart type that can't
+        create fits (allows_fit=False) -- that's the intended,
+        minimally-destructive outcome, not a bug.
         """
         new_type = ChartType(chart_type)
         if new_type == self.chart_type:
@@ -278,6 +278,8 @@ class Chart(Item):
         self.chart_type = new_type
         spec = CHART_TYPE_SPECS[new_type]
         for index, series in enumerate(self.data_series):
+            if series.series_type == SeriesType.FIT:
+                continue
             if series.series_type not in spec.allowed_series_types:
                 self.retype_series(index, spec.default_series_type)
         self.update_modified_time()
@@ -312,9 +314,12 @@ class Chart(Item):
         return series
     
     def remove_data_series(self, index: int) -> bool:
-        """Remove a data series by index."""
+        """Remove a data series by index, remapping every remaining series'
+        `fill_to_index` so fills keep their target (a fill that pointed at
+        the removed series falls back to the baseline)."""
         if 0 <= index < len(self.data_series):
             del self.data_series[index]
+            self._remap_fill_targets(lambda target: -1 if target == index else (target - 1 if target > index else target))
             self.update_modified_time()
             return True
         return False
@@ -327,14 +332,50 @@ class Chart(Item):
         chart editor's render loop plots them in list order, and matplotlib
         draws each artist over whatever it already added -- so this list
         order *is* the z-index, and moving an entry here is how a series is
-        brought to front/back relative to the others (#189).
+        brought to front/back relative to the others (#189). Every series'
+        `fill_to_index` is remapped by the same permutation, so fills follow
+        their target series.
         """
         if not (0 <= from_index < len(self.data_series)) or not (0 <= to_index < len(self.data_series)):
             return False
+        order = list(range(len(self.data_series)))
+        order.insert(to_index, order.pop(from_index))
+        new_position = {old: new for new, old in enumerate(order)}
         series = self.data_series.pop(from_index)
         self.data_series.insert(to_index, series)
+        self._remap_fill_targets(lambda target: new_position.get(target, -1))
         self.update_modified_time()
         return True
+
+    def _remap_fill_targets(self, new_index_of: Callable[[int], int]) -> None:
+        """Rewrite every series' `fill_to_index` after `data_series` changed
+        shape, so each fill keeps pointing at the same *series* rather than
+        whichever one now sits at the old position. `new_index_of` maps an
+        old position to its new one, or -1 (fill to the baseline) when that
+        series is gone. Only styles with a fill target (LineSeriesStyle)
+        carry the field; -1 already means "baseline" and stays as is."""
+        for series in self.data_series:
+            target = getattr(series.style, "fill_to_index", -1)
+            if target >= 0:
+                series.style.fill_to_index = new_index_of(target)
+
+    def fill_targets(self) -> list[int | None]:
+        """Each series' `fill_to_index` by position (None for a style with
+        no fill target). Undo paths snapshot this before removing series and
+        hand it back to `restore_fill_targets` once the list is restored to
+        the same shape -- a forward removal clears references to the removed
+        series, which remapping alone can't bring back."""
+        return [getattr(series.style, "fill_to_index", None) for series in self.data_series]
+
+    def restore_fill_targets(self, targets: list[int | None]) -> None:
+        """Write back a `fill_targets()` snapshot by position. A no-op when
+        the list has a different length than `data_series` (the snapshot
+        doesn't describe this list)."""
+        if len(targets) != len(self.data_series):
+            return
+        for series, target in zip(self.data_series, targets, strict=True):
+            if target is not None and hasattr(series.style, "fill_to_index"):
+                series.style.fill_to_index = target
 
     def update_data_series(self, index: int, **kwargs) -> bool:
         """Update a data series by index."""
@@ -358,15 +399,15 @@ class Chart(Item):
         return list({series.dataset_id for series in self.data_series})
 
     def referenced_item_ids(self) -> set | None:
-        """Dataset ids referenced by any data series or fit (fit_data is
-        included here for relevance-checking purposes only -- see
-        _strip_references for why it's never actually stripped)."""
-        if not self.data_series and not self.fit_data:
+        """Dataset ids referenced by any data series, including FIT-type
+        ones (fit_data is a filtered view of data_series post-#304, so its
+        dataset ids -- via DataSeries.dataset_id, holding each fit's
+        source_dataset_id -- are already covered by data_series; see
+        _strip_references for why FIT-type entries are never actually
+        stripped despite counting toward this set)."""
+        if not self.data_series:
             return None
-        return (
-            {series.dataset_id for series in self.data_series}
-            | {fit.source_dataset_id for fit in self.fit_data}
-        )
+        return {series.dataset_id for series in self.data_series}
 
     def _strip_references(self, removed_ids: set) -> Any:
         """Drop data series referencing a removed dataset. fit_data is
@@ -379,13 +420,16 @@ class Chart(Item):
         when removed_ids only overlapped via fit_data -- referenced_item_ids()
         includes fit_data for relevance detection, but if no data_series
         actually gets dropped here, nothing about this chart changed."""
-        remaining_series = [
-            series for series in self.data_series if series.dataset_id not in removed_ids
+        kept = [
+            index for index, series in enumerate(self.data_series)
+            if series.series_type == SeriesType.FIT or series.dataset_id not in removed_ids
         ]
-        if len(remaining_series) == len(self.data_series):
+        if len(kept) == len(self.data_series):
             return None
         snapshot = snapshot_chart_state(self)
-        self.data_series = remaining_series
+        new_position = {old: new for new, old in enumerate(kept)}
+        self.data_series = [self.data_series[index] for index in kept]
+        self._remap_fill_targets(lambda target: new_position.get(target, -1))
         self.update_modified_time()
         return snapshot
 
@@ -398,64 +442,51 @@ class Chart(Item):
         are stripped or restored."""
         return ChartEvents.CHART_UPDATED, {"chart_id": self.id}
 
-    def add_fit_data(self, source_dataset_id: str, fit_type: str,
-                    x_data: np.ndarray, y_data: np.ndarray,
-                    source_x_column_id: str = "", source_y_column_id: str = "",
-                    label: str = "", **kwargs) -> FitData:
-        """Add fit data to the chart.
+    def add_fit_series(self, source_dataset_id: str, x_data: np.ndarray, y_data: np.ndarray,
+                        label: str, style: FitStyle, *, source_x_column_id: str = "",
+                        source_y_column_id: str = "", source_x_column: str = "",
+                        source_y_column: str = "", y_axis: "YAxis | str" = YAxis.PRIMARY,
+                        visible: bool = True, alpha: float = 1.0) -> DataSeries:
+        """Add a fit as a SeriesType.FIT data series (#304).
 
-        Source columns are referenced by their stable ids
-        (``source_x_column_id`` / ``source_y_column_id``); the caller resolves
-        names to ids against the dataset. This model holds no :class:`Dataset`
-        reference (see :meth:`add_data_series`).
+        `source_dataset_id`/`source_x_column_id`/`source_y_column_id` map onto
+        DataSeries's generic dataset_id/x_column_id/y_column_id fields --
+        for a FIT series these mean "source columns the fit was computed
+        from" rather than a live column reference (resolve_series_data
+        short-circuits to precomputed_x_data/precomputed_y_data instead of
+        reading them), kept only for re-fit and column-rename tracking.
+
+        Raises:
+            ValueError: if this chart's type doesn't allow fits
+                (``ChartTypeSpec.allows_fit`` is False).
         """
-        if not label:
-            label = f"{fit_type.title()} Fit"
-
-        fit = FitData(
-            source_dataset_id=source_dataset_id,
-            source_x_column_id=source_x_column_id,
-            source_y_column_id=source_y_column_id,
-            fit_type=fit_type,
-            x_data=x_data,
-            y_data=y_data,
-            label=label,
-            **kwargs
+        spec = CHART_TYPE_SPECS[self.chart_type]
+        if not spec.allows_fit:
+            # A fit's renderer draws a 2-D curve (and band) on a plain Axes;
+            # a 3-D chart's mplot3d axes reject the band call outright, and
+            # Colormap/Heatmap don't take fits by design. An existing fit may
+            # still *stay* on such a chart after a chart-type switch (see
+            # Chart.set_chart_type) -- it just can't be created there.
+            raise ValueError(f"Fits aren't available on {spec.display_name} charts.")
+        return self.add_data_series(
+            dataset_id=source_dataset_id,
+            x_column_id=source_x_column_id, y_column_id=source_y_column_id,
+            x_column=source_x_column, y_column=source_y_column,
+            label=label, visible=visible, y_axis=y_axis, alpha=alpha,
+            series_type=SeriesType.FIT, style=style,
+            precomputed_x_data=x_data, precomputed_y_data=y_data,
         )
-        self.fit_data.append(fit)
-        self.update_modified_time()
-        return fit
-    
-    def remove_fit_data(self, index: int) -> bool:
-        """Remove fit data by index."""
-        if 0 <= index < len(self.fit_data):
-            del self.fit_data[index]
-            self.update_modified_time()
-            return True
-        return False
-    
-    def update_fit_data(self, index: int, **kwargs) -> bool:
-        """Update fit data by index."""
-        if 0 <= index < len(self.fit_data):
-            fit = self.fit_data[index]
-            for key, value in kwargs.items():
-                if hasattr(fit, key):
-                    setattr(fit, key, value)
-            self.update_modified_time()
-            return True
-        return False
-    
-    def get_fit_data(self, index: int) -> FitData | None:
-        """Get fit data by index."""
-        if 0 <= index < len(self.fit_data):
-            return self.fit_data[index]
-        return None
-    
-    def clear_fit_data(self) -> None:
-        """Clear all fit data."""
-        self.fit_data.clear()
-        self.update_modified_time()
-    
+
+    @property
+    def fit_data(self) -> list[DataSeries]:
+        """Read-only view of this chart's FIT-type series, in list order.
+
+        Not permanent API surface -- a convenience for call sites that only
+        need "the fits", kept in sync automatically since it's just a
+        filter over data_series (the single source of truth post-#304).
+        """
+        return [s for s in self.data_series if s.series_type == SeriesType.FIT]
+
     def update_config(self, config_updates: dict[str, Any]) -> None:
         """Update chart configuration."""
         self.config.update(config_updates)
@@ -526,45 +557,41 @@ class Chart(Item):
     def to_dict(self) -> dict[str, Any]:
         """Convert chart to dictionary for serialization."""
         data = super().to_dict()
+        series_dicts = []
+        for series in self.data_series:
+            style_dict = asdict(series.style) if series.style is not None else None
+            if style_dict is not None:
+                # asdict() doesn't know about JSON serializability -- any
+                # ndarray-valued style field (e.g. FitStyle's
+                # confidence_lower/confidence_upper) needs converting to a
+                # plain list here, or json.dumps() (ChartDataManager.save)
+                # raises TypeError. Generic over all style fields so any
+                # future ndarray-valued field is covered too, not just
+                # today's two.
+                for key, value in style_dict.items():
+                    if isinstance(value, np.ndarray):
+                        style_dict[key] = value.tolist()
+            series_dict = {
+                "dataset_id": series.dataset_id,
+                "x_column": series.x_column,
+                "y_column": series.y_column,
+                "x_column_id": series.x_column_id,
+                "y_column_id": series.y_column_id,
+                "label": series.label,
+                "visible": series.visible,
+                "y_axis": series.y_axis,
+                "alpha": series.alpha,
+                "series_type": series.series_type.value,
+                "style": style_dict,
+            }
+            if series.precomputed_x_data is not None:
+                series_dict["precomputed_x_data"] = series.precomputed_x_data.tolist()
+            if series.precomputed_y_data is not None:
+                series_dict["precomputed_y_data"] = series.precomputed_y_data.tolist()
+            series_dicts.append(series_dict)
         data.update({
             "chart_type": self.chart_type,
-            "data_series": [
-                {
-                    "dataset_id": series.dataset_id,
-                    "x_column": series.x_column,
-                    "y_column": series.y_column,
-                    "x_column_id": series.x_column_id,
-                    "y_column_id": series.y_column_id,
-                    "label": series.label,
-                    "visible": series.visible,
-                    "y_axis": series.y_axis,
-                    "alpha": series.alpha,
-                    "series_type": series.series_type.value,
-                    "style": asdict(series.style) if series.style is not None else None,
-                } for series in self.data_series
-            ],
-            "fit_data": [
-                {
-                    "source_dataset_id": fit.source_dataset_id,
-                    "source_x_column": fit.source_x_column,
-                    "source_y_column": fit.source_y_column,
-                    "source_x_column_id": fit.source_x_column_id,
-                    "source_y_column_id": fit.source_y_column_id,
-                    "fit_type": fit.fit_type,
-                    "x_data": fit.x_data.tolist(),
-                    "y_data": fit.y_data.tolist(),
-                    "label": fit.label,
-                    "visible": fit.visible,
-                    "fit_params": fit.fit_params,
-                    "fit_stats": fit.fit_stats,
-                    "confidence_lower": fit.confidence_lower.tolist() if fit.confidence_lower is not None else None,
-                    "confidence_upper": fit.confidence_upper.tolist() if fit.confidence_upper is not None else None,
-                    "confidence_lower_column_id": fit.confidence_lower_column_id,
-                    "confidence_upper_column_id": fit.confidence_upper_column_id,
-                    "is_manual": fit.is_manual,
-                    "style": asdict(fit.style) if fit.style is not None else None,
-                } for fit in self.fit_data
-            ],
+            "data_series": series_dicts,
             "config": self.config.to_dict(),
             "style": self.style.to_dict()
         })
@@ -590,12 +617,14 @@ class Chart(Item):
         chart.config.update(data.get("config", {}))
         chart.style.update(data.get("style", {}))
         
-        # Load data series
+        # Load data series (FIT-type entries included -- see #304)
         series_data = data.get("data_series", [])
         for series_dict in series_data:
             series_type = SeriesType(series_dict.get("series_type", chart.chart_type))
             style_dict = series_dict.get("style")
             style = _series_style_from_dict(series_type, style_dict) if style_dict is not None else None
+            precomputed_x = series_dict.get("precomputed_x_data")
+            precomputed_y = series_dict.get("precomputed_y_data")
             series = DataSeries(
                 dataset_id=series_dict["dataset_id"],
                 x_column=series_dict["x_column"],
@@ -608,41 +637,10 @@ class Chart(Item):
                 alpha=series_dict.get("alpha", 1.0),
                 series_type=series_type,
                 style=style,
+                precomputed_x_data=np.array(precomputed_x) if precomputed_x is not None else None,
+                precomputed_y_data=np.array(precomputed_y) if precomputed_y is not None else None,
             )
             chart.data_series.append(series)
-        
-        # Load fit data
-        fit_data_list = data.get("fit_data", [])
-        for fit_dict in fit_data_list:
-            style_dict = fit_dict.get("style")
-            style = FitStyle(**style_dict) if style_dict is not None else None
-            fit = FitData(
-                source_dataset_id=fit_dict["source_dataset_id"],
-                source_x_column=fit_dict["source_x_column"],
-                source_y_column=fit_dict["source_y_column"],
-                source_x_column_id=fit_dict.get("source_x_column_id", ""),
-                source_y_column_id=fit_dict.get("source_y_column_id", ""),
-                fit_type=fit_dict["fit_type"],
-                x_data=np.array(fit_dict["x_data"]),
-                y_data=np.array(fit_dict["y_data"]),
-                label=fit_dict.get("label", ""),
-                visible=fit_dict.get("visible", True),
-                fit_params=fit_dict.get("fit_params", {}),
-                fit_stats=fit_dict.get("fit_stats", {}),
-                confidence_lower=(
-                    np.array(fit_dict["confidence_lower"])
-                    if fit_dict.get("confidence_lower") is not None else None
-                ),
-                confidence_upper=(
-                    np.array(fit_dict["confidence_upper"])
-                    if fit_dict.get("confidence_upper") is not None else None
-                ),
-                confidence_lower_column_id=fit_dict.get("confidence_lower_column_id", ""),
-                confidence_upper_column_id=fit_dict.get("confidence_upper_column_id", ""),
-                is_manual=fit_dict.get("is_manual", False),
-                style=style,
-            )
-            chart.fit_data.append(fit)
 
         return chart
 
@@ -667,14 +665,17 @@ def resolve_series_column(dataset: Any, column_id: str,
 def resolve_numeric_column(dataset: Any, column_id: str) -> np.ndarray | None:
     """Resolve a column id to a JSON-safe numeric numpy array snapshot.
 
-    Used for fit data (FitData.x_data/y_data/confidence_lower/
-    confidence_upper), which is always treated as purely numeric --
-    unlike a live DataSeries reference. Non-numeric values coerce to NaN
+    Used for fit data (a FIT-type DataSeries's precomputed_x_data/
+    precomputed_y_data and its style's confidence_lower/confidence_upper),
+    which is always treated as purely numeric -- unlike a live DataSeries
+    reference. Non-numeric values coerce to NaN
     (pandas.to_numeric(errors="coerce")) rather than raising, and the
-    dtype is always JSON-serializable, since Chart.to_dict() later calls
-    .tolist() on it for json.dumps() during project save with no custom
-    encoder (a non-numeric dtype like datetime64 would otherwise fail
-    that save -- and since ProjectDataManager.save() truncates the
+    dtype is always JSON-serializable, since Chart.to_dict() generically
+    converts any ndarray-valued field of a series' style dict (including
+    a fit's confidence_lower/confidence_upper) to a plain list via
+    .tolist() before json.dumps() runs during project save, with no
+    custom encoder (a non-numeric dtype like datetime64 would otherwise
+    fail that save -- and since ProjectDataManager.save() truncates the
     project's zip before writing, a failed save can destroy the
     previously-saved project file). Returns None if the column can't be
     resolved at all (missing dataset, unknown id, or the id resolves to
@@ -790,26 +791,14 @@ def assign_series_column_ids(series: "DataSeries", dataset: Any) -> None:
             series.style.z_column_id = cid
 
 
-def assign_fit_column_ids(fit: "FitData", dataset: Any) -> None:
-    """Fill a fit's source ``*_column_id`` fields from its name fields."""
-    if dataset is None:
-        return
-    for name_field, id_field in (("source_x_column", "source_x_column_id"),
-                                 ("source_y_column", "source_y_column_id")):
-        name = getattr(fit, name_field, "")
-        if name:
-            cid = dataset.column_id(name)
-            if cid is not None:
-                setattr(fit, id_field, cid)
-
-
 def snapshot_chart_state(chart: "Chart") -> dict[str, Any]:
     """Capture the mutable chart state that the properties panel can change.
 
-    The whole fit_data list is deep-copied, same as data_series -- a
-    manually-converted fit's source dataset/columns and x_data/y_data are
-    genuinely editable from the Data tab (#298 follow-up), not just its
-    style/label, so Reset/undo needs to be able to revert those too.
+    FIT-type series are deep-copied as part of data_series like any other
+    series (#304) -- a manually-converted fit's source dataset/columns and
+    precomputed_x_data/precomputed_y_data are genuinely editable from the
+    Data tab (#298 follow-up), not just its style/label, so Reset/undo
+    needs to be able to revert those too.
     """
     return {
         "config": copy.deepcopy(chart.config),
@@ -817,7 +806,6 @@ def snapshot_chart_state(chart: "Chart") -> dict[str, Any]:
         "chart_type": chart.chart_type,
         "name": chart.name,
         "data_series": [copy.deepcopy(s) for s in chart.data_series],
-        "fit_data": [copy.deepcopy(f) for f in chart.fit_data],
     }
 
 
@@ -828,6 +816,5 @@ def restore_chart_state(chart: "Chart", snapshot: dict[str, Any]) -> None:
     chart.chart_type = snapshot["chart_type"]
     chart.name = snapshot["name"]
     chart.data_series = [copy.deepcopy(s) for s in snapshot["data_series"]]
-    chart.fit_data = [copy.deepcopy(f) for f in snapshot["fit_data"]]
     chart.update_modified_time()
 

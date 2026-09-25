@@ -26,6 +26,8 @@ from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import DataSeries, resolve_series_column
@@ -415,12 +417,23 @@ class FitPanel(SidebarPanel):
         if chart_id != self.current_chart.id or event_data.get("kind") != "series":
             return
         index = event_data.get("index")
-        # series_combo mirrors chart.data_series 1:1, in order, followed by
-        # a trailing "Custom..." entry -- so the series' own index in the
-        # chart is also its row here.
         if index is None or not (0 <= index < len(self.current_chart.data_series)):
             return
-        self.series_combo.setCurrentIndex(index)
+        series = self.current_chart.data_series[index]
+        # series_combo excludes FIT-type entries (see load_chart_object),
+        # so it no longer mirrors chart.data_series 1:1 by index -- find
+        # the clicked series' own row by identity instead of the chart
+        # index directly. Not `findData()`/`==`: DataSeries is a plain
+        # dataclass whose precomputed_x_data/precomputed_y_data compare
+        # as equal-when-both-None, so two distinct series can be
+        # `==`-equal (see chart.py's `compare=False` fields) -- `is`
+        # avoids matching the wrong row. A fit click can't reach here at
+        # all (kind == "fit" for those, filtered above), so this is
+        # always a plain series and always present in the combo.
+        for row in range(self.series_combo.count()):
+            if self.series_combo.itemData(row) is series:
+                self.series_combo.setCurrentIndex(row)
+                break
 
     def _show_scipy_warning(self):
         """Show warning if scipy is not available."""
@@ -475,6 +488,22 @@ class FitPanel(SidebarPanel):
             dataset_id=dataset_id,
             x_column_id=x_column_id,
             y_column_id=y_column_id,
+        )
+
+    def _series_combo_is_stale(self) -> bool:
+        """Whether series_combo no longer holds the current chart's own
+        (non-FIT) DataSeries objects -- e.g. after restore_chart_state (the
+        properties panel's Reset, or undo of a dataset delete) swapped
+        deep copies into chart.data_series."""
+        if self.current_chart is None:
+            return False
+        combo_series = [
+            self.series_combo.itemData(row) for row in range(self.series_combo.count())
+            if isinstance(self.series_combo.itemData(row), DataSeries)
+        ]
+        chart_series = [s for s in self.current_chart.data_series if s.series_type != SeriesType.FIT]
+        return len(combo_series) != len(chart_series) or any(
+            combo is not current for combo, current in zip(combo_series, chart_series, strict=True)
         )
 
     def get_current_data(self):
@@ -720,6 +749,7 @@ class FitPanel(SidebarPanel):
                 series.y_column_id,
                 series.y_column) or "",
             fixed_parameters=self.fit_fixed_parameters,
+            y_axis=series.y_axis,
         )
 
         executor = self.app_context.get_command_executor()
@@ -741,10 +771,28 @@ class FitPanel(SidebarPanel):
         if hasattr(self, "busy_spinner"):
             self.busy_spinner.stop()
 
+    def _chart_allows_fit(self) -> bool:
+        """Whether the current chart's type lets a fit be applied to it
+        (ChartTypeSpec.allows_fit -- False for 3-D, Colormap and Heatmap)."""
+        return self.current_chart is not None and CHART_TYPE_SPECS[self.current_chart.chart_type].allows_fit
+
+    def _update_apply_enabled(self) -> None:
+        """Enable Apply only when there's a fit result to apply, the current
+        chart's type allows fits, and no fit is currently computing; keeps
+        the tooltip in sync with the same conditions so the two never
+        disagree (PR #416 round-2 review: a live chart-type switch used to
+        leave this stale, since it only recomputed from load_chart_object
+        and _on_complete, not from a chart_id-only CHART_UPDATED)."""
+        allowed = self._chart_allows_fit()
+        spec = CHART_TYPE_SPECS[self.current_chart.chart_type] if self.current_chart is not None else None
+        self.apply_button.setToolTip("" if spec is None or allowed else f"Fits aren't available on {spec.display_name} charts.")
+        self.apply_button.setEnabled(self.fit_results is not None and allowed and self._pending_fit_command is None)
+
     def load_chart_object(self, chart):
         """Load a Chart object for fitting analysis."""
         self._clear_results()
         self.current_chart = chart
+        self._update_apply_enabled()
 
         # Clearing/populating a combo box fires currentIndexChanged as items
         # come and go, which would call _on_series_changed() (and thus
@@ -760,6 +808,15 @@ class FitPanel(SidebarPanel):
             return
 
         for series in chart.data_series:
+            if series.series_type == SeriesType.FIT:
+                # A fit isn't a valid source for a new fit (#304): its
+                # dataset_id/x_column/y_column mean "source columns the
+                # fit was computed from", not a live column to re-read --
+                # get_current_data() would silently re-fit the ORIGINAL
+                # source data instead of the fit's own curve, and fail
+                # outright once that source dataset is gone (which a fit
+                # is specifically designed to survive).
+                continue
             if series.label:
                 label = series.label
             else:
@@ -881,9 +938,25 @@ class FitPanel(SidebarPanel):
         chart = event_data.get("chart")
 
         if not chart:
-            return
-
-        if self.current_chart and chart.id != self.current_chart.id:
+            # Some emitters send only chart_id: the properties panel's live
+            # edits and Reset, and a dataset delete's undo (via
+            # Chart.dependency_update_event). Reset/undo go through
+            # restore_chart_state, which swaps deep-copied DataSeries into
+            # the same Chart object -- reload for those so series_combo
+            # doesn't keep the old objects, but not for a plain style edit,
+            # which replaced nothing (reloading clears the fit results).
+            if self.current_chart is None or event_data.get("chart_id") != self.current_chart.id:
+                return
+            if not self._series_combo_is_stale():
+                # Nothing to reload, but the chart type may have changed
+                # live (e.g. the Chart tab's type combo) without replacing
+                # any series objects -- refresh Apply's enabled/tooltip
+                # state for that case. No reload here, so fit_results must
+                # not be cleared.
+                self._update_apply_enabled()
+                return
+            chart = self.current_chart
+        elif self.current_chart and chart.id != self.current_chart.id:
             return
 
         # Skip doing the reload now while the panel isn't visible, but
@@ -993,7 +1066,7 @@ class FitPanel(SidebarPanel):
             self.fit_results = command.result
             self.fit_fixed_parameters = command.fixed_parameters
             self.display_results()
-            self.apply_button.setEnabled(self.fit_results is not None)
+            self._update_apply_enabled()
 
         command = PerformFitCommand(
             fit_service=self.fit_service,

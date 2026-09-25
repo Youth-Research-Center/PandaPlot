@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QApplication, QPushButton
 
 from pandaplot.app import build_app_context
 from pandaplot.gui.components.sidebar.chart.tabs.data_tab import DataTab
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.project import Project
@@ -147,27 +148,51 @@ def _current_generation_move_buttons(data_tab):
     return buttons
 
 
-def test_fit_data_rows_have_no_move_buttons(data_tab_with_chart):
-    """Fits always draw after every series regardless of list position
-    (chart_editor.py's separate, always-later fit-plotting loop), so
-    reordering them wouldn't change anything -- no move controls offered.
-    Every one of the 3 row-rendering modes (collapsed/detail/expanded) is
-    shared between series and fits, so this only holds if all three
-    correctly gate the move buttons on "is this a series, not a fit"."""
+def test_fit_data_rows_have_move_buttons(data_tab_with_chart):
+    """A FIT entry renders in its own data_series list position like any
+    other series (#304) -- its position IS its z-index, reorderable via
+    move_data_series like a plain series' -- so it needs the same move
+    controls a plain series row gets. Every one of the 3 row-rendering
+    modes (collapsed/detail/expanded) is shared between series and fits,
+    so this only holds if all three consistently add the move buttons."""
     data_tab, chart, _ = data_tab_with_chart
-    chart.add_fit_data(
-        source_dataset_id=chart.data_series[0].dataset_id, fit_type="linear",
-        x_data=np.array([1, 2, 3]), y_data=np.array([1, 2, 3]), label="Fit 1",
+    total_series = len(chart.data_series)
+    chart.add_fit_series(
+        chart.data_series[0].dataset_id,
+        x_data=np.array([1, 2, 3]), y_data=np.array([1, 2, 3]),
+        label="Fit 1", style=FitStyle(fit_type="linear"),
     )
     data_tab.load(chart)
-    total_series = len(chart.data_series)
 
-    # Collapsed/detail rows only (nothing expanded past the default index 0).
-    assert len(_current_generation_move_buttons(data_tab)) == 2 * total_series
+    # Collapsed/detail rows only (nothing expanded past the default index 0)
+    # -- every row, including the fit's, gets both move buttons.
+    assert len(_current_generation_move_buttons(data_tab)) == 2 * (total_series + 1)
 
-    # Expand the fit row (combined index 3, appended after the 3 series) --
-    # if _build_expanded_series_card built move buttons for it too, this
-    # count would grow past 2 * total_series.
+    # Expand the fit row (appended right after the `total_series` real
+    # series, at its own data_series index -- #304: FIT entries live
+    # inline in data_series now, not a separate appended space) -- the
+    # expanded card must keep its move buttons too, not drop them.
     data_tab._expand_series(total_series)
     assert data_tab.selected_index == total_series
-    assert len(_current_generation_move_buttons(data_tab)) == 2 * total_series
+    assert len(_current_generation_move_buttons(data_tab)) == 2 * (total_series + 1)
+
+
+def test_clicking_a_fit_rows_move_up_button_reorders_it_earlier(data_tab_with_chart):
+    """A fit's move buttons must actually reorder it (via the same
+    move_data_series/ReorderSeriesCommand path a plain series uses), not
+    just render for visual parity."""
+    data_tab, chart, _ = data_tab_with_chart
+    chart.add_fit_series(
+        chart.data_series[0].dataset_id,
+        x_data=np.array([1, 2, 3]), y_data=np.array([1, 2, 3]),
+        label="Fit 1", style=FitStyle(fit_type="linear"),
+    )
+    data_tab.load(chart)
+    assert _labels(chart) == ["A", "B", "C", "Fit 1"]
+
+    fit_card = data_tab._series_cards_layout.itemAt(3).widget()
+    up_button = next(b for b in fit_card.findChildren(QPushButton) if b.text() == "▲")
+    assert up_button.isEnabled()
+    QTest.mouseClick(up_button, Qt.MouseButton.LeftButton)
+
+    assert _labels(chart) == ["A", "B", "Fit 1", "C"]

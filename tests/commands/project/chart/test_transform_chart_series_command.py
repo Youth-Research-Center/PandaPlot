@@ -11,6 +11,7 @@ from pandaplot.commands.project.chart.transform_chart_series_command import (
     TransformChartSeriesCommand,
 )
 from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ProjectEvents
@@ -33,8 +34,9 @@ def ctx():
     y_id = dataset.column_id("sq")
     chart.add_data_series(dataset_id="ds-1", x_column_id=x_id, y_column_id=y_id,
                           x_column="t", y_column="sq", label="Squared")
-    chart.add_fit_data(source_dataset_id="ds-1", fit_type="quadratic",
-                       x_data=t, y_data=t ** 2, label="Quadratic Fit", source_x_column="t")
+    chart.add_fit_series(source_dataset_id="ds-1", x_data=t, y_data=t ** 2,
+                         label="Quadratic Fit", source_x_column="t",
+                         style=FitStyle(fit_type="quadratic"))
     project.add_item(chart)
 
     app_context = Mock(spec=AppContext)
@@ -48,7 +50,6 @@ def ctx():
 
 def _cmd(ctx, **kw):
     app_context, _ = ctx
-    kw.setdefault("source_kind", "series")
     kw.setdefault("source_index", 0)
     kw.setdefault("target", "y")
     kw.setdefault("expression", "y * 2")
@@ -109,7 +110,7 @@ class TestTransformChartSeriesCommand:
 
     def test_transform_on_fit_series(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="fit", target="y", expression="np.sqrt(y)")
+        command = _cmd(ctx, source_index=1, target="y", expression="np.sqrt(y)")
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
         transformed_col = next(c for c in result.data.columns if c != "t")
@@ -140,7 +141,7 @@ class TestTransformChartSeriesCommand:
 
     def test_invalid_source_index_fails(self, ctx):
         app_context, _ = ctx
-        command = _cmd(ctx, source_kind="fit", source_index=9)
+        command = _cmd(ctx, source_index=9)
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
@@ -150,7 +151,7 @@ class TestTransformChartSeriesCommand:
         own bounds check ran -- an out-of-range series index raised a raw
         IndexError instead of this same friendly message."""
         app_context, _ = ctx
-        command = _cmd(ctx, source_kind="series", source_index=9)
+        command = _cmd(ctx, source_index=9)
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
         _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
@@ -194,7 +195,7 @@ class TestTransformChartSeriesCommand:
         _app_context, project = ctx
         chart = project.find_item("chart-1")
         chart.data_series[0].series_type = SeriesType.BAR
-        command = _cmd(ctx, source_kind="series", source_index=0)
+        command = _cmd(ctx, source_index=0)
         assert command.execute() is CommandResult.FAILURE
 
     def test_execute_surfaces_no_project_loaded_to_the_user(self, ctx):
@@ -222,7 +223,7 @@ class TestTransformChartSeriesCommand:
         source_series.style.marker.marker_color = "#ff00ff"
         source_series.alpha = 0.4
 
-        command = _cmd(ctx, source_kind="series", source_index=0)
+        command = _cmd(ctx, source_index=0)
         assert command.execute() is CommandResult.SUCCESS
 
         new_series = chart.data_series[command.added_series_index]
@@ -245,7 +246,7 @@ class TestTransformChartSeriesCommand:
         source_series.style.error_bars.y_error_column = "sq_err"
         source_series.style.error_bars.error_color = "#00ff00"  # pure styling, should survive
 
-        command = _cmd(ctx, source_kind="series", source_index=0)
+        command = _cmd(ctx, source_index=0)
         assert command.execute() is CommandResult.SUCCESS
 
         new_series = chart.data_series[command.added_series_index]
@@ -258,7 +259,7 @@ class TestTransformChartSeriesCommand:
     def test_new_series_from_a_fit_source_uses_default_style(self, ctx):
         _, project = ctx
         chart = project.find_item("chart-1")
-        command = _cmd(ctx, source_kind="fit", source_index=0)
+        command = _cmd(ctx, source_index=1)
         assert command.execute() is CommandResult.SUCCESS
         new_series = chart.data_series[command.added_series_index]
         assert new_series.series_type == SeriesType.LINE
@@ -271,7 +272,7 @@ class TestTransformChartSeriesCommand:
         _, project = ctx
         chart = project.find_item("chart-1")
         chart.chart_type = ChartType.VECTOR
-        command = _cmd(ctx, source_kind="fit", source_index=0)
+        command = _cmd(ctx, source_index=1)
         assert command.execute() is CommandResult.SUCCESS
         new_series = chart.data_series[command.added_series_index]
         assert new_series.series_type == SeriesType.LINE
@@ -283,7 +284,7 @@ class TestTransformChartSeriesCommand:
         _, project = ctx
         chart = project.find_item("chart-1")
         chart.chart_type = ChartType.BAR
-        command = _cmd(ctx, source_kind="fit", source_index=0)
+        command = _cmd(ctx, source_index=1)
         assert command.execute() is CommandResult.SUCCESS
         new_series = chart.data_series[command.added_series_index]
         assert new_series.series_type == SeriesType.SCATTER
@@ -297,7 +298,7 @@ class TestTransformChartSeriesCommand:
         chart = project.find_item("chart-1")
         chart.chart_type = ChartType.HIST
         datasets_before = [item for item in project.get_all_items() if isinstance(item, Dataset)]
-        command = _cmd(ctx, source_kind="fit", source_index=0)
+        command = _cmd(ctx, source_index=1)
 
         assert command.execute() is CommandResult.FAILURE
 
@@ -310,7 +311,7 @@ class TestTransformChartSeriesCommand:
         _, project = ctx
         chart = project.find_item("chart-1")
         chart.data_series[0].y_axis = YAxis.SECONDARY
-        command = _cmd(ctx, source_kind="series", source_index=0)
+        command = _cmd(ctx, source_index=0)
         assert command.execute() is CommandResult.SUCCESS
         new_series = chart.data_series[command.added_series_index]
         assert new_series.y_axis == YAxis.SECONDARY
@@ -392,7 +393,7 @@ class TestTransformChartSeriesCommand:
         chart.parent_id = None
         project.add_item(chart, parent_id="folder-1")
         command = TransformChartSeriesCommand(
-            app_context, "chart-1", source_kind="series", source_index=0,
+            app_context, "chart-1", source_index=0,
             target="y", expression="y * 2", folder_id="folder-1",
         )
         assert command.execute() is CommandResult.SUCCESS
@@ -407,7 +408,7 @@ class TestTransformChartSeriesCommand:
         convention), not the stale, now-nonexistent folder id."""
         app_context, project = ctx
         command = TransformChartSeriesCommand(
-            app_context, "chart-1", source_kind="series", source_index=0,
+            app_context, "chart-1", source_index=0,
             target="y", expression="y * 2", folder_id="no-such-folder",
         )
         assert command.execute() is CommandResult.SUCCESS

@@ -209,7 +209,7 @@ class TestChartTransformPanelSeriesSelectedEvent:
             {"chart_id": "chart-1", "kind": "series", "index": 1}
         )
 
-        assert panel.source_combo.currentData() == ("series", 1)
+        assert panel.source_combo.currentData() == 1
 
     def test_ignores_event_for_a_different_chart(self, panel):
         panel.source_combo.setCurrentIndex(0)

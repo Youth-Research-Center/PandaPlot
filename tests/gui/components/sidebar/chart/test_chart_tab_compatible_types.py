@@ -1,11 +1,13 @@
 """Tests for ChartTab's chart-type selector."""
 import sys
 
+import numpy as np
 import pytest
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.sidebar.chart.tabs.chart_tab import ChartTab
 from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 
@@ -107,3 +109,58 @@ def test_mixed_scatter_and_vector_series_disables_bar():
     tab.load(chart)
 
     assert _is_option_enabled(tab, ChartType.BAR) is False
+
+
+def test_a_chart_holding_a_fit_still_allows_switching_to_colormap_and_heatmap():
+    """Re-review finding #2: a FIT series lives inline in data_series since
+    #304, but it must stay immune to chart-type-switch gating in the UI --
+    same as it already is in `Chart.set_chart_type` (which never
+    force-retypes a FIT series away). Before the fix, a chart holding ANY
+    fit had SeriesType.FIT included in the set passed to
+    `compatible_chart_types_for_series`, and since FIT isn't in Colormap's
+    or Heatmap's `allowed_series_types`, both options were wrongly
+    disabled -- a regression versus pre-#304, where fits lived in a
+    separate `fit_data` list that never entered this computation."""
+    tab = ChartTab()
+    chart = Chart(name="Chart With Fit", chart_type="line")
+    chart.add_data_series(dataset_id="ds1", x_column_id="x", y_column_id="y",
+                           series_type=SeriesType.LINE)
+    chart.add_fit_series(
+        source_dataset_id="ds1",
+        x_data=np.array([1.0, 2.0, 3.0]),
+        y_data=np.array([1.0, 2.0, 3.0]),
+        label="Fit",
+        style=FitStyle(fit_type="linear"),
+    )
+    tab.load(chart)
+
+    assert _is_option_enabled(tab, ChartType.COLORMAP) is True
+    assert _is_option_enabled(tab, ChartType.HEATMAP) is True
+
+
+def test_a_fit_only_chart_does_not_allow_switching_to_3d_types():
+    """A chart holding ONLY a fit reduces `series_types` to the empty set
+    after discarding SeriesType.FIT (nothing else left to protect), which
+    `compatible_chart_types_for_series` treats as "everything compatible"
+    by design (a genuinely new chart has nothing to protect either) --
+    but a fit's renderer plots on a plain matplotlib Axes, not mplot3d, so
+    "everything" must not include 3-D targets it can't actually render
+    on. Before the fix, an empty-after-discard series_types silently
+    allowed 3-D switches for a fit-only chart."""
+    tab = ChartTab()
+    chart = Chart(name="Fit-Only Chart", chart_type="line")
+    chart.add_fit_series(
+        source_dataset_id="ds1",
+        x_data=np.array([1.0, 2.0, 3.0]),
+        y_data=np.array([1.0, 2.0, 3.0]),
+        label="Fit",
+        style=FitStyle(fit_type="linear"),
+    )
+    tab.load(chart)
+
+    assert _is_option_enabled(tab, ChartType.SCATTER3D) is False
+    assert _is_option_enabled(tab, ChartType.SURFACE) is False
+    # Still allows every 2-D target, matching the "nothing to protect"
+    # empty-set behavior for everything except 3-D.
+    assert _is_option_enabled(tab, ChartType.COLORMAP) is True
+    assert _is_option_enabled(tab, ChartType.SCATTER) is True

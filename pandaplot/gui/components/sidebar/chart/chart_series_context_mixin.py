@@ -78,11 +78,10 @@ class ChartSeriesContextMixin:
         chart_id = event_data.get("chart_id")
         if self.current_chart_id is None or chart_id != self.current_chart_id:
             return
-        kind = event_data.get("kind")
         index = event_data.get("index")
-        if kind is None or index is None:
+        if index is None:
             return
-        combo_index = find_series_fit_combo_index(self.source_combo, kind, index)
+        combo_index = find_series_fit_combo_index(self.source_combo, index)
         if combo_index >= 0:
             self.source_combo.setCurrentIndex(combo_index)
 

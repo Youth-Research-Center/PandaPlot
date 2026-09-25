@@ -222,14 +222,13 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- config -------------------------------------------------------
 
-    def _selected_source(self):
+    def _selected_source(self) -> int | None:
         return self.source_combo.currentData()
 
     def _make_command(self) -> TransformChartSeriesCommand | None:
-        source = self._selected_source()
-        if source is None or self.current_chart_id is None:
+        index = self._selected_source()
+        if index is None or self.current_chart_id is None:
             return None
-        kind, index = source
         expression = self.expression_text.toPlainText().strip()
         if not expression:
             return None
@@ -238,7 +237,6 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
         return TransformChartSeriesCommand(
             self.app_context,
             chart_id=self.current_chart_id,
-            source_kind=kind,
             source_index=index,
             target=self.target_combo.currentData(),
             expression=expression,

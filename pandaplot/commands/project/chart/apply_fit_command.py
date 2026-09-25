@@ -9,10 +9,12 @@ import pandas as pd
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.events import ChartEvents
 from pandaplot.models.events.event_types import DatasetEvents, ProjectEvents
 from pandaplot.models.project.items import Dataset, Note
+from pandaplot.models.project.items.chart import YAxis
 from pandaplot.models.state import AppContext
 
 # Maps a short fit-type name to its chart color. `fit_type` from the fit panel is a
@@ -53,6 +55,8 @@ class ApplyFitCommand(Command):
         source_y_column: str = "",
         label: str = "",
         fixed_parameters: str | None = None,
+        *,
+        y_axis: "YAxis | str" = YAxis.PRIMARY,
     ):
         super().__init__()
 
@@ -68,6 +72,10 @@ class ApplyFitCommand(Command):
         self.source_y_column = source_y_column
         self.label = label
         self.fixed_parameters = fixed_parameters
+        # The fitted series' own axis, passed by the caller (the Fit panel
+        # knows which series was fitted); a "Custom..." source defaults to
+        # primary. Editable afterwards like any series' y_axis.
+        self.y_axis = YAxis(y_axis)
 
         self.added_index: int | None = None
 
@@ -250,31 +258,43 @@ class ApplyFitCommand(Command):
             )
             return CommandResult.FAILURE
 
+        spec = CHART_TYPE_SPECS[chart.chart_type]
+        if not spec.allows_fit:
+            self.logger.warning(
+                "ApplyFitCommand.execute: chart '%s' is a %s chart, which doesn't allow fits",
+                self.chart_id, spec.display_name,
+            )
+            self.ui_controller.show_error_message(
+                "Apply Fit Error", f"Fits aren't available on {spec.display_name} charts."
+            )
+            return CommandResult.FAILURE
+
         results = self.fit_results
 
         short_fit_name, fit_color = _resolve_fit_style(results.fit_type)
         label = self.label or f"{short_fit_name} Fit: ({results.equation})"
 
-        chart.add_fit_data(
-            source_dataset_id=self.source_dataset_id,
-            source_x_column_id=self.source_x_column_id,
-            source_y_column_id=self.source_y_column_id,
+        style = FitStyle(
+            color=fit_color, line_style="dashed", line_width=2.0,
             fit_type=results.fit_type,
-            x_data=results.x_fit,
-            y_data=results.y_fit,
-            source_x_column=self.source_x_column,
-            source_y_column=self.source_y_column,
-            label=label,
-            style=FitStyle(color=fit_color, line_style="dashed", line_width=2.0),
             fit_params=results.params,
-            fit_stats={
-                "r_squared": results.r_squared,
-            },
+            fit_stats={"r_squared": results.r_squared},
             confidence_lower=results.confidence_lower,
             confidence_upper=results.confidence_upper,
         )
+        chart.add_fit_series(
+            source_dataset_id=self.source_dataset_id,
+            x_data=results.x_fit, y_data=results.y_fit,
+            source_x_column_id=self.source_x_column_id,
+            source_y_column_id=self.source_y_column_id,
+            source_x_column=self.source_x_column,
+            source_y_column=self.source_y_column,
+            label=label,
+            style=style,
+            y_axis=self.y_axis,
+        )
 
-        self.added_index = len(chart.fit_data) - 1
+        self.added_index = len(chart.data_series) - 1
 
         self.app_context.event_bus.emit(
             ChartEvents.CHART_UPDATED,
@@ -304,7 +324,7 @@ class ApplyFitCommand(Command):
             )
             return CommandResult.FAILURE
 
-        chart.remove_fit_data(self.added_index)
+        chart.remove_data_series(self.added_index)
 
         self.app_context.event_bus.emit(
             ChartEvents.CHART_UPDATED,
@@ -324,6 +344,26 @@ class ApplyFitCommand(Command):
 
     @override
     def redo(self) -> CommandResult:
+        # Check the allows_fit guard *before* falling into execute()'s
+        # shared logic: if the chart's type changed to a disallowed one
+        # between the original execute/undo and this redo (round-2 review,
+        # Minor 2), execute() would return FAILURE, which CommandExecutor
+        # still pushes onto the undo stack -- a later undo of that phantom
+        # entry would then act on self.added_index against whatever is
+        # really at that position now. ABORTED instead leaves this command
+        # on the redo stack untouched, as if this call never happened.
+        chart = self._chart_finder.find(self.chart_id)
+        if chart is not None:
+            spec = CHART_TYPE_SPECS[chart.chart_type]
+            if not spec.allows_fit:
+                self.logger.warning(
+                    "ApplyFitCommand.redo: chart '%s' is now a %s chart, which doesn't allow fits -- refusing without touching it",
+                    self.chart_id, spec.display_name,
+                )
+                self.ui_controller.show_error_message(
+                    "Apply Fit Error", f"Fits aren't available on {spec.display_name} charts."
+                )
+                return CommandResult.ABORTED
         return self.execute()
 
     @override

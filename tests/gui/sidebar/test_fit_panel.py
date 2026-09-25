@@ -19,7 +19,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.fit.fit_panel import CUSTOM_SERIES_SENTINEL, FitPanel
-from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items.chart import Chart, YAxis, restore_chart_state, snapshot_chart_state
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
@@ -166,6 +166,35 @@ def test_get_current_data_resolves_id_only_series(app_context):
     _df, _mask, x_data, y_data, _series = result
     assert len(x_data) == 4
     assert len(y_data) == 4
+
+
+def test_load_chart_object_excludes_fit_series_from_the_source_combo(app_context):
+    """A fit isn't a valid source for a new fit (#304): its dataset_id/
+    x_column/y_column mean "source columns the fit was computed from",
+    not a live column to re-read -- offering it here would let a user
+    silently re-fit the ORIGINAL source data (not the fit's own curve),
+    and fail outright once that source dataset is gone (which a fit is
+    specifically designed to survive)."""
+    from pandaplot.models.chart.fit_style import FitStyle
+
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    chart.add_fit_series(
+        source_dataset_id=dataset.id, x_data=np.array([1.0]), y_data=np.array([2.0]),
+        label="A Fit", style=FitStyle(fit_type="linear"),
+    )
+
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+
+    labels = [panel.series_combo.itemText(i) for i in range(panel.series_combo.count())]
+    assert not any("Fit" in label or "\U0001f527" in label for label in labels)
+    # Plain series + trailing "Custom..." entry, no fit row.
+    assert panel.series_combo.count() == 2
 
 
 def test_load_chart_object_clears_stale_fit_results_across_charts(app_context):
@@ -1374,3 +1403,186 @@ class TestFitPanelSeriesSelectedEvent:
         )
 
         assert panel.series_combo.currentIndex() == 0
+
+    def test_series_click_still_selects_after_a_reset_replaced_the_series_objects(self, app_context):
+        """PR #416 review: Reset (and undo of a dataset delete) swap
+        deep-copied DataSeries into the chart and publish CHART_UPDATED
+        with only chart_id. The combo kept the old objects, so the
+        identity-based click sync never matched again."""
+        dataset, chart = self._make_two_series_chart()
+        project = Mock()
+        project.find_item = Mock(return_value=dataset)
+
+        panel = FitPanel(app_context)
+        panel.show()
+        panel.app_context.app_state = Mock()
+        panel.app_context.app_state.current_project = project
+        panel.load_chart_object(chart)
+
+        restore_chart_state(chart, snapshot_chart_state(chart))  # new DataSeries objects
+        panel._on_chart_updated({"chart_id": "chart-1"})
+        panel._on_series_selected_event({"chart_id": "chart-1", "kind": "series", "index": 1})
+
+        assert panel.series_combo.currentData() is chart.data_series[1]
+
+    def test_a_chart_id_only_update_that_replaced_nothing_keeps_the_fit_results(self, app_context):
+        """A live style edit publishes the same chart_id-only event without
+        replacing any series -- it must not reload (which clears results)."""
+        dataset, chart = self._make_two_series_chart()
+        project = Mock()
+        project.find_item = Mock(return_value=dataset)
+
+        panel = FitPanel(app_context)
+        panel.show()
+        panel.app_context.app_state = Mock()
+        panel.app_context.app_state.current_project = project
+        panel.load_chart_object(chart)
+        panel.fit_results = _make_fake_fit_result()
+
+        panel._on_chart_updated({"chart_id": "chart-1"})
+
+        assert panel.fit_results is not None
+
+
+def test_perform_fit_completion_disables_apply_on_a_chart_type_that_does_not_allow_fits(app_context):
+    """Minor 4 (round-2 review): the Task-1 tests set panel.fit_results and
+    called _update_apply_enabled() directly, so they'd still pass even if
+    _perform_fit's on_complete callback never called it at all. Drive the
+    real completion path instead."""
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    chart.set_chart_type("scatter3d")
+
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+
+    executed = {}
+
+    def _capture_execute(command):
+        executed["command"] = command
+        return True
+
+    panel.app_context.get_command_executor.return_value.execute_command = _capture_execute
+
+    panel._perform_fit()
+    command = executed["command"]
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is not None
+    assert panel.apply_button.isEnabled() is False
+    assert "3D Scatter" in panel.apply_button.toolTip()
+
+
+def test_apply_stays_disabled_with_a_tooltip_on_a_chart_type_that_does_not_allow_fits(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    chart.set_chart_type("scatter3d")
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_results = _make_fake_fit_result()
+
+    panel._update_apply_enabled()
+
+    assert panel.apply_button.isEnabled() is False
+    assert "3D Scatter" in panel.apply_button.toolTip()
+
+
+def test_apply_is_enabled_once_a_fit_result_exists_on_a_chart_type_that_allows_fits(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_results = _make_fake_fit_result()
+
+    panel._update_apply_enabled()
+
+    assert panel.apply_button.isEnabled() is True
+    assert panel.apply_button.toolTip() == ""
+
+
+def test_apply_goes_stale_after_a_live_type_switch_to_a_disallowed_type(app_context):
+    """PR #416 round-2 review: a live chart-type switch (Chart tab's combo,
+    ChartTab._on_chart_type_index_changed -> set_chart_type) publishes
+    CHART_UPDATED with only chart_id, since no series objects are replaced.
+    Apply's enabled/tooltip state must still be recomputed for it."""
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.show()
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_results = _make_fake_fit_result()
+    panel._update_apply_enabled()
+    assert panel.apply_button.isEnabled() is True
+
+    chart.set_chart_type("colormap")
+    panel._on_chart_updated({"chart_id": chart.id})
+
+    assert panel.apply_button.isEnabled() is False
+    assert "Color Map" in panel.apply_button.toolTip()
+
+
+def test_apply_goes_fresh_again_after_a_live_type_switch_back_to_an_allowed_type(app_context):
+    """Reverse case of the above: switching back to an allowed type live
+    must re-enable Apply and clear the stale tooltip."""
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    chart.set_chart_type("colormap")
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.show()
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_results = _make_fake_fit_result()
+    panel._update_apply_enabled()
+    assert panel.apply_button.isEnabled() is False
+
+    chart.set_chart_type("line")
+    panel._on_chart_updated({"chart_id": chart.id})
+
+    assert panel.apply_button.isEnabled() is True
+    assert panel.apply_button.toolTip() == ""
+
+
+def test_apply_fit_passes_the_fitted_series_y_axis(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    chart.data_series[0].y_axis = YAxis.SECONDARY
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_results = _make_fake_fit_result()
+
+    executed = {}
+
+    def _capture_execute(command):
+        executed["command"] = command
+        return True
+
+    panel.app_context.get_command_executor.return_value.execute_command = _capture_execute
+
+    panel._apply_fit()
+
+    assert executed["command"].y_axis == YAxis.SECONDARY

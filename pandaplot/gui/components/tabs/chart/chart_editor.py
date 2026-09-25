@@ -40,12 +40,9 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS,
     SERIES_RENDERERS_REPORTING_NO_DATA,
 )
-from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
-from pandaplot.models.chart.marker_style import MarkerStyle
-from pandaplot.models.chart.series_style import LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ChartEvents, ConfigEvents
@@ -364,7 +361,23 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     required, magnitude_data optional) and the Colormap/Heatmap Z column
     are resolved the same way, but required ones error out the whole
     series when unresolvable.
+
+    A series carrying precomputed_x_data/precomputed_y_data (SeriesType.FIT)
+    short-circuits immediately to that snapshot, without touching `project`
+    or `series.dataset_id`. A FIT series without that snapshot returns an
+    error instead of resolving live data.
     """
+    if series.precomputed_x_data is not None and series.precomputed_y_data is not None:
+        return SeriesData(series.precomputed_x_data, series.precomputed_y_data,
+                           None, None, None, None, None)
+
+    if series.series_type == SeriesType.FIT:
+        # A fit only ever plots its stored curve; without one (e.g. a legacy
+        # fit_data entry that had no x_data/y_data) it must not fall through
+        # to the live-dataset path below, which would hand the renderer
+        # x_data=None and fail the whole chart instead of just this entry.
+        return SeriesData(None, None, None, None, None, None, "fit has no stored curve data")
+
     from pandaplot.models.project.items.chart import resolve_series_column
     from pandaplot.models.project.items.dataset import Dataset
 
@@ -1036,60 +1049,6 @@ class ChartEditorWidget(PWidget):
                     if colorbar_label:
                         self._colorbar.set_label(colorbar_label)
 
-                # Plot fit data from chart.fit_data, routed to the same axis as
-                # the data series it was fitted from (if that series uses the
-                # secondary Y axis).
-                total_data_series = len(self.chart.data_series)
-                for fit_idx, fit in enumerate(self.chart.fit_data):
-                    if fit.visible:
-                        fit_axes = self.chart_canvas.axes
-                        if self.chart_canvas.axes2 is not None:
-                            for series in self.chart.data_series:
-                                # Match series to the fit it came from: prefer
-                                # stable column ids, fall back to names (both
-                                # sides carry ids once assigned; renames keep
-                                # the ids equal without touching either).
-                                def _col_match(s_id, s_name, f_id, f_name):
-                                    if s_id and f_id:
-                                        return s_id == f_id
-                                    return s_name == f_name
-                                if (series.y_axis == "secondary"
-                                        and series.dataset_id == fit.source_dataset_id
-                                        and _col_match(series.x_column_id, series.x_column,
-                                                       fit.source_x_column_id, fit.source_x_column)
-                                        and _col_match(series.y_column_id, series.y_column,
-                                                       fit.source_y_column_id, fit.source_y_column)):
-                                    fit_axes = self.chart_canvas.axes2
-                                    break
-
-                        with self._track_new_artists(total_data_series + fit_idx):
-                            # Plot the fit line
-                            style = fit.style
-                            line_style_adapter = LineSeriesStyle(
-                                color=style.color,
-                                line_style=style.line_style,
-                                line_width=style.line_width,
-                                marker=MarkerStyle(marker_style="none"),
-                                fill_enabled=False,
-                            )
-                            fit_series_data = SeriesData(
-                                x_data=fit.x_data, y_data=fit.y_data,
-                                x_err=None, y_err=None, x_err_minus=None, y_err_minus=None, error=None,
-                            )
-                            render_line_series(fit_axes, fit_series_data, line_style_adapter,
-                                                fit.label, style.alpha, visible=fit.visible, extra={})
-
-                            if (style.band_fill_enabled
-                                    and fit.confidence_lower is not None
-                                    and fit.confidence_upper is not None):
-                                band_color = style.band_color or style.color
-                                fit_axes.fill_between(
-                                    fit.x_data,
-                                    fit.confidence_lower,
-                                    fit.confidence_upper,
-                                    color=band_color,
-                                    alpha=style.band_fill_alpha)
-
             # Apply chart configuration
             config = self.chart.config
 
@@ -1392,7 +1351,7 @@ class ChartEditorWidget(PWidget):
 
             legend = None
             placement_kwargs = {}
-            if config.show_legend and (self.chart.data_series or self.chart.fit_data):
+            if config.show_legend and self.chart.data_series:
                 # Combine handles/labels from both axes since twinx() legends
                 # are independent by default.
                 handles, labels = self.chart_canvas.axes.get_legend_handles_labels()
@@ -1535,23 +1494,22 @@ class ChartEditorWidget(PWidget):
         artist = getattr(event, "artist", None)
         if artist in self._artist_series_map:
             series_index = self._artist_series_map[artist]
-            total_data_series = len(self.chart.data_series)
-            if series_index < total_data_series:
-                kind, kind_index = "series", series_index
-            else:
-                kind, kind_index = "fit", series_index - total_data_series
+            kind = "fit" if self.chart.data_series[series_index].series_type == SeriesType.FIT else "series"
             self.publish_event(
                 ChartEvents.SERIES_SELECTED,
                 {
                     "chart_id": self.chart.id,
-                    # Kept for the properties panel's flat data_series+fit_data
-                    # indexing (see ChartPropertiesPanel._on_series_selected_event).
+                    # Consumed by the properties panel's Data tab.
                     "series_index": series_index,
-                    # kind/index: the (series|fit, per-kind index) shape other
-                    # series/fit-scoped sidebar panels (Analysis, Signal
-                    # Analysis, Transform, Fit) key their own source pickers on.
+                    # kind/index: index is the real data_series position
+                    # (same value as series_index, for fits too, #304) that
+                    # all four series/fit-scoped sidebar panels (Analysis,
+                    # Signal Analysis, Transform, Fit) key their source
+                    # pickers on. kind is only still consulted by the Fit
+                    # panel, to ignore a click on a fit as an invalid fit
+                    # source (#419) -- the other three panels use index alone.
                     "kind": kind,
-                    "index": kind_index,
+                    "index": series_index,
                 },
             )
 
