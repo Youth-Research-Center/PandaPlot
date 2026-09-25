@@ -1,7 +1,7 @@
 import time
 import warnings
 from contextlib import contextmanager
-from typing import Optional, override
+from typing import override
 
 import numpy as np
 from matplotlib.ticker import (
@@ -163,7 +163,7 @@ def apply_axis_ticks(
         def _safe_custom(v, _, _fmt=custom_fmt):
             try:
                 return _fmt.format(v)
-            except Exception:
+            except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
                 return str(v)
         axis.set_major_formatter(FuncFormatter(_safe_custom))
     else:
@@ -432,7 +432,7 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
                       u_data=u_data, v_data=v_data, magnitude_data=magnitude_data, z_data=z_data)
 
 
-def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> Optional[tuple[float, float]]:
+def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> tuple[float, float] | None:
     """Compute (min, max) across every series plotted against the given
     axis (`prefix` in "x", "y", "y2", "z"). All series contribute to "x"
     and to "z" (a 3-D chart has no secondary anything to filter by);
@@ -686,7 +686,7 @@ class ChartEditorWidget(PWidget):
                 default_width_cm = getattr(chart_display, "default_width_cm", default_width_cm) or default_width_cm
                 default_height_cm = getattr(chart_display, "default_height_cm", default_height_cm) or default_height_cm
         except Exception:
-            pass
+            self.logger.debug("Could not read chart-display defaults from config; using hardcoded fallback", exc_info=True)
 
         # Resolve the initial canvas size/DPI, preferring per-chart overrides
         # (chart.config) over the app-wide Settings defaults fetched above.
@@ -784,7 +784,6 @@ class ChartEditorWidget(PWidget):
     def load_chart_config(self):
         """Load chart configuration into UI controls."""
         # No configuration UI to load since it's now in the side panel
-        pass
 
     def _resolve_fill_baseline(self, project, series_index, fill_base, fill_to_index, query, *, horizontal=False):
         """Resolve the second bound for a series' area fill: either the
@@ -1385,12 +1384,12 @@ class ChartEditorWidget(PWidget):
                                 self._artist_series_map[handle_art] = series_idx
                                 self._artist_series_map[text_art] = series_idx
 
-            tight_layout_kwargs = dict(
-                pad=config.chart_padding,
-                w_pad=config.chart_padding_w,
-                h_pad=config.chart_padding_h,
-                rect=(0, 0, 1, config.top_margin),
-            )
+            tight_layout_kwargs = {
+                "pad": config.chart_padding,
+                "w_pad": config.chart_padding_w,
+                "h_pad": config.chart_padding_h,
+                "rect": (0, 0, 1, config.top_margin),
+            }
             # Reserve room for the secondary axis label/ticks so they aren't
             # clipped at the right edge of the figure.
             apply_layout_with_legend(
@@ -1414,7 +1413,7 @@ class ChartEditorWidget(PWidget):
 
         except Exception as e:
             self.logger.exception("Error updating chart")
-            self.update_status(f"Chart error: {str(e)}")
+            self.update_status(f"Chart error: {e!s}")
 
     def _axes_children(self) -> set:
         """All child artists across the primary and (if present) secondary axes."""
@@ -1644,8 +1643,8 @@ class ChartEditorWidget(PWidget):
             try:
                 self.chart_canvas.reset_zoom()
                 self.update_status("Zoom reset")
-            except Exception as e:
-                self.update_status(f"Zoom reset error: {str(e)}")
+            except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+                self.update_status(f"Zoom reset error: {e!s}")
 
             # Reset status after 2 seconds
             QTimer.singleShot(2000, lambda: self.update_status("Ready"))

@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, List, override
+from typing import Any, override
 from zipfile import ZipFile
 
 import numpy as np
@@ -25,7 +25,7 @@ def _json_safe_scalar(value: Any) -> Any:
     return value
 
 
-def _serialize_categorical_dtype(dtype: pd.CategoricalDtype) -> Dict[str, Any]:
+def _serialize_categorical_dtype(dtype: pd.CategoricalDtype) -> dict[str, Any]:
     """Capture enough of a CategoricalDtype to reconstruct it exactly on load.
 
     `str(dtype)` collapses to the literal string "category", discarding both
@@ -52,7 +52,7 @@ def _serialize_categorical_dtype(dtype: pd.CategoricalDtype) -> Dict[str, Any]:
     }
 
 
-def _restore_scalar_index(values: List[Any], subtype: str) -> pd.Index:
+def _restore_scalar_index(values: list[Any], subtype: str) -> pd.Index:
     if subtype.startswith("datetime64"):
         return pd.to_datetime(pd.Index(values))
     try:
@@ -75,8 +75,8 @@ class DatasetDataManager(ItemDataManager[Dataset]):
 
         try:
             # Save DataFrame as CSV if data exists
-            column_dtypes: Dict[str, str] = {}
-            column_categoricals: Dict[str, Dict[str, Any]] = {}
+            column_dtypes: dict[str, str] = {}
+            column_categoricals: dict[str, dict[str, Any]] = {}
             if item.data is not None:
                 csv_path = f"{path_in_zip}.csv"
                 self.logger.debug("Saving dataset data to CSV: %s (shape: %s)", csv_path, item.data.shape)
@@ -111,8 +111,8 @@ class DatasetDataManager(ItemDataManager[Dataset]):
             }
             
             self.logger.debug("Saving dataset metadata for '%s'", item.name)
-        except Exception as e:
-            self.logger.error("Failed to save dataset '%s' (ID: %s): %s", item.name, item.id, str(e), exc_info=True)
+        except Exception:
+            self.logger.exception("Failed to save dataset '%s' (ID: %s)", item.name, item.id)
             raise
         
         # Save metadata as JSON
@@ -157,7 +157,6 @@ class DatasetDataManager(ItemDataManager[Dataset]):
                 except KeyError:
                     # CSV file doesn't exist, data will be None
                     self.logger.warning("CSV file not found for dataset '%s', data will be None", dataset_name)
-                    pass
             else:
                 self.logger.debug("Dataset '%s' has no data to load", dataset_name)
 
@@ -179,7 +178,7 @@ class DatasetDataManager(ItemDataManager[Dataset]):
                 from collections import OrderedDict
                 current_names = [str(c) for c in dataset.data.columns] if dataset.data is not None else []
                 name_to_saved_id = {name: cid for cid, name in saved_column_ids.items()}
-                restored: "OrderedDict[str, str]" = OrderedDict()
+                restored: OrderedDict[str, str] = OrderedDict()
                 for name in current_names:
                     cid = name_to_saved_id.get(name)
                     if cid is not None:
@@ -194,15 +193,15 @@ class DatasetDataManager(ItemDataManager[Dataset]):
             self.logger.info("Successfully loaded dataset '%s' (ID: %s)", dataset_name, dataset_id)
             return dataset
 
-        except Exception as e:
-            self.logger.error("Failed to load dataset from %s: %s", path_in_zip, str(e), exc_info=True)
+        except Exception:
+            self.logger.exception("Failed to load dataset from %s", path_in_zip)
             raise
 
     def _restore_column_dtypes(
         self,
         data: pd.DataFrame,
-        column_dtypes: Dict[str, str],
-        column_categoricals: Dict[str, Dict[str, Any]] | None = None,
+        column_dtypes: dict[str, str],
+        column_categoricals: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """Best-effort cast each column back to the dtype it had at save time.
 
@@ -246,7 +245,7 @@ class DatasetDataManager(ItemDataManager[Dataset]):
                     "Could not restore dtype '%s' for column '%s': %s", dtype_str, column, e,
                 )
 
-    def _restore_categorical_column(self, series: pd.Series, info: Dict[str, Any]) -> pd.Categorical:
+    def _restore_categorical_column(self, series: pd.Series, info: dict[str, Any]) -> pd.Categorical:
         """Reconstruct the exact categories and `ordered` flag from saved metadata.
 
         The CSV round trip only gives back each cell's text, so cells are

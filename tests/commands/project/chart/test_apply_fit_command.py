@@ -55,7 +55,7 @@ def fit_results():
 
 
 def test_execute_adds_fit_to_chart(app_context_with_chart, fit_results):
-    app_context, project, chart, source = app_context_with_chart
+    app_context, _project, chart, source = app_context_with_chart
 
     command = ApplyFitCommand(
         app_context=app_context,
@@ -94,7 +94,7 @@ def test_execute_places_fit_on_the_same_axis_as_its_source_series(app_context_wi
     (#304 -- old chart_editor.py dynamically matched fit-to-series on
     every render to borrow the axis; that matching is now done once, here,
     since a fit is a normal DataSeries with its own y_axis field)."""
-    app_context, project, chart, source = app_context_with_chart
+    app_context, _project, chart, source = app_context_with_chart
     chart.add_data_series(
         source.id, x_column_id="x_id", y_column_id="y_id",
         x_column="x", y_column="y", y_axis="secondary", label="Secondary series",
@@ -117,7 +117,7 @@ def test_execute_places_fit_on_the_same_axis_as_its_source_series(app_context_wi
 
 
 def test_execute_defaults_to_primary_axis_when_no_source_series_matches(app_context_with_chart, fit_results):
-    app_context, project, chart, source = app_context_with_chart
+    app_context, _project, chart, source = app_context_with_chart
 
     command = ApplyFitCommand(
         app_context=app_context,
@@ -139,7 +139,7 @@ def test_undo_restores_original_series_order(app_context_with_chart, fit_results
     """Undo must remove exactly the fit series added by this command,
     leaving any pre-existing series at their original positions -- this
     exercises the real-index (added_index) bookkeeping directly."""
-    app_context, project, chart, source = app_context_with_chart
+    app_context, _project, chart, source = app_context_with_chart
     chart.add_data_series(source.id, x_column_id="x_id", y_column_id="y_id", label="Existing")
 
     command = ApplyFitCommand(
@@ -245,7 +245,7 @@ def test_execute_logs_a_warning_when_chart_not_found(fit_results, caplog):
 
 
 def test_undo_logs_a_warning_when_nothing_to_undo(app_context_with_chart, fit_results, caplog):
-    app_context, project, chart, source = app_context_with_chart
+    app_context, _project, chart, source = app_context_with_chart
 
     command = ApplyFitCommand(
         app_context=app_context,
@@ -350,7 +350,7 @@ def test_undo_emits_item_removed_with_item_id_for_note_and_dataset(app_context_w
     """TabContainer closes an open tab via PROJECT_ITEM_REMOVED's "item_id"
     key; both the report note and the (otherwise non-bubbling)
     DATASET_DELETED removal must carry it so an open tab actually closes."""
-    app_context, project, chart, source = app_context_with_chart
+    app_context, _project, chart, source = app_context_with_chart
 
     command = ApplyFitCommand(
         app_context=app_context,
@@ -379,7 +379,7 @@ def test_undo_emits_item_removed_with_item_id_for_note_and_dataset(app_context_w
 
 
 def test_cleanup_releases_the_added_index_and_report_ids(app_context_with_chart, fit_results):
-    app_context, project, chart, source = app_context_with_chart
+    app_context, _project, chart, source = app_context_with_chart
 
     command = ApplyFitCommand(
         app_context=app_context,

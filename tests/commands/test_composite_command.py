@@ -1,4 +1,3 @@
-from typing import List, Optional
 from unittest.mock import Mock
 
 import pytest
@@ -16,9 +15,9 @@ class SimpleCommand(Command):
         execute_result: CommandResult = CommandResult.SUCCESS,
         undo_result: CommandResult = CommandResult.SUCCESS,
         redo_result: CommandResult = CommandResult.SUCCESS,
-        execute_exception: Optional[Exception] = None,
-        undo_exception: Optional[Exception] = None,
-        redo_exception: Optional[Exception] = None,
+        execute_exception: Exception | None = None,
+        undo_exception: Exception | None = None,
+        redo_exception: Exception | None = None,
         marks_modified: bool = True,
         occupies_slot: bool = True,
     ):
@@ -82,7 +81,7 @@ def test_empty_composite_command_execute():
 
 
 def test_composite_command_forward_execution():
-    call_order: List[str] = []
+    call_order: list[str] = []
 
     class TrackedCommand(SimpleCommand):
         def execute(self) -> CommandResult:
@@ -215,7 +214,7 @@ def test_rollback_undo_logs_error_when_a_compensating_redo_returns_noop(caplog):
 
 
 def test_composite_command_undo_reverse_order():
-    call_order: List[str] = []
+    call_order: list[str] = []
 
     class TrackedCommand(SimpleCommand):
         def undo(self) -> CommandResult:
@@ -455,7 +454,7 @@ def test_composite_command_redo_raises_when_rollback_after_aborted_also_fails():
 
 
 def test_composite_command_redo_forward_order():
-    call_order: List[str] = []
+    call_order: list[str] = []
 
     class TrackedCommand(SimpleCommand):
         def redo(self) -> CommandResult:

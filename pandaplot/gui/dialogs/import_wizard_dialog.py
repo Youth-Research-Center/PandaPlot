@@ -12,9 +12,10 @@ an :class:`ImportOptions` plus the chosen file path and dataset name, which the
 import command uses to read the full file.
 """
 
+import math
 import os
 import tempfile
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QPainter, QPixmap, QPolygonF
@@ -122,9 +123,9 @@ class _DropDownComboStyle(QProxyStyle):
 class ImportWizardDialog(PDialog):
     """Interactive wizard for importing a structured data file as a dataset."""
 
-    def __init__(self, app_context: AppContext, parent=None, initial_file_path: Optional[str] = None):
+    def __init__(self, app_context: AppContext, parent=None, initial_file_path: str | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self.file_path: Optional[str] = None
+        self.file_path: str | None = None
         # Guard against option-change handlers firing while we programmatically
         # repopulate widgets after loading a file.
         self._loading = False
@@ -474,7 +475,7 @@ class ImportWizardDialog(PDialog):
         for row in range(df.shape[0]):
             for col in range(df.shape[1]):
                 value = df.iat[row, col]
-                text = "" if value is None or (isinstance(value, float) and value != value) else str(value)
+                text = "" if value is None or (isinstance(value, float) and math.isnan(value)) else str(value)
                 self.preview_table.setItem(row, col, QTableWidgetItem(text))
 
     def _set_status(self, message: str, *, error: bool):
@@ -488,7 +489,7 @@ class ImportWizardDialog(PDialog):
 
     # ---------------------------------------------------------------- public API
 
-    def get_file_path(self) -> Optional[str]:
+    def get_file_path(self) -> str | None:
         return self.file_path
 
     def get_import_options(self) -> ImportOptions:

@@ -1,7 +1,7 @@
 """Dialog for selecting an Image from project galleries to insert into a note."""
 
 import os
-from typing import Dict, List, Optional, Tuple, override
+from typing import override
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon, QImage, QPixmap
@@ -35,16 +35,16 @@ class NoteImagePickerDialog(PDialog):
         self,
         app_context: AppContext,
         project,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(app_context=app_context, parent=parent)
         self.project = project
         self.task_scheduler: TaskScheduler = app_context.get_task_scheduler()
-        self._selected_image: Optional[Image] = None
+        self._selected_image: Image | None = None
         # Memoises decoded thumbnails by image id so re-populating the tree
         # (or a future dialog instance reusing this one) doesn't re-fetch.
-        self._pixmap_cache: Dict[str, Optional[QPixmap]] = {}
-        self._pending_thumbnails: List[Tuple[QTreeWidgetItem, Image]] = []
+        self._pixmap_cache: dict[str, QPixmap | None] = {}
+        self._pending_thumbnails: list[tuple[QTreeWidgetItem, Image]] = []
         self._initialize()
         self._populate_tree()
         self._refresh_ok_enabled()
@@ -86,7 +86,7 @@ class NoteImagePickerDialog(PDialog):
     def _get_tokens(self) -> dict:
         return self.app_context.get_manager(ThemeManager).get_design_tokens()
 
-    def _load_pixmap_for_image(self, image: Image) -> Optional[QPixmap]:
+    def _load_pixmap_for_image(self, image: Image) -> QPixmap | None:
         """Synchronous decode+scale, on whatever thread calls it.
 
         Only safe to call from the GUI thread (it builds a QPixmap). The tree
@@ -100,7 +100,7 @@ class NoteImagePickerDialog(PDialog):
         self._pixmap_cache[image.id] = pixmap
         return pixmap
 
-    def _load_pixmap_uncached(self, image: Image) -> Optional[QPixmap]:
+    def _load_pixmap_uncached(self, image: Image) -> QPixmap | None:
         data = self._fetch_image_bytes(image)
         if not data:
             return None
@@ -114,7 +114,7 @@ class NoteImagePickerDialog(PDialog):
         )
 
     @staticmethod
-    def _fetch_image_bytes(image: Image) -> Optional[bytes]:
+    def _fetch_image_bytes(image: Image) -> bytes | None:
         """Read an Image item's raw bytes: in-memory, else source_file (local
         disk or, for a URL, a network fetch). Pure I/O -- safe to run on a
         background thread."""
@@ -122,7 +122,7 @@ class NoteImagePickerDialog(PDialog):
             data = image.get_bytes()
             if data is None and image.source_file:
                 source = image.source_file
-                if source.startswith("http://") or source.startswith("https://"):
+                if source.startswith(("http://", "https://")):
                     import requests
                     resp = requests.get(source, timeout=5)
                     resp.raise_for_status()
@@ -131,7 +131,7 @@ class NoteImagePickerDialog(PDialog):
                     with open(source, "rb") as f:
                         data = f.read()
             return data
-        except Exception:
+        except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             return None
 
     def _tile_icon_for(self, item, *, placeholder: bool = False) -> QIcon:
@@ -166,7 +166,7 @@ class NoteImagePickerDialog(PDialog):
                 on_error=lambda _err, item=tree_item: self._on_thumbnail_error(item),
             )
 
-    def _decode_qimage_task(self, progress_callback, image: Image) -> Optional[QImage]:
+    def _decode_qimage_task(self, progress_callback, image: Image) -> QImage | None:
         """Runs on a TaskScheduler worker thread; see `_start_thumbnail_loading`."""
         del progress_callback  # unused; required by the Worker call signature
         data = self._fetch_image_bytes(image)
@@ -175,7 +175,7 @@ class NoteImagePickerDialog(PDialog):
         qimg = QImage()
         return qimg if qimg.loadFromData(data) else None
 
-    def _on_thumbnail_decoded(self, tree_item: QTreeWidgetItem, image: Image, qimg: Optional[QImage]) -> None:
+    def _on_thumbnail_decoded(self, tree_item: QTreeWidgetItem, image: Image, qimg: QImage | None) -> None:
         pix = None
         if qimg is not None and not qimg.isNull():
             pix = QPixmap.fromImage(qimg).scaled(
@@ -187,7 +187,7 @@ class NoteImagePickerDialog(PDialog):
     def _on_thumbnail_error(self, tree_item: QTreeWidgetItem) -> None:
         self._apply_thumbnail_icon(tree_item, None)
 
-    def _apply_thumbnail_icon(self, tree_item: QTreeWidgetItem, pix: Optional[QPixmap]) -> None:
+    def _apply_thumbnail_icon(self, tree_item: QTreeWidgetItem, pix: QPixmap | None) -> None:
         tile_type = "image" if pix is not None else "broken"
         icon = build_gallery_tile_icon(pix, tile_type, selected=False, tokens=self._get_tokens(), size=_ICON_SIZE)
         try:
@@ -223,8 +223,8 @@ class NoteImagePickerDialog(PDialog):
         # a gallery named "Gallery 1"). Showing the real hierarchy avoids
         # that ambiguity instead of trying to disambiguate the label text.
         collections = [item for item in all_items if isinstance(item, (ImageGallery, Folder))]
-        by_id: Dict[str, QTreeWidgetItem] = {}
-        items_by_id: Dict[str, Item] = {i.id: i for i in all_items}
+        by_id: dict[str, QTreeWidgetItem] = {}
+        items_by_id: dict[str, Item] = {i.id: i for i in all_items}
 
         # First, build collection nodes (folders and galleries)
         for collection in collections:
@@ -258,7 +258,7 @@ class NoteImagePickerDialog(PDialog):
 
         self.tree.expandAll()
 
-    def _get_selected_item_object(self) -> Optional[object]:
+    def _get_selected_item_object(self) -> object | None:
         selected = self.tree.selectedItems()
         if not selected or self.project is None:
             return None
@@ -281,6 +281,6 @@ class NoteImagePickerDialog(PDialog):
             self._selected_image = item
             self.accept()
 
-    def get_selected_image(self) -> Optional[Image]:
+    def get_selected_image(self) -> Image | None:
         """Return the selected Image model, or None if dialog was cancelled/no selection."""
         return self._selected_image

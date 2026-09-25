@@ -4,7 +4,7 @@ folder-style tiles for nested ImageGallery children (albums), with
 multi-select rename/delete/group-into-album and a double-click lightbox.
 """
 
-from typing import Optional, override
+from typing import ClassVar, override
 
 from PySide6.QtCore import QMimeData, QSize, Qt
 from PySide6.QtGui import QDrag, QImage, QPixmap
@@ -66,7 +66,7 @@ class _ImageGalleryGrid(QListWidget):
         self.setAcceptDrops(True)
         self.setDragDropMode(QListWidget.DragDropMode.DragDrop)
 
-    def startDrag(self, supportedActions):  # noqa: N802 - Qt override
+    def startDrag(self, supportedActions):
         selected_ids = self._tab._selected_ids()
         if not selected_ids:
             return
@@ -76,19 +76,19 @@ class _ImageGalleryGrid(QListWidget):
         drag.setMimeData(mime)
         drag.exec(Qt.DropAction.MoveAction)
 
-    def dragEnterEvent(self, event):  # noqa: N802 - Qt override
+    def dragEnterEvent(self, event):
         if event.mimeData().hasFormat(_IMAGE_MIME_TYPE):
             event.acceptProposedAction()
         else:
             event.ignore()
 
-    def dragMoveEvent(self, event):  # noqa: N802 - Qt override
+    def dragMoveEvent(self, event):
         if event.mimeData().hasFormat(_IMAGE_MIME_TYPE):
             event.acceptProposedAction()
         else:
             event.ignore()
 
-    def dropEvent(self, event):  # noqa: N802 - Qt override
+    def dropEvent(self, event):
         target_item = self.itemAt(event.position().toPoint())
         if target_item is None or not event.mimeData().hasFormat(_IMAGE_MIME_TYPE):
             event.ignore()
@@ -120,19 +120,19 @@ class _BreadcrumbSegmentButton(PButton):
         self._tab = tab
         self.setAcceptDrops(True)
 
-    def dragEnterEvent(self, event):  # noqa: N802 - Qt override
+    def dragEnterEvent(self, event):
         if event.mimeData().hasFormat(_IMAGE_MIME_TYPE):
             event.acceptProposedAction()
         else:
             event.ignore()
 
-    def dragMoveEvent(self, event):  # noqa: N802 - Qt override
+    def dragMoveEvent(self, event):
         if event.mimeData().hasFormat(_IMAGE_MIME_TYPE):
             event.acceptProposedAction()
         else:
             event.ignore()
 
-    def dropEvent(self, event):  # noqa: N802 - Qt override
+    def dropEvent(self, event):
         if not event.mimeData().hasFormat(_IMAGE_MIME_TYPE):
             event.ignore()
             return
@@ -148,7 +148,7 @@ class _BreadcrumbSegmentButton(PButton):
 class ImageGalleryTab(PWidget):
     """Thumbnail-grid tab for browsing and managing one ImageGallery's contents."""
 
-    def __init__(self, app_context: AppContext, gallery: ImageGallery, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, gallery: ImageGallery, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.app_context = app_context
         self.app_state = app_context.get_app_state()
@@ -165,7 +165,7 @@ class ImageGalleryTab(PWidget):
         # images (or re-decoding bytes) on every grid repopulation, which
         # otherwise happens on every PROJECT_ITEM_ADDED/REMOVED/RENAMED/MOVED
         # event anywhere in the project.
-        self._thumbnail_cache: dict[str, Optional[QPixmap]] = {}
+        self._thumbnail_cache: dict[str, QPixmap | None] = {}
         # Ids of the CURRENT gallery's children as of the last successful
         # _populate_grid() call. Some PROJECT_ITEM_REMOVED events (e.g.
         # undo of an import or of a gallery creation) fire *after* the item
@@ -309,7 +309,7 @@ class ImageGalleryTab(PWidget):
         if found is not None:
             self._set_current_gallery(found)
 
-    def _find_gallery(self, root: ImageGallery, gallery_id: str) -> Optional[ImageGallery]:
+    def _find_gallery(self, root: ImageGallery, gallery_id: str) -> ImageGallery | None:
         for child in root.get_items():
             if isinstance(child, ImageGallery):
                 if child.id == gallery_id:
@@ -401,7 +401,7 @@ class ImageGalleryTab(PWidget):
                 try:
                     update_fn(self, self.get_tab_title())
                 except Exception:
-                    pass
+                    self.logger.debug("Failed to update tab title on parent container", exc_info=True)
 
     def _event_concerns_this_gallery(self, event_data: dict) -> bool:
         """
@@ -513,7 +513,7 @@ class ImageGalleryTab(PWidget):
 
         return self.app_context.get_manager(ThemeManager).get_design_tokens()
 
-    def _thumbnail_for(self, image: Image) -> Optional[QPixmap]:
+    def _thumbnail_for(self, image: Image) -> QPixmap | None:
         """Load (or fetch) image bytes and downscale in memory; None on any failure.
 
         Results (including failures) are cached for the tab's lifetime, keyed
@@ -536,15 +536,15 @@ class ImageGalleryTab(PWidget):
             scaled = pixmap.scaled(_TILE_SIZE, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self._thumbnail_cache[image.id] = scaled
             return scaled
-        except Exception:
+        except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.logger.warning("Failed to load thumbnail for image '%s' (id=%s)", image.name, image.id)
             self._thumbnail_cache[image.id] = None
             return None
 
-    def _load_external_bytes(self, source_file: str) -> Optional[bytes]:
+    def _load_external_bytes(self, source_file: str) -> bytes | None:
         import os
 
-        if source_file.startswith("http://") or source_file.startswith("https://"):
+        if source_file.startswith(("http://", "https://")):
             import requests
             response = requests.get(source_file, timeout=10)
             response.raise_for_status()
@@ -723,10 +723,10 @@ class ImageGalleryTab(PWidget):
             return
         self._edit_image(selected[0])
 
-    def _edit_image(self, image: Image, parent: Optional[QWidget] = None):
+    def _edit_image(self, image: Image, parent: QWidget | None = None):
         try:
             data = image.get_bytes() or self._load_external_bytes(image.source_file)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             # _load_external_bytes can raise (a network error for a URL
             # source, an unreadable/removed local file) -- without this
             # guard that exception would escape this Qt slot instead of
@@ -762,7 +762,7 @@ class ImageGalleryTab(PWidget):
 
         try:
             new_bytes = dialog.get_result_bytes()
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             QMessageBox.warning(
                 self, "Edit Image Error", f"Failed to save the edited image for '{image.name}': {exc}"
             )
@@ -912,11 +912,11 @@ class ImageGalleryTab(PWidget):
             return
         start_index = images.index(image)
 
-        def _load(img: Image) -> Optional[QPixmap]:
+        def _load(img: Image) -> QPixmap | None:
             pixmap = QPixmap()
             try:
                 data = img.get_bytes() or self._load_external_bytes(img.source_file)
-            except Exception:
+            except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
                 # _load_external_bytes can raise (a network error for a URL
                 # source, an unreadable/removed local file) -- this loader
                 # is reused for every render in the lightbox (initial open,
@@ -959,7 +959,7 @@ class ImageGalleryTab(PWidget):
             self.view_stack.setCurrentWidget(self.grid)
         self._refresh_toolbar_state()
 
-    _SORT_FIELD_TO_COLUMN = {"name": 0, "type": 1, "dimensions": 2, "size": 3, "modified": 4}
+    _SORT_FIELD_TO_COLUMN: ClassVar[dict[str, int]] = {"name": 0, "type": 1, "dimensions": 2, "size": 3, "modified": 4}
 
     def _populate_list_view(self) -> None:
         # setSortingEnabled is never turned on for self.list_view (see
@@ -1000,7 +1000,7 @@ class ImageGalleryTab(PWidget):
         header.setSortIndicator(column, order)
         header.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
 
-    def _format_size(self, size_bytes: Optional[int]) -> str:
+    def _format_size(self, size_bytes: int | None) -> str:
         if size_bytes is None:
             return "—"
         if size_bytes < 1024:

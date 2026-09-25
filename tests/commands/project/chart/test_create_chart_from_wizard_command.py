@@ -173,7 +173,7 @@ def test_execute_passes_the_default_chart_name_as_initial_title(mock_wizard_cls,
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_wizard_title_and_axis_labels_are_applied_to_the_chart(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     series_configs = [{
         "dataset_id": "ds-1", "x_column_id": "col-date", "y_column_id": "col-rev",
         "x_error_column_id": "", "y_error_column_id": "", "error_symmetric": True,
@@ -204,7 +204,7 @@ def test_a_blank_title_from_the_wizard_does_not_blank_out_the_default_name(
     actually called with the wizard's blank `""` title/labels -- exercising
     the `or None` guards this test is named for.
     """
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line")
 
     command = CreateChartFromWizardCommand(app_context, dataset_id="ds-1")
@@ -220,7 +220,7 @@ def test_a_blank_title_from_the_wizard_does_not_blank_out_the_default_name(
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_subtitle_and_legend_and_grid_are_applied_to_the_chart(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     wizard = _fake_wizard(chart_type="line", subtitle="A closer look", show_legend=False, show_grid=False)
     mock_wizard_cls.return_value = wizard
 
@@ -237,7 +237,7 @@ def test_subtitle_and_legend_and_grid_are_applied_to_the_chart(mock_wizard_cls, 
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_empty_path_never_reads_subtitle_or_legend_or_grid(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     wizard = _fake_wizard(chart_type="line", is_empty=True)
     mock_wizard_cls.return_value = wizard
 
@@ -252,7 +252,7 @@ def test_empty_path_never_reads_subtitle_or_legend_or_grid(mock_wizard_cls, app_
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_empty_path_never_reads_the_wizards_labels(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     wizard = _fake_wizard(chart_type="line", is_empty=True)
     mock_wizard_cls.return_value = wizard
 
@@ -303,7 +303,7 @@ def test_the_connected_callback_still_works_after_the_command_is_dropped(
     fire the callable the command handed to `finished.connect`: it must still
     create the chart, proving the connection itself keeps the command alive.
     """
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     wizard = _fake_wizard(chart_type="line", is_empty=True)
     mock_wizard_cls.return_value = wizard
 
@@ -327,7 +327,7 @@ def test_the_connected_callback_uses_its_own_wizard(mock_wizard_cls, app_context
     Belt-and-braces against any future path that replaces `self._dialog` while
     an older wizard is still pending.
     """
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     first = _fake_wizard(chart_type="line", is_empty=True)
     mock_wizard_cls.return_value = first
 
@@ -346,7 +346,7 @@ def test_the_connected_callback_uses_its_own_wizard(mock_wizard_cls, app_context
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_execute_succeeds_before_the_wizard_has_finished(mock_wizard_cls, app_context_with_project):
     """Opening the wizard is itself success, whatever the user does next."""
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     mock_wizard_cls.return_value = _fake_wizard()
 
     command = CreateChartFromWizardCommand(app_context)
@@ -421,7 +421,7 @@ def test_execute_continues_after_the_user_creates_a_project(mock_wizard_cls, app
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_cancelled_wizard_creates_nothing(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     mock_wizard_cls.return_value = _fake_wizard()
 
     command = CreateChartFromWizardCommand(app_context)
@@ -436,7 +436,7 @@ def test_cancelled_wizard_creates_nothing(mock_wizard_cls, app_context_with_proj
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_empty_path_creates_a_line_chart_with_no_series(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", is_empty=True)
 
     command = CreateChartFromWizardCommand(app_context)
@@ -458,7 +458,7 @@ def test_wizard_created_chart_gets_explicit_default_size(mock_wizard_cls, app_co
     new tab's not-yet-settled layout and can bake in an undersized
     result. Setting the app defaults explicitly at creation time skips
     that racy path entirely for wizard charts."""
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     # `app_context_with_project` gives `app_context` as a bare `Mock()`, which
     # auto-creates a truthy attribute chain for any `get_manager(...)` call
     # instead of the real `AppContext.get_manager`'s `KeyError` when no
@@ -481,7 +481,7 @@ def test_wizard_created_chart_gets_explicit_default_size(mock_wizard_cls, app_co
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_series_configs_become_data_series(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     series_configs = [{
         "dataset_id": "ds-1",
         "x_column_id": "col-date",
@@ -511,7 +511,7 @@ def test_multiple_series_get_distinct_default_colors(mock_wizard_cls, app_contex
     style class's own single hardcoded default color (no color= kwarg
     was ever passed), so a multi-series chart came out of the wizard
     with every series visually indistinguishable."""
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     series_configs = [
         {
             "dataset_id": "ds-1", "x_column_id": "col-date", "y_column_id": f"col-{i}",
@@ -579,7 +579,7 @@ def test_chart_is_named_after_its_dataset_at_construction_time(mock_wizard_cls, 
     `Chart.__init__` snapshots `config["title"] = self.name`, so a name set
     after construction leaves the rendered title permanently empty.
     """
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", is_empty=True)
 
     command = CreateChartFromWizardCommand(app_context, dataset_id="ds-1")
@@ -594,7 +594,7 @@ def test_chart_is_named_after_its_dataset_at_construction_time(mock_wizard_cls, 
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_chart_without_an_originating_dataset_falls_back_to_new_chart(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", is_empty=True)
 
     command = CreateChartFromWizardCommand(app_context)
@@ -614,7 +614,7 @@ def test_create_chart_command_failure_is_reported_and_resets_created_chart(
     instead of raising -- the caller here must notice that and surface an
     error, not silently report success (see finding: chart-creation failure
     was previously swallowed)."""
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     app_context.get_command_executor.return_value.execute_command.return_value = False
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", is_empty=True)
 
@@ -629,7 +629,7 @@ def test_create_chart_command_failure_is_reported_and_resets_created_chart(
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_an_exception_is_reported_and_does_not_propagate(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     wizard = _fake_wizard(chart_type="line")
     wizard.get_series_configs.side_effect = KeyError("y_column_id")
     mock_wizard_cls.return_value = wizard
@@ -645,7 +645,7 @@ def test_an_exception_is_reported_and_does_not_propagate(mock_wizard_cls, app_co
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_a_failure_to_open_the_wizard_is_reported(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     mock_wizard_cls.side_effect = RuntimeError("boom")
 
     command = CreateChartFromWizardCommand(app_context)
@@ -731,7 +731,7 @@ def test_empty_plot_uses_the_originating_datasets_folder(mock_wizard_cls, app_co
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_empty_plot_with_no_originating_dataset_goes_to_root(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     mock_wizard_cls.return_value = _fake_wizard(chart_type="line", is_empty=True)
 
     command = CreateChartFromWizardCommand(app_context)
@@ -743,7 +743,7 @@ def test_empty_plot_with_no_originating_dataset_goes_to_root(mock_wizard_cls, ap
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_vector_series_config_passes_through_u_v_magnitude(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     series_configs = [{
         "dataset_id": "ds-1",
         "x_column_id": "col-x", "y_column_id": "col-y",
@@ -767,7 +767,7 @@ def test_vector_series_config_passes_through_u_v_magnitude(mock_wizard_cls, app_
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_error_bar_series_config_passes_through_to_style(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     series_configs = [{
         "dataset_id": "ds-1",
         "x_column_id": "col-date", "y_column_id": "col-rev",
@@ -794,7 +794,7 @@ def test_colormap_and_heatmap_series_config_passes_through_z_column(
         mock_wizard_cls, app_context_with_project, chart_type):
     from pandaplot.models.chart.series_style import ColormapSeriesStyle, HeatmapSeriesStyle
 
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     series_configs = [{
         "dataset_id": "ds-1",
         "x_column_id": "col-x", "y_column_id": "col-y",
@@ -818,7 +818,7 @@ def test_colormap_and_heatmap_series_config_passes_through_z_column(
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
 def test_non_vector_series_config_leaves_u_v_magnitude_empty(mock_wizard_cls, app_context_with_project):
-    app_context, project = app_context_with_project
+    app_context, _project = app_context_with_project
     series_configs = [{
         "dataset_id": "ds-1", "x_column_id": "col-date", "y_column_id": "col-rev",
         "x_error_column_id": "", "y_error_column_id": "", "error_symmetric": True,

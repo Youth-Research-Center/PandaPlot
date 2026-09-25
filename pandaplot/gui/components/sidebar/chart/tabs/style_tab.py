@@ -916,7 +916,7 @@ class StyleTab(QWidget):
         if self._config_event_subscribed:
             try:
                 self.app_context.event_bus.unsubscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
-            except Exception:  # noqa: BLE001 -- best-effort cleanup on teardown
+            except Exception:  # noqa: BLE001, S110 -- best-effort cleanup on teardown
                 pass
             self._config_event_subscribed = False
 
@@ -1278,7 +1278,7 @@ class StyleTab(QWidget):
         if has_secondary:
             self.axes_style_selector.addItem("Y₂", "y2")
         restore_index = self.axes_style_selector.findData(current) if current else -1
-        self.axes_style_selector.setCurrentIndex(restore_index if restore_index >= 0 else 0)
+        self.axes_style_selector.setCurrentIndex(max(restore_index, 0))
         self.axes_style_selector.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
         # setCurrentIndex() above ran with signals blocked (so rebuilding the
         # combo's items doesn't spuriously emit currentValueChanged), which

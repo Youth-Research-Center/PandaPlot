@@ -16,7 +16,7 @@ analysis operations regardless of which kind of series the user picked.
 """
 
 import uuid
-from typing import Optional, override
+from typing import override
 
 import pandas as pd
 
@@ -47,9 +47,9 @@ class AnalyzeChartSeriesCommand(Command):
         source_kind: SourceKind,
         source_index: int,
         analysis_type: AnalysisType,
-        parameters: Optional[dict] = None,
-        result_name: Optional[str] = None,
-        folder_id: Optional[str] = None,
+        parameters: dict | None = None,
+        result_name: str | None = None,
+        folder_id: str | None = None,
     ):
         super().__init__()
         self.app_context = app_context
@@ -65,18 +65,18 @@ class AnalyzeChartSeriesCommand(Command):
         self.folder_id = folder_id
 
         # State for undo/redo.
-        self.result_dataset_id: Optional[str] = None
-        self._dataset: Optional[Dataset] = None
+        self.result_dataset_id: str | None = None
+        self._dataset: Dataset | None = None
 
         # Cache for _resolve_xy_cached: the resolved series don't change over
         # the command's lifetime, and the UI calls it repeatedly (once per
         # segment bound, on every spinbox tick) to resolve/bound indices.
-        self._resolved_xy_cache: Optional[tuple[pd.Series, pd.Series, str, str]] = None
+        self._resolved_xy_cache: tuple[pd.Series, pd.Series, str, str] | None = None
         self._chart_finder = ChartFinder(app_context)
 
     # -- source resolution ------------------------------------------------
 
-    def _get_chart(self) -> Optional[Chart]:
+    def _get_chart(self) -> Chart | None:
         return self._chart_finder.find(self.chart_id)
 
     def _resolve_xy(self, chart: Chart) -> tuple[pd.Series, pd.Series, str, str]:
@@ -111,7 +111,7 @@ class AnalyzeChartSeriesCommand(Command):
         except (ValueError, AttributeError):
             return 0
 
-    def resolve_point(self, index: int) -> Optional[tuple[float, float]]:
+    def resolve_point(self, index: int) -> tuple[float, float] | None:
         """Return the resolved (x, y) at a source-series index, or None.
 
         Used by the UI to show the actual data point a segment start/end
@@ -236,7 +236,7 @@ class AnalyzeChartSeriesCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            self.logger.error("Analyze-chart-series failed: %s", e, exc_info=True)
+            self.logger.exception("Analyze-chart-series failed")
             self.ui_controller.show_error_message("Chart Analysis Error", str(e))
             return CommandResult.FAILURE
 
@@ -247,8 +247,8 @@ class AnalyzeChartSeriesCommand(Command):
                 return CommandResult.FAILURE
             remove_result_dataset(self.app_state, self.result_dataset_id)
             return CommandResult.SUCCESS
-        except Exception as e:
-            self.logger.error("Failed to undo analyze-chart-series: %s", e, exc_info=True)
+        except Exception:
+            self.logger.exception("Failed to undo analyze-chart-series")
             return CommandResult.FAILURE
 
     @override

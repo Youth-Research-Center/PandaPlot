@@ -3,7 +3,7 @@ Preprocessing panel for common data transformations (centering, standardizing,
 scaling) applied to dataset columns before plotting or analysis.
 """
 
-from typing import Any, Dict, Optional, override
+from typing import Any, override
 
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -38,10 +38,10 @@ class PreprocessingPanel(SidebarPanel):
     Side panel for applying preprocessing transformations to dataset columns.
     """
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self.current_dataset: Optional[Dataset] = None
-        self.current_dataset_id: Optional[str] = None
+        self.current_dataset: Dataset | None = None
+        self.current_dataset_id: str | None = None
 
         self._initialize()
         self.setup_connections()
@@ -224,16 +224,16 @@ class PreprocessingPanel(SidebarPanel):
             more = "" if len(columns) <= 3 else ", ..."
             self.naming_hint.setText(f"New columns: {examples}{more}")
 
-    def _get_params(self) -> Dict[str, Any]:
+    def _get_params(self) -> dict[str, Any]:
         """Collect method-specific parameters from the UI."""
         info = PREPROCESSING_METHODS[self.selected_method()]
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if info.uses_feature_range:
             params["range_min"] = self.range_min_spin.value()
             params["range_max"] = self.range_max_spin.value()
         return params
 
-    def _get_config(self) -> Dict[str, Any]:
+    def _get_config(self) -> dict[str, Any]:
         """Build the command configuration from the current UI state."""
         return {
             "method": self.selected_method().value,
@@ -297,7 +297,7 @@ class PreprocessingPanel(SidebarPanel):
                 )
 
             self.preview_text.setText("\n".join(lines))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.preview_text.setText(f"❌ Preview error: {e}")
 
     def apply(self):
@@ -326,7 +326,7 @@ class PreprocessingPanel(SidebarPanel):
                 self.preview_text.setText(
                     "❌ Failed to apply. Check that the columns are numeric."
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.preview_text.setText(f"❌ Error applying preprocessing: {e}")
 
     def clear_inputs(self):

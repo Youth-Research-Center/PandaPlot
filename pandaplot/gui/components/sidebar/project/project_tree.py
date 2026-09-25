@@ -196,7 +196,7 @@ class ProjectTreeWidget(QTreeWidget):
                 # If no target item, accept to allow drop in empty space (project root)
                 self.setToolTip("Drop at project root")
                 event.accept()
-        except Exception:
+        except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             # General exception handling to prevent crashes during drag operations
             self.setToolTip("")
             event.ignore()

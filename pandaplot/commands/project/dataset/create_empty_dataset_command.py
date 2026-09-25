@@ -3,7 +3,7 @@ Command for creating empty datasets that can be filled in the app.
 """
 
 import uuid
-from typing import Optional, override
+from typing import override
 
 import pandas as pd
 from PySide6.QtWidgets import QDialog
@@ -22,7 +22,7 @@ class CreateEmptyDatasetCommand(Command):
     Command to create a new empty dataset that can be filled in the app.
     """
 
-    def __init__(self, app_context: AppContext, folder_id: Optional[str] = None, dataset_name: Optional[str] = None):
+    def __init__(self, app_context: AppContext, folder_id: str | None = None, dataset_name: str | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -32,13 +32,13 @@ class CreateEmptyDatasetCommand(Command):
         self.dataset_name = dataset_name
 
         # Store state for undo
-        self.dataset_id: Optional[str] = None
+        self.dataset_id: str | None = None
         self.project = None
 
         # Store the dataset shape/fill so redo() reuses the values chosen on
         # the first execute() instead of re-deriving (or re-prompting for) them.
-        self.rows: Optional[int] = None
-        self.cols: Optional[int] = None
+        self.rows: int | None = None
+        self.cols: int | None = None
         self.fill_value = None
 
     @override
@@ -122,8 +122,8 @@ class CreateEmptyDatasetCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to create empty dataset: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Failed to create empty dataset: {e!s}"
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message(
                 "Create Dataset Error", error_msg)
             return CommandResult.FAILURE
@@ -156,8 +156,8 @@ class CreateEmptyDatasetCommand(Command):
             return CommandResult.FAILURE
 
         except Exception as e:
-            error_msg = f"Failed to undo dataset creation: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Failed to undo dataset creation: {e!s}"
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 
@@ -171,8 +171,8 @@ class CreateEmptyDatasetCommand(Command):
             )
             return CommandResult.FAILURE
         except Exception as e:
-            error_msg = f"Failed to redo dataset creation: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Failed to redo dataset creation: {e!s}"
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return CommandResult.FAILURE
 

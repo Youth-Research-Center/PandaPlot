@@ -4,6 +4,6 @@ from pandaplot.commands.project.item.rename_item_command import RenameItemComman
 
 __all__ = [
     "DeleteItemCommand",
-    "RenameItemCommand",
-    "MoveItemCommand"
+    "MoveItemCommand",
+    "RenameItemCommand"
 ]

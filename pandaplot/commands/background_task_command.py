@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Callable, Optional, override
+from collections.abc import Callable
+from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 
@@ -18,7 +19,7 @@ class BackgroundTaskCommand(Command):
     - Uniform completion callback notification (_notify_complete).
     """
 
-    def __init__(self, on_complete: Optional[Callable[[CommandResult], None]] = None):
+    def __init__(self, on_complete: Callable[[CommandResult], None] | None = None):
         super().__init__()
         self.on_complete = on_complete
         self._is_running = False
@@ -69,17 +70,17 @@ class BackgroundTaskCommand(Command):
                 return {"success": False, "result": None, "error": "Computation returned no result"}
             return {"success": True, "result": res, "error": None}
         except Exception as e:
-            logging.getLogger("BackgroundTaskCommand").error("Background computation failed: %s", e, exc_info=True)
+            logging.getLogger("BackgroundTaskCommand").exception("Background computation failed")
             return {"success": False, "result": None, "error": str(e)}
 
     def _dispatch_task(
         self,
         task_scheduler,
         task: Callable[..., Any],
-        task_arguments: Optional[dict[str, Any]] = None,
-        on_result: Optional[Callable[[Any], None]] = None,
-        on_error: Optional[Callable[[Any], None]] = None,
-        on_finished: Optional[Callable[[], None]] = None,
+        task_arguments: dict[str, Any] | None = None,
+        on_result: Callable[[Any], None] | None = None,
+        on_error: Callable[[Any], None] | None = None,
+        on_finished: Callable[[], None] | None = None,
     ) -> None:
         """Dispatch a background task via task_scheduler with _is_running lifecycle tracking."""
         self._is_running = True

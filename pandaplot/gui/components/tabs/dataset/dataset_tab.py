@@ -66,7 +66,7 @@ class DatasetTab(PWidget):
                 try:
                     update_fn(self, self.get_tab_title())
                 except Exception:
-                    pass
+                    self.logger.debug("Failed to update tab title on parent container", exc_info=True)
 
     @override
     def _apply_theme(self):
@@ -262,9 +262,8 @@ class DatasetTab(PWidget):
                 else:
                     self.logger.warning(
                         "create_chart_from_dataset not callable on parent for dataset %s", self.dataset.id)
-            except Exception as e:
-                self.logger.error(
-                    "Error creating chart from dataset %s: %s", self.dataset.id, e, exc_info=True)
+            except Exception:
+                self.logger.exception("Error creating chart from dataset %s", self.dataset.id)
         else:
             self.logger.warning(
                 "Could not find tab container to create chart for dataset %s", self.dataset.id)

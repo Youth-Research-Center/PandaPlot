@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
@@ -226,7 +227,7 @@ def restore_last_session(app_context: AppContext, main_window: PandaMainWindow) 
     active_tab_id = session_manager.last_active_tab_id
     splitter_sizes = session_manager.last_splitter_sizes
 
-    def _on_loaded(project) -> None:  # noqa: ANN001 - Project, avoiding import cycle concerns
+    def _on_loaded(project) -> None:
         main_window.tab_container.restore_tab_session(panes_data, active_tab_id, splitter_sizes)
 
     command = LoadProjectCommand(app_context, last_path, on_loaded=_on_loaded)
@@ -268,7 +269,8 @@ def launch(app_context: AppContext) -> int:
 def main() -> None:
     """CLI entry point for `python -m pandaplot.app`."""
     debug = os.environ.get("PANDAPLOT_DEBUG", "").lower() in ("1", "true", "yes")
-    logger = setup_logging(level=logging.DEBUG if debug else logging.INFO)
+    log_file = Path.home() / ".pandaplot" / "application.log"
+    logger = setup_logging(log_file=log_file, level=logging.DEBUG if debug else logging.INFO)
     logger.info("--------------Starting PandaPlot application--------------")
     app_context = build_app_context()
     sys.exit(launch(app_context))

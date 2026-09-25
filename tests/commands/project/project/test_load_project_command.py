@@ -524,7 +524,7 @@ def test_on_load_result_warns_when_items_failed_to_load(env):
     ui_controller = env.get_ui_controller.return_value
     warning_call = ui_controller.show_warning_message.call_args
     assert warning_call is not None
-    title, message = warning_call.args
+    _title, message = warning_call.args
     assert "ds-1" in message
     assert "chart-2" in message
 

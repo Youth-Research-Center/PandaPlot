@@ -47,7 +47,7 @@ class TestResolveSeriesXY:
 
     def test_resolves_a_fit(self, app_state):
         state, chart = app_state
-        x, y, x_label, y_label = resolve_series_xy(state, chart, "fit", 1)
+        x, _y, x_label, y_label = resolve_series_xy(state, chart, "fit", 1)
         assert x_label == "t"
         assert y_label == "Quadratic Fit"
         assert len(x) == 11

@@ -1,7 +1,7 @@
 """Command for applying a fit to a chart, plus a standalone fit report."""
 
 import uuid
-from typing import Optional, override
+from typing import override
 
 import numpy as np
 import pandas as pd
@@ -91,7 +91,7 @@ class ApplyFitCommand(Command):
         source_x_column: str = "",
         source_y_column: str = "",
         label: str = "",
-        fixed_parameters: Optional[str] = None,
+        fixed_parameters: str | None = None,
     ):
         super().__init__()
 
@@ -108,17 +108,17 @@ class ApplyFitCommand(Command):
         self.label = label
         self.fixed_parameters = fixed_parameters
 
-        self.added_index: Optional[int] = None
+        self.added_index: int | None = None
 
         # State for undo/redo of the report items. The Note/Dataset objects
         # (and their ids) are created once on the first execute() and then
         # re-added as-is on redo(), so a redo doesn't mint new identities
         # that later commands (e.g. an edit to the generated note) can't
         # find by their originally-recorded id -- see CreateNoteCommand.redo().
-        self.report_note_id: Optional[str] = None
-        self.result_dataset_id: Optional[str] = None
-        self._report_note: Optional[Note] = None
-        self._result_dataset: Optional[Dataset] = None
+        self.report_note_id: str | None = None
+        self.result_dataset_id: str | None = None
+        self._report_note: Note | None = None
+        self._result_dataset: Dataset | None = None
         self._chart_finder = ChartFinder(app_context)
 
     def _source_path(self) -> str:
@@ -198,7 +198,7 @@ class ApplyFitCommand(Command):
             data["y_upper"] = results.confidence_upper
         return pd.DataFrame(data)
 
-    def _create_report(self, project, folder_id: Optional[str], short_fit_name: str) -> None:
+    def _create_report(self, project, folder_id: str | None, short_fit_name: str) -> None:
         """Add the report Note and fit-data Dataset alongside the source dataset.
 
         The objects are built once (first execute()) and cached; a later

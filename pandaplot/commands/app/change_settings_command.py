@@ -1,7 +1,8 @@
 # change_settings_command.py
 # Command wrapping an application settings change so it can be undone.
 
-from typing import Any, Mapping, Optional, override
+from collections.abc import Mapping
+from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.models.state.app_context import AppContext
@@ -21,7 +22,7 @@ class ChangeSettingsCommand(Command):
         app_context: AppContext,
         mapping: Mapping[str, Any],
         *,
-        config_manager: Optional[ConfigManager] = None,
+        config_manager: ConfigManager | None = None,
     ):
         super().__init__()
         # Accept an explicit ConfigManager (e.g. SettingsDialog's own
@@ -29,7 +30,7 @@ class ChangeSettingsCommand(Command):
         # always resolving it fresh from app_context -- the two can diverge.
         self.config_manager = config_manager or app_context.get_manager(ConfigManager)
         self.new_mapping = mapping
-        self.old_mapping: Optional[dict[str, Any]] = None
+        self.old_mapping: dict[str, Any] | None = None
 
     @override
     def marks_project_modified(self) -> bool:

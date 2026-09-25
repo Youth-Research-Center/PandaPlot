@@ -64,7 +64,7 @@ class TestTransformChartSeriesCommand:
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
         assert "t" in result.data.columns
-        transformed_col = [c for c in result.data.columns if c != "t"][0]
+        transformed_col = next(c for c in result.data.columns if c != "t")
         assert result.data[transformed_col].tolist() == pytest.approx((result.data["t"] ** 2 * 2).tolist())
 
     def test_untouched_non_numeric_axis_round_trips_unchanged(self, ctx):
@@ -88,7 +88,7 @@ class TestTransformChartSeriesCommand:
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
         assert "Squared" in result.data.columns
-        transformed_col = [c for c in result.data.columns if c != "Squared"][0]
+        transformed_col = next(c for c in result.data.columns if c != "Squared")
         assert transformed_col == "t (transformed)"
         assert result.data[transformed_col].iloc[0] == pytest.approx(1.0)
 
@@ -114,7 +114,7 @@ class TestTransformChartSeriesCommand:
         command = _cmd(ctx, source_kind="fit", source_index=1, target="y", expression="np.sqrt(y)")
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
-        transformed_col = [c for c in result.data.columns if c != "t"][0]
+        transformed_col = next(c for c in result.data.columns if c != "t")
         assert result.data[transformed_col].iloc[-1] == pytest.approx(10.0)
 
     def test_custom_result_name(self, ctx):
@@ -176,7 +176,7 @@ class TestTransformChartSeriesCommand:
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
     def test_empty_expression_fails(self, ctx):
-        app_context, _ = ctx
+        _app_context, _ = ctx
         command = _cmd(ctx, expression="")
         assert command.execute() is CommandResult.FAILURE
 
@@ -193,7 +193,7 @@ class TestTransformChartSeriesCommand:
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
     def test_series_type_that_does_not_support_transform_fails(self, ctx):
-        app_context, project = ctx
+        _app_context, project = ctx
         chart = project.find_item("chart-1")
         chart.data_series[0].series_type = SeriesType.BAR
         command = _cmd(ctx, source_kind="series", source_index=0)
@@ -208,7 +208,7 @@ class TestTransformChartSeriesCommand:
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
     def test_run_transform_does_not_touch_the_project(self, ctx):
-        _, project = ctx
+        _, _project = ctx
         command = _cmd(ctx)
         df, name = command.run_transform()
         assert len(df) == 11

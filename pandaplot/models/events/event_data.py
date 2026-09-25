@@ -4,14 +4,14 @@ Only event types that are actually used (subscribed/emitted) have data classes.
 Unused event types are commented for future reference.
 """
 from dataclasses import asdict, dataclass, fields
-from typing import Any, List, Tuple, Type, TypeVar
+from typing import Any, Self, TypeVar
 
 T = TypeVar("T", bound="EventData")
 
 @dataclass(frozen=True)
 class EventData:
     @classmethod
-    def from_dict(cls: Type[T], data: dict[str, Any]) -> T:
+    def from_dict(cls, data: dict[str, Any]) -> Self:
         """
         Create an event instance from a dictionary.
         Only keys matching dataclass fields are used.
@@ -48,18 +48,18 @@ class TabOpenRequestedData(EventData):
 @dataclass(frozen=True)
 class DatasetDataChangedData(EventData):
     dataset_id: str
-    start_index: Tuple[int, int]
-    end_index: Tuple[int, int]
+    start_index: tuple[int, int]
+    end_index: tuple[int, int]
 
 @dataclass(frozen=True)
 class DatasetColumnsAddedData(EventData):
     dataset_id: str
-    column_positions: List[int]
+    column_positions: list[int]
 
 @dataclass(frozen=True)
 class DatasetColumnsRemovedData(EventData):
     dataset_id: str
-    column_positions: List[int]
+    column_positions: list[int]
 
 @dataclass(frozen=True)
 class DatasetColumnRenamedData(EventData):
@@ -71,9 +71,9 @@ class DatasetColumnRenamedData(EventData):
 @dataclass(frozen=True)
 class DatasetRowsAddedData(EventData):
     dataset_id: str
-    row_positions: List[int]
+    row_positions: list[int]
 
 @dataclass(frozen=True)
 class DatasetRowsRemovedData(EventData):
     dataset_id: str
-    row_positions: List[int]
+    row_positions: list[int]

@@ -8,7 +8,8 @@ running ApplySignalAnalysisResultCommand, which is the command that actually
 occupies an undo slot. See analysis_command.py for the identical pattern.
 """
 
-from typing import Any, Callable, Dict, Optional, override
+from collections.abc import Callable
+from typing import Any, override
 
 from pandaplot.analysis import (
     SignalAnalysisResult,
@@ -39,11 +40,11 @@ class SignalAnalysisCommand(BackgroundTaskCommand):
         source_dataset_id: str,
         analysis_type: SignalAnalysisType,
         column_name: str,
-        sampling_rate: Optional[float] = None,
-        parameters: Optional[Dict[str, Any]] = None,
-        result_name: Optional[str] = None,
-        folder_id: Optional[str] = None,
-        on_complete: Optional[Callable[[CommandResult], None]] = None,
+        sampling_rate: float | None = None,
+        parameters: dict[str, Any] | None = None,
+        result_name: str | None = None,
+        folder_id: str | None = None,
+        on_complete: Callable[[CommandResult], None] | None = None,
     ):
         super().__init__(on_complete=on_complete)
 
@@ -61,10 +62,10 @@ class SignalAnalysisCommand(BackgroundTaskCommand):
         self.result_name = result_name
         self.folder_id = folder_id
 
-        self.result_dataset_id: Optional[str] = None
-        self.result: Optional[SignalAnalysisResult] = None
+        self.result_dataset_id: str | None = None
+        self.result: SignalAnalysisResult | None = None
 
-    def _get_source_dataset(self) -> Optional[Dataset]:
+    def _get_source_dataset(self) -> Dataset | None:
         project = get_current_project(self.app_context)
         if not project:
             return None
@@ -82,7 +83,7 @@ class SignalAnalysisCommand(BackgroundTaskCommand):
             **self.parameters,
         )
 
-    def run_analysis_async(self, on_complete: Callable[[Optional[SignalAnalysisResult], Optional[str]], None]) -> None:
+    def run_analysis_async(self, on_complete: Callable[[SignalAnalysisResult | None, str | None], None]) -> None:
         """Non-undoable preview path: computes a SignalAnalysisResult on a
         background thread and reports it (or an error message) via
         on_complete(result, error). Does not touch the project."""
@@ -159,7 +160,7 @@ class SignalAnalysisCommand(BackgroundTaskCommand):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            self.logger.error("Signal analysis failed: %s", e, exc_info=True)
+            self.logger.exception("Signal analysis failed")
             self.ui_controller.show_error_message("Signal Analysis Error", str(e))
             self._is_running = False
             return CommandResult.FAILURE

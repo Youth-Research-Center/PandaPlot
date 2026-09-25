@@ -2,7 +2,7 @@
 Transform column command for applying data transformations with undo/redo support.
 """
 
-from typing import Any, Dict, Optional, override
+from typing import Any, override
 
 import pandas as pd
 
@@ -19,7 +19,7 @@ class TransformColumnCommand(Command):
     Integrates with existing command system for undo/redo support.
     """
 
-    def __init__(self, app_context: AppContext, dataset_id: str, transform_config: Dict[str, Any]):
+    def __init__(self, app_context: AppContext, dataset_id: str, transform_config: dict[str, Any]):
         """
         Initialize transform command.
 
@@ -45,7 +45,7 @@ class TransformColumnCommand(Command):
 
         # Set to the reason execute()/undo() returned False, so callers (the
         # transform panel) can surface it instead of a generic message.
-        self.error_message: Optional[str] = None
+        self.error_message: str | None = None
 
         # Extract config
         self.new_column_name = transform_config["new_column_name"]
@@ -109,7 +109,7 @@ class TransformColumnCommand(Command):
                 f"Transform applied: '{self.new_column_name}' created from {self.source_columns}")
             return CommandResult.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.error_message = str(e)
             self.logger.error(f"Transform execution failed: {e}")
             return CommandResult.FAILURE
@@ -176,7 +176,7 @@ class TransformColumnCommand(Command):
             self.logger.info(f"Transform undone: '{self.new_column_name}' reverted")
             return CommandResult.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"Transform undo failed: {e}")
             return CommandResult.FAILURE
 
@@ -198,7 +198,7 @@ class TransformColumnCommand(Command):
             if project is not None:
                 return project.find_item(self.dataset_id)
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"Error getting dataset: {e}")
             return None
 
@@ -232,7 +232,7 @@ class TransformColumnCommand(Command):
                 self.logger.error(self.error_message)
                 return False
             df = self.dataset.data
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.error_message = f"Cannot access dataset dataframe: {e}"
             self.logger.error(self.error_message)
             return False
@@ -265,7 +265,7 @@ class TransformColumnCommand(Command):
             self.column_existed_before = False
             self.original_data = None
 
-    def _execute_transform_logic(self, df: pd.DataFrame) -> Optional[pd.Series]:
+    def _execute_transform_logic(self, df: pd.DataFrame) -> pd.Series | None:
         """Execute transformation using safe evaluation."""
         try:
             # Create safe execution environment
@@ -282,7 +282,7 @@ class TransformColumnCommand(Command):
                 self.logger.error(self.error_message)
                 return None
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.error_message = str(e)
             self.logger.error(f"Transform logic execution failed: {e}")
             return None

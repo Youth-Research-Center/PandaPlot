@@ -7,7 +7,6 @@ space) that the user drags to move and resizes via 8 corner/edge handles.
 There is no "draw a new rectangle from scratch" mode -- the rectangle always
 exists, starting at the full image bounds.
 """
-from typing import Dict, Optional
 
 from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QImage, QMouseEvent, QPainter, QPaintEvent, QPen, QResizeEvent
@@ -45,14 +44,14 @@ class CropCanvas(QWidget):
 
     cropRectChanged = Signal(QRect)
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setMinimumSize(200, 200)
         self._image = QImage()
         self._crop_rect = QRect()
-        self._aspect_lock: Optional[float] = None
-        self._active_handle: Optional[str] = None
-        self._drag_start_widget_pos: Optional[QPoint] = None
+        self._aspect_lock: float | None = None
+        self._active_handle: str | None = None
+        self._drag_start_widget_pos: QPoint | None = None
         self._drag_start_rect: QRect = QRect()
 
     # ---- public API -------------------------------------------------
@@ -72,14 +71,14 @@ class CropCanvas(QWidget):
     def crop_rect(self) -> QRect:
         return QRect(self._crop_rect)
 
-    def aspect_lock(self) -> Optional[float]:
+    def aspect_lock(self) -> float | None:
         return self._aspect_lock
 
     def set_crop_rect(self, rect: QRect) -> None:
         self._crop_rect = self._clamp_to_image(rect)
         self.update()
 
-    def set_aspect_lock(self, ratio: Optional[float], preserve: str = "width") -> None:
+    def set_aspect_lock(self, ratio: float | None, preserve: str = "width") -> None:
         """Applies (or clears, for ratio=None) an aspect lock to the current
         crop rect.
 
@@ -175,7 +174,7 @@ class CropCanvas(QWidget):
             self._crop_rect.top() + self._crop_rect.height(),
         )
 
-    def _handle_widget_rects(self) -> Dict[str, QRect]:
+    def _handle_widget_rects(self) -> dict[str, QRect]:
         top_left = self._image_to_widget(self._crop_rect.topLeft())
         bottom_right = self._image_to_widget(self._image_bottom_right_exclusive())
         mid_x = (top_left.x() + bottom_right.x()) // 2
@@ -203,7 +202,7 @@ class CropCanvas(QWidget):
         bottom_right = self._image_to_widget(self._image_bottom_right_exclusive())
         return QRect(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y()))
 
-    def hit_test(self, widget_pos: QPoint) -> Optional[str]:
+    def hit_test(self, widget_pos: QPoint) -> str | None:
         """Returns a handle name, "body", or None. Exposed directly so tests
         don't need to synthesize QMouseEvents to check hit-testing alone."""
         handle_rects = self._handle_widget_rects()

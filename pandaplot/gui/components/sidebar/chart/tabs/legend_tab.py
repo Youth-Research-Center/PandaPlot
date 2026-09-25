@@ -196,11 +196,11 @@ class LegendTab(QWidget):
             self.show_legend_toggle.setChecked(checked=config.show_legend)
             legend_position_value = config.legend_position
             position_index = self.legend_position_combo.findData(legend_position_value)
-            self.legend_position_combo.setCurrentIndex(position_index if position_index >= 0 else 0)
+            self.legend_position_combo.setCurrentIndex(max(position_index, 0))
             self.legend_custom_x_spin.setValue(config.legend_custom_x)
             self.legend_custom_y_spin.setValue(config.legend_custom_y)
             anchor_index = self.legend_custom_anchor_combo.findData(config.legend_custom_anchor)
-            self.legend_custom_anchor_combo.setCurrentIndex(anchor_index if anchor_index >= 0 else 0)
+            self.legend_custom_anchor_combo.setCurrentIndex(max(anchor_index, 0))
             self.legend_custom_row.setVisible(legend_position_value == "custom")
             self.legend_font_size_spin.setValue(config.legend_font_size)
             self.legend_columns_control.setCurrentValue(config.legend_columns)

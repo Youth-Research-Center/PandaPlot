@@ -22,14 +22,14 @@ attribute access throughout -- that's what actually gets typo'd while
 being written, which is what #146 is about.
 """
 from dataclasses import dataclass, field, fields
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar
 
 from pandaplot.models.chart.axis_config import AxisConfig
 
 _AXIS_PREFIXES = ("x", "y", "y2", "z")
 
 
-def _resolve_axis_key(key: str) -> Optional[tuple[str, str]]:
+def _resolve_axis_key(key: str) -> tuple[str, str] | None:
     """Split a flat axis-prefixed key ('y2_tick_mode', 'show_grid_x') into
     (axis_prefix, AxisConfig_field_name), or None if `key` isn't one."""
     if key.startswith("show_grid_"):
@@ -80,14 +80,14 @@ class ChartConfig:
     title_color: str = "#000000"
     subtitle_color: str = "#000000"
     subtitle_match_title_color: bool = True
-    width_cm: Optional[float] = None
-    height_cm: Optional[float] = None
-    dpi: Optional[int] = None
+    width_cm: float | None = None
+    height_cm: float | None = None
+    dpi: int | None = None
     view_elev: float = 30.0
     view_azim: float = -60.0
     colormap: str = "viridis"
     colorbar_show: bool = True
-    colorbar_label: Optional[str] = None
+    colorbar_label: str | None = None
     color_scale_auto: bool = True
     color_vmin: float = 0.0
     color_vmax: float = 1.0

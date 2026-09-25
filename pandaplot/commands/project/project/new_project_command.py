@@ -1,4 +1,4 @@
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.project.unsaved_changes import flush_pending_edits
@@ -30,7 +30,7 @@ class NewProjectCommand(Command):
         # The Project created by execute()'s first run, cached so redo() can
         # restore that exact object instead of calling execute() again --
         # see redo().
-        self.created_project: Optional[Project] = None
+        self.created_project: Project | None = None
         # Whether created_project had unsaved changes when undo() last swapped
         # away from it (e.g. a note edit flushed during that same undo()),
         # so redo() can restore that dirty state rather than letting
@@ -97,7 +97,7 @@ class NewProjectCommand(Command):
             return CommandResult.SUCCESS
         except Exception as e:
             error_msg = f"Failed to create new project: {e}"
-            self.logger.error("NewProjectCommand Error: %s", error_msg, exc_info=True)
+            self.logger.exception("NewProjectCommand Error: %s", error_msg)
             self.ui_controller.show_error_message(
                 "New Project Error", error_msg)
             raise
@@ -148,7 +148,7 @@ class NewProjectCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to undo new project: {e}"
-            self.logger.error("NewProjectCommand Undo Error: %s", error_msg, exc_info=True)
+            self.logger.exception("NewProjectCommand Undo Error: %s", error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 
@@ -206,7 +206,7 @@ class NewProjectCommand(Command):
             return CommandResult.SUCCESS
         except Exception as e:
             error_msg = f"Failed to redo new project: {e}"
-            self.logger.error("NewProjectCommand Redo Error: %s", error_msg, exc_info=True)
+            self.logger.exception("NewProjectCommand Redo Error: %s", error_msg)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return CommandResult.FAILURE
 

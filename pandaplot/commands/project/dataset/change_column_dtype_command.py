@@ -1,4 +1,4 @@
-from typing import Any, Dict, Union, override
+from typing import Any, override
 
 import numpy as np
 import pandas as pd
@@ -161,12 +161,12 @@ class ChangeColumnDtypeCommand(Command):
             return CommandResult.SUCCESS
             
         except Exception as e:
-            error_msg = f"Failed to change column type for column {self.column_index}: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Failed to change column type for column {self.column_index}: {e!s}"
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Change Column Type Error", error_msg)
             return CommandResult.FAILURE
 
-    def _convert_column_dtype(self) -> Union[Dict[str, Any], None]:
+    def _convert_column_dtype(self) -> dict[str, Any] | None:
         """
         Convert column data to target dtype with error handling.
         Returns dict with converted_data and conversion stats, or None if failed.
@@ -237,8 +237,8 @@ class ChangeColumnDtypeCommand(Command):
                 "target_dtype": self.target_dtype
             }
             
-        except Exception as e:
-            self.logger.error(f"Error converting column data: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error converting column data")
             return None
 
     def undo(self) -> CommandResult:

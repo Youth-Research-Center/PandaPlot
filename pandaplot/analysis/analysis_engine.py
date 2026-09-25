@@ -2,7 +2,6 @@
 Core analysis engine providing mathematical analysis operations.
 """
 
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -294,7 +293,7 @@ class AnalysisEngine:
         x_data: pd.Series,
         y_data: pd.Series,
         method: str = "cubic",
-        num_points: Optional[int] = None,
+        num_points: int | None = None,
         start_index: int = 0,
         end_index: int = -1
     ) -> AnalysisResult:
@@ -336,7 +335,7 @@ class AnalysisEngine:
             try:
                 cs = CubicSpline(x_slice, y_slice)
                 y_new = cs(x_new)
-            except Exception:
+            except Exception:  # noqa: BLE001 -- scipy can raise several error types for degenerate input; fall back to linear interpolation regardless
                 # Fallback to linear interpolation
                 f = interp1d(x_slice, y_slice, kind="linear")
                 y_new = f(x_new)

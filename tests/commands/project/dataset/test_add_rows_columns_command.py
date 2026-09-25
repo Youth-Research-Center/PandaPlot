@@ -51,7 +51,7 @@ def _emitted(app_state):
 
 class TestAddRowsColumnsCommand:
     def test_grows_the_table_to_the_requested_size(self, mock_app_context, project_with):
-        app_context, app_state, _ = mock_app_context
+        app_context, _app_state, _ = mock_app_context
         dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2]}))
         project_with(dataset)
 

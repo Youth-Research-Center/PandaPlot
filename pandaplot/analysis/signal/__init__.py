@@ -6,8 +6,8 @@ from .signal_types import (
 )
 
 __all__ = [
-    "SignalEngine",
     "SignalAnalysisInfo",
     "SignalAnalysisResult",
     "SignalAnalysisType",
+    "SignalEngine",
 ]

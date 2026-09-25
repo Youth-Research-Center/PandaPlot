@@ -54,7 +54,7 @@ def test_empty_name_rejected(env):
 
 
 def test_empty_name_rejected_logs_a_warning(env, caplog):
-    app_context, project = env
+    app_context, _project = env
     command = RenameProjectCommand(app_context, "   ")
     with caplog.at_level(logging.WARNING):
         assert command.execute() is CommandResult.FAILURE
@@ -79,7 +79,7 @@ def test_no_project_loaded(env):
 
 
 def test_no_project_loaded_logs_a_warning(env, caplog):
-    app_context, project = env
+    app_context, _project = env
     app_context.get_app_state.return_value.has_project = False
 
     command = RenameProjectCommand(app_context, "New Name")

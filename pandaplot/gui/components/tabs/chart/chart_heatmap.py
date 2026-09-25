@@ -6,14 +6,13 @@ Kept separate from the chart editor widget so the numeric geometry can be
 unit-tested without any Qt/matplotlib widget setup (mirrors chart_error_bars).
 """
 
-from typing import Optional
 
 import numpy as np
 
 
 def resolve_color_limits(
     z_data, *, auto: bool, vmin: float, vmax: float
-) -> tuple[Optional[float], Optional[float]]:
+) -> tuple[float | None, float | None]:
     """Resolve the (vmin, vmax) passed to a colormap normalization.
 
     When ``auto`` the colormap spans the data's own finite min..max, returned
@@ -144,7 +143,7 @@ def interpolate_to_grid(x_data, y_data, z_data, resolution: int, method: str = "
     points = np.column_stack([x, y])
     try:
         grid = griddata(points, z, (grid_x, grid_y), method=method)
-    except Exception:
+    except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
         grid = None
     # "nearest" always yields a full field; fall back to it when a
     # triangulation-based method failed or produced an all-NaN result.

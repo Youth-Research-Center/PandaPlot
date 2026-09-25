@@ -1,6 +1,6 @@
 """Command that looks up an analysis result dataset by ID and adds its result as a series to a chart."""
 
-from typing import Optional, override
+from typing import override
 
 from pandaplot.analysis import SignalAnalysisType
 from pandaplot.commands.base_command import Command, CommandResult
@@ -23,7 +23,7 @@ class AddAnalysisSeriesCommand(Command):
         self.app_context = app_context
         self.chart_id = chart_id
         self.dataset_command = dataset_command
-        self._delegate: Optional[AddSeriesCommand] = None
+        self._delegate: AddSeriesCommand | None = None
 
     @override
     def execute(self) -> CommandResult:

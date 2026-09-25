@@ -2,7 +2,6 @@
 selection, and the shared persistent dataset/X/Y/Y-axis/label configuration
 form reparented into whichever card is currently selected.
 """
-from typing import List, Optional
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -86,13 +85,13 @@ class DataTab(QWidget):
         self.command_executor = app_context.command_executor
         self.current_project = None
         self.current_chart = None  # Current Chart object being edited
-        self.datasets: List = []
+        self.datasets: list = []
         self._updating_controls: bool = False  # Guard to prevent feedback loops
         self._pending_label: str = ""  # Buffer while user types label
         # Reference to the expanded card's Y1/Y2 badge QLabel (and the design
         # tokens it was last styled with), so a live series Y-axis edit can
         # restyle it in place. See _on_series_y_axis_changed.
-        self._expanded_card_y_axis_badge: Optional[QLabel] = None
+        self._expanded_card_y_axis_badge: QLabel | None = None
         self._expanded_card_y_axis_badge_tokens: dict = {}
         # Which entry (data series index, then fit-data index appended after
         # all series) is currently *selected* -- drives the Style tab's
@@ -1125,7 +1124,7 @@ class DataTab(QWidget):
             ):
                 combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
                 index = combo.findData(column_id)
-                combo.setCurrentIndex(index if index >= 0 else 0)
+                combo.setCurrentIndex(max(index, 0))
                 combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
             for combo, column_id in (
@@ -1136,12 +1135,12 @@ class DataTab(QWidget):
             ):
                 combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
                 index = combo.findData(column_id)
-                combo.setCurrentIndex(index if index >= 0 else 0)
+                combo.setCurrentIndex(max(index, 0))
                 combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
             type_index = self.series_type_combo.findData(series.series_type)
             self.series_type_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-            self.series_type_combo.setCurrentIndex(type_index if type_index >= 0 else 0)
+            self.series_type_combo.setCurrentIndex(max(type_index, 0))
             self.series_type_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
             self.error_asymmetric_check.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
@@ -1234,7 +1233,7 @@ class DataTab(QWidget):
                 ):
                     combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
                     index = combo.findData(column_id)
-                    combo.setCurrentIndex(index if index >= 0 else 0)
+                    combo.setCurrentIndex(max(index, 0))
                     combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
             # Show fit info in the label (block signals)
@@ -1553,7 +1552,7 @@ class DataTab(QWidget):
                 fit_item.setEnabled(False)
                 fit_item.setToolTip(f"Fits aren't available on {spec.display_name} charts.")
             default_index = self.series_type_combo.findData(spec.default_series_type)
-            self.series_type_combo.setCurrentIndex(default_index if default_index >= 0 else 0)
+            self.series_type_combo.setCurrentIndex(max(default_index, 0))
         finally:
             self.series_type_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 

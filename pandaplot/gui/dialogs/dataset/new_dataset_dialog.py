@@ -1,7 +1,6 @@
 """Dialog for choosing name, size, and initial fill value of a new empty dataset."""
 
 import math
-from typing import Optional
 
 from PySide6.QtWidgets import (
     QComboBox,
@@ -23,7 +22,7 @@ class NewDatasetDialog(QDialog):
     column count, and whether new cells start as NaN or 0.0.
     """
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Create New Dataset")
         self.setModal(True)

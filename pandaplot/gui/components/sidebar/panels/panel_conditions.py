@@ -3,12 +3,11 @@ Panel condition functions for conditional sidebar panel visibility.
 Provides reusable condition functions for different panel types.
 """
 
-from typing import Optional
 
 from PySide6.QtWidgets import QWidget
 
 
-def is_dataset_tab_active(tab_widget: Optional[QWidget]) -> bool:
+def is_dataset_tab_active(tab_widget: QWidget | None) -> bool:
     """
     Check if current tab is a dataset tab.
 
@@ -25,7 +24,7 @@ def is_dataset_tab_active(tab_widget: Optional[QWidget]) -> bool:
     return class_name == "DatasetTab"
 
 
-def is_chart_tab_active(tab_widget: Optional[QWidget]) -> bool:
+def is_chart_tab_active(tab_widget: QWidget | None) -> bool:
     """
     Check if current tab is a chart tab.
 

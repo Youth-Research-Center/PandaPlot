@@ -1,13 +1,13 @@
 import logging
+import sys
 from pathlib import Path
-from typing import Optional
 
 
 def setup_logging(
     log_file: str | Path = "application.log",
     level: int = logging.INFO,
-    cli_level: Optional[int] = logging.INFO,
-    file_level: Optional[int] = logging.DEBUG,
+    cli_level: int | None = logging.INFO,
+    file_level: int | None = logging.DEBUG,
     datefmt: str = "%Y-%m-%d %H:%M:%S"
 ):
     """
@@ -46,8 +46,10 @@ def setup_logging(
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
 
-    # Console handler
-    if cli_level is not None:
+    # Console handler. StreamHandler() defaults to sys.stderr, which is None
+    # in a windowed build with no attached console (e.g.
+    # --windows-console-mode=disable), where it would raise on first write.
+    if cli_level is not None and sys.stderr is not None:
         console_handler = logging.StreamHandler()
         console_handler.setLevel(cli_level)
         console_handler.setFormatter(formatter)

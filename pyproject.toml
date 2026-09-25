@@ -5,31 +5,37 @@ description = "PandaPlot is educational scientific visualization and analysis ap
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "markdown>=3.10.2",
-    "matplotlib>=3.11.0",
+    "markdown>=3.10.3",
+    "matplotlib>=3.11.2",
     "openpyxl>=3.1.5",
-    "pandas>=3.0.3",
-    "pyarrow>=25.0.0",
-    "pyside6>=6.11.1",
+    "pandas>=3.0.6",
+    "pyarrow>=25.0.1",
+    "pyside6>=6.11.2",
     "requests>=2.34.2",
-    "scipy>=1.18.0",
-    "statsmodels>=0.14.6",
+    "scipy>=1.18.1",
+    "statsmodels>=0.15.0",
     "xlrd>=2.0.2",
 ]
 
 [dependency-groups]
 dev = [
     "bandit>=1.9.4",
+    # Needed by Nuitka/pyside6-deploy on macOS to convert the .ico app icon
+    # to a native .icns; without it the deploy build fails.
+    "imageio>=2.31.0",
     "pip-audit>=2.10.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.15.1",
     "pytest-qt>=4.5.0",
-    "ruff>=0.15.22",
+    "ruff>=0.16.8",
     "viztracer>=1.1.1",
     "vulture>=2.16",
 ]
+
+[tool.pyside6-project]
+files = ["pandaplot/app.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

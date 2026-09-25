@@ -6,7 +6,7 @@ smoothing, interpolation) on any series of the active chart — a plotted data
 series or a fitted curve — and stores the result as a new dataset.
 """
 
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -54,10 +54,10 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for analysis operations on chart data/fit series."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self.current_chart: Optional[Chart] = None
-        self.current_chart_id: Optional[str] = None
+        self.current_chart: Chart | None = None
+        self.current_chart_id: str | None = None
 
         self._initialize()
         self._connect_signals()
@@ -286,7 +286,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             params["num_points"] = self.num_points_spin.value()
         return params
 
-    def _make_command(self) -> Optional[AnalyzeChartSeriesCommand]:
+    def _make_command(self) -> AnalyzeChartSeriesCommand | None:
         source = self._selected_source()
         if source is None or self.current_chart_id is None:
             return None
@@ -319,7 +319,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 f"Result: {len(df)} points → dataset '{self.result_name.text().strip() or default_name}'",
             ]
             self.preview_text.setText(format_series_result_preview(header_lines, df))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.preview_text.setText(format_preview_error(e))
 
     def apply(self):
@@ -364,7 +364,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- chart context ----------------------------------------------------
 
-    def _range_command(self, kind: str, index: int) -> Optional[AnalyzeChartSeriesCommand]:
+    def _range_command(self, kind: str, index: int) -> AnalyzeChartSeriesCommand | None:
         """Build a throwaway command to resolve the selected series.
 
         Used for the segment bounds and index → (x, y) previews, so both
@@ -401,7 +401,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self._auto_name()
         self._update_range_labels()
 
-    def _format_point(self, point: Optional[tuple[float, float]]) -> str:
+    def _format_point(self, point: tuple[float, float] | None) -> str:
         if point is None:
             return "–"
         x, y = point

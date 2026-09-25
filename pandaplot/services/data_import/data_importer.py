@@ -11,7 +11,6 @@ full-file import.
 import csv
 import os
 from dataclasses import replace
-from typing import List, Optional
 
 import pandas as pd
 
@@ -71,7 +70,7 @@ def detect_format(file_path: str) -> str:
     raise UnsupportedFileError(f"Unsupported file type '{extension}'. Supported types: {supported}")
 
 
-def list_excel_sheets(file_path: str) -> List[str]:
+def list_excel_sheets(file_path: str) -> list[str]:
     """Return the worksheet names of an Excel workbook, in workbook order."""
     with pd.ExcelFile(file_path) as excel_file:
         return list(excel_file.sheet_names)
@@ -189,7 +188,7 @@ def default_options(file_path: str) -> ImportOptions:
     return options
 
 
-def read_dataframe(file_path: str, options: ImportOptions, nrows: Optional[int] = None) -> pd.DataFrame:
+def read_dataframe(file_path: str, options: ImportOptions, nrows: int | None = None) -> pd.DataFrame:
     """
     Read ``file_path`` into a DataFrame according to ``options``.
 
@@ -216,7 +215,7 @@ def read_dataframe(file_path: str, options: ImportOptions, nrows: Optional[int] 
     return _finalize_columns(df, has_header=options.has_header)
 
 
-def _read_csv(file_path: str, options: ImportOptions, nrows: Optional[int]) -> pd.DataFrame:
+def _read_csv(file_path: str, options: ImportOptions, nrows: int | None) -> pd.DataFrame:
     """Read a delimited-text file, trying the requested encoding then fallbacks."""
     # Multi-character / regex separators (e.g. whitespace) require the slower
     # pure-Python parser; single characters use the fast C parser.
@@ -224,7 +223,7 @@ def _read_csv(file_path: str, options: ImportOptions, nrows: Optional[int]) -> p
     header = 0 if options.has_header else None
 
     tried = [options.encoding] + [enc for enc in ENCODING_FALLBACKS if enc != options.encoding]
-    last_error: Optional[UnicodeDecodeError] = None
+    last_error: UnicodeDecodeError | None = None
     for encoding in tried:
         try:
             return pd.read_csv(
@@ -243,7 +242,7 @@ def _read_csv(file_path: str, options: ImportOptions, nrows: Optional[int]) -> p
     raise last_error
 
 
-def _read_excel(file_path: str, options: ImportOptions, nrows: Optional[int]) -> pd.DataFrame:
+def _read_excel(file_path: str, options: ImportOptions, nrows: int | None) -> pd.DataFrame:
     """Read a single worksheet from an Excel workbook."""
     header = 0 if options.has_header else None
     return pd.read_excel(
@@ -255,7 +254,7 @@ def _read_excel(file_path: str, options: ImportOptions, nrows: Optional[int]) ->
     )
 
 
-def _read_json(file_path: str, options: ImportOptions, nrows: Optional[int]) -> pd.DataFrame:
+def _read_json(file_path: str, options: ImportOptions, nrows: int | None) -> pd.DataFrame:
     """
     Read a JSON file into a DataFrame, supporting both a top-level array of
     records and newline-delimited JSON (one object per line).

@@ -1,4 +1,4 @@
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import QHBoxLayout, QWidget
@@ -22,7 +22,7 @@ class CollapsibleSidebar(PWidget):
         self.default_width = width
         self.collapsed_width = collapsed_width
         self.is_collapsed: bool = False
-        self.active_panel: Optional[str] = None
+        self.active_panel: str | None = None
         self.last_width: int = width
         self.auto_collapse_threshold: int = 100
         self.auto_expand_threshold: int = 60
@@ -184,7 +184,7 @@ class CollapsibleSidebar(PWidget):
         """Handle theme changes by reapplying sidebar styling."""
         try:
             self._apply_theme()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.logger.warning("Failed applying theme change to sidebar: %s", e)
 
     @override

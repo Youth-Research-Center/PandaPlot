@@ -399,7 +399,7 @@ def test_empty_series_label_falls_back_to_custom_fit(app_context_with_chart, dat
 
 
 def test_cleanup_releases_bookkeeping(app_context_with_chart):
-    app_context, chart = app_context_with_chart
+    app_context, _chart = app_context_with_chart
     command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=0)
     command.execute()
 

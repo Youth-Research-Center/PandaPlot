@@ -6,7 +6,8 @@ creating more charts is always a valid next step, unlike Explore Data's
 import-or-create choice.
 """
 
-from typing import Callable, override
+from collections.abc import Callable
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (

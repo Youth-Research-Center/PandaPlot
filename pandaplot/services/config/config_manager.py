@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any
 
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ConfigEvents
@@ -23,7 +24,7 @@ from pandaplot.services.config.config_validation import validate_config
 class ConfigManager:
     """Manage application configuration persistence & lifecycle."""
 
-    def __init__(self, event_bus: EventBus, config_path: Optional[Path] = None, *, auto_save: bool = True, backup: bool = True) -> None:
+    def __init__(self, event_bus: EventBus, config_path: Path | None = None, *, auto_save: bool = True, backup: bool = True) -> None:
         self._log = logging.getLogger(self.__class__.__name__)
         self._event_bus = event_bus
         self._auto_save = auto_save
@@ -107,7 +108,7 @@ class ConfigManager:
             self._log.error("Failed to save configuration: %s", exc)
             return False
 
-    def update(self, mapping: Mapping[str, Any], *, save: Optional[bool] = None) -> ApplicationConfig:
+    def update(self, mapping: Mapping[str, Any], *, save: bool | None = None) -> ApplicationConfig:
         """Merge mapping into config and emit update.
 
         Args:

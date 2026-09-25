@@ -2,7 +2,7 @@
 Analysis panel for mathematical operations on dataset columns.
 """
 
-from typing import Any, Dict, Optional, override
+from typing import Any, override
 
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -35,7 +35,7 @@ class AnalysisPanel(SidebarPanel):
     Side panel for mathematical analysis operations on dataset columns.
     """
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.current_dataset = None
         self.current_dataset_id = None
@@ -217,7 +217,7 @@ class AnalysisPanel(SidebarPanel):
         group.setLayout(group_layout)
         layout.addWidget(group)
 
-    def _resolve_point(self, row_number: int) -> Optional[tuple]:
+    def _resolve_point(self, row_number: int) -> tuple | None:
         """Return the resolved (x, y) at a 1-based row number, or None."""
         if self.current_dataset is None or not hasattr(self.current_dataset, "data") \
                 or self.current_dataset.data is None:
@@ -235,7 +235,7 @@ class AnalysisPanel(SidebarPanel):
         except (TypeError, ValueError):
             return None
 
-    def _format_point(self, point: Optional[tuple]) -> str:
+    def _format_point(self, point: tuple | None) -> str:
         if point is None:
             return "–"
         x, y = point
@@ -482,8 +482,8 @@ class AnalysisPanel(SidebarPanel):
             else:
                 self.preview_text.setText("Preview failed. Please check your parameters.")
                 
-        except Exception as e:
-            self.preview_text.setText(f"Preview error: {str(e)}")
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            self.preview_text.setText(f"Preview error: {e!s}")
     
     def execute_analysis_preview(self, x_data, y_data, config):
         """Execute analysis for preview purposes."""
@@ -554,8 +554,8 @@ class AnalysisPanel(SidebarPanel):
                     else:
                         self.logger.error("Command execution failed for dataset %s", dataset_id)
                         self.preview_text.setText("❌ Command execution failed. Please check your inputs.")
-                except Exception as e:
-                    self.preview_text.setText(f"❌ Error applying analysis: {str(e)}")
+                except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+                    self.preview_text.setText(f"❌ Error applying analysis: {e!s}")
 
             command = AnalysisCommand(self.app_context, dataset_id, config, on_complete=_on_complete)
             # Keep a strong reference so the command (and its on_complete
@@ -574,11 +574,11 @@ class AnalysisPanel(SidebarPanel):
                 self._pending_analysis_command = None
                 self.preview_text.setText("❌ Command execution failed. Please check your inputs.")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.busy_spinner.stop()
             self.apply_btn.setEnabled(True)
             self._pending_analysis_command = None
-            self.preview_text.setText(f"❌ Error applying analysis: {str(e)}")
+            self.preview_text.setText(f"❌ Error applying analysis: {e!s}")
     
     def validate_inputs(self) -> bool:
         """Validate all inputs."""
@@ -600,7 +600,7 @@ class AnalysisPanel(SidebarPanel):
         
         return True
     
-    def get_analysis_config(self) -> Dict[str, Any]:
+    def get_analysis_config(self) -> dict[str, Any]:
         """Get current analysis configuration."""
         analysis_type_map = {
             "Derivative": "derivative",

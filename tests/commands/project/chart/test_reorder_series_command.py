@@ -55,7 +55,7 @@ def test_execute_emits_chart_updated_with_series_reordered(app_context_with_char
     command.execute()
 
     app_context.event_bus.emit.assert_called_once()
-    event_type, event_data = app_context.event_bus.emit.call_args.args
+    _event_type, event_data = app_context.event_bus.emit.call_args.args
     assert event_data["update_type"] == "series_reordered"
     assert event_data["chart_id"] == chart.id
 

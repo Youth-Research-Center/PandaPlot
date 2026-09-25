@@ -1,6 +1,6 @@
 """Curve fitting panel for performing regression analysis on chart data."""
 import logging
-from typing import Optional, override
+from typing import override
 
 import pandas as pd
 from PySide6.QtCore import Signal
@@ -46,7 +46,7 @@ class FitPanel(SidebarPanel):
     fit_completed = Signal(dict)  # Emitted when fit is completed with results
     fit_applied = Signal(dict)   # Emitted when fit should be applied to chart
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None=None):
         super().__init__(app_context=app_context, parent=parent)
         self.fit_service = FitService()
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -54,10 +54,10 @@ class FitPanel(SidebarPanel):
         self.app_context = app_context
         self.current_chart = None
         self.fit_results = None
-        self.fit_fixed_parameters: Optional[str] = None
+        self.fit_fixed_parameters: str | None = None
         self._pending_fit_command = None
         self.datasets = []
-        self._pending_tab_event_data: Optional[dict] = None
+        self._pending_tab_event_data: dict | None = None
         self._needs_chart_refresh: bool = False
 
         # Check scipy availability lazily (only when FitPanel is instantiated)
@@ -457,7 +457,7 @@ class FitPanel(SidebarPanel):
             return None
         return app_state.current_project
 
-    def _resolve_selected_series(self) -> Optional[DataSeries]:
+    def _resolve_selected_series(self) -> DataSeries | None:
         """Resolve series_combo's current selection to a DataSeries.
 
         A real chart series is returned unchanged. The "Custom..." sentinel
@@ -610,7 +610,7 @@ class FitPanel(SidebarPanel):
 
         current_data = self.get_current_data()
         if current_data is not None:
-            df, mask, x_data, y_data, series = current_data
+            _df, _mask, x_data, _y_data, _series = current_data
             if len(x_data) > 0:
                 self.range_min_value_label.setText(f"{x_data.min():.6g}")
                 self.range_max_value_label.setText(f"{x_data.max():.6g}")
@@ -891,9 +891,7 @@ class FitPanel(SidebarPanel):
         if self.range_max_spin.value() <= self.range_min_spin.value():
             return False
         fit_name = self.fit_type_combo.currentText().split(" (")[0]
-        if fit_name in ("Logarithmic", "Power") and self.range_min_spin.value() <= 0:
-            return False
-        return True
+        return not (fit_name in ("Logarithmic", "Power") and self.range_min_spin.value() <= 0)
 
     def _range_invalid_reason(self) -> str:
         if self.range_max_spin.value() <= self.range_min_spin.value():

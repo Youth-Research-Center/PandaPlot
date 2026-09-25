@@ -64,7 +64,7 @@ class TestAnalyzeChartSeriesCommand:
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
         assert "t" in result.data.columns
-        deriv_col = [c for c in result.data.columns if c != "t"][0]
+        deriv_col = next(c for c in result.data.columns if c != "t")
         mid = len(result.data) // 2
         # d/dt of t^2 = 2t.
         assert result.data[deriv_col].iloc[mid] == pytest.approx(2 * result.data["t"].iloc[mid], abs=0.2)
@@ -74,7 +74,7 @@ class TestAnalyzeChartSeriesCommand:
         command = _cmd(ctx, source_kind="fit", source_index=1, analysis_type=AnalysisType.INTEGRAL)
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
-        int_col = [c for c in result.data.columns if c != "t"][0]
+        int_col = next(c for c in result.data.columns if c != "t")
         assert result.data[int_col].iloc[-1] == pytest.approx(1000 / 3, rel=1e-3)
 
     def test_cleanup_clears_the_resolved_xy_cache(self, ctx):
@@ -91,7 +91,7 @@ class TestAnalyzeChartSeriesCommand:
         command = _cmd(ctx, source_kind="fit", source_index=1, analysis_type=AnalysisType.ARC_LENGTH)
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
-        arc_col = [c for c in result.data.columns if c != "t"][0]
+        arc_col = next(c for c in result.data.columns if c != "t")
         exact = 0.5 * (10 * np.sqrt(1 + 400) + 0.5 * np.arcsinh(20))
         assert result.data[arc_col].iloc[-1] == pytest.approx(exact, rel=1e-3)
 

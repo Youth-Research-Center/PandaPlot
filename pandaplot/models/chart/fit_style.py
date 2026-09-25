@@ -18,7 +18,7 @@ now comes from the generic DataSeries.alpha every other series type
 already uses, not a fit-only duplicate.
 """
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 
@@ -34,10 +34,10 @@ class FitStyle(SeriesStyleBase):
     band_fill_alpha: float = 0.2
     band_color: str = ""  # "" => inherit the fit line's own color
     fit_type: str = ""
-    fit_params: Optional[dict[str, Any]] = None
-    fit_stats: Optional[dict[str, Any]] = None
-    confidence_lower: Optional[np.ndarray] = field(default=None, compare=False)
-    confidence_upper: Optional[np.ndarray] = field(default=None, compare=False)
+    fit_params: dict[str, Any] | None = None
+    fit_stats: dict[str, Any] | None = None
+    confidence_lower: np.ndarray | None = field(default=None, compare=False)
+    confidence_upper: np.ndarray | None = field(default=None, compare=False)
     confidence_lower_column_id: str = ""
     confidence_upper_column_id: str = ""
     is_manual: bool = False

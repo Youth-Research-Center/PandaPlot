@@ -4,7 +4,7 @@ single web URL, with a choice between copying the bytes into the project or
 storing only an external reference.
 """
 
-from typing import List, Optional, override
+from typing import override
 
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -28,9 +28,9 @@ _IMAGE_FILE_FILTER = "Image files (*.png *.jpg *.jpeg *.gif *.bmp *.webp);;All f
 class ImageImportDialog(PDialog):
     """Dialog for selecting one or more images (files or a URL) to import into a gallery."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self._selected_files: List[str] = []
+        self._selected_files: list[str] = []
         self._initialize()
 
     @override
@@ -86,7 +86,7 @@ class ImageImportDialog(PDialog):
         if paths:
             self._set_selected_files(paths)
 
-    def _set_selected_files(self, paths: List[str]):
+    def _set_selected_files(self, paths: list[str]):
         """Test/production hook to set the selected local files without a real file dialog."""
         self._selected_files = paths
         self.selected_files_label.setText(f"{len(paths)} file(s) selected" if paths else "No files selected")
@@ -95,7 +95,7 @@ class ImageImportDialog(PDialog):
     def _refresh_import_enabled(self):
         self.import_button.setEnabled(bool(self.get_sources()))
 
-    def get_sources(self) -> List[str]:
+    def get_sources(self) -> list[str]:
         """Return the local file paths (files mode) or a single-item list with the URL (URL mode)."""
         if self.url_radio.isChecked():
             url = self.url_edit.text().strip()

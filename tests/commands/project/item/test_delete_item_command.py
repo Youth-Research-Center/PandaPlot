@@ -83,7 +83,7 @@ class TestDeleteItemCommand:
 
     def test_execute_no_project_loaded_logs_a_warning(self, mock_app_context, caplog):
         """Test execute logs a warning when no project is loaded."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
 
         command = DeleteItemCommand(app_context, "item-123")
@@ -96,7 +96,7 @@ class TestDeleteItemCommand:
 
     def test_execute_no_current_project(self, mock_app_context):
         """Test execute when current project is None."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -107,7 +107,7 @@ class TestDeleteItemCommand:
 
     def test_execute_no_current_project_logs_a_warning(self, mock_app_context, caplog):
         """Test execute logs a warning when current_project is None."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -140,7 +140,7 @@ class TestDeleteItemCommand:
 
     def test_execute_item_not_found_logs_a_warning(self, mock_app_context, sample_project, caplog):
         """Test execute logs a warning when item is not found."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -268,7 +268,7 @@ class TestDeleteItemCommand:
 
     def test_undo_successful(self, mock_app_context, sample_project, sample_note):
         """Test successful undo operation."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -299,7 +299,7 @@ class TestDeleteItemCommand:
 
     def test_undo_with_parent(self, mock_app_context, sample_project, sample_note):
         """Test undo with parent item."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -321,7 +321,7 @@ class TestDeleteItemCommand:
 
     def test_undo_no_deleted_data(self, mock_app_context):
         """Test undo when no deleted data is stored."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         
         command = DeleteItemCommand(app_context, "item-123")
         # deleted_item_data is None
@@ -331,7 +331,7 @@ class TestDeleteItemCommand:
 
     def test_undo_no_project(self, mock_app_context):
         """Test undo when no project is loaded."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
 
         command = DeleteItemCommand(app_context, "item-123")
@@ -344,7 +344,7 @@ class TestDeleteItemCommand:
 
     def test_undo_logs_a_warning_when_current_project_is_none(self, mock_app_context, caplog):
         """Test undo logs a warning when has_project is True but current_project is None."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -379,7 +379,7 @@ class TestDeleteItemCommand:
 
     def test_redo_successful(self, mock_app_context, sample_project, sample_note):
         """Test successful redo operation."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -405,7 +405,7 @@ class TestDeleteItemCommand:
 
     def test_redo_no_deleted_data(self, mock_app_context):
         """Test redo when no deleted data is stored."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         
         command = DeleteItemCommand(app_context, "item-123")
         # deleted_item_data is None
@@ -415,7 +415,7 @@ class TestDeleteItemCommand:
 
     def test_redo_item_not_found(self, mock_app_context, sample_project):
         """Test redo when item is not found."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -431,7 +431,7 @@ class TestDeleteItemCommand:
 
     def test_redo_item_not_found_logs_a_warning(self, mock_app_context, sample_project, caplog):
         """Test redo logs a warning when item is not found."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -449,7 +449,7 @@ class TestDeleteItemCommand:
 
     def test_redo_logs_a_warning_when_current_project_is_none(self, mock_app_context, caplog):
         """Test redo logs a warning when has_project is True but current_project is None."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -515,7 +515,7 @@ class TestDeleteItemCommand:
 
     def test_serialization_round_trip(self, mock_app_context, sample_project):
         """Test that items can be properly serialized and deserialized."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -581,7 +581,7 @@ class TestDeleteItemCommand:
 
     def test_cleanup_releases_undo_state(self, mock_app_context):
         """Test cleanup releases the deleted-item snapshot and parent reference."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
 
         command = DeleteItemCommand(app_context, "note-123")
         command.deleted_item_data = {"id": "note-123", "name": "Test"}
@@ -671,7 +671,7 @@ class TestDeleteItemCommandChartSeriesCascade:
         return DeleteItemCommand(app_context, item_id)
 
     def test_execute_removes_series_referencing_the_deleted_dataset(self, mock_app_context, project_with_chart):
-        project, dataset, chart = project_with_chart
+        project, _dataset, chart = project_with_chart
         command = self._make_command(mock_app_context, project, "ds-1")
 
         assert command.execute() is CommandResult.SUCCESS
@@ -690,7 +690,7 @@ class TestDeleteItemCommandChartSeriesCascade:
     def test_execute_leaves_unrelated_charts_untouched(self, mock_app_context, project_with_chart):
         """A chart with no series referencing the deleted dataset must not
         be snapshotted/touched at all."""
-        project, dataset, chart = project_with_chart
+        project, _dataset, _chart = project_with_chart
         other_chart = Chart(id="chart-2", name="Other")
         other_chart.add_data_series("ds-other", label="unrelated only")
         project.add_item(other_chart)
@@ -702,7 +702,7 @@ class TestDeleteItemCommandChartSeriesCascade:
         assert len(other_chart.data_series) == 1
 
     def test_undo_restores_the_removed_series(self, mock_app_context, project_with_chart):
-        project, dataset, chart = project_with_chart
+        project, _dataset, chart = project_with_chart
         app_context, _app_state, _ui = mock_app_context
         command = self._make_command(mock_app_context, project, "ds-1")
         command.execute()
@@ -718,7 +718,7 @@ class TestDeleteItemCommandChartSeriesCascade:
     def test_redo_removes_the_series_again(self, mock_app_context, project_with_chart):
         """Regression: redo must re-strip the series undo() just restored,
         not assume they're already gone."""
-        project, dataset, chart = project_with_chart
+        project, _dataset, _chart = project_with_chart
         command = self._make_command(mock_app_context, project, "ds-1")
         command.execute()
         command.undo()
@@ -732,7 +732,7 @@ class TestDeleteItemCommandChartSeriesCascade:
         """A second full undo/redo cycle must behave identically to the
         first -- guards against state left over from the first cycle
         (e.g. a stale snapshot) corrupting the second."""
-        project, dataset, chart = project_with_chart
+        project, _dataset, _chart = project_with_chart
         command = self._make_command(mock_app_context, project, "ds-1")
         command.execute()
 
@@ -750,7 +750,7 @@ class TestDeleteItemCommandChartSeriesCascade:
         check (referenced_item_ids() intersected with removed_ids) short-
         circuits before any mutation, even though _apply_dependency_cleanup
         still walks every dependency-aware item via get_all_items()."""
-        project, dataset, chart = project_with_chart
+        project, _dataset, chart = project_with_chart
         note = Note(id="note-1", name="Unrelated")
         project.add_item(note)
         app_context, _app_state, _ui = mock_app_context

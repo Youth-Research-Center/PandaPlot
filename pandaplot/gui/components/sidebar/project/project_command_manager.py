@@ -137,7 +137,7 @@ class ProjectPanelCommandManager:
             if table_view is None:
                 return []
             return table_view.get_selected_column_ids()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.logger.warning(
                 "Could not read the current column selection for dataset %s: %s", dataset_id, e)
             return []

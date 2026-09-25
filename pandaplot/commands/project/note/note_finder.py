@@ -1,7 +1,6 @@
 """Shared note lookup for note commands."""
 
 import logging
-from typing import Optional
 
 from pandaplot.models.project.items import Note
 
@@ -16,7 +15,7 @@ class NoteFinder:
     """
 
     @staticmethod
-    def find(project, note_id: str) -> Optional[Note]:
+    def find(project, note_id: str) -> Note | None:
         item = project.find_item(note_id)
         if item is None:
             return None

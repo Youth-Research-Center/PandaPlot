@@ -1,4 +1,4 @@
-from typing import List, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -15,7 +15,7 @@ class DeleteRowsCommand(Command):
     Command to delete multiple rows from an existing dataset.
     """
 
-    def __init__(self, app_context: AppContext, dataset_id: str, row_positions: List[int]):
+    def __init__(self, app_context: AppContext, dataset_id: str, row_positions: list[int]):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -146,8 +146,8 @@ class DeleteRowsCommand(Command):
             self.logger.info(f"Deleted {len(self.row_positions)} rows from dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return CommandResult.SUCCESS
             
-        except Exception as e:
-            error_msg = f"Failed to delete {len(self.row_positions) if self.row_positions else 0} rows: {str(e)}"
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+            error_msg = f"Failed to delete {len(self.row_positions) if self.row_positions else 0} rows: {e!s}"
             self.logger.error(error_msg)
             self.ui_controller.show_error_message("Delete Rows Error", error_msg)
             return CommandResult.FAILURE
@@ -173,7 +173,7 @@ class DeleteRowsCommand(Command):
                 self.dataset_id, self.dataset is not None, self.original_data is not None,
             )
             return CommandResult.FAILURE
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"DeleteRowsBatchCommand Undo Error: {e}")
             return CommandResult.FAILURE
 

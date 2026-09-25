@@ -8,7 +8,7 @@ result container used to surface test output in the application as data.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import pandas as pd
 
@@ -65,7 +65,7 @@ class StatTestInfo:
 
 # Catalog of tests grouped in a sensible order for the UI. This drives both the
 # combo box and the dynamic input/parameter widgets in the statistics panel.
-STAT_TESTS: Dict[StatTestType, StatTestInfo] = {
+STAT_TESTS: dict[StatTestType, StatTestInfo] = {
     StatTestType.ONE_SAMPLE_T: StatTestInfo(
         test_type=StatTestType.ONE_SAMPLE_T,
         label="One-sample t-test",
@@ -347,14 +347,14 @@ class StatTestResult:
 
     test_type: StatTestType
     test_name: str
-    source_columns: List[str]
+    source_columns: list[str]
     statistic: float
     p_value: float
     alpha: float
     # Ordered (metric, value) pairs shown as the results table.
-    rows: List[Tuple[str, Any]] = field(default_factory=list)
+    rows: list[tuple[str, Any]] = field(default_factory=list)
     conclusion: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def significant(self) -> bool:

@@ -46,7 +46,7 @@ def sample_project():
 
 
 def test_execute_logs_warning_when_no_project(mock_app_context, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = False
     command = ExportDatasetCommand(app_context, "ds-1")
 
@@ -56,7 +56,7 @@ def test_execute_logs_warning_when_no_project(mock_app_context, caplog):
 
 
 def test_execute_logs_warning_when_current_project_none(mock_app_context, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = True
     app_state.current_project = None
     command = ExportDatasetCommand(app_context, "ds-1")
@@ -67,7 +67,7 @@ def test_execute_logs_warning_when_current_project_none(mock_app_context, caplog
 
 
 def test_execute_logs_warning_when_dataset_not_found(mock_app_context, sample_project, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = True
     app_state.current_project = sample_project
     sample_project.find_item.return_value = None
@@ -79,7 +79,7 @@ def test_execute_logs_warning_when_dataset_not_found(mock_app_context, sample_pr
 
 
 def test_execute_logs_warning_when_item_not_a_dataset(mock_app_context, sample_project, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = True
     app_state.current_project = sample_project
     sample_project.find_item.return_value = object()
@@ -91,7 +91,7 @@ def test_execute_logs_warning_when_item_not_a_dataset(mock_app_context, sample_p
 
 
 def test_execute_logs_warning_when_dataset_empty(mock_app_context, sample_project, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = True
     app_state.current_project = sample_project
     dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame())
@@ -104,7 +104,7 @@ def test_execute_logs_warning_when_dataset_empty(mock_app_context, sample_projec
 
 
 def test_redo_logs_warning_when_nothing_to_redo(mock_app_context, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, _app_state, _ui_controller = mock_app_context
     command = ExportDatasetCommand(app_context, "ds-1")
 
     with caplog.at_level(logging.WARNING):
@@ -124,7 +124,7 @@ def test_occupies_undo_slot_returns_false(mock_app_context):
 
 
 def test_cleanup_releases_the_project_and_dataset_references(mock_app_context, sample_project):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, _app_state, _ui_controller = mock_app_context
     command = ExportDatasetCommand(app_context, "ds-1")
     command.project = sample_project
     command.dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1]}))

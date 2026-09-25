@@ -7,7 +7,7 @@ reference (a local path or URL) as an external image.
 import datetime
 import os
 import uuid
-from typing import List, Optional, override
+from typing import override
 
 import requests
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice
@@ -22,7 +22,7 @@ from pandaplot.models.state import AppContext, AppState
 
 
 def _is_url(source: str) -> bool:
-    return source.startswith("http://") or source.startswith("https://")
+    return source.startswith(("http://", "https://"))
 
 
 class ImportImagesCommand(Command):
@@ -33,7 +33,7 @@ class ImportImagesCommand(Command):
     a web image.
     """
 
-    def __init__(self, app_context: AppContext, gallery_id: str, sources: List[str],
+    def __init__(self, app_context: AppContext, gallery_id: str, sources: list[str],
                  *, copy_into_project: bool = True):
         super().__init__()
         self.app_context = app_context
@@ -45,7 +45,7 @@ class ImportImagesCommand(Command):
         self.copy_into_project = copy_into_project
 
         # Store state for undo
-        self.created_image_ids: List[str] = []
+        self.created_image_ids: list[str] = []
         self.project = None
 
     @override
@@ -107,8 +107,8 @@ class ImportImagesCommand(Command):
             self.logger.error("ImportImagesCommand Error: %s", e)
             return CommandResult.FAILURE
         except Exception as e:
-            error_msg = f"Failed to import images: {str(e)}"
-            self.logger.error("ImportImagesCommand Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to import images: {e!s}"
+            self.logger.exception("ImportImagesCommand Error: %s", error_msg)
             self.ui_controller.show_error_message("Import Images Error", error_msg)
             return CommandResult.FAILURE
 
@@ -145,11 +145,13 @@ class ImportImagesCommand(Command):
         """
         if _is_url(source):
             return
-        mtime_iso = datetime.datetime.fromtimestamp(os.path.getmtime(source)).isoformat()
+        # Local-time display bookkeeping (matches Item.created_at/modified_at
+        # elsewhere), never compared across timezones.
+        mtime_iso = datetime.datetime.fromtimestamp(os.path.getmtime(source)).isoformat()  # noqa: DTZ006
         image.modified_at = mtime_iso
         image.created_at = mtime_iso
 
-    def _size_bytes_for(self, source: str, data: bytes) -> Optional[int]:
+    def _size_bytes_for(self, source: str, data: bytes) -> int | None:
         """
         Size in bytes for the list-view's Size column. For a URL we already
         downloaded `data` for width/height purposes only when copying; to
@@ -249,8 +251,8 @@ class ImportImagesCommand(Command):
                 return CommandResult.NOOP
 
         except Exception as e:
-            error_msg = f"Failed to undo image import: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Failed to undo image import: {e!s}"
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 
@@ -262,8 +264,8 @@ class ImportImagesCommand(Command):
                 return self.execute()
             return CommandResult.FAILURE
         except Exception as e:
-            error_msg = f"Failed to redo image import: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Failed to redo image import: {e!s}"
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return CommandResult.FAILURE
 

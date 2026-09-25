@@ -37,8 +37,7 @@ def run(
             "Signal must contain at least two valid samples."
         )
 
-    if nperseg > signal_data.size:
-        nperseg = signal_data.size
+    nperseg = min(nperseg, signal_data.size)
 
     noverlap = int(nperseg * overlap)
 

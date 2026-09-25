@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.state.config import ApplicationConfig, Theme
@@ -11,9 +11,9 @@ from pandaplot.services.config import ConfigManager
 
 class EventCollector:
     def __init__(self):
-        self.events: List[Dict[str, Any]] = []
+        self.events: list[dict[str, Any]] = []
 
-    def __call__(self, data: Dict[str, Any]):  # signature expected by bus
+    def __call__(self, data: dict[str, Any]):  # signature expected by bus
         self.events.append(data)
 
 
@@ -48,21 +48,21 @@ def test_update_emits_changes(tmp_path: Path):
     bus = EventBus()
     manager = ConfigManager(bus, config_path=tmp_path / "c.json")
     manager.load()
-    events: List[Dict[str, Any]] = []
+    events: list[dict[str, Any]] = []
     bus.subscribe("config.updated", lambda d: events.append(d))
 
     manager.update({"editor": {"tab_size": 8}}, save=False)
     assert events, "No update event captured"
     diff_entries = events[-1]["changes"]
     # Confirm diff path exists & shows change
-    assert any(path.endswith("tab_size") for path in diff_entries.keys())
+    assert any(path.endswith("tab_size") for path in diff_entries)
 
 
 def test_reset_emits_reset_and_updated(tmp_path: Path):
     bus = EventBus()
     manager = ConfigManager(bus, config_path=tmp_path / "c.json")
     manager.load()
-    reset_events: List[str] = []
+    reset_events: list[str] = []
     bus.subscribe("config.*", lambda d: reset_events.append(d["event_type"]))
 
     manager.update({"editor": {"tab_size": 6}})

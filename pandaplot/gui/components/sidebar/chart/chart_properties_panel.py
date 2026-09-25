@@ -1,5 +1,5 @@
 """Chart properties side panel for configuring chart appearance and data."""
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -29,7 +29,7 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class ChartPropertiesPanel(SidebarPanel):
     """Side panel for configuring chart properties."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.command_executor = app_context.command_executor
         self.current_project = None
@@ -39,7 +39,7 @@ class ChartPropertiesPanel(SidebarPanel):
         self._has_unsaved_changes: bool = False
         # Baseline for Cancel and for Apply's undo: the chart state as of the
         # last load into this panel or the last Apply.
-        self._loaded_snapshot: Optional[dict] = None
+        self._loaded_snapshot: dict | None = None
 
         self._initialize()
 
