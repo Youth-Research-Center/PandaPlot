@@ -1444,6 +1444,41 @@ class TestFitPanelSeriesSelectedEvent:
         assert panel.fit_results is not None
 
 
+def test_perform_fit_completion_disables_apply_on_a_chart_type_that_does_not_allow_fits(app_context):
+    """Minor 4 (round-2 review): the Task-1 tests set panel.fit_results and
+    called _update_apply_enabled() directly, so they'd still pass even if
+    _perform_fit's on_complete callback never called it at all. Drive the
+    real completion path instead."""
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    chart.set_chart_type("scatter3d")
+
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+
+    executed = {}
+
+    def _capture_execute(command):
+        executed["command"] = command
+        return True
+
+    panel.app_context.get_command_executor.return_value.execute_command = _capture_execute
+
+    panel._perform_fit()
+    command = executed["command"]
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is not None
+    assert panel.apply_button.isEnabled() is False
+    assert "3D Scatter" in panel.apply_button.toolTip()
+
+
 def test_apply_stays_disabled_with_a_tooltip_on_a_chart_type_that_does_not_allow_fits(app_context):
     dataset, chart = _make_dataset_and_chart_with_id_only_series()
     chart.set_chart_type("scatter3d")
