@@ -462,6 +462,28 @@ def test_converting_on_a_chart_type_that_does_not_allow_fits_is_refused(app_cont
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
 
+def test_converting_an_existing_fit_on_a_disallowed_chart_type_reports_already_a_fit(app_context_with_chart):
+    """Minor 5 (round-2 review): converting an already-FIT series is the
+    more specific, more useful error -- report "already a fit" even when
+    the chart's type also happens to disallow fits, rather than the
+    generic "Fits aren't available on <type> charts." message."""
+    app_context, chart = app_context_with_chart
+    chart.data_series.clear()
+    auto_fit = chart.add_fit_series(
+        "ds-1", x_data=np.array([1.0, 2.0]), y_data=np.array([5.0, 6.0]),
+        label="Linear Fit", style=FitStyle(fit_type="Linear", fit_params={"a": 1.0}),
+    )
+    chart.set_chart_type("colormap")
+
+    command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=0)
+
+    assert command.execute() is CommandResult.FAILURE
+    assert chart.data_series[0] is auto_fit
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once_with(
+        "Convert to Fit Error", "That entry is already a fit."
+    )
+
+
 def test_redo_refuses_without_corrupting_data_series_if_chart_type_changed_since_undo(app_context_with_chart):
     """Round-2 review (Minor 2): if the chart's type was switched to one
     that disallows fits between an undo and a later redo, redo() must

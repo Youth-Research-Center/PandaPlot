@@ -1023,7 +1023,14 @@ class DataTab(QWidget):
             # state.
             if self.current_chart is not None and 0 <= index < len(self.current_chart.data_series):
                 series = self.current_chart.data_series[index]
-                self._load_series_into_controls(series)
+                # _load_entry_into_controls (not _load_series_into_controls
+                # directly): the entry at `index` after a failed conversion
+                # is ordinarily a non-FIT series (Task 6's early return
+                # refuses to even attempt converting an already-FIT entry),
+                # but dispatching on the entry's own type here is the
+                # correct, future-proof choice regardless (round-2 review,
+                # Minor 5).
+                self._load_entry_into_controls(series)
             return
 
         self._expanded_series_index = index

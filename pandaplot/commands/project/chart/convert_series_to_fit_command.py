@@ -124,6 +124,19 @@ class ConvertSeriesToFitCommand(Command):
 
         series = chart.data_series[self.series_index]
 
+        if series.series_type == SeriesType.FIT:
+            # Re-converting would re-snapshot the fit's source columns and
+            # silently replace its curve/fit_type/fit_params with raw data.
+            # Checked before the allows_fit guard below: "already a fit" is
+            # the more specific, more useful error even on a chart type
+            # that also happens to disallow fits (round-2 review, Minor 5).
+            self.logger.warning(
+                "ConvertSeriesToFitCommand.execute: series at index %s on chart '%s' is already a fit",
+                self.series_index, self.chart_id,
+            )
+            self.ui_controller.show_error_message("Convert to Fit Error", "That entry is already a fit.")
+            return CommandResult.FAILURE
+
         spec = CHART_TYPE_SPECS[chart.chart_type]
         if not spec.allows_fit:
             self.logger.warning(
@@ -133,15 +146,6 @@ class ConvertSeriesToFitCommand(Command):
             self.ui_controller.show_error_message(
                 "Convert to Fit Error", f"Fits aren't available on {spec.display_name} charts."
             )
-            return CommandResult.FAILURE
-        if series.series_type == SeriesType.FIT:
-            # Re-converting would re-snapshot the fit's source columns and
-            # silently replace its curve/fit_type/fit_params with raw data.
-            self.logger.warning(
-                "ConvertSeriesToFitCommand.execute: series at index %s on chart '%s' is already a fit",
-                self.series_index, self.chart_id,
-            )
-            self.ui_controller.show_error_message("Convert to Fit Error", "That entry is already a fit.")
             return CommandResult.FAILURE
 
         if self._fit is None:
