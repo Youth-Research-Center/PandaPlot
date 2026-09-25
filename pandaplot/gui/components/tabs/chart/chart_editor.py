@@ -1501,10 +1501,13 @@ class ChartEditorWidget(PWidget):
                     "chart_id": self.chart.id,
                     # Consumed by the properties panel's Data tab.
                     "series_index": series_index,
-                    # kind/index: what the series/fit-scoped sidebar panels
-                    # (Analysis, Signal Analysis, Transform, Fit) key their
-                    # source pickers on. index is the same real data_series
-                    # position as series_index, for fits too (#304).
+                    # kind/index: index is the real data_series position
+                    # (same value as series_index, for fits too, #304) that
+                    # all four series/fit-scoped sidebar panels (Analysis,
+                    # Signal Analysis, Transform, Fit) key their source
+                    # pickers on. kind is only still consulted by the Fit
+                    # panel, to ignore a click on a fit as an invalid fit
+                    # source (#419) -- the other three panels use index alone.
                     "kind": kind,
                     "index": series_index,
                 },

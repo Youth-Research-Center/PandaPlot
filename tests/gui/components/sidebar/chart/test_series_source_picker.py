@@ -6,6 +6,7 @@ import pytest
 from PySide6.QtWidgets import QApplication, QComboBox
 
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
+    find_series_fit_combo_index,
     populate_chart_target_combo,
     populate_series_fit_sources,
     series_source_hint,
@@ -87,6 +88,31 @@ class TestPopulateSeriesFitSources:
         assert has_sources is True
         assert any_excluded is False
         assert combo.itemData(0) == 0
+
+    def test_item_data_is_the_data_series_index_not_the_combo_row(self):
+        """Regression test for final-review Important #1: with a chart whose
+        data_series is [FIT, excluded BAR, LINE], the combo lists the fit
+        and the line in that order (fits-after-series in the loop, but
+        series-then-fits in the combo), so combo row != real data_series
+        index for either entry. itemData must carry the real index anyway."""
+        project = Project(name="P")
+        dataset = Dataset(id="ds-1", name="Data", data=pd.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0]}))
+        project.add_item(dataset)
+        chart = Chart(id="c", name="C")
+        chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]),
+            label="Fit A", style=FitStyle(fit_type="linear"),
+        )  # data_series[0]
+        chart.add_data_series(dataset_id="ds-1", label="Bars", series_type=SeriesType.BAR)  # data_series[1], excluded
+        chart.add_data_series(dataset_id="ds-1", label="Line", series_type=SeriesType.LINE)  # data_series[2]
+        project.add_item(chart)
+
+        combo = QComboBox()
+        populate_series_fit_sources(combo, chart)
+
+        assert [combo.itemData(i) for i in range(combo.count())] == [2, 0]
+        assert find_series_fit_combo_index(combo, 0) == 1
+        assert find_series_fit_combo_index(combo, 1) == -1
 
 
 class TestSeriesSourceHint:
