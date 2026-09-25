@@ -259,8 +259,8 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- config -----------------------------------------------------------
 
-    def _selected_source(self):
-        """Return (kind, index) for the selected series, or None."""
+    def _selected_source(self) -> int | None:
+        """Return the selected series/fit's chart.data_series index, or None."""
         return self.source_combo.currentData()
 
     def _build_parameters(self) -> dict:
@@ -287,16 +287,14 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         return params
 
     def _make_command(self) -> AnalyzeChartSeriesCommand | None:
-        source = self._selected_source()
-        if source is None or self.current_chart_id is None:
+        index = self._selected_source()
+        if index is None or self.current_chart_id is None:
             return None
-        kind, index = source
         name = self.result_name.text().strip() or None
         folder_id = self.current_chart.parent_id if self.current_chart else None
         return AnalyzeChartSeriesCommand(
             self.app_context,
             chart_id=self.current_chart_id,
-            source_kind=kind,
             source_index=index,
             analysis_type=self.operation_combo.currentData(),
             parameters=self._build_parameters(),
@@ -364,7 +362,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- chart context ----------------------------------------------------
 
-    def _range_command(self, kind: str, index: int) -> AnalyzeChartSeriesCommand | None:
+    def _range_command(self, index: int) -> AnalyzeChartSeriesCommand | None:
         """Build a throwaway command to resolve the selected series.
 
         Used for the segment bounds and index → (x, y) previews, so both
@@ -376,14 +374,13 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         return AnalyzeChartSeriesCommand(
             self.app_context,
             chart_id=self.current_chart_id,
-            source_kind=kind,
             source_index=index,
             analysis_type=AnalysisType.DERIVATIVE,
         )
 
-    def _series_length(self, kind: str, index: int) -> int:
+    def _series_length(self, index: int) -> int:
         """Best-effort length of a source series, for the segment bounds."""
-        command = self._range_command(kind, index)
+        command = self._range_command(index)
         return command.source_length() if command else 0
 
     def _on_source_changed(self):
@@ -391,7 +388,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         if source is None:
             last = 0
         else:
-            last = max(self._series_length(*source) - 1, 0)
+            last = max(self._series_length(source) - 1, 0)
         self.start_index.setMaximum(last)
         self.end_index.setMaximum(last)
         # Default to the whole series — the last included point — whenever
@@ -409,7 +406,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _update_range_labels(self):
         source = self._selected_source()
-        command = self._range_command(*source) if source else None
+        command = self._range_command(source) if source is not None else None
         if command is None:
             self.start_value_label.setText("–")
             self.end_value_label.setText("–")

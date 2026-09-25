@@ -167,7 +167,7 @@ class TestChartAnalysisPanelSeriesSelectedEvent:
             {"chart_id": "chart-1", "kind": "series", "index": 1}
         )
 
-        assert panel.source_combo.currentData() == ("series", 1)
+        assert panel.source_combo.currentData() == 1
 
     def test_fit_click_selects_matching_combo_row(self, panel):
         panel.current_chart.add_fit_series(
@@ -181,7 +181,7 @@ class TestChartAnalysisPanelSeriesSelectedEvent:
             {"chart_id": "chart-1", "kind": "fit", "index": 1}
         )
 
-        assert panel.source_combo.currentData() == ("fit", 1)
+        assert panel.source_combo.currentData() == 1
 
     def test_ignores_event_for_a_different_chart(self, panel):
         panel.source_combo.setCurrentIndex(0)
