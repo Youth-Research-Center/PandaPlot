@@ -958,7 +958,13 @@ def test_toggling_a_manual_fits_y_axis_does_not_repoint_it_when_its_source_datas
 
     Toggling only the Y axis must never let that stale combo state leak
     into the fit's dataset_id/x_column_id/y_column_id or resnapshot its
-    curve -- _on_series_y_axis_changed must write ONLY y_axis."""
+    curve -- _on_series_y_axis_changed must write ONLY y_axis.
+
+    The axis toggle is driven by a real click on the segmented control's
+    Y2 button (matching how a user actually triggers this), not by calling
+    the handler directly -- that's the only thing that reproduces the bug
+    against the pre-fix code, since the old code's bug was specifically in
+    what `series_y_axis_control.currentValueChanged` was wired to."""
     app_context, project, dataset_a = _app_context_with_project()
     dataset_b = Dataset(name="ds2", data=pd.DataFrame({"x": [10, 20], "y": [30, 40]}))
     project.add_item(dataset_b)
@@ -983,8 +989,14 @@ def test_toggling_a_manual_fits_y_axis_does_not_repoint_it_when_its_source_datas
     tab._expand_series(0)
     assert tab.dataset_combo.currentData() == dataset_b.id
 
-    # Now remove the fit's source dataset from the project.
+    # Now remove the fit's source dataset from the project, and refresh the
+    # tab's dataset list the way the real panel does on tab switch
+    # (chart_properties_panel.py's _on_tab_changed/_on_project_loaded call
+    # set_project again) -- without this, dataset_combo would still contain
+    # a stale entry for dataset A, letting the fit re-select it below and
+    # masking the actual bug this test guards against.
     project.remove_item(dataset_a)
+    tab.set_project(project)
 
     fit = chart.data_series[1]
     original_dataset_id = fit.dataset_id
@@ -998,9 +1010,11 @@ def test_toggling_a_manual_fits_y_axis_does_not_repoint_it_when_its_source_datas
     # they keep showing dataset B (stale, per _load_fit_into_controls /
     # _populate_column_combos' early-return-on-missing-dataset behavior).
     tab._expand_series(1)
+    assert tab.dataset_combo.currentData() == dataset_b.id
 
-    tab.series_y_axis_control.setCurrentValue(YAxis.SECONDARY)
-    tab._on_series_y_axis_changed()
+    # Click the Y2 button -- a real user interaction, not a direct call to
+    # the handler under test.
+    tab.series_y_axis_control._buttons[1].click()
 
     fit = chart.data_series[1]
     assert fit.y_axis == YAxis.SECONDARY
@@ -1016,7 +1030,9 @@ def test_toggling_a_manual_fits_y_axis_does_not_resnapshot_its_data_even_when_so
     source dataset is still present (so the combos correctly show it), a
     Y-axis-only toggle must not re-derive precomputed_x_data/
     precomputed_y_data from the dataset's CURRENT values -- only
-    _apply_manual_fit_edits (a real dataset/X/Y edit) should do that."""
+    _apply_manual_fit_edits (a real dataset/X/Y edit) should do that.
+
+    Driven by a real click, same reasoning as the test above."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Line Chart", chart_type="line")
     chart.add_fit_series(
@@ -1038,12 +1054,40 @@ def test_toggling_a_manual_fits_y_axis_does_not_resnapshot_its_data_even_when_so
     # Mutate the source dataset's values in place after the fit was created.
     dataset.data["y"] = dataset.data["y"] * 100
 
-    tab.series_y_axis_control.setCurrentValue(YAxis.SECONDARY)
-    tab._on_series_y_axis_changed()
+    tab.series_y_axis_control._buttons[1].click()
 
     fit = chart.data_series[0]
     assert fit.y_axis == YAxis.SECONDARY
     np.testing.assert_array_equal(fit.precomputed_y_data, original_y_data)
+
+
+def test_clicking_the_y_axis_control_on_a_regular_series_writes_axis_and_refreshes_ui():
+    """Regression guard: a real click (not a direct handler call) on the
+    segmented control for a plain, non-FIT series must write y_axis,
+    fire both axesRefreshRequested and dirtyOnly, and update the expanded
+    card's own Y1/Y2 badge in place -- exercising the full, real signal
+    path (`currentValueChanged` -> `_on_series_y_axis_changed`) rather
+    than just the handler in isolation."""
+    app_context, project, dataset = _app_context_with_project()
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"))
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+
+    axes_refresh_calls = []
+    tab.axesRefreshRequested.connect(lambda: axes_refresh_calls.append(True))
+    dirty_calls = []
+    tab.dirtyOnly.connect(lambda: dirty_calls.append(True))
+
+    tab.series_y_axis_control._buttons[1].click()
+
+    assert chart.data_series[0].y_axis == YAxis.SECONDARY
+    assert axes_refresh_calls
+    assert dirty_calls
+    assert tab._expanded_card_y_axis_badge.text() == "Y₂"
 
 
 def test_apply_to_writes_the_selected_fits_y_axis():

@@ -91,7 +91,7 @@ class DataTab(QWidget):
         self._pending_label: str = ""  # Buffer while user types label
         # Reference to the expanded card's Y1/Y2 badge QLabel (and the design
         # tokens it was last styled with), so a live series Y-axis edit can
-        # restyle it in place. See _on_series_config_changed.
+        # restyle it in place. See _on_series_y_axis_changed.
         self._expanded_card_y_axis_badge: Optional[QLabel] = None
         self._expanded_card_y_axis_badge_tokens: dict = {}
         # Which entry (data series index, then fit-data index appended after
@@ -536,7 +536,7 @@ class DataTab(QWidget):
 
     def _apply_y_axis_badge_style(self, badge: QLabel, y_axis, tokens: dict):
         """Set a Y-axis badge's text/style in place (shared by initial build
-        and live in-place refresh from `_on_series_config_changed`)."""
+        and live in-place refresh from `_on_series_y_axis_changed`)."""
         is_secondary = y_axis == YAxis.SECONDARY
         badge.setText("Y₂" if is_secondary else "Y₁")
         bg = tokens.get("y2_accent_bg") if is_secondary else tokens.get("surface_inset", "#eee")
@@ -566,7 +566,7 @@ class DataTab(QWidget):
         title_label = QLabel(self._series_display_name(series))
         title_label.setStyleSheet(f"font-weight: 600; color: {tokens.get('text_primary', '#000')};")
         header.addWidget(title_label, 1)
-        # Keep a reference so _on_series_config_changed can refresh this
+        # Keep a reference so _on_series_y_axis_changed can refresh this
         # badge in place on a live Y-axis edit, without a full card rebuild
         # (see that method's docstring for why a rebuild is unsafe there).
         badge = self._build_y_axis_badge(series.y_axis, tokens)
@@ -733,7 +733,7 @@ class DataTab(QWidget):
 
     # -- Live field edits -----------------------------------------------
 
-    def _on_series_config_changed(self):
+    def _on_series_config_changed(self) -> None:
         """Handle dataset / column configuration changes for the selected series.
 
         Label changes are intentionally deferred to editingFinished handled by
@@ -779,11 +779,11 @@ class DataTab(QWidget):
         else:
             self._apply_manual_fit_edits(series)
 
-        # Refresh the Axes-tab Y2 chip immediately so switching a series
-        # to the secondary axis is reflected without waiting for Apply
-        # or a full chart reload. This only touches the axis_chips
-        # SegmentedControl (not this tab's card list), so it's safe to
-        # request from here.
+        # Axis changes themselves go through `_on_series_y_axis_changed` now,
+        # not here -- this is a harmless re-sync of the Axes-tab Y2 chip
+        # after a dataset/X/Y/error/vector/Z edit above (none of which touch
+        # y_axis). This only touches the axis_chips SegmentedControl (not
+        # this tab's card list), so it's safe to request from here.
         self.axesRefreshRequested.emit()
 
         # Re-emit `seriesSelected` for the still-selected series: the
@@ -794,7 +794,11 @@ class DataTab(QWidget):
         # this edit.)
         self.seriesSelected.emit("series", series)
 
-        # Update the expanded card's own Y1/Y2 badge in place too.
+        # Re-apply the expanded card's own Y1/Y2 badge style too. Since this
+        # handler never changes y_axis (see _on_series_y_axis_changed for
+        # that), this is a harmless no-op re-sync rather than a real badge
+        # update -- kept here only so the badge stays correct if some future
+        # edit path ever does touch y_axis from this handler.
         # Deliberately NOT calling `_rebuild_series_cards()` from this
         # handler: that tears down and rebuilds the card list, including
         # detaching/reattaching `_series_form_widget` (which hosts the
@@ -818,7 +822,7 @@ class DataTab(QWidget):
         # which is a behavior change the refactor isn't meant to introduce.
         self.dirtyOnly.emit()
 
-    def _on_series_y_axis_changed(self):
+    def _on_series_y_axis_changed(self) -> None:
         """Handle a Y-axis toggle for the selected entry, of ANY series
         type (FIT included) -- wired directly to
         `series_y_axis_control.currentValueChanged` rather than sharing
@@ -1670,9 +1674,10 @@ class DataTab(QWidget):
 
     def apply_to(self, chart):
         """Apply the currently selected series/fit's non-style fields
-        (dataset/x/y/y_axis are already live-written to the model by
-        `_on_series_config_changed`; this only re-asserts `y_axis`, matching
-        the previous behavior) and create a default series if none exist yet.
+        (dataset/x/y are already live-written to the model by
+        `_on_series_config_changed`, and `y_axis` by `_on_series_y_axis_changed`;
+        this only re-asserts `y_axis`, matching the previous behavior) and
+        create a default series if none exist yet.
         """
         current_row = self._expanded_series_index
         if 0 <= current_row < len(chart.data_series):
