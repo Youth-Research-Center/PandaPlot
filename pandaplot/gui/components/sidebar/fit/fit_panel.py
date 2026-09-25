@@ -777,19 +777,22 @@ class FitPanel(SidebarPanel):
         return self.current_chart is not None and CHART_TYPE_SPECS[self.current_chart.chart_type].allows_fit
 
     def _update_apply_enabled(self) -> None:
-        """Enable Apply only when there's a fit result to apply AND the
-        current chart's type allows fits; ApplyFitCommand refuses the rest."""
-        self.apply_button.setEnabled(self.fit_results is not None and self._chart_allows_fit())
+        """Enable Apply only when there's a fit result to apply, the current
+        chart's type allows fits, and no fit is currently computing; keeps
+        the tooltip in sync with the same conditions so the two never
+        disagree (PR #416 round-2 review: a live chart-type switch used to
+        leave this stale, since it only recomputed from load_chart_object
+        and _on_complete, not from a chart_id-only CHART_UPDATED)."""
+        allowed = self._chart_allows_fit()
+        spec = CHART_TYPE_SPECS[self.current_chart.chart_type] if self.current_chart is not None else None
+        self.apply_button.setToolTip("" if spec is None or allowed else f"Fits aren't available on {spec.display_name} charts.")
+        self.apply_button.setEnabled(self.fit_results is not None and allowed and self._pending_fit_command is None)
 
     def load_chart_object(self, chart):
         """Load a Chart object for fitting analysis."""
         self._clear_results()
         self.current_chart = chart
-
-        spec = CHART_TYPE_SPECS[chart.chart_type] if chart is not None else None
-        self.apply_button.setToolTip(
-            "" if spec is None or spec.allows_fit else f"Fits aren't available on {spec.display_name} charts."
-        )
+        self._update_apply_enabled()
 
         # Clearing/populating a combo box fires currentIndexChanged as items
         # come and go, which would call _on_series_changed() (and thus
@@ -945,6 +948,12 @@ class FitPanel(SidebarPanel):
             if self.current_chart is None or event_data.get("chart_id") != self.current_chart.id:
                 return
             if not self._series_combo_is_stale():
+                # Nothing to reload, but the chart type may have changed
+                # live (e.g. the Chart tab's type combo) without replacing
+                # any series objects -- refresh Apply's enabled/tooltip
+                # state for that case. No reload here, so fit_results must
+                # not be cleared.
+                self._update_apply_enabled()
                 return
             chart = self.current_chart
         elif self.current_chart and chart.id != self.current_chart.id:

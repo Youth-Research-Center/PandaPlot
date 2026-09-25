@@ -1479,6 +1479,55 @@ def test_apply_is_enabled_once_a_fit_result_exists_on_a_chart_type_that_allows_f
     assert panel.apply_button.toolTip() == ""
 
 
+def test_apply_goes_stale_after_a_live_type_switch_to_a_disallowed_type(app_context):
+    """PR #416 round-2 review: a live chart-type switch (Chart tab's combo,
+    ChartTab._on_chart_type_index_changed -> set_chart_type) publishes
+    CHART_UPDATED with only chart_id, since no series objects are replaced.
+    Apply's enabled/tooltip state must still be recomputed for it."""
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.show()
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_results = _make_fake_fit_result()
+    panel._update_apply_enabled()
+    assert panel.apply_button.isEnabled() is True
+
+    chart.set_chart_type("colormap")
+    panel._on_chart_updated({"chart_id": chart.id})
+
+    assert panel.apply_button.isEnabled() is False
+    assert "Color Map" in panel.apply_button.toolTip()
+
+
+def test_apply_goes_fresh_again_after_a_live_type_switch_back_to_an_allowed_type(app_context):
+    """Reverse case of the above: switching back to an allowed type live
+    must re-enable Apply and clear the stale tooltip."""
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    chart.set_chart_type("colormap")
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.show()
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_results = _make_fake_fit_result()
+    panel._update_apply_enabled()
+    assert panel.apply_button.isEnabled() is False
+
+    chart.set_chart_type("line")
+    panel._on_chart_updated({"chart_id": chart.id})
+
+    assert panel.apply_button.isEnabled() is True
+    assert panel.apply_button.toolTip() == ""
+
+
 def test_apply_fit_passes_the_fitted_series_y_axis(app_context):
     dataset, chart = _make_dataset_and_chart_with_id_only_series()
     chart.data_series[0].y_axis = YAxis.SECONDARY
