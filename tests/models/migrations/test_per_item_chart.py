@@ -458,6 +458,8 @@ def test_style_field_names_match_the_real_style_dataclasses():
         "show_value_labels", "value_label_mode", "value_label_show_arrow",
         "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
         "value_label_bg_color", "value_label_bg_alpha",
+        # #280 -- partial-range fill.
+        "fill_range_enabled", "fill_range_min", "fill_range_max",
     }
 
     for series_type in _PRE_MIGRATION_SERIES_TYPES:

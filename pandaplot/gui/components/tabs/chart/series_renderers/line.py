@@ -38,11 +38,19 @@ def render_line_series(axes, series_data: SeriesData, style: LineSeriesStyle,
         resolve_fill_baseline = extra["resolve_fill_baseline"]
         fill_color = style.fill_color or style.color
         fill_alpha = style.fill_alpha if visible else 0.3 * style.fill_alpha
-        if style.fill_orientation == "horizontal":
+        horizontal = style.fill_orientation == "horizontal"
+        # The independent variable fill_between(x)/fill_betweenx(y) sweeps
+        # over is y for a horizontal fill, x for a vertical one -- that's
+        # what fill_range_min/max restrict a partial-range fill (#280) to.
+        fill_where = None
+        if style.fill_range_enabled:
+            independent = series_data.y_data if horizontal else series_data.x_data
+            fill_where = (independent >= style.fill_range_min) & (independent <= style.fill_range_max)
+        if horizontal:
             baseline = resolve_fill_baseline(series_data.y_data, horizontal=True)
             axes.fill_betweenx(series_data.y_data, series_data.x_data, baseline,
-                                color=fill_color, alpha=fill_alpha)
+                                where=fill_where, color=fill_color, alpha=fill_alpha)
         else:
             baseline = resolve_fill_baseline(series_data.x_data, horizontal=False)
             axes.fill_between(series_data.x_data, series_data.y_data, baseline,
-                               color=fill_color, alpha=fill_alpha)
+                               where=fill_where, color=fill_color, alpha=fill_alpha)

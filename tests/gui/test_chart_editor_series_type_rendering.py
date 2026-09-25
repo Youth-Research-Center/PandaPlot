@@ -163,6 +163,46 @@ def test_line_chart_with_fill_to_index_fills_between_the_two_curves():
     assert max_y >= 19  # reaches up toward series 2's y-values
 
 
+def test_line_chart_with_fill_range_restricts_fill_to_the_x_subrange():
+    """#280: fill_range_enabled/min/max should mask the fill to just the
+    x in [fill_range_min, fill_range_max] segment, not the whole series."""
+    _qapp()
+    project, dataset = _project_and_dataset()  # x: 1..5
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        style=LineSeriesStyle(color="#123456", fill_enabled=True,
+                               fill_range_enabled=True, fill_range_min=2, fill_range_max=4),
+    )
+
+    editor = _editor_for(project, chart)
+
+    fills = editor.chart_canvas.axes.collections
+    assert len(fills) == 1
+    vertices = fills[0].get_paths()[0].vertices
+    assert vertices[:, 0].min() >= 2
+    assert vertices[:, 0].max() <= 4
+
+
+def test_line_chart_with_fill_range_disabled_fills_the_whole_series():
+    """Sanity check: fill_range_min/max are ignored unless fill_range_enabled
+    is set, so an untouched (default) LineSeriesStyle still fills fully."""
+    _qapp()
+    project, dataset = _project_and_dataset()  # x: 1..5
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        style=LineSeriesStyle(color="#123456", fill_enabled=True,
+                               fill_range_min=2, fill_range_max=4),
+    )
+
+    editor = _editor_for(project, chart)
+
+    vertices = editor.chart_canvas.axes.collections[0].get_paths()[0].vertices
+    assert vertices[:, 0].min() <= 1
+    assert vertices[:, 0].max() >= 5
+
+
 def test_switching_chart_type_after_creation_still_renders():
     """Regression test: changing an existing chart's type via
     Chart.set_chart_type must not leave any series' .style mismatched

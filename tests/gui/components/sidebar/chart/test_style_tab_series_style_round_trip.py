@@ -127,6 +127,42 @@ def test_load_then_apply_round_trips_fill_fields_for_line_series():
     assert series.style.fill_orientation == "horizontal"
 
 
+def test_load_then_apply_round_trips_fill_range_fields_for_line_series():
+    """#280: a partial-range fill's enabled flag and min/max bounds must
+    survive a load-then-apply cycle unchanged."""
+    _qapp()
+    tab = StyleTab(app_context=None)
+    tab.set_chart_type(ChartType.LINE)
+    series = _line_series(color="#112233", fill_enabled=True,
+                           fill_range_enabled=True, fill_range_min=2.5, fill_range_max=7.0)
+
+    tab.load_series_style(series)
+
+    assert tab.fill_range_enabled_toggle.isChecked() is True
+    assert tab.fill_range_min_spin.value() == 2.5
+    assert tab.fill_range_max_spin.value() == 7.0
+
+    tab.apply_series_style_to(series)
+
+    assert series.style.fill_range_enabled is True
+    assert series.style.fill_range_min == 2.5
+    assert series.style.fill_range_max == 7.0
+
+
+def test_fill_range_defaults_to_disabled_and_zero_bounds():
+    _qapp()
+    tab = StyleTab(app_context=None)
+    tab.set_chart_type(ChartType.LINE)
+    series = _line_series(color="#112233", fill_enabled=True)
+
+    tab.load_series_style(series)
+    tab.apply_series_style_to(series)
+
+    assert series.style.fill_range_enabled is False
+    assert series.style.fill_range_min == 0.0
+    assert series.style.fill_range_max == 0.0
+
+
 def test_load_then_apply_round_trips_vector_series():
     _qapp()
     tab = StyleTab(app_context=None)

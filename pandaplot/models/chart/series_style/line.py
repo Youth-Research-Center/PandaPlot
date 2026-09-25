@@ -19,6 +19,13 @@ class LineSeriesStyle(SeriesStyleBase):
     fill_orientation: str = "vertical"
     fill_base: float = 0.0
     fill_to_index: int = -1
+    # Restrict the fill to a sub-interval of the series' independent
+    # variable (x for a vertical fill, y for a horizontal one) instead of
+    # its full extent -- e.g. to shade/integrate over just one segment of a
+    # curve (#280). fill_range_min/max are only read when enabled.
+    fill_range_enabled: bool = False
+    fill_range_min: float = 0.0
+    fill_range_max: float = 0.0
     marker: MarkerStyle = field(default_factory=MarkerStyle)
     error_bars: ErrorBarConfig = field(default_factory=ErrorBarConfig)
     # Annotate each rendered point with its numeric Y value (#125) -- see
