@@ -91,7 +91,7 @@ Every `execute()`, `undo()`, and `redo()` is expected to emit the appropriate `E
 |---------|-------------|
 | `ApplyFitCommand` (`commands/project/chart/`) | Runs curve fit, adds a `SeriesType.FIT` DataSeries to Chart.data_series |
 | `ConvertSeriesToFitCommand` (`commands/project/chart/`) | Converts an existing DataSeries into a manually-editable `SeriesType.FIT` entry, at the same position |
-| `PerformFitCommand` (`commands/project/fit/`) | Computes a fit preview for `FitPanel`; not wired into `CommandExecutor` (see [09-architectural-issues.md](09-architectural-issues.md)) |
+| `PerformFitCommand` (`commands/project/fit/`) | Computes a fit preview for `FitPanel` on a background thread; runs through `CommandExecutor` as a non-undoable `BackgroundTaskCommand` (FitPanel's Apply uses `ApplyFitCommand`) |
 
 A fit is removed the same way as any other series, via `RemoveSeriesCommand` -- there is no separate fit-removal command.
 
