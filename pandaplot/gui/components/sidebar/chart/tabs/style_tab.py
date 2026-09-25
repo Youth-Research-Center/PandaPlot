@@ -517,6 +517,30 @@ class StyleTab(QWidget):
         self.fill_opacity_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
         fill_layout.addWidget(self.fill_opacity_slider, 6, 1)
 
+        # Restrict the fill to a sub-range of the series' independent
+        # variable (x for vertical, y for horizontal) instead of its full
+        # extent -- e.g. to shade/integrate over just one segment of a
+        # curve (#280). Off by default: the min/max fields only matter, and
+        # are only shown, while this is on.
+        self.fill_range_label = QLabel("Limit range:")
+        fill_layout.addWidget(self.fill_range_label, 7, 0)
+        self.fill_range_enabled_toggle = ToggleSwitch()
+        fill_layout.addWidget(self.fill_range_enabled_toggle, 7, 1)
+
+        self.fill_range_min_label = QLabel("From:")
+        fill_layout.addWidget(self.fill_range_min_label, 8, 0)
+        self.fill_range_min_spin = QDoubleSpinBox()
+        self.fill_range_min_spin.setRange(-1e9, 1e9)
+        self.fill_range_min_spin.setDecimals(3)
+        fill_layout.addWidget(self.fill_range_min_spin, 8, 1)
+
+        self.fill_range_max_label = QLabel("To:")
+        fill_layout.addWidget(self.fill_range_max_label, 9, 0)
+        self.fill_range_max_spin = QDoubleSpinBox()
+        self.fill_range_max_spin.setRange(-1e9, 1e9)
+        self.fill_range_max_spin.setDecimals(3)
+        fill_layout.addWidget(self.fill_range_max_spin, 9, 1)
+
         layout.addWidget(fill_card)
 
         # MARKERS group
@@ -815,6 +839,9 @@ class StyleTab(QWidget):
         self.fill_color_row.colorChanged.connect(self._on_field_changed)
         self.fill_match_line_toggle.toggled.connect(self._on_fill_match_line_toggled)
         self.fill_opacity_slider.valueChanged.connect(self._on_field_changed)
+        self.fill_range_enabled_toggle.toggled.connect(self._on_fill_range_enabled_toggled)
+        self.fill_range_min_spin.valueChanged.connect(self._on_field_changed)
+        self.fill_range_max_spin.valueChanged.connect(self._on_field_changed)
         self.markers_enabled_toggle.toggled.connect(self._on_markers_enabled_toggled)
         self.marker_shape_control.currentValueChanged.connect(self._on_field_changed)
         self.marker_size_slider.valueChanged.connect(self._on_field_changed)
@@ -1645,6 +1672,11 @@ class StyleTab(QWidget):
         self._update_fill_controls_visibility()
         self._on_field_changed()
 
+    def _on_fill_range_enabled_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Fill 'Limit range' toggle: show/hide the From/To fields."""
+        self._update_fill_controls_visibility()
+        self._on_field_changed()
+
     def _update_fill_controls_visibility(self):
         """Show the fill sub-controls only while fill is on -- hidden, not
         just greyed, when off (same convention as
@@ -1675,6 +1707,14 @@ class StyleTab(QWidget):
         show_color = enabled and not self.fill_match_line_toggle.isChecked()
         self.fill_color_label.setVisible(show_color)
         self.fill_color_row.setVisible(show_color)
+
+        self.fill_range_label.setVisible(enabled)
+        self.fill_range_enabled_toggle.setVisible(enabled)
+        show_range_bounds = enabled and self.fill_range_enabled_toggle.isChecked()
+        self.fill_range_min_label.setVisible(show_range_bounds)
+        self.fill_range_min_spin.setVisible(show_range_bounds)
+        self.fill_range_max_label.setVisible(show_range_bounds)
+        self.fill_range_max_spin.setVisible(show_range_bounds)
 
     # -- Value-labels controls ----------------------------------------------
 
@@ -1902,6 +1942,9 @@ class StyleTab(QWidget):
                 else self.fill_color_row.currentColor()
             )
             style.fill_alpha = self.fill_opacity_slider.value()
+            style.fill_range_enabled = self.fill_range_enabled_toggle.isChecked()
+            style.fill_range_min = self.fill_range_min_spin.value()
+            style.fill_range_max = self.fill_range_max_spin.value()
 
     def apply_fit_style_to(self, fit):
         style = fit.style
@@ -2059,6 +2102,11 @@ class StyleTab(QWidget):
             self.fill_match_line_toggle.setChecked(checked=fill_color == "")
             self.fill_match_line_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.fill_opacity_slider.setValue(getattr(style, "fill_alpha", 0.3))
+            self.fill_range_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.fill_range_enabled_toggle.setChecked(checked=getattr(style, "fill_range_enabled", False))
+            self.fill_range_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+            self.fill_range_min_spin.setValue(getattr(style, "fill_range_min", 0.0))
+            self.fill_range_max_spin.setValue(getattr(style, "fill_range_max", 0.0))
             self._update_fill_controls_visibility()
         finally:
             self._updating_controls = previous_guard
