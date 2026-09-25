@@ -4,6 +4,8 @@ from contextlib import contextmanager
 from typing import override
 
 import numpy as np
+from matplotlib.collections import PolyCollection
+from matplotlib.legend_handler import HandlerTuple
 from matplotlib.ticker import (
     AutoLocator,
     AutoMinorLocator,
@@ -283,7 +285,11 @@ def build_legend(
     `font_family`. Matplotlib silently ignores a `fontsize=` kwarg whenever
     `prop=` is also passed -- the legend text falls back to
     rcParams["legend.fontsize"] regardless of what's configured, unless the
-    size is merged into `prop` itself, as done here."""
+    size is merged into `prop` itself, as done here.
+
+    `handler_map` maps `tuple` handles to `HandlerTuple` so a
+    (fill_artist, line_handle) pair built for a filled/area series (#278)
+    draws as one combined patch+line swatch instead of erroring."""
     return axes.legend(
         handles, labels,
         facecolor=bg_color,
@@ -291,6 +297,7 @@ def build_legend(
         ncol=columns,
         framealpha=bg_alpha,
         prop={"family": font_family, "size": font_size},
+        handler_map={tuple: HandlerTuple(ndivide=None)},
         **placement_kwargs,
     )
 
@@ -1400,6 +1407,7 @@ class ChartEditorWidget(PWidget):
                     handles2, labels2 = self.chart_canvas.axes2.get_legend_handles_labels()
                     handles += handles2
                     labels += labels2
+                handles = self._add_fill_legend_swatches(handles)
                 # Skip drawing the legend when there are no handles to show
                 # (e.g. a chart with only an unlabeled Heatmap series, or any
                 # chart where nothing has a label) -- matplotlib would
@@ -1519,6 +1527,43 @@ class ChartEditorWidget(PWidget):
                 series_idx = self._resolve_series_index_for_handle(part)
                 if series_idx is not None:
                     return series_idx
+        return None
+
+    def _add_fill_legend_swatches(self, handles: list) -> list:
+        """For a filled/area line series (`style.fill_enabled`), pair its
+        line handle with the actual `fill_between`/`fill_betweenx`
+        PolyCollection artist tracked for it in `_artist_series_map`, so the
+        legend swatch shows the filled area's color/alpha instead of just
+        the line (#278). `build_legend`'s `handler_map` draws such a tuple
+        as one combined patch+line key. Series without an enabled fill, or
+        whose fill artist can't be found, pass through unchanged."""
+        augmented = []
+        for handle in handles:
+            series_idx = self._resolve_series_index_for_handle(handle)
+            style = self._line_style_for_data_series_index(series_idx)
+            fill_artist = self._find_fill_artist_for_series(series_idx) if style is not None and style.fill_enabled else None
+            # Line first, fill second -- same z-order render_line_series
+            # draws them in (plot() then fill_between(x)), so the swatch
+            # matches the actual chart appearance.
+            augmented.append((handle, fill_artist) if fill_artist is not None else handle)
+        return augmented
+
+    def _line_style_for_data_series_index(self, series_idx):
+        """The `LineSeriesStyle` for `chart.data_series[series_idx]`, or
+        None when `series_idx` is out of range (e.g. a fit curve index, or
+        no match) or the series isn't styled as a line."""
+        if series_idx is None or not (0 <= series_idx < len(self.chart.data_series)):
+            return None
+        style = self.chart.data_series[series_idx].style
+        return style if isinstance(style, LineSeriesStyle) else None
+
+    def _find_fill_artist_for_series(self, series_idx):
+        """The PolyCollection added by render_line_series's fill_between(x)
+        call for `series_idx`, found via `_artist_series_map` (populated by
+        `_track_new_artists`)."""
+        for artist, idx in self._artist_series_map.items():
+            if idx == series_idx and isinstance(artist, PolyCollection):
+                return artist
         return None
 
     def _on_pick_event(self, event):
