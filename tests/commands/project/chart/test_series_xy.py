@@ -40,14 +40,14 @@ def app_state():
 class TestResolveSeriesXY:
     def test_resolves_a_data_series(self, app_state):
         state, chart = app_state
-        x, y, x_label, y_label = resolve_series_xy(state, chart, "series", 0)
+        x, y, x_label, y_label = resolve_series_xy(state, chart, 0)
         assert x_label == "t"
         assert y_label == "Squared"
         assert y.iloc[5] == pytest.approx(x.iloc[5] ** 2)
 
     def test_resolves_a_fit(self, app_state):
         state, chart = app_state
-        x, _y, x_label, y_label = resolve_series_xy(state, chart, "fit", 1)
+        x, _y, x_label, y_label = resolve_series_xy(state, chart, 1)
         assert x_label == "t"
         assert y_label == "Quadratic Fit"
         assert len(x) == 11
@@ -55,29 +55,24 @@ class TestResolveSeriesXY:
     def test_fit_index_is_its_real_data_series_position(self, app_state):
         state, chart = app_state
         # The fixture's fit sits at data_series index 1, after "Squared".
-        _, _, _, y_label = resolve_series_xy(state, chart, "fit", 1)
+        _, _, _, y_label = resolve_series_xy(state, chart, 1)
         assert y_label == "Quadratic Fit"
-
-    def test_fit_kind_pointing_at_a_non_fit_series_raises(self, app_state):
-        state, chart = app_state
-        with pytest.raises(ValueError, match="no longer exists"):
-            resolve_series_xy(state, chart, "fit", 0)
 
     def test_missing_series_index_raises(self, app_state):
         state, chart = app_state
         with pytest.raises(ValueError, match="no longer exists"):
-            resolve_series_xy(state, chart, "series", 9)
+            resolve_series_xy(state, chart, 9)
 
-    def test_missing_fit_index_raises(self, app_state):
+    def test_negative_index_raises(self, app_state):
         state, chart = app_state
         with pytest.raises(ValueError, match="no longer exists"):
-            resolve_series_xy(state, chart, "fit", 9)
+            resolve_series_xy(state, chart, -1)
 
     def test_series_type_without_curve_support_raises(self, app_state):
         state, chart = app_state
         chart.data_series[0].series_type = SeriesType.BAR
         with pytest.raises(ValueError, match="bar"):
-            resolve_series_xy(state, chart, "series", 0)
+            resolve_series_xy(state, chart, 0)
 
     def test_coerce_numeric_defaults_to_true(self, app_state):
         """AnalyzeChartSeriesCommand relies on the default -- a non-numeric
@@ -86,7 +81,7 @@ class TestResolveSeriesXY:
         dataset = state.current_project.find_item("ds-1")
         dataset.data["t"] = dataset.data["t"].astype(str)
 
-        x, _y, _x_label, _y_label = resolve_series_xy(state, chart, "series", 0)
+        x, _y, _x_label, _y_label = resolve_series_xy(state, chart, 0)
 
         assert pd.api.types.is_numeric_dtype(x)
 
@@ -99,7 +94,7 @@ class TestResolveSeriesXY:
         dataset = state.current_project.find_item("ds-1")
         dataset.data["t"] = ["cat", "dog", "bird", "fish", "ant", "bee", "cow", "pig", "rat", "owl", "fox"]
 
-        x, y, _x_label, _y_label = resolve_series_xy(state, chart, "series", 0, coerce_numeric=False)
+        x, y, _x_label, _y_label = resolve_series_xy(state, chart, 0, coerce_numeric=False)
 
         assert list(x) == ["cat", "dog", "bird", "fish", "ant", "bee", "cow", "pig", "rat", "owl", "fox"]
         assert pd.api.types.is_numeric_dtype(y)

@@ -7,7 +7,6 @@ TransformChartSeriesCommand.
 """
 
 import uuid
-from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -19,18 +18,19 @@ from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart, resolve_series_column
 from pandaplot.models.state import AppState
 
-SourceKind = Literal["series", "fit"]
-
 
 def resolve_series_xy(
-    app_state: AppState, chart: Chart, source_kind: SourceKind, source_index: int,
-    *, coerce_numeric: bool = True,
+    app_state: AppState, chart: Chart, source_index: int, *, coerce_numeric: bool = True,
 ) -> tuple[pd.Series, pd.Series, str, str]:
-    """Return (x, y, x_label, y_label) for chart's source_kind/source_index entry.
+    """Return (x, y, x_label, y_label) for chart.data_series[source_index].
 
     Raises ValueError when the series/fit no longer exists, its series type
     has no meaningful ordered (x, y) curve, or its dataset/columns are
-    unavailable.
+    unavailable. Whether the entry is a fit is read directly from its own
+    series_type -- source_index is always a real chart.data_series position
+    for both a plain series and a fit (#304: fits live inline in that list),
+    so there's no separate "kind" a caller could get out of sync with the
+    index (#419).
 
     `coerce_numeric` (default True) converts both axes to numeric, turning
     anything that doesn't parse into NaN -- appropriate for
@@ -44,24 +44,19 @@ def resolve_series_xy(
     same-length pairwise-missing-value mask is dtype-agnostic and always
     applied.
     """
-    if source_kind == "fit":
-        # `source_index` is the fit's own chart.data_series position (#304:
-        # fits live inline in that list), not a fit-only index.
-        if (not (0 <= source_index < len(chart.data_series))
-                or chart.data_series[source_index].series_type != SeriesType.FIT):
-            raise ValueError("Selected fit no longer exists.")
-        fit = chart.data_series[source_index]
-        dataset = app_state.current_project.find_item(fit.dataset_id)
-        if not isinstance(dataset, Dataset):
-            dataset = None
-        x_label = resolve_series_column(dataset, fit.x_column_id, fit.x_column) or "x"
-        x = pd.Series(np.asarray(fit.precomputed_x_data), dtype="float64")
-        y = pd.Series(np.asarray(fit.precomputed_y_data), dtype="float64")
-        return x, y, x_label, fit.label
-
     if not (0 <= source_index < len(chart.data_series)):
         raise ValueError("Selected series no longer exists.")
     series = chart.data_series[source_index]
+
+    if series.series_type == SeriesType.FIT:
+        dataset = app_state.current_project.find_item(series.dataset_id)
+        if not isinstance(dataset, Dataset):
+            dataset = None
+        x_label = resolve_series_column(dataset, series.x_column_id, series.x_column) or "x"
+        x = pd.Series(np.asarray(series.precomputed_x_data), dtype="float64")
+        y = pd.Series(np.asarray(series.precomputed_y_data), dtype="float64")
+        return x, y, x_label, series.label
+
     if not SERIES_TYPE_SPECS[series.series_type].supports_curve_analysis:
         # Operation-neutral wording: this resolver backs both analysis
         # (AnalyzeChartSeriesCommand) and transform (TransformChartSeriesCommand)
