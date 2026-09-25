@@ -85,12 +85,13 @@ Every `execute()`, `undo()`, and `redo()` is expected to emit the appropriate `E
 | `RemoveSeriesCommand` | Removes a DataSeries from a Chart |
 | `ApplyChartPropertiesCommand` | Updates ChartConfiguration (title, labels, grid…) |
 
-### Fit Commands (`commands/project/fit/`)
+### Fit Commands
 
 | Command | Description |
 |---------|-------------|
-| `ApplyFitCommand` | Runs curve fit, adds a `SeriesType.FIT` DataSeries to Chart.data_series |
-| `ConvertSeriesToFitCommand` | Converts an existing DataSeries into a manually-editable `SeriesType.FIT` entry, at the same position |
+| `ApplyFitCommand` (`commands/project/chart/`) | Runs curve fit, adds a `SeriesType.FIT` DataSeries to Chart.data_series |
+| `ConvertSeriesToFitCommand` (`commands/project/chart/`) | Converts an existing DataSeries into a manually-editable `SeriesType.FIT` entry, at the same position |
+| `PerformFitCommand` (`commands/project/fit/`) | Computes a fit preview for `FitPanel`; not wired into `CommandExecutor` (see [09-architectural-issues.md](09-architectural-issues.md)) |
 
 A fit is removed the same way as any other series, via `RemoveSeriesCommand` -- there is no separate fit-removal command.
 

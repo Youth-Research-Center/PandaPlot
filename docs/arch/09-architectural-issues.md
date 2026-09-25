@@ -77,7 +77,7 @@ class PerformFitCommand:          # Does NOT extend Command
     #TODO: add undo and redo logic
 ```
 
-The class is 9 lines, has no `execute()`, `undo()`, or `redo()`, and stores a reference to a GUI panel (`fit_panel`) — a GUI object inside a command. It is not wired into `CommandExecutor` anywhere in the codebase. Fit operations therefore have no undo support at all, despite the `ApplyFitCommand` / `RemoveFitCommand` being documented in the architecture.
+The class is 9 lines, has no `execute()`, `undo()`, or `redo()`, and stores a reference to a GUI panel (`fit_panel`) — a GUI object inside a command. It is not wired into `CommandExecutor` anywhere in the codebase. Fit operations therefore have no undo support at all, despite `ApplyFitCommand` (which actually applies a fit) being a real, undoable `Command`.
 
 ---
 
