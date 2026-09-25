@@ -51,7 +51,7 @@ class TestPopulateSeriesFitSources:
         has_sources, any_excluded = populate_series_fit_sources(combo, chart)
         assert has_sources is True
         assert any_excluded is False
-        assert combo.itemData(0) == ("series", 0)
+        assert combo.itemData(0) == 0
         assert "Squared" in combo.itemText(0)
 
     def test_bar_series_is_excluded(self, chart):
@@ -68,7 +68,7 @@ class TestPopulateSeriesFitSources:
         )
         combo = QComboBox()
         populate_series_fit_sources(combo, chart)
-        assert combo.itemData(1) == ("fit", 1)
+        assert combo.itemData(1) == 1
 
     def test_a_chart_with_only_a_fit_does_not_report_any_series_excluded(self, chart):
         """Regression test for final-review Minor finding #6: a FIT-type
@@ -86,7 +86,7 @@ class TestPopulateSeriesFitSources:
         has_sources, any_excluded = populate_series_fit_sources(combo, only_fit_chart)
         assert has_sources is True
         assert any_excluded is False
-        assert combo.itemData(0) == ("fit", 0)
+        assert combo.itemData(0) == 0
 
 
 class TestSeriesSourceHint:
