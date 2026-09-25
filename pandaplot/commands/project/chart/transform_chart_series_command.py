@@ -29,7 +29,6 @@ import pandas as pd
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.commands.project.chart.series_xy import (
-    SourceKind,
     create_result_dataset,
     remove_result_dataset,
     resolve_series_xy,
@@ -54,7 +53,6 @@ class TransformChartSeriesCommand(Command):
         self,
         app_context: AppContext,
         chart_id: str,
-        source_kind: SourceKind,
         source_index: int,
         target: Target,
         expression: str,
@@ -67,7 +65,6 @@ class TransformChartSeriesCommand(Command):
         self.ui_controller: UIController = app_context.get_ui_controller()
 
         self.chart_id = chart_id
-        self.source_kind = source_kind
         self.source_index = source_index
         self.target = target
         self.expression = expression
@@ -94,7 +91,7 @@ class TransformChartSeriesCommand(Command):
             raise ValueError("Chart is not available.")
 
         x, y, x_label, y_label = resolve_series_xy(
-            self.app_state, chart, self.source_kind, self.source_index, coerce_numeric=False,
+            self.app_state, chart, self.source_index, coerce_numeric=False,
         )
         if len(x) < 1:
             raise ValueError("Series has no points to transform.")
@@ -189,9 +186,9 @@ class TransformChartSeriesCommand(Command):
         resolve_series_xy consults) this chart type actually allows, and
         raise if none is allowed (e.g. a pure histogram chart).
         """
-        if self.source_kind == "series":
-            if not (0 <= self.source_index < len(chart.data_series)):
-                raise ValueError("Selected series no longer exists.")
+        if not (0 <= self.source_index < len(chart.data_series)):
+            raise ValueError("Selected series no longer exists.")
+        if chart.data_series[self.source_index].series_type != SeriesType.FIT:
             return chart.data_series[self.source_index].series_type
         allowed = CHART_TYPE_SPECS[chart.chart_type].allowed_series_types
         for candidate in SeriesType:
@@ -235,7 +232,7 @@ class TransformChartSeriesCommand(Command):
             # -- see run_transform()'s two branches.
             x_column, y_column = results_df.columns[0], results_df.columns[1]
             style_kwargs: dict = {"series_type": result_series_type}
-            if self.source_kind == "series":
+            if chart.data_series[self.source_index].series_type != SeriesType.FIT:
                 # Copy the source series' look (style, opacity, y-axis) so
                 # the transformed series doesn't revert to the chart's
                 # default styling or silently jump back to the primary axis.

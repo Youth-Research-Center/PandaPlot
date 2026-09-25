@@ -24,7 +24,6 @@ from pandaplot.analysis import AnalysisEngine, AnalysisType
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.commands.project.chart.series_xy import (
-    SourceKind,
     remove_result_dataset,
     resolve_series_xy,
     unique_sibling_name,
@@ -44,7 +43,6 @@ class AnalyzeChartSeriesCommand(Command):
         self,
         app_context: AppContext,
         chart_id: str,
-        source_kind: SourceKind,
         source_index: int,
         analysis_type: AnalysisType,
         parameters: dict | None = None,
@@ -57,7 +55,6 @@ class AnalyzeChartSeriesCommand(Command):
         self.ui_controller: UIController = app_context.get_ui_controller()
 
         self.chart_id = chart_id
-        self.source_kind = source_kind
         self.source_index = source_index
         self.analysis_type = analysis_type
         self.parameters = parameters or {}
@@ -81,7 +78,7 @@ class AnalyzeChartSeriesCommand(Command):
 
     def _resolve_xy(self, chart: Chart) -> tuple[pd.Series, pd.Series, str, str]:
         """Return (x, y, x_label, y_label) for the selected chart series."""
-        return resolve_series_xy(self.app_state, chart, self.source_kind, self.source_index)
+        return resolve_series_xy(self.app_state, chart, self.source_index)
 
     def _resolve_xy_cached(self, chart: Chart) -> tuple[pd.Series, pd.Series, str, str]:
         """``_resolve_xy``, memoized for the lifetime of this command.
