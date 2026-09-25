@@ -749,6 +749,7 @@ class FitPanel(SidebarPanel):
                 series.y_column_id,
                 series.y_column) or "",
             fixed_parameters=self.fit_fixed_parameters,
+            y_axis=series.y_axis,
         )
 
         executor = self.app_context.get_command_executor()

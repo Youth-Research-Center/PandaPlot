@@ -9,7 +9,7 @@ import pytest
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items.chart import Chart, YAxis
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.items.note import Note
@@ -89,16 +89,13 @@ def test_execute_adds_fit_to_chart(app_context_with_chart, fit_results):
     assert fit.style.fit_stats == {"r_squared": 0.99}
 
 
-def test_execute_places_fit_on_the_same_axis_as_its_source_series(app_context_with_chart, fit_results):
-    """A fit's y_axis is resolved from its source series at creation time
-    (#304 -- old chart_editor.py dynamically matched fit-to-series on
-    every render to borrow the axis; that matching is now done once, here,
-    since a fit is a normal DataSeries with its own y_axis field)."""
+def test_execute_places_the_fit_on_the_given_y_axis(app_context_with_chart, fit_results):
+    """The caller (the Fit panel) knows which series was fitted and passes
+    its axis -- even when the same columns are also plotted on the other
+    axis (PR #416 review: column matching picked secondary regardless)."""
     app_context, _project, chart, source = app_context_with_chart
-    chart.add_data_series(
-        source.id, x_column_id="x_id", y_column_id="y_id",
-        x_column="x", y_column="y", y_axis="secondary", label="Secondary series",
-    )
+    chart.add_data_series(source.id, x_column_id="x_id", y_column_id="y_id", y_axis="primary", label="On Y1")
+    chart.add_data_series(source.id, x_column_id="x_id", y_column_id="y_id", y_axis="secondary", label="On Y2")
 
     command = ApplyFitCommand(
         app_context=app_context,
@@ -107,16 +104,14 @@ def test_execute_places_fit_on_the_same_axis_as_its_source_series(app_context_wi
         source_dataset_id=source.id,
         source_x_column_id="x_id",
         source_y_column_id="y_id",
-        source_x_column="x",
-        source_y_column="y",
-        label="Linear fit",
+        y_axis=YAxis.PRIMARY,
     )
 
     assert command.execute() is CommandResult.SUCCESS
-    assert chart.fit_data[0].y_axis == "secondary"
+    assert chart.fit_data[0].y_axis == YAxis.PRIMARY
 
 
-def test_execute_defaults_to_primary_axis_when_no_source_series_matches(app_context_with_chart, fit_results):
+def test_execute_uses_the_secondary_axis_when_asked(app_context_with_chart, fit_results):
     app_context, _project, chart, source = app_context_with_chart
 
     command = ApplyFitCommand(
@@ -126,13 +121,28 @@ def test_execute_defaults_to_primary_axis_when_no_source_series_matches(app_cont
         source_dataset_id=source.id,
         source_x_column_id="x_id",
         source_y_column_id="y_id",
-        source_x_column="x",
-        source_y_column="y",
-        label="Linear fit",
+        y_axis=YAxis.SECONDARY,
     )
 
     assert command.execute() is CommandResult.SUCCESS
-    assert chart.fit_data[0].y_axis == "primary"
+    assert chart.fit_data[0].y_axis == YAxis.SECONDARY
+
+
+def test_execute_defaults_to_the_primary_axis_without_guessing_from_other_series(app_context_with_chart, fit_results):
+    app_context, _project, chart, source = app_context_with_chart
+    chart.add_data_series(source.id, x_column_id="x_id", y_column_id="y_id", y_axis="secondary", label="On Y2")
+
+    command = ApplyFitCommand(
+        app_context=app_context,
+        chart_id=chart.id,
+        fit_results=fit_results,
+        source_dataset_id=source.id,
+        source_x_column_id="x_id",
+        source_y_column_id="y_id",
+    )
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert chart.fit_data[0].y_axis == YAxis.PRIMARY
 
 
 def test_undo_restores_original_series_order(app_context_with_chart, fit_results):

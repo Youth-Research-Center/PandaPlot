@@ -19,7 +19,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.fit.fit_panel import CUSTOM_SERIES_SENTINEL, FitPanel
-from pandaplot.models.project.items.chart import Chart, restore_chart_state, snapshot_chart_state
+from pandaplot.models.project.items.chart import Chart, YAxis, restore_chart_state, snapshot_chart_state
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
@@ -1477,3 +1477,28 @@ def test_apply_is_enabled_once_a_fit_result_exists_on_a_chart_type_that_allows_f
 
     assert panel.apply_button.isEnabled() is True
     assert panel.apply_button.toolTip() == ""
+
+
+def test_apply_fit_passes_the_fitted_series_y_axis(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    chart.data_series[0].y_axis = YAxis.SECONDARY
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_results = _make_fake_fit_result()
+
+    executed = {}
+
+    def _capture_execute(command):
+        executed["command"] = command
+        return True
+
+    panel.app_context.get_command_executor.return_value.execute_command = _capture_execute
+
+    panel._apply_fit()
+
+    assert executed["command"].y_axis == YAxis.SECONDARY
