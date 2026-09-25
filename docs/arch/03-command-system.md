@@ -89,8 +89,10 @@ Every `execute()`, `undo()`, and `redo()` is expected to emit the appropriate `E
 
 | Command | Description |
 |---------|-------------|
-| `ApplyFitCommand` | Runs curve fit, attaches FitData to Chart |
-| `RemoveFitCommand` | Detaches FitData from Chart |
+| `ApplyFitCommand` | Runs curve fit, adds a `SeriesType.FIT` DataSeries to Chart.data_series |
+| `ConvertSeriesToFitCommand` | Converts an existing DataSeries into a manually-editable `SeriesType.FIT` entry, at the same position |
+
+A fit is removed the same way as any other series, via `RemoveSeriesCommand` -- there is no separate fit-removal command.
 
 ### Item / Folder Commands
 

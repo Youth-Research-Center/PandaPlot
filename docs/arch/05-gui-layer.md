@@ -83,7 +83,7 @@ TabContainer
 - `ChartRenderEngine` converts the `Chart` model into a `matplotlib.Figure`:
   1. Create figure and axes
   2. For each `DataSeries`: fetch columns from Dataset, call `ax.plot()` / `ax.scatter()` / etc.
-  3. For each `FitData`: evaluate fit function over x range, overlay curve
+  3. For each `SeriesType.FIT` DataSeries: plot its precomputed x/y curve data, overlay
   4. Apply `ChartConfiguration` (title, labels, legend, grid)
 - Subscribes to `ChartEvents` to re-render on any chart change
 
