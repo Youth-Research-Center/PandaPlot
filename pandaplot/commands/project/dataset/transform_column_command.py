@@ -122,10 +122,14 @@ class TransformColumnCommand(Command):
             # Update dataset using proper method
             self.dataset.set_data(df)
 
-            # Register before emitting: the live-recompute listener reacts to
-            # the events below and must see a consistent formula registry.
-            if formula_spec is not None:
-                self._register_formula_column(self.dataset, formula_spec)
+            # Register/detach before emitting: the live-recompute listener
+            # reacts to the events below and must see a consistent formula
+            # registry. A plain (non-formula) run must detach any formula a
+            # *previous* run left on this column -- otherwise the spec
+            # would silently survive, and the next source-column edit would
+            # have the live-recompute listener overwrite the static values
+            # just written here with that stale formula's output.
+            self._apply_formula_registry_change(self.dataset, formula_spec)
 
             # Refresh the data tab and column-source selectors.
             emit_columns_changed(
@@ -369,20 +373,34 @@ class TransformColumnCommand(Command):
         self.logger.error(self.error_message)
         return False
 
-    def _register_formula_column(self, dataset: Dataset, spec: FormulaColumnSpec) -> None:
-        """Store the spec against the (now existing) target column's id."""
+    def _apply_formula_registry_change(self, dataset: Dataset, spec: FormulaColumnSpec | None) -> None:
+        """Make the formula registry match this run's outcome.
+
+        `spec` registers/updates the formula on the (now existing) target
+        column's id. `None` means this run was a plain transform -- if the
+        target column previously held a formula (e.g. it's being reused for
+        a fresh, non-formula run), that stale spec is detached so it can't
+        resurface later.
+        """
         target_id = dataset.column_id(self.new_column_name)
         if target_id is None:
-            self.logger.warning(
-                "Transform target '%s' has no stable id; formula not saved", self.new_column_name,
-            )
+            if spec is not None:
+                self.logger.warning(
+                    "Transform target '%s' has no stable id; formula not saved", self.new_column_name,
+                )
             return
+        previous = dataset.formula_column(target_id)
+        if spec is None and previous is None:
+            return  # Nothing registered before, nothing to register now.
         self._formula_column_id = target_id
-        self._previous_formula_spec = dataset.formula_column(target_id)
-        dataset.set_formula_column(target_id, spec)
+        self._previous_formula_spec = previous
+        if spec is not None:
+            dataset.set_formula_column(target_id, spec)
+        else:
+            dataset.remove_formula_column(target_id)
 
     def _restore_formula_registry(self, dataset: Dataset) -> None:
-        """Undo whatever _register_formula_column did."""
+        """Undo whatever _apply_formula_registry_change did."""
         if self._formula_column_id is None:
             return
         if self._previous_formula_spec is None:

@@ -193,6 +193,28 @@ class TestFormulaColumnRegistration:
         assert spec.expression == "value * 2"
         assert spec.live is False
 
+    def test_a_plain_rerun_detaches_a_previously_registered_formula(self, ctx):
+        """A plain (non-formula) transform re-run over a column that used to
+        be a live formula column must drop the stale spec -- otherwise the
+        next source-column edit would have the live-recompute listener
+        silently overwrite these fresh static values with the old formula's
+        output."""
+        app_context, dataset, _ = ctx
+        first = TransformColumnCommand(app_context, "ds-1", _config("a_x2") | {"as_formula": True, "live": True})
+        first.execute()
+        assert dataset.formula_column_by_name("a_x2") is not None
+
+        second = TransformColumnCommand(app_context, "ds-1", _config("a_x2", expression="value * 100", replace=True))
+        assert second.execute() is CommandResult.SUCCESS
+        assert list(dataset.data["a_x2"]) == [100.0, 200.0, 300.0]
+        assert dataset.formula_column_by_name("a_x2") is None
+
+        assert second.undo() is CommandResult.SUCCESS
+        spec = dataset.formula_column_by_name("a_x2")
+        assert spec is not None
+        assert spec.live is True
+        assert list(dataset.data["a_x2"]) == [2.0, 4.0, 6.0]
+
     def test_a_formula_reading_its_own_column_is_rejected(self, ctx):
         app_context, dataset, _ = ctx
         command = TransformColumnCommand(app_context, "ds-1", {
