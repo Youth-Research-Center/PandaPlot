@@ -1131,12 +1131,13 @@ def test_a_fit_carried_onto_a_colormap_chart_still_shows_fit_in_the_disabled_com
     the switch), where fits can't be *created* -- the combo must still
     label the existing fit "Fit" rather than falling back to "Colormap"."""
     app_context, project, dataset = _app_context_with_project()
-    chart = Chart(name="Colormap Chart", chart_type="colormap")
+    chart = Chart(name="Line Chart", chart_type="line")
     chart.add_fit_series(
         dataset.id,
         x_data=dataset.data["x"].to_numpy(), y_data=dataset.data["y"].to_numpy(),
         label="A Fit", style=FitStyle(fit_type="Linear"),
     )
+    chart.set_chart_type("colormap")  # a fit survives the switch; it just can't be created there
     project.add_item(chart)
 
     tab = DataTab(app_context=app_context)

@@ -26,6 +26,7 @@ from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items import Dataset
@@ -753,10 +754,25 @@ class FitPanel(SidebarPanel):
         if hasattr(self, "busy_spinner"):
             self.busy_spinner.stop()
 
+    def _chart_allows_fit(self) -> bool:
+        """Whether the current chart's type lets a fit be applied to it
+        (ChartTypeSpec.allows_fit -- False for 3-D, Colormap and Heatmap)."""
+        return self.current_chart is not None and CHART_TYPE_SPECS[self.current_chart.chart_type].allows_fit
+
+    def _update_apply_enabled(self) -> None:
+        """Enable Apply only when there's a fit result to apply AND the
+        current chart's type allows fits; ApplyFitCommand refuses the rest."""
+        self.apply_button.setEnabled(self.fit_results is not None and self._chart_allows_fit())
+
     def load_chart_object(self, chart):
         """Load a Chart object for fitting analysis."""
         self._clear_results()
         self.current_chart = chart
+
+        spec = CHART_TYPE_SPECS[chart.chart_type] if chart is not None else None
+        self.apply_button.setToolTip(
+            "" if spec is None or spec.allows_fit else f"Fits aren't available on {spec.display_name} charts."
+        )
 
         # Clearing/populating a combo box fires currentIndexChanged as items
         # come and go, which would call _on_series_changed() (and thus
@@ -1014,7 +1030,7 @@ class FitPanel(SidebarPanel):
             self.fit_results = command.result
             self.fit_fixed_parameters = command.fixed_parameters
             self.display_results()
-            self.apply_button.setEnabled(self.fit_results is not None)
+            self._update_apply_enabled()
 
         command = PerformFitCommand(
             fit_service=self.fit_service,

@@ -399,3 +399,27 @@ def test_cleanup_releases_the_added_index_and_report_ids(app_context_with_chart,
     assert command.added_index is None
     assert command.report_note_id is None
     assert command.result_dataset_id is None
+
+
+@pytest.mark.parametrize("chart_type", ["scatter3d", "colormap"])
+def test_execute_refuses_a_chart_type_that_does_not_allow_fits(app_context_with_chart, fit_results, chart_type):
+    """The Fit panel is available on every chart tab; a fit on a 3-D chart
+    broke the whole chart's render (PR #416 review). The command must fail
+    cleanly before touching the chart or creating the report items."""
+    app_context, project, chart, source = app_context_with_chart
+    chart.set_chart_type(chart_type)
+    items_before = len(project.get_all_items())
+
+    command = ApplyFitCommand(
+        app_context=app_context,
+        chart_id=chart.id,
+        fit_results=fit_results,
+        source_dataset_id=source.id,
+        source_x_column_id="x_id",
+        source_y_column_id="y_id",
+    )
+
+    assert command.execute() is CommandResult.FAILURE
+    assert chart.data_series == []
+    assert len(project.get_all_items()) == items_before
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once()

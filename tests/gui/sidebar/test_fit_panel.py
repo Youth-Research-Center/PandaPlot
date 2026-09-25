@@ -1403,3 +1403,38 @@ class TestFitPanelSeriesSelectedEvent:
         )
 
         assert panel.series_combo.currentIndex() == 0
+
+
+def test_apply_stays_disabled_with_a_tooltip_on_a_chart_type_that_does_not_allow_fits(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    chart.set_chart_type("scatter3d")
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_results = _make_fake_fit_result()
+
+    panel._update_apply_enabled()
+
+    assert panel.apply_button.isEnabled() is False
+    assert "3D Scatter" in panel.apply_button.toolTip()
+
+
+def test_apply_is_enabled_once_a_fit_result_exists_on_a_chart_type_that_allows_fits(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_results = _make_fake_fit_result()
+
+    panel._update_apply_enabled()
+
+    assert panel.apply_button.isEnabled() is True
+    assert panel.apply_button.toolTip() == ""

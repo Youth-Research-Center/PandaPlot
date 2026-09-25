@@ -1325,3 +1325,14 @@ def test_fill_targets_skip_styles_without_a_fill_target():
     chart = _fill_chart()
     chart.add_fit_series("ds", x_data=np.array([1.0]), y_data=np.array([1.0]), label="F", style=FitStyle())
     assert chart.fill_targets()[-1] is None
+
+
+@pytest.mark.parametrize("chart_type", ["colormap", "heatmap", "scatter3d"])
+def test_add_fit_series_refuses_chart_types_that_dont_allow_fits(chart_type):
+    """PR #416 review: allows_fit was only enforced by the Data/Chart tabs,
+    so the Fit panel could put a fit on a 3-D chart, whose renderer then
+    crashed on the confidence band. The model refuses it itself."""
+    chart = Chart(name="c", chart_type=chart_type)
+    with pytest.raises(ValueError, match="Fits aren't available"):
+        chart.add_fit_series("ds", x_data=np.array([1.0]), y_data=np.array([1.0]), label="F", style=FitStyle())
+    assert chart.data_series == []

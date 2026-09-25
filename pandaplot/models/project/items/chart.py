@@ -455,7 +455,19 @@ class Chart(Item):
         from" rather than a live column reference (resolve_series_data
         short-circuits to precomputed_x_data/precomputed_y_data instead of
         reading them), kept only for re-fit and column-rename tracking.
+
+        Raises:
+            ValueError: if this chart's type doesn't allow fits
+                (``ChartTypeSpec.allows_fit`` is False).
         """
+        spec = CHART_TYPE_SPECS[self.chart_type]
+        if not spec.allows_fit:
+            # A fit's renderer draws a 2-D curve (and band) on a plain Axes;
+            # a 3-D chart's mplot3d axes reject the band call outright, and
+            # Colormap/Heatmap don't take fits by design. An existing fit may
+            # still *stay* on such a chart after a chart-type switch (see
+            # Chart.set_chart_type) -- it just can't be created there.
+            raise ValueError(f"Fits aren't available on {spec.display_name} charts.")
         return self.add_data_series(
             dataset_id=source_dataset_id,
             x_column_id=source_x_column_id, y_column_id=source_y_column_id,

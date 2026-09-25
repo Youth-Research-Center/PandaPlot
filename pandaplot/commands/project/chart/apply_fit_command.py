@@ -9,6 +9,7 @@ import pandas as pd
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events import ChartEvents
@@ -286,6 +287,17 @@ class ApplyFitCommand(Command):
             )
             self.ui_controller.show_error_message(
                 "Apply Fit Error", f"Chart '{self.chart_id}' not found."
+            )
+            return CommandResult.FAILURE
+
+        spec = CHART_TYPE_SPECS[chart.chart_type]
+        if not spec.allows_fit:
+            self.logger.warning(
+                "ApplyFitCommand.execute: chart '%s' is a %s chart, which doesn't allow fits",
+                self.chart_id, spec.display_name,
+            )
+            self.ui_controller.show_error_message(
+                "Apply Fit Error", f"Fits aren't available on {spec.display_name} charts."
             )
             return CommandResult.FAILURE
 
