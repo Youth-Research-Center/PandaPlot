@@ -10,7 +10,9 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
 from pandaplot.models.project.items import Dataset
+from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.transform import formula_engine
 
 
 class TransformColumnCommand(Command):
@@ -32,6 +34,10 @@ class TransformColumnCommand(Command):
                 - source_columns: list - source column names
                 - expression: str - transformation expression
                 - replace_existing: bool - whether to replace existing column
+                - as_formula: bool - remember the expression on the column so it
+                  can be recomputed later (#154), instead of writing static values
+                - live: bool - recompute the formula column automatically when a
+                  source column changes (implies as_formula)
         """
         super().__init__()
         self.app_context = app_context
@@ -53,6 +59,14 @@ class TransformColumnCommand(Command):
         self.source_columns = transform_config["source_columns"]
         self.expression = transform_config["expression"]
         self.replace_existing = transform_config.get("replace_existing", False)
+        self.live = bool(transform_config.get("live", False))
+        # "Live" is meaningless without a stored formula, so it implies it.
+        self.as_formula = bool(transform_config.get("as_formula", False)) or self.live
+
+        # Formula-registry state for undo: which column id we registered a
+        # spec on, and what (if anything) was registered there before.
+        self._formula_column_id: str | None = None
+        self._previous_formula_spec: FormulaColumnSpec | None = None
 
     @override
     def execute(self) -> CommandResult:
@@ -87,6 +101,16 @@ class TransformColumnCommand(Command):
             # Store original state for undo
             self._store_original_state(df)
 
+            # Build and vet the formula spec before touching any data, so a
+            # circular formula is rejected without half-applying it.
+            formula_spec = None
+            if self.as_formula:
+                formula_spec = self._build_formula_spec(self.dataset)
+                if formula_spec is None:
+                    return CommandResult.FAILURE
+                if not self._validate_no_cycle(self.dataset, formula_spec):
+                    return CommandResult.FAILURE
+
             # Execute transformation
             result_series = self._execute_transform_logic(df)
             if result_series is None:
@@ -97,6 +121,11 @@ class TransformColumnCommand(Command):
 
             # Update dataset using proper method
             self.dataset.set_data(df)
+
+            # Register before emitting: the live-recompute listener reacts to
+            # the events below and must see a consistent formula registry.
+            if formula_spec is not None:
+                self._register_formula_column(self.dataset, formula_spec)
 
             # Refresh the data tab and column-source selectors.
             emit_columns_changed(
@@ -133,6 +162,11 @@ class TransformColumnCommand(Command):
                 return CommandResult.FAILURE
 
             df = self.dataset.data.copy()
+
+            # Drop (or restore) the formula spec first: set_data() below prunes
+            # specs for columns that no longer exist, and restoring a spec on a
+            # column this undo is about to remove would be pointless anyway.
+            self._restore_formula_registry(self.dataset)
 
             from pandaplot.models.events.event_data import (
                 DatasetColumnsRemovedData,
@@ -190,6 +224,7 @@ class TransformColumnCommand(Command):
         """Release the original-data snapshot held for undo once this
         command is dropped from the stacks for good (see Command.cleanup)."""
         self.original_data = None
+        self._previous_formula_spec = None
 
     def _get_dataset(self):
         """Get dataset from app context."""
@@ -266,157 +301,93 @@ class TransformColumnCommand(Command):
             self.original_data = None
 
     def _execute_transform_logic(self, df: pd.DataFrame) -> pd.Series | None:
-        """Execute transformation using safe evaluation."""
+        """Execute transformation using the shared formula engine, so a
+        one-shot transform and a live recompute of the same expression can
+        never diverge (#154)."""
         try:
-            # Create safe execution environment
-            safe_globals = self._create_safe_execution_environment()
-
-            if self.transform_type == "column":
-                return self._execute_column_operation(df, safe_globals)
-            elif self.transform_type == "row":
-                return self._execute_row_operation(df, safe_globals)
-            elif self.transform_type == "multi_column":
-                return self._execute_multi_column_operation(df, safe_globals)
-            else:
-                self.error_message = f"Unknown transform type: {self.transform_type}"
-                self.logger.error(self.error_message)
-                return None
-
+            return formula_engine.evaluate_formula(
+                df,
+                expression=self.expression,
+                transform_type=self.transform_type,
+                source_columns=self.source_columns,
+            )
         except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.error_message = str(e)
             self.logger.error(f"Transform logic execution failed: {e}")
             return None
 
-    def _execute_column_operation(self, df: pd.DataFrame, safe_globals: dict) -> pd.Series:
-        """Execute column-based transformation (operates on single column)."""
-        source_column = self.source_columns[0]  # Column operations use first source column
-        source_data = df[source_column]
+    # ------------------------------------------------------------------
+    # Formula-column registration (#154)
+    # ------------------------------------------------------------------
+    def _build_formula_spec(self, dataset: Dataset) -> FormulaColumnSpec | None:
+        """Resolve the source columns to stable ids and build the spec.
 
-        # Create local variables for evaluation
-        local_vars = {
-            "value": source_data,
-            "x": source_data,  # Alternative name
-            "column": source_data,
-            "data": source_data,
-            # Look up the column by its own real name (#203), e.g.
-            # cols["t"] for a column named "t" -- a dict subscript rather
-            # than binding "t" as a bare local variable, so it works for
-            # ANY column name (spaces, leading digits, ...) and can never
-            # shadow a Python keyword or one of safe_globals' bare names
-            # (sqrt/log/mean/std/... -- see _create_safe_execution_environment)
-            # the way a same-named bound identifier would.
-            "cols": {source_column: source_data},
+        Sets error_message and returns None if a source column has no id (it
+        would leave the formula pointing at nothing).
+        """
+        source_ids: list[str] = []
+        for name in self.source_columns:
+            cid = dataset.column_id(name)
+            if cid is None:
+                self.error_message = f"Column '{name}' has no stable id; cannot save it as a formula source."
+                self.logger.error(self.error_message)
+                return None
+            source_ids.append(cid)
+        return FormulaColumnSpec(
+            expression=self.expression,
+            transform_type=self.transform_type,
+            source_column_ids=source_ids,
+            live=self.live,
+        )
+
+    def _validate_no_cycle(self, dataset: Dataset, spec: FormulaColumnSpec) -> bool:
+        """Reject a formula that would close a dependency cycle.
+
+        Only relevant when the target column already exists -- a brand new
+        column can't yet be anybody's source. Checked here, at creation time,
+        rather than when a recompute cascade trips over it.
+        """
+        target_id = dataset.column_id(self.new_column_name)
+        if target_id is None:
+            return True
+
+        dependencies = {
+            cid: existing.source_column_ids
+            for cid, existing in dataset.formula_columns.items()
+            if cid != target_id
         }
+        dependencies[target_id] = spec.source_column_ids
 
-        # Execute expression
-        result = eval(self.expression, safe_globals, local_vars)
+        cycle = formula_engine.find_circular_dependency(dependencies)
+        if cycle is None:
+            return True
 
-        # Ensure result is a pandas Series
-        if not isinstance(result, pd.Series):
-            # If result is scalar, broadcast to series
-            if pd.api.types.is_scalar(result):
-                result = pd.Series(
-                    [result] * len(source_data), index=source_data.index)
-            else:
-                # Convert array-like to series
-                result = pd.Series(result, index=source_data.index)
+        names = [dataset.column_name(cid) or cid for cid in cycle]
+        self.error_message = (
+            "This formula would create a circular dependency: " + " -> ".join(names)
+        )
+        self.logger.error(self.error_message)
+        return False
 
-        return result
+    def _register_formula_column(self, dataset: Dataset, spec: FormulaColumnSpec) -> None:
+        """Store the spec against the (now existing) target column's id."""
+        target_id = dataset.column_id(self.new_column_name)
+        if target_id is None:
+            self.logger.warning(
+                "Transform target '%s' has no stable id; formula not saved", self.new_column_name,
+            )
+            return
+        self._formula_column_id = target_id
+        self._previous_formula_spec = dataset.formula_column(target_id)
+        dataset.set_formula_column(target_id, spec)
 
-    def _execute_row_operation(self, df: pd.DataFrame, safe_globals: dict) -> pd.Series:
-        """Execute row-based transformation (operates on entire rows)."""
-        # For row operations, we apply the function to each row
-        def row_transform(row):
-            local_vars = {
-                "row": row,
-                "r": row  # Alternative name
-            }
-            return eval(self.expression, safe_globals, local_vars)
-
-        result = df.apply(row_transform, axis=1)
-        return result
-
-    def _execute_multi_column_operation(self, df: pd.DataFrame, safe_globals: dict) -> pd.Series:
-        """Execute multi-column transformation (operates on selected columns)."""
-        # Get selected columns as dataframe
-        selected_columns = df[self.source_columns]
-
-        # Create local variables
-        local_vars = {
-            "cols": selected_columns,
-            "columns": selected_columns,
-            "data": selected_columns
-        }
-
-        # Execute expression
-        result = eval(self.expression, safe_globals, local_vars)
-
-        # Ensure result is a pandas Series
-        if not isinstance(result, pd.Series):
-            if pd.api.types.is_scalar(result):
-                result = pd.Series([result] * len(df), index=df.index)
-            else:
-                result = pd.Series(result, index=df.index)
-
-        return result
-
-    def _create_safe_execution_environment(self) -> dict:
-        """Create safe globals for eval() execution."""
-        # Import required modules
-        import math
-
-        import numpy as np
-        import pandas as pd
-
-        # Create safe environment with commonly used functions
-        safe_globals = {
-            # Pandas and numpy
-            "pd": pd,
-            "np": np,
-            "math": math,
-
-            # Built-in functions (safe subset)
-            "abs": abs,
-            "min": min,
-            "max": max,
-            "sum": sum,
-            "len": len,
-            "round": round,
-            "int": int,
-            "float": float,
-            "str": str,
-            "bool": bool,
-            "list": list,
-            "dict": dict,
-            "range": range,
-            "enumerate": enumerate,
-            "zip": zip,
-
-            # Math functions
-            "sqrt": math.sqrt,
-            "log": math.log,
-            "log10": math.log10,
-            "exp": math.exp,
-            "sin": math.sin,
-            "cos": math.cos,
-            "tan": math.tan,
-            "floor": math.floor,
-            "ceil": math.ceil,
-
-            # Pandas functions
-            "to_datetime": pd.to_datetime,
-            "to_numeric": pd.to_numeric,
-            "isna": pd.isna,
-            "notna": pd.notna,
-            "cut": pd.cut,
-            "qcut": pd.qcut,
-
-            # Numpy functions
-            "mean": np.mean,
-            "median": np.median,
-            "std": np.std,
-            "var": np.var,
-            "percentile": np.percentile,
-        }
-
-        return safe_globals
+    def _restore_formula_registry(self, dataset: Dataset) -> None:
+        """Undo whatever _register_formula_column did."""
+        if self._formula_column_id is None:
+            return
+        if self._previous_formula_spec is None:
+            dataset.remove_formula_column(self._formula_column_id)
+        else:
+            dataset.set_formula_column(self._formula_column_id, self._previous_formula_spec)
+        self._formula_column_id = None
+        self._previous_formula_spec = None

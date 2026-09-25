@@ -108,6 +108,10 @@ class DatasetDataManager(ItemDataManager[Dataset]):
                 "column_ids": dict(item.column_ids),
                 "column_dtypes": column_dtypes,
                 "column_categoricals": column_categoricals,
+                # The expression behind each formula column (#154) -- without
+                # this, a reopened project only has the values one transform
+                # run produced and could never recompute them.
+                "formula_columns": item.formula_columns_dict(),
             }
             
             self.logger.debug("Saving dataset metadata for '%s'", item.name)
@@ -189,6 +193,10 @@ class DatasetDataManager(ItemDataManager[Dataset]):
                         if existing_id is not None:
                             restored[existing_id] = name
                 dataset.column_ids = restored
+
+            # After the id registry is reconciled, so specs for columns that
+            # didn't survive the round trip are dropped rather than dangling.
+            dataset.load_formula_columns(metadata.get("formula_columns"))
 
             self.logger.info("Successfully loaded dataset '%s' (ID: %s)", dataset_name, dataset_id)
             return dataset

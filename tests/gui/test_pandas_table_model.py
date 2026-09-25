@@ -104,3 +104,31 @@ def test_invalid_index_returns_none(mock_app_context, sample_dataset):
     value = model.data(invalid_index, Qt.ItemDataRole.DisplayRole)
 
     assert value is None
+
+
+def test_header_tooltip_explains_a_formula_column(mock_app_context, sample_dataset):
+    """Issue #154: the header's "fx" marker needs a tooltip saying what it
+    means and which expression produced the column."""
+    from pandaplot.models.project.items.formula_column import FormulaColumnSpec
+    sample_dataset.set_formula_column(
+        sample_dataset.column_id("int_col"),
+        FormulaColumnSpec(expression="x * 2", source_column_ids=[sample_dataset.column_id("float_col")], live=True),
+    )
+    model = PandasTableModel(mock_app_context, sample_dataset)
+
+    tooltip = model.headerData(2, Qt.Orientation.Horizontal, Qt.ItemDataRole.ToolTipRole)
+
+    assert "recomputes automatically" in tooltip
+    assert "x * 2" in tooltip
+
+
+def test_header_tooltip_is_absent_for_a_plain_column(mock_app_context, sample_dataset):
+    model = PandasTableModel(mock_app_context, sample_dataset)
+
+    assert model.headerData(0, Qt.Orientation.Horizontal, Qt.ItemDataRole.ToolTipRole) is None
+
+
+def test_header_display_role_still_returns_the_plain_column_name(mock_app_context, sample_dataset):
+    model = PandasTableModel(mock_app_context, sample_dataset)
+
+    assert model.headerData(0, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole) == "float_col"

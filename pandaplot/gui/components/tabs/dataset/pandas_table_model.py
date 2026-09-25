@@ -12,6 +12,7 @@ import pandas as pd
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
 from pandaplot.commands.project.dataset.edit_command import EditCommand
+from pandaplot.gui.components.tabs.dataset.pheader_view import formula_tooltip
 from pandaplot.models.events.event_data import (
     DatasetColumnRenamedData,
     DatasetColumnsAddedData,
@@ -176,6 +177,10 @@ class PandasTableModel(QAbstractTableModel):
         Returns:
             The header data
         """
+        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.ToolTipRole:
+            # Explains the "fx" / "fx live" marker PHeaderView paints (#154).
+            return formula_tooltip(self._dataset, str(self._dataset.data.columns[section]))
+
         if role != Qt.ItemDataRole.DisplayRole:
             return None
 

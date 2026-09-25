@@ -345,3 +345,37 @@ class TestSourceColumnMarkers:
 
         assert transform_panel.source_column_list.item(0).text() == "my col  →  x"
         assert transform_panel.get_selected_columns() == ["my col"]
+
+
+class TestFormulaColumnCheckboxes:
+    """Issue #154: live recompute is opt-in per column, so the panel offers
+    "save as formula" and, only then, "live"."""
+
+    def test_both_options_are_off_by_default(self, transform_panel):
+        assert transform_panel.formula_column_check.isChecked() is False
+        assert transform_panel.live_recompute_check.isChecked() is False
+
+    def test_live_option_is_hidden_until_a_formula_column_is_requested(self, transform_panel):
+        # isHidden(), not isVisible(): the panel itself is never shown in a
+        # test, which would make isVisible() False either way.
+        assert transform_panel.live_recompute_check.isHidden() is True
+
+        transform_panel.formula_column_check.setChecked(True)
+        assert transform_panel.live_recompute_check.isHidden() is False
+
+    def test_unchecking_formula_also_clears_live(self, transform_panel):
+        transform_panel.formula_column_check.setChecked(True)
+        transform_panel.live_recompute_check.setChecked(True)
+
+        transform_panel.formula_column_check.setChecked(False)
+
+        assert transform_panel.live_recompute_check.isChecked() is False
+
+    def test_clear_panel_resets_both_options(self, transform_panel):
+        transform_panel.formula_column_check.setChecked(True)
+        transform_panel.live_recompute_check.setChecked(True)
+
+        transform_panel.clear_panel()
+
+        assert transform_panel.formula_column_check.isChecked() is False
+        assert transform_panel.live_recompute_check.isChecked() is False
