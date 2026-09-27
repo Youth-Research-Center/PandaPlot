@@ -8,8 +8,8 @@ import pandas as pd
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
+from pandaplot.commands.project.chart.fit_guard import reject_if_fit_disallowed
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.events import ChartEvents
 from pandaplot.models.events.event_types import DatasetEvents, ProjectEvents
@@ -258,16 +258,13 @@ class ApplyFitCommand(Command):
             )
             return CommandResult.FAILURE
 
-        spec = CHART_TYPE_SPECS[chart.chart_type]
-        if not spec.allows_fit:
-            self.logger.warning(
-                "ApplyFitCommand.execute: chart '%s' is a %s chart, which doesn't allow fits",
-                self.chart_id, spec.display_name,
-            )
-            self.ui_controller.show_error_message(
-                "Apply Fit Error", f"Fits aren't available on {spec.display_name} charts."
-            )
-            return CommandResult.FAILURE
+        guard = reject_if_fit_disallowed(
+            chart, logger=self.logger, ui_controller=self.ui_controller,
+            action="ApplyFitCommand.execute", dialog_title="Apply Fit Error",
+            on_disallowed=CommandResult.FAILURE,
+        )
+        if guard is not None:
+            return guard
 
         results = self.fit_results
 
@@ -354,16 +351,13 @@ class ApplyFitCommand(Command):
         # on the redo stack untouched, as if this call never happened.
         chart = self._chart_finder.find(self.chart_id)
         if chart is not None:
-            spec = CHART_TYPE_SPECS[chart.chart_type]
-            if not spec.allows_fit:
-                self.logger.warning(
-                    "ApplyFitCommand.redo: chart '%s' is now a %s chart, which doesn't allow fits -- refusing without touching it",
-                    self.chart_id, spec.display_name,
-                )
-                self.ui_controller.show_error_message(
-                    "Apply Fit Error", f"Fits aren't available on {spec.display_name} charts."
-                )
-                return CommandResult.ABORTED
+            guard = reject_if_fit_disallowed(
+                chart, logger=self.logger, ui_controller=self.ui_controller,
+                action="ApplyFitCommand.redo", dialog_title="Apply Fit Error",
+                on_disallowed=CommandResult.ABORTED,
+            )
+            if guard is not None:
+                return guard
         return self.execute()
 
     @override

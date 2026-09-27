@@ -5,8 +5,8 @@ from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
+from pandaplot.commands.project.chart.fit_guard import reject_if_fit_disallowed
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events import ChartEvents
@@ -124,7 +124,7 @@ class ConvertSeriesToFitCommand(Command):
 
         series = chart.data_series[self.series_index]
 
-        if series.series_type == SeriesType.FIT:
+        if series.is_fit:
             # Re-converting would re-snapshot the fit's source columns and
             # silently replace its curve/fit_type/fit_params with raw data.
             # Checked before the allows_fit guard below: "already a fit" is
@@ -137,16 +137,13 @@ class ConvertSeriesToFitCommand(Command):
             self.ui_controller.show_error_message("Convert to Fit Error", "That entry is already a fit.")
             return CommandResult.FAILURE
 
-        spec = CHART_TYPE_SPECS[chart.chart_type]
-        if not spec.allows_fit:
-            self.logger.warning(
-                "ConvertSeriesToFitCommand.execute: chart '%s' is a %s chart, which doesn't allow fits",
-                self.chart_id, spec.display_name,
-            )
-            self.ui_controller.show_error_message(
-                "Convert to Fit Error", f"Fits aren't available on {spec.display_name} charts."
-            )
-            return CommandResult.FAILURE
+        guard = reject_if_fit_disallowed(
+            chart, logger=self.logger, ui_controller=self.ui_controller,
+            action="ConvertSeriesToFitCommand.execute", dialog_title="Convert to Fit Error",
+            on_disallowed=CommandResult.FAILURE,
+        )
+        if guard is not None:
+            return guard
 
         if self._fit is None:
             fit = self._build_fit(series)
@@ -209,16 +206,13 @@ class ConvertSeriesToFitCommand(Command):
         # on the redo stack untouched, as if this call never happened.
         chart = self._chart_finder.find(self.chart_id)
         if chart is not None:
-            spec = CHART_TYPE_SPECS[chart.chart_type]
-            if not spec.allows_fit:
-                self.logger.warning(
-                    "ConvertSeriesToFitCommand.redo: chart '%s' is now a %s chart, which doesn't allow fits -- refusing without touching it",
-                    self.chart_id, spec.display_name,
-                )
-                self.ui_controller.show_error_message(
-                    "Convert to Fit Error", f"Fits aren't available on {spec.display_name} charts."
-                )
-                return CommandResult.ABORTED
+            guard = reject_if_fit_disallowed(
+                chart, logger=self.logger, ui_controller=self.ui_controller,
+                action="ConvertSeriesToFitCommand.redo", dialog_title="Convert to Fit Error",
+                on_disallowed=CommandResult.ABORTED,
+            )
+            if guard is not None:
+                return guard
         return self.execute()
 
     @override

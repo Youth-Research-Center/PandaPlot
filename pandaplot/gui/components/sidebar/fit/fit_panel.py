@@ -27,7 +27,6 @@ from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
-from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import DataSeries, resolve_series_column
@@ -501,7 +500,7 @@ class FitPanel(SidebarPanel):
             self.series_combo.itemData(row) for row in range(self.series_combo.count())
             if isinstance(self.series_combo.itemData(row), DataSeries)
         ]
-        chart_series = [s for s in self.current_chart.data_series if s.series_type != SeriesType.FIT]
+        chart_series = [s for s in self.current_chart.data_series if not s.is_fit]
         return len(combo_series) != len(chart_series) or any(
             combo is not current for combo, current in zip(combo_series, chart_series, strict=True)
         )
@@ -774,7 +773,7 @@ class FitPanel(SidebarPanel):
     def _chart_allows_fit(self) -> bool:
         """Whether the current chart's type lets a fit be applied to it
         (ChartTypeSpec.allows_fit -- False for 3-D, Colormap and Heatmap)."""
-        return self.current_chart is not None and CHART_TYPE_SPECS[self.current_chart.chart_type].allows_fit
+        return self.current_chart is not None and self.current_chart.allows_fit
 
     def _update_apply_enabled(self) -> None:
         """Enable Apply only when there's a fit result to apply, the current
@@ -808,7 +807,7 @@ class FitPanel(SidebarPanel):
             return
 
         for series in chart.data_series:
-            if series.series_type == SeriesType.FIT:
+            if series.is_fit:
                 # A fit isn't a valid source for a new fit (#304): its
                 # dataset_id/x_column/y_column mean "source columns the
                 # fit was computed from", not a live column to re-read --

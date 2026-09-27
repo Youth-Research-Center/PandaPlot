@@ -141,7 +141,7 @@ class StyleTab(QWidget):
         self._chart = None
         self._updating_controls = False
         # (kind, obj) where kind is "chart", "axes", or "series" -- a FIT-
-        # type series (obj.series_type == SeriesType.FIT) is a "series" too.
+        # type series (obj.is_fit) is a "series" too.
         self._current_target = ("chart", None)
         # Whether `set_series_list` has ever run a real population (i.e. the
         # Data tab has emitted `seriesListChanged` at least once for an
@@ -977,11 +977,11 @@ class StyleTab(QWidget):
         # line_style/line_width controls have no effect for those types,
         # matching pre-Phase-2 behavior exactly.
         self.line_card.setVisible(
-            kind == "series" and (obj.series_type == SeriesType.FIT or color_supported)
+            kind == "series" and (obj.is_fit or color_supported)
         )
         self.band_card.setVisible(
             kind == "series"
-            and obj.series_type == SeriesType.FIT
+            and obj.is_fit
             and obj.style.confidence_lower is not None
         )
         self.fill_card.setVisible(kind == "series" and fill_supported)
@@ -1374,7 +1374,7 @@ class StyleTab(QWidget):
         previous_value = self.style_series_chips.currentValue()
         chip_items = [("Chart", "chart"), ("Axes", "axes")]
         for index, series in enumerate(data_series):
-            if series.series_type == SeriesType.FIT:
+            if series.is_fit:
                 label = f"\U0001f527 {series.label}"
             else:
                 label = series.label or f"{series.dataset_id}:{self._series_y_name(series)}"
@@ -1422,7 +1422,7 @@ class StyleTab(QWidget):
         self._updating_controls = True
         try:
             if kind == "series":
-                if obj.series_type == SeriesType.FIT:
+                if obj.is_fit:
                     self.load_fit_style(obj)
                 else:
                     self.load_series_style(obj)
@@ -1748,7 +1748,7 @@ class StyleTab(QWidget):
             return
         kind, obj = self._current_target
         if kind == "series":
-            if obj.series_type == SeriesType.FIT:
+            if obj.is_fit:
                 self.apply_fit_style_to(obj)
             else:
                 self.apply_series_style_to(obj)

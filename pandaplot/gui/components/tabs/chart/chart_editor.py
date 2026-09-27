@@ -371,7 +371,7 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
         return SeriesData(series.precomputed_x_data, series.precomputed_y_data,
                            None, None, None, None, None)
 
-    if series.series_type == SeriesType.FIT:
+    if series.is_fit:
         # A fit only ever plots its stored curve; without one (e.g. a legacy
         # fit_data entry that had no x_data/y_data) it must not fall through
         # to the live-dataset path below, which would hand the renderer
@@ -1494,7 +1494,7 @@ class ChartEditorWidget(PWidget):
         artist = getattr(event, "artist", None)
         if artist in self._artist_series_map:
             series_index = self._artist_series_map[artist]
-            kind = "fit" if self.chart.data_series[series_index].series_type == SeriesType.FIT else "series"
+            kind = "fit" if self.chart.data_series[series_index].is_fit else "series"
             self.publish_event(
                 ChartEvents.SERIES_SELECTED,
                 {

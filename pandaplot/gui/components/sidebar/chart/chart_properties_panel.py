@@ -18,7 +18,6 @@ from pandaplot.gui.components.sidebar.chart.tabs.data_tab import DataTab
 from pandaplot.gui.components.sidebar.chart.tabs.legend_tab import LegendTab
 from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
-from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items.chart import restore_chart_state, snapshot_chart_state
 from pandaplot.models.project.items.dataset import Dataset
@@ -519,7 +518,7 @@ class ChartPropertiesPanel(SidebarPanel):
         current_row = self.data_tab.selected_index
         if 0 <= current_row < len(chart.data_series):
             series = chart.data_series[current_row]
-            if series.series_type == SeriesType.FIT:
+            if series.is_fit:
                 self.style_tab.apply_fit_style_to(series)
 
                 self.logger.debug(

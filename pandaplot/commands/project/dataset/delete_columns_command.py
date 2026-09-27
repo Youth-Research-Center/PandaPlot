@@ -6,7 +6,6 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
-from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project.items import Chart
@@ -333,7 +332,7 @@ class DeleteColumnsCommand(Command):
             # fit_idx below.
             series_idx = [
                 i for i, series in enumerate(item.data_series)
-                if series.series_type != SeriesType.FIT
+                if not series.is_fit
                 and series.dataset_id == self.dataset_id
                 and (refs(series.x_column_id, series.x_column)
                      or refs(series.y_column_id, series.y_column)
@@ -343,21 +342,21 @@ class DeleteColumnsCommand(Command):
             ]
             error_only_idx = [
                 i for i, series in enumerate(item.data_series)
-                if series.series_type != SeriesType.FIT
+                if not series.is_fit
                 and i not in series_idx and series.dataset_id == self.dataset_id
                 and any(refs(getattr(container, id_field), getattr(container, name_field))
                         for container, id_field, name_field in _error_field_targets(series))
             ]
             fit_idx = [
                 i for i, fit in enumerate(item.data_series)
-                if fit.series_type == SeriesType.FIT
+                if fit.is_fit
                 and fit.dataset_id == self.dataset_id
                 and (refs(fit.x_column_id, fit.x_column)
                      or refs(fit.y_column_id, fit.y_column))
             ]
             confidence_only_idx = [
                 i for i, fit in enumerate(item.data_series)
-                if fit.series_type == SeriesType.FIT
+                if fit.is_fit
                 and i not in fit_idx and fit.dataset_id == self.dataset_id
                 and any(refs(getattr(container, id_field), "")
                         for container, id_field in _confidence_field_targets(fit))

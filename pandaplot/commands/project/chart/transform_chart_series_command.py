@@ -188,7 +188,7 @@ class TransformChartSeriesCommand(Command):
         """
         if not (0 <= self.source_index < len(chart.data_series)):
             raise ValueError("Selected series no longer exists.")
-        if chart.data_series[self.source_index].series_type != SeriesType.FIT:
+        if not chart.data_series[self.source_index].is_fit:
             return chart.data_series[self.source_index].series_type
         allowed = CHART_TYPE_SPECS[chart.chart_type].allowed_series_types
         for candidate in SeriesType:
@@ -232,7 +232,7 @@ class TransformChartSeriesCommand(Command):
             # -- see run_transform()'s two branches.
             x_column, y_column = results_df.columns[0], results_df.columns[1]
             style_kwargs: dict = {"series_type": result_series_type}
-            if chart.data_series[self.source_index].series_type != SeriesType.FIT:
+            if not chart.data_series[self.source_index].is_fit:
                 # Copy the source series' look (style, opacity, y-axis) so
                 # the transformed series doesn't revert to the chart's
                 # default styling or silently jump back to the primary axis.

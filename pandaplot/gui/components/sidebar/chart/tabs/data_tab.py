@@ -469,7 +469,7 @@ class DataTab(QWidget):
         """Card/row title for `series`: a FIT entry shows its label behind a
         wrench marker, every other type its label (or dataset:Y column when
         unlabeled)."""
-        if series.series_type == SeriesType.FIT:
+        if series.is_fit:
             return f"\U0001f527 {series.label}"
         return series.label or (
             f"{series.dataset_id}:{self._column_display_name(series.dataset_id, series.y_column_id, series.y_column)}"
@@ -517,7 +517,7 @@ class DataTab(QWidget):
         outer.addLayout(header)
 
         fields = [("Dataset:", self._dataset_display_name(series.dataset_id))]
-        if series.series_type == SeriesType.FIT:
+        if series.is_fit:
             fields.append(("Fit Type:", series.style.fit_type))
         fields += [
             ("X Column:", self._column_display_name(series.dataset_id, series.x_column_id, series.x_column)),
@@ -751,7 +751,7 @@ class DataTab(QWidget):
             return
 
         series = self.current_chart.data_series[current_row]
-        is_fit = series.series_type == SeriesType.FIT
+        is_fit = series.is_fit
         if is_fit and not series.style.is_manual:
             # Auto-applied fits (from the Fit panel): source dataset/columns
             # are frozen at fit time -- nothing here applies to them.
@@ -939,7 +939,7 @@ class DataTab(QWidget):
         if current_row < 0 or current_row >= len(self.current_chart.data_series):
             return
         fit = self.current_chart.data_series[current_row]
-        if fit.series_type != SeriesType.FIT or not fit.style.is_manual:
+        if not fit.is_fit or not fit.style.is_manual:
             return
         self._apply_manual_fit_edits(fit)
         self.dirtyOnly.emit()
@@ -973,7 +973,7 @@ class DataTab(QWidget):
         if new_type is None:
             return
         series = self.current_chart.data_series[current_row]
-        if series.series_type == SeriesType.FIT:
+        if series.is_fit:
             # The combo is disabled for a fit (see _load_fit_into_controls), so
             # this is only reachable programmatically. A fit is never retyped
             # (Chart.retype_series is a no-op for FIT) or re-converted -- just
@@ -981,7 +981,7 @@ class DataTab(QWidget):
             self._load_entry_into_controls(series)
             return
         if new_type == _CONVERT_TO_FIT:
-            if not CHART_TYPE_SPECS[self.current_chart.chart_type].allows_fit:
+            if not self.current_chart.allows_fit:
                 self._load_entry_into_controls(series)
                 return
             self._convert_selected_series_to_fit(current_row)
@@ -1175,7 +1175,7 @@ class DataTab(QWidget):
         type: a FIT series locks the fields a fit has no use for (see
         _load_fit_into_controls); every other type goes through the regular
         series path."""
-        if series.series_type == SeriesType.FIT:
+        if series.is_fit:
             self._load_fit_into_controls(series)
         else:
             self._load_series_into_controls(series)

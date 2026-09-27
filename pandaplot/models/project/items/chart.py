@@ -106,6 +106,13 @@ class DataSeries:
         error_bars = getattr(self.style, "error_bars", None)
         return error_bars is not None and error_bars.has_error_data
 
+    @property
+    def is_fit(self) -> bool:
+        """Whether this series is a SeriesType.FIT snapshot rather than a
+        live-column series. Single source of truth for the `series_type ==
+        SeriesType.FIT` check scattered across commands/GUI code."""
+        return self.series_type == SeriesType.FIT
+
 
 def _series_style_from_dict(series_type: SeriesType, style_dict: dict[str, Any]) -> SeriesStyleBase:
     """Reconstruct a series' ``style`` from its serialized dict.
@@ -203,7 +210,7 @@ class Chart(Item):
         new_type = SeriesType(series_type)
         if series.series_type == new_type:
             return
-        if series.series_type == SeriesType.FIT or new_type == SeriesType.FIT:
+        if series.is_fit or new_type == SeriesType.FIT:
             return
         old_style = series.style
         base_color = (
@@ -278,7 +285,7 @@ class Chart(Item):
         self.chart_type = new_type
         spec = CHART_TYPE_SPECS[new_type]
         for index, series in enumerate(self.data_series):
-            if series.series_type == SeriesType.FIT:
+            if series.is_fit:
                 continue
             if series.series_type not in spec.allowed_series_types:
                 self.retype_series(index, spec.default_series_type)
@@ -422,7 +429,7 @@ class Chart(Item):
         actually gets dropped here, nothing about this chart changed."""
         kept = [
             index for index, series in enumerate(self.data_series)
-            if series.series_type == SeriesType.FIT or series.dataset_id not in removed_ids
+            if series.is_fit or series.dataset_id not in removed_ids
         ]
         if len(kept) == len(self.data_series):
             return None
@@ -460,14 +467,14 @@ class Chart(Item):
             ValueError: if this chart's type doesn't allow fits
                 (``ChartTypeSpec.allows_fit`` is False).
         """
-        spec = CHART_TYPE_SPECS[self.chart_type]
-        if not spec.allows_fit:
+        if not self.allows_fit:
             # A fit's renderer draws a 2-D curve (and band) on a plain Axes;
             # a 3-D chart's mplot3d axes reject the band call outright, and
             # Colormap/Heatmap don't take fits by design. An existing fit may
             # still *stay* on such a chart after a chart-type switch (see
             # Chart.set_chart_type) -- it just can't be created there.
-            raise ValueError(f"Fits aren't available on {spec.display_name} charts.")
+            display_name = CHART_TYPE_SPECS[self.chart_type].display_name
+            raise ValueError(f"Fits aren't available on {display_name} charts.")
         return self.add_data_series(
             dataset_id=source_dataset_id,
             x_column_id=source_x_column_id, y_column_id=source_y_column_id,
@@ -484,8 +491,19 @@ class Chart(Item):
         Not permanent API surface -- a convenience for call sites that only
         need "the fits", kept in sync automatically since it's just a
         filter over data_series (the single source of truth post-#304).
+        Not currently used on any render/per-series-loop path -- avoid
+        calling this from inside a loop over data_series, since each access
+        re-filters the whole list.
         """
-        return [s for s in self.data_series if s.series_type == SeriesType.FIT]
+        return [s for s in self.data_series if s.is_fit]
+
+    @property
+    def allows_fit(self) -> bool:
+        """Whether this chart's current chart_type permits creating a new
+        FIT series (``ChartTypeSpec.allows_fit``). An existing fit may
+        still *stay* on a chart type for which this is False (see
+        set_chart_type's docstring) -- this only governs creation."""
+        return CHART_TYPE_SPECS[self.chart_type].allows_fit
 
     def update_config(self, config_updates: dict[str, Any]) -> None:
         """Update chart configuration."""

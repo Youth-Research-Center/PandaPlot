@@ -10,7 +10,6 @@ vector/colormap/heatmap/3-D) -- and want the same combo item shape.
 from PySide6.QtWidgets import QComboBox
 
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec, quick_plot_compatible
-from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.project import Project
@@ -31,7 +30,7 @@ def populate_series_fit_sources(combo: QComboBox, chart: Chart | None) -> tuple[
     any_series_excluded = False
     if chart is not None:
         for i, series in enumerate(chart.data_series):
-            if series.series_type == SeriesType.FIT:
+            if series.is_fit:
                 # Listed by the fit pass below instead -- not "excluded".
                 continue
             if not SERIES_TYPE_SPECS[series.series_type].supports_curve_analysis:
@@ -41,7 +40,7 @@ def populate_series_fit_sources(combo: QComboBox, chart: Chart | None) -> tuple[
             combo.addItem(f"📈 {label}", i)
         fit_number = 0
         for i, series in enumerate(chart.data_series):
-            if series.series_type != SeriesType.FIT:
+            if not series.is_fit:
                 continue
             fit_number += 1
             label = series.label or f"Fit {fit_number}"

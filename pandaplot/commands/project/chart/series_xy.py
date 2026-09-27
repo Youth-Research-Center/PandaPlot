@@ -11,7 +11,6 @@ import uuid
 import numpy as np
 import pandas as pd
 
-from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Dataset
@@ -48,7 +47,7 @@ def resolve_series_xy(
         raise ValueError("Selected series no longer exists.")
     series = chart.data_series[source_index]
 
-    if series.series_type == SeriesType.FIT:
+    if series.is_fit:
         dataset = app_state.current_project.find_item(series.dataset_id)
         if not isinstance(dataset, Dataset):
             dataset = None
