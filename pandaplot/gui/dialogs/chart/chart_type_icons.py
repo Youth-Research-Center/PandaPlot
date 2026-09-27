@@ -158,6 +158,17 @@ def _paint_bar3d(painter: QPainter, size: int):
                          QPointF(x + depth, base - height - depth))
 
 
+def _paint_vector3d(painter: QPainter, size: int):
+    """A single arrow inside the 3-D axes corner -- one arrowhead reads
+    clearly at icon size, unlike the two overlapping ones _paint_vector
+    uses for its flat 2-D field."""
+    _paint_axes3d(painter, size)
+    start, end, wings = _vector_arrow_geometry(size)[1]
+    painter.drawLine(start, end)
+    for head_point in wings:
+        painter.drawLine(end, head_point)
+
+
 def _paint_trisurf(painter: QPainter, size: int):
     """The same sheet as the surface icon, split into triangles -- the
     triangulation is the whole distinction between the two types."""
@@ -182,6 +193,7 @@ _PAINTERS = {
     "wireframe": _paint_wireframe,
     "bar3d": _paint_bar3d,
     "trisurf": _paint_trisurf,
+    "vector3d": _paint_vector3d,
 }
 
 
