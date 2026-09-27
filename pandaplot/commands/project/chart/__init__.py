@@ -7,7 +7,6 @@ from .convert_series_to_fit_command import ConvertSeriesToFitCommand
 from .create_chart_command import CreateChartCommand
 from .create_chart_from_wizard_command import CreateChartFromWizardCommand
 from .create_chart_with_analysis_series_command import CreateChartWithAnalysisSeriesCommand
-from .remove_fit_data_command import RemoveFitDataCommand
 from .remove_series_command import RemoveSeriesCommand
 from .reorder_series_command import ReorderSeriesCommand
 
@@ -19,7 +18,6 @@ __all__ = [
     "CreateChartCommand",
     "CreateChartFromWizardCommand",
     "CreateChartWithAnalysisSeriesCommand",
-    "RemoveFitDataCommand",
     "RemoveSeriesCommand",
     "ReorderSeriesCommand",
 ]

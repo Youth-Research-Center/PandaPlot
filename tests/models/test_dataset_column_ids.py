@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.project import Project
 from pandaplot.models.project.items.chart import (
     Chart,
@@ -123,15 +124,16 @@ def test_add_fit_data_stores_column_ids():
     ds = Dataset(name="ds", data=pd.DataFrame({"a": [1], "b": [2]}))
     chart = Chart(name="c")
 
-    fit = chart.add_fit_data(
-        ds.id, "Linear", np.array([1.0]), np.array([2.0]),
+    fit = chart.add_fit_series(
+        ds.id, np.array([1.0]), np.array([2.0]),
+        "Linear", FitStyle(fit_type="Linear"),
         source_x_column_id=ds.column_id("a"),
         source_y_column_id=ds.column_id("b"),
     )
 
-    assert fit.source_dataset_id == ds.id
-    assert fit.source_x_column_id == ds.column_id("a")
-    assert fit.source_y_column_id == ds.column_id("b")
+    assert fit.dataset_id == ds.id
+    assert fit.x_column_id == ds.column_id("a")
+    assert fit.y_column_id == ds.column_id("b")
 
 
 def test_search_chart_resolves_column_ids_via_project():

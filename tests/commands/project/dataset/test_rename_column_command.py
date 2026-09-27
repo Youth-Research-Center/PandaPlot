@@ -16,6 +16,7 @@ import pytest
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project import Project
@@ -37,9 +38,10 @@ def env():
                           y_column_id=dataset.column_id("b"), label="s1")
     chart.add_data_series(other.id, x_column_id=other.column_id("a"),  # other dataset: must not change
                           y_column_id=other.column_id("a"), label="s2")
-    chart.add_fit_data(dataset.id, "Linear", np.array([1.0]), np.array([2.0]),
-                       source_x_column_id=dataset.column_id("a"),
-                       source_y_column_id=dataset.column_id("b"))
+    chart.add_fit_series(dataset.id, np.array([1.0]), np.array([2.0]),
+                         "Linear", FitStyle(fit_type="Linear"),
+                         source_x_column_id=dataset.column_id("a"),
+                         source_y_column_id=dataset.column_id("b"))
     project.add_item(chart)
 
     untouched_chart = Chart(name="c2")
@@ -77,7 +79,7 @@ def test_rename_updates_dataframe_and_series_resolve_via_id(env):
     assert s1.x_column == ""  # new series hold no name; id is authoritative
     assert resolve_series_column(dataset, s1.x_column_id, s1.x_column) == "time"
     assert resolve_series_column(dataset, s1.y_column_id, s1.y_column) == "b"
-    assert resolve_series_column(dataset, fit.source_x_column_id, fit.source_x_column) == "time"
+    assert resolve_series_column(dataset, fit.x_column_id, fit.x_column) == "time"
     # same column name in another dataset: resolves to its own unchanged column
     assert resolve_series_column(other, chart.data_series[1].x_column_id,
                                  chart.data_series[1].x_column) == "a"
@@ -94,7 +96,7 @@ def test_undo_and_redo_round_trip(env):
     command.undo()
     assert list(dataset.data.columns) == ["a", "b"]
     assert resolve_series_column(dataset, s1.x_column_id, s1.x_column) == "a"
-    assert resolve_series_column(dataset, fit.source_x_column_id, fit.source_x_column) == "a"
+    assert resolve_series_column(dataset, fit.x_column_id, fit.x_column) == "a"
 
     command.redo()
     assert list(dataset.data.columns) == ["time", "b"]

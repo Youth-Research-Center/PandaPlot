@@ -175,20 +175,12 @@ class RenameColumnCommand(Command):
                 return True
             return current_name in name_fields or self.old_name in name_fields
 
-        def fit_refs(fit) -> bool:
-            if column_id and column_id in (fit.source_x_column_id, fit.source_y_column_id):
-                return True
-            names = (fit.source_x_column, fit.source_y_column)
-            return current_name in names or self.old_name in names
-
         affected: list[Chart] = []
         for item in project.get_all_items():
             if not isinstance(item, Chart):
                 continue
             uses = any(s.dataset_id == self.dataset_id and series_refs(s)
                        for s in item.data_series)
-            uses = uses or any(f.source_dataset_id == self.dataset_id and fit_refs(f)
-                               for f in item.fit_data)
             if uses:
                 affected.append(item)
         return affected

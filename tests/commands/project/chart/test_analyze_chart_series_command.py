@@ -11,6 +11,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
 )
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items.chart import Chart
@@ -34,8 +35,9 @@ def ctx():
     y_id = dataset.column_id("sq")
     chart.add_data_series(dataset_id="ds-1", x_column_id=x_id, y_column_id=y_id,
                           x_column="t", y_column="sq", label="Squared")
-    chart.add_fit_data(source_dataset_id="ds-1", fit_type="quadratic",
-                       x_data=t, y_data=t ** 2, label="Quadratic Fit", source_x_column="t")
+    chart.add_fit_series(source_dataset_id="ds-1", x_data=t, y_data=t ** 2,
+                         label="Quadratic Fit", source_x_column="t",
+                         style=FitStyle(fit_type="quadratic"))
     project.add_item(chart)
 
     app_context = Mock(spec=AppContext)
@@ -49,7 +51,6 @@ def ctx():
 
 def _cmd(ctx, **kw):
     app_context, _ = ctx
-    kw.setdefault("source_kind", "series")
     kw.setdefault("source_index", 0)
     kw.setdefault("analysis_type", AnalysisType.DERIVATIVE)
     return AnalyzeChartSeriesCommand(app_context, "chart-1", **kw)
@@ -58,7 +59,7 @@ def _cmd(ctx, **kw):
 class TestAnalyzeChartSeriesCommand:
     def test_derivative_on_data_series(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="series", analysis_type=AnalysisType.DERIVATIVE)
+        command = _cmd(ctx, analysis_type=AnalysisType.DERIVATIVE)
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
         assert "t" in result.data.columns
@@ -69,14 +70,14 @@ class TestAnalyzeChartSeriesCommand:
 
     def test_integral_on_fit_series(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="fit", analysis_type=AnalysisType.INTEGRAL)
+        command = _cmd(ctx, source_index=1, analysis_type=AnalysisType.INTEGRAL)
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
         int_col = next(c for c in result.data.columns if c != "t")
         assert result.data[int_col].iloc[-1] == pytest.approx(1000 / 3, rel=1e-3)
 
     def test_cleanup_clears_the_resolved_xy_cache(self, ctx):
-        command = _cmd(ctx, source_kind="series", analysis_type=AnalysisType.DERIVATIVE)
+        command = _cmd(ctx, analysis_type=AnalysisType.DERIVATIVE)
         command.source_length()  # populates _resolved_xy_cache
         assert command._resolved_xy_cache is not None
 
@@ -86,7 +87,7 @@ class TestAnalyzeChartSeriesCommand:
 
     def test_arc_length_on_fit_series(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="fit", analysis_type=AnalysisType.ARC_LENGTH)
+        command = _cmd(ctx, source_index=1, analysis_type=AnalysisType.ARC_LENGTH)
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
         arc_col = next(c for c in result.data.columns if c != "t")
@@ -95,7 +96,7 @@ class TestAnalyzeChartSeriesCommand:
 
     def test_segment_restricts_range(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="series", analysis_type=AnalysisType.INTEGRAL,
+        command = _cmd(ctx, analysis_type=AnalysisType.INTEGRAL,
                        parameters={"start_index": 0, "end_index": 51})
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
@@ -104,14 +105,14 @@ class TestAnalyzeChartSeriesCommand:
 
     def test_smoothing_runs(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="series", analysis_type=AnalysisType.SMOOTHING,
+        command = _cmd(ctx, analysis_type=AnalysisType.SMOOTHING,
                        parameters={"method": "rolling_mean", "window": 5})
         assert command.execute() is CommandResult.SUCCESS
         assert project.find_item(command.result_dataset_id) is not None
 
     def test_interpolation_resamples(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="series", analysis_type=AnalysisType.INTERPOLATION,
+        command = _cmd(ctx, analysis_type=AnalysisType.INTERPOLATION,
                        parameters={"method": "linear", "num_points": 250})
         assert command.execute() is CommandResult.SUCCESS
         result = project.find_item(command.result_dataset_id)
@@ -183,7 +184,7 @@ class TestAnalyzeChartSeriesCommand:
 
     def test_invalid_source_index_fails(self, ctx):
         app_context, _ = ctx
-        command = _cmd(ctx, source_kind="fit", source_index=9)
+        command = _cmd(ctx, source_index=9)
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
@@ -195,7 +196,7 @@ class TestAnalyzeChartSeriesCommand:
         app_context, project = ctx
         chart = project.find_item("chart-1")
         chart.data_series[0].series_type = SeriesType.BAR
-        command = _cmd(ctx, source_kind="series", source_index=0)
+        command = _cmd(ctx, source_index=0)
 
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
@@ -215,7 +216,7 @@ class TestAnalyzeChartSeriesCommand:
         dataset = project.find_item("ds-1")
         # Two of 101 rows become unanalyzable once a y value goes missing.
         dataset.data.loc[3, "sq"] = np.nan
-        command = _cmd(ctx, source_kind="series")
+        command = _cmd(ctx)
         assert command.source_length() == len(dataset.data) - 1
 
     def test_fit_source_dataset_of_wrong_type_does_not_raise(self, ctx):
@@ -224,19 +225,19 @@ class TestAnalyzeChartSeriesCommand:
         # Point the fit at a non-Dataset item id (the chart itself) to
         # simulate a stale/mistyped reference.
         chart.fit_data[0].source_dataset_id = "chart-1"
-        command = _cmd(ctx, source_kind="fit", analysis_type=AnalysisType.INTEGRAL)
+        command = _cmd(ctx, source_index=1, analysis_type=AnalysisType.INTEGRAL)
         assert command.execute() is CommandResult.SUCCESS
 
     def test_resolve_point_returns_xy_at_index(self, ctx):
-        command = _cmd(ctx, source_kind="series")
+        command = _cmd(ctx)
         point = command.resolve_point(10)
         assert point == pytest.approx((1.0, 1.0))
 
     def test_resolve_point_out_of_range_returns_none(self, ctx):
-        command = _cmd(ctx, source_kind="series")
+        command = _cmd(ctx)
         assert command.resolve_point(101) is None
         assert command.resolve_point(-1) is None
 
     def test_resolve_point_invalid_source_returns_none(self, ctx):
-        command = _cmd(ctx, source_kind="fit", source_index=9)
+        command = _cmd(ctx, source_index=9)
         assert command.resolve_point(0) is None

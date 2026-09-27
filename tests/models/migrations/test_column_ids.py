@@ -10,8 +10,9 @@ rather than a per-item dict migration.
 """
 import pandas as pd
 
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.migrations.cross_item.column_ids import migrate_column_ids
-from pandaplot.models.project.items.chart import Chart, DataSeries, FitData
+from pandaplot.models.project.items.chart import Chart, DataSeries
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 
@@ -53,22 +54,22 @@ def test_backfills_fit_column_ids_from_names():
     project.add_item(dataset)
 
     chart = Chart(id="chart-1", name="Chart", chart_type="line")
-    chart.fit_data.append(FitData(
+    chart.add_fit_series(
         source_dataset_id="ds-1",
-        fit_type="linear",
         x_data=pd.Series([1, 2]).to_numpy(),
         y_data=pd.Series([3, 4]).to_numpy(),
         label="fit",
+        style=FitStyle(fit_type="linear"),
         source_x_column="x",
         source_y_column="y",
-    ))
+    )
     project.add_item(chart)
 
     migrate_column_ids(project)
 
     fit = chart.fit_data[0]
-    assert fit.source_x_column_id == dataset.column_id("x")
-    assert fit.source_y_column_id == dataset.column_id("y")
+    assert fit.x_column_id == dataset.column_id("x")
+    assert fit.y_column_id == dataset.column_id("y")
 
 
 def test_ignores_non_chart_items():

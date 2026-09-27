@@ -113,3 +113,16 @@ def test_style_cls_matches_each_series_type():
     assert SERIES_TYPE_SPECS[SeriesType.BAR].style_cls is BarSeriesStyle
     assert SERIES_TYPE_SPECS[SeriesType.HIST].style_cls is HistSeriesStyle
     assert SERIES_TYPE_SPECS[SeriesType.VECTOR].style_cls is VectorSeriesStyle
+
+
+def test_fit_series_type_spec_exists():
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+
+    spec = SERIES_TYPE_SPECS[SeriesType.FIT]
+    assert spec.style_cls is FitStyle
+    assert spec.marker_mode == "unsupported"
+    assert spec.supports_curve_analysis is False
+    assert spec.supports_value_labels is False
+    assert spec.supports_error_bars is False

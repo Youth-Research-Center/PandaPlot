@@ -115,7 +115,9 @@ class ChartTab(QWidget):
         series_types = {s.series_type for s in self._chart.data_series} if self._chart else set()
         if not series_types:
             series_types = {CHART_TYPE_SPECS[current_type].default_series_type}
-        compatible = compatible_chart_types_for_series(series_types)
+        # FIT series are handled inside compatible_chart_types_for_series
+        # (they never block a 2-D switch, but rule out 3-D targets).
+        compatible = compatible_chart_types_for_series(frozenset(series_types))
         model = self.chart_type_control.model()
         for index in range(self.chart_type_control.count()):
             target_type = self.chart_type_control.itemData(index)
