@@ -158,3 +158,112 @@ def test_a_3d_series_config_card_requires_all_three_columns():
 
     assert card.is_complete() is True
     assert card.get_series_config()["z_column_id"] == "col-z"
+
+
+# -- Vector3D (#175) ---------------------------------------------------------
+# Not folded into _3D_CHART_TYPES above: every other 3-D type only needs
+# X/Y/Z, but Vector3D also needs U/V/W, so its preview/config-card coverage
+# uses its own dataset/config rather than retrofitting the shared ones.
+
+def _project_with_vector3d_lattice():
+    project = Project(name="Vector3D Preview Project")
+    side = 4
+    x = [float(i) for i in range(side) for _ in range(side)]
+    y = [float(j) for _ in range(side) for j in range(side)]
+    df = pd.DataFrame({
+        "x": x, "y": y, "z": [a + b for a, b in zip(x, y, strict=True)],
+        "u": [0.3] * len(x), "v": [0.3] * len(x), "w": [0.3] * len(x),
+    })
+    dataset = Dataset(name="ds1", data=df)
+    project.add_item(dataset)
+    return project, dataset
+
+
+def test_a_configured_vector3d_series_renders_real_data_in_the_labels_preview():
+    canvas = _canvas()
+    project, dataset = _project_with_vector3d_lattice()
+    series_configs = [{
+        "dataset_id": dataset.id,
+        "x_column_id": dataset.column_id("x"),
+        "y_column_id": dataset.column_id("y"),
+        "z_column_id": dataset.column_id("z"),
+        "u_column_id": dataset.column_id("u"),
+        "v_column_id": dataset.column_id("v"),
+        "w_column_id": dataset.column_id("w"),
+    }]
+
+    render_wizard_preview(canvas, project, "vector3d", series_configs,
+                           "Title", "", "X", "Y", show_legend=True, show_grid=True)
+
+    assert canvas.is_3d is True
+    assert bool(canvas.axes.collections)
+
+
+def test_a_vector3d_series_missing_its_w_column_falls_back_to_the_sample():
+    canvas = _canvas()
+    project, dataset = _project_with_vector3d_lattice()
+    series_configs = [{
+        "dataset_id": dataset.id,
+        "x_column_id": dataset.column_id("x"),
+        "y_column_id": dataset.column_id("y"),
+        "z_column_id": dataset.column_id("z"),
+        "u_column_id": dataset.column_id("u"),
+        "v_column_id": dataset.column_id("v"),
+        "w_column_id": "",
+    }]
+
+    render_wizard_preview(canvas, project, "vector3d", series_configs,
+                           "Title", "", "X", "Y", show_legend=True, show_grid=True)
+
+    assert canvas.is_3d is True
+    assert bool(canvas.axes.collections)
+
+
+def test_the_type_step_previews_vector3d():
+    app_context = build_app_context()
+    page = ChartTypePage(app_context=app_context)
+
+    row = next(
+        row for row in range(page.type_list.count())
+        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == ChartType.VECTOR3D
+    )
+    page.type_list.setCurrentRow(row)
+
+    assert page._preview_canvas.is_3d is True
+
+
+def test_a_vector3d_series_config_card_asks_for_x_y_z_u_v_w():
+    card = SeriesConfigCard(CHART_TYPE_SPECS[ChartType.VECTOR3D])
+
+    assert card.x_column_combo is not None
+    assert card.y_column_combo is not None
+    assert card.z_column_combo is not None
+    assert card.u_column_combo is not None
+    assert card.v_column_combo is not None
+    assert card.w_column_combo is not None
+    # mplot3d has no errorbar(), so the card must not offer error bars.
+    assert card.error_bars_check is None
+
+
+def test_a_vector3d_series_config_card_requires_all_six_columns():
+    card = SeriesConfigCard(CHART_TYPE_SPECS[ChartType.VECTOR3D])
+    card.set_datasets([("ds-1", "ds1")])
+    card.set_dataset_columns("ds-1", [
+        ("col-x", "x"), ("col-y", "y"), ("col-z", "z"),
+        ("col-u", "u"), ("col-v", "v"), ("col-w", "w"),
+    ])
+
+    assert card.is_complete() is False
+
+    for role, column_id in (
+        ("x", "col-x"), ("y", "col-y"), ("z", "col-z"),
+        ("u", "col-u"), ("v", "col-v"),
+    ):
+        card.apply_picked_columns(role, [column_id])
+
+    assert card.is_complete() is False  # W still missing
+
+    card.apply_picked_columns("w", ["col-w"])
+
+    assert card.is_complete() is True
+    assert card.get_series_config()["w_column_id"] == "col-w"
