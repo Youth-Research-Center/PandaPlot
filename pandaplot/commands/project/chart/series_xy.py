@@ -48,6 +48,13 @@ def resolve_series_xy(
     series = chart.data_series[source_index]
 
     if series.is_fit:
+        if series.precomputed_x_data is None or series.precomputed_y_data is None:
+            # Mirrors chart_editor.resolve_series_data's equivalent guard: a
+            # legacy fit migrated from a malformed fit_data entry (missing
+            # x_data/y_data) would otherwise silently pass None into
+            # np.asarray/pd.Series below, producing a bogus 1-element NaN
+            # series instead of a clear error.
+            raise ValueError("Fit has no stored curve data.")
         dataset = app_state.current_project.find_item(series.dataset_id)
         if not isinstance(dataset, Dataset):
             dataset = None
