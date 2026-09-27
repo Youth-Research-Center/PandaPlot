@@ -38,6 +38,7 @@ from pandaplot.models.chart.series_style import (
     ScatterSeriesStyle,
     SurfaceSeriesStyle,
     TrisurfSeriesStyle,
+    Vector3DSeriesStyle,
     VectorSeriesStyle,
     WireframeSeriesStyle,
 )
@@ -717,6 +718,35 @@ class StyleTab(QWidget):
 
         layout.addWidget(vector_card)
 
+        # VECTOR3D group -- Vector3D's own card, not a reuse of Vector's:
+        # Axes3D.quiver takes a completely different keyword set than 2-D
+        # quiver (length/arrow_length_ratio/normalize instead of scale/
+        # width/headwidth/headlength/headaxislength) and has no per-arrow
+        # colormap support (see Vector3DSeriesStyle's docstring), so
+        # Vector's sliders would silently do nothing for a Vector3D series.
+        self.vector3d_card = Card()
+        vector3d_card = self.vector3d_card
+        vector3d_layout = QGridLayout(vector3d_card)
+        vector3d_layout.addWidget(SectionHeader("Vector"), 0, 0, 1, 2)
+
+        vector3d_layout.addWidget(QLabel("Color:"), 1, 0)
+        self.vector3d_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
+        vector3d_layout.addWidget(self.vector3d_color_row, 1, 1)
+
+        vector3d_layout.addWidget(QLabel("Length:"), 2, 0)
+        self.vector3d_length_slider = SliderWithSpinbox(minimum=0.0, maximum=10.0, decimals=2)
+        vector3d_layout.addWidget(self.vector3d_length_slider, 2, 1)
+
+        vector3d_layout.addWidget(QLabel("Arrowhead ratio:"), 3, 0)
+        self.vector3d_arrow_ratio_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
+        vector3d_layout.addWidget(self.vector3d_arrow_ratio_slider, 3, 1)
+
+        vector3d_layout.addWidget(QLabel("Normalize (uniform length):"), 4, 0)
+        self.vector3d_normalize_toggle = ToggleSwitch()
+        vector3d_layout.addWidget(self.vector3d_normalize_toggle, 4, 1)
+
+        layout.addWidget(vector3d_card)
+
         # HEATMAP GRIDDING group -- per-series (SeriesTypeSpec.supports_
         # gridding -- Heatmap only; Colormap, a plain color-mapped scatter,
         # needs no gridding at all). The colormap/colorbar/scale live on
@@ -843,6 +873,10 @@ class StyleTab(QWidget):
         self.vector_head_width_slider.valueChanged.connect(self._on_field_changed)
         self.vector_head_length_slider.valueChanged.connect(self._on_field_changed)
         self.vector_head_axis_length_slider.valueChanged.connect(self._on_field_changed)
+        self.vector3d_color_row.colorChanged.connect(self._on_field_changed)
+        self.vector3d_length_slider.valueChanged.connect(self._on_field_changed)
+        self.vector3d_arrow_ratio_slider.valueChanged.connect(self._on_field_changed)
+        self.vector3d_normalize_toggle.toggled.connect(self._on_field_changed)
         self.heatmap_gridding_control.currentValueChanged.connect(self._on_heatmap_gridding_changed)
         self.heatmap_resolution_spin.valueChanged.connect(self._on_field_changed)
         self.heatmap_render_mode_control.currentValueChanged.connect(self._on_heatmap_render_mode_changed)
@@ -993,7 +1027,12 @@ class StyleTab(QWidget):
         # bars, so per-point annotation doesn't apply the way it does to a
         # data series.
         self.value_labels_card.setVisible(kind == "series" and value_labels_supported)
-        self.vector_card.setVisible(kind == "series" and spec is not None and spec.needs_secondary_columns)
+        # Gated on style_cls identity rather than needs_secondary_columns:
+        # that flag is now also true for Vector3D, which has its own card
+        # (Axes3D.quiver's keyword set has nothing in common with 2-D
+        # quiver's -- see Vector3DSeriesStyle's docstring).
+        self.vector_card.setVisible(kind == "series" and spec is not None and spec.style_cls is VectorSeriesStyle)
+        self.vector3d_card.setVisible(kind == "series" and spec is not None and spec.style_cls is Vector3DSeriesStyle)
         self.heatmap_gridding_card.setVisible(kind == "series" and spec is not None and spec.supports_gridding)
         # Re-evaluate "Match line" visibility: it depends on both kind and
         # chart type (see _is_scatter_series_target), either of which may
@@ -1766,6 +1805,13 @@ class StyleTab(QWidget):
             style.vector_head_axis_length = self.vector_head_axis_length_slider.value()
             return
 
+        if isinstance(style, Vector3DSeriesStyle):
+            style.vector_color = self.vector3d_color_row.currentColor()
+            style.vector_length = self.vector3d_length_slider.value()
+            style.vector_arrow_ratio = self.vector3d_arrow_ratio_slider.value()
+            style.vector_normalize = self.vector3d_normalize_toggle.isChecked()
+            return
+
         # Gridding mode/resolution, for every style class that declares
         # them (Heatmap/Surface/Wireframe -- SeriesTypeSpec.supports_
         # gridding). Written here, before the color branches below, rather
@@ -1936,6 +1982,11 @@ class StyleTab(QWidget):
             self.vector_head_width_slider.setValue(getattr(style, "vector_head_width", 3.0))
             self.vector_head_length_slider.setValue(getattr(style, "vector_head_length", 5.0))
             self.vector_head_axis_length_slider.setValue(getattr(style, "vector_head_axis_length", 4.5))
+
+            self.vector3d_color_row.setCurrentColor(getattr(style, "vector_color", "#1f77b4"))
+            self.vector3d_length_slider.setValue(getattr(style, "vector_length", 1.0))
+            self.vector3d_arrow_ratio_slider.setValue(getattr(style, "vector_arrow_ratio", 0.3))
+            self.vector3d_normalize_toggle.setChecked(checked=getattr(style, "vector_normalize", False))
 
             # Heatmap-only gridding/render fields (colormap/colorbar/scale
             # live on the Axes tab's "Color" chip instead -- see
@@ -2534,6 +2585,11 @@ class StyleTab(QWidget):
         self.vector_head_width_slider.set_tokens(tokens)
         self.vector_head_length_slider.set_tokens(tokens)
         self.vector_head_axis_length_slider.set_tokens(tokens)
+        self.vector3d_card.set_tokens(tokens)
+        self.vector3d_color_row.set_tokens(tokens)
+        self.vector3d_length_slider.set_tokens(tokens)
+        self.vector3d_arrow_ratio_slider.set_tokens(tokens)
+        self.vector3d_normalize_toggle.set_tokens(tokens)
         self.heatmap_gridding_card.set_tokens(tokens)
         self.heatmap_gridding_control.set_tokens(tokens)
         self.heatmap_render_mode_control.set_tokens(tokens)
