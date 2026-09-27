@@ -58,6 +58,13 @@ _SAMPLE_GRID_Z = [
     (x - 2.0) ** 2 - (y - 2.0) ** 2
     for x, y in zip(_SAMPLE_GRID_X, _SAMPLE_GRID_Y, strict=True)
 ]
+# Vector3D needs a Z column (the lattice above) AND U/V/W -- one per
+# lattice point, unlike every other secondary-column type, which pairs
+# U/V with the plain 5-point sample. A simple field radiating outward from
+# the lattice's center reads as arrows rather than noise.
+_SAMPLE_GRID_U = [0.3 * (x - 2.0) for x in _SAMPLE_GRID_X]
+_SAMPLE_GRID_V = [0.3 * (y - 2.0) for y in _SAMPLE_GRID_Y]
+_SAMPLE_GRID_W = [0.3] * len(_SAMPLE_GRID_X)
 
 
 def _preview_extra() -> dict:
@@ -80,18 +87,26 @@ def _preview_extra() -> dict:
 def _sample_series_data(series_type: SeriesType) -> SeriesData:
     """Stand-in data for `series_type`, shaped by what its spec says it
     needs: the lattice for anything needing a Z column (a third axis, or a
-    color ramp), U/V for a vector field, and the plain 5-point sample
-    otherwise."""
+    color ramp), U/V(/W) for a vector field, and the plain 5-point sample
+    otherwise.
+
+    Vector3D needs both at once (a Z column AND U/V/W) -- the only type
+    that does -- so its U/V/W must be the lattice-sized arrays, not the
+    plain 5-point ones every other secondary-column type (just Vector)
+    pairs with."""
     spec = SERIES_TYPE_SPECS[series_type]
+    on_lattice = spec.needs_z_column and spec.needs_secondary_columns
     if spec.needs_z_column:
         x_data, y_data, z_data = _SAMPLE_GRID_X, _SAMPLE_GRID_Y, _SAMPLE_GRID_Z
     else:
         x_data, y_data, z_data = _SAMPLE_X, _SAMPLE_Y, None
+    u_data = (_SAMPLE_GRID_U if on_lattice else _SAMPLE_U) if spec.needs_secondary_columns else None
+    v_data = (_SAMPLE_GRID_V if on_lattice else _SAMPLE_V) if spec.needs_secondary_columns else None
+    w_data = _SAMPLE_GRID_W if (spec.needs_secondary_columns and spec.needs_w_column) else None
     return SeriesData(
         x_data=x_data, y_data=y_data,
         x_err=None, y_err=None, x_err_minus=None, y_err_minus=None, error=None,
-        u_data=_SAMPLE_U if spec.needs_secondary_columns else None,
-        v_data=_SAMPLE_V if spec.needs_secondary_columns else None,
+        u_data=u_data, v_data=v_data, w_data=w_data,
         z_data=z_data,
     )
 
@@ -158,6 +173,7 @@ def render_wizard_preview(
             ),
             u_column_id=config.get("u_column_id", ""),
             v_column_id=config.get("v_column_id", ""),
+            w_column_id=config.get("w_column_id", ""),
             magnitude_column_id=config.get("magnitude_column_id", ""),
             z_column_id=config.get("z_column_id", ""),
         )

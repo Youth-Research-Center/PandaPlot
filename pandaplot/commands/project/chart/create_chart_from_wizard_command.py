@@ -276,6 +276,7 @@ class CreateChartFromWizardCommand(Command):
                         ),
                         u_column_id=series_config.get("u_column_id", ""),
                         v_column_id=series_config.get("v_column_id", ""),
+                        w_column_id=series_config.get("w_column_id", ""),
                         magnitude_column_id=series_config.get("magnitude_column_id", ""),
                         z_column_id=series_config.get("z_column_id", ""),
                     )

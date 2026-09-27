@@ -22,6 +22,7 @@ from pandaplot.gui.components.tabs.chart.series_renderers.scatter3d import rende
 from pandaplot.gui.components.tabs.chart.series_renderers.surface import render_surface_series
 from pandaplot.gui.components.tabs.chart.series_renderers.trisurf import render_trisurf_series
 from pandaplot.gui.components.tabs.chart.series_renderers.vector import render_vector_series
+from pandaplot.gui.components.tabs.chart.series_renderers.vector3d import render_vector3d_series
 from pandaplot.gui.components.tabs.chart.series_renderers.wireframe import render_wireframe_series
 from pandaplot.models.chart.series_type import SeriesType
 
@@ -39,6 +40,7 @@ SERIES_RENDERERS: dict[SeriesType, Callable] = {
     SeriesType.WIREFRAME: render_wireframe_series,
     SeriesType.BAR3D: render_bar3d_series,
     SeriesType.TRISURF: render_trisurf_series,
+    SeriesType.VECTOR3D: render_vector3d_series,
 }
 
 # The render functions whose contract is to return None when they have
@@ -73,6 +75,7 @@ __all__ = [
     "render_scatter_series",
     "render_surface_series",
     "render_trisurf_series",
+    "render_vector3d_series",
     "render_vector_series",
     "render_wireframe_series",
 ]
