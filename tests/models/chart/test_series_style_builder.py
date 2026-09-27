@@ -28,7 +28,7 @@ def test_passing_every_argument_is_safe_for_every_series_type(series_type):
     raise."""
     style = build_series_style(
         series_type, color="#abcdef", error_bars=ErrorBarConfig(y_error_column_id="e"),
-        u_column_id="u", v_column_id="v", magnitude_column_id="m", z_column_id="z",
+        u_column_id="u", v_column_id="v", w_column_id="w", magnitude_column_id="m", z_column_id="z",
     )
 
     assert type(style) is SERIES_TYPE_SPECS[series_type].style_cls
@@ -36,20 +36,35 @@ def test_passing_every_argument_is_safe_for_every_series_type(series_type):
 
 @pytest.mark.parametrize("series_type", list(SeriesType))
 def test_the_column_ids_a_type_needs_always_land_on_its_style(series_type):
+    """magnitude_column_id is only asserted for types that actually declare
+    the field: Vector3D shares needs_secondary_columns with 2-D Vector for
+    U/V, but has no magnitude-driven coloring (see Vector3DSeriesStyle's
+    docstring) -- build_series_style drops it via hasattr rather than
+    crashing or silently stashing an unserialized stray attribute."""
     spec = SERIES_TYPE_SPECS[series_type]
     style = build_series_style(
-        series_type, u_column_id="u", v_column_id="v", magnitude_column_id="m", z_column_id="z")
+        series_type, u_column_id="u", v_column_id="v", w_column_id="w", magnitude_column_id="m", z_column_id="z")
 
     if spec.needs_z_column:
         assert style.z_column_id == "z"
     if spec.needs_secondary_columns:
-        assert (style.u_column_id, style.v_column_id, style.magnitude_column_id) == ("u", "v", "m")
+        assert (style.u_column_id, style.v_column_id) == ("u", "v")
+        if hasattr(style, "magnitude_column_id"):
+            assert style.magnitude_column_id == "m"
+        if spec.needs_w_column:
+            assert style.w_column_id == "w"
 
 
 def test_color_lands_on_vector_color_for_a_vector_series():
     """VectorSeriesStyle has no flat `color` -- its equivalent field is
     named vector_color, and a caller shouldn't have to know that."""
     style = build_series_style(SeriesType.VECTOR, color="#ff0000")
+
+    assert style.vector_color == "#ff0000"
+
+
+def test_color_lands_on_vector_color_for_a_vector3d_series():
+    style = build_series_style(SeriesType.VECTOR3D, color="#ff0000")
 
     assert style.vector_color == "#ff0000"
 

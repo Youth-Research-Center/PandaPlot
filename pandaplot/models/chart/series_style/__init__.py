@@ -17,6 +17,7 @@ from pandaplot.models.chart.series_style.scatter3d import Scatter3DSeriesStyle
 from pandaplot.models.chart.series_style.surface import SurfaceSeriesStyle
 from pandaplot.models.chart.series_style.trisurf import TrisurfSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
+from pandaplot.models.chart.series_style.vector3d import Vector3DSeriesStyle
 from pandaplot.models.chart.series_style.wireframe import WireframeSeriesStyle
 
 __all__ = [
@@ -32,6 +33,7 @@ __all__ = [
     "SeriesStyleBase",
     "SurfaceSeriesStyle",
     "TrisurfSeriesStyle",
+    "Vector3DSeriesStyle",
     "VectorSeriesStyle",
     "WireframeSeriesStyle",
 ]

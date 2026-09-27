@@ -225,7 +225,7 @@ class Chart(Item):
         style_cls = SERIES_TYPE_SPECS[new_type].style_cls
         series.series_type = new_type
         new_style = style_cls()
-        if new_type == SeriesType.VECTOR:
+        if hasattr(new_style, "vector_color"):
             new_style.vector_color = base_color
         elif hasattr(new_style, "color"):
             # ColormapSeriesStyle/HeatmapSeriesStyle have no flat `color`

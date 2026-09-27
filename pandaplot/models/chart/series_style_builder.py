@@ -26,6 +26,7 @@ def build_series_style(
     error_bars: ErrorBarConfig | None = None,
     u_column_id: str = "",
     v_column_id: str = "",
+    w_column_id: str = "",
     magnitude_column_id: str = "",
     z_column_id: str = "",
 ) -> SeriesStyleBase:
@@ -38,11 +39,18 @@ def build_series_style(
     without having to know which of them this type will keep. That's the
     point: the caller collects values, this decides what they mean.
 
-    `color` lands on ``vector_color`` for a Vector series and on ``color``
-    for every type that has one; the color-scaled types (Colormap,
+    `color` lands on ``vector_color`` for a Vector/Vector3D series and on
+    ``color`` for every type that has one; the color-scaled types (Colormap,
     Heatmap, Surface, Trisurf) declare neither and take their color from
     the chart-level color map instead, so it's dropped for them. An empty
     `color` never overwrites the style class's own default.
+
+    `magnitude_column_id` and `w_column_id` are set only for style classes
+    that actually declare those fields (checked via ``hasattr`` rather than
+    a spec flag) -- Vector3D shares ``needs_secondary_columns`` with 2-D
+    Vector for U/V, but has no magnitude-driven coloring (see
+    Vector3DSeriesStyle's docstring), and only Vector3D declares
+    ``w_column_id`` at all.
     """
     spec = SERIES_TYPE_SPECS[SeriesType(series_type)]
     style = spec.style_cls()
@@ -59,7 +67,10 @@ def build_series_style(
     if spec.needs_secondary_columns:
         style.u_column_id = u_column_id
         style.v_column_id = v_column_id
-        style.magnitude_column_id = magnitude_column_id
+        if hasattr(style, "magnitude_column_id"):
+            style.magnitude_column_id = magnitude_column_id
+        if spec.needs_w_column:
+            style.w_column_id = w_column_id
 
     if spec.needs_z_column:
         style.z_column_id = z_column_id

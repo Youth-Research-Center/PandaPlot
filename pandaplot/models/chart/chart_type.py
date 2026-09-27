@@ -27,3 +27,4 @@ class ChartType(str, Enum):
     WIREFRAME = "wireframe"
     BAR3D = "bar3d"
     TRISURF = "trisurf"
+    VECTOR3D = "vector3d"

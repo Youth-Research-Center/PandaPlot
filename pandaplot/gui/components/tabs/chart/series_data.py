@@ -22,3 +22,7 @@ class SeriesData:
     v_data: Any | None = None
     magnitude_data: Any | None = None
     z_data: Any | None = None
+    # The Z component of a 3-D vector's arrow (Vector3D series only -- see
+    # SeriesTypeSpec.needs_w_column); z_data above is that same series'
+    # spatial Z coordinate, an unrelated field.
+    w_data: Any | None = None

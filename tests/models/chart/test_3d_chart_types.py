@@ -151,6 +151,59 @@ def test_retyping_between_two_3d_types_keeps_the_picked_z_column():
     assert chart.data_series[0].style.z_column_id == "col-z"
 
 
+def test_vector3d_is_3d_but_not_in_the_x_y_z_only_group():
+    """Vector3D is a genuine 3-D type (is_3d, needs_z_column, no error
+    bars, like every type in _3D_SERIES_TYPES) but isn't parametrized
+    alongside them above because its roles/required_roles are (x, y, z, u,
+    v, w), not the bare (x, y, z) trio every _3D_CHART_TYPES entry has --
+    see test_vector3d_spec in test_chart_type_spec.py/test_series_type_spec.py
+    for its own dedicated role/spec coverage."""
+    series_spec = SERIES_TYPE_SPECS[SeriesType.VECTOR3D]
+    assert series_spec.is_3d is True
+    assert series_spec.needs_z_column is True
+    assert series_spec.supports_error_bars is False
+
+    chart_spec = CHART_TYPE_SPECS[ChartType.VECTOR3D]
+    assert chart_spec.roles != ("x", "y", "z")
+
+
+def test_a_vector3d_series_survives_a_save_reload_round_trip():
+    chart = Chart(name="3D Vector", chart_type=ChartType.VECTOR3D)
+    style = SERIES_TYPE_SPECS[SeriesType.VECTOR3D].style_cls(
+        z_column_id="col-z", u_column_id="col-u", v_column_id="col-v", w_column_id="col-w",
+        vector_color="#abcdef", vector_length=2.5, vector_arrow_ratio=0.4, vector_normalize=True,
+    )
+    chart.data_series.append(DataSeries(
+        dataset_id="ds-1", x_column_id="col-x", y_column_id="col-y",
+        label="s1", series_type=SeriesType.VECTOR3D, style=style))
+
+    reloaded = Chart.from_dict(chart.to_dict())
+
+    assert reloaded.chart_type == ChartType.VECTOR3D
+    restored = reloaded.data_series[0].style
+    assert type(restored) is type(style)
+    assert (restored.z_column_id, restored.u_column_id, restored.v_column_id, restored.w_column_id) == (
+        "col-z", "col-u", "col-v", "col-w")
+    assert restored.vector_color == "#abcdef"
+    assert restored.vector_length == 2.5
+    assert restored.vector_arrow_ratio == 0.4
+    assert restored.vector_normalize is True
+
+
+def test_retyping_from_scatter3d_to_vector3d_keeps_the_picked_z_column_and_color():
+    chart = Chart(name="3D Scatter", chart_type=ChartType.SCATTER3D)
+    chart.data_series.append(DataSeries(
+        dataset_id="ds-1", series_type=SeriesType.SCATTER3D,
+        style=SERIES_TYPE_SPECS[SeriesType.SCATTER3D].style_cls(z_column_id="col-z", color="#112233")))
+
+    chart.retype_series(0, SeriesType.VECTOR3D)
+
+    style = chart.data_series[0].style
+    assert type(style) is SERIES_TYPE_SPECS[SeriesType.VECTOR3D].style_cls
+    assert style.z_column_id == "col-z"
+    assert style.vector_color == "#112233"
+
+
 def test_a_new_chart_carries_z_axis_and_camera_defaults():
     """Written for every chart, not just 3-D ones, so a chart that changes
     type doesn't start out with a half-populated Z axis."""

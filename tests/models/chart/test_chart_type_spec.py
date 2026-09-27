@@ -46,6 +46,20 @@ def test_vector_spec_matches_former_chart_role_spec_values():
     assert spec.supports_error_bars is False
 
 
+def test_vector3d_spec():
+    """Unlike 2-D Vector, every role is required -- there's no optional
+    magnitude-driven coloring for a 3-D quiver (see Vector3DSeriesStyle's
+    docstring)."""
+    spec = CHART_TYPE_SPECS[ChartType.VECTOR3D]
+    assert spec.display_name == "3D Vector"
+    assert spec.roles == ("x", "y", "z", "u", "v", "w")
+    assert spec.required_roles == ("x", "y", "z", "u", "v", "w")
+    assert spec.supports_error_bars is False
+    assert spec.is_3d is True
+    assert spec.allows_fit is False
+    assert spec.allowed_series_types == {SeriesType.VECTOR3D, SeriesType.SCATTER3D, SeriesType.LINE3D}
+
+
 def test_allowed_series_types_per_chart_type():
     lsv = {SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}
     assert CHART_TYPE_SPECS[ChartType.LINE].allowed_series_types == lsv

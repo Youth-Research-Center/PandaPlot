@@ -144,6 +144,18 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
         }),
         allows_fit=False, default_series_type=SeriesType.TRISURF, is_3d=True,
     ),
+    # Vector3D takes the full (x, y, z, u, v, w) sextet -- the 3-D tail
+    # position plus all three arrow components, all required (unlike 2-D
+    # Vector, there's no optional magnitude role here -- see
+    # Vector3DSeriesStyle's docstring for why).
+    ChartType.VECTOR3D: ChartTypeSpec(
+        display_name="3D Vector", roles=("x", "y", "z", "u", "v", "w"),
+        required_roles=("x", "y", "z", "u", "v", "w"),
+        allowed_series_types=frozenset({
+            SeriesType.VECTOR3D, SeriesType.SCATTER3D, SeriesType.LINE3D,
+        }),
+        allows_fit=False, default_series_type=SeriesType.VECTOR3D, is_3d=True,
+    ),
 }
 
 

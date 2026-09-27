@@ -26,6 +26,7 @@ from pandaplot.models.chart.series_style import (
     SeriesStyleBase,
     SurfaceSeriesStyle,
     TrisurfSeriesStyle,
+    Vector3DSeriesStyle,
     VectorSeriesStyle,
     WireframeSeriesStyle,
 )
@@ -94,6 +95,12 @@ class SeriesTypeSpec:
     # scalar value per plotted element that a flat text label reads naturally.
     supports_value_labels: bool
     style_cls: type[SeriesStyleBase]
+    # Whether this type needs a THIRD secondary column (a vector's W
+    # component) on top of the U/V pair needs_secondary_columns already
+    # covers -- only True for VECTOR3D, whose arrows have a Z-axis
+    # component 2-D Vector's U/V pair has no equivalent of. Meaningless
+    # (and always False) unless needs_secondary_columns is also True.
+    needs_w_column: bool = False
 
 
 SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
@@ -219,5 +226,19 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_curve_analysis=False,
         supports_value_labels=False,
         style_cls=TrisurfSeriesStyle,
+    ),
+    # Vector3D: a 3-D quiver plot. Z is the arrow's spatial tail position
+    # (needs_z_column, like every other 3-D type), and needs_secondary_
+    # columns + needs_w_column together require the U/V/W components that
+    # make up the arrow itself -- the 3-D analogue of Vector's U/V pair.
+    SeriesType.VECTOR3D: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=False, supports_color=False, supports_fill=False,
+        supports_error_bars=False, needs_x_column=True, needs_secondary_columns=True,
+        needs_z_column=True, supports_gridding=False,
+        uses_color_scale=False, is_3d=True,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=Vector3DSeriesStyle,
+        needs_w_column=True,
     ),
 }

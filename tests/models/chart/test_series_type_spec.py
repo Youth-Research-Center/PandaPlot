@@ -14,6 +14,7 @@ from pandaplot.models.chart.series_style import (
     HistSeriesStyle,
     LineSeriesStyle,
     ScatterSeriesStyle,
+    Vector3DSeriesStyle,
     VectorSeriesStyle,
 )
 from pandaplot.models.chart.series_type import SeriesType
@@ -83,6 +84,31 @@ def test_vector_spec():
     assert spec.needs_secondary_columns is True
 
 
+def test_vector3d_spec():
+    """Vector3D shares Vector's U/V pair (needs_secondary_columns) plus a
+    W component (needs_w_column) on top of the Z every 3-D type needs --
+    but no magnitude-driven coloring, unlike 2-D Vector (see
+    Vector3DSeriesStyle's docstring)."""
+    spec = SERIES_TYPE_SPECS[SeriesType.VECTOR3D]
+    assert spec.marker_mode == "unsupported"
+    assert spec.supports_line_style is False
+    assert spec.supports_color is False
+    assert spec.supports_fill is False
+    assert spec.supports_error_bars is False
+    assert spec.needs_x_column is True
+    assert spec.needs_secondary_columns is True
+    assert spec.needs_z_column is True
+    assert spec.needs_w_column is True
+    assert spec.uses_color_scale is False
+    assert spec.is_3d is True
+
+
+def test_needs_w_column_is_true_only_for_vector3d():
+    for series_type in SeriesType:
+        expected = series_type == SeriesType.VECTOR3D
+        assert SERIES_TYPE_SPECS[series_type].needs_w_column is expected, series_type
+
+
 def test_curve_analysis_is_supported_only_by_line_and_scatter():
     """Regression (#202): ChartAnalysisPanel's derivative/integral/arc-length/
     smoothing/interpolation operations assume a single ordered (x, y) curve.
@@ -113,3 +139,4 @@ def test_style_cls_matches_each_series_type():
     assert SERIES_TYPE_SPECS[SeriesType.BAR].style_cls is BarSeriesStyle
     assert SERIES_TYPE_SPECS[SeriesType.HIST].style_cls is HistSeriesStyle
     assert SERIES_TYPE_SPECS[SeriesType.VECTOR].style_cls is VectorSeriesStyle
+    assert SERIES_TYPE_SPECS[SeriesType.VECTOR3D].style_cls is Vector3DSeriesStyle
