@@ -622,3 +622,19 @@ def test_fill_range_end_at_the_last_point_is_stored_as_minus_one():
     tab.apply_series_style_to(series)
 
     assert series.style.fill_range_end == -1
+
+
+def test_fill_match_label_says_marker_for_scatter_and_line_otherwise():
+    _qapp()
+    tab = StyleTab(app_context=None)
+    tab.set_chart_type(ChartType.LINE)
+    scatter = _line_series(series_type=SeriesType.SCATTER, color="#112233")
+    line = _line_series(color="#112233")
+
+    tab.set_selected("series", scatter)
+    tab.load_series_style(scatter)
+    assert tab.fill_match_line_label.text() == "Match marker:"
+
+    tab.set_selected("series", line)
+    tab.load_series_style(line)
+    assert tab.fill_match_line_label.text() == "Match line:"

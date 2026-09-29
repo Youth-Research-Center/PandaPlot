@@ -1731,6 +1731,11 @@ class StyleTab(QWidget):
         enabled = self.fill_enabled_toggle.isChecked()
         self.fill_header.setEnabled(enabled)
 
+        # A scatter has no line: its fill inherits the marker color instead.
+        _, target = self._current_target
+        is_scatter = isinstance(target, DataSeries) and target.series_type == SeriesType.SCATTER
+        self.fill_match_line_label.setText("Match marker:" if is_scatter else "Match line:")
+
         for widget in (
             self.fill_horizontal_label, self.fill_horizontal_toggle,
             self.fill_to_label, self.fill_to_control,
