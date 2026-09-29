@@ -47,10 +47,8 @@ def build_series_style(
 
     `magnitude_column_id` and `w_column_id` are set only for style classes
     that actually declare those fields (checked via ``hasattr`` rather than
-    a spec flag) -- Vector3D shares ``needs_secondary_columns`` with 2-D
-    Vector for U/V, but has no magnitude-driven coloring (see
-    Vector3DSeriesStyle's docstring), and only Vector3D declares
-    ``w_column_id`` at all.
+    a spec flag) -- only Vector and Vector3D declare a magnitude, and
+    only Vector3D declares ``w_column_id`` at all.
     """
     spec = SERIES_TYPE_SPECS[SeriesType(series_type)]
     style = spec.style_cls()

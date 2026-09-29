@@ -247,9 +247,8 @@ def test_the_data_tab_offers_u_v_w_and_z_for_a_vector3d_series():
     assert tab.v_column_combo.currentData() == dataset.column_id("v")
     assert tab.w_column_combo.isVisible() is True
     assert tab.w_column_combo.currentData() == dataset.column_id("w")
-    # No magnitude-driven coloring for a 3-D quiver (see Vector3DSeriesStyle's
-    # docstring) -- the Color-by combo stays hidden even though U/V/W show.
-    assert tab.magnitude_column_combo.isVisible() is False
+    # The optional Color-by combo is offered for a 3-D quiver too.
+    assert tab.magnitude_column_combo.isVisible() is True
 
 
 def test_w_column_is_hidden_for_a_2d_vector_series():

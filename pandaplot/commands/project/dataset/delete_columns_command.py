@@ -5,7 +5,6 @@ from typing import override
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project.items import Chart
@@ -23,11 +22,18 @@ class ChartReferenceMatch:
     confidence_only_indices: list[int]
 
 
+# Column roles a series' style holds that its rendering can't do without
+# (Z for the 3-D/color-scale types, U/V for Vector, U/V/W for Vector3D):
+# deleting one of these removes the series, unlike the optional error/
+# magnitude columns below, which are just cleared.
+_REQUIRED_STYLE_COLUMN_ROLES = ("z", "u", "v", "w")
+
+
 def _error_field_targets(series):
     """Return (container, id_field, name_field) triples for a series'
     optional error/magnitude column references -- these now live on
     ``series.style.error_bars`` (x/y error + minus pairs) and, for a
-    VECTOR series, ``series.style.magnitude_column*`` directly, rather
+    VECTOR/VECTOR3D series, ``series.style.magnitude_column*`` directly, rather
     than flatly on ``series`` itself."""
     targets = []
     error_bars = getattr(series.style, "error_bars", None)
@@ -38,7 +44,7 @@ def _error_field_targets(series):
             (error_bars, "x_error_minus_column_id", "x_error_minus_column"),
             (error_bars, "y_error_minus_column_id", "y_error_minus_column"),
         ])
-    if isinstance(series.style, VectorSeriesStyle):
+    if hasattr(series.style, "magnitude_column_id"):
         targets.append((series.style, "magnitude_column_id", "magnitude_column"))
     return targets
 
@@ -317,9 +323,8 @@ class DeleteColumnsCommand(Command):
                 if series.dataset_id == self.dataset_id
                 and (refs(series.x_column_id, series.x_column)
                      or refs(series.y_column_id, series.y_column)
-                     or (isinstance(series.style, VectorSeriesStyle)
-                         and (refs(series.style.u_column_id, series.style.u_column)
-                              or refs(series.style.v_column_id, series.style.v_column))))
+                     or any(refs(getattr(series.style, f"{role}_column_id"), getattr(series.style, f"{role}_column"))
+                            for role in _REQUIRED_STYLE_COLUMN_ROLES if hasattr(series.style, f"{role}_column_id")))
             ]
             error_only_idx = [
                 i for i, series in enumerate(item.data_series)

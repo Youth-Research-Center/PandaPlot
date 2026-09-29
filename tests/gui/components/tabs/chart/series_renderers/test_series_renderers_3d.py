@@ -140,7 +140,7 @@ def test_render_bar3d_series_draws_one_box_collection():
 
 def test_render_vector3d_series_draws_one_arrow_collection_in_its_own_color():
     fig, axes = _axes3d()
-    style = Vector3DSeriesStyle(vector_color="#ff8800", vector_length=2.0,
+    style = Vector3DSeriesStyle(vector_color="#ff8800",
                                  vector_arrow_ratio=0.4, vector_normalize=True)
 
     render_vector3d_series(axes, _vector3d_data(), style, "field", 1.0, visible=True, extra=_extra())
@@ -148,6 +148,42 @@ def test_render_vector3d_series_draws_one_arrow_collection_in_its_own_color():
     arrows = [c for c in axes.collections if isinstance(c, Line3DCollection)]
     assert len(arrows) == 1
     assert arrows[0].get_label() == "field"
+    plt.close(fig)
+
+
+def test_render_vector3d_series_colors_each_arrow_by_magnitude_when_a_colormap_is_set():
+    fig, axes = _axes3d()
+    data = _vector3d_data()
+    data.magnitude_data = [0.0, 1.0]
+    style = Vector3DSeriesStyle(vector_color="#ff8800", vector_colormap="viridis")
+
+    mappable = render_vector3d_series(axes, data, style, "field", 1.0, visible=True, extra=_extra())
+
+    assert mappable.get_cmap().name == "viridis"
+    assert (mappable.norm.vmin, mappable.norm.vmax) == (0.0, 1.0)
+    colors = next(c for c in axes.collections if isinstance(c, Line3DCollection)).get_colors()
+    # 2 arrows x (shaft + 2 head lines); shaft and heads of an arrow share a color.
+    assert len(colors) == 6
+    assert (colors[0] == colors[2]).all() and (colors[0] == colors[4]).all()
+    assert (colors[1] == colors[3]).all() and (colors[1] == colors[5]).all()
+    assert not (colors[0] == colors[1]).all()
+    plt.close(fig)
+
+
+def test_render_vector3d_series_ignores_magnitude_without_a_colormap_or_with_a_length_mismatch():
+    fig, axes = _axes3d()
+    flat = Vector3DSeriesStyle(vector_color="#ff8800")
+    mapped = Vector3DSeriesStyle(vector_color="#ff8800", vector_colormap="viridis")
+    with_magnitude = _vector3d_data()
+    with_magnitude.magnitude_data = [0.0, 1.0]
+    mismatched = _vector3d_data()
+    mismatched.magnitude_data = [0.0, 1.0, 2.0]
+
+    assert render_vector3d_series(axes, with_magnitude, flat, "a", 1.0, visible=True, extra=_extra()) is None
+    assert render_vector3d_series(axes, mismatched, mapped, "b", 1.0, visible=True, extra=_extra()) is None
+
+    for arrows in (c for c in axes.collections if isinstance(c, Line3DCollection)):
+        assert (arrows.get_colors() == arrows.get_colors()[0]).all()
     plt.close(fig)
 
 

@@ -47,12 +47,11 @@ def test_vector_spec_matches_former_chart_role_spec_values():
 
 
 def test_vector3d_spec():
-    """Unlike 2-D Vector, every role is required -- there's no optional
-    magnitude-driven coloring for a 3-D quiver (see Vector3DSeriesStyle's
-    docstring)."""
+    """Every positional/component role is required; magnitude is the same
+    optional color-by role 2-D Vector has."""
     spec = CHART_TYPE_SPECS[ChartType.VECTOR3D]
     assert spec.display_name == "3D Vector"
-    assert spec.roles == ("x", "y", "z", "u", "v", "w")
+    assert spec.roles == ("x", "y", "z", "u", "v", "w", "magnitude")
     assert spec.required_roles == ("x", "y", "z", "u", "v", "w")
     assert spec.supports_error_bars is False
     assert spec.is_3d is True

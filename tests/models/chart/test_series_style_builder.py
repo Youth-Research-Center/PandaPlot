@@ -37,10 +37,8 @@ def test_passing_every_argument_is_safe_for_every_series_type(series_type):
 @pytest.mark.parametrize("series_type", list(SeriesType))
 def test_the_column_ids_a_type_needs_always_land_on_its_style(series_type):
     """magnitude_column_id is only asserted for types that actually declare
-    the field: Vector3D shares needs_secondary_columns with 2-D Vector for
-    U/V, but has no magnitude-driven coloring (see Vector3DSeriesStyle's
-    docstring) -- build_series_style drops it via hasattr rather than
-    crashing or silently stashing an unserialized stray attribute."""
+    the field: build_series_style drops it via hasattr rather than crashing
+    or silently stashing an unserialized stray attribute."""
     spec = SERIES_TYPE_SPECS[series_type]
     style = build_series_style(
         series_type, u_column_id="u", v_column_id="v", w_column_id="w", magnitude_column_id="m", z_column_id="z")

@@ -17,6 +17,7 @@ import pytest
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
+from pandaplot.models.chart.series_style.vector3d import Vector3DSeriesStyle
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Chart, Dataset
@@ -222,6 +223,22 @@ def test_events_emitted_for_a_vector_series_referencing_the_column_by_u_v_or_mag
 
     updated = _chart_updated_calls(app_context)
     assert vector_chart.id in {call.args[1]["chart_id"] for call in updated}
+
+
+@pytest.mark.parametrize("role", ["z", "u", "v", "w", "magnitude"])
+def test_events_emitted_for_a_vector3d_series_referencing_the_column_only_via_one_role(env, role):
+    app_context, dataset, _, _ = env
+    chart = Chart(name="v3", chart_type="vector3d")
+    style = Vector3DSeriesStyle(**{f"{r}_column_id": dataset.column_id("b") for r in ("z", "u", "v", "w")})
+    setattr(style, f"{role}_column_id", dataset.column_id("a"))
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("b"), y_column_id=dataset.column_id("b"),
+        series_type="vector3d", style=style)
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    RenameColumnCommand(app_context, dataset.id, 0, "time").execute()
+
+    assert chart.id in {call.args[1]["chart_id"] for call in _chart_updated_calls(app_context)}
 
 
 def test_cleanup_releases_the_dataset_reference(env):

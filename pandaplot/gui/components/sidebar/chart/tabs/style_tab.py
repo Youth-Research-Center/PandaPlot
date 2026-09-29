@@ -720,10 +720,10 @@ class StyleTab(QWidget):
 
         # VECTOR3D group -- Vector3D's own card, not a reuse of Vector's:
         # Axes3D.quiver takes a completely different keyword set than 2-D
-        # quiver (length/arrow_length_ratio/normalize instead of scale/
-        # width/headwidth/headlength/headaxislength) and has no per-arrow
-        # colormap support (see Vector3DSeriesStyle's docstring), so
-        # Vector's sliders would silently do nothing for a Vector3D series.
+        # quiver (arrow_length_ratio/normalize instead of scale/width/
+        # headwidth/headlength/headaxislength), so Vector's sliders would
+        # silently do nothing for a Vector3D series. Only the color and
+        # color-by-magnitude controls are shared in spirit.
         self.vector3d_card = Card()
         vector3d_card = self.vector3d_card
         vector3d_layout = QGridLayout(vector3d_card)
@@ -733,9 +733,9 @@ class StyleTab(QWidget):
         self.vector3d_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
         vector3d_layout.addWidget(self.vector3d_color_row, 1, 1)
 
-        vector3d_layout.addWidget(QLabel("Length:"), 2, 0)
-        self.vector3d_length_slider = SliderWithSpinbox(minimum=0.0, maximum=10.0, decimals=2)
-        vector3d_layout.addWidget(self.vector3d_length_slider, 2, 1)
+        vector3d_layout.addWidget(QLabel("Color by magnitude:"), 2, 0)
+        self.vector3d_colormap_control = ValueComboBox(VECTOR_COLORMAPS)
+        vector3d_layout.addWidget(self.vector3d_colormap_control, 2, 1)
 
         vector3d_layout.addWidget(QLabel("Arrowhead ratio:"), 3, 0)
         self.vector3d_arrow_ratio_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
@@ -874,7 +874,7 @@ class StyleTab(QWidget):
         self.vector_head_length_slider.valueChanged.connect(self._on_field_changed)
         self.vector_head_axis_length_slider.valueChanged.connect(self._on_field_changed)
         self.vector3d_color_row.colorChanged.connect(self._on_field_changed)
-        self.vector3d_length_slider.valueChanged.connect(self._on_field_changed)
+        self.vector3d_colormap_control.currentValueChanged.connect(self._on_field_changed)
         self.vector3d_arrow_ratio_slider.valueChanged.connect(self._on_field_changed)
         self.vector3d_normalize_toggle.toggled.connect(self._on_field_changed)
         self.heatmap_gridding_control.currentValueChanged.connect(self._on_heatmap_gridding_changed)
@@ -1807,7 +1807,7 @@ class StyleTab(QWidget):
 
         if isinstance(style, Vector3DSeriesStyle):
             style.vector_color = self.vector3d_color_row.currentColor()
-            style.vector_length = self.vector3d_length_slider.value()
+            style.vector_colormap = self.vector3d_colormap_control.currentValue()
             style.vector_arrow_ratio = self.vector3d_arrow_ratio_slider.value()
             style.vector_normalize = self.vector3d_normalize_toggle.isChecked()
             return
@@ -1984,7 +1984,7 @@ class StyleTab(QWidget):
             self.vector_head_axis_length_slider.setValue(getattr(style, "vector_head_axis_length", 4.5))
 
             self.vector3d_color_row.setCurrentColor(getattr(style, "vector_color", "#1f77b4"))
-            self.vector3d_length_slider.setValue(getattr(style, "vector_length", 1.0))
+            self.vector3d_colormap_control.setCurrentValue(getattr(style, "vector_colormap", ""))
             self.vector3d_arrow_ratio_slider.setValue(getattr(style, "vector_arrow_ratio", 0.3))
             self.vector3d_normalize_toggle.setChecked(checked=getattr(style, "vector_normalize", False))
 
@@ -2587,7 +2587,7 @@ class StyleTab(QWidget):
         self.vector_head_axis_length_slider.set_tokens(tokens)
         self.vector3d_card.set_tokens(tokens)
         self.vector3d_color_row.set_tokens(tokens)
-        self.vector3d_length_slider.set_tokens(tokens)
+        self.vector3d_colormap_control.set_tokens(tokens)
         self.vector3d_arrow_ratio_slider.set_tokens(tokens)
         self.vector3d_normalize_toggle.set_tokens(tokens)
         self.heatmap_gridding_card.set_tokens(tokens)

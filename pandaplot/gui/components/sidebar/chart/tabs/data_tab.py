@@ -1329,6 +1329,7 @@ class DataTab(QWidget):
         self.v_column_combo.setEnabled(True)
         self.magnitude_column_combo.setEnabled(True)
         self.z_column_combo.setEnabled(True)
+        self.w_column_combo.setEnabled(True)
         self.confidence_lower_column_combo.setEnabled(True)
         self.confidence_upper_column_combo.setEnabled(True)
         self.series_type_combo.setEnabled(True)

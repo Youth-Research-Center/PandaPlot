@@ -12,7 +12,9 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.delete_columns_command import DeleteColumnsCommand
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
+from pandaplot.models.chart.series_style.scatter3d import Scatter3DSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
+from pandaplot.models.chart.series_style.vector3d import Vector3DSeriesStyle
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Chart, Dataset
@@ -470,3 +472,46 @@ def test_cleanup_releases_the_undo_snapshots():
     assert command.removed_chart_refs == {}
     assert command.cleared_error_refs == {}
     assert command.cleared_confidence_refs == {}
+
+
+def _vector3d_chart(dataset, **columns):
+    chart = Chart(name="v3", chart_type="vector3d")
+    ids = {"z": "c", "u": "c", "v": "c", "w": "c"} | columns
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("c"), y_column_id=dataset.column_id("c"),
+        series_type="vector3d", label="v1",
+        style=Vector3DSeriesStyle(**{f"{role}_column_id": dataset.column_id(name) for role, name in ids.items()}),
+    )
+    return chart
+
+
+@pytest.mark.parametrize("role", ["z", "u", "v", "w"])
+def test_deleting_a_vector3d_position_or_component_column_removes_the_series(env, role):
+    app_context, dataset, _, _, _ = env
+    chart = _vector3d_chart(dataset, **{role: "a"})
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    assert DeleteColumnsCommand(app_context, dataset.id, ["a"]).execute() is CommandResult.SUCCESS
+    assert chart.data_series == []
+
+
+def test_deleting_a_vector3d_magnitude_column_clears_it_but_keeps_the_series(env):
+    app_context, dataset, _, _, _ = env
+    chart = _vector3d_chart(dataset)
+    chart.data_series[0].style.magnitude_column_id = dataset.column_id("a")
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    assert DeleteColumnsCommand(app_context, dataset.id, ["a"]).execute() is CommandResult.SUCCESS
+    assert chart.data_series[0].style.magnitude_column_id == ""
+
+
+def test_deleting_a_scatter3d_z_column_removes_the_series(env):
+    app_context, dataset, _, _, _ = env
+    chart = Chart(name="s3", chart_type="scatter3d")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("c"), y_column_id=dataset.column_id("c"),
+        series_type="scatter3d", style=Scatter3DSeriesStyle(z_column_id=dataset.column_id("a")))
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    assert DeleteColumnsCommand(app_context, dataset.id, ["a"]).execute() is CommandResult.SUCCESS
+    assert chart.data_series == []

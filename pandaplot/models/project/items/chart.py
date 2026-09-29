@@ -772,6 +772,12 @@ def assign_series_column_ids(series: "DataSeries", dataset: Any) -> None:
                 if cid is not None:
                     setattr(error_bars, id_field, cid)
 
+    if hasattr(series.style, "magnitude_column_id") and not isinstance(series.style, VectorSeriesStyle):
+        name = series.style.magnitude_column
+        cid = dataset.column_id(name) if name else None
+        if cid is not None:
+            series.style.magnitude_column_id = cid
+
     if isinstance(series.style, VectorSeriesStyle):
         for name_field, id_field in (
             ("u_column", "u_column_id"),

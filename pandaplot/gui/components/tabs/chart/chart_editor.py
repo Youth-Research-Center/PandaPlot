@@ -828,12 +828,15 @@ class ChartEditorWidget(PWidget):
         return np.interp(np.asarray(query, dtype=float), xp[order], fp[order])
 
     def _resolve_z_label(self, project, series) -> str:
-        """Current display name of a series' Z (color) column, for the
-        default colorbar label. Empty when it can't be resolved (missing
+        """Current display name of a series' color column (Z, or the
+        magnitude column for a Vector/Vector3D series), for the default
+        colorbar label. Empty when it can't be resolved (missing
         dataset/column) so the colorbar just goes unlabeled rather than
         erroring."""
         from pandaplot.models.project.items.chart import resolve_series_column
         dataset = project.find_item(series.dataset_id) if project else None
+        if hasattr(series.style, "magnitude_column_id"):
+            return resolve_series_column(dataset, series.style.magnitude_column_id, series.style.magnitude_column) or ""
         return resolve_series_column(dataset, series.style.z_column_id, series.style.z_column) or ""
 
     def update_chart(self):
@@ -1012,8 +1015,11 @@ class ChartEditorWidget(PWidget):
                     if mappable is None and series_type in SERIES_RENDERERS_REPORTING_NO_DATA:
                         series_errors.append(f"{series.label or f'Series {i + 1}'}: no plottable data")
                         continue
+                    # A Vector/Vector3D renderer only returns a mappable when
+                    # its arrows are colored by magnitude; that gets a
+                    # colorbar too, though the type isn't on the shared scale.
                     if (mappable is not None and colorbar_mappable is None
-                            and SERIES_TYPE_SPECS[series_type].uses_color_scale
+                            and (SERIES_TYPE_SPECS[series_type].uses_color_scale or hasattr(style, "magnitude_column_id"))
                             and self.chart.config.colorbar_show):
                         colorbar_mappable = mappable
                         # None means "not customized" -- fall back to the Z

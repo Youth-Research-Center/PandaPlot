@@ -171,7 +171,7 @@ def test_a_vector3d_series_survives_a_save_reload_round_trip():
     chart = Chart(name="3D Vector", chart_type=ChartType.VECTOR3D)
     style = SERIES_TYPE_SPECS[SeriesType.VECTOR3D].style_cls(
         z_column_id="col-z", u_column_id="col-u", v_column_id="col-v", w_column_id="col-w",
-        vector_color="#abcdef", vector_length=2.5, vector_arrow_ratio=0.4, vector_normalize=True,
+        vector_color="#abcdef", vector_arrow_ratio=0.4, vector_normalize=True,
     )
     chart.data_series.append(DataSeries(
         dataset_id="ds-1", x_column_id="col-x", y_column_id="col-y",
@@ -185,7 +185,6 @@ def test_a_vector3d_series_survives_a_save_reload_round_trip():
     assert (restored.z_column_id, restored.u_column_id, restored.v_column_id, restored.w_column_id) == (
         "col-z", "col-u", "col-v", "col-w")
     assert restored.vector_color == "#abcdef"
-    assert restored.vector_length == 2.5
     assert restored.vector_arrow_ratio == 0.4
     assert restored.vector_normalize is True
 

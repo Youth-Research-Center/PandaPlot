@@ -69,14 +69,14 @@ def test_apply_series_style_to_writes_vector3d_fields():
     tab.set_selected("series", series)
 
     tab.vector3d_color_row.setCurrentColor("#123456")
-    tab.vector3d_length_slider.setValue(2.5)
+    tab.vector3d_colormap_control.setCurrentValue("plasma")
     tab.vector3d_arrow_ratio_slider.setValue(0.6)
     tab.vector3d_normalize_toggle.setChecked(checked=True)
 
     tab.apply_series_style_to(series)
 
     assert series.style.vector_color == "#123456"
-    assert series.style.vector_length == 2.5
+    assert series.style.vector_colormap == "plasma"
     assert series.style.vector_arrow_ratio == 0.6
     assert series.style.vector_normalize is True
 
@@ -86,7 +86,7 @@ def test_load_series_style_populates_vector3d_card_from_series():
     series = DataSeries(
         dataset_id="ds1", series_type=SeriesType.VECTOR3D,
         style=Vector3DSeriesStyle(
-            vector_color="#abcdef", vector_length=3.0,
+            vector_color="#abcdef", vector_colormap="plasma",
             vector_arrow_ratio=0.5, vector_normalize=True,
         ),
     )
@@ -95,6 +95,6 @@ def test_load_series_style_populates_vector3d_card_from_series():
     tab.load_series_style(series)
 
     assert tab.vector3d_color_row.currentColor() == "#abcdef"
-    assert tab.vector3d_length_slider.value() == 3.0
+    assert tab.vector3d_colormap_control.currentValue() == "plasma"
     assert tab.vector3d_arrow_ratio_slider.value() == 0.5
     assert tab.vector3d_normalize_toggle.isChecked() is True
