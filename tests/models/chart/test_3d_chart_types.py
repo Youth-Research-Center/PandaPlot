@@ -2,6 +2,7 @@
 the is_3d / uses_color_scale distinction those specs introduce, and the
 save/reload round trip of the six new typed style classes.
 """
+import pandas as pd
 import pytest
 
 from pandaplot.models.chart.chart_type import ChartType
@@ -11,6 +12,7 @@ from pandaplot.models.chart.chart_type_spec import (
 )
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart, DataSeries
 
 _3D_CHART_TYPES = [
@@ -214,3 +216,29 @@ def test_a_new_chart_carries_z_axis_and_camera_defaults():
     assert config["show_grid_z"] is True
     assert config["view_elev"] == 30.0
     assert config["view_azim"] == -60.0
+
+
+def test_retyping_between_vector_and_vector3d_keeps_the_picked_u_v_and_magnitude_columns():
+    chart = Chart(name="Vector", chart_type=ChartType.VECTOR)
+    chart.data_series.append(DataSeries(
+        dataset_id="ds-1", series_type=SeriesType.VECTOR,
+        style=SERIES_TYPE_SPECS[SeriesType.VECTOR].style_cls(u_column_id="col-u", v_column_id="col-v", magnitude_column_id="col-m")))
+
+    chart.retype_series(0, SeriesType.VECTOR3D)
+
+    style = chart.data_series[0].style
+    assert (style.u_column_id, style.v_column_id, style.magnitude_column_id) == ("col-u", "col-v", "col-m")
+
+
+def test_post_load_backfill_resolves_vector3d_column_names_to_ids():
+    from pandaplot.models.project.items.chart import assign_series_column_ids
+
+    dataset = Dataset(name="ds", data=pd.DataFrame({c: [1.0] for c in "xyzuvwm"}))
+    style = SERIES_TYPE_SPECS[SeriesType.VECTOR3D].style_cls(
+        z_column="z", u_column="u", v_column="v", w_column="w", magnitude_column="m")
+    series = DataSeries(dataset_id=dataset.id, series_type=SeriesType.VECTOR3D, style=style)
+
+    assign_series_column_ids(series, dataset)
+
+    assert (style.z_column_id, style.u_column_id, style.v_column_id, style.w_column_id, style.magnitude_column_id) == tuple(
+        dataset.column_id(c) for c in "zuvwm")

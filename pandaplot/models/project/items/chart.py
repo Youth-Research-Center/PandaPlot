@@ -20,9 +20,6 @@ from pandaplot.models.chart.error_direction import ErrorDirection  # noqa: F401 
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import SeriesStyleBase
-from pandaplot.models.chart.series_style.colormap import ColormapSeriesStyle
-from pandaplot.models.chart.series_style.heatmap import HeatmapSeriesStyle
-from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ChartEvents
@@ -237,12 +234,13 @@ class Chart(Item):
             new_style.marker = copy.deepcopy(old_style.marker)
         if hasattr(old_style, "error_bars") and hasattr(new_style, "error_bars"):
             new_style.error_bars = copy.deepcopy(old_style.error_bars)
-        if hasattr(old_style, "z_column_id") and hasattr(new_style, "z_column_id"):
-            # Colormap <-> Heatmap both require a Z column -- retyping
-            # between them must not force the user to re-pick the same
-            # column.
-            new_style.z_column_id = old_style.z_column_id
-            new_style.z_column = old_style.z_column
+        # Colormap <-> Heatmap both require a Z column, and Vector <-> Vector3D
+        # share U/V (plus magnitude) -- retyping between them must not force
+        # the user to re-pick the same columns.
+        for role in ("z", "u", "v", "w", "magnitude"):
+            if hasattr(old_style, f"{role}_column_id") and hasattr(new_style, f"{role}_column_id"):
+                setattr(new_style, f"{role}_column_id", getattr(old_style, f"{role}_column_id"))
+                setattr(new_style, f"{role}_column", getattr(old_style, f"{role}_column", ""))
         # Value labels (#125): carry over show_value_labels plus whichever
         # of the mode/arrow/offset/color/background fields the new style
         # class also declares -- Line/Scatter share the full set, Bar only
@@ -772,25 +770,15 @@ def assign_series_column_ids(series: "DataSeries", dataset: Any) -> None:
                 if cid is not None:
                     setattr(error_bars, id_field, cid)
 
-    if hasattr(series.style, "magnitude_column_id") and not isinstance(series.style, VectorSeriesStyle):
-        name = series.style.magnitude_column
-        cid = dataset.column_id(name) if name else None
-        if cid is not None:
-            series.style.magnitude_column_id = cid
+    for role in ("u", "v", "w", "magnitude"):
+        id_field = f"{role}_column_id"
+        name = getattr(series.style, f"{role}_column", "")
+        if hasattr(series.style, id_field) and name:
+            cid = dataset.column_id(name)
+            if cid is not None:
+                setattr(series.style, id_field, cid)
 
-    if isinstance(series.style, VectorSeriesStyle):
-        for name_field, id_field in (
-            ("u_column", "u_column_id"),
-            ("v_column", "v_column_id"),
-            ("magnitude_column", "magnitude_column_id"),
-        ):
-            name = getattr(series.style, name_field, "")
-            if name:
-                cid = dataset.column_id(name)
-                if cid is not None:
-                    setattr(series.style, id_field, cid)
-
-    if isinstance(series.style, (ColormapSeriesStyle, HeatmapSeriesStyle)) and not series.style.z_column_id and series.style.z_column:
+    if hasattr(series.style, "z_column_id") and not series.style.z_column_id and series.style.z_column:
         cid = dataset.column_id(series.style.z_column)
         if cid is not None:
             series.style.z_column_id = cid
