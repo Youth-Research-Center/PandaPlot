@@ -253,6 +253,9 @@ class Chart(Item):
             "show_value_labels", "value_label_mode", "value_label_show_arrow",
             "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
             "value_label_bg_color", "value_label_bg_alpha",
+            # Area fill: Line/Scatter share the full FillStyleFields set.
+            "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base",
+            "fill_to_index", "fill_range_enabled", "fill_range_start", "fill_range_end",
         ):
             if hasattr(old_style, field_name) and hasattr(new_style, field_name):
                 setattr(new_style, field_name, getattr(old_style, field_name))

@@ -44,7 +44,7 @@ def test_scatter_spec():
     assert spec.marker_mode == "required"
     assert spec.supports_line_style is False
     assert spec.supports_color is False
-    assert spec.supports_fill is False
+    assert spec.supports_fill is True
     assert spec.supports_error_bars is True
     assert spec.needs_x_column is True
     assert spec.needs_secondary_columns is False

@@ -459,13 +459,20 @@ def test_style_field_names_match_the_real_style_dataclasses():
         "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
         "value_label_bg_color", "value_label_bg_alpha",
         # #280 -- partial-range fill.
-        "fill_range_enabled", "fill_range_min", "fill_range_max",
+        "fill_range_enabled", "fill_range_start", "fill_range_end",
+    }
+    # Scatter gained the shared fill fields (FillStyleFields) after this
+    # migration; Line already had the first six as legacy flat fields.
+    _SCATTER_POST_MIGRATION_FIELDS = {
+        "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base", "fill_to_index",
     }
 
     for series_type in _PRE_MIGRATION_SERIES_TYPES:
         spec = SERIES_TYPE_SPECS[series_type]
         top_level_field_names = {f.name for f in dataclasses.fields(spec.style_cls)}
         expected_direct = top_level_field_names - {"marker", "error_bars"} - _POST_MIGRATION_FIELDS
+        if series_type == SeriesType.SCATTER:
+            expected_direct -= _SCATTER_POST_MIGRATION_FIELDS
         actual_direct = set(_DIRECT_STYLE_FIELDS_BY_CHART_TYPE[series_type.value])
         assert actual_direct == expected_direct, f"{series_type.value}: {actual_direct} != {expected_direct}"
 

@@ -1,31 +1,20 @@
 """Style fields for a "line" series -- the only type that reads
-line_style/line_width/fill_* in render_line_series()
-(pandaplot/gui/components/tabs/chart/series_renderers/line.py)."""
+line_style/line_width in render_line_series()
+(pandaplot/gui/components/tabs/chart/series_renderers/line.py); the area-fill
+fields come from FillStyleFields."""
 from dataclasses import dataclass, field
 
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style.base import SeriesStyleBase
+from pandaplot.models.chart.series_style.fill import FillStyleFields
 
 
 @dataclass
-class LineSeriesStyle(SeriesStyleBase):
+class LineSeriesStyle(FillStyleFields, SeriesStyleBase):
     color: str = "#1f77b4"
     line_style: str = "solid"
     line_width: float = 2.0
-    fill_enabled: bool = False
-    fill_color: str = ""
-    fill_alpha: float = 0.3
-    fill_orientation: str = "vertical"
-    fill_base: float = 0.0
-    fill_to_index: int = -1
-    # Restrict the fill to a sub-interval of the series' independent
-    # variable (x for a vertical fill, y for a horizontal one) instead of
-    # its full extent -- e.g. to shade/integrate over just one segment of a
-    # curve (#280). fill_range_min/max are only read when enabled.
-    fill_range_enabled: bool = False
-    fill_range_min: float = 0.0
-    fill_range_max: float = 0.0
     marker: MarkerStyle = field(default_factory=MarkerStyle)
     error_bars: ErrorBarConfig = field(default_factory=ErrorBarConfig)
     # Annotate each rendered point with its numeric Y value (#125) -- see

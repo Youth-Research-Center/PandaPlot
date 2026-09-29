@@ -76,8 +76,8 @@ def test_line_series_style_fields_and_defaults():
     assert style.fill_base == 0.0
     assert style.fill_to_index == -1
     assert style.fill_range_enabled is False
-    assert style.fill_range_min == 0.0
-    assert style.fill_range_max == 0.0
+    assert style.fill_range_start == 0
+    assert style.fill_range_end == -1
     assert style.show_value_labels is False
     assert style.value_label_mode == "y"
     assert style.value_label_show_arrow is False
@@ -91,7 +91,7 @@ def test_line_series_style_fields_and_defaults():
     assert {f.name for f in dataclasses.fields(style)} == {
         "color", "line_style", "line_width", "fill_enabled", "fill_color",
         "fill_alpha", "fill_orientation", "fill_base", "fill_to_index",
-        "fill_range_enabled", "fill_range_min", "fill_range_max",
+        "fill_range_enabled", "fill_range_start", "fill_range_end",
         "marker", "error_bars", "show_value_labels",
         "value_label_mode", "value_label_show_arrow",
         "value_label_offset_x", "value_label_offset_y",
@@ -123,11 +123,17 @@ def test_scatter_series_style_fields_and_defaults():
     assert style.value_label_bg_alpha == 1.0
     assert isinstance(style.marker, MarkerStyle)
     assert isinstance(style.error_bars, ErrorBarConfig)
+    assert style.fill_enabled is False
+    assert style.fill_range_enabled is False
+    assert style.fill_range_start == 0
+    assert style.fill_range_end == -1
     assert {f.name for f in dataclasses.fields(style)} == {
         "color", "marker", "error_bars", "show_value_labels",
         "value_label_mode", "value_label_show_arrow",
         "value_label_offset_x", "value_label_offset_y",
         "value_label_text_color", "value_label_bg_color", "value_label_bg_alpha",
+        "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base",
+        "fill_to_index", "fill_range_enabled", "fill_range_start", "fill_range_end",
     }
 
 
