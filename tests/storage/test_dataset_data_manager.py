@@ -12,6 +12,7 @@ import zipfile
 import pandas as pd
 
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
 
 
@@ -112,3 +113,33 @@ def test_dataset_with_no_data_round_trips_without_error(tmp_path):
     # save/load round trip is expected to produce too.
     assert loaded.data is not None
     assert loaded.data.empty
+
+
+def test_round_trip_preserves_formula_columns(tmp_path):
+    """A formula column's expression and live flag are part of the dataset
+    (#154) -- without them a reopened project holds the computed values but
+    could never recompute them."""
+    df = pd.DataFrame({"a": [1.0, 2.0, 3.0], "a_x2": [2.0, 4.0, 6.0]})
+    dataset = Dataset(id="ds", name="Data", data=df)
+    a_id = dataset.column_id("a")
+    dataset.set_formula_column(dataset.column_id("a_x2"), FormulaColumnSpec(
+        expression="x * 2", transform_type="column", source_column_ids=[a_id], live=True,
+    ))
+
+    loaded = _round_trip(dataset, tmp_path)
+
+    spec = loaded.formula_column_by_name("a_x2")
+    assert spec is not None
+    assert spec.expression == "x * 2"
+    assert spec.live is True
+    # The source still resolves to the same column after the round trip.
+    assert loaded.column_name(spec.source_column_ids[0]) == "a"
+
+
+def test_round_trip_of_a_dataset_saved_before_formula_columns_existed(tmp_path):
+    df = pd.DataFrame({"a": [1.0, 2.0]})
+    dataset = Dataset(id="ds", name="Data", data=df)
+
+    loaded = _round_trip(dataset, tmp_path)
+
+    assert loaded.formula_columns == {}
