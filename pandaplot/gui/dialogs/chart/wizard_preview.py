@@ -213,8 +213,13 @@ def render_wizard_preview(
         draw_chart_type_sample(canvas, chart_type)
 
     axes.set_title(f"{title}\n{subtitle}" if subtitle else title)
-    axes.set_xlabel(x_label)
-    axes.set_ylabel(y_label)
+    has_axes = CHART_TYPE_SPECS[ChartType(chart_type)].has_axes
+    if has_axes:
+        axes.set_xlabel(x_label)
+        axes.set_ylabel(y_label)
+    else:
+        # Same as the real editor: a Pie has no axes to label or grid.
+        axes.set_axis_off()
     if show_legend and any_plotted:
         # Only when something actually carries a label. Several types pass
         # none at all -- matplotlib has no legend handler for the artists
@@ -225,5 +230,6 @@ def render_wizard_preview(
         handles, labels = axes.get_legend_handles_labels()
         if handles:
             axes.legend(handles, labels)
-    axes.grid(show_grid)
+    if has_axes:
+        axes.grid(show_grid)
     canvas.draw()

@@ -84,3 +84,29 @@ def test_pie_preview_with_a_configured_series_draws_real_labeled_wedges():
     render_wizard_preview(canvas, project, "pie", series_configs, "Title", "", "", "", show_legend=True, show_grid=True)
 
     assert [wedge.get_label() for wedge in _wedges(canvas)] == ["a", "b"]
+
+
+def test_pie_preview_draws_no_axes_and_ignores_axis_labels():
+    canvas = ChartCanvas(width=4, height=3, dpi=80)
+
+    render_wizard_preview(canvas, None, "pie", [], "Title", "", "X", "Y", show_legend=True, show_grid=True)
+
+    assert canvas.axes.axison is False
+
+
+def test_labels_page_hides_axis_label_fields_and_grid_toggle_for_a_pie():
+    from pandaplot.gui.dialogs.chart.chart_labels_page import ChartLabelsPage
+    from tests.gui.dialogs.chart.test_chart_labels_page import _fake_app_context
+
+    page = ChartLabelsPage(app_context=_fake_app_context())
+    page.show()
+
+    page.refresh_preview(None, "pie", [])
+    assert page.x_label_edit.isVisible() is False
+    assert page.y_label_edit.isVisible() is False
+    assert page.show_grid_toggle.isVisible() is False
+
+    page.refresh_preview(None, "line", [])
+    assert page.x_label_edit.isVisible() is True
+    assert page.y_label_edit.isVisible() is True
+    assert page.show_grid_toggle.isVisible() is True

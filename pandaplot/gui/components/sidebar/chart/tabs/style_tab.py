@@ -29,6 +29,8 @@ from pandaplot.models.chart.chart_configuration import (
     LineStyleType,
     MarkerType,
 )
+from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_direction import ErrorDirection
 from pandaplot.models.chart.series_style import (
     ColormapSeriesStyle,
@@ -842,6 +844,14 @@ class StyleTab(QWidget):
         self.axes_style_widgets: list[QWidget] = [self.axes_style_selector]
         layout.addWidget(self.axes_style_selector)
 
+        # Shown in place of the axis-appearance forms when "Axes" is picked
+        # on a chart type that draws none (ChartTypeSpec.has_axes -- Pie),
+        # mirroring the Axes tab's own note.
+        self.no_axes_style_label = QLabel("This chart type has no axes to style.")
+        self.no_axes_style_label.setWordWrap(True)
+        self.no_axes_style_label.setVisible(False)
+        layout.addWidget(self.no_axes_style_label)
+
         self._axes_style_form_container = QWidget()
         self._axes_style_form_container_layout = QVBoxLayout(self._axes_style_form_container)
         self._axes_style_form_container_layout.setContentsMargins(0, 0, 0, 0)
@@ -1024,8 +1034,10 @@ class StyleTab(QWidget):
         for card in self.chart_style_cards:
             card.setVisible(is_chart)
         is_axes = kind == "axes"
+        has_axes = not self._chart_type or CHART_TYPE_SPECS[ChartType(self._chart_type)].has_axes
         for widget in self.axes_style_widgets:
-            widget.setVisible(is_axes)
+            widget.setVisible(is_axes and has_axes)
+        self.no_axes_style_label.setVisible(is_axes and not has_axes)
         if kind == "series" and isinstance(obj, DataSeries):
             spec = SERIES_TYPE_SPECS[obj.series_type]
         elif self._chart_type:

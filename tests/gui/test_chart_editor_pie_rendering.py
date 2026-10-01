@@ -76,6 +76,59 @@ def test_the_legend_lists_the_wedge_labels():
     assert [text.get_text() for text in legend.get_texts()] == ["apple", "pear", "plum"]
 
 
+def test_a_pie_chart_draws_no_axes_but_keeps_its_title():
+    """A pie has no scale, ticks, spines or grid -- every axis artist is
+    turned off at once -- but the title (a figure-level concern) stays."""
+    editor, chart, _ = _pie_editor()
+    chart.config.x.show_grid = True
+    chart.config.y.show_grid = True
+    chart.config.subtitle = "by count"
+    editor.update_chart()
+
+    axes = editor.chart_canvas.axes
+    assert axes.axison is False
+    assert editor.chart_canvas.fig._suptitle.get_text() == "Pie Chart"
+    assert axes.get_title() == "by count"
+
+
+def test_a_pie_ignores_stored_manual_limits_and_log_scale():
+    """The Axes tab hides itself for a pie, but a config carrying a manual
+    range or log scale (e.g. from a hand-edited file) must not crop or
+    distort the circle."""
+    editor, chart, _ = _pie_editor()
+    chart.config.x.auto_limits = False
+    chart.config.x.min, chart.config.x.max = 0.0, 0.1
+    chart.config.y.scale = "log"
+    editor.update_chart()
+
+    axes = editor.chart_canvas.axes
+    assert axes.get_xlim()[0] < -1.0 < 1.0 < axes.get_xlim()[1]
+    assert axes.get_yscale() == "linear"
+
+
+def test_a_pie_never_builds_a_secondary_y_axis():
+    editor, chart, _ = _pie_editor()
+    chart.data_series[0].y_axis = "secondary"
+    editor.update_chart()
+
+    assert editor.chart_canvas.axes2 is None
+    assert len(_wedges(editor)) == 3
+
+
+def test_an_emptied_pie_switched_to_a_line_chart_gets_its_frame_and_aspect_back():
+    """Axes.pie() turns the frame off and locks an equal aspect, and
+    Axes.clear() undoes neither."""
+    editor, chart, _ = _pie_editor()
+    chart.data_series.clear()
+    chart.set_chart_type("line")
+    editor.update_chart()
+
+    axes = editor.chart_canvas.axes
+    assert axes.axison is True
+    assert axes.get_frame_on() is True
+    assert axes.get_aspect() == "auto"
+
+
 def test_a_negative_value_is_reported_instead_of_drawing_a_misleading_pie():
     editor, _, _ = _pie_editor(values=[3, -2, 1])
 
