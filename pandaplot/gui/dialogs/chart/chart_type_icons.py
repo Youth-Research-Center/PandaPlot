@@ -37,6 +37,21 @@ def _paint_hist(painter: QPainter, size: int):
         painter.drawRect(QRectF(x, y, w, h))
 
 
+
+def _paint_box(painter: QPainter, size: int):
+    """A single box-and-whisker glyph: the box (interquartile range) with
+    its median line across it, and a capped whisker above and below."""
+    center = size * 0.5
+    half_width = size * 0.28
+    box_top, box_bottom = size * 0.3, size * 0.7
+    painter.drawRect(QRectF(center - half_width, box_top, 2 * half_width, box_bottom - box_top))
+    median = size * 0.52
+    painter.drawLine(QPointF(center - half_width, median), QPointF(center + half_width, median))
+    cap_half = half_width * 0.5
+    for whisker_end, box_edge in ((size * 0.06, box_top), (size * 0.94, box_bottom)):
+        painter.drawLine(QPointF(center, box_edge), QPointF(center, whisker_end))
+        painter.drawLine(QPointF(center - cap_half, whisker_end), QPointF(center + cap_half, whisker_end))
+
 def _vector_arrow_geometry(size: int):
     """Compute the (start, end, [wing1, wing2]) points for each arrow.
 
@@ -184,6 +199,7 @@ _PAINTERS = {
     "scatter": _paint_scatter,
     "bar": _paint_bar,
     "hist": _paint_hist,
+    "box": _paint_box,
     "vector": _paint_vector,
     "colormap": _paint_colormap,
     "heatmap": _paint_heatmap,

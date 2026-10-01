@@ -7,6 +7,7 @@ reads today. See base.py for why SeriesStyleBase itself is empty.
 from pandaplot.models.chart.series_style.bar import BarSeriesStyle
 from pandaplot.models.chart.series_style.bar3d import Bar3DSeriesStyle
 from pandaplot.models.chart.series_style.base import SeriesStyleBase
+from pandaplot.models.chart.series_style.box import BoxSeriesStyle
 from pandaplot.models.chart.series_style.colormap import ColormapSeriesStyle
 from pandaplot.models.chart.series_style.heatmap import HeatmapSeriesStyle
 from pandaplot.models.chart.series_style.hist import HistSeriesStyle
@@ -23,6 +24,7 @@ from pandaplot.models.chart.series_style.wireframe import WireframeSeriesStyle
 __all__ = [
     "Bar3DSeriesStyle",
     "BarSeriesStyle",
+    "BoxSeriesStyle",
     "ColormapSeriesStyle",
     "HeatmapSeriesStyle",
     "HistSeriesStyle",

@@ -16,6 +16,7 @@ from typing import Literal
 from pandaplot.models.chart.series_style import (
     Bar3DSeriesStyle,
     BarSeriesStyle,
+    BoxSeriesStyle,
     ColormapSeriesStyle,
     HeatmapSeriesStyle,
     HistSeriesStyle,
@@ -240,5 +241,19 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_value_labels=False,
         style_cls=Vector3DSeriesStyle,
         needs_w_column=True,
+    ),
+    # Box: like HIST, a single "values" column (resolved into y_data) with
+    # no X -- each series is one box, positioned among its sibling box
+    # series by the renderer rather than by any column. No error bars:
+    # boxplot's whiskers/outliers ARE its spread display, and the generic
+    # errorbar() pass would draw a second, unrelated spread on top.
+    SeriesType.BOX: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=False, supports_color=True, supports_fill=False,
+        supports_error_bars=False, needs_x_column=False, needs_secondary_columns=False,
+        needs_z_column=False, supports_gridding=False,
+        uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=BoxSeriesStyle,
     ),
 }

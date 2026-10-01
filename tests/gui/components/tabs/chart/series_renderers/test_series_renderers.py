@@ -12,12 +12,15 @@ matplotlib.use("Agg")  # no display needed for these pure-drawing tests
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from matplotlib.colors import to_hex
 from matplotlib.quiver import Quiver
 
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData
 from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS,
+    SERIES_RENDERERS_REPORTING_NO_DATA,
     render_bar_series,
+    render_box_series,
     render_hist_series,
     render_line_series,
     render_scatter_series,
@@ -26,6 +29,7 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import (
     BarSeriesStyle,
+    BoxSeriesStyle,
     ColormapSeriesStyle,
     HeatmapSeriesStyle,
     HistSeriesStyle,
@@ -839,3 +843,96 @@ def test_render_heatmap_series_applies_contour_line_width_triangulated():
 def test_series_renderers_registry_includes_new_types():
     assert SeriesType.COLORMAP in SERIES_RENDERERS
     assert SeriesType.HEATMAP in SERIES_RENDERERS
+
+
+# -- Box (#399) ---------------------------------------------------------------
+
+
+def _box_data(values) -> SeriesData:
+    return _series_data(x_data=None, y_data=values)
+
+
+def test_render_box_series_draws_one_box_in_the_series_color():
+    fig, ax = plt.subplots()
+
+    artists = render_box_series(ax, _box_data([1.0, 2.0, 3.0, 4.0, 5.0]), BoxSeriesStyle(color="#ff0000"),
+                                "Group A", 0.6, visible=True, extra={"box_positions": []})
+
+    assert SERIES_RENDERERS[SeriesType.BOX] is render_box_series
+    assert len(artists["boxes"]) == 1
+    box = artists["boxes"][0]
+    assert to_hex(box.get_facecolor()) == "#ff0000"
+    assert box.get_alpha() == 0.6
+    np.testing.assert_allclose(artists["medians"][0].get_ydata(), [3.0, 3.0])
+    plt.close(fig)
+
+
+def test_render_box_series_drops_nans_and_non_numeric_values():
+    fig, ax = plt.subplots()
+
+    artists = render_box_series(ax, _box_data([1.0, np.nan, 2.0, "oops", 3.0]), BoxSeriesStyle(), "S", 1.0,
+                                visible=True, extra={})
+
+    np.testing.assert_allclose(artists["medians"][0].get_ydata(), [2.0, 2.0])
+    plt.close(fig)
+
+
+@pytest.mark.parametrize("values", [[], [np.nan, np.nan], ["a", "b"]])
+def test_render_box_series_returns_none_and_claims_no_slot_with_no_plottable_values(values):
+    """Degenerate data: Box is in SERIES_RENDERERS_REPORTING_NO_DATA, so a
+    None return becomes a per-series "no plottable data" message; it must
+    not take an X slot either, or its siblings would leave a gap for it."""
+    fig, ax = plt.subplots()
+    positions = []
+
+    result = render_box_series(ax, _box_data(values), BoxSeriesStyle(), "S", 1.0,
+                               visible=True, extra={"box_positions": positions})
+
+    assert result is None
+    assert positions == []
+    assert SeriesType.BOX in SERIES_RENDERERS_REPORTING_NO_DATA
+    plt.close(fig)
+
+
+def test_render_box_series_applies_outlier_notch_and_width_settings():
+    values = [1.0, 2.0, 2.5, 3.0, 3.5, 4.0, 100.0]  # 100 is far beyond the whiskers
+
+    fig, ax = plt.subplots()
+    shown = render_box_series(ax, _box_data(values), BoxSeriesStyle(), "S", 1.0, visible=True, extra={})
+    assert len(shown["fliers"][0].get_ydata()) == 1
+    plain_vertex_count = len(shown["boxes"][0].get_path().vertices)
+    plt.close(fig)
+
+    fig, ax = plt.subplots()
+    hidden = render_box_series(ax, _box_data(values), BoxSeriesStyle(show_outliers=False, notch=True, box_width=0.2),
+                               "S", 1.0, visible=True, extra={})
+    assert hidden["fliers"] == []
+    box_x = hidden["boxes"][0].get_path().vertices[:, 0]
+    assert box_x.max() - box_x.min() == pytest.approx(0.2)
+    # A notched outline has extra vertices pinching in at the median.
+    assert len(hidden["boxes"][0].get_path().vertices) > plain_vertex_count
+    plt.close(fig)
+
+
+def test_render_box_series_places_sibling_boxes_side_by_side_with_their_labels():
+    """The shared box_positions list is how sibling boxes coordinate: each
+    takes the next slot, and the tick list always names every box so far."""
+    fig, ax = plt.subplots()
+    positions = []
+    extra = {"box_positions": positions}
+    for label, values in (("A", [1, 2, 3]), ("B", [4, 5, 6]), ("C", [7, 8, 9])):
+        render_box_series(ax, _box_data(values), BoxSeriesStyle(), label, 1.0, visible=True, extra=extra)
+
+    assert positions == [(1, "A"), (2, "B"), (3, "C")]
+    assert list(ax.get_xticks()) == [1, 2, 3]
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["A", "B", "C"]
+    plt.close(fig)
+
+
+def test_render_box_series_falls_back_to_a_numbered_tick_label_when_unlabeled():
+    fig, ax = plt.subplots()
+
+    render_box_series(ax, _box_data([1, 2, 3]), BoxSeriesStyle(), "", 1.0, visible=True, extra={})
+
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["Series 1"]
+    plt.close(fig)

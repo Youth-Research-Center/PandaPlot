@@ -24,3 +24,4 @@ class SeriesType(str, Enum):
     BAR3D = "bar3d"
     TRISURF = "trisurf"
     VECTOR3D = "vector3d"
+    BOX = "box"

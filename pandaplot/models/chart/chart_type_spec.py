@@ -155,6 +155,16 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
         }),
         allows_fit=False, default_series_type=SeriesType.VECTOR3D, is_3d=True,
     ),
+    # Box: one box per series, side by side for comparison -- so the only
+    # series type allowed is BOX itself (a line/scatter overlay would have
+    # to share the boxes' synthetic 1, 2, 3... X positions, which mean
+    # nothing in the overlay's own data). No fits: there is no (x, y)
+    # curve to fit a function to.
+    ChartType.BOX: ChartTypeSpec(
+        display_name="Box Plot", roles=("values",), required_roles=("values",),
+        allowed_series_types=frozenset({SeriesType.BOX}),
+        allows_fit=False, default_series_type=SeriesType.BOX,
+    ),
 }
 
 

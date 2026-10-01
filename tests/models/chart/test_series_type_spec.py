@@ -11,6 +11,7 @@ directly instead of re-deciding the value. bar/hist/vector are
 """
 from pandaplot.models.chart.series_style import (
     BarSeriesStyle,
+    BoxSeriesStyle,
     HistSeriesStyle,
     LineSeriesStyle,
     ScatterSeriesStyle,
@@ -71,6 +72,32 @@ def test_hist_spec():
     assert spec.supports_error_bars is False
     assert spec.needs_x_column is False
     assert spec.needs_secondary_columns is False
+
+
+def test_box_spec():
+    """Box mirrors Hist's single-"values"-column shape (no X column); its
+    whiskers/outliers are its own spread display, so no generic error bars."""
+    spec = SERIES_TYPE_SPECS[SeriesType.BOX]
+    assert spec.marker_mode == "unsupported"
+    assert spec.supports_line_style is False
+    assert spec.supports_color is True
+    assert spec.supports_fill is False
+    assert spec.supports_error_bars is False
+    assert spec.needs_x_column is False
+    assert spec.needs_secondary_columns is False
+    assert spec.needs_z_column is False
+    assert spec.supports_gridding is False
+    assert spec.uses_color_scale is False
+    assert spec.is_3d is False
+    assert spec.style_cls is BoxSeriesStyle
+
+
+def test_box_style_defaults():
+    style = BoxSeriesStyle()
+    assert style.color == "#1f77b4"
+    assert style.show_outliers is True
+    assert style.notch is False
+    assert style.box_width == 0.5
 
 
 def test_vector_spec():
