@@ -65,6 +65,9 @@ _SAMPLE_GRID_Z = [
 _SAMPLE_GRID_U = [0.3 * (x - 2.0) for x in _SAMPLE_GRID_X]
 _SAMPLE_GRID_V = [0.3 * (y - 2.0) for y in _SAMPLE_GRID_Y]
 _SAMPLE_GRID_W = [0.3] * len(_SAMPLE_GRID_X)
+# Wedge names for a Pie sample, one per _SAMPLE_Y value, so the sample
+# shows labeled wedges the way a configured label column would.
+_SAMPLE_LABELS = ["A", "B", "C", "D", "E"]
 
 
 def _preview_extra() -> dict:
@@ -108,6 +111,7 @@ def _sample_series_data(series_type: SeriesType) -> SeriesData:
         x_err=None, y_err=None, x_err_minus=None, y_err_minus=None, error=None,
         u_data=u_data, v_data=v_data, w_data=w_data,
         z_data=z_data,
+        label_data=_SAMPLE_LABELS if spec.needs_label_column else None,
     )
 
 
@@ -176,6 +180,7 @@ def render_wizard_preview(
             w_column_id=config.get("w_column_id", ""),
             magnitude_column_id=config.get("magnitude_column_id", ""),
             z_column_id=config.get("z_column_id", ""),
+            label_column_id=config.get("label_column_id", ""),
         )
         if spec.supports_gridding:
             style.heatmap_gridding = config.get("heatmap_gridding", "grid")

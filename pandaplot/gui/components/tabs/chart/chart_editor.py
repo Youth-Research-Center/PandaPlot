@@ -372,7 +372,8 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     and only for 2-D Vector) and the Z column (a color channel for
     Colormap/Heatmap, the third spatial axis for every 3-D type including
     Vector3D) are resolved the same way, but required ones error out the
-    whole series when unresolvable.
+    whole series when unresolvable. A pie's optional wedge-label column
+    (label_data) is resolved leniently, like magnitude.
     """
     from pandaplot.models.project.items.chart import resolve_series_column
     from pandaplot.models.project.items.dataset import Dataset
@@ -448,8 +449,17 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
             return SeriesData(None, None, None, None, None, None, f"Z column '{z_column}' not found")
         z_data = df[z_column]
 
+    # Optional, like magnitude: a blank or stale label column just leaves
+    # the pie's wedges unlabeled rather than failing the series.
+    label_data = None
+    if spec.needs_label_column:
+        label_column = resolve_series_column(dataset, series.style.label_column_id, series.style.label_column)
+        if label_column and label_column in df.columns:
+            label_data = df[label_column]
+
     return SeriesData(x_data, df[y_column], x_err, y_err, x_err_minus, y_err_minus, None,
-                      u_data=u_data, v_data=v_data, w_data=w_data, magnitude_data=magnitude_data, z_data=z_data)
+                      u_data=u_data, v_data=v_data, w_data=w_data, magnitude_data=magnitude_data, z_data=z_data,
+                      label_data=label_data)
 
 
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> tuple[float, float] | None:
