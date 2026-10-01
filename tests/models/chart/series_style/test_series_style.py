@@ -17,6 +17,7 @@ from pandaplot.models.chart.error_direction import ErrorDirection
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import (
     BarSeriesStyle,
+    DensitySeriesStyle,
     HistSeriesStyle,
     LineSeriesStyle,
     ScatterSeriesStyle,
@@ -172,6 +173,39 @@ def test_hist_series_style_fields_and_defaults():
     style = HistSeriesStyle()
     assert style.color == "#1f77b4"
     assert {f.name for f in dataclasses.fields(style)} == {"color"}
+
+
+def test_density_series_style_fields_and_defaults():
+    """Only the fields render_density_series reads: none of Line's
+    FillStyleFields baseline/orientation/fill-to/range fields, since a KDE
+    curve only ever fills down to y=0 under itself."""
+    style = DensitySeriesStyle()
+    assert issubclass(DensitySeriesStyle, SeriesStyleBase)
+    assert style.color == "#1f77b4"
+    assert style.line_style == "solid"
+    assert style.line_width == 2.0
+    assert style.fill_enabled is False
+    assert style.fill_alpha == 0.3
+    assert style.bandwidth == 0.0
+    assert {f.name for f in dataclasses.fields(style)} == {
+        "color", "line_style", "line_width", "fill_enabled", "fill_alpha", "bandwidth",
+    }
+    assert style.swatch_color == "#1f77b4"
+
+
+def test_density_style_round_trips_through_chart_serialization():
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="d", chart_type="density")
+    series = chart.add_data_series("ds", y_column_id="c1", series_type=SeriesType.DENSITY)
+    series.style.bandwidth = 0.4
+    series.style.fill_enabled = True
+    restored = Chart.from_dict(chart.to_dict())
+    restored_style = restored.data_series[0].style
+    assert isinstance(restored_style, DensitySeriesStyle)
+    assert restored_style.bandwidth == 0.4
+    assert restored_style.fill_enabled is True
 
 
 def test_vector_series_style_fields_and_defaults():

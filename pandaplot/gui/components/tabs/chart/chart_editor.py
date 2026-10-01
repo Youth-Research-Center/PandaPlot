@@ -47,7 +47,7 @@ from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.marker_style import MarkerStyle
-from pandaplot.models.chart.series_style import LineSeriesStyle
+from pandaplot.models.chart.series_style import DensitySeriesStyle, LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ChartEvents, ConfigEvents
@@ -1009,6 +1009,7 @@ class ChartEditorWidget(PWidget):
                             visible=series.visible,
                             extra={
                                 "bins": self.chart.config.hist_bins,
+                                "hist_density": CHART_TYPE_SPECS[self.chart.chart_type].hist_density,
                                 "resolve_fill_baseline": (
                                     lambda query, *, horizontal, _i=i, _style=style: self._resolve_fill_baseline(
                                         project, _i, _style.fill_base, _style.fill_to_index, query,
@@ -1573,13 +1574,15 @@ class ChartEditorWidget(PWidget):
         return augmented
 
     def _line_style_for_data_series_index(self, series_idx):
-        """The `LineSeriesStyle` for `chart.data_series[series_idx]`, or
-        None when `series_idx` is out of range (e.g. a fit curve index, or
-        no match) or the series isn't styled as a line."""
+        """The line-with-optional-fill style (`LineSeriesStyle`, or a
+        Density curve's `DensitySeriesStyle`) for
+        `chart.data_series[series_idx]`, or None when `series_idx` is out
+        of range (e.g. a fit curve index, or no match) or the series isn't
+        drawn as a fillable line."""
         if series_idx is None or not (0 <= series_idx < len(self.chart.data_series)):
             return None
         style = self.chart.data_series[series_idx].style
-        return style if isinstance(style, LineSeriesStyle) else None
+        return style if isinstance(style, (LineSeriesStyle, DensitySeriesStyle)) else None
 
     def _find_fill_artist_for_series(self, series_idx):
         """The PolyCollection added by render_line_series's fill_between(x)

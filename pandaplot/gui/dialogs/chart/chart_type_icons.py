@@ -37,6 +37,20 @@ def _paint_hist(painter: QPainter, size: int):
         painter.drawRect(QRectF(x, y, w, h))
 
 
+def _paint_density(painter: QPainter, size: int):
+    """A bell curve sampled from a Gaussian, over a baseline -- the shape a
+    KDE of roughly-normal data takes."""
+    baseline = size - 2
+    points = []
+    steps = 16
+    for i in range(steps + 1):
+        t = i / steps
+        bump = math.exp(-((t - 0.5) ** 2) / (2 * 0.16 ** 2))
+        points.append(QPointF(1 + t * (size - 2), baseline - bump * (size - 4)))
+    painter.drawPolyline(points)
+    painter.drawLine(QPointF(1, baseline), QPointF(size - 1, baseline))
+
+
 def _vector_arrow_geometry(size: int):
     """Compute the (start, end, [wing1, wing2]) points for each arrow.
 
@@ -184,6 +198,7 @@ _PAINTERS = {
     "scatter": _paint_scatter,
     "bar": _paint_bar,
     "hist": _paint_hist,
+    "density": _paint_density,
     "vector": _paint_vector,
     "colormap": _paint_colormap,
     "heatmap": _paint_heatmap,

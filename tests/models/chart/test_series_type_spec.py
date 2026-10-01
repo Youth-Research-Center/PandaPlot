@@ -11,6 +11,7 @@ directly instead of re-deciding the value. bar/hist/vector are
 """
 from pandaplot.models.chart.series_style import (
     BarSeriesStyle,
+    DensitySeriesStyle,
     HistSeriesStyle,
     LineSeriesStyle,
     ScatterSeriesStyle,
@@ -71,6 +72,27 @@ def test_hist_spec():
     assert spec.supports_error_bars is False
     assert spec.needs_x_column is False
     assert spec.needs_secondary_columns is False
+
+
+def test_density_spec():
+    """Hist's exact column shape (one values column, no X), but drawn as a
+    line: color, line style and a fill under the curve all apply; markers,
+    error bars, curve analysis and value labels don't."""
+    spec = SERIES_TYPE_SPECS[SeriesType.DENSITY]
+    assert spec.marker_mode == "unsupported"
+    assert spec.supports_line_style is True
+    assert spec.supports_color is True
+    assert spec.supports_fill is True
+    assert spec.supports_error_bars is False
+    assert spec.needs_x_column is False
+    assert spec.needs_secondary_columns is False
+    assert spec.needs_z_column is False
+    assert spec.supports_gridding is False
+    assert spec.uses_color_scale is False
+    assert spec.is_3d is False
+    assert spec.supports_curve_analysis is False
+    assert spec.supports_value_labels is False
+    assert spec.style_cls is DensitySeriesStyle
 
 
 def test_vector_spec():

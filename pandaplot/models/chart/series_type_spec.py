@@ -17,6 +17,7 @@ from pandaplot.models.chart.series_style import (
     Bar3DSeriesStyle,
     BarSeriesStyle,
     ColormapSeriesStyle,
+    DensitySeriesStyle,
     HeatmapSeriesStyle,
     HistSeriesStyle,
     Line3DSeriesStyle,
@@ -139,6 +140,24 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_curve_analysis=False,
         supports_value_labels=False,
         style_cls=HistSeriesStyle,
+    ),
+    # Density: a KDE curve computed from one values column -- Hist's exact
+    # column shape (no X), drawn as a smooth line instead of binned bars.
+    # supports_curve_analysis is False for the same reason as Hist: the
+    # plotted (x, y) is a derived estimate, not the series' own data, so
+    # differentiating/integrating "it" would silently analyze something
+    # other than what the user picked. supports_fill means "can shade the
+    # area under the curve" -- Density's fill is its own two-field variant
+    # (DensitySeriesStyle), not FillStyleFields, so the Style tab shows its
+    # Density card rather than the generic Fill card for it.
+    SeriesType.DENSITY: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=True, supports_color=True, supports_fill=True,
+        supports_error_bars=False, needs_x_column=False, needs_secondary_columns=False,
+        needs_z_column=False, supports_gridding=False,
+        uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=DensitySeriesStyle,
     ),
     SeriesType.VECTOR: SeriesTypeSpec(
         marker_mode="unsupported", supports_line_style=False, supports_color=False, supports_fill=False,

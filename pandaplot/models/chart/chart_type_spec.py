@@ -37,6 +37,12 @@ class ChartTypeSpec:
     # secondary Y axis is even possible (twinx() has no mplot3d
     # equivalent -- it isn't), and whether the Axes tab offers a Z axis.
     is_3d: bool = False
+    # Whether a Hist series on this chart is drawn normalized (bar areas
+    # summing to 1, matplotlib's `hist(density=True)`) instead of as raw
+    # counts. Only True for DENSITY: a KDE curve integrates to 1, so a
+    # histogram overlaid on it in raw counts would dwarf the curve into a
+    # flat line along the X axis.
+    hist_density: bool = False
 
     @property
     def supports_error_bars(self) -> bool:
@@ -63,6 +69,16 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
         display_name="Histogram", roles=("values",), required_roles=("values",),
         allowed_series_types=frozenset({SeriesType.HIST}),
         allows_fit=True, default_series_type=SeriesType.HIST,
+    ),
+    # Density (#398): same single "values" role as Histogram. HIST is
+    # allowed alongside DENSITY because a KDE curve over a histogram of
+    # the same data is the classic way to show both -- hist_density keeps
+    # the two on the same (normalized) Y scale.
+    ChartType.DENSITY: ChartTypeSpec(
+        display_name="Density", roles=("values",), required_roles=("values",),
+        allowed_series_types=frozenset({SeriesType.DENSITY, SeriesType.HIST}),
+        allows_fit=False, default_series_type=SeriesType.DENSITY,
+        hist_density=True,
     ),
     ChartType.VECTOR: ChartTypeSpec(
         display_name="Vector", roles=("x", "y", "u", "v", "magnitude"),
