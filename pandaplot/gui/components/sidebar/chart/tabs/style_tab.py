@@ -32,6 +32,7 @@ from pandaplot.models.chart.chart_configuration import (
 from pandaplot.models.chart.error_direction import ErrorDirection
 from pandaplot.models.chart.series_style import (
     ColormapSeriesStyle,
+    DensitySeriesStyle,
     HeatmapSeriesStyle,
     Line3DSeriesStyle,
     LineSeriesStyle,
@@ -552,6 +553,44 @@ class StyleTab(QWidget):
 
         layout.addWidget(fill_card)
 
+        # DENSITY group -- a Density (KDE) series' own settings. Its color/
+        # line style/width/opacity come from the shared Line card above
+        # (DensitySeriesStyle declares those fields under the same names),
+        # but the generic Fill card can't serve it: that card writes the
+        # whole FillStyleFields set (orientation, baseline, fill-to-series,
+        # partial range), none of which a density curve -- always filled
+        # down to y=0 under itself -- has. So its fill switch and opacity
+        # live here instead, next to the bandwidth they're tuned alongside.
+        self.density_card = Card()
+        density_card = self.density_card
+        density_layout = QGridLayout(density_card)
+        density_layout.addWidget(SectionHeader("Density"), 0, 0, 1, 2)
+
+        density_layout.addWidget(QLabel("Bandwidth:"), 1, 0)
+        self.density_bandwidth_spin = QDoubleSpinBox()
+        self.density_bandwidth_spin.setRange(0.0, 5.0)
+        self.density_bandwidth_spin.setSingleStep(0.05)
+        self.density_bandwidth_spin.setDecimals(2)
+        # 0 is DensitySeriesStyle.bandwidth's "let scipy choose" sentinel.
+        self.density_bandwidth_spin.setSpecialValueText("Auto")
+        self.density_bandwidth_spin.setToolTip(
+            "Kernel width as a multiple of the data's standard deviation. "
+            "Smaller values follow the data more closely; larger values smooth it out. "
+            "Auto uses Scott's rule."
+        )
+        density_layout.addWidget(self.density_bandwidth_spin, 1, 1)
+
+        density_layout.addWidget(QLabel("Fill under curve:"), 2, 0)
+        self.density_fill_toggle = ToggleSwitch()
+        density_layout.addWidget(self.density_fill_toggle, 2, 1)
+
+        self.density_fill_opacity_label = QLabel("Fill opacity:")
+        density_layout.addWidget(self.density_fill_opacity_label, 3, 0)
+        self.density_fill_opacity_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
+        density_layout.addWidget(self.density_fill_opacity_slider, 3, 1)
+
+        layout.addWidget(density_card)
+
         # MARKERS group
         self.marker_card = Card()
         marker_card = self.marker_card
@@ -880,6 +919,9 @@ class StyleTab(QWidget):
         self.fill_range_enabled_toggle.toggled.connect(self._on_fill_range_enabled_toggled)
         self.fill_range_start_spin.valueChanged.connect(self._on_fill_range_changed)
         self.fill_range_end_spin.valueChanged.connect(self._on_fill_range_changed)
+        self.density_bandwidth_spin.valueChanged.connect(self._on_field_changed)
+        self.density_fill_toggle.toggled.connect(self._on_density_fill_toggled)
+        self.density_fill_opacity_slider.valueChanged.connect(self._on_field_changed)
         self.markers_enabled_toggle.toggled.connect(self._on_markers_enabled_toggled)
         self.marker_shape_control.currentValueChanged.connect(self._on_field_changed)
         self.marker_size_slider.valueChanged.connect(self._on_field_changed)
@@ -1048,7 +1090,13 @@ class StyleTab(QWidget):
         self.band_card.setVisible(
             kind == "fit" and isinstance(obj, FitData) and obj.confidence_lower is not None
         )
-        self.fill_card.setVisible(kind == "series" and fill_supported)
+        # The generic Fill card reads/writes FillStyleFields (Line, Scatter);
+        # a Density series' fill (supports_fill too) has its own two-control
+        # version on the Density card instead -- see density_card.
+        self.fill_card.setVisible(
+            kind == "series" and fill_supported and issubclass(spec.style_cls, FillStyleFields)
+        )
+        self.density_card.setVisible(kind == "series" and spec is not None and spec.style_cls is DensitySeriesStyle)
         self.marker_card.setVisible(kind == "series" and marker_supported)
         # Fit data has no error-bar fields at all (DataSeries-only), and even
         # for a series there's nothing to style unless an error column is
@@ -1676,6 +1724,18 @@ class StyleTab(QWidget):
         self._update_fill_controls_visibility()
         self._on_field_changed()
 
+    def _on_density_fill_toggled(self, _checked: bool) -> None:  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Density card's "Fill under curve" toggle."""
+        self._update_density_controls_visibility()
+        self._on_field_changed()
+
+    def _update_density_controls_visibility(self) -> None:
+        """Fill opacity only matters while the fill is on -- same rule as the
+        generic Fill card (see _update_fill_controls_visibility)."""
+        enabled = self.density_fill_toggle.isChecked()
+        self.density_fill_opacity_label.setVisible(enabled)
+        self.density_fill_opacity_slider.setVisible(enabled)
+
     def _on_fill_orientation_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the vertical/horizontal fill switch: only the baseline
         label's axis (X vs Y) changes in the UI."""
@@ -1943,10 +2003,15 @@ class StyleTab(QWidget):
             series.alpha = self.line_opacity_slider.value()
         else:
             style.color = self.line_color_row.currentColor()
-            if isinstance(style, (LineSeriesStyle, Line3DSeriesStyle, WireframeSeriesStyle)):
+            if isinstance(style, (LineSeriesStyle, Line3DSeriesStyle, WireframeSeriesStyle, DensitySeriesStyle)):
                 style.line_style = self.line_style_control.currentValue().value
                 style.line_width = self.line_width_slider.value()
             series.alpha = self.line_opacity_slider.value()
+
+        if isinstance(style, DensitySeriesStyle):
+            style.bandwidth = self.density_bandwidth_spin.value()
+            style.fill_enabled = self.density_fill_toggle.isChecked()
+            style.fill_alpha = self.density_fill_opacity_slider.value()
 
         # Value labels (#125): only LineSeriesStyle/ScatterSeriesStyle/
         # BarSeriesStyle declare this field (see SeriesTypeSpec.supports_
@@ -2221,6 +2286,13 @@ class StyleTab(QWidget):
             self.fill_range_end_spin.setValue(point_count if fill_range_end < 0 else fill_range_end + 1)
             self._update_fill_range_labels()
             self._update_fill_controls_visibility()
+
+            self.density_bandwidth_spin.setValue(getattr(style, "bandwidth", 0.0))
+            self.density_fill_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.density_fill_toggle.setChecked(checked=getattr(style, "fill_enabled", False))
+            self.density_fill_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+            self.density_fill_opacity_slider.setValue(getattr(style, "fill_alpha", 0.3))
+            self._update_density_controls_visibility()
         finally:
             self._updating_controls = previous_guard
 
