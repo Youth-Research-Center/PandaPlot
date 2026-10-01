@@ -29,6 +29,7 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
 from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS_REPORTING_NO_DATA as _NO_DATA_MEANS_SKIP,
 )
+from pandaplot.gui.components.tabs.chart.series_renderers.box import BOX_POSITIONS_KEY
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
@@ -74,13 +75,16 @@ def _preview_extra() -> dict:
     defaults: matplotlib's own colormap, an auto color scale ((None, None)
     -- see resolve_color_limits), and a baseline resolver that's never
     actually called (only a fill-enabled Line series would, and a
-    default-styled one never is).
+    default-styled one never is). A fresh box_positions list per call, since
+    render_wizard_preview builds this once and shares it across all its
+    series -- which is exactly what lets several Box series sit side by side.
     """
     return {
         "bins": 10,
         "colormap": "viridis",
         "color_limits": (None, None),
         "resolve_fill_baseline": lambda _query, _horizontal: 0,
+        BOX_POSITIONS_KEY: [],
     }
 
 

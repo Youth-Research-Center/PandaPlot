@@ -42,6 +42,7 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS,
     SERIES_RENDERERS_REPORTING_NO_DATA,
 )
+from pandaplot.gui.components.tabs.chart.series_renderers.box import BOX_POSITIONS_KEY, apply_box_ticks
 from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
@@ -921,6 +922,11 @@ class ChartEditorWidget(PWidget):
             series_errors = []
             colorbar_mappable = None
             colorbar_label = ""
+            # Shared by every Box series in this render pass so each can
+            # find its own X slot among its siblings (see series_renderers/
+            # box.py). Rebuilt per update_chart() call, never kept on self:
+            # a stale list would push every re-render's boxes further right.
+            box_positions: list[tuple[int, str]] = []
             if not self.chart.data_series:
                 self.dataset_label.setText("No Data Loaded")
             else:
@@ -1016,6 +1022,7 @@ class ChartEditorWidget(PWidget):
                                 ),
                                 "colormap": self.chart.config.colormap,
                                 "color_limits": color_limits,
+                                BOX_POSITIONS_KEY: box_positions,
                             },
                         )
 
@@ -1314,6 +1321,13 @@ class ChartEditorWidget(PWidget):
                 major_color=config.x.major_tick_color,
                 minor_color=config.x.minor_tick_color,
                 labelcolor=config.x.tick_label_color)
+            if box_positions:
+                # apply_axis_ticks just swapped in a numeric locator/
+                # formatter, which would replace each box's named tick with
+                # bare 0.5-step numbers -- the boxes' X positions mean
+                # nothing numerically. Restored before apply_tick_label_font
+                # so the configured tick font still reaches these labels.
+                apply_box_ticks(self.chart_canvas.axes, box_positions)
             apply_tick_label_font(
                 self.chart_canvas.axes.xaxis,
                 config.x.tick_label_font_size,
