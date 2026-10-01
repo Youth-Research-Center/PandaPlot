@@ -1596,7 +1596,8 @@ class DataTab(QWidget):
                 return
             spec = CHART_TYPE_SPECS[self.current_chart.chart_type]
             for series_type in sorted(spec.allowed_series_types, key=lambda t: t.value):
-                self.series_type_combo.addItem(series_type.value.title(), series_type)
+                # "stacked_bar" -> "Stacked Bar", not "Stacked_Bar".
+                self.series_type_combo.addItem(series_type.value.replace("_", " ").title(), series_type)
             # "Fit" is a conversion action, not a real SeriesType -- offered
             # regardless of the chart's own allowed_series_types, since fit
             # entries have always been chart-type-agnostic (#298). Appended

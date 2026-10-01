@@ -65,6 +65,9 @@ _SAMPLE_GRID_Z = [
 _SAMPLE_GRID_U = [0.3 * (x - 2.0) for x in _SAMPLE_GRID_X]
 _SAMPLE_GRID_V = [0.3 * (y - 2.0) for y in _SAMPLE_GRID_Y]
 _SAMPLE_GRID_W = [0.3] * len(_SAMPLE_GRID_X)
+# The second sample layer a stacked type's preview draws on top of the
+# first (matplotlib's second default cycle color, next to the first's blue).
+_SAMPLE_STACK_COLOR = "#ff7f0e"
 
 
 def _preview_extra() -> dict:
@@ -74,13 +77,16 @@ def _preview_extra() -> dict:
     defaults: matplotlib's own colormap, an auto color scale ((None, None)
     -- see resolve_color_limits), and a baseline resolver that's never
     actually called (only a fill-enabled Line series would, and a
-    default-styled one never is).
+    default-styled one never is). The bar stack is a fresh one per call, and
+    shared by every series a single preview render draws with it, so a
+    Stacked Bar preview stacks its series exactly as the real chart will.
     """
     return {
         "bins": 10,
         "colormap": "viridis",
         "color_limits": (None, None),
         "resolve_fill_baseline": lambda _query, _horizontal: 0,
+        "stack_bottoms": {},
     }
 
 
@@ -122,9 +128,17 @@ def draw_chart_type_sample(canvas: ChartCanvas, chart_type: str) -> None:
     canvas.set_projection(projection_3d=CHART_TYPE_SPECS[ChartType(chart_type)].is_3d)
     series_type = SeriesType(chart_type)
     style = build_series_style(series_type)
+    extra = _preview_extra()
     SERIES_RENDERERS[series_type](
         canvas.axes, _sample_series_data(series_type), style,
-        "", 1.0, visible=True, extra=_preview_extra())
+        "", 1.0, visible=True, extra=extra)
+    if SERIES_TYPE_SPECS[series_type].is_stacked:
+        # One series alone looks exactly like a plain Bar sample -- stack a
+        # second, differently-colored one on top so the preview shows what
+        # actually sets this type apart.
+        SERIES_RENDERERS[series_type](
+            canvas.axes, _sample_series_data(series_type), build_series_style(series_type, color=_SAMPLE_STACK_COLOR),
+            "", 1.0, visible=True, extra=extra)
 
 
 def _series_label(project, config: dict) -> str:
