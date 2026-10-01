@@ -37,6 +37,7 @@ from pandaplot.models.chart.series_style import (
     HeatmapSeriesStyle,
     Line3DSeriesStyle,
     LineSeriesStyle,
+    PieSeriesStyle,
     Scatter3DSeriesStyle,
     ScatterSeriesStyle,
     SurfaceSeriesStyle,
@@ -781,6 +782,33 @@ class StyleTab(QWidget):
 
         layout.addWidget(vector3d_card)
 
+        # PIE group -- a pie has no line/marker/fill/error bars and no single
+        # series color (wedges cycle the default palette -- see
+        # PieSeriesStyle), so this card is all a Pie series gets.
+        self.pie_card = Card()
+        pie_layout = QGridLayout(self.pie_card)
+        pie_layout.addWidget(SectionHeader("Pie"), 0, 0, 1, 2)
+
+        start_angle_label = QLabel("Start angle:")
+        start_angle_label.setToolTip("Where the first wedge starts, in degrees counter-clockwise from 3 o'clock (90 = 12 o'clock)")
+        pie_layout.addWidget(start_angle_label, 1, 0)
+        self.pie_start_angle_slider = SliderWithSpinbox(minimum=0.0, maximum=360.0, decimals=0)
+        pie_layout.addWidget(self.pie_start_angle_slider, 1, 1)
+
+        pie_layout.addWidget(QLabel("Show percentages:"), 2, 0)
+        self.pie_show_percentages_toggle = ToggleSwitch(checked=True)
+        pie_layout.addWidget(self.pie_show_percentages_toggle, 2, 1)
+
+        donut_label = QLabel("Donut hole:")
+        donut_label.setToolTip("Size of the hole cut out of the middle, as a fraction of the radius (0 = solid pie)")
+        pie_layout.addWidget(donut_label, 3, 0)
+        # Capped below 1: a hole the full radius would leave a ring of zero
+        # thickness, i.e. nothing drawn at all (see series_renderers/pie.py).
+        self.pie_donut_width_slider = SliderWithSpinbox(minimum=0.0, maximum=0.9, decimals=2)
+        pie_layout.addWidget(self.pie_donut_width_slider, 3, 1)
+
+        layout.addWidget(self.pie_card)
+
         # HEATMAP GRIDDING group -- per-series (SeriesTypeSpec.supports_
         # gridding -- Heatmap only; Colormap, a plain color-mapped scatter,
         # needs no gridding at all). The colormap/colorbar/scale live on
@@ -922,6 +950,9 @@ class StyleTab(QWidget):
         self.vector3d_colormap_control.currentValueChanged.connect(self._on_field_changed)
         self.vector3d_arrow_ratio_slider.valueChanged.connect(self._on_field_changed)
         self.vector3d_normalize_toggle.toggled.connect(self._on_field_changed)
+        self.pie_start_angle_slider.valueChanged.connect(self._on_field_changed)
+        self.pie_show_percentages_toggle.toggled.connect(self._on_field_changed)
+        self.pie_donut_width_slider.valueChanged.connect(self._on_field_changed)
         self.heatmap_gridding_control.currentValueChanged.connect(self._on_heatmap_gridding_changed)
         self.heatmap_resolution_spin.valueChanged.connect(self._on_field_changed)
         self.heatmap_render_mode_control.currentValueChanged.connect(self._on_heatmap_render_mode_changed)
@@ -1080,6 +1111,7 @@ class StyleTab(QWidget):
         # quiver's -- see Vector3DSeriesStyle's docstring).
         self.vector_card.setVisible(kind == "series" and spec is not None and spec.style_cls is VectorSeriesStyle)
         self.vector3d_card.setVisible(kind == "series" and spec is not None and spec.style_cls is Vector3DSeriesStyle)
+        self.pie_card.setVisible(kind == "series" and spec is not None and spec.style_cls is PieSeriesStyle)
         self.heatmap_gridding_card.setVisible(kind == "series" and spec is not None and spec.supports_gridding)
         # Re-evaluate "Match line" visibility: it depends on both kind and
         # chart type (see _is_scatter_series_target), either of which may
@@ -1915,6 +1947,16 @@ class StyleTab(QWidget):
             style.vector_normalize = self.vector3d_normalize_toggle.isChecked()
             return
 
+        if isinstance(style, PieSeriesStyle):
+            # Nothing else applies -- in particular not opacity: the Line
+            # card owning that slider is hidden for a pie, so it holds
+            # whatever the last visible target left in it (same reasoning
+            # as the color-scaled types below).
+            style.start_angle = self.pie_start_angle_slider.value()
+            style.show_percentages = self.pie_show_percentages_toggle.isChecked()
+            style.donut_width = self.pie_donut_width_slider.value()
+            return
+
         # Gridding mode/resolution, for every style class that declares
         # them (Heatmap/Surface/Wireframe -- SeriesTypeSpec.supports_
         # gridding). Written here, before the color branches below, rather
@@ -2098,6 +2140,10 @@ class StyleTab(QWidget):
             self.vector3d_colormap_control.setCurrentValue(getattr(style, "vector_colormap", ""))
             self.vector3d_arrow_ratio_slider.setValue(getattr(style, "vector_arrow_ratio", 0.3))
             self.vector3d_normalize_toggle.setChecked(checked=getattr(style, "vector_normalize", False))
+
+            self.pie_start_angle_slider.setValue(getattr(style, "start_angle", 90.0))
+            self.pie_show_percentages_toggle.setChecked(checked=getattr(style, "show_percentages", True))
+            self.pie_donut_width_slider.setValue(getattr(style, "donut_width", 0.0))
 
             # Heatmap-only gridding/render fields (colormap/colorbar/scale
             # live on the Axes tab's "Color" chip instead -- see
@@ -2712,6 +2758,10 @@ class StyleTab(QWidget):
         self.vector3d_colormap_control.set_tokens(tokens)
         self.vector3d_arrow_ratio_slider.set_tokens(tokens)
         self.vector3d_normalize_toggle.set_tokens(tokens)
+        self.pie_card.set_tokens(tokens)
+        self.pie_start_angle_slider.set_tokens(tokens)
+        self.pie_show_percentages_toggle.set_tokens(tokens)
+        self.pie_donut_width_slider.set_tokens(tokens)
         self.heatmap_gridding_card.set_tokens(tokens)
         self.heatmap_gridding_control.set_tokens(tokens)
         self.heatmap_render_mode_control.set_tokens(tokens)
