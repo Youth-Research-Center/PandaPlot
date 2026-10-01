@@ -59,6 +59,18 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
         allowed_series_types=frozenset({SeriesType.BAR, SeriesType.SCATTER}),
         allows_fit=True, default_series_type=SeriesType.BAR,
     ),
+    # Deliberately does NOT allow plain BAR series: switching a Bar chart to
+    # Stacked Bar must actually stack its bars, which only happens if
+    # set_chart_type retypes them (it leaves allowed types alone). That
+    # retype is lossless -- both types share BarSeriesStyle -- so
+    # compatible_chart_types_for_series still offers the switch both ways.
+    # No fits: a fit runs on a series' raw Y values, which on a stacked
+    # chart no longer match where its bars are drawn.
+    ChartType.STACKED_BAR: ChartTypeSpec(
+        display_name="Stacked Bar", roles=("x", "y"), required_roles=("y",),
+        allowed_series_types=frozenset({SeriesType.STACKED_BAR, SeriesType.SCATTER}),
+        allows_fit=False, default_series_type=SeriesType.STACKED_BAR,
+    ),
     ChartType.HIST: ChartTypeSpec(
         display_name="Histogram", roles=("values",), required_roles=("values",),
         allowed_series_types=frozenset({SeriesType.HIST}),
@@ -162,9 +174,10 @@ def compatible_chart_types(chart_type: "str | ChartType") -> frozenset[ChartType
     """Chart types it's non-destructive to switch `chart_type` into.
 
     `target` is compatible with `chart_type` iff `chart_type`'s own
-    default_series_type is allowed on `target` -- i.e. the chart's
-    "typical" series (what a freshly-created chart of that type actually
-    has) survives the switch without a forced retype. This is a static
+    default_series_type survives a switch to `target` (see
+    `_survives_switch`) -- i.e. the chart's "typical" series (what a
+    freshly-created chart of that type actually has) loses none of its
+    configuration to the switch. This is a static
     per-type-pair rule, not dependent on any specific chart's actual
     series mix, so the chart-type selector UI can precompute it once per
     chart type rather than recomputing per chart. Always includes
@@ -174,7 +187,7 @@ def compatible_chart_types(chart_type: "str | ChartType") -> frozenset[ChartType
     source_spec = CHART_TYPE_SPECS[ChartType(chart_type)]
     return frozenset(
         target for target, target_spec in CHART_TYPE_SPECS.items()
-        if source_spec.default_series_type in target_spec.allowed_series_types
+        if _survives_switch(source_spec.default_series_type, target_spec)
     )
 
 
@@ -183,8 +196,9 @@ def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]") -> 
     series types on a chart -- not just the nominal type's static
     default_series_type (see `compatible_chart_types`).
 
-    Compatible iff EVERY series type is in the target's allowed_series_types,
-    i.e. the switch force-retypes none of the chart's existing series. An
+    Compatible iff EVERY series type survives the switch (see
+    `_survives_switch`), i.e. the switch force-retypes none of the chart's
+    existing series in a way that discards their configuration. An
     empty `series_types` (a new chart) has nothing to protect, so every type
     qualifies.
 
@@ -197,8 +211,23 @@ def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]") -> 
         return frozenset(CHART_TYPE_SPECS.keys())
     return frozenset(
         target for target, spec in CHART_TYPE_SPECS.items()
-        if types <= spec.allowed_series_types
+        if all(_survives_switch(series_type, spec) for series_type in types)
     )
+
+
+def _survives_switch(series_type: SeriesType, target_spec: ChartTypeSpec) -> bool:
+    """Whether a `series_type` series keeps all of its configuration when its
+    chart switches to `target_spec`'s type.
+
+    Either it's allowed there as-is, or Chart.set_chart_type retypes it into
+    the target's default series type and that type shares its exact style
+    class -- Chart.retype_series then carries every field across, so the
+    retype changes how the series renders (Bar <-> Stacked Bar) but discards
+    nothing the user configured.
+    """
+    if series_type in target_spec.allowed_series_types:
+        return True
+    return SERIES_TYPE_SPECS[series_type].style_cls is SERIES_TYPE_SPECS[target_spec.default_series_type].style_cls
 
 
 def get_chart_type_spec(chart_type: "str | ChartType") -> ChartTypeSpec:

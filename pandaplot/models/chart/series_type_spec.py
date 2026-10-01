@@ -88,7 +88,8 @@ class SeriesTypeSpec:
     supports_curve_analysis: bool
     # Whether this type's renderer can annotate each rendered point/bar with
     # its own numeric value (#125) -- a Line/Scatter point's Y value, or a
-    # Bar's height. True only for LINE/SCATTER/BAR: HIST's bars represent a
+    # Bar's height (a Stacked Bar segment's own height, not the running
+    # stack total). True only for LINE/SCATTER/BAR/STACKED_BAR: HIST's bars represent a
     # computed count matplotlib itself picks bin edges for (no single
     # "value" column to label from series data the way a Bar chart's height
     # already is one), VECTOR/COLORMAP/HEATMAP/every 3-D type have no single
@@ -101,6 +102,14 @@ class SeriesTypeSpec:
     # component 2-D Vector's U/V pair has no equivalent of. Meaningless
     # (and always False) unless needs_secondary_columns is also True.
     needs_w_column: bool = False
+    # Whether each of this type's values is drawn ON TOP of the values every
+    # earlier series of the same type already placed at the same X (and on
+    # the same Y axis), rather than from zero -- only True for STACKED_BAR.
+    # It's the one cross-series rendering behavior: everything else that
+    # positions a value against the Y axis (error bars, the Axes tab's
+    # data-derived range) must offset by the same running stack the renderer
+    # does, so it reads this flag rather than testing the series type.
+    is_stacked: bool = False
 
 
 SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
@@ -130,6 +139,18 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_curve_analysis=False,
         supports_value_labels=True,
         style_cls=BarSeriesStyle,
+    ),
+    # Stacked Bar: the same styling surface as Bar (it reuses BarSeriesStyle
+    # unchanged), differing only in where each bar starts -- see is_stacked.
+    SeriesType.STACKED_BAR: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=False, supports_color=True, supports_fill=False,
+        supports_error_bars=True, needs_x_column=True, needs_secondary_columns=False,
+        needs_z_column=False, supports_gridding=False,
+        uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=True,
+        style_cls=BarSeriesStyle,
+        is_stacked=True,
     ),
     SeriesType.HIST: SeriesTypeSpec(
         marker_mode="unsupported", supports_line_style=False, supports_color=True, supports_fill=False,

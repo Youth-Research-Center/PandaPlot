@@ -13,6 +13,7 @@ class SeriesType(str, Enum):
     LINE = "line"
     SCATTER = "scatter"
     BAR = "bar"
+    STACKED_BAR = "stacked_bar"
     HIST = "hist"
     VECTOR = "vector"
     COLORMAP = "colormap"

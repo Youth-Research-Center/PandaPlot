@@ -85,8 +85,10 @@ def test_allowed_series_types_is_genuinely_immutable():
 def test_fits_are_allowed_on_every_2d_xy_chart_type_and_nothing_else():
     # COLORMAP/HEATMAP were the first types with allows_fit=False (a curve
     # fit doesn't apply to a Z-column colour series); every 3-D type joins
-    # them, since a 2-D curve fit has no meaning on a 3-D chart.
-    no_fit = {ChartType.COLORMAP, ChartType.HEATMAP} | {
+    # them, since a 2-D curve fit has no meaning on a 3-D chart. STACKED_BAR
+    # too: a fit runs on a series' raw values, which don't line up with
+    # where a stacked series' bars are actually drawn.
+    no_fit = {ChartType.COLORMAP, ChartType.HEATMAP, ChartType.STACKED_BAR} | {
         chart_type for chart_type, spec in CHART_TYPE_SPECS.items() if spec.is_3d
     }
     for chart_type, spec in CHART_TYPE_SPECS.items():
