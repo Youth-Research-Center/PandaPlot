@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, compatible_chart_types_for_series
+from pandaplot.models.chart.series_type import SeriesType
 
 
 class ChartTab(QWidget):
@@ -64,7 +65,7 @@ class ChartTab(QWidget):
         self.hist_bins_spin = QSpinBox()
         self.hist_bins_spin.setRange(2, 200)
         self.hist_bins_spin.setValue(20)
-        self.hist_bins_spin.setToolTip("Number of bins used when chart type is Histogram")
+        self.hist_bins_spin.setToolTip("Number of bins used by histogram series")
         info_layout.addWidget(self.hist_bins_spin, 3, 1)
         self._update_hist_bins_visibility()
 
@@ -131,10 +132,13 @@ class ChartTab(QWidget):
                 )
 
     def _update_hist_bins_visibility(self):
-        """Show the Histogram Bins control only when the chart type is Histogram."""
-        is_histogram = self.chart_type_control.currentValue() == ChartType.HIST
-        self.hist_bins_label.setVisible(is_histogram)
-        self.hist_bins_spin.setVisible(is_histogram)
+        """Show the Histogram Bins control only for chart types that can hold
+        a Hist series -- Histogram itself, and Density (a KDE overlaid on a
+        histogram is the reason Density allows HIST at all)."""
+        chart_type = self.chart_type_control.currentValue()
+        has_bins = bool(chart_type) and SeriesType.HIST in CHART_TYPE_SPECS[ChartType(chart_type)].allowed_series_types
+        self.hist_bins_label.setVisible(has_bins)
+        self.hist_bins_spin.setVisible(has_bins)
 
     def _on_field_changed(self):
         if self._chart is None or self._updating_controls:
