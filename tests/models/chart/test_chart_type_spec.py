@@ -59,6 +59,36 @@ def test_vector3d_spec():
     assert spec.allowed_series_types == {SeriesType.VECTOR3D, SeriesType.SCATTER3D, SeriesType.LINE3D}
 
 
+def test_pie_spec():
+    """Values are required (the same "values" role Hist uses), wedge labels
+    optional; only PIE series, no fit, and no axes to draw at all."""
+    spec = CHART_TYPE_SPECS[ChartType.PIE]
+    assert spec.display_name == "Pie"
+    assert spec.roles == ("values", "labels")
+    assert spec.required_roles == ("values",)
+    assert spec.allowed_series_types == {SeriesType.PIE}
+    assert spec.allows_fit is False
+    assert spec.supports_error_bars is False
+    assert spec.is_3d is False
+    assert spec.has_axes is False
+
+
+def test_only_pie_has_no_axes():
+    for chart_type, spec in CHART_TYPE_SPECS.items():
+        assert spec.has_axes == (chart_type != ChartType.PIE)
+
+
+def test_pie_is_isolated_from_every_other_chart_type():
+    """Switching to/from Pie would force-retype every series, so it must
+    never be offered as a non-destructive switch either way."""
+    from pandaplot.models.chart.chart_type_spec import compatible_chart_types, quick_plot_compatible
+    assert compatible_chart_types(ChartType.PIE) == frozenset({ChartType.PIE})
+    for chart_type in CHART_TYPE_SPECS:
+        if chart_type != ChartType.PIE:
+            assert ChartType.PIE not in compatible_chart_types(chart_type)
+    assert quick_plot_compatible(CHART_TYPE_SPECS[ChartType.PIE]) is False
+
+
 def test_allowed_series_types_per_chart_type():
     lsv = {SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}
     assert CHART_TYPE_SPECS[ChartType.LINE].allowed_series_types == lsv
@@ -85,8 +115,9 @@ def test_allowed_series_types_is_genuinely_immutable():
 def test_fits_are_allowed_on_every_2d_xy_chart_type_and_nothing_else():
     # COLORMAP/HEATMAP were the first types with allows_fit=False (a curve
     # fit doesn't apply to a Z-column colour series); every 3-D type joins
-    # them, since a 2-D curve fit has no meaning on a 3-D chart.
-    no_fit = {ChartType.COLORMAP, ChartType.HEATMAP} | {
+    # them, since a 2-D curve fit has no meaning on a 3-D chart. PIE has no
+    # (x, y) space at all, so no curve to fit either.
+    no_fit = {ChartType.COLORMAP, ChartType.HEATMAP, ChartType.PIE} | {
         chart_type for chart_type, spec in CHART_TYPE_SPECS.items() if spec.is_3d
     }
     for chart_type, spec in CHART_TYPE_SPECS.items():

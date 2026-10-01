@@ -21,6 +21,7 @@ from pandaplot.models.chart.series_style import (
     HistSeriesStyle,
     Line3DSeriesStyle,
     LineSeriesStyle,
+    PieSeriesStyle,
     Scatter3DSeriesStyle,
     ScatterSeriesStyle,
     SeriesStyleBase,
@@ -101,6 +102,11 @@ class SeriesTypeSpec:
     # component 2-D Vector's U/V pair has no equivalent of. Meaningless
     # (and always False) unless needs_secondary_columns is also True.
     needs_w_column: bool = False
+    # Whether this type takes an optional per-point text-label column (a
+    # pie's wedge/category names), picked on the Data tab via its own
+    # combo. Optional by definition: a blank label column never fails the
+    # series, it just renders unlabeled. Only True for PIE.
+    needs_label_column: bool = False
 
 
 SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
@@ -166,6 +172,20 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_curve_analysis=False,
         supports_value_labels=False,
         style_cls=HeatmapSeriesStyle,
+    ),
+    # Pie: one wedge per row of the "values" column (y_column_id, the same
+    # role Hist uses), so no X. No flat color (wedges take the default
+    # color cycle -- see PieSeriesStyle), no curve to analyze, and its own
+    # show_percentages stands in for the generic value-labels system.
+    SeriesType.PIE: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=False, supports_color=False, supports_fill=False,
+        supports_error_bars=False, needs_x_column=False, needs_secondary_columns=False,
+        needs_z_column=False, supports_gridding=False,
+        uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=PieSeriesStyle,
+        needs_label_column=True,
     ),
     # -- 3-D types (is_3d=True) ------------------------------------------
     # None of these support error bars: mplot3d has no errorbar() at all.

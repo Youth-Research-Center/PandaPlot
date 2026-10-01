@@ -12,6 +12,7 @@ from pandaplot.models.chart.series_style.heatmap import HeatmapSeriesStyle
 from pandaplot.models.chart.series_style.hist import HistSeriesStyle
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
 from pandaplot.models.chart.series_style.line3d import Line3DSeriesStyle
+from pandaplot.models.chart.series_style.pie import PieSeriesStyle
 from pandaplot.models.chart.series_style.scatter import ScatterSeriesStyle
 from pandaplot.models.chart.series_style.scatter3d import Scatter3DSeriesStyle
 from pandaplot.models.chart.series_style.surface import SurfaceSeriesStyle
@@ -28,6 +29,7 @@ __all__ = [
     "HistSeriesStyle",
     "Line3DSeriesStyle",
     "LineSeriesStyle",
+    "PieSeriesStyle",
     "Scatter3DSeriesStyle",
     "ScatterSeriesStyle",
     "SeriesStyleBase",

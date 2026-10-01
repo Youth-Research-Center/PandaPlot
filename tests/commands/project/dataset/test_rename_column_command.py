@@ -16,6 +16,7 @@ import pytest
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
+from pandaplot.models.chart.series_style.pie import PieSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.chart.series_style.vector3d import Vector3DSeriesStyle
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
@@ -250,3 +251,16 @@ def test_cleanup_releases_the_dataset_reference(env):
     command.cleanup()
 
     assert command.dataset is None
+
+
+def test_events_emitted_for_a_pie_series_referencing_the_column_only_via_its_labels(env):
+    app_context, dataset, _, _ = env
+    chart = Chart(name="pie", chart_type="pie")
+    chart.add_data_series(
+        dataset.id, y_column_id=dataset.column_id("b"), series_type="pie",
+        style=PieSeriesStyle(label_column_id=dataset.column_id("a")))
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    RenameColumnCommand(app_context, dataset.id, 0, "time").execute()
+
+    assert chart.id in {call.args[1]["chart_id"] for call in _chart_updated_calls(app_context)}

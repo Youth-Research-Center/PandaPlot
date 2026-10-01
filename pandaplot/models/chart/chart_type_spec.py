@@ -37,6 +37,16 @@ class ChartTypeSpec:
     # secondary Y axis is even possible (twinx() has no mplot3d
     # equivalent -- it isn't), and whether the Axes tab offers a Z axis.
     is_3d: bool = False
+    # Whether this chart type is drawn against X/Y axes at all. False only
+    # for PIE: a wedge chart has no axis scale, ticks, limits or grid to
+    # configure, so the chart editor turns the axes off entirely and the
+    # Axes tab / Style tab's axis-appearance section / wizard's axis-label
+    # fields hide themselves rather than offer controls that would be
+    # silently ignored. Title, subtitle and legend are unaffected -- those
+    # belong to the figure, not to an axis. Distinct from a missing X
+    # column (Hist's needs_x_column=False): a histogram still has two
+    # meaningful axes (the binned values and their counts).
+    has_axes: bool = True
 
     @property
     def supports_error_bars(self) -> bool:
@@ -92,6 +102,14 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
             SeriesType.HEATMAP, SeriesType.SCATTER, SeriesType.LINE, SeriesType.COLORMAP,
         }),
         allows_fit=False, default_series_type=SeriesType.HEATMAP,
+    ),
+    # Pie takes the values column (required) plus an optional column of
+    # wedge labels. It allows only PIE series: a wedge chart has no (x, y)
+    # space to overlay a Line/Scatter series on, and no curve to fit.
+    ChartType.PIE: ChartTypeSpec(
+        display_name="Pie", roles=("values", "labels"), required_roles=("values",),
+        allowed_series_types=frozenset({SeriesType.PIE}),
+        allows_fit=False, default_series_type=SeriesType.PIE, has_axes=False,
     ),
     # -- 3-D chart types --------------------------------------------------
     # Every 3-D type takes the same required (x, y, z) column trio, and

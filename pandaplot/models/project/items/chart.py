@@ -773,7 +773,7 @@ def assign_series_column_ids(series: "DataSeries", dataset: Any) -> None:
                 if cid is not None:
                     setattr(error_bars, id_field, cid)
 
-    for role in ("u", "v", "w", "magnitude"):
+    for role in ("u", "v", "w", "magnitude", "label"):
         id_field = f"{role}_column_id"
         name = getattr(series.style, f"{role}_column", "")
         if hasattr(series.style, id_field) and name:

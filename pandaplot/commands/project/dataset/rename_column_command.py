@@ -160,7 +160,7 @@ class RenameColumnCommand(Command):
                     error_bars.x_error_minus_column, error_bars.y_error_minus_column,
                 ])
 
-            for role in ("z", "u", "v", "w", "magnitude"):
+            for role in ("z", "u", "v", "w", "magnitude", "label"):
                 if hasattr(series.style, f"{role}_column_id"):
                     id_fields.append(getattr(series.style, f"{role}_column_id"))
                     name_fields.append(getattr(series.style, f"{role}_column", ""))
