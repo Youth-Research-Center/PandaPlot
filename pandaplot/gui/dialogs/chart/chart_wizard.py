@@ -223,6 +223,10 @@ class ChartWizard(PWizard):
                 # A histogram plots the binned "Values" column along X; Y is
                 # frequency/count, which nothing here can suggest a name for.
                 x_label = names.get("values", "")
+            elif self.get_chart_type() == "box":
+                # A box plot measures its "Values" column up the Y axis; X
+                # just names each box (one tick per series), so no label.
+                y_label = names.get("values", "")
             else:
                 x_label = names.get("x", "")
                 y_label = names.get("y", "")
