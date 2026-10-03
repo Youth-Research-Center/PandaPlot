@@ -18,6 +18,7 @@ class SeriesType(str, Enum):
     VECTOR = "vector"
     COLORMAP = "colormap"
     HEATMAP = "heatmap"
+    PIE = "pie"
     SCATTER3D = "scatter3d"
     LINE3D = "line3d"
     SURFACE = "surface"
@@ -25,3 +26,4 @@ class SeriesType(str, Enum):
     BAR3D = "bar3d"
     TRISURF = "trisurf"
     VECTOR3D = "vector3d"
+    BOX = "box"

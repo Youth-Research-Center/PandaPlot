@@ -93,6 +93,17 @@ class AxesTab(QWidget):
         self._axis_form_container_layout = QVBoxLayout(self._axis_form_container)
         self._axis_form_container_layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._axis_form_container)
+
+        # Shown instead of everything above for a chart type with no axes
+        # at all (ChartTypeSpec.has_axes -- Pie). Says why the tab is empty
+        # and where the settings that still apply live, rather than leaving
+        # a form whose every control the renderer would ignore.
+        self.no_axes_label = QLabel(
+            "This chart type has no axes to configure. Its title, subtitle "
+            "and legend are set on the Chart and Legend tabs.")
+        self.no_axes_label.setWordWrap(True)
+        self.no_axes_label.setVisible(False)
+        layout.addWidget(self.no_axes_label)
         layout.addStretch()
 
         self.axes_forms = {}
@@ -628,11 +639,20 @@ class AxesTab(QWidget):
         whole chart, not to one axis, so it lives outside the per-axis forms
         and stays visible whichever axis chip is selected.
 
+        A chart type with no axes at all (ChartTypeSpec.has_axes is False --
+        Pie) hides the chips and every form, showing `no_axes_label`
+        instead. Gated on the chart's type, not its series, like is_3d:
+        whether axes exist is decided by what the chart draws on.
+
         Public (and takes `chart` explicitly) because the not-yet-migrated
         Data tab (still on `ChartPropertiesPanel`) calls this whenever a
         series' `y_axis` or type changes.
         """
         self._chart = chart
+        has_axes = not chart or CHART_TYPE_SPECS[chart.chart_type].has_axes
+        self.axis_chips.setVisible(has_axes)
+        self._axis_form_container.setVisible(has_axes)
+        self.no_axes_label.setVisible(not has_axes)
         is_3d = bool(chart) and CHART_TYPE_SPECS[chart.chart_type].is_3d
         has_secondary = bool(chart) and not is_3d and any(
             series.y_axis == YAxis.SECONDARY for series in chart.data_series

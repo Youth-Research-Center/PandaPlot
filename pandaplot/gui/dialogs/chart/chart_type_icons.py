@@ -51,6 +51,21 @@ def _paint_density(painter: QPainter, size: int):
     painter.drawLine(QPointF(1, baseline), QPointF(size - 1, baseline))
 
 
+def _paint_box(painter: QPainter, size: int):
+    """A single box-and-whisker glyph: the box (interquartile range) with
+    its median line across it, and a capped whisker above and below."""
+    center = size * 0.5
+    half_width = size * 0.28
+    box_top, box_bottom = size * 0.3, size * 0.7
+    painter.drawRect(QRectF(center - half_width, box_top, 2 * half_width, box_bottom - box_top))
+    median = size * 0.52
+    painter.drawLine(QPointF(center - half_width, median), QPointF(center + half_width, median))
+    cap_half = half_width * 0.5
+    for whisker_end, box_edge in ((size * 0.06, box_top), (size * 0.94, box_bottom)):
+        painter.drawLine(QPointF(center, box_edge), QPointF(center, whisker_end))
+        painter.drawLine(QPointF(center - cap_half, whisker_end), QPointF(center + cap_half, whisker_end))
+
+
 def _vector_arrow_geometry(size: int):
     """Compute the (start, end, [wing1, wing2]) points for each arrow.
 
@@ -94,6 +109,20 @@ def _paint_heatmap(painter: QPainter, size: int):
     for row in range(3):
         for col in range(3):
             painter.drawRect(QRectF(col * cell, row * cell, cell, cell))
+
+
+def _paint_pie(painter: QPainter, size: int):
+    """A circle with three radii -- three wedges read clearly at icon size,
+    where more would blur into a hatched disc."""
+    center = QPointF(size / 2, size / 2)
+    radius = size / 2 - 1
+    painter.drawEllipse(center, radius, radius)
+    # Angles in degrees, measured the same way matplotlib's own pie starts:
+    # the first divider straight up at 12 o'clock.
+    for degrees in (90, 210, 320):
+        angle = math.radians(degrees)
+        painter.drawLine(center, QPointF(center.x() + radius * math.cos(angle),
+                                         center.y() - radius * math.sin(angle)))
 
 
 def _cube_edges(size: int):
@@ -199,9 +228,11 @@ _PAINTERS = {
     "bar": _paint_bar,
     "hist": _paint_hist,
     "density": _paint_density,
+    "box": _paint_box,
     "vector": _paint_vector,
     "colormap": _paint_colormap,
     "heatmap": _paint_heatmap,
+    "pie": _paint_pie,
     "scatter3d": _paint_scatter3d,
     "line3d": _paint_line3d,
     "surface": _paint_surface,

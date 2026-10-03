@@ -31,7 +31,7 @@ _REQUIRED_STYLE_COLUMN_ROLES = ("z", "u", "v", "w")
 
 def _error_field_targets(series):
     """Return (container, id_field, name_field) triples for a series'
-    optional error/magnitude column references -- these now live on
+    optional error/magnitude/label column references -- these now live on
     ``series.style.error_bars`` (x/y error + minus pairs) and, for a
     VECTOR/VECTOR3D series, ``series.style.magnitude_column*`` directly, rather
     than flatly on ``series`` itself."""
@@ -46,6 +46,10 @@ def _error_field_targets(series):
         ])
     if hasattr(series.style, "magnitude_column_id"):
         targets.append((series.style, "magnitude_column_id", "magnitude_column"))
+    # A pie's wedge labels are optional too: deleting that column just
+    # leaves the wedges unlabeled rather than removing the pie.
+    if hasattr(series.style, "label_column_id"):
+        targets.append((series.style, "label_column_id", "label_column"))
     return targets
 
 

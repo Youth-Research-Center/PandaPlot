@@ -101,3 +101,26 @@ def test_error_bars_are_kept_for_a_type_that_supports_them():
         SeriesType.SCATTER, error_bars=ErrorBarConfig(y_error_column_id="e"))
 
     assert style.error_bars.y_error_column_id == "e"
+
+
+def test_label_column_lands_on_a_pie_style():
+    style = build_series_style(SeriesType.PIE, label_column_id="cat")
+
+    assert style.label_column_id == "cat"
+
+
+@pytest.mark.parametrize("series_type", [t for t in SeriesType if not SERIES_TYPE_SPECS[t].needs_label_column])
+def test_label_column_is_dropped_for_every_type_without_one(series_type):
+    """A stale label combo value (the Data tab keeps it populated while a
+    non-pie series is selected) must never leak onto another style class
+    as an unserialized stray attribute."""
+    style = build_series_style(series_type, label_column_id="cat")
+
+    assert not hasattr(style, "label_column_id")
+
+
+def test_color_is_dropped_for_a_pie_series():
+    """PieSeriesStyle has no flat color -- wedges cycle the default palette."""
+    style = build_series_style(SeriesType.PIE, color="#ff0000")
+
+    assert not hasattr(style, "color")

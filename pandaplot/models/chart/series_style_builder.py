@@ -29,6 +29,7 @@ def build_series_style(
     w_column_id: str = "",
     magnitude_column_id: str = "",
     z_column_id: str = "",
+    label_column_id: str = "",
 ) -> SeriesStyleBase:
     """Build the style object `series_type` requires, populated with only
     the arguments that type actually declares a field for.
@@ -49,6 +50,9 @@ def build_series_style(
     that actually declare those fields (checked via ``hasattr`` rather than
     a spec flag) -- only Vector and Vector3D declare a magnitude, and
     only Vector3D declares ``w_column_id`` at all.
+
+    `label_column_id` (a pie's optional wedge labels) is set only for a
+    type whose spec sets ``needs_label_column`` -- Pie alone today.
     """
     spec = SERIES_TYPE_SPECS[SeriesType(series_type)]
     style = spec.style_cls()
@@ -72,5 +76,8 @@ def build_series_style(
 
     if spec.needs_z_column:
         style.z_column_id = z_column_id
+
+    if spec.needs_label_column:
+        style.label_column_id = label_column_id
 
     return style

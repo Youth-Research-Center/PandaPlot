@@ -28,12 +28,14 @@ _ROLE_LABELS = {
     # on a Colormap/Heatmap chart but is the third spatial axis on every
     # 3-D one, and one label has to be true of both.
     "z": "Z column",
+    "labels": "Labels column (optional)",
 }
 _ROLE_TO_FIELD = {
     "x": "x_column_id", "y": "y_column_id", "values": "y_column_id",
     "u": "u_column_id", "v": "v_column_id", "w": "w_column_id",
     "magnitude": "magnitude_column_id",
     "z": "z_column_id",
+    "labels": "label_column_id",
 }
 
 

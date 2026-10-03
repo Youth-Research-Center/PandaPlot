@@ -19,6 +19,7 @@ class ChartType(str, Enum):
     VECTOR = "vector"
     COLORMAP = "colormap"
     HEATMAP = "heatmap"
+    PIE = "pie"
     # 3-D types (rendered on a matplotlib mplot3d axes -- see
     # ChartTypeSpec.is_3d, which is what every consumer should branch on
     # rather than testing membership of this group by hand).
@@ -29,3 +30,4 @@ class ChartType(str, Enum):
     BAR3D = "bar3d"
     TRISURF = "trisurf"
     VECTOR3D = "vector3d"
+    BOX = "box"

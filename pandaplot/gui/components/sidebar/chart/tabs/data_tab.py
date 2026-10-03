@@ -31,7 +31,8 @@ from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style_builder import build_series_style
-from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.chart.series_type import SeriesType
+from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS, SeriesTypeSpec
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import DataSeries, YAxis, resolve_manual_fit_source_data
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -150,48 +151,61 @@ class DataTab(QWidget):
         self.dataset_combo = QComboBox()
         series_config_layout.addWidget(self.dataset_combo, 0, 1)
 
-        series_config_layout.addWidget(QLabel("X Column:"), 1, 0)
+        self.x_column_label = QLabel("X Column:")
+        series_config_layout.addWidget(self.x_column_label, 1, 0)
         self.x_column_combo = QComboBox()
         series_config_layout.addWidget(self.x_column_combo, 1, 1)
 
-        series_config_layout.addWidget(QLabel("Y Column:"), 2, 0)
+        # Relabelled "Values Column:" for a series with no X (Hist/Pie --
+        # see _update_axis_field_visibility), matching the wizard's name
+        # for that same role.
+        self.y_column_label = QLabel("Y Column:")
+        series_config_layout.addWidget(self.y_column_label, 2, 0)
         self.y_column_combo = QComboBox()
         series_config_layout.addWidget(self.y_column_combo, 2, 1)
 
+        # A pie's optional wedge labels -- see SeriesTypeSpec.
+        # needs_label_column. Right after the values column it names.
+        self.label_column_label = QLabel("Labels Column (optional):")
+        series_config_layout.addWidget(self.label_column_label, 3, 0)
+        self.label_column_combo = QComboBox()
+        series_config_layout.addWidget(self.label_column_combo, 3, 1)
+
         self.z_column_label = QLabel("Z Column:")
-        series_config_layout.addWidget(self.z_column_label, 3, 0)
+        series_config_layout.addWidget(self.z_column_label, 4, 0)
         self.z_column_combo = QComboBox()
         self.z_column_combo.setToolTip(
             "Z column: mapped to color for a Colormap/Heatmap series, "
             "or the third axis for a 3D series")
-        series_config_layout.addWidget(self.z_column_combo, 3, 1)
+        series_config_layout.addWidget(self.z_column_combo, 4, 1)
 
         self.u_column_label = QLabel("U Column:")
-        series_config_layout.addWidget(self.u_column_label, 4, 0)
+        series_config_layout.addWidget(self.u_column_label, 5, 0)
         self.u_column_combo = QComboBox()
-        series_config_layout.addWidget(self.u_column_combo, 4, 1)
+        series_config_layout.addWidget(self.u_column_combo, 5, 1)
 
         self.v_column_label = QLabel("V Column:")
-        series_config_layout.addWidget(self.v_column_label, 5, 0)
+        series_config_layout.addWidget(self.v_column_label, 6, 0)
         self.v_column_combo = QComboBox()
-        series_config_layout.addWidget(self.v_column_combo, 5, 1)
+        series_config_layout.addWidget(self.v_column_combo, 6, 1)
 
         # A 3-D vector's arrow has a third (W) component, on top of the U/V
         # pair every Vector-like type has -- see SeriesTypeSpec.needs_w_column.
         self.w_column_label = QLabel("W Column:")
-        series_config_layout.addWidget(self.w_column_label, 6, 0)
+        series_config_layout.addWidget(self.w_column_label, 7, 0)
         self.w_column_combo = QComboBox()
-        series_config_layout.addWidget(self.w_column_combo, 6, 1)
+        series_config_layout.addWidget(self.w_column_combo, 7, 1)
 
-        series_config_layout.addWidget(QLabel("Y Axis:"), 7, 0)
+        self.series_y_axis_label = QLabel("Y Axis:")
+        series_config_layout.addWidget(self.series_y_axis_label, 8, 0)
         self.series_y_axis_control = SegmentedControl(
             [("Y₁ left", YAxis.PRIMARY), ("Y₂ right", YAxis.SECONDARY)]
         )
-        series_config_layout.addWidget(self.series_y_axis_control, 7, 1)
+        series_config_layout.addWidget(self.series_y_axis_control, 8, 1)
 
-        series_config_layout.addWidget(QLabel("Label:"), 8, 0)
+        series_config_layout.addWidget(QLabel("Label:"), 9, 0)
         self.series_label_edit = QLineEdit()
-        series_config_layout.addWidget(self.series_label_edit, 8, 1)
+        series_config_layout.addWidget(self.series_label_edit, 9, 1)
 
         # Checked -> pick independent +/- error columns below; unchecked
         # (default) -> a single column supplies a symmetric magnitude (the
@@ -201,41 +215,41 @@ class DataTab(QWidget):
         self.error_asymmetric_check.setToolTip(
             "When checked, pick separate +/- error columns for independent "
             "upper/lower magnitudes instead of one symmetric column.")
-        series_config_layout.addWidget(self.error_asymmetric_check, 9, 0, 1, 2)
+        series_config_layout.addWidget(self.error_asymmetric_check, 10, 0, 1, 2)
 
         # Label text switches between "X Error Column" (symmetric magnitude)
         # and "X Error (+) Column" (asymmetric upper magnitude) depending on
         # the checkbox above; see _update_error_bar_mode_controls.
         self.x_error_column_label = QLabel("X Error Column:")
-        series_config_layout.addWidget(self.x_error_column_label, 10, 0)
+        series_config_layout.addWidget(self.x_error_column_label, 11, 0)
         self.x_error_column_combo = QComboBox()
-        series_config_layout.addWidget(self.x_error_column_combo, 10, 1)
+        series_config_layout.addWidget(self.x_error_column_combo, 11, 1)
 
         self.x_error_minus_label = QLabel("X Error (-) Column:")
-        series_config_layout.addWidget(self.x_error_minus_label, 11, 0)
+        series_config_layout.addWidget(self.x_error_minus_label, 12, 0)
         self.x_error_minus_column_combo = QComboBox()
-        series_config_layout.addWidget(self.x_error_minus_column_combo, 11, 1)
+        series_config_layout.addWidget(self.x_error_minus_column_combo, 12, 1)
 
         self.y_error_column_label = QLabel("Y Error Column:")
-        series_config_layout.addWidget(self.y_error_column_label, 12, 0)
+        series_config_layout.addWidget(self.y_error_column_label, 13, 0)
         self.y_error_column_combo = QComboBox()
-        series_config_layout.addWidget(self.y_error_column_combo, 12, 1)
+        series_config_layout.addWidget(self.y_error_column_combo, 13, 1)
 
         # Only shown when "Asymmetric Error Bars" is checked, to supply the
         # lower-side (-) magnitude.
         self.y_error_minus_label = QLabel("Y Error (-) Column:")
-        series_config_layout.addWidget(self.y_error_minus_label, 13, 0)
+        series_config_layout.addWidget(self.y_error_minus_label, 14, 0)
         self.y_error_minus_column_combo = QComboBox()
-        series_config_layout.addWidget(self.y_error_minus_column_combo, 13, 1)
+        series_config_layout.addWidget(self.y_error_minus_column_combo, 14, 1)
 
         self.magnitude_column_label = QLabel("Color-by Column (optional):")
-        series_config_layout.addWidget(self.magnitude_column_label, 14, 0)
+        series_config_layout.addWidget(self.magnitude_column_label, 15, 0)
         self.magnitude_column_combo = QComboBox()
-        series_config_layout.addWidget(self.magnitude_column_combo, 14, 1)
+        series_config_layout.addWidget(self.magnitude_column_combo, 15, 1)
 
-        series_config_layout.addWidget(QLabel("Series Type:"), 15, 0)
+        series_config_layout.addWidget(QLabel("Series Type:"), 16, 0)
         self.series_type_combo = QComboBox()
-        series_config_layout.addWidget(self.series_type_combo, 15, 1)
+        series_config_layout.addWidget(self.series_type_combo, 16, 1)
 
         # Only meaningful right before converting a series to a fit (see
         # _convert_selected_series_to_fit): read at that moment to snapshot
@@ -244,14 +258,14 @@ class DataTab(QWidget):
         # from the model on reload, so these simply reset to "None" each
         # time _load_series_into_controls repopulates them.
         self.confidence_lower_column_label = QLabel("Confidence Lower Column (optional):")
-        series_config_layout.addWidget(self.confidence_lower_column_label, 16, 0)
+        series_config_layout.addWidget(self.confidence_lower_column_label, 17, 0)
         self.confidence_lower_column_combo = QComboBox()
-        series_config_layout.addWidget(self.confidence_lower_column_combo, 16, 1)
+        series_config_layout.addWidget(self.confidence_lower_column_combo, 17, 1)
 
         self.confidence_upper_column_label = QLabel("Confidence Upper Column (optional):")
-        series_config_layout.addWidget(self.confidence_upper_column_label, 17, 0)
+        series_config_layout.addWidget(self.confidence_upper_column_label, 18, 0)
         self.confidence_upper_column_combo = QComboBox()
-        series_config_layout.addWidget(self.confidence_upper_column_combo, 17, 1)
+        series_config_layout.addWidget(self.confidence_upper_column_combo, 18, 1)
 
         for widget in (
             self.z_column_label, self.z_column_combo,
@@ -259,6 +273,7 @@ class DataTab(QWidget):
             self.v_column_label, self.v_column_combo,
             self.w_column_label, self.w_column_combo,
             self.magnitude_column_label, self.magnitude_column_combo,
+            self.label_column_label, self.label_column_combo,
         ):
             widget.setVisible(False)
 
@@ -279,6 +294,7 @@ class DataTab(QWidget):
         self.v_column_combo.currentIndexChanged.connect(self._on_series_config_changed)
         self.w_column_combo.currentIndexChanged.connect(self._on_series_config_changed)
         self.magnitude_column_combo.currentIndexChanged.connect(self._on_series_config_changed)
+        self.label_column_combo.currentIndexChanged.connect(self._on_series_config_changed)
         self.confidence_lower_column_combo.currentIndexChanged.connect(self._on_confidence_column_changed)
         self.confidence_upper_column_combo.currentIndexChanged.connect(self._on_confidence_column_changed)
         self.error_asymmetric_check.toggled.connect(self._on_error_symmetry_toggled)
@@ -575,9 +591,15 @@ class DataTab(QWidget):
         return card
 
     def _build_y_axis_badge(self, y_axis, tokens: dict) -> QLabel:
-        """Small 'Y₁'/'Y₂' badge, accented for the secondary axis."""
+        """Small 'Y₁'/'Y₂' badge, accented for the secondary axis. Built but
+        hidden on a chart with no axes (Pie), where Y₁ would mean nothing --
+        callers keep a reference to restyle it in place either way."""
         badge = QLabel()
         self._apply_y_axis_badge_style(badge, y_axis, tokens)
+        # Only ever hide here: setVisible(True) on a still-parentless widget
+        # shows it as its own top-level window (a flash on every rebuild).
+        if self.current_chart and not CHART_TYPE_SPECS[self.current_chart.chart_type].has_axes:
+            badge.hide()
         return badge
 
     def _apply_y_axis_badge_style(self, badge: QLabel, y_axis, tokens: dict):
@@ -673,6 +695,7 @@ class DataTab(QWidget):
         w_column_id = self.w_column_combo.currentData() if self.w_column_combo.count() > 0 else ""
         magnitude_column_id = self.magnitude_column_combo.currentData() if self.magnitude_column_combo.count() > 0 else ""
         z_column_id = self.z_column_combo.currentData() if self.z_column_combo.count() > 0 else ""
+        label_column_id = self.label_column_combo.currentData() if self.label_column_combo.count() > 0 else ""
 
         # A new series always gets the chart's own default type -- NOT
         # whatever the Series Type combo currently shows, since that combo
@@ -703,6 +726,7 @@ class DataTab(QWidget):
                 w_column_id=w_column_id,
                 magnitude_column_id=magnitude_column_id,
                 z_column_id=z_column_id or "",
+                label_column_id=label_column_id or "",
             )
 
             new_series = DataSeries(
@@ -831,7 +855,7 @@ class DataTab(QWidget):
             # Combos carry the stable column id as itemData; store ids directly.
             series.x_column_id = self.x_column_combo.currentData() or ""
             series.y_column_id = self.y_column_combo.currentData() or ""
-            series.y_axis = self.series_y_axis_control.currentValue()
+            series.y_axis = self._current_y_axis()
             error_bars = getattr(series.style, "error_bars", None)
             if error_bars is not None:
                 error_bars.x_error_column_id = self.x_error_column_combo.currentData() or ""
@@ -848,6 +872,8 @@ class DataTab(QWidget):
                     series.style.magnitude_column_id = self.magnitude_column_combo.currentData() or ""
             if self._selected_series_needs_z_column():
                 series.style.z_column_id = self.z_column_combo.currentData() or ""
+            if self._selected_series_needs_label_column():
+                series.style.label_column_id = self.label_column_combo.currentData() or ""
 
             # Refresh the Axes-tab Y2 chip immediately so switching a series
             # to the secondary axis is reflected without waiting for Apply
@@ -1092,13 +1118,26 @@ class DataTab(QWidget):
         """
         asymmetric = self.error_asymmetric_check.isChecked()
 
+        # A series whose type draws no error bars (Hist, Vector, Pie, every
+        # 3-D type) gets no error-column rows at all -- they would write to
+        # an ErrorBarConfig its style doesn't even have. A fit keeps them
+        # (disabled), as before.
+        spec = self._selected_series_spec()
+        supported = spec is None or spec.supports_error_bars
+        for widget in (
+            self.error_asymmetric_check,
+            self.x_error_column_label, self.x_error_column_combo,
+            self.y_error_column_label, self.y_error_column_combo,
+        ):
+            widget.setVisible(supported)
+
         self.x_error_column_label.setText("X Error (+) Column:" if asymmetric else "X Error Column:")
         self.y_error_column_label.setText("Y Error (+) Column:" if asymmetric else "Y Error Column:")
 
         # x_error_column_combo tracks whether a data series (vs. fit data,
         # which has no error bars) is being edited; the -side pickers only
         # show up when both a series is selected and asymmetric is checked.
-        show_minus = asymmetric and self.x_error_column_combo.isEnabled()
+        show_minus = supported and asymmetric and self.x_error_column_combo.isEnabled()
         for widget in (
             self.x_error_minus_label, self.x_error_minus_column_combo,
             self.y_error_minus_label, self.y_error_minus_column_combo,
@@ -1130,8 +1169,11 @@ class DataTab(QWidget):
             self._populate_confidence_column_combos(series.dataset_id)
             self._populate_vector_column_combos(series.dataset_id)
             self._populate_z_column_combo(series.dataset_id)
+            self._populate_label_column_combo(series.dataset_id)
             self._update_vector_field_visibility()
             self._update_z_column_field_visibility()
+            self._update_label_column_field_visibility()
+            self._update_axis_field_visibility()
 
             # Set columns by stable id (combos carry the id as itemData)
             x_index = self.x_column_combo.findData(series.x_column_id)
@@ -1165,6 +1207,7 @@ class DataTab(QWidget):
                 (self.w_column_combo, getattr(series.style, "w_column_id", "")),
                 (self.magnitude_column_combo, getattr(series.style, "magnitude_column_id", "")),
                 (self.z_column_combo, getattr(series.style, "z_column_id", "")),
+                (self.label_column_combo, getattr(series.style, "label_column_id", "")),
             ):
                 combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
                 index = combo.findData(column_id)
@@ -1220,6 +1263,7 @@ class DataTab(QWidget):
             self.w_column_combo.setEnabled(False)
             self.magnitude_column_combo.setEnabled(False)
             self.z_column_combo.setEnabled(False)
+            self.label_column_combo.setEnabled(False)
             # The combo is shared with whichever series was last edited, so
             # without this it keeps showing that series' (or the chart's
             # default) SeriesType -- misleading here since a fit isn't
@@ -1234,6 +1278,8 @@ class DataTab(QWidget):
             self.series_type_combo.setEnabled(False)
             self._update_vector_field_visibility()
             self._update_z_column_field_visibility()
+            self._update_label_column_field_visibility()
+            self._update_axis_field_visibility()
             self.error_asymmetric_check.setEnabled(False)
             self._update_error_bar_mode_controls()
 
@@ -1330,6 +1376,7 @@ class DataTab(QWidget):
         self.magnitude_column_combo.setEnabled(True)
         self.z_column_combo.setEnabled(True)
         self.w_column_combo.setEnabled(True)
+        self.label_column_combo.setEnabled(True)
         self.confidence_lower_column_combo.setEnabled(True)
         self.confidence_upper_column_combo.setEnabled(True)
         self.series_type_combo.setEnabled(True)
@@ -1526,7 +1573,17 @@ class DataTab(QWidget):
         _populate_vector_column_combos' item-data convention (column id, or
         "" for "None"), since an untouched z_column_id is genuinely "" (e.g.
         right after retyping an existing series to Colormap/Heatmap)."""
-        combo = self.z_column_combo
+        self._populate_column_combo_with_none(self.z_column_combo, dataset_id)
+
+    def _populate_label_column_combo(self, dataset_id):
+        """Fill the (pie) Labels column combo the same way as the Z combo --
+        here the leading "None" isn't just an untouched default but a real
+        choice: the column is optional and a pie renders fine without it."""
+        self._populate_column_combo_with_none(self.label_column_combo, dataset_id)
+
+    def _populate_column_combo_with_none(self, combo: QComboBox, dataset_id: str) -> None:
+        """Fill `combo` with a leading "None" entry (itemData "") followed by
+        the given dataset's columns (itemData = column id), signals blocked."""
         combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         try:
             combo.clear()
@@ -1600,8 +1657,12 @@ class DataTab(QWidget):
             # "Fit" is a conversion action, not a real SeriesType -- offered
             # regardless of the chart's own allowed_series_types, since fit
             # entries have always been chart-type-agnostic (#298). Appended
-            # last so it never affects the default-index lookup below.
-            self.series_type_combo.addItem("Fit", _CONVERT_TO_FIT)
+            # last so it never affects the default-index lookup below. Not
+            # offered when the chart's series have no X column (Box/Hist/
+            # Pie): a fit needs (x, y) source data, so converting one
+            # could only fail.
+            if SERIES_TYPE_SPECS[spec.default_series_type].needs_x_column:
+                self.series_type_combo.addItem("Fit", _CONVERT_TO_FIT)
             default_index = self.series_type_combo.findData(spec.default_series_type)
             self.series_type_combo.setCurrentIndex(max(default_index, 0))
         finally:
@@ -1647,6 +1708,63 @@ class DataTab(QWidget):
         self.z_column_label.setVisible(show)
         self.z_column_combo.setVisible(show)
 
+    def _selected_series_spec(self) -> SeriesTypeSpec | None:
+        """The selected, already-existing series' own SeriesTypeSpec, or None
+        when a fit (or nothing) is selected."""
+        if not self.current_chart:
+            return None
+        row = self._expanded_series_index
+        if row < 0 or row >= len(self.current_chart.data_series):
+            return None
+        return SERIES_TYPE_SPECS[self.current_chart.data_series[row].series_type]
+
+    def _selected_series_needs_label_column(self) -> bool:
+        """Whether the selected series' own type takes a wedge-labels column
+        (PIE only), mirroring _selected_series_needs_z_column."""
+        spec = self._selected_series_spec()
+        return spec is not None and spec.needs_label_column
+
+    def _update_label_column_field_visibility(self):
+        """Show the Labels Column row only for a series whose own type has
+        one (Pie) -- mirrors _update_z_column_field_visibility."""
+        show = self._selected_series_needs_label_column()
+        self.label_column_label.setVisible(show)
+        self.label_column_combo.setVisible(show)
+
+    def _selected_series_series_type(self) -> SeriesType | None:
+        """The selected series' type, or None when nothing is selected."""
+        if not self.current_chart or self._selected_series_spec() is None:
+            return None
+        return self.current_chart.data_series[self._expanded_series_index].series_type
+
+    def _current_y_axis(self) -> YAxis:
+        """The Y Axis control's value, forced to primary for Box series (see _update_axis_field_visibility)."""
+        if self._selected_series_series_type() == SeriesType.BOX:
+            return YAxis.PRIMARY
+        return self.series_y_axis_control.currentValue()
+
+    def _update_axis_field_visibility(self):
+        """Hide the rows that only mean something on an (x, y) chart.
+
+        X Column follows the selected series' own needs_x_column (Hist/Pie
+        plot a single values column, and the Y Column row is relabelled
+        "Values Column" to match the wizard's name for it). Y Axis follows
+        the *chart's* has_axes, since a secondary axis is a chart-level
+        thing a Pie simply doesn't have. A selected fit keeps every row: a
+        fit is always an (x, y) curve.
+        """
+        spec = self._selected_series_spec()
+        needs_x = spec is None or spec.needs_x_column
+        self.x_column_label.setVisible(needs_x)
+        self.x_column_combo.setVisible(needs_x)
+        self.y_column_label.setText("Y Column:" if needs_x else "Values Column:")
+        has_axes = not self.current_chart or CHART_TYPE_SPECS[self.current_chart.chart_type].has_axes
+        # Box series take numbered X slots shared by all siblings and name
+        # them via the primary axes' ticks, so they can't sit on Y2.
+        show_y_axis = has_axes and self._selected_series_series_type() != SeriesType.BOX
+        self.series_y_axis_label.setVisible(show_y_axis)
+        self.series_y_axis_control.setVisible(show_y_axis)
+
     def refresh_vector_fields(self):
         """Re-evaluate the Series Type combo's options and the selected
         series' vector-field visibility/combos after the chart's own
@@ -1661,11 +1779,15 @@ class DataTab(QWidget):
         if not self.current_chart:
             self._update_vector_field_visibility()
             self._update_z_column_field_visibility()
+            self._update_label_column_field_visibility()
+            self._update_axis_field_visibility()
             return
         current_row = self._expanded_series_index
         if current_row < 0 or current_row >= len(self.current_chart.data_series):
             self._update_vector_field_visibility()
             self._update_z_column_field_visibility()
+            self._update_label_column_field_visibility()
+            self._update_axis_field_visibility()
             return
         self._load_series_into_controls(self.current_chart.data_series[current_row])
 
@@ -1677,6 +1799,7 @@ class DataTab(QWidget):
         self._populate_confidence_column_combos(dataset_id)
         self._populate_vector_column_combos(dataset_id)
         self._populate_z_column_combo(dataset_id)
+        self._populate_label_column_combo(dataset_id)
 
         # Set defaults if possible
         if columns:
@@ -1741,7 +1864,7 @@ class DataTab(QWidget):
             total_series = len(chart.data_series)
             if current_row < total_series:
                 series = chart.data_series[current_row]
-                series.y_axis = self.series_y_axis_control.currentValue()
+                series.y_axis = self._current_y_axis()
 
         # An empty data_series list alone doesn't mean "uninitialized
         # chart, bootstrap a default series from whatever the form
@@ -1768,7 +1891,7 @@ class DataTab(QWidget):
                     x_column_id=x_column_id,
                     y_column_id=y_column_id,
                     label=f"{dataset_name}:{y_column_name}",
-                    y_axis=self.series_y_axis_control.currentValue(),
+                    y_axis=YAxis.PRIMARY if new_series_type == SeriesType.BOX else self.series_y_axis_control.currentValue(),
                     series_type=new_series_type,
                     style=build_series_style(
                         new_series_type,
@@ -1784,6 +1907,7 @@ class DataTab(QWidget):
                         w_column_id=self.w_column_combo.currentData() or "",
                         magnitude_column_id=self.magnitude_column_combo.currentData() or "",
                         z_column_id=self.z_column_combo.currentData() or "",
+                        label_column_id=self.label_column_combo.currentData() or "",
                     ),
                 )
 

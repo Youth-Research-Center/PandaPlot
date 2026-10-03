@@ -228,6 +228,10 @@ class ChartWizard(PWizard):
                 x_label = names.get("values", "")
                 if chart_type == "density":
                     y_label = "Density"
+            elif chart_type == "box":
+                # A box plot measures its "Values" column up the Y axis; X
+                # just names each box (one tick per series), so no label.
+                y_label = names.get("values", "")
             else:
                 x_label = names.get("x", "")
                 y_label = names.get("y", "")

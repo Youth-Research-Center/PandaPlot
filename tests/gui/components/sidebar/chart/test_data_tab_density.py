@@ -41,7 +41,7 @@ def test_series_type_combo_offers_density_and_hist_defaulting_to_density():
     tab, _chart = _tab_with_density_chart()
 
     offered = {tab.series_type_combo.itemData(i) for i in range(tab.series_type_combo.count())}
-    assert offered == {SeriesType.DENSITY, SeriesType.HIST, "__convert_to_fit__"}
+    assert offered == {SeriesType.DENSITY, SeriesType.HIST}
     assert tab.series_type_combo.currentData() == SeriesType.DENSITY
 
 

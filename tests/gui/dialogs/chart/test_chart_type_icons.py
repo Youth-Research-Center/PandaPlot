@@ -36,7 +36,7 @@ def test_icon_renders_a_non_empty_pixmap(chart_type):
 
 def test_unknown_chart_type_raises():
     with pytest.raises(KeyError):
-        chart_type_icon("pie", "#4A56C6")
+        chart_type_icon("violin", "#4A56C6")
 
 
 def test_vector_arrow_geometry_stays_within_canvas_bounds():
