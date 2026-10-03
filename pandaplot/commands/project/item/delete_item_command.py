@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
@@ -10,7 +11,7 @@ from pandaplot.models.state import AppContext, AppState
 
 class DeleteItemCommand(Command):
     """
-    Generic command to delete any project item using to_dict/from_dict serialization.
+    Generic command to delete a project item, retaining collection subtrees for undo.
     This command works with any item type that extends the Item base class.
 
     Also cascades to any item that references something being deleted (directly,
@@ -32,6 +33,7 @@ class DeleteItemCommand(Command):
         # Store state for undo
         self.deleted_item_data: dict[str, Any] | None = None
         self.deleted_item_class: type[Item] | None = None
+        self._deleted_collection: ItemCollection | None = None
         self.parent_item: Item | None = None
 
         # Items whose on_items_removed() hook fired because they referenced
@@ -119,6 +121,9 @@ class DeleteItemCommand(Command):
             # Store the item's class type and serialized data for undo
             self.deleted_item_class = type(item)
             self.deleted_item_data = item.to_dict()
+            # to_dict omits child types and in-memory dataset/image payloads.
+            # Keep a detached subtree snapshot for collection undo instead.
+            self._deleted_collection = deepcopy(item) if isinstance(item, ItemCollection) else None
 
             # Find the parent to store the relationship
             if item.parent_id:
@@ -185,9 +190,12 @@ class DeleteItemCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            # Recreate the item from its serialized data
-            restored_item = self.deleted_item_class.from_dict(
-                self.deleted_item_data)
+            # Restore a fresh snapshot, or deserialize a standalone item
+            restored_item = (
+                deepcopy(self._deleted_collection)
+                if self._deleted_collection is not None
+                else self.deleted_item_class.from_dict(self.deleted_item_data)
+            )
 
             # Determine the parent for restoration
             parent_id = None

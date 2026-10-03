@@ -57,8 +57,14 @@ class Project:
                 # TODO(#219): see if we need to handle this case differently, e.g. recursively search for a collection
                 self.root.add_item(item, index=index)
 
-        # Update index
+        # Index the full subtree when restoring or attaching a collection.
+        self._index_item_subtree(item)
+
+    def _index_item_subtree(self, item: Item) -> None:
         self.items_index[item.id] = item
+        if isinstance(item, ItemCollection):
+            for child in item.get_items():
+                self._index_item_subtree(child)
 
     def _find_parent_collection(self, item: Item) -> ItemCollection | None:
         """Return the ItemCollection currently holding `item` (its parent, or
