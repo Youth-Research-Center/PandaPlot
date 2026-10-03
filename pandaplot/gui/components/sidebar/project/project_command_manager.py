@@ -1,10 +1,10 @@
 import logging
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QInputDialog
+from PySide6.QtWidgets import QDialog, QInputDialog
 
 from pandaplot.commands.project.chart import CreateChartFromWizardCommand
-from pandaplot.commands.project.dataset import ImportDataCommand
+from pandaplot.commands.project.dataset import AnalyzeMeasurementsCommand, ImportDataCommand
 from pandaplot.commands.project.dataset.create_empty_dataset_command import (
     CreateEmptyDatasetCommand,
 )
@@ -15,6 +15,7 @@ from pandaplot.commands.project.note import CreateNoteCommand
 from pandaplot.commands.project.project import RenameProjectCommand
 from pandaplot.models.events.event_data import TabOpenRequestedData
 from pandaplot.models.events.event_types import UIEvents
+from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -161,6 +162,40 @@ class ProjectPanelCommandManager:
             preselected_column_ids=self._preselected_column_ids(dataset_id),
         )
         self.app_context.get_command_executor().execute_command(command)
+
+    def analyze_measurements(self) -> None:
+        """Open the measurement-analysis wizard for the selected dataset."""
+        selected_info = self.get_selected_item_info()
+        if not selected_info or selected_info.get("type") != "dataset":
+            return
+
+        project = self.app_state.current_project
+        dataset = project.find_item(selected_info["id"]) if project is not None else None
+        if not isinstance(dataset, Dataset):
+            return
+
+        from pandaplot.gui.dialogs.measurement_analysis_wizard import MeasurementAnalysisWizard
+
+        dialog = MeasurementAnalysisWizard(self.app_context, dataset, parent=self.parent_widget)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        command = AnalyzeMeasurementsCommand(
+            self.app_context,
+            dataset.id,
+            dialog.selected_roles(),
+            measurement_groups=dialog.selected_measurement_groups(),
+            result_name=dialog.result_name(),
+        )
+        executor = self.app_context.get_command_executor()
+        if not executor.execute_command(command):
+            return
+        if dialog.create_chart_after_creation() and command.result_dataset_id is not None:
+            chart_command = CreateChartFromWizardCommand(
+                self.app_context,
+                dataset_id=command.result_dataset_id,
+            )
+            executor.execute_command(chart_command)
 
     def rename_selected_item(self):
         """Rename the selected item.
