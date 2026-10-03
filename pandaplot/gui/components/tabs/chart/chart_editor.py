@@ -4,7 +4,6 @@ from contextlib import contextmanager
 from typing import override
 
 import numpy as np
-import pandas as pd
 from matplotlib.collections import PolyCollection
 from matplotlib.legend_handler import HandlerTuple
 from matplotlib.ticker import (
@@ -45,6 +44,7 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
 )
 from pandaplot.gui.components.tabs.chart.series_renderers.box import BOX_POSITIONS_KEY, apply_box_ticks, box_numeric_values
 from pandaplot.gui.components.tabs.chart.series_renderers.density import compute_density_curve
+from pandaplot.gui.components.tabs.chart.series_renderers.hist import finite_numeric_values
 from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
@@ -513,16 +513,18 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
             if curve is None:
                 continue
             values = curve[0] if prefix == "x" else curve[1]
+            if prefix != "x" and series.style.fill_enabled:
+                # The fill is drawn down to y=0, so the range must reach it
+                # (a log axis drops it again via `positive_only` below).
+                values = np.append(values, 0.0)
         elif series.series_type == SeriesType.HIST and hist_density_bins is not None:
-            sample = pd.to_numeric(pd.Series(data.y_data, dtype=object), errors="coerce").to_numpy(dtype=float)
-            sample = sample[np.isfinite(sample)]
+            sample = finite_numeric_values(data.y_data)
             if sample.size == 0:
                 continue
-            if prefix == "x":
-                values = sample
-            else:
-                heights, _edges = np.histogram(sample, bins=hist_density_bins, density=True)
-                values = np.array([0.0, heights.max()])
+            # np.histogram widens the bin range of a constant sample, so the
+            # edges (not the raw values) are what the bars actually span.
+            heights, edges = np.histogram(sample, bins=hist_density_bins, density=True)
+            values = edges if prefix == "x" else np.array([0.0, heights.max()])
         else:
             arr = {"x": data.x_data, "z": data.z_data}.get(prefix, data.y_data)
             if arr is None:

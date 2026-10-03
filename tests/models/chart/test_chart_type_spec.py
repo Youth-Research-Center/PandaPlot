@@ -308,3 +308,14 @@ def test_hist_density_is_keyword_only_so_positional_has_axes_callers_keep_workin
     assert by_name["hist_density"].kw_only is True
     positional = [f.name for f in dataclasses.fields(ChartTypeSpec) if not f.kw_only]
     assert positional[-1] == "has_axes"
+
+
+def test_charts_with_fits_cannot_switch_to_a_type_that_disallows_fits():
+    from pandaplot.models.chart.chart_type_spec import compatible_chart_types_for_series
+
+    hist_only = frozenset({SeriesType.HIST})
+    assert ChartType.DENSITY in compatible_chart_types_for_series(hist_only)
+    with_fits = compatible_chart_types_for_series(hist_only, has_fits=True)
+    assert ChartType.DENSITY not in with_fits
+    assert ChartType.HIST in with_fits
+    assert all(CHART_TYPE_SPECS[chart_type].allows_fit for chart_type in with_fits)

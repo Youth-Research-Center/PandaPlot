@@ -222,7 +222,7 @@ def compatible_chart_types(chart_type: "str | ChartType") -> frozenset[ChartType
     )
 
 
-def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]") -> frozenset[ChartType]:
+def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]", *, has_fits: bool = False) -> frozenset[ChartType]:
     """Chart types it's non-destructive to switch into, given the ACTUAL
     series types on a chart -- not just the nominal type's static
     default_series_type (see `compatible_chart_types`).
@@ -232,16 +232,18 @@ def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]") -> 
     empty `series_types` (a new chart) has nothing to protect, so every type
     qualifies.
 
+    `has_fits` is whether the chart holds fit entries: those stay on the
+    chart across a type switch and are still rendered, so a target whose
+    `allows_fit` is False (Density, Colormap, ...) is not safe either.
+
     Fixes a gap in `compatible_chart_types`: a mixed chart (e.g. Scatter
     holding both SCATTER and VECTOR) would otherwise report Bar as safe,
     silently discarding the VECTOR series' config on switch.
     """
     types = frozenset(series_types)
-    if not types:
-        return frozenset(CHART_TYPE_SPECS.keys())
     return frozenset(
         target for target, spec in CHART_TYPE_SPECS.items()
-        if types <= spec.allowed_series_types
+        if types <= spec.allowed_series_types and (spec.allows_fit or not has_fits)
     )
 
 

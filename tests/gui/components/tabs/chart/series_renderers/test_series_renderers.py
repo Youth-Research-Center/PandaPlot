@@ -1211,3 +1211,22 @@ def test_compute_density_curve_discards_non_numeric_cells_individually():
     assert curve is not None
     clean = compute_density_curve([1.0, 2.0, 3.0], bandwidth=0.0)
     np.testing.assert_allclose(curve[1], clean[1])
+
+
+def test_render_hist_series_drops_nan_and_text_cells_instead_of_raising():
+    fig, ax = plt.subplots()
+    patches = render_hist_series(ax, _series_data(y_data=[1.0, float("nan"), "oops", 2.0, 3.0]), HistSeriesStyle(), "", 1.0,
+                                 visible=True, extra={"bins": 3})
+    assert patches is not None
+    assert sum(patch.get_height() for patch in ax.patches) == pytest.approx(3)
+    plt.close(fig)
+
+
+@pytest.mark.parametrize("values", [[], [float("nan")] * 3, ["a", "b"]])
+def test_render_hist_series_returns_none_and_reports_no_data_without_numeric_values(values):
+    fig, ax = plt.subplots()
+    assert render_hist_series(ax, _series_data(y_data=values), HistSeriesStyle(), "", 1.0,
+                              visible=True, extra={"bins": 3}) is None
+    assert SeriesType.HIST in SERIES_RENDERERS_REPORTING_NO_DATA
+    assert not ax.patches
+    plt.close(fig)

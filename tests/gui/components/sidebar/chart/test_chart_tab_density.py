@@ -38,3 +38,38 @@ def test_loading_a_density_chart_selects_the_density_combo_entry():
     tab.load(Chart(name="d", chart_type="density"))
 
     assert tab.chart_type_control.currentValue() == ChartType.DENSITY
+
+
+def _type_item_enabled(tab: ChartTab, chart_type: ChartType) -> bool:
+    index = tab.chart_type_control.findData(chart_type)
+    return tab.chart_type_control.model().item(index).isEnabled()
+
+
+def test_fits_on_a_hist_chart_disable_density_but_never_the_charts_own_type():
+    from unittest.mock import MagicMock
+
+    from pandaplot.models.chart.series_type import SeriesType
+
+    chart = Chart(name="h", chart_type="hist")
+    chart.add_data_series("ds", y_column_id="c1", series_type=SeriesType.HIST)
+    tab = ChartTab()
+    tab.load(chart)
+    assert _type_item_enabled(tab, ChartType.DENSITY) is True
+
+    chart.fit_data.append(MagicMock())
+    tab._update_chart_type_compatibility()
+
+    assert _type_item_enabled(tab, ChartType.DENSITY) is False
+    assert _type_item_enabled(tab, ChartType.HIST) is True
+
+
+def test_a_density_chart_that_holds_fits_keeps_its_own_type_enabled():
+    from unittest.mock import MagicMock
+
+    chart = Chart(name="d", chart_type="density")
+    chart.fit_data.append(MagicMock())
+    tab = ChartTab()
+
+    tab.load(chart)
+
+    assert _type_item_enabled(tab, ChartType.DENSITY) is True

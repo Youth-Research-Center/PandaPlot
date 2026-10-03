@@ -27,3 +27,26 @@ def test_toggle_switch_toggles_from_the_keyboard(qtbot, key):
     assert toggle.isChecked() is True
     qtbot.keyClick(toggle, key)
     assert toggle.isChecked() is False
+
+
+def test_toggle_switch_is_a_checkable_button_so_assistive_tech_sees_its_state(qtbot):
+    from PySide6.QtWidgets import QAbstractButton
+
+    toggle = ToggleSwitch(checked=True)
+    qtbot.addWidget(toggle)
+
+    assert isinstance(toggle, QAbstractButton)
+    assert toggle.isCheckable() is True
+    assert toggle.isChecked() is True
+
+
+def test_toggle_switch_set_checked_emits_toggled_once_per_change(qtbot):
+    toggle = ToggleSwitch()
+    qtbot.addWidget(toggle)
+    emitted = []
+    toggle.toggled.connect(emitted.append)
+
+    toggle.setChecked(checked=True)
+    toggle.setChecked(checked=True)
+
+    assert emitted == [True]

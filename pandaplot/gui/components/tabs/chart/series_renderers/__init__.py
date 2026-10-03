@@ -62,6 +62,8 @@ SERIES_RENDERERS: dict[SeriesType, Callable] = {
 SERIES_RENDERERS_REPORTING_NO_DATA: frozenset[SeriesType] = frozenset({
     # DENSITY: gaussian_kde can't estimate from <2 points or constant data.
     SeriesType.DENSITY,
+    # HIST: no finite numeric values left after dropping NaN/text cells.
+    SeriesType.HIST,
     SeriesType.COLORMAP,
     SeriesType.HEATMAP,
     SeriesType.SURFACE,

@@ -116,12 +116,14 @@ class ChartTab(QWidget):
         series_types = {s.series_type for s in self._chart.data_series} if self._chart else set()
         if not series_types:
             series_types = {CHART_TYPE_SPECS[current_type].default_series_type}
-        compatible = compatible_chart_types_for_series(series_types)
+        compatible = compatible_chart_types_for_series(series_types, has_fits=bool(self._chart and self._chart.fit_data))
         model = self.chart_type_control.model()
         for index in range(self.chart_type_control.count()):
             target_type = self.chart_type_control.itemData(index)
             item = model.item(index)
-            enabled = target_type in compatible
+            # The chart's own type is never a "switch", so it stays selectable
+            # even when has_fits rules it out (a loaded chart that already holds fits).
+            enabled = target_type in compatible or target_type == current_type
             item.setEnabled(enabled)
             if enabled:
                 item.setToolTip("")
