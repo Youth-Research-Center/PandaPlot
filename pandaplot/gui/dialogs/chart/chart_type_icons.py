@@ -30,6 +30,20 @@ def _paint_bar(painter: QPainter, size: int):
         painter.drawRect(QRectF(x, y, w, h))
 
 
+def _paint_stacked_bar(painter: QPainter, size: int):
+    """Bar's three bars, each split into two stacked segments. The icon is
+    single-color, so the segments are told apart by fill: the lower one
+    solid, the upper one outlined."""
+    bars = [(1, size * 0.5, size * 0.72), (size * 0.4, size * 0.25, size * 0.6),
+            (size * 0.7, size * 0.4, size * 0.68)]
+    bottom = size * 0.9
+    for x, top, split in bars:
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(QRectF(x, top, 3, split - top))
+        painter.setBrush(painter.pen().color())
+        painter.drawRect(QRectF(x, split, 3, bottom - split))
+
+
 def _paint_hist(painter: QPainter, size: int):
     bars = [(1, size * 0.65, 3, size * 0.25), (size * 0.35, size * 0.3, 3, size * 0.6),
             (size * 0.65, size * 0.5, 3, size * 0.4)]
@@ -226,6 +240,7 @@ _PAINTERS = {
     "line": _paint_line,
     "scatter": _paint_scatter,
     "bar": _paint_bar,
+    "stacked_bar": _paint_stacked_bar,
     "hist": _paint_hist,
     "density": _paint_density,
     "box": _paint_box,

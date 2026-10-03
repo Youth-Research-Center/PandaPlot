@@ -23,6 +23,7 @@ from pandaplot.gui.components.tabs.chart.series_renderers.line3d import render_l
 from pandaplot.gui.components.tabs.chart.series_renderers.pie import render_pie_series
 from pandaplot.gui.components.tabs.chart.series_renderers.scatter import render_scatter_series
 from pandaplot.gui.components.tabs.chart.series_renderers.scatter3d import render_scatter3d_series
+from pandaplot.gui.components.tabs.chart.series_renderers.stacked_bar import render_stacked_bar_series
 from pandaplot.gui.components.tabs.chart.series_renderers.surface import render_surface_series
 from pandaplot.gui.components.tabs.chart.series_renderers.trisurf import render_trisurf_series
 from pandaplot.gui.components.tabs.chart.series_renderers.vector import render_vector_series
@@ -34,6 +35,7 @@ SERIES_RENDERERS: dict[SeriesType, Callable] = {
     SeriesType.LINE: render_line_series,
     SeriesType.SCATTER: render_scatter_series,
     SeriesType.BAR: render_bar_series,
+    SeriesType.STACKED_BAR: render_stacked_bar_series,
     SeriesType.HIST: render_hist_series,
     SeriesType.DENSITY: render_density_series,
     SeriesType.VECTOR: render_vector_series,
@@ -89,6 +91,7 @@ __all__ = [
     "render_pie_series",
     "render_scatter3d_series",
     "render_scatter_series",
+    "render_stacked_bar_series",
     "render_surface_series",
     "render_trisurf_series",
     "render_vector3d_series",

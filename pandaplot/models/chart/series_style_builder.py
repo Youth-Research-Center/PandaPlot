@@ -19,6 +19,14 @@ from pandaplot.models.chart.series_style import SeriesStyleBase
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 
+# Default palette cycled by series index -- the chart wizard and its preview
+# both use it, so each series of a chart is visually distinguishable instead
+# of every one landing on the style class's own single hardcoded default color.
+DEFAULT_SERIES_COLORS = [
+    "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+    "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+]
+
 
 def build_series_style(
     series_type: "str | SeriesType",

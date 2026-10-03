@@ -33,7 +33,7 @@ from pandaplot.gui.components.tabs.chart.series_renderers.box import BOX_POSITIO
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
-from pandaplot.models.chart.series_style_builder import build_series_style
+from pandaplot.models.chart.series_style_builder import DEFAULT_SERIES_COLORS, build_series_style
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items import Dataset
@@ -66,6 +66,9 @@ _SAMPLE_GRID_Z = [
 _SAMPLE_GRID_U = [0.3 * (x - 2.0) for x in _SAMPLE_GRID_X]
 _SAMPLE_GRID_V = [0.3 * (y - 2.0) for y in _SAMPLE_GRID_Y]
 _SAMPLE_GRID_W = [0.3] * len(_SAMPLE_GRID_X)
+# The second sample layer a stacked type's preview draws on top of the
+# first (matplotlib's second default cycle color, next to the first's blue).
+_SAMPLE_STACK_COLOR = "#ff7f0e"
 # Wedge names for a Pie sample, one per _SAMPLE_Y value, so the sample
 # shows labeled wedges the way a configured label column would.
 _SAMPLE_LABELS = ["A", "B", "C", "D", "E"]
@@ -78,15 +81,17 @@ def _preview_extra() -> dict:
     defaults: matplotlib's own colormap, an auto color scale ((None, None)
     -- see resolve_color_limits), and a baseline resolver that's never
     actually called (only a fill-enabled Line series would, and a
-    default-styled one never is). A fresh box_positions list per call, since
-    render_wizard_preview builds this once and shares it across all its
-    series -- which is exactly what lets several Box series sit side by side.
+    default-styled one never is). The bar stack and box_positions list are
+    fresh per call, and shared by every series a single preview render draws
+    with them, so a Stacked Bar preview stacks its series exactly as the real
+    chart will, and several Box series sit side by side.
     """
     return {
         "bins": 10,
         "colormap": "viridis",
         "color_limits": (None, None),
         "resolve_fill_baseline": lambda _query, _horizontal: 0,
+        "stack_bottoms": {},
         BOX_POSITIONS_KEY: [],
     }
 
@@ -130,9 +135,17 @@ def draw_chart_type_sample(canvas: ChartCanvas, chart_type: str) -> None:
     canvas.set_projection(projection_3d=CHART_TYPE_SPECS[ChartType(chart_type)].is_3d)
     series_type = SeriesType(chart_type)
     style = build_series_style(series_type)
+    extra = _preview_extra()
     SERIES_RENDERERS[series_type](
         canvas.axes, _sample_series_data(series_type), style,
-        "", 1.0, visible=True, extra=_preview_extra())
+        "", 1.0, visible=True, extra=extra)
+    if SERIES_TYPE_SPECS[series_type].is_stacked:
+        # One series alone looks exactly like a plain Bar sample -- stack a
+        # second, differently-colored one on top so the preview shows what
+        # actually sets this type apart.
+        SERIES_RENDERERS[series_type](
+            canvas.axes, _sample_series_data(series_type), build_series_style(series_type, color=_SAMPLE_STACK_COLOR),
+            "", 1.0, visible=True, extra=extra)
 
 
 def _series_label(project, config: dict) -> str:
@@ -169,9 +182,12 @@ def render_wizard_preview(
 
     extra = _preview_extra()
     any_plotted = False
-    for config in series_configs:
+    for index, config in enumerate(series_configs):
         style = build_series_style(
             series_type,
+            # Same palette-by-index the created chart gets, so a stacked
+            # preview shows its segments instead of one solid bar.
+            color=DEFAULT_SERIES_COLORS[index % len(DEFAULT_SERIES_COLORS)],
             error_bars=ErrorBarConfig(
                 x_error_column_id=config.get("x_error_column_id", ""),
                 y_error_column_id=config.get("y_error_column_id", ""),

@@ -141,8 +141,10 @@ def test_fits_are_allowed_on_every_2d_xy_chart_type_and_nothing_else():
     # them, since a 2-D curve fit has no meaning on a 3-D chart. DENSITY:
     # its plotted curve is a computed estimate, not (x, y) data to fit. BOX has
     # no (x, y) curve at all -- each series is one summarized distribution. PIE
-    # has no (x, y) space at all, so no curve to fit either.
-    no_fit = {ChartType.COLORMAP, ChartType.HEATMAP, ChartType.DENSITY, ChartType.BOX, ChartType.PIE} | {
+    # has no (x, y) space at all, so no curve to fit either. STACKED_BAR: a fit
+    # runs on a series' raw values, which don't line up with where a stacked
+    # series' bars are actually drawn.
+    no_fit = {ChartType.COLORMAP, ChartType.HEATMAP, ChartType.DENSITY, ChartType.BOX, ChartType.PIE, ChartType.STACKED_BAR} | {
         chart_type for chart_type, spec in CHART_TYPE_SPECS.items() if spec.is_3d
     }
     for chart_type, spec in CHART_TYPE_SPECS.items():

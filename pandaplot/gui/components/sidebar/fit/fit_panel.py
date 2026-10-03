@@ -26,6 +26,8 @@ from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import DataSeries, resolve_series_column
@@ -742,7 +744,13 @@ class FitPanel(SidebarPanel):
             self.busy_spinner.stop()
 
     def load_chart_object(self, chart):
-        """Load a Chart object for fitting analysis."""
+        """Load a Chart object for fitting analysis.
+
+        A chart whose type has ``allows_fit=False`` (Stacked Bar, Density, ...)
+        is treated like no chart at all: its series are never offered to fit.
+        """
+        if chart is not None and not CHART_TYPE_SPECS[ChartType(chart.chart_type)].allows_fit:
+            chart = None
         self._clear_results()
         self.current_chart = chart
 

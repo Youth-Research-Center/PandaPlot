@@ -14,6 +14,7 @@ class ChartType(str, Enum):
     LINE = "line"
     SCATTER = "scatter"
     BAR = "bar"
+    STACKED_BAR = "stacked_bar"
     HIST = "hist"
     DENSITY = "density"
     VECTOR = "vector"

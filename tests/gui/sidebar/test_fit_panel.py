@@ -19,6 +19,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.fit.fit_panel import CUSTOM_SERIES_SENTINEL, FitPanel
+from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
@@ -1374,3 +1375,21 @@ class TestFitPanelSeriesSelectedEvent:
         )
 
         assert panel.series_combo.currentIndex() == 0
+
+
+def test_load_chart_object_offers_no_series_when_chart_type_disallows_fits(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+
+    panel.load_chart_object(chart)
+    assert panel.series_combo.count() > 1
+
+    chart.set_chart_type(ChartType.STACKED_BAR)
+    panel.load_chart_object(chart)
+
+    assert panel.current_chart is None
+    assert panel.series_combo.count() == 0

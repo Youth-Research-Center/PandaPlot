@@ -17,20 +17,12 @@ from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.require_project import ensure_project_or_offer_create
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
-from pandaplot.models.chart.series_style_builder import build_series_style
+from pandaplot.models.chart.series_style_builder import DEFAULT_SERIES_COLORS, build_series_style
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.config.config_manager import ConfigManager
 from pandaplot.utils.item_display_options import dataset_display_options
-
-# Same default palette data_tab.py's "+Add series" cycles through -- keeps
-# wizard-created series visually distinguishable instead of all landing on
-# the style class's own single hardcoded default color.
-_DEFAULT_SERIES_COLORS = [
-    "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-    "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
-]
 
 
 class CreateChartFromWizardCommand(Command):
@@ -263,7 +255,7 @@ class CreateChartFromWizardCommand(Command):
                     # "+Add series" uses, so multiple wizard-created series
                     # aren't all left on the style class's own single
                     # hardcoded default color.
-                    color = _DEFAULT_SERIES_COLORS[index % len(_DEFAULT_SERIES_COLORS)]
+                    color = DEFAULT_SERIES_COLORS[index % len(DEFAULT_SERIES_COLORS)]
                     style = build_series_style(
                         series_type,
                         color=color,
