@@ -91,6 +91,7 @@ pandaplot_storybook/    # Standalone sub-project: PySide6 component storybook
 - [Analysis and Curve Fitting](arch/07-analysis-engine.md)
 - [State Management and AppContext](arch/08-state-management.md)
 - [Architectural Issues](arch/09-architectural-issues.md)
+- [Keyboard Focus and Accessible Controls](arch/10-keyboard-accessibility.md)
 
 ## High-Level Flow Diagram
 
