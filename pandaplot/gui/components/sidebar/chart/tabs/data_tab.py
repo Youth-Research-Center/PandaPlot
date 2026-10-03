@@ -31,6 +31,7 @@ from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style_builder import build_series_style
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS, SeriesTypeSpec
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import DataSeries, YAxis, resolve_manual_fit_source_data
@@ -851,7 +852,7 @@ class DataTab(QWidget):
             # Combos carry the stable column id as itemData; store ids directly.
             series.x_column_id = self.x_column_combo.currentData() or ""
             series.y_column_id = self.y_column_combo.currentData() or ""
-            series.y_axis = self.series_y_axis_control.currentValue()
+            series.y_axis = self._current_y_axis()
             error_bars = getattr(series.style, "error_bars", None)
             if error_bars is not None:
                 error_bars.x_error_column_id = self.x_error_column_combo.currentData() or ""
@@ -1723,6 +1724,18 @@ class DataTab(QWidget):
         self.label_column_label.setVisible(show)
         self.label_column_combo.setVisible(show)
 
+    def _selected_series_series_type(self) -> SeriesType | None:
+        """The selected series' type, or None when nothing is selected."""
+        if not self.current_chart or self._selected_series_spec() is None:
+            return None
+        return self.current_chart.data_series[self._expanded_series_index].series_type
+
+    def _current_y_axis(self) -> YAxis:
+        """The Y Axis control's value, forced to primary for Box series (see _update_axis_field_visibility)."""
+        if self._selected_series_series_type() == SeriesType.BOX:
+            return YAxis.PRIMARY
+        return self.series_y_axis_control.currentValue()
+
     def _update_axis_field_visibility(self):
         """Hide the rows that only mean something on an (x, y) chart.
 
@@ -1739,8 +1752,11 @@ class DataTab(QWidget):
         self.x_column_combo.setVisible(needs_x)
         self.y_column_label.setText("Y Column:" if needs_x else "Values Column:")
         has_axes = not self.current_chart or CHART_TYPE_SPECS[self.current_chart.chart_type].has_axes
-        self.series_y_axis_label.setVisible(has_axes)
-        self.series_y_axis_control.setVisible(has_axes)
+        # Box series take numbered X slots shared by all siblings and name
+        # them via the primary axes' ticks, so they can't sit on Y2.
+        show_y_axis = has_axes and self._selected_series_series_type() != SeriesType.BOX
+        self.series_y_axis_label.setVisible(show_y_axis)
+        self.series_y_axis_control.setVisible(show_y_axis)
 
     def refresh_vector_fields(self):
         """Re-evaluate the Series Type combo's options and the selected
@@ -1841,7 +1857,7 @@ class DataTab(QWidget):
             total_series = len(chart.data_series)
             if current_row < total_series:
                 series = chart.data_series[current_row]
-                series.y_axis = self.series_y_axis_control.currentValue()
+                series.y_axis = self._current_y_axis()
 
         # An empty data_series list alone doesn't mean "uninitialized
         # chart, bootstrap a default series from whatever the form
@@ -1868,7 +1884,7 @@ class DataTab(QWidget):
                     x_column_id=x_column_id,
                     y_column_id=y_column_id,
                     label=f"{dataset_name}:{y_column_name}",
-                    y_axis=self.series_y_axis_control.currentValue(),
+                    y_axis=YAxis.PRIMARY if new_series_type == SeriesType.BOX else self.series_y_axis_control.currentValue(),
                     series_type=new_series_type,
                     style=build_series_style(
                         new_series_type,

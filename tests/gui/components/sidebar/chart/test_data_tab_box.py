@@ -56,3 +56,20 @@ def test_adding_a_series_to_a_box_chart_creates_another_box_series():
     assert new_series.series_type == SeriesType.BOX
     assert isinstance(new_series.style, BoxSeriesStyle)
     assert new_series.y_column_id
+
+
+def test_y_axis_control_is_hidden_and_forced_primary_for_box_series():
+    """Sibling boxes share one set of numbered slots/ticks on the primary
+    axes, so a Box series can't be put on Y2."""
+    from pandaplot.models.project.items.chart import YAxis
+
+    tab, chart = _loaded_box_tab()
+    tab.show()
+
+    assert not tab.series_y_axis_control.isVisible()
+    assert not tab.series_y_axis_label.isVisible()
+
+    tab.series_y_axis_control.setCurrentValue(YAxis.SECONDARY)
+    tab._add_series()
+
+    assert all(series.y_axis == YAxis.PRIMARY for series in chart.data_series)
