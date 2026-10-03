@@ -167,3 +167,30 @@ def test_style_cls_matches_each_series_type():
     assert SERIES_TYPE_SPECS[SeriesType.HIST].style_cls is HistSeriesStyle
     assert SERIES_TYPE_SPECS[SeriesType.VECTOR].style_cls is VectorSeriesStyle
     assert SERIES_TYPE_SPECS[SeriesType.VECTOR3D].style_cls is Vector3DSeriesStyle
+
+
+def test_pie_spec():
+    """Pie has a values column and nothing (x, y)-shaped: no X, no flat
+    color (wedges cycle through the default palette), no markers/lines/
+    fill/error bars, and its own show_percentages instead of value labels."""
+    from pandaplot.models.chart.series_style import PieSeriesStyle
+
+    spec = SERIES_TYPE_SPECS[SeriesType.PIE]
+    assert spec.marker_mode == "unsupported"
+    assert spec.supports_line_style is False
+    assert spec.supports_color is False
+    assert spec.supports_fill is False
+    assert spec.supports_error_bars is False
+    assert spec.needs_x_column is False
+    assert spec.needs_secondary_columns is False
+    assert spec.needs_z_column is False
+    assert spec.needs_label_column is True
+    assert spec.uses_color_scale is False
+    assert spec.is_3d is False
+    assert spec.style_cls is PieSeriesStyle
+
+
+def test_needs_label_column_is_true_only_for_pie():
+    for series_type in SeriesType:
+        expected = series_type == SeriesType.PIE
+        assert SERIES_TYPE_SPECS[series_type].needs_label_column is expected, series_type

@@ -66,6 +66,9 @@ _SAMPLE_GRID_Z = [
 _SAMPLE_GRID_U = [0.3 * (x - 2.0) for x in _SAMPLE_GRID_X]
 _SAMPLE_GRID_V = [0.3 * (y - 2.0) for y in _SAMPLE_GRID_Y]
 _SAMPLE_GRID_W = [0.3] * len(_SAMPLE_GRID_X)
+# Wedge names for a Pie sample, one per _SAMPLE_Y value, so the sample
+# shows labeled wedges the way a configured label column would.
+_SAMPLE_LABELS = ["A", "B", "C", "D", "E"]
 
 
 def _preview_extra() -> dict:
@@ -112,6 +115,7 @@ def _sample_series_data(series_type: SeriesType) -> SeriesData:
         x_err=None, y_err=None, x_err_minus=None, y_err_minus=None, error=None,
         u_data=u_data, v_data=v_data, w_data=w_data,
         z_data=z_data,
+        label_data=_SAMPLE_LABELS if spec.needs_label_column else None,
     )
 
 
@@ -180,6 +184,7 @@ def render_wizard_preview(
             w_column_id=config.get("w_column_id", ""),
             magnitude_column_id=config.get("magnitude_column_id", ""),
             z_column_id=config.get("z_column_id", ""),
+            label_column_id=config.get("label_column_id", ""),
         )
         if spec.supports_gridding:
             style.heatmap_gridding = config.get("heatmap_gridding", "grid")
@@ -212,8 +217,13 @@ def render_wizard_preview(
         draw_chart_type_sample(canvas, chart_type)
 
     axes.set_title(f"{title}\n{subtitle}" if subtitle else title)
-    axes.set_xlabel(x_label)
-    axes.set_ylabel(y_label)
+    has_axes = CHART_TYPE_SPECS[ChartType(chart_type)].has_axes
+    if has_axes:
+        axes.set_xlabel(x_label)
+        axes.set_ylabel(y_label)
+    else:
+        # Same as the real editor: a Pie has no axes to label or grid.
+        axes.set_axis_off()
     if show_legend and any_plotted:
         # Only when something actually carries a label. Several types pass
         # none at all -- matplotlib has no legend handler for the artists
@@ -224,5 +234,6 @@ def render_wizard_preview(
         handles, labels = axes.get_legend_handles_labels()
         if handles:
             axes.legend(handles, labels)
-    axes.grid(show_grid)
+    if has_axes:
+        axes.grid(show_grid)
     canvas.draw()

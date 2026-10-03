@@ -29,6 +29,8 @@ from pandaplot.models.chart.chart_configuration import (
     LineStyleType,
     MarkerType,
 )
+from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_direction import ErrorDirection
 from pandaplot.models.chart.series_style import (
     BoxSeriesStyle,
@@ -36,6 +38,7 @@ from pandaplot.models.chart.series_style import (
     HeatmapSeriesStyle,
     Line3DSeriesStyle,
     LineSeriesStyle,
+    PieSeriesStyle,
     Scatter3DSeriesStyle,
     ScatterSeriesStyle,
     SurfaceSeriesStyle,
@@ -805,6 +808,32 @@ class StyleTab(QWidget):
         box_layout.addWidget(self.box_width_slider, 3, 1)
 
         layout.addWidget(box_card)
+        # PIE group -- a pie has no line/marker/fill/error bars and no single
+        # series color (wedges cycle the default palette -- see
+        # PieSeriesStyle), so this card is all a Pie series gets.
+        self.pie_card = Card()
+        pie_layout = QGridLayout(self.pie_card)
+        pie_layout.addWidget(SectionHeader("Pie"), 0, 0, 1, 2)
+
+        start_angle_label = QLabel("Start angle:")
+        start_angle_label.setToolTip("Where the first wedge starts, in degrees counter-clockwise from 3 o'clock (90 = 12 o'clock)")
+        pie_layout.addWidget(start_angle_label, 1, 0)
+        self.pie_start_angle_slider = SliderWithSpinbox(minimum=0.0, maximum=360.0, decimals=0)
+        pie_layout.addWidget(self.pie_start_angle_slider, 1, 1)
+
+        pie_layout.addWidget(QLabel("Show percentages:"), 2, 0)
+        self.pie_show_percentages_toggle = ToggleSwitch(checked=True)
+        pie_layout.addWidget(self.pie_show_percentages_toggle, 2, 1)
+
+        donut_label = QLabel("Donut hole:")
+        donut_label.setToolTip("Size of the hole cut out of the middle, as a fraction of the radius (0 = solid pie)")
+        pie_layout.addWidget(donut_label, 3, 0)
+        # Capped below 1: a hole the full radius would leave a ring of zero
+        # thickness, i.e. nothing drawn at all (see series_renderers/pie.py).
+        self.pie_donut_width_slider = SliderWithSpinbox(minimum=0.0, maximum=0.9, decimals=2)
+        pie_layout.addWidget(self.pie_donut_width_slider, 3, 1)
+
+        layout.addWidget(self.pie_card)
 
         # HEATMAP GRIDDING group -- per-series (SeriesTypeSpec.supports_
         # gridding -- Heatmap only; Colormap, a plain color-mapped scatter,
@@ -868,6 +897,14 @@ class StyleTab(QWidget):
         self.axes_style_selector = ValueComboBox([("X", "x"), ("Y₁", "y")])
         self.axes_style_widgets: list[QWidget] = [self.axes_style_selector]
         layout.addWidget(self.axes_style_selector)
+
+        # Shown in place of the axis-appearance forms when "Axes" is picked
+        # on a chart type that draws none (ChartTypeSpec.has_axes -- Pie),
+        # mirroring the Axes tab's own note.
+        self.no_axes_style_label = QLabel("This chart type has no axes to style.")
+        self.no_axes_style_label.setWordWrap(True)
+        self.no_axes_style_label.setVisible(False)
+        layout.addWidget(self.no_axes_style_label)
 
         self._axes_style_form_container = QWidget()
         self._axes_style_form_container_layout = QVBoxLayout(self._axes_style_form_container)
@@ -942,6 +979,9 @@ class StyleTab(QWidget):
         self.box_show_outliers_toggle.toggled.connect(self._on_field_changed)
         self.box_notch_toggle.toggled.connect(self._on_field_changed)
         self.box_width_slider.valueChanged.connect(self._on_field_changed)
+        self.pie_start_angle_slider.valueChanged.connect(self._on_field_changed)
+        self.pie_show_percentages_toggle.toggled.connect(self._on_field_changed)
+        self.pie_donut_width_slider.valueChanged.connect(self._on_field_changed)
         self.heatmap_gridding_control.currentValueChanged.connect(self._on_heatmap_gridding_changed)
         self.heatmap_resolution_spin.valueChanged.connect(self._on_field_changed)
         self.heatmap_render_mode_control.currentValueChanged.connect(self._on_heatmap_render_mode_changed)
@@ -1054,8 +1094,10 @@ class StyleTab(QWidget):
         for card in self.chart_style_cards:
             card.setVisible(is_chart)
         is_axes = kind == "axes"
+        has_axes = not self._chart_type or CHART_TYPE_SPECS[ChartType(self._chart_type)].has_axes
         for widget in self.axes_style_widgets:
-            widget.setVisible(is_axes)
+            widget.setVisible(is_axes and has_axes)
+        self.no_axes_style_label.setVisible(is_axes and not has_axes)
         if kind == "series" and isinstance(obj, DataSeries):
             spec = SERIES_TYPE_SPECS[obj.series_type]
         elif self._chart_type:
@@ -1099,6 +1141,7 @@ class StyleTab(QWidget):
         self.vector_card.setVisible(kind == "series" and spec is not None and spec.style_cls is VectorSeriesStyle)
         self.vector3d_card.setVisible(kind == "series" and spec is not None and spec.style_cls is Vector3DSeriesStyle)
         self.box_card.setVisible(kind == "series" and spec is not None and spec.style_cls is BoxSeriesStyle)
+        self.pie_card.setVisible(kind == "series" and spec is not None and spec.style_cls is PieSeriesStyle)
         self.heatmap_gridding_card.setVisible(kind == "series" and spec is not None and spec.supports_gridding)
         # Re-evaluate "Match line" visibility: it depends on both kind and
         # chart type (see _is_scatter_series_target), either of which may
@@ -1940,6 +1983,15 @@ class StyleTab(QWidget):
             style.show_outliers = self.box_show_outliers_toggle.isChecked()
             style.notch = self.box_notch_toggle.isChecked()
             style.box_width = self.box_width_slider.value()
+        if isinstance(style, PieSeriesStyle):
+            # Nothing else applies -- in particular not opacity: the Line
+            # card owning that slider is hidden for a pie, so it holds
+            # whatever the last visible target left in it (same reasoning
+            # as the color-scaled types below).
+            style.start_angle = self.pie_start_angle_slider.value()
+            style.show_percentages = self.pie_show_percentages_toggle.isChecked()
+            style.donut_width = self.pie_donut_width_slider.value()
+            return
 
         # Gridding mode/resolution, for every style class that declares
         # them (Heatmap/Surface/Wireframe -- SeriesTypeSpec.supports_
@@ -2128,6 +2180,9 @@ class StyleTab(QWidget):
             self.box_show_outliers_toggle.setChecked(checked=getattr(style, "show_outliers", True))
             self.box_notch_toggle.setChecked(checked=getattr(style, "notch", False))
             self.box_width_slider.setValue(getattr(style, "box_width", 0.5))
+            self.pie_start_angle_slider.setValue(getattr(style, "start_angle", 90.0))
+            self.pie_show_percentages_toggle.setChecked(checked=getattr(style, "show_percentages", True))
+            self.pie_donut_width_slider.setValue(getattr(style, "donut_width", 0.0))
 
             # Heatmap-only gridding/render fields (colormap/colorbar/scale
             # live on the Axes tab's "Color" chip instead -- see
@@ -2746,6 +2801,10 @@ class StyleTab(QWidget):
         self.box_show_outliers_toggle.set_tokens(tokens)
         self.box_notch_toggle.set_tokens(tokens)
         self.box_width_slider.set_tokens(tokens)
+        self.pie_card.set_tokens(tokens)
+        self.pie_start_angle_slider.set_tokens(tokens)
+        self.pie_show_percentages_toggle.set_tokens(tokens)
+        self.pie_donut_width_slider.set_tokens(tokens)
         self.heatmap_gridding_card.set_tokens(tokens)
         self.heatmap_gridding_control.set_tokens(tokens)
         self.heatmap_render_mode_control.set_tokens(tokens)

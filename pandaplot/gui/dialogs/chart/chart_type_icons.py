@@ -97,6 +97,20 @@ def _paint_heatmap(painter: QPainter, size: int):
             painter.drawRect(QRectF(col * cell, row * cell, cell, cell))
 
 
+def _paint_pie(painter: QPainter, size: int):
+    """A circle with three radii -- three wedges read clearly at icon size,
+    where more would blur into a hatched disc."""
+    center = QPointF(size / 2, size / 2)
+    radius = size / 2 - 1
+    painter.drawEllipse(center, radius, radius)
+    # Angles in degrees, measured the same way matplotlib's own pie starts:
+    # the first divider straight up at 12 o'clock.
+    for degrees in (90, 210, 320):
+        angle = math.radians(degrees)
+        painter.drawLine(center, QPointF(center.x() + radius * math.cos(angle),
+                                         center.y() - radius * math.sin(angle)))
+
+
 def _cube_edges(size: int):
     """The nine visible edges of a wireframe cube, as (start, end) point
     pairs -- the shared skeleton every 3-D icon is drawn on or inside.
@@ -203,6 +217,7 @@ _PAINTERS = {
     "vector": _paint_vector,
     "colormap": _paint_colormap,
     "heatmap": _paint_heatmap,
+    "pie": _paint_pie,
     "scatter3d": _paint_scatter3d,
     "line3d": _paint_line3d,
     "surface": _paint_surface,

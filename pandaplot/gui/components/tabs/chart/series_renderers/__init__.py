@@ -19,6 +19,7 @@ from pandaplot.gui.components.tabs.chart.series_renderers.heatmap import render_
 from pandaplot.gui.components.tabs.chart.series_renderers.hist import render_hist_series
 from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.gui.components.tabs.chart.series_renderers.line3d import render_line3d_series
+from pandaplot.gui.components.tabs.chart.series_renderers.pie import render_pie_series
 from pandaplot.gui.components.tabs.chart.series_renderers.scatter import render_scatter_series
 from pandaplot.gui.components.tabs.chart.series_renderers.scatter3d import render_scatter3d_series
 from pandaplot.gui.components.tabs.chart.series_renderers.surface import render_surface_series
@@ -36,6 +37,7 @@ SERIES_RENDERERS: dict[SeriesType, Callable] = {
     SeriesType.VECTOR: render_vector_series,
     SeriesType.COLORMAP: render_colormap_series,
     SeriesType.HEATMAP: render_heatmap_series,
+    SeriesType.PIE: render_pie_series,
     SeriesType.SCATTER3D: render_scatter3d_series,
     SeriesType.LINE3D: render_line3d_series,
     SeriesType.SURFACE: render_surface_series,
@@ -63,6 +65,7 @@ SERIES_RENDERERS_REPORTING_NO_DATA: frozenset[SeriesType] = frozenset({
     SeriesType.BAR3D,
     SeriesType.TRISURF,
     SeriesType.BOX,
+    SeriesType.PIE,
 })
 
 __all__ = [
@@ -76,6 +79,7 @@ __all__ = [
     "render_hist_series",
     "render_line3d_series",
     "render_line_series",
+    "render_pie_series",
     "render_scatter3d_series",
     "render_scatter_series",
     "render_surface_series",

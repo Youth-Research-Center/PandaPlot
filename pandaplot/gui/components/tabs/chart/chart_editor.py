@@ -373,7 +373,8 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     and only for 2-D Vector) and the Z column (a color channel for
     Colormap/Heatmap, the third spatial axis for every 3-D type including
     Vector3D) are resolved the same way, but required ones error out the
-    whole series when unresolvable.
+    whole series when unresolvable. A pie's optional wedge-label column
+    (label_data) is resolved leniently, like magnitude.
     """
     from pandaplot.models.project.items.chart import resolve_series_column
     from pandaplot.models.project.items.dataset import Dataset
@@ -449,8 +450,17 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
             return SeriesData(None, None, None, None, None, None, f"Z column '{z_column}' not found")
         z_data = df[z_column]
 
+    # Optional, like magnitude: a blank or stale label column just leaves
+    # the pie's wedges unlabeled rather than failing the series.
+    label_data = None
+    if spec.needs_label_column:
+        label_column = resolve_series_column(dataset, series.style.label_column_id, series.style.label_column)
+        if label_column and label_column in df.columns:
+            label_data = df[label_column]
+
     return SeriesData(x_data, df[y_column], x_err, y_err, x_err_minus, y_err_minus, None,
-                      u_data=u_data, v_data=v_data, w_data=w_data, magnitude_data=magnitude_data, z_data=z_data)
+                      u_data=u_data, v_data=v_data, w_data=w_data, magnitude_data=magnitude_data, z_data=z_data,
+                      label_data=label_data)
 
 
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> tuple[float, float] | None:
@@ -874,11 +884,22 @@ class ChartEditorWidget(PWidget):
             # axes.clear() below (a 2-D <-> 3-D switch replaces the axes
             # object outright, so clearing the outgoing one is pointless).
             is_3d = CHART_TYPE_SPECS[self.chart.chart_type].is_3d
+            # False for a Pie chart: no axis scale/ticks/limits/grid at all
+            # (see ChartTypeSpec.has_axes). Title, subtitle and legend are
+            # figure-level and still apply.
+            has_axes = CHART_TYPE_SPECS[self.chart.chart_type].has_axes
             self.chart_canvas.set_projection(projection_3d=is_3d)
 
             # Clear the current plot and artist-to-series mapping
             self.chart_canvas.axes.clear()
             self._artist_series_map.clear()
+            if not is_3d:
+                # Axes.pie() turns the frame off and locks an equal aspect,
+                # and clear() undoes neither -- without this, an emptied Pie
+                # chart switched to an (x, y) type would keep a frameless,
+                # square plot area.
+                self.chart_canvas.axes.set_frame_on(True)
+                self.chart_canvas.axes.set_aspect("auto")
 
             # Reset the main axes to a fresh full-figure 1x1 gridspec. A colorbar's
             # default use_gridspec=True *subdivides* the gridspec, and that
@@ -907,7 +928,7 @@ class ChartEditorWidget(PWidget):
             # twinx() has no mplot3d equivalent, and a series' y_axis
             # setting simply doesn't apply there (set_projection already
             # tore down any axes2 left over from a 2-D type).
-            needs_secondary = not is_3d and any(
+            needs_secondary = not is_3d and has_axes and any(
                 series.y_axis == "secondary" for series in self.chart.data_series)
             if needs_secondary:
                 if self.chart_canvas.axes2 is None:
@@ -1203,8 +1224,8 @@ class ChartEditorWidget(PWidget):
                 fontstyle="italic" if config.y.title_italic else "normal",
                 rotation=config.y.label_rotation,
             )
-            x_scale = config.x.scale
-            y_scale = config.y.scale
+            x_scale = config.x.scale if has_axes else "linear"
+            y_scale = config.y.scale if has_axes else "linear"
             self.chart_canvas.axes.set_xscale(x_scale, **resolve_scale_kwargs(x_scale, config.x.log_base))
             self.chart_canvas.axes.set_yscale(y_scale, **resolve_scale_kwargs(y_scale, config.y.log_base))
             self.chart_canvas.axes.xaxis.label.set_size(config.x.font_size)
@@ -1303,9 +1324,12 @@ class ChartEditorWidget(PWidget):
                 else:
                     self.chart_canvas.axes2.grid(visible=False, axis="y", which="minor")
 
-            if not config.x.auto_limits:
+            # A pie sizes its own limits to the circle; a stored manual range
+            # (never editable for one -- the Axes tab hides itself) would
+            # only crop or squash it.
+            if has_axes and not config.x.auto_limits:
                 self.chart_canvas.axes.set_xlim(config.x.min, config.x.max)
-            if not config.y.auto_limits:
+            if has_axes and not config.y.auto_limits:
                 self.chart_canvas.axes.set_ylim(config.y.min, config.y.max)
             if is_3d and not config.z.auto_limits:
                 self.chart_canvas.axes.set_zlim(config.z.min, config.z.max)
@@ -1434,6 +1458,17 @@ class ChartEditorWidget(PWidget):
                     self.chart_canvas.axes.grid(visible=True, axis="y", which="minor", alpha=minor_grid_alpha)
                 else:
                     self.chart_canvas.axes.grid(visible=False, axis="y", which="minor")
+
+            if has_axes:
+                self.chart_canvas.axes.set_axis_on()
+            else:
+                # Rather than skipping the X/Y configuration above piece by
+                # piece, let it run and then hide every axis artist at once:
+                # set_axis_off() drops ticks, tick labels, axis labels,
+                # spines and gridlines from the draw, but not the title or
+                # the legend, which a pie still uses. axes.clear() resets
+                # it, but set_axis_on() above keeps that explicit.
+                self.chart_canvas.axes.set_axis_off()
 
             legend = None
             placement_kwargs = {}
