@@ -11,7 +11,7 @@ from pandaplot.gui.components.sidebar.chart.tabs.data_tab import DataTab
 from pandaplot.models.chart.series_style import BoxSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Dataset
-from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items.chart import Chart, YAxis
 from pandaplot.models.project.project import Project
 
 
@@ -61,8 +61,6 @@ def test_adding_a_series_to_a_box_chart_creates_another_box_series():
 def test_y_axis_control_is_hidden_and_forced_primary_for_box_series():
     """Sibling boxes share one set of numbered slots/ticks on the primary
     axes, so a Box series can't be put on Y2."""
-    from pandaplot.models.project.items.chart import YAxis
-
     tab, chart = _loaded_box_tab()
     tab.show()
 
@@ -73,3 +71,14 @@ def test_y_axis_control_is_hidden_and_forced_primary_for_box_series():
     tab._add_series()
 
     assert all(series.y_axis == YAxis.PRIMARY for series in chart.data_series)
+
+
+def test_y_axis_badge_is_not_shown_as_a_window_before_it_is_parented():
+    """The badge is built parentless and added to a layout afterwards;
+    calling setVisible(True) on it in between flashed it as a top-level
+    window every time the series cards were rebuilt."""
+    tab, _chart = _loaded_box_tab()
+
+    badge = tab._build_y_axis_badge(YAxis.PRIMARY, {})
+
+    assert not badge.isVisible()

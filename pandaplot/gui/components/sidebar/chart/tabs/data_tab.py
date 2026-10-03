@@ -596,7 +596,10 @@ class DataTab(QWidget):
         callers keep a reference to restyle it in place either way."""
         badge = QLabel()
         self._apply_y_axis_badge_style(badge, y_axis, tokens)
-        badge.setVisible(not self.current_chart or CHART_TYPE_SPECS[self.current_chart.chart_type].has_axes)
+        # Only ever hide here: setVisible(True) on a still-parentless widget
+        # shows it as its own top-level window (a flash on every rebuild).
+        if self.current_chart and not CHART_TYPE_SPECS[self.current_chart.chart_type].has_axes:
+            badge.hide()
         return badge
 
     def _apply_y_axis_badge_style(self, badge: QLabel, y_axis, tokens: dict):
