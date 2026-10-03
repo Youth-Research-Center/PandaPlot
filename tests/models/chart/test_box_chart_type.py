@@ -5,7 +5,7 @@ from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.series_style import BoxSeriesStyle, HistSeriesStyle
 from pandaplot.models.chart.series_style_builder import build_series_style
 from pandaplot.models.chart.series_type import SeriesType
-from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items.chart import Chart, YAxis
 
 
 def test_box_series_round_trips_with_its_style():
@@ -52,3 +52,15 @@ def test_switching_a_histogram_to_box_keeps_the_values_column_and_color():
     assert series.y_column_id == "a"
     assert isinstance(series.style, BoxSeriesStyle)
     assert series.style.color == "#123456"
+
+
+def test_retyping_a_secondary_axis_series_to_box_moves_it_to_the_primary_axis():
+    """Box series can't sit on Y2 (the Data tab hides the control), so a
+    retype must not leave an existing Y2 series stranded there."""
+    chart = Chart(name="Dist", chart_type="hist")
+    chart.add_data_series(dataset_id="ds1", y_column_id="a", series_type=SeriesType.HIST,
+                          style=HistSeriesStyle(), y_axis=YAxis.SECONDARY)
+
+    chart.set_chart_type(ChartType.BOX)
+
+    assert chart.data_series[0].y_axis == YAxis.PRIMARY
