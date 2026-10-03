@@ -4,12 +4,14 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+from matplotlib.colors import to_hex
 from matplotlib.container import BarContainer
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.dialogs.chart.series_config_card import SeriesConfigCard
 from pandaplot.gui.dialogs.chart.wizard_preview import draw_chart_type_sample, render_wizard_preview
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
+from pandaplot.models.chart.series_style_builder import DEFAULT_SERIES_COLORS
 from pandaplot.models.project.items import Dataset
 
 
@@ -74,3 +76,23 @@ def test_labels_step_preview_stacks_the_configured_series():
     )
 
     assert _bar_bottoms(canvas.axes) == [[0.0, 0.0], [10.0, 20.0]]
+
+
+def test_labels_step_preview_colors_each_series_from_the_default_palette():
+    dataset = Mock(spec=Dataset)
+    dataset.id = "ds-1"
+    dataset.name = "Sales"
+    dataset.data = pd.DataFrame({"Q": [1, 2], "A": [10.0, 20.0], "B": [1.0, 2.0]})
+    dataset.column_name.side_effect = lambda cid: {"col-q": "Q", "col-a": "A", "col-b": "B"}.get(cid)
+    project = Mock()
+    project.find_item.return_value = dataset
+    canvas = _canvas()
+
+    render_wizard_preview(
+        canvas, project, "stacked_bar",
+        [{"dataset_id": "ds-1", "x_column_id": "col-q", "y_column_id": y} for y in ("col-a", "col-b")],
+        "Title", "", "x", "y", show_legend=True, show_grid=False,
+    )
+
+    bar_containers = [c for c in canvas.axes.containers if isinstance(c, BarContainer)]
+    assert [to_hex(c.patches[0].get_facecolor()) for c in bar_containers] == DEFAULT_SERIES_COLORS[:2]

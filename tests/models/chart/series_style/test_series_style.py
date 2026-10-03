@@ -12,11 +12,14 @@ v_column_id, ...) live on VectorSeriesStyle itself.
 """
 import dataclasses
 
+import pytest
+
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.error_direction import ErrorDirection
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import (
     BarSeriesStyle,
+    DensitySeriesStyle,
     HistSeriesStyle,
     LineSeriesStyle,
     ScatterSeriesStyle,
@@ -174,6 +177,60 @@ def test_hist_series_style_fields_and_defaults():
     assert {f.name for f in dataclasses.fields(style)} == {"color"}
 
 
+def test_density_series_style_fields_and_defaults():
+    """Only the fields render_density_series reads: none of Line's
+    FillStyleFields baseline/orientation/fill-to/range fields, since a KDE
+    curve only ever fills down to y=0 under itself."""
+    style = DensitySeriesStyle()
+    assert issubclass(DensitySeriesStyle, SeriesStyleBase)
+    assert style.color == "#1f77b4"
+    assert style.line_style == "solid"
+    assert style.line_width == 2.0
+    assert style.fill_enabled is False
+    assert style.fill_alpha == 0.3
+    assert style.bandwidth == 0.0
+    assert {f.name for f in dataclasses.fields(style)} == {
+        "color", "line_style", "line_width", "fill_enabled", "fill_alpha", "bandwidth",
+    }
+    assert style.swatch_color == "#1f77b4"
+
+
+def test_density_style_round_trips_through_chart_serialization():
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="d", chart_type="density")
+    series = chart.add_data_series("ds", y_column_id="c1", series_type=SeriesType.DENSITY)
+    series.style.bandwidth = 0.4
+    series.style.fill_enabled = True
+    restored = Chart.from_dict(chart.to_dict())
+    restored_style = restored.data_series[0].style
+    assert isinstance(restored_style, DensitySeriesStyle)
+    assert restored_style.bandwidth == 0.4
+    assert restored_style.fill_enabled is True
+
+
+@pytest.mark.parametrize(("stored", "expected"), [
+    (8.0, 5.0),            # above the style tab's spin-box maximum
+    (-1.0, 0.0),           # negative bandwidth is meaningless
+    (float("nan"), 0.0),   # NaN would poison gaussian_kde
+    (0.004, 0.0),          # rounds to "Auto" in the 2-decimal spin box
+    (0.4, 0.4),
+])
+def test_density_bandwidth_is_clamped_to_the_editable_range_on_load(stored, expected):
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="d", chart_type="density")
+    chart.add_data_series("ds", y_column_id="c1", series_type=SeriesType.DENSITY)
+    data = chart.to_dict()
+    data["data_series"][0]["style"]["bandwidth"] = stored
+
+    restored = Chart.from_dict(data)
+
+    assert restored.data_series[0].style.bandwidth == expected
+
+
 def test_vector_series_style_fields_and_defaults():
     style = VectorSeriesStyle()
     assert style.vector_color == "#1f77b4"
@@ -195,3 +252,20 @@ def test_vector_series_style_fields_and_defaults():
         "u_column_id", "v_column_id", "u_column", "v_column",
         "magnitude_column_id", "magnitude_column",
     }
+
+
+def test_retyping_density_to_line_and_back_keeps_line_style_and_width():
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="d", chart_type="line")
+    chart.add_data_series("ds", y_column_id="c1", series_type=SeriesType.DENSITY)
+    series = chart.data_series[0]
+    series.style.line_style = "dotted"
+    series.style.line_width = 4.5
+
+    chart.retype_series(0, SeriesType.LINE)
+    assert (series.style.line_style, series.style.line_width) == ("dotted", 4.5)
+
+    chart.retype_series(0, SeriesType.DENSITY)
+    assert (series.style.line_style, series.style.line_width) == ("dotted", 4.5)

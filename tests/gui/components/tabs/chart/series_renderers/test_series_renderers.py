@@ -12,24 +12,34 @@ matplotlib.use("Agg")  # no display needed for these pure-drawing tests
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from matplotlib.colors import to_hex
+from matplotlib.patches import Wedge
 from matplotlib.quiver import Quiver
 
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData
 from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS,
+    SERIES_RENDERERS_REPORTING_NO_DATA,
     render_bar_series,
+    render_box_series,
+    render_density_series,
     render_hist_series,
     render_line_series,
+    render_pie_series,
     render_scatter_series,
     render_vector_series,
 )
+from pandaplot.gui.components.tabs.chart.series_renderers.density import compute_density_curve
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import (
     BarSeriesStyle,
+    BoxSeriesStyle,
     ColormapSeriesStyle,
+    DensitySeriesStyle,
     HeatmapSeriesStyle,
     HistSeriesStyle,
     LineSeriesStyle,
+    PieSeriesStyle,
     ScatterSeriesStyle,
     VectorSeriesStyle,
 )
@@ -839,3 +849,384 @@ def test_render_heatmap_series_applies_contour_line_width_triangulated():
 def test_series_renderers_registry_includes_new_types():
     assert SeriesType.COLORMAP in SERIES_RENDERERS
     assert SeriesType.HEATMAP in SERIES_RENDERERS
+
+
+def test_render_hist_series_normalizes_when_hist_density_is_set():
+    """On a Density chart (ChartTypeSpec.hist_density) a Hist series is
+    drawn as a density (bar areas sum to 1) so it shares the KDE's Y scale."""
+    fig, ax = plt.subplots()
+    render_hist_series(ax, _series_data(y_data=list(range(20))), HistSeriesStyle(), "", 1.0,
+                       visible=True, extra={"bins": 5, "hist_density": True})
+    total_area = sum(patch.get_width() * patch.get_height() for patch in ax.patches)
+    assert total_area == pytest.approx(1.0)
+    plt.close(fig)
+
+
+def test_render_hist_series_defaults_to_raw_counts_without_hist_density():
+    fig, ax = plt.subplots()
+    render_hist_series(ax, _series_data(y_data=list(range(20))), HistSeriesStyle(), "", 1.0,
+                       visible=True, extra={"bins": 5})
+    assert sum(patch.get_height() for patch in ax.patches) == pytest.approx(20)
+    plt.close(fig)
+
+
+# -- Density (#398) ---------------------------------------------------------
+
+_NORMAL_SAMPLE = np.random.default_rng(0).normal(loc=5.0, scale=2.0, size=200).tolist()
+
+
+def test_density_is_registered_and_reports_no_data():
+    assert SERIES_RENDERERS[SeriesType.DENSITY] is render_density_series
+    assert SeriesType.DENSITY in SERIES_RENDERERS_REPORTING_NO_DATA
+
+
+def test_render_density_series_draws_a_kde_curve_with_style_fields():
+    fig, ax = plt.subplots()
+    style = DensitySeriesStyle(color="#ff0000", line_width=3.0, line_style="dashed")
+
+    line = render_density_series(ax, _series_data(x_data=None, y_data=_NORMAL_SAMPLE), style, "KDE", 0.8,
+                                 visible=True, extra={})
+
+    assert line is ax.lines[0]
+    assert line.get_color() == "#ff0000"
+    assert line.get_linewidth() == 3.0
+    assert line.get_linestyle() == "--"
+    assert line.get_label() == "KDE"
+    assert line.get_alpha() == 0.8
+    assert not ax.collections  # no fill unless enabled
+    plt.close(fig)
+
+
+def test_render_density_series_curve_integrates_to_about_one_and_peaks_near_the_mean():
+    fig, ax = plt.subplots()
+    line = render_density_series(ax, _series_data(x_data=None, y_data=_NORMAL_SAMPLE), DensitySeriesStyle(), "", 1.0,
+                                 visible=True, extra={})
+    grid, density = line.get_xdata(), line.get_ydata()
+    # The grid is padded 10% past the data range on each side, so it holds
+    # nearly all of the KDE's mass (not quite all: the Gaussian tails extend
+    # further).
+    assert np.trapezoid(density, grid) == pytest.approx(1.0, abs=0.05)
+    sample = np.asarray(_NORMAL_SAMPLE)
+    span = sample.max() - sample.min()
+    assert grid[0] == pytest.approx(sample.min() - 0.1 * span)
+    assert grid[-1] == pytest.approx(sample.max() + 0.1 * span)
+    assert grid[np.argmax(density)] == pytest.approx(5.0, abs=1.0)
+    plt.close(fig)
+
+
+def test_render_density_series_fills_down_to_zero_when_enabled():
+    fig, ax = plt.subplots()
+    style = DensitySeriesStyle(color="#00ff00", fill_enabled=True, fill_alpha=0.5)
+    render_density_series(ax, _series_data(x_data=None, y_data=_NORMAL_SAMPLE), style, "", 1.0,
+                          visible=True, extra={})
+    assert len(ax.collections) == 1
+    fill = ax.collections[0]
+    assert fill.get_alpha() == 0.5
+    assert min(vertex[1] for path in fill.get_paths() for vertex in path.vertices) == pytest.approx(0.0)
+    plt.close(fig)
+
+
+def test_render_density_series_fill_dims_when_not_visible():
+    fig, ax = plt.subplots()
+    style = DensitySeriesStyle(fill_enabled=True, fill_alpha=0.5)
+    render_density_series(ax, _series_data(x_data=None, y_data=_NORMAL_SAMPLE), style, "", 0.3,
+                          visible=False, extra={})
+    assert ax.collections[0].get_alpha() == pytest.approx(0.15)
+    plt.close(fig)
+
+
+def test_render_density_series_bandwidth_controls_smoothness():
+    """A positive bandwidth is used as gaussian_kde's scalar bw_method: a
+    narrower kernel sharpens the peak, a wider one flattens it; 0 means
+    scipy's automatic choice (Scott's rule, ~0.35 for n=200)."""
+    def peak(bandwidth: float) -> float:
+        fig, ax = plt.subplots()
+        line = render_density_series(ax, _series_data(x_data=None, y_data=_NORMAL_SAMPLE),
+                                     DensitySeriesStyle(bandwidth=bandwidth), "", 1.0, visible=True, extra={})
+        plt.close(fig)
+        return line.get_ydata().max()
+
+    assert peak(0.1) > peak(0.0) > peak(2.0)
+
+
+def test_render_density_series_ignores_nans():
+    fig, ax = plt.subplots()
+    line = render_density_series(ax, _series_data(x_data=None, y_data=[*_NORMAL_SAMPLE, float("nan"), None]),
+                                 DensitySeriesStyle(), "", 1.0, visible=True, extra={})
+    assert line is not None
+    assert np.all(np.isfinite(line.get_ydata()))
+    plt.close(fig)
+
+
+@pytest.mark.parametrize("values", [
+    [],                      # nothing at all
+    [3.0],                   # a single point
+    [float("nan")] * 5,      # all missing
+    [2.0, 2.0, 2.0, 2.0],    # zero variance -- singular covariance in gaussian_kde
+    ["a", "b", "c"],         # a non-numeric column
+])
+def test_render_density_series_returns_none_on_degenerate_data(values: list):
+    fig, ax = plt.subplots()
+    result = render_density_series(ax, _series_data(x_data=None, y_data=values), DensitySeriesStyle(), "", 1.0,
+                                   visible=True, extra={})
+    assert result is None
+    assert not ax.lines
+    assert not ax.collections
+    plt.close(fig)
+
+
+def test_compute_density_curve_pads_the_grid_by_ten_percent_of_the_range():
+    curve = compute_density_curve([0.0, 1.0, 2.0, 10.0], bandwidth=0.0)
+    assert curve is not None
+    grid, density = curve
+    assert grid[0] == pytest.approx(-1.0)
+    assert grid[-1] == pytest.approx(11.0)
+    assert len(grid) == len(density)
+
+# -- Box (#399) ---------------------------------------------------------------
+
+
+def _box_data(values) -> SeriesData:
+    return _series_data(x_data=None, y_data=values)
+
+
+def test_render_box_series_draws_one_box_in_the_series_color():
+    fig, ax = plt.subplots()
+
+    artists = render_box_series(ax, _box_data([1.0, 2.0, 3.0, 4.0, 5.0]), BoxSeriesStyle(color="#ff0000"),
+                                "Group A", 0.6, visible=True, extra={"box_positions": []})
+
+    assert SERIES_RENDERERS[SeriesType.BOX] is render_box_series
+    assert len(artists["boxes"]) == 1
+    box = artists["boxes"][0]
+    assert to_hex(box.get_facecolor()) == "#ff0000"
+    assert box.get_alpha() == 0.6
+    np.testing.assert_allclose(artists["medians"][0].get_ydata(), [3.0, 3.0])
+    plt.close(fig)
+
+
+def test_render_box_series_drops_nans_and_non_numeric_values():
+    fig, ax = plt.subplots()
+
+    artists = render_box_series(ax, _box_data([1.0, np.nan, 2.0, "oops", 3.0]), BoxSeriesStyle(), "S", 1.0,
+                                visible=True, extra={})
+
+    np.testing.assert_allclose(artists["medians"][0].get_ydata(), [2.0, 2.0])
+    plt.close(fig)
+
+
+@pytest.mark.parametrize("values", [[], [np.nan, np.nan], ["a", "b"]])
+def test_render_box_series_returns_none_and_claims_no_slot_with_no_plottable_values(values):
+    """Degenerate data: Box is in SERIES_RENDERERS_REPORTING_NO_DATA, so a
+    None return becomes a per-series "no plottable data" message; it must
+    not take an X slot either, or its siblings would leave a gap for it."""
+    fig, ax = plt.subplots()
+    positions = []
+
+    result = render_box_series(ax, _box_data(values), BoxSeriesStyle(), "S", 1.0,
+                               visible=True, extra={"box_positions": positions})
+
+    assert result is None
+    assert positions == []
+    assert SeriesType.BOX in SERIES_RENDERERS_REPORTING_NO_DATA
+    plt.close(fig)
+
+
+def test_render_box_series_applies_outlier_notch_and_width_settings():
+    values = [1.0, 2.0, 2.5, 3.0, 3.5, 4.0, 100.0]  # 100 is far beyond the whiskers
+
+    fig, ax = plt.subplots()
+    shown = render_box_series(ax, _box_data(values), BoxSeriesStyle(), "S", 1.0, visible=True, extra={})
+    assert len(shown["fliers"][0].get_ydata()) == 1
+    plain_vertex_count = len(shown["boxes"][0].get_path().vertices)
+    plt.close(fig)
+
+    fig, ax = plt.subplots()
+    hidden = render_box_series(ax, _box_data(values), BoxSeriesStyle(show_outliers=False, notch=True, box_width=0.2),
+                               "S", 1.0, visible=True, extra={})
+    assert hidden["fliers"] == []
+    box_x = hidden["boxes"][0].get_path().vertices[:, 0]
+    assert box_x.max() - box_x.min() == pytest.approx(0.2)
+    # A notched outline has extra vertices pinching in at the median.
+    assert len(hidden["boxes"][0].get_path().vertices) > plain_vertex_count
+    plt.close(fig)
+
+
+def test_render_box_series_places_sibling_boxes_side_by_side_with_their_labels():
+    """The shared box_positions list is how sibling boxes coordinate: each
+    takes the next slot, and the tick list always names every box so far."""
+    fig, ax = plt.subplots()
+    positions = []
+    extra = {"box_positions": positions}
+    for label, values in (("A", [1, 2, 3]), ("B", [4, 5, 6]), ("C", [7, 8, 9])):
+        render_box_series(ax, _box_data(values), BoxSeriesStyle(), label, 1.0, visible=True, extra=extra)
+
+    assert positions == [(1, "A"), (2, "B"), (3, "C")]
+    assert list(ax.get_xticks()) == [1, 2, 3]
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["A", "B", "C"]
+    plt.close(fig)
+
+
+def test_render_box_series_falls_back_to_a_numbered_tick_label_when_unlabeled():
+    fig, ax = plt.subplots()
+
+    render_box_series(ax, _box_data([1, 2, 3]), BoxSeriesStyle(), "", 1.0, visible=True, extra={})
+
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["Series 1"]
+    plt.close(fig)
+
+
+# -- Pie ------------------------------------------------------------------
+
+
+def _pie_wedges(ax):
+    return [patch for patch in ax.patches if isinstance(patch, Wedge)]
+
+
+def test_render_pie_series_draws_one_wedge_per_value():
+    fig, ax = plt.subplots()
+    result = render_pie_series(ax, _series_data(y_data=[1, 2, 3]), PieSeriesStyle(), "Pie", 1.0,
+                               visible=True, extra={})
+
+    wedges = _pie_wedges(ax)
+    assert len(wedges) == 3
+    assert result is not None
+    # Wedge sizes are proportional: the 3-valued wedge spans half the circle.
+    spans = sorted(wedge.theta2 - wedge.theta1 for wedge in wedges)
+    assert spans[-1] == pytest.approx(180.0)
+    plt.close(fig)
+
+
+def test_render_pie_series_labels_wedges_from_label_data():
+    """matplotlib gives each wedge patch the label it's drawn with, which
+    is what lets the chart's legend list the categories."""
+    fig, ax = plt.subplots()
+    render_pie_series(ax, _series_data(y_data=[1, 2], label_data=["cats", "dogs"]), PieSeriesStyle(), "Pie", 1.0,
+                      visible=True, extra={})
+
+    assert [wedge.get_label() for wedge in _pie_wedges(ax)] == ["cats", "dogs"]
+    assert ax.get_legend_handles_labels()[1] == ["cats", "dogs"]
+    plt.close(fig)
+
+
+def test_render_pie_series_without_labels_adds_no_legend_entries():
+    fig, ax = plt.subplots()
+    render_pie_series(ax, _series_data(y_data=[1, 2]), PieSeriesStyle(), "Pie", 1.0, visible=True, extra={})
+
+    assert ax.get_legend_handles_labels() == ([], [])
+    plt.close(fig)
+
+
+def test_render_pie_series_show_percentages_toggles_autopct_text():
+    fig, ax = plt.subplots()
+    render_pie_series(ax, _series_data(y_data=[1, 3]), PieSeriesStyle(show_percentages=True), "", 1.0,
+                      visible=True, extra={})
+    assert {text.get_text() for text in ax.texts if text.get_text()} == {"25.0%", "75.0%"}
+    plt.close(fig)
+
+    fig, ax = plt.subplots()
+    render_pie_series(ax, _series_data(y_data=[1, 3]), PieSeriesStyle(show_percentages=False), "", 1.0,
+                      visible=True, extra={})
+    assert not any(text.get_text().endswith("%") for text in ax.texts)
+    plt.close(fig)
+
+
+def test_render_pie_series_start_angle_sets_the_first_wedge_edge():
+    fig, ax = plt.subplots()
+    render_pie_series(ax, _series_data(y_data=[1, 1]), PieSeriesStyle(start_angle=45.0), "", 1.0,
+                      visible=True, extra={})
+
+    assert _pie_wedges(ax)[0].theta1 == pytest.approx(45.0)
+    plt.close(fig)
+
+
+def test_render_pie_series_donut_width_cuts_a_hole_of_that_size():
+    fig, ax = plt.subplots()
+    render_pie_series(ax, _series_data(y_data=[1, 1]), PieSeriesStyle(donut_width=0.4), "", 1.0,
+                      visible=True, extra={})
+
+    assert _pie_wedges(ax)[0].width == pytest.approx(0.6)
+    plt.close(fig)
+
+
+def test_render_pie_series_solid_pie_by_default():
+    fig, ax = plt.subplots()
+    render_pie_series(ax, _series_data(y_data=[1, 1]), PieSeriesStyle(), "", 1.0, visible=True, extra={})
+
+    assert _pie_wedges(ax)[0].width is None
+    plt.close(fig)
+
+
+def test_render_pie_series_applies_alpha_to_every_wedge():
+    fig, ax = plt.subplots()
+    render_pie_series(ax, _series_data(y_data=[1, 2]), PieSeriesStyle(), "", 0.3, visible=False, extra={})
+
+    assert all(wedge.get_alpha() == pytest.approx(0.3) for wedge in _pie_wedges(ax))
+    plt.close(fig)
+
+
+def test_render_pie_series_skips_blank_text_and_zero_values_with_their_labels():
+    """A blank/non-numeric cell or a zero has no wedge to draw; its label
+    must be dropped with it, or every later label lands on the wrong wedge."""
+    fig, ax = plt.subplots()
+    render_pie_series(ax, _series_data(y_data=[1, np.nan, "x", 0, 2], label_data=["a", "b", "c", "d", "e"]),
+                      PieSeriesStyle(), "", 1.0, visible=True, extra={})
+
+    assert [wedge.get_label() for wedge in _pie_wedges(ax)] == ["a", "e"]
+    plt.close(fig)
+
+
+@pytest.mark.parametrize("values", [[1, -2, 3], [0, 0], [np.nan], []])
+def test_render_pie_series_reports_no_data_for_values_a_pie_cannot_show(values):
+    """A negative value can't be a wedge, and dropping it would silently
+    misstate every other wedge's share -- so the series fails as a whole,
+    the same None contract the other no-data-reporting renderers use."""
+    fig, ax = plt.subplots()
+    result = render_pie_series(ax, _series_data(y_data=values), PieSeriesStyle(), "", 1.0, visible=True, extra={})
+
+    assert result is None
+    assert _pie_wedges(ax) == []
+    assert SeriesType.PIE in SERIES_RENDERERS_REPORTING_NO_DATA
+    plt.close(fig)
+
+
+def test_render_box_series_applies_opacity_to_every_artist():
+    """At opacity 0 the whole box-and-whisker glyph must vanish, not just
+    its fill."""
+    fig, ax = plt.subplots()
+
+    artists = render_box_series(ax, _box_data([1.0, 2.0, 3.0, 4.0, 100.0]), BoxSeriesStyle(), "S", 0.0,
+                                visible=True, extra={})
+
+    for key in ("boxes", "whiskers", "caps", "medians", "fliers"):
+        assert artists[key]
+        assert all(artist.get_alpha() == 0.0 for artist in artists[key])
+    plt.close(fig)
+
+
+def test_compute_density_curve_discards_non_numeric_cells_individually():
+    """One bad cell must not reject the column: the remaining finite
+    observations still give a density."""
+    curve = compute_density_curve([1.0, "bad", 2.0, 3.0], bandwidth=0.0)
+    assert curve is not None
+    clean = compute_density_curve([1.0, 2.0, 3.0], bandwidth=0.0)
+    np.testing.assert_allclose(curve[1], clean[1])
+
+
+def test_render_hist_series_drops_nan_and_text_cells_instead_of_raising():
+    fig, ax = plt.subplots()
+    patches = render_hist_series(ax, _series_data(y_data=[1.0, float("nan"), "oops", 2.0, 3.0]), HistSeriesStyle(), "", 1.0,
+                                 visible=True, extra={"bins": 3})
+    assert patches is not None
+    assert sum(patch.get_height() for patch in ax.patches) == pytest.approx(3)
+    plt.close(fig)
+
+
+@pytest.mark.parametrize("values", [[], [float("nan")] * 3, ["a", "b"]])
+def test_render_hist_series_returns_none_and_reports_no_data_without_numeric_values(values):
+    fig, ax = plt.subplots()
+    assert render_hist_series(ax, _series_data(y_data=values), HistSeriesStyle(), "", 1.0,
+                              visible=True, extra={"bins": 3}) is None
+    assert SeriesType.HIST in SERIES_RENDERERS_REPORTING_NO_DATA
+    assert not ax.patches
+    plt.close(fig)

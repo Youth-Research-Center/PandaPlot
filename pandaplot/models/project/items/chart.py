@@ -254,9 +254,16 @@ class Chart(Item):
             # Area fill: Line/Scatter share the full FillStyleFields set.
             "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base",
             "fill_to_index", "fill_range_enabled", "fill_range_start", "fill_range_end",
+            # Density <-> Line share the curve's line style and width.
+            "line_style", "line_width",
         ):
             if hasattr(old_style, field_name) and hasattr(new_style, field_name):
                 setattr(new_style, field_name, getattr(old_style, field_name))
+        # Sibling boxes share one set of numbered X slots and named ticks on
+        # the primary axes, so a Box series can never sit on Y2 -- and the
+        # UI offers no way to move it back once retyped.
+        if new_type == SeriesType.BOX:
+            series.y_axis = YAxis.PRIMARY
         series.style = new_style
         self.update_modified_time()
 
@@ -773,7 +780,7 @@ def assign_series_column_ids(series: "DataSeries", dataset: Any) -> None:
                 if cid is not None:
                     setattr(error_bars, id_field, cid)
 
-    for role in ("u", "v", "w", "magnitude"):
+    for role in ("u", "v", "w", "magnitude", "label"):
         id_field = f"{role}_column_id"
         name = getattr(series.style, f"{role}_column", "")
         if hasattr(series.style, id_field) and name:

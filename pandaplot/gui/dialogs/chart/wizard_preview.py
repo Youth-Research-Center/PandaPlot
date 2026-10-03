@@ -29,10 +29,11 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
 from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS_REPORTING_NO_DATA as _NO_DATA_MEANS_SKIP,
 )
+from pandaplot.gui.components.tabs.chart.series_renderers.box import BOX_POSITIONS_KEY
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
-from pandaplot.models.chart.series_style_builder import build_series_style
+from pandaplot.models.chart.series_style_builder import DEFAULT_SERIES_COLORS, build_series_style
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items import Dataset
@@ -68,6 +69,9 @@ _SAMPLE_GRID_W = [0.3] * len(_SAMPLE_GRID_X)
 # The second sample layer a stacked type's preview draws on top of the
 # first (matplotlib's second default cycle color, next to the first's blue).
 _SAMPLE_STACK_COLOR = "#ff7f0e"
+# Wedge names for a Pie sample, one per _SAMPLE_Y value, so the sample
+# shows labeled wedges the way a configured label column would.
+_SAMPLE_LABELS = ["A", "B", "C", "D", "E"]
 
 
 def _preview_extra() -> dict:
@@ -77,9 +81,10 @@ def _preview_extra() -> dict:
     defaults: matplotlib's own colormap, an auto color scale ((None, None)
     -- see resolve_color_limits), and a baseline resolver that's never
     actually called (only a fill-enabled Line series would, and a
-    default-styled one never is). The bar stack is a fresh one per call, and
-    shared by every series a single preview render draws with it, so a
-    Stacked Bar preview stacks its series exactly as the real chart will.
+    default-styled one never is). The bar stack and box_positions list are
+    fresh per call, and shared by every series a single preview render draws
+    with them, so a Stacked Bar preview stacks its series exactly as the real
+    chart will, and several Box series sit side by side.
     """
     return {
         "bins": 10,
@@ -87,6 +92,7 @@ def _preview_extra() -> dict:
         "color_limits": (None, None),
         "resolve_fill_baseline": lambda _query, _horizontal: 0,
         "stack_bottoms": {},
+        BOX_POSITIONS_KEY: [],
     }
 
 
@@ -114,6 +120,7 @@ def _sample_series_data(series_type: SeriesType) -> SeriesData:
         x_err=None, y_err=None, x_err_minus=None, y_err_minus=None, error=None,
         u_data=u_data, v_data=v_data, w_data=w_data,
         z_data=z_data,
+        label_data=_SAMPLE_LABELS if spec.needs_label_column else None,
     )
 
 
@@ -175,9 +182,12 @@ def render_wizard_preview(
 
     extra = _preview_extra()
     any_plotted = False
-    for config in series_configs:
+    for index, config in enumerate(series_configs):
         style = build_series_style(
             series_type,
+            # Same palette-by-index the created chart gets, so a stacked
+            # preview shows its segments instead of one solid bar.
+            color=DEFAULT_SERIES_COLORS[index % len(DEFAULT_SERIES_COLORS)],
             error_bars=ErrorBarConfig(
                 x_error_column_id=config.get("x_error_column_id", ""),
                 y_error_column_id=config.get("y_error_column_id", ""),
@@ -190,6 +200,7 @@ def render_wizard_preview(
             w_column_id=config.get("w_column_id", ""),
             magnitude_column_id=config.get("magnitude_column_id", ""),
             z_column_id=config.get("z_column_id", ""),
+            label_column_id=config.get("label_column_id", ""),
         )
         if spec.supports_gridding:
             style.heatmap_gridding = config.get("heatmap_gridding", "grid")
@@ -222,8 +233,13 @@ def render_wizard_preview(
         draw_chart_type_sample(canvas, chart_type)
 
     axes.set_title(f"{title}\n{subtitle}" if subtitle else title)
-    axes.set_xlabel(x_label)
-    axes.set_ylabel(y_label)
+    has_axes = CHART_TYPE_SPECS[ChartType(chart_type)].has_axes
+    if has_axes:
+        axes.set_xlabel(x_label)
+        axes.set_ylabel(y_label)
+    else:
+        # Same as the real editor: a Pie has no axes to label or grid.
+        axes.set_axis_off()
     if show_legend and any_plotted:
         # Only when something actually carries a label. Several types pass
         # none at all -- matplotlib has no legend handler for the artists
@@ -234,5 +250,6 @@ def render_wizard_preview(
         handles, labels = axes.get_legend_handles_labels()
         if handles:
             axes.legend(handles, labels)
-    axes.grid(show_grid)
+    if has_axes:
+        axes.grid(show_grid)
     canvas.draw()

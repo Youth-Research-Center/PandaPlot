@@ -10,7 +10,7 @@ supports_error_bars is a property, not a stored field: SeriesTypeSpec
 now owns the single definition of which series types render error bars,
 so duplicating it here would let the two silently drift again.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.series_type import SeriesType
@@ -37,6 +37,22 @@ class ChartTypeSpec:
     # secondary Y axis is even possible (twinx() has no mplot3d
     # equivalent -- it isn't), and whether the Axes tab offers a Z axis.
     is_3d: bool = False
+    # Whether this chart type is drawn against X/Y axes at all. False only
+    # for PIE: a wedge chart has no axis scale, ticks, limits or grid to
+    # configure, so the chart editor turns the axes off entirely and the
+    # Axes tab / Style tab's axis-appearance section / wizard's axis-label
+    # fields hide themselves rather than offer controls that would be
+    # silently ignored. Title, subtitle and legend are unaffected -- those
+    # belong to the figure, not to an axis. Distinct from a missing X
+    # column (Hist's needs_x_column=False): a histogram still has two
+    # meaningful axes (the binned values and their counts).
+    has_axes: bool = True
+    # Whether a Hist series on this chart is drawn normalized (bar areas
+    # summing to 1, matplotlib's `hist(density=True)`) instead of as raw
+    # counts. Only True for DENSITY: a KDE curve integrates to 1, so a
+    # histogram overlaid on it in raw counts would dwarf the curve into a
+    # flat line along the X axis.
+    hist_density: bool = field(default=False, kw_only=True)
 
     @property
     def supports_error_bars(self) -> bool:
@@ -76,6 +92,16 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
         allowed_series_types=frozenset({SeriesType.HIST}),
         allows_fit=True, default_series_type=SeriesType.HIST,
     ),
+    # Density (#398): same single "values" role as Histogram. HIST is
+    # allowed alongside DENSITY because a KDE curve over a histogram of
+    # the same data is the classic way to show both -- hist_density keeps
+    # the two on the same (normalized) Y scale.
+    ChartType.DENSITY: ChartTypeSpec(
+        display_name="Density", roles=("values",), required_roles=("values",),
+        allowed_series_types=frozenset({SeriesType.DENSITY, SeriesType.HIST}),
+        allows_fit=False, default_series_type=SeriesType.DENSITY,
+        hist_density=True,
+    ),
     ChartType.VECTOR: ChartTypeSpec(
         display_name="Vector", roles=("x", "y", "u", "v", "magnitude"),
         required_roles=("x", "y", "u", "v"),
@@ -104,6 +130,14 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
             SeriesType.HEATMAP, SeriesType.SCATTER, SeriesType.LINE, SeriesType.COLORMAP,
         }),
         allows_fit=False, default_series_type=SeriesType.HEATMAP,
+    ),
+    # Pie takes the values column (required) plus an optional column of
+    # wedge labels. It allows only PIE series: a wedge chart has no (x, y)
+    # space to overlay a Line/Scatter series on, and no curve to fit.
+    ChartType.PIE: ChartTypeSpec(
+        display_name="Pie", roles=("values", "labels"), required_roles=("values",),
+        allowed_series_types=frozenset({SeriesType.PIE}),
+        allows_fit=False, default_series_type=SeriesType.PIE, has_axes=False,
     ),
     # -- 3-D chart types --------------------------------------------------
     # Every 3-D type takes the same required (x, y, z) column trio, and
@@ -167,6 +201,16 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
         }),
         allows_fit=False, default_series_type=SeriesType.VECTOR3D, is_3d=True,
     ),
+    # Box: one box per series, side by side for comparison -- so the only
+    # series type allowed is BOX itself (a line/scatter overlay would have
+    # to share the boxes' synthetic 1, 2, 3... X positions, which mean
+    # nothing in the overlay's own data). No fits: there is no (x, y)
+    # curve to fit a function to.
+    ChartType.BOX: ChartTypeSpec(
+        display_name="Box Plot", roles=("values",), required_roles=("values",),
+        allowed_series_types=frozenset({SeriesType.BOX}),
+        allows_fit=False, default_series_type=SeriesType.BOX,
+    ),
 }
 
 
@@ -191,7 +235,7 @@ def compatible_chart_types(chart_type: "str | ChartType") -> frozenset[ChartType
     )
 
 
-def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]") -> frozenset[ChartType]:
+def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]", *, has_fits: bool = False) -> frozenset[ChartType]:
     """Chart types it's non-destructive to switch into, given the ACTUAL
     series types on a chart -- not just the nominal type's static
     default_series_type (see `compatible_chart_types`).
@@ -202,16 +246,18 @@ def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]") -> 
     empty `series_types` (a new chart) has nothing to protect, so every type
     qualifies.
 
+    `has_fits` is whether the chart holds fit entries: those stay on the
+    chart across a type switch and are still rendered, so a target whose
+    `allows_fit` is False (Density, Colormap, ...) is not safe either.
+
     Fixes a gap in `compatible_chart_types`: a mixed chart (e.g. Scatter
     holding both SCATTER and VECTOR) would otherwise report Bar as safe,
     silently discarding the VECTOR series' config on switch.
     """
     types = frozenset(series_types)
-    if not types:
-        return frozenset(CHART_TYPE_SPECS.keys())
     return frozenset(
         target for target, spec in CHART_TYPE_SPECS.items()
-        if all(_survives_switch(series_type, spec) for series_type in types)
+        if all(_survives_switch(series_type, spec) for series_type in types) and (spec.allows_fit or not has_fits)
     )
 
 

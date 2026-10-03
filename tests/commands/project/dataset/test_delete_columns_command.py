@@ -12,6 +12,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.delete_columns_command import DeleteColumnsCommand
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
+from pandaplot.models.chart.series_style.pie import PieSeriesStyle
 from pandaplot.models.chart.series_style.scatter3d import Scatter3DSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.chart.series_style.vector3d import Vector3DSeriesStyle
@@ -515,3 +516,43 @@ def test_deleting_a_scatter3d_z_column_removes_the_series(env):
 
     assert DeleteColumnsCommand(app_context, dataset.id, ["a"]).execute() is CommandResult.SUCCESS
     assert chart.data_series == []
+
+
+def _add_pie_chart(app_context, dataset, *, values: str, labels: str) -> Chart:
+    pie_chart = Chart(name="pie", chart_type="pie")
+    pie_chart.add_data_series(
+        dataset.id, y_column_id=dataset.column_id(values), label="p1", series_type="pie",
+        style=PieSeriesStyle(label_column_id=dataset.column_id(labels)),
+    )
+    app_context.get_app_state.return_value.current_project.add_item(pie_chart)
+    return pie_chart
+
+
+def test_deleting_a_pie_label_column_clears_it_but_keeps_the_series(env):
+    """Wedge labels are optional -- the pie still renders unlabeled, so
+    deleting that column only clears the reference (mirrors magnitude)."""
+    app_context, dataset, _, _, _ = env
+    pie_chart = _add_pie_chart(app_context, dataset, values="c", labels="a")
+
+    assert DeleteColumnsCommand(app_context, dataset.id, ["a"]).execute() is CommandResult.SUCCESS
+    assert len(pie_chart.data_series) == 1
+    assert pie_chart.data_series[0].style.label_column_id == ""
+
+
+def test_undo_restores_a_cleared_pie_label_reference(env):
+    app_context, dataset, _, _, _ = env
+    pie_chart = _add_pie_chart(app_context, dataset, values="c", labels="a")
+    command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
+    command.execute()
+
+    assert command.undo() is CommandResult.SUCCESS
+    style = pie_chart.data_series[0].style
+    assert resolve_series_column(dataset, style.label_column_id, style.label_column) == "a"
+
+
+def test_deleting_a_pie_values_column_removes_the_series(env):
+    app_context, dataset, _, _, _ = env
+    pie_chart = _add_pie_chart(app_context, dataset, values="c", labels="a")
+
+    assert DeleteColumnsCommand(app_context, dataset.id, ["c"]).execute() is CommandResult.SUCCESS
+    assert pie_chart.data_series == []

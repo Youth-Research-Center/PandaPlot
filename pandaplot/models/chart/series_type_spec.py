@@ -16,11 +16,14 @@ from typing import Literal
 from pandaplot.models.chart.series_style import (
     Bar3DSeriesStyle,
     BarSeriesStyle,
+    BoxSeriesStyle,
     ColormapSeriesStyle,
+    DensitySeriesStyle,
     HeatmapSeriesStyle,
     HistSeriesStyle,
     Line3DSeriesStyle,
     LineSeriesStyle,
+    PieSeriesStyle,
     Scatter3DSeriesStyle,
     ScatterSeriesStyle,
     SeriesStyleBase,
@@ -110,6 +113,11 @@ class SeriesTypeSpec:
     # data-derived range) must offset by the same running stack the renderer
     # does, so it reads this flag rather than testing the series type.
     is_stacked: bool = False
+    # Whether this type takes an optional per-point text-label column (a
+    # pie's wedge/category names), picked on the Data tab via its own
+    # combo. Optional by definition: a blank label column never fails the
+    # series, it just renders unlabeled. Only True for PIE.
+    needs_label_column: bool = False
 
 
 SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
@@ -161,6 +169,24 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_value_labels=False,
         style_cls=HistSeriesStyle,
     ),
+    # Density: a KDE curve computed from one values column -- Hist's exact
+    # column shape (no X), drawn as a smooth line instead of binned bars.
+    # supports_curve_analysis is False for the same reason as Hist: the
+    # plotted (x, y) is a derived estimate, not the series' own data, so
+    # differentiating/integrating "it" would silently analyze something
+    # other than what the user picked. supports_fill means "can shade the
+    # area under the curve" -- Density's fill is its own two-field variant
+    # (DensitySeriesStyle), not FillStyleFields, so the Style tab shows its
+    # Density card rather than the generic Fill card for it.
+    SeriesType.DENSITY: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=True, supports_color=True, supports_fill=True,
+        supports_error_bars=False, needs_x_column=False, needs_secondary_columns=False,
+        needs_z_column=False, supports_gridding=False,
+        uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=DensitySeriesStyle,
+    ),
     SeriesType.VECTOR: SeriesTypeSpec(
         marker_mode="unsupported", supports_line_style=False, supports_color=False, supports_fill=False,
         supports_error_bars=False, needs_x_column=True, needs_secondary_columns=True,
@@ -187,6 +213,20 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_curve_analysis=False,
         supports_value_labels=False,
         style_cls=HeatmapSeriesStyle,
+    ),
+    # Pie: one wedge per row of the "values" column (y_column_id, the same
+    # role Hist uses), so no X. No flat color (wedges take the default
+    # color cycle -- see PieSeriesStyle), no curve to analyze, and its own
+    # show_percentages stands in for the generic value-labels system.
+    SeriesType.PIE: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=False, supports_color=False, supports_fill=False,
+        supports_error_bars=False, needs_x_column=False, needs_secondary_columns=False,
+        needs_z_column=False, supports_gridding=False,
+        uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=PieSeriesStyle,
+        needs_label_column=True,
     ),
     # -- 3-D types (is_3d=True) ------------------------------------------
     # None of these support error bars: mplot3d has no errorbar() at all.
@@ -261,5 +301,19 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_value_labels=False,
         style_cls=Vector3DSeriesStyle,
         needs_w_column=True,
+    ),
+    # Box: like HIST, a single "values" column (resolved into y_data) with
+    # no X -- each series is one box, positioned among its sibling box
+    # series by the renderer rather than by any column. No error bars:
+    # boxplot's whiskers/outliers ARE its spread display, and the generic
+    # errorbar() pass would draw a second, unrelated spread on top.
+    SeriesType.BOX: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=False, supports_color=True, supports_fill=False,
+        supports_error_bars=False, needs_x_column=False, needs_secondary_columns=False,
+        needs_z_column=False, supports_gridding=False,
+        uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=BoxSeriesStyle,
     ),
 }
