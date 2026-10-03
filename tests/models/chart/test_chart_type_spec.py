@@ -297,3 +297,14 @@ def test_compatible_chart_types_for_series_single_vector_matches_existing_vector
     assert ChartType.LINE in result
     assert ChartType.SCATTER in result
     assert ChartType.VECTOR in result
+
+
+def test_hist_density_is_keyword_only_so_positional_has_axes_callers_keep_working():
+    import dataclasses
+
+    from pandaplot.models.chart.chart_type_spec import ChartTypeSpec
+
+    by_name = {f.name: f for f in dataclasses.fields(ChartTypeSpec)}
+    assert by_name["hist_density"].kw_only is True
+    positional = [f.name for f in dataclasses.fields(ChartTypeSpec) if not f.kw_only]
+    assert positional[-1] == "has_axes"

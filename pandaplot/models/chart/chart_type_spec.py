@@ -10,7 +10,7 @@ supports_error_bars is a property, not a stored field: SeriesTypeSpec
 now owns the single definition of which series types render error bars,
 so duplicating it here would let the two silently drift again.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.series_type import SeriesType
@@ -37,12 +37,6 @@ class ChartTypeSpec:
     # secondary Y axis is even possible (twinx() has no mplot3d
     # equivalent -- it isn't), and whether the Axes tab offers a Z axis.
     is_3d: bool = False
-    # Whether a Hist series on this chart is drawn normalized (bar areas
-    # summing to 1, matplotlib's `hist(density=True)`) instead of as raw
-    # counts. Only True for DENSITY: a KDE curve integrates to 1, so a
-    # histogram overlaid on it in raw counts would dwarf the curve into a
-    # flat line along the X axis.
-    hist_density: bool = False
     # Whether this chart type is drawn against X/Y axes at all. False only
     # for PIE: a wedge chart has no axis scale, ticks, limits or grid to
     # configure, so the chart editor turns the axes off entirely and the
@@ -53,6 +47,12 @@ class ChartTypeSpec:
     # column (Hist's needs_x_column=False): a histogram still has two
     # meaningful axes (the binned values and their counts).
     has_axes: bool = True
+    # Whether a Hist series on this chart is drawn normalized (bar areas
+    # summing to 1, matplotlib's `hist(density=True)`) instead of as raw
+    # counts. Only True for DENSITY: a KDE curve integrates to 1, so a
+    # histogram overlaid on it in raw counts would dwarf the curve into a
+    # flat line along the X axis.
+    hist_density: bool = field(default=False, kw_only=True)
 
     @property
     def supports_error_bars(self) -> bool:

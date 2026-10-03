@@ -252,3 +252,20 @@ def test_vector_series_style_fields_and_defaults():
         "u_column_id", "v_column_id", "u_column", "v_column",
         "magnitude_column_id", "magnitude_column",
     }
+
+
+def test_retyping_density_to_line_and_back_keeps_line_style_and_width():
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="d", chart_type="line")
+    chart.add_data_series("ds", y_column_id="c1", series_type=SeriesType.DENSITY)
+    series = chart.data_series[0]
+    series.style.line_style = "dotted"
+    series.style.line_width = 4.5
+
+    chart.retype_series(0, SeriesType.LINE)
+    assert (series.style.line_style, series.style.line_width) == ("dotted", 4.5)
+
+    chart.retype_series(0, SeriesType.DENSITY)
+    assert (series.style.line_style, series.style.line_width) == ("dotted", 4.5)

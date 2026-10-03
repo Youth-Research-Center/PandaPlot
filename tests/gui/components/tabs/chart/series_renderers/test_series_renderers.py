@@ -1202,3 +1202,12 @@ def test_render_box_series_applies_opacity_to_every_artist():
         assert artists[key]
         assert all(artist.get_alpha() == 0.0 for artist in artists[key])
     plt.close(fig)
+
+
+def test_compute_density_curve_discards_non_numeric_cells_individually():
+    """One bad cell must not reject the column: the remaining finite
+    observations still give a density."""
+    curve = compute_density_curve([1.0, "bad", 2.0, 3.0], bandwidth=0.0)
+    assert curve is not None
+    clean = compute_density_curve([1.0, 2.0, 3.0], bandwidth=0.0)
+    np.testing.assert_allclose(curve[1], clean[1])

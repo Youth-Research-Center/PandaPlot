@@ -4,6 +4,7 @@ from contextlib import contextmanager
 from typing import override
 
 import numpy as np
+import pandas as pd
 from matplotlib.collections import PolyCollection
 from matplotlib.legend_handler import HandlerTuple
 from matplotlib.ticker import (
@@ -43,6 +44,7 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS_REPORTING_NO_DATA,
 )
 from pandaplot.gui.components.tabs.chart.series_renderers.box import BOX_POSITIONS_KEY, apply_box_ticks, box_numeric_values
+from pandaplot.gui.components.tabs.chart.series_renderers.density import compute_density_curve
 from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
@@ -463,7 +465,8 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
                       label_data=label_data)
 
 
-def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> tuple[float, float] | None:
+def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False,
+                            hist_density_bins: int | None = None) -> tuple[float, float] | None:
     """Compute (min, max) across every series plotted against the given
     axis (`prefix` in "x", "y", "y2", "z"). All series contribute to "x"
     and to "z" (a 3-D chart has no secondary anything to filter by);
@@ -479,7 +482,12 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
     `positive_only` should be True for a Log-scaled axis: matplotlib's
     autoscale silently ignores non-positive values on a log axis, and this
     matches that behavior instead of letting them leak into the Range card
-    or set_xlim/set_ylim."""
+    or set_xlim/set_ylim.
+
+    A Density series spans its KDE grid on X and the estimated density on Y
+    (the renderer's own coordinates, not the raw column). `hist_density_bins`
+    is the chart's bin count when Hist series are drawn normalized (a Density
+    chart): they then span their values on X and 0..peak bar height on Y."""
     from pandaplot.models.project.items.chart import YAxis
 
     ranges: list[tuple[float, float]] = []
@@ -500,6 +508,21 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
                 box_count += 1 if box_numeric_values(data.y_data).size else 0
                 continue
             values = box_numeric_values(data.y_data)
+        elif series.series_type == SeriesType.DENSITY:
+            curve = compute_density_curve(data.y_data, series.style.bandwidth)
+            if curve is None:
+                continue
+            values = curve[0] if prefix == "x" else curve[1]
+        elif series.series_type == SeriesType.HIST and hist_density_bins is not None:
+            sample = pd.to_numeric(pd.Series(data.y_data, dtype=object), errors="coerce").to_numpy(dtype=float)
+            sample = sample[np.isfinite(sample)]
+            if sample.size == 0:
+                continue
+            if prefix == "x":
+                values = sample
+            else:
+                heights, _edges = np.histogram(sample, bins=hist_density_bins, density=True)
+                values = np.array([0.0, heights.max()])
         else:
             arr = {"x": data.x_data, "z": data.z_data}.get(prefix, data.y_data)
             if arr is None:

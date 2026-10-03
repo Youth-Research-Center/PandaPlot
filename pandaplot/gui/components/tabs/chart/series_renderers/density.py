@@ -12,6 +12,7 @@ gaussian_kde fails on fewer than 2 finite points and on constant data
 easy to reach just by picking a column.
 """
 import numpy as np
+import pandas as pd
 from scipy.stats import gaussian_kde
 
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData
@@ -39,10 +40,7 @@ def compute_density_curve(values, bandwidth: float) -> tuple[np.ndarray, np.ndar
         (grid, density) arrays, or None when there's too little data, or too
         little variance, to estimate a density from.
     """
-    try:
-        sample = np.asarray(values, dtype=float)
-    except (TypeError, ValueError):
-        return None
+    sample = pd.to_numeric(pd.Series(values, dtype=object), errors="coerce").to_numpy(dtype=float)
     sample = sample[np.isfinite(sample)]
     if sample.size < 2 or np.ptp(sample) == 0:
         return None

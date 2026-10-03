@@ -1,5 +1,5 @@
 from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QMouseEvent, QPainter
+from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter
 from PySide6.QtWidgets import QWidget
 
 _TRACK_WIDTH = 26
@@ -26,6 +26,7 @@ class ToggleSwitch(QWidget):
         self._tokens: dict = {}
         self.setFixedSize(_TRACK_WIDTH, _TRACK_HEIGHT)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def isChecked(self) -> bool:
         return self._checked
@@ -44,6 +45,12 @@ class ToggleSwitch(QWidget):
     def mousePressEvent(self, event: QMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
             self.setChecked(checked=not self._checked)
+
+    def keyPressEvent(self, event: QKeyEvent):
+        if event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.setChecked(checked=not self._checked)
+        else:
+            super().keyPressEvent(event)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -69,3 +76,9 @@ class ToggleSwitch(QWidget):
         painter.drawEllipse(
             QRectF(knob_x, (_TRACK_HEIGHT - _KNOB_DIAMETER) / 2, _KNOB_DIAMETER, _KNOB_DIAMETER)
         )
+        if self.hasFocus():
+            painter.setPen(QColor(self._tokens.get("accent", "#4A56C6")))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(
+                QRectF(0.5, 0.5, _TRACK_WIDTH - 1, _TRACK_HEIGHT - 1), _TRACK_HEIGHT / 2, _TRACK_HEIGHT / 2
+            )

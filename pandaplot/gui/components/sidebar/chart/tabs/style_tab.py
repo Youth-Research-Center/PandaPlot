@@ -587,6 +587,8 @@ class StyleTab(QWidget):
 
         density_layout.addWidget(QLabel("Fill under curve:"), 2, 0)
         self.density_fill_toggle = ToggleSwitch()
+        self.density_fill_toggle.setAccessibleName("Fill under curve")
+        self.density_fill_toggle.setAccessibleDescription("Fill the area under the density curve")
         density_layout.addWidget(self.density_fill_toggle, 2, 1)
 
         self.density_fill_opacity_label = QLabel("Fill opacity:")
