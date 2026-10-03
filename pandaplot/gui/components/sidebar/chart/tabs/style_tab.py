@@ -48,6 +48,7 @@ from pandaplot.models.chart.series_style import (
     VectorSeriesStyle,
     WireframeSeriesStyle,
 )
+from pandaplot.models.chart.series_style.density import MAX_BANDWIDTH
 from pandaplot.models.chart.series_style.fill import FillStyleFields
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
@@ -572,7 +573,7 @@ class StyleTab(QWidget):
 
         density_layout.addWidget(QLabel("Bandwidth:"), 1, 0)
         self.density_bandwidth_spin = QDoubleSpinBox()
-        self.density_bandwidth_spin.setRange(0.0, 5.0)
+        self.density_bandwidth_spin.setRange(0.0, MAX_BANDWIDTH)
         self.density_bandwidth_spin.setSingleStep(0.05)
         self.density_bandwidth_spin.setDecimals(2)
         # 0 is DensitySeriesStyle.bandwidth's "let scipy choose" sentinel.

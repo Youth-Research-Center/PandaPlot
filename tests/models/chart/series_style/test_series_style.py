@@ -12,6 +12,8 @@ v_column_id, ...) live on VectorSeriesStyle itself.
 """
 import dataclasses
 
+import pytest
+
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.error_direction import ErrorDirection
 from pandaplot.models.chart.marker_style import MarkerStyle
@@ -206,6 +208,27 @@ def test_density_style_round_trips_through_chart_serialization():
     assert isinstance(restored_style, DensitySeriesStyle)
     assert restored_style.bandwidth == 0.4
     assert restored_style.fill_enabled is True
+
+
+@pytest.mark.parametrize(("stored", "expected"), [
+    (8.0, 5.0),            # above the style tab's spin-box maximum
+    (-1.0, 0.0),           # negative bandwidth is meaningless
+    (float("nan"), 0.0),   # NaN would poison gaussian_kde
+    (0.004, 0.0),          # rounds to "Auto" in the 2-decimal spin box
+    (0.4, 0.4),
+])
+def test_density_bandwidth_is_clamped_to_the_editable_range_on_load(stored, expected):
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="d", chart_type="density")
+    chart.add_data_series("ds", y_column_id="c1", series_type=SeriesType.DENSITY)
+    data = chart.to_dict()
+    data["data_series"][0]["style"]["bandwidth"] = stored
+
+    restored = Chart.from_dict(data)
+
+    assert restored.data_series[0].style.bandwidth == expected
 
 
 def test_vector_series_style_fields_and_defaults():
