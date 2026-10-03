@@ -42,7 +42,8 @@ def test_series_type_combo_offers_only_box_for_a_box_chart():
 
     offered = {tab.series_type_combo.itemData(i) for i in range(tab.series_type_combo.count())}
 
-    assert offered == {SeriesType.BOX, "__convert_to_fit__"}
+    # No "Fit": a box series has no X column, so a fit conversion could only fail.
+    assert offered == {SeriesType.BOX}
     assert tab.series_type_combo.currentData() == SeriesType.BOX
 
 

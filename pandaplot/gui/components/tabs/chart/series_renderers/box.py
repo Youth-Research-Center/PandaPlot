@@ -42,13 +42,28 @@ def apply_box_ticks(axes, entries: list[tuple[int, str]]) -> None:
     axes.set_xticks([position for position, _ in entries], labels=[label for _, label in entries])
 
 
+def box_numeric_values(raw) -> np.ndarray:
+    """A box series' plottable values: numeric and finite.
+
+    to_numeric(errors="coerce") rather than astype(float): a stray text
+    cell in an otherwise numeric column should drop that one value, not
+    the whole box -- the same leniency as the NaNs dropped next to it.
+    Shared with the axis-range computation, which must agree with the
+    renderer about what counts as a value.
+
+    Args:
+        raw: The series' raw values column (anything array-like).
+
+    Returns:
+        A 1-D float array with non-numeric and non-finite entries removed.
+    """
+    values = pd.to_numeric(pd.Series(raw), errors="coerce").to_numpy(dtype=float)
+    return values[np.isfinite(values)]
+
+
 def render_box_series(axes, series_data: SeriesData, style: BoxSeriesStyle,
                       label: str, alpha: float, *, visible: bool, extra: dict) -> dict | None:
-    # to_numeric(errors="coerce") rather than astype(float): a stray text
-    # cell in an otherwise numeric column should drop that one value, not
-    # the whole box -- the same leniency as the NaNs dropped next to it.
-    values = pd.to_numeric(pd.Series(series_data.y_data), errors="coerce").to_numpy(dtype=float)
-    values = values[np.isfinite(values)]
+    values = box_numeric_values(series_data.y_data)
     if values.size == 0:
         return None
 
@@ -72,7 +87,11 @@ def render_box_series(axes, series_data: SeriesData, style: BoxSeriesStyle,
     )
     for box in artists["boxes"]:
         box.set_facecolor(style.color)
-        box.set_alpha(alpha)
+    # Every artist, not just the filled box: at opacity 0 (or a faded
+    # series) the whiskers/caps/medians would otherwise stay fully opaque.
+    for key in ("boxes", "whiskers", "caps", "medians", "fliers"):
+        for artist in artists[key]:
+            artist.set_alpha(alpha)
 
     entries.append((position, label or f"Series {position}"))
     apply_box_ticks(axes, entries)

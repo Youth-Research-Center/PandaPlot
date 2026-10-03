@@ -122,3 +122,30 @@ def test_box_color_and_opacity_come_from_the_series():
     (box,) = editor.chart_canvas.axes.patches
     assert to_hex(box.get_facecolor()) == "#00aa00"
     assert box.get_alpha() == 0.4
+
+
+def test_axis_data_range_for_box_charts_spans_the_box_slots_and_values():
+    """Boxes have no x_data, so X is the numbered slots (an empty series
+    claims none); Y must normalize stray text exactly as the renderer does."""
+    from pandaplot.gui.components.tabs.chart.chart_editor import compute_axis_data_range
+
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = _box_chart(dataset, [("a", "A"), ("empty", "E"), ("b", "B")])
+    project.add_item(chart)
+
+    assert compute_axis_data_range(project, chart.data_series, "x") == (0.5, 2.5)
+    assert compute_axis_data_range(project, chart.data_series, "y") == (1.0, 14.0)
+
+
+def test_axis_data_range_for_box_chart_survives_stray_text_values():
+    from pandaplot.gui.components.tabs.chart.chart_editor import compute_axis_data_range
+
+    _qapp()
+    project = Project(name="Text Project")
+    dataset = Dataset(name="ds", data=pd.DataFrame({"v": [1.0, "oops", 3.0]}))
+    project.add_item(dataset)
+    chart = _box_chart(dataset, [("v", "V")])
+    project.add_item(chart)
+
+    assert compute_axis_data_range(project, chart.data_series, "y") == (1.0, 3.0)

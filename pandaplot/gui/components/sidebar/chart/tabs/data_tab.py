@@ -1657,8 +1657,12 @@ class DataTab(QWidget):
             # "Fit" is a conversion action, not a real SeriesType -- offered
             # regardless of the chart's own allowed_series_types, since fit
             # entries have always been chart-type-agnostic (#298). Appended
-            # last so it never affects the default-index lookup below.
-            self.series_type_combo.addItem("Fit", _CONVERT_TO_FIT)
+            # last so it never affects the default-index lookup below. Not
+            # offered when the chart's series have no X column (Box/Hist/
+            # Pie): a fit needs (x, y) source data, so converting one
+            # could only fail.
+            if SERIES_TYPE_SPECS[spec.default_series_type].needs_x_column:
+                self.series_type_combo.addItem("Fit", _CONVERT_TO_FIT)
             default_index = self.series_type_combo.findData(spec.default_series_type)
             self.series_type_combo.setCurrentIndex(max(default_index, 0))
         finally:

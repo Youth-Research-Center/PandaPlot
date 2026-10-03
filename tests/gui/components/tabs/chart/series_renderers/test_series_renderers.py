@@ -1053,3 +1053,17 @@ def test_render_pie_series_reports_no_data_for_values_a_pie_cannot_show(values):
     assert _pie_wedges(ax) == []
     assert SeriesType.PIE in SERIES_RENDERERS_REPORTING_NO_DATA
     plt.close(fig)
+
+
+def test_render_box_series_applies_opacity_to_every_artist():
+    """At opacity 0 the whole box-and-whisker glyph must vanish, not just
+    its fill."""
+    fig, ax = plt.subplots()
+
+    artists = render_box_series(ax, _box_data([1.0, 2.0, 3.0, 4.0, 100.0]), BoxSeriesStyle(), "S", 0.0,
+                                visible=True, extra={})
+
+    for key in ("boxes", "whiskers", "caps", "medians", "fliers"):
+        assert artists[key]
+        assert all(artist.get_alpha() == 0.0 for artist in artists[key])
+    plt.close(fig)
