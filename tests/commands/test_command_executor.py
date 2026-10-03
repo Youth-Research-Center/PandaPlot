@@ -57,6 +57,21 @@ class TestCommandExecutor:
         assert len(executor.redo_stack) == 0
         assert executor.max_undo_levels == 10
     
+    def test_set_max_undo_levels_truncates_oldest_commands_and_notifies(self):
+        history_changes = []
+        executor = CommandExecutor(on_history_changed=lambda: history_changes.append(True))
+        commands = [MockCommand(f"Command{i}") for i in range(4)]
+        for command in commands:
+            executor.execute_command(command)
+
+        executor.set_max_undo_levels(2)
+
+        assert executor.max_undo_levels == 2
+        assert executor.undo_stack == commands[2:]
+        assert commands[0].cleanup_count == 1
+        assert commands[1].cleanup_count == 1
+        assert len(history_changes) >= 5
+
     def test_executor_initial_state(self):
         """Test initial state of CommandExecutor."""
         executor = CommandExecutor()

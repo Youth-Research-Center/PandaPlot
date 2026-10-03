@@ -9,6 +9,7 @@ These tests focus purely on the data model behavior implemented in
     * Reset & cloning
     * Robustness against malformed / unknown input
 """
+
 from __future__ import annotations
 
 import pytest
@@ -190,3 +191,19 @@ def test_reset_defaults_restores_chart_display():
     assert cfg.chart_display.measurement_unit == default_chart_display.measurement_unit
     assert cfg.chart_display.dpi == default_chart_display.dpi
     assert cfg.chart_display == default_chart_display
+
+
+def test_max_undo_levels_round_trip_and_validation():
+    cfg = ApplicationConfig.from_mapping({"max_undo_levels": "25"})
+    assert cfg.max_undo_levels == 25
+    assert ApplicationConfig.from_json(cfg.to_json()).max_undo_levels == 25
+
+    cfg.update_from_mapping({"max_undo_levels": 0})
+    assert cfg.max_undo_levels == 1
+    cfg.update_from_mapping({"max_undo_levels": 5000})
+    assert cfg.max_undo_levels == 1000
+
+
+def test_invalid_max_undo_levels_keeps_default():
+    cfg = ApplicationConfig.from_mapping({"max_undo_levels": True})
+    assert cfg.max_undo_levels == 10
