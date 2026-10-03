@@ -25,8 +25,19 @@ In headless environments (CI, agent sandboxes, SSH servers), set `QT_QPA_PLATFOR
 ```bash
 QT_QPA_PLATFORM=offscreen uv run pytest
 QT_QPA_PLATFORM=offscreen uv run pytest tests/gui/
+QT_QPA_PLATFORM=offscreen uv run pytest tests/e2e/
 QT_QPA_PLATFORM=offscreen uv run pytest --cov=pandaplot
 ```
+
+`tests/e2e/` exercises complete workflows through a real `PandaMainWindow`,
+application services, menu clicks, dialogs, and background imports. Keep these
+separate from isolated widget/controller tests in `tests/gui/`. Replace only
+platform file pickers when a path must be supplied; do not mock commands,
+project state, import workers, or the EventBus. Use `qtbot.waitUntil` for async
+results rather than fixed sleeps, and isolate config/session files in `tmp_path`.
+Modal-dialog helpers must reject on failure so a failed assertion cannot hang
+the test run. The Tests workflow runs the existing suite and this GUI layer
+headlessly, and uploads their JUnit results even when a test fails.
 
 ## Code Quality
 The repo has no `ruff format` step; `ruff check` (rules `E`, `F`, `B`, `Q`, `I`, `FBT`) is the only gate. Run it, plus the tests for the code you touched, before every push. Unsorted imports (`I001`), unused imports (`F401`) and missing `noqa` on Qt overrides are the most common avoidable review comments:
