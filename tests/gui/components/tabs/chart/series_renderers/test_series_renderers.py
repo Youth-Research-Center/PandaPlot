@@ -504,6 +504,17 @@ def test_render_hist_series_draws_a_histogram():
     plt.close(fig)
 
 
+def test_render_hist_series_skips_hidden_series():
+    fig, ax = plt.subplots()
+    style = HistSeriesStyle(color="#ababab")
+
+    render_hist_series(ax, _series_data(y_data=list(range(20))), style, "My Hist", 1.0, visible=False, extra={"bins": 5})
+
+    assert len(ax.patches) == 0
+    assert ax.get_legend_handles_labels() == ([], [])
+    plt.close(fig)
+
+
 def test_render_vector_series_draws_a_quiver():
     fig, ax = plt.subplots()
     style = VectorSeriesStyle(vector_color="#00ff00")
