@@ -188,8 +188,7 @@ class ProjectPanelCommandManager:
             result_name=dialog.result_name(),
         )
         executor = self.app_context.get_command_executor()
-        if not executor.execute_command(command):
-            return
+        executor.execute_command(command)
         if dialog.plot_requested() and command.result_dataset_id is not None:
             chart_command = CreateChartFromWizardCommand(
                 self.app_context,

@@ -48,7 +48,7 @@ def test_accepted_wizard_dispatches_command_with_suggested_values():
     wizard.result_name.return_value = "Summary"
 
     with patch(
-        "pandaplot.gui.components.tabs.tab_container_command_manager.MeasurementAnalysisWizard",
+        "pandaplot.gui.dialogs.measurement_analysis_wizard.MeasurementAnalysisWizard",
         return_value=wizard,
     ):
         TabContainerCommandManager(app_context).analyze_measurements_for_dataset("ds")
@@ -92,7 +92,7 @@ def test_accepted_wizard_can_continue_to_chart_wizard_from_result_dataset():
     executor.execute_command.side_effect = _execute
 
     with patch(
-        "pandaplot.gui.components.tabs.tab_container_command_manager.MeasurementAnalysisWizard",
+        "pandaplot.gui.dialogs.measurement_analysis_wizard.MeasurementAnalysisWizard",
         return_value=wizard,
     ):
         manager = TabContainerCommandManager(app_context)
@@ -112,7 +112,7 @@ def test_cancelled_wizard_does_not_execute_a_command():
     wizard.exec.return_value = QDialog.DialogCode.Rejected
 
     with patch(
-        "pandaplot.gui.components.tabs.tab_container_command_manager.MeasurementAnalysisWizard",
+        "pandaplot.gui.dialogs.measurement_analysis_wizard.MeasurementAnalysisWizard",
         return_value=wizard,
     ):
         TabContainerCommandManager(app_context).analyze_measurements_for_dataset(dataset.id)

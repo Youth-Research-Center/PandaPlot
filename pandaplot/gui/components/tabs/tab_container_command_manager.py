@@ -14,7 +14,6 @@ from pandaplot.commands.project.chart import CreateChartFromWizardCommand
 from pandaplot.commands.project.dataset import AnalyzeMeasurementsCommand
 from pandaplot.commands.project.dataset.create_empty_dataset_command import CreateEmptyDatasetCommand
 from pandaplot.commands.project.project import LoadProjectCommand, NewProjectCommand, OpenProjectCommand
-from pandaplot.gui.dialogs.measurement_analysis_wizard import MeasurementAnalysisWizard
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 
@@ -123,6 +122,8 @@ class TabContainerCommandManager:
 
         from PySide6.QtWidgets import QDialog
 
+        from pandaplot.gui.dialogs.measurement_analysis_wizard import MeasurementAnalysisWizard
+
         self.app_context.get_ui_controller().set_parent_widget(parent_widget)
         wizard = MeasurementAnalysisWizard(self.app_context, dataset, parent=parent_widget)
         if wizard.exec() != QDialog.DialogCode.Accepted:
@@ -136,7 +137,6 @@ class TabContainerCommandManager:
             result_name=wizard.result_name(),
         )
         executor = self.app_context.get_command_executor()
-        if not executor.execute_command(command):
-            return
+        executor.execute_command(command)
         if wizard.plot_requested() and command.result_dataset_id is not None:
             self.create_chart_from_dataset(command.result_dataset_id)
