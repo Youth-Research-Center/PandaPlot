@@ -500,8 +500,10 @@ class AxesTab(QWidget):
             # matplotlib's own autoscale would -- otherwise a computed min <= 0
             # gets shown here and later rejected/ignored by set_xlim/set_ylim.
             is_log = form["scale_control"].currentValue() == ScaleType.LOG
+            chart_spec = CHART_TYPE_SPECS[self._chart.chart_type]
             computed = compute_axis_data_range(
-                project, self._chart.data_series, prefix, positive_only=is_log
+                project, self._chart.data_series, prefix, positive_only=is_log,
+                hist_density_bins=self._chart.config.hist_bins if chart_spec.hist_density else None,
             )
         else:
             computed = None

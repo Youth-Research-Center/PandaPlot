@@ -16,6 +16,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.utils.datetime import parse_timestamp_or_nat
+
 
 class DateCellEditor(QWidget):
     commitRequested = Signal()
@@ -46,10 +48,7 @@ class DateCellEditor(QWidget):
             self.calendar_dialog.deleteLater()
         popup = QDialog(self, Qt.WindowType.Popup)
         calendar = QCalendarWidget(popup)
-        try:
-            value = pd.Timestamp(self.text.text()) if self.text.text().strip() else pd.NaT
-        except (ValueError, TypeError):
-            value = pd.NaT
+        value = parse_timestamp_or_nat(self.text.text())
         if not pd.isna(value):
             calendar.setSelectedDate(QDate(value.year, value.month, value.day))
         layout = QVBoxLayout(popup)
@@ -65,10 +64,7 @@ class DateCellEditor(QWidget):
         # Change only the date portion, preserving local time and fractional
         # seconds. The model resolves the column timezone/DST on commit.
         current = self.text.text().strip()
-        try:
-            value = pd.Timestamp(current) if current else pd.NaT
-        except (ValueError, TypeError):
-            value = pd.NaT
+        value = parse_timestamp_or_nat(current)
         if not pd.isna(value) and value.tzinfo is not None:
             value = value.tz_localize(None)
         suffix = str(value)[10:] if not pd.isna(value) else ""

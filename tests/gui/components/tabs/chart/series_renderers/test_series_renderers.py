@@ -22,17 +22,20 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS_REPORTING_NO_DATA,
     render_bar_series,
     render_box_series,
+    render_density_series,
     render_hist_series,
     render_line_series,
     render_pie_series,
     render_scatter_series,
     render_vector_series,
 )
+from pandaplot.gui.components.tabs.chart.series_renderers.density import compute_density_curve
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import (
     BarSeriesStyle,
     BoxSeriesStyle,
     ColormapSeriesStyle,
+    DensitySeriesStyle,
     HeatmapSeriesStyle,
     HistSeriesStyle,
     LineSeriesStyle,
@@ -848,6 +851,138 @@ def test_series_renderers_registry_includes_new_types():
     assert SeriesType.HEATMAP in SERIES_RENDERERS
 
 
+def test_render_hist_series_normalizes_when_hist_density_is_set():
+    """On a Density chart (ChartTypeSpec.hist_density) a Hist series is
+    drawn as a density (bar areas sum to 1) so it shares the KDE's Y scale."""
+    fig, ax = plt.subplots()
+    render_hist_series(ax, _series_data(y_data=list(range(20))), HistSeriesStyle(), "", 1.0,
+                       visible=True, extra={"bins": 5, "hist_density": True})
+    total_area = sum(patch.get_width() * patch.get_height() for patch in ax.patches)
+    assert total_area == pytest.approx(1.0)
+    plt.close(fig)
+
+
+def test_render_hist_series_defaults_to_raw_counts_without_hist_density():
+    fig, ax = plt.subplots()
+    render_hist_series(ax, _series_data(y_data=list(range(20))), HistSeriesStyle(), "", 1.0,
+                       visible=True, extra={"bins": 5})
+    assert sum(patch.get_height() for patch in ax.patches) == pytest.approx(20)
+    plt.close(fig)
+
+
+# -- Density (#398) ---------------------------------------------------------
+
+_NORMAL_SAMPLE = np.random.default_rng(0).normal(loc=5.0, scale=2.0, size=200).tolist()
+
+
+def test_density_is_registered_and_reports_no_data():
+    assert SERIES_RENDERERS[SeriesType.DENSITY] is render_density_series
+    assert SeriesType.DENSITY in SERIES_RENDERERS_REPORTING_NO_DATA
+
+
+def test_render_density_series_draws_a_kde_curve_with_style_fields():
+    fig, ax = plt.subplots()
+    style = DensitySeriesStyle(color="#ff0000", line_width=3.0, line_style="dashed")
+
+    line = render_density_series(ax, _series_data(x_data=None, y_data=_NORMAL_SAMPLE), style, "KDE", 0.8,
+                                 visible=True, extra={})
+
+    assert line is ax.lines[0]
+    assert line.get_color() == "#ff0000"
+    assert line.get_linewidth() == 3.0
+    assert line.get_linestyle() == "--"
+    assert line.get_label() == "KDE"
+    assert line.get_alpha() == 0.8
+    assert not ax.collections  # no fill unless enabled
+    plt.close(fig)
+
+
+def test_render_density_series_curve_integrates_to_about_one_and_peaks_near_the_mean():
+    fig, ax = plt.subplots()
+    line = render_density_series(ax, _series_data(x_data=None, y_data=_NORMAL_SAMPLE), DensitySeriesStyle(), "", 1.0,
+                                 visible=True, extra={})
+    grid, density = line.get_xdata(), line.get_ydata()
+    # The grid is padded 10% past the data range on each side, so it holds
+    # nearly all of the KDE's mass (not quite all: the Gaussian tails extend
+    # further).
+    assert np.trapezoid(density, grid) == pytest.approx(1.0, abs=0.05)
+    sample = np.asarray(_NORMAL_SAMPLE)
+    span = sample.max() - sample.min()
+    assert grid[0] == pytest.approx(sample.min() - 0.1 * span)
+    assert grid[-1] == pytest.approx(sample.max() + 0.1 * span)
+    assert grid[np.argmax(density)] == pytest.approx(5.0, abs=1.0)
+    plt.close(fig)
+
+
+def test_render_density_series_fills_down_to_zero_when_enabled():
+    fig, ax = plt.subplots()
+    style = DensitySeriesStyle(color="#00ff00", fill_enabled=True, fill_alpha=0.5)
+    render_density_series(ax, _series_data(x_data=None, y_data=_NORMAL_SAMPLE), style, "", 1.0,
+                          visible=True, extra={})
+    assert len(ax.collections) == 1
+    fill = ax.collections[0]
+    assert fill.get_alpha() == 0.5
+    assert min(vertex[1] for path in fill.get_paths() for vertex in path.vertices) == pytest.approx(0.0)
+    plt.close(fig)
+
+
+def test_render_density_series_fill_dims_when_not_visible():
+    fig, ax = plt.subplots()
+    style = DensitySeriesStyle(fill_enabled=True, fill_alpha=0.5)
+    render_density_series(ax, _series_data(x_data=None, y_data=_NORMAL_SAMPLE), style, "", 0.3,
+                          visible=False, extra={})
+    assert ax.collections[0].get_alpha() == pytest.approx(0.15)
+    plt.close(fig)
+
+
+def test_render_density_series_bandwidth_controls_smoothness():
+    """A positive bandwidth is used as gaussian_kde's scalar bw_method: a
+    narrower kernel sharpens the peak, a wider one flattens it; 0 means
+    scipy's automatic choice (Scott's rule, ~0.35 for n=200)."""
+    def peak(bandwidth: float) -> float:
+        fig, ax = plt.subplots()
+        line = render_density_series(ax, _series_data(x_data=None, y_data=_NORMAL_SAMPLE),
+                                     DensitySeriesStyle(bandwidth=bandwidth), "", 1.0, visible=True, extra={})
+        plt.close(fig)
+        return line.get_ydata().max()
+
+    assert peak(0.1) > peak(0.0) > peak(2.0)
+
+
+def test_render_density_series_ignores_nans():
+    fig, ax = plt.subplots()
+    line = render_density_series(ax, _series_data(x_data=None, y_data=[*_NORMAL_SAMPLE, float("nan"), None]),
+                                 DensitySeriesStyle(), "", 1.0, visible=True, extra={})
+    assert line is not None
+    assert np.all(np.isfinite(line.get_ydata()))
+    plt.close(fig)
+
+
+@pytest.mark.parametrize("values", [
+    [],                      # nothing at all
+    [3.0],                   # a single point
+    [float("nan")] * 5,      # all missing
+    [2.0, 2.0, 2.0, 2.0],    # zero variance -- singular covariance in gaussian_kde
+    ["a", "b", "c"],         # a non-numeric column
+])
+def test_render_density_series_returns_none_on_degenerate_data(values: list):
+    fig, ax = plt.subplots()
+    result = render_density_series(ax, _series_data(x_data=None, y_data=values), DensitySeriesStyle(), "", 1.0,
+                                   visible=True, extra={})
+    assert result is None
+    assert not ax.lines
+    assert not ax.collections
+    plt.close(fig)
+
+
+def test_compute_density_curve_pads_the_grid_by_ten_percent_of_the_range():
+    curve = compute_density_curve([0.0, 1.0, 2.0, 10.0], bandwidth=0.0)
+    assert curve is not None
+    grid, density = curve
+    assert grid[0] == pytest.approx(-1.0)
+    assert grid[-1] == pytest.approx(11.0)
+    assert len(grid) == len(density)
+
 # -- Box (#399) ---------------------------------------------------------------
 
 
@@ -1066,4 +1201,32 @@ def test_render_box_series_applies_opacity_to_every_artist():
     for key in ("boxes", "whiskers", "caps", "medians", "fliers"):
         assert artists[key]
         assert all(artist.get_alpha() == 0.0 for artist in artists[key])
+    plt.close(fig)
+
+
+def test_compute_density_curve_discards_non_numeric_cells_individually():
+    """One bad cell must not reject the column: the remaining finite
+    observations still give a density."""
+    curve = compute_density_curve([1.0, "bad", 2.0, 3.0], bandwidth=0.0)
+    assert curve is not None
+    clean = compute_density_curve([1.0, 2.0, 3.0], bandwidth=0.0)
+    np.testing.assert_allclose(curve[1], clean[1])
+
+
+def test_render_hist_series_drops_nan_and_text_cells_instead_of_raising():
+    fig, ax = plt.subplots()
+    patches = render_hist_series(ax, _series_data(y_data=[1.0, float("nan"), "oops", 2.0, 3.0]), HistSeriesStyle(), "", 1.0,
+                                 visible=True, extra={"bins": 3})
+    assert patches is not None
+    assert sum(patch.get_height() for patch in ax.patches) == pytest.approx(3)
+    plt.close(fig)
+
+
+@pytest.mark.parametrize("values", [[], [float("nan")] * 3, ["a", "b"]])
+def test_render_hist_series_returns_none_and_reports_no_data_without_numeric_values(values):
+    fig, ax = plt.subplots()
+    assert render_hist_series(ax, _series_data(y_data=values), HistSeriesStyle(), "", 1.0,
+                              visible=True, extra={"bins": 3}) is None
+    assert SeriesType.HIST in SERIES_RENDERERS_REPORTING_NO_DATA
+    assert not ax.patches
     plt.close(fig)

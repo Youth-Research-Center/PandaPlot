@@ -43,12 +43,14 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS_REPORTING_NO_DATA,
 )
 from pandaplot.gui.components.tabs.chart.series_renderers.box import BOX_POSITIONS_KEY, apply_box_ticks, box_numeric_values
+from pandaplot.gui.components.tabs.chart.series_renderers.density import compute_density_curve
+from pandaplot.gui.components.tabs.chart.series_renderers.hist import finite_numeric_values
 from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.marker_style import MarkerStyle
-from pandaplot.models.chart.series_style import LineSeriesStyle
+from pandaplot.models.chart.series_style import DensitySeriesStyle, LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ChartEvents, ConfigEvents
@@ -463,7 +465,8 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
                       label_data=label_data)
 
 
-def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> tuple[float, float] | None:
+def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False,
+                            hist_density_bins: int | None = None) -> tuple[float, float] | None:
     """Compute (min, max) across every series plotted against the given
     axis (`prefix` in "x", "y", "y2", "z"). All series contribute to "x"
     and to "z" (a 3-D chart has no secondary anything to filter by);
@@ -479,7 +482,12 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
     `positive_only` should be True for a Log-scaled axis: matplotlib's
     autoscale silently ignores non-positive values on a log axis, and this
     matches that behavior instead of letting them leak into the Range card
-    or set_xlim/set_ylim."""
+    or set_xlim/set_ylim.
+
+    A Density series spans its KDE grid on X and the estimated density on Y
+    (the renderer's own coordinates, not the raw column). `hist_density_bins`
+    is the chart's bin count when Hist series are drawn normalized (a Density
+    chart): they then span their values on X and 0..peak bar height on Y."""
     from pandaplot.models.project.items.chart import YAxis
 
     ranges: list[tuple[float, float]] = []
@@ -500,6 +508,23 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
                 box_count += 1 if box_numeric_values(data.y_data).size else 0
                 continue
             values = box_numeric_values(data.y_data)
+        elif series.series_type == SeriesType.DENSITY:
+            curve = compute_density_curve(data.y_data, series.style.bandwidth)
+            if curve is None:
+                continue
+            values = curve[0] if prefix == "x" else curve[1]
+            if prefix != "x" and series.style.fill_enabled:
+                # The fill is drawn down to y=0, so the range must reach it
+                # (a log axis drops it again via `positive_only` below).
+                values = np.append(values, 0.0)
+        elif series.series_type == SeriesType.HIST and hist_density_bins is not None:
+            sample = finite_numeric_values(data.y_data)
+            if sample.size == 0:
+                continue
+            # np.histogram widens the bin range of a constant sample, so the
+            # edges (not the raw values) are what the bars actually span.
+            heights, edges = np.histogram(sample, bins=hist_density_bins, density=True)
+            values = edges if prefix == "x" else np.array([0.0, heights.max()])
         else:
             arr = {"x": data.x_data, "z": data.z_data}.get(prefix, data.y_data)
             if arr is None:
@@ -1050,6 +1075,7 @@ class ChartEditorWidget(PWidget):
                             visible=series.visible,
                             extra={
                                 "bins": self.chart.config.hist_bins,
+                                "hist_density": CHART_TYPE_SPECS[self.chart.chart_type].hist_density,
                                 "resolve_fill_baseline": (
                                     lambda query, *, horizontal, _i=i, _style=style: self._resolve_fill_baseline(
                                         project, _i, _style.fill_base, _style.fill_to_index, query,
@@ -1636,13 +1662,15 @@ class ChartEditorWidget(PWidget):
         return augmented
 
     def _line_style_for_data_series_index(self, series_idx):
-        """The `LineSeriesStyle` for `chart.data_series[series_idx]`, or
-        None when `series_idx` is out of range (e.g. a fit curve index, or
-        no match) or the series isn't styled as a line."""
+        """The line-with-optional-fill style (`LineSeriesStyle`, or a
+        Density curve's `DensitySeriesStyle`) for
+        `chart.data_series[series_idx]`, or None when `series_idx` is out
+        of range (e.g. a fit curve index, or no match) or the series isn't
+        drawn as a fillable line."""
         if series_idx is None or not (0 <= series_idx < len(self.chart.data_series)):
             return None
         style = self.chart.data_series[series_idx].style
-        return style if isinstance(style, LineSeriesStyle) else None
+        return style if isinstance(style, (LineSeriesStyle, DensitySeriesStyle)) else None
 
     def _find_fill_artist_for_series(self, series_idx):
         """The PolyCollection added by render_line_series's fill_between(x)

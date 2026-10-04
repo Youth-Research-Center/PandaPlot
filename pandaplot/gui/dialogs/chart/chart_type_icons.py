@@ -37,6 +37,19 @@ def _paint_hist(painter: QPainter, size: int):
         painter.drawRect(QRectF(x, y, w, h))
 
 
+def _paint_density(painter: QPainter, size: int):
+    """A bell curve sampled from a Gaussian, over a baseline -- the shape a
+    KDE of roughly-normal data takes."""
+    baseline = size - 2
+    points = []
+    steps = 16
+    for i in range(steps + 1):
+        t = i / steps
+        bump = math.exp(-((t - 0.5) ** 2) / (2 * 0.16 ** 2))
+        points.append(QPointF(1 + t * (size - 2), baseline - bump * (size - 4)))
+    painter.drawPolyline(points)
+    painter.drawLine(QPointF(1, baseline), QPointF(size - 1, baseline))
+
 
 def _paint_box(painter: QPainter, size: int):
     """A single box-and-whisker glyph: the box (interquartile range) with
@@ -51,6 +64,7 @@ def _paint_box(painter: QPainter, size: int):
     for whisker_end, box_edge in ((size * 0.06, box_top), (size * 0.94, box_bottom)):
         painter.drawLine(QPointF(center, box_edge), QPointF(center, whisker_end))
         painter.drawLine(QPointF(center - cap_half, whisker_end), QPointF(center + cap_half, whisker_end))
+
 
 def _vector_arrow_geometry(size: int):
     """Compute the (start, end, [wing1, wing2]) points for each arrow.
@@ -213,6 +227,7 @@ _PAINTERS = {
     "scatter": _paint_scatter,
     "bar": _paint_bar,
     "hist": _paint_hist,
+    "density": _paint_density,
     "box": _paint_box,
     "vector": _paint_vector,
     "colormap": _paint_colormap,

@@ -147,6 +147,59 @@ def test_non_date_editor_uses_qt_default(table, qtbot, column):
     assert view.findChild(DateCellEditor) is None
 
 
+def test_calendar_click_with_unparseable_text_uses_date_only(table, qtbot):
+    view, model, dataset, _ = table
+    editor = edit_cell(qtbot, view, model)
+    editor.text.setText("not a date")
+    qtbot.mouseClick(editor.button, Qt.MouseButton.LeftButton)
+    popup = editor.calendar_dialog
+    calendar = popup.findChild(QCalendarWidget)
+    calendar.setSelectedDate(QDate(2026, 10, 1))
+    grid = calendar.findChild(QTableView, "qt_calendar_calendarview")
+    target = next(
+        grid.model().index(row, col)
+        for row in range(grid.model().rowCount())
+        for col in range(grid.model().columnCount())
+        if grid.model().index(row, col).data() == 1
+    )
+    qtbot.mouseClick(grid.viewport(), Qt.MouseButton.LeftButton, pos=grid.visualRect(target).center())
+    assert dataset.data.iloc[0, 0] == pd.Timestamp("2026-10-01")
+
+
+def test_calendar_selection_on_timezone_column_null_cell(table, qtbot):
+    view, model, dataset, _ = table
+    dataset.data["date"] = pd.Series(pd.to_datetime([None, None])).dt.tz_localize("America/New_York")
+    editor = edit_cell(qtbot, view, model, row=1)
+    qtbot.mouseClick(editor.button, Qt.MouseButton.LeftButton)
+    popup = editor.calendar_dialog
+    calendar = popup.findChild(QCalendarWidget)
+    calendar.setSelectedDate(QDate(2026, 10, 1))
+    grid = calendar.findChild(QTableView, "qt_calendar_calendarview")
+    target = next(
+        grid.model().index(row, col)
+        for row in range(grid.model().rowCount())
+        for col in range(grid.model().columnCount())
+        if grid.model().index(row, col).data() == 1
+    )
+    qtbot.mouseClick(grid.viewport(), Qt.MouseButton.LeftButton, pos=grid.visualRect(target).center())
+    assert dataset.data.iloc[1, 0] == pd.Timestamp("2026-10-01", tz="America/New_York")
+
+
+def test_calendar_out_of_range_date_is_rejected_without_history(table, qtbot):
+    view, model, dataset, executor = table
+    original = dataset.data.iloc[0, 0]
+    editor = edit_cell(qtbot, view, model)
+    editor.text.setText("9999-01-01")
+    qtbot.mouseClick(editor.button, Qt.MouseButton.LeftButton)
+    popup = editor.calendar_dialog
+    calendar = popup.findChild(QCalendarWidget)
+    calendar.setSelectedDate(QDate(9999, 1, 1))
+    editor.select_date(calendar.selectedDate(), popup)
+    assert dataset.data.iloc[0, 0] == original
+    assert not executor.can_undo()
+    assert editor.isVisible()
+
+
 def test_calendar_on_null_cell_sets_midnight_and_undo_restores_nat(table, qtbot):
     view, model, dataset, executor = table
     editor = edit_cell(qtbot, view, model, row=1)

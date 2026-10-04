@@ -138,10 +138,11 @@ def test_allowed_series_types_is_genuinely_immutable():
 def test_fits_are_allowed_on_every_2d_xy_chart_type_and_nothing_else():
     # COLORMAP/HEATMAP were the first types with allows_fit=False (a curve
     # fit doesn't apply to a Z-column colour series); every 3-D type joins
-    # them, since a 2-D curve fit has no meaning on a 3-D chart. BOX has no
-    # (x, y) curve at all -- each series is one summarized distribution. PIE has
-    # no (x, y) space at all, so no curve to fit either.
-    no_fit = {ChartType.COLORMAP, ChartType.HEATMAP, ChartType.BOX, ChartType.PIE} | {
+    # them, since a 2-D curve fit has no meaning on a 3-D chart. DENSITY:
+    # its plotted curve is a computed estimate, not (x, y) data to fit. BOX has
+    # no (x, y) curve at all -- each series is one summarized distribution. PIE
+    # has no (x, y) space at all, so no curve to fit either.
+    no_fit = {ChartType.COLORMAP, ChartType.HEATMAP, ChartType.DENSITY, ChartType.BOX, ChartType.PIE} | {
         chart_type for chart_type, spec in CHART_TYPE_SPECS.items() if spec.is_3d
     }
     for chart_type, spec in CHART_TYPE_SPECS.items():
@@ -209,12 +210,41 @@ def test_compatible_chart_types_bar_to_scatter_is_disabled():
     assert ChartType.SCATTER not in compatible_chart_types(ChartType.BAR)
 
 
-def test_compatible_chart_types_hist_is_isolated_both_ways():
+def test_compatible_chart_types_hist_only_switches_to_density():
+    """A Histogram chart's HIST series survives a switch to Density (which
+    allows HIST, to overlay a KDE on it) -- every other switch out of, or
+    into, Histogram is still destructive."""
     from pandaplot.models.chart.chart_type_spec import compatible_chart_types
-    assert compatible_chart_types(ChartType.HIST) == frozenset({ChartType.HIST})
+    assert compatible_chart_types(ChartType.HIST) == frozenset({ChartType.HIST, ChartType.DENSITY})
     for chart_type in CHART_TYPE_SPECS:
         if chart_type != ChartType.HIST:
             assert ChartType.HIST not in compatible_chart_types(chart_type)
+
+
+def test_density_spec():
+    spec = CHART_TYPE_SPECS[ChartType.DENSITY]
+    assert spec.display_name == "Density"
+    assert spec.roles == ("values",)
+    assert spec.required_roles == ("values",)
+    assert spec.allowed_series_types == {SeriesType.DENSITY, SeriesType.HIST}
+    assert spec.default_series_type == SeriesType.DENSITY
+    assert spec.allows_fit is False
+    assert spec.is_3d is False
+    assert spec.supports_error_bars is False
+
+
+def test_only_density_normalizes_its_histograms():
+    """A KDE integrates to 1, so a Hist overlaid on a Density chart must be
+    density-normalized to share its Y scale; a plain Histogram chart keeps
+    raw counts."""
+    assert {t for t, spec in CHART_TYPE_SPECS.items() if spec.hist_density} == {ChartType.DENSITY}
+
+
+def test_compatible_chart_types_density_only_switches_to_itself():
+    """DENSITY series aren't allowed on any other chart type (not even
+    Histogram), so every switch away from Density retypes them."""
+    from pandaplot.models.chart.chart_type_spec import compatible_chart_types
+    assert compatible_chart_types(ChartType.DENSITY) == frozenset({ChartType.DENSITY})
 
 
 def test_compatible_chart_types_always_includes_self():
@@ -267,3 +297,25 @@ def test_compatible_chart_types_for_series_single_vector_matches_existing_vector
     assert ChartType.LINE in result
     assert ChartType.SCATTER in result
     assert ChartType.VECTOR in result
+
+
+def test_hist_density_is_keyword_only_so_positional_has_axes_callers_keep_working():
+    import dataclasses
+
+    from pandaplot.models.chart.chart_type_spec import ChartTypeSpec
+
+    by_name = {f.name: f for f in dataclasses.fields(ChartTypeSpec)}
+    assert by_name["hist_density"].kw_only is True
+    positional = [f.name for f in dataclasses.fields(ChartTypeSpec) if not f.kw_only]
+    assert positional[-1] == "has_axes"
+
+
+def test_charts_with_fits_cannot_switch_to_a_type_that_disallows_fits():
+    from pandaplot.models.chart.chart_type_spec import compatible_chart_types_for_series
+
+    hist_only = frozenset({SeriesType.HIST})
+    assert ChartType.DENSITY in compatible_chart_types_for_series(hist_only)
+    with_fits = compatible_chart_types_for_series(hist_only, has_fits=True)
+    assert ChartType.DENSITY not in with_fits
+    assert ChartType.HIST in with_fits
+    assert all(CHART_TYPE_SPECS[chart_type].allows_fit for chart_type in with_fits)
