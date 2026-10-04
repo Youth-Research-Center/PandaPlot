@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QFormLayout,
     QLabel,
@@ -230,10 +229,6 @@ class _SummaryPreviewPage(PWizardPage):
         form.addRow("Result dataset name:", self.name_edit)
         layout.addLayout(form)
 
-        self.create_chart_checkbox = QCheckBox("Open the chart wizard after adding the summary dataset")
-        self.create_chart_checkbox.setAccessibleName("Create a chart from the summary dataset")
-        layout.addWidget(self.create_chart_checkbox)
-
         self.table = QTableWidget()
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
@@ -267,10 +262,6 @@ class _SummaryPreviewPage(PWizardPage):
 
     def result_name(self) -> str:
         return self.name_edit.text().strip()
-
-    def create_chart_after_creation(self) -> bool:
-        """Whether to open the chart wizard after creating the summary dataset."""
-        return self.create_chart_checkbox.isChecked()
 
     def _on_name_changed(self, _text: str) -> None:
         self.completeChanged.emit()
@@ -337,7 +328,22 @@ class MeasurementAnalysisWizard(PWizard):
         self.preview_page = _SummaryPreviewPage(self.app_context, self.dataset, self.roles_page)
         self.addPage(self.roles_page)
         self.addPage(self.preview_page)
+        self.setOption(QWizard.WizardOption.HaveCustomButton1, on=True)
+        self.setButtonLayout([
+            QWizard.WizardButton.BackButton,
+            QWizard.WizardButton.NextButton,
+            QWizard.WizardButton.Stretch,
+            QWizard.WizardButton.CustomButton1,
+            QWizard.WizardButton.CancelButton,
+            QWizard.WizardButton.FinishButton,
+        ])
+        self.setButtonText(QWizard.WizardButton.CustomButton1, "Plot a Graph")
+        self.button(QWizard.WizardButton.CustomButton1).clicked.connect(self._on_plot_button_clicked)
+        self.currentIdChanged.connect(self._update_plot_button)
+        self.preview_page.completeChanged.connect(self._update_plot_button)
+        self._plot_requested = False
         self.restart()
+        self._update_plot_button()
 
     @override
     def _apply_theme(self) -> None:
@@ -377,6 +383,19 @@ class MeasurementAnalysisWizard(PWizard):
         """Return the user-selected result dataset name."""
         return self.preview_page.result_name()
 
-    def create_chart_after_creation(self) -> bool:
-        """Whether to continue to chart creation after adding the summary."""
-        return self.preview_page.create_chart_after_creation()
+    def plot_requested(self) -> bool:
+        """Whether the user chose Plot a Graph rather than Finish."""
+        return self._plot_requested
+
+    def _on_plot_button_clicked(self) -> None:
+        if self.currentPage() is self.preview_page and self.preview_page.isComplete():
+            self._plot_requested = True
+            self.accept()
+
+    def _update_plot_button(self, _page_id: int = -1) -> None:
+        plot_button = self.button(QWizard.WizardButton.CustomButton1)
+        if plot_button is None:
+            return
+        is_preview_page = self.currentPage() is self.preview_page
+        plot_button.setVisible(is_preview_page)
+        plot_button.setEnabled(is_preview_page and self.preview_page.isComplete())

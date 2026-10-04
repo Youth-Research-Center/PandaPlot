@@ -56,10 +56,26 @@ def test_role_page_requires_controlled_and_measured_columns_and_previews_summary
     assert wizard.preview_page.isComplete()
     assert wizard.preview_page.result.table.loc[0, "Mean"] == pytest.approx(3)
     assert wizard.result_name() == "Experiment - Measurement Summary"
-    assert wizard.create_chart_after_creation() is False
+    plot_button = wizard.button(wizard.WizardButton.CustomButton1)
+    assert plot_button.text() == "Plot a Graph"
+    assert not plot_button.isHidden()
+    assert wizard.plot_requested() is False
 
-    wizard.preview_page.create_chart_checkbox.setChecked(True)
-    assert wizard.create_chart_after_creation() is True
+
+def test_plot_a_graph_button_accepts_wizard_and_sets_plot_intent():
+    wizard, _dataset = _make_wizard(
+        pd.DataFrame({"dose": [1, 1], "response": [2.0, 4.0]}),
+        {"dose": ColumnRole.CONTROLLED, "response": ColumnRole.MEASURED},
+    )
+    wizard.next()
+    assert wizard.preview_page.isComplete()
+    wizard.show()
+    QApplication.processEvents()
+
+    wizard.button(wizard.WizardButton.CustomButton1).click()
+
+    assert wizard.result() == wizard.DialogCode.Accepted
+    assert wizard.plot_requested() is True
 
 
 def test_fixed_column_validation_blocks_preview_until_roles_are_corrected():

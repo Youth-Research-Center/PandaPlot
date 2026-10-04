@@ -138,5 +138,5 @@ class TabContainerCommandManager:
         executor = self.app_context.get_command_executor()
         if not executor.execute_command(command):
             return
-        if wizard.create_chart_after_creation() and command.result_dataset_id is not None:
+        if wizard.plot_requested() and command.result_dataset_id is not None:
             self.create_chart_from_dataset(command.result_dataset_id)

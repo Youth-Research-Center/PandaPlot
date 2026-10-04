@@ -106,7 +106,7 @@ def test_measurement_analysis_can_continue_to_chart_wizard(create_chart):
     dialog.selected_roles.return_value = {}
     dialog.selected_measurement_groups.return_value = {}
     dialog.result_name.return_value = "Summary"
-    dialog.create_chart_after_creation.return_value = create_chart
+    dialog.plot_requested.return_value = create_chart
 
     with (
         patch(

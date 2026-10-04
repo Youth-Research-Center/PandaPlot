@@ -35,7 +35,7 @@ def test_accepted_wizard_dispatches_command_with_suggested_values():
     app_context, _project, dataset = _context()
     wizard = Mock()
     wizard.exec.return_value = QDialog.DialogCode.Accepted
-    wizard.create_chart_after_creation.return_value = False
+    wizard.plot_requested.return_value = False
     wizard.selected_roles.return_value = {
         dataset.column_id("area"): ColumnRole.CONTROLLED,
         dataset.column_id("Velocity1"): ColumnRole.MEASURED,
@@ -66,7 +66,7 @@ def test_accepted_wizard_can_continue_to_chart_wizard_from_result_dataset():
     app_context, project, dataset = _context()
     wizard = Mock()
     wizard.exec.return_value = QDialog.DialogCode.Accepted
-    wizard.create_chart_after_creation.return_value = True
+    wizard.plot_requested.return_value = True
     wizard.selected_roles.return_value = {
         dataset.column_id("area"): ColumnRole.CONTROLLED,
         dataset.column_id("Velocity1"): ColumnRole.MEASURED,

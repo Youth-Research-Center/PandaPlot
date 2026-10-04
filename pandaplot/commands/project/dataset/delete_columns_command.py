@@ -91,6 +91,7 @@ class DeleteColumnsCommand(Command):
         self.original_data = None
         self.original_column_ids = None
         self.original_column_roles = None
+        self.original_column_measurement_groups = None
         self.deleted_columns_data = None
         self.project = None
         self.dataset = None
@@ -269,6 +270,7 @@ class DeleteColumnsCommand(Command):
             self.original_data = self.dataset.data.copy()
             self.original_column_ids = OrderedDict(self.dataset.column_ids)
             self.original_column_roles = OrderedDict(self.dataset.column_roles)
+            self.original_column_measurement_groups = OrderedDict(self.dataset.column_measurement_groups)
 
             # Store the deleted columns data for potential restoration
             self.deleted_columns_data = {}
@@ -549,6 +551,8 @@ class DeleteColumnsCommand(Command):
                     self.dataset.column_ids = OrderedDict(self.original_column_ids)
                 if self.original_column_roles is not None:
                     self.dataset.set_column_roles(self.original_column_roles)
+                if self.original_column_measurement_groups is not None:
+                    self.dataset.set_column_measurement_groups(self.original_column_measurement_groups)
                 self._restore_chart_references()
 
                 # Emit event
@@ -589,6 +593,7 @@ class DeleteColumnsCommand(Command):
         self.original_data = None
         self.original_column_ids = None
         self.original_column_roles = None
+        self.original_column_measurement_groups = None
         self.deleted_columns_data = None
         self.removed_chart_refs = {}
         self.cleared_error_refs = {}

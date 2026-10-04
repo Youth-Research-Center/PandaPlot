@@ -131,6 +131,23 @@ def test_undo_restores_roles_for_deleted_columns(env):
     assert dataset.column_roles == {dataset.column_id("b"): ColumnRole.MEASURED}
 
 
+def test_undo_restores_measurement_groups_for_deleted_columns(env):
+    app_context, dataset, _, _, _ = env
+    measured_column_id = dataset.column_id("b")
+    dataset.set_column_role(measured_column_id, ColumnRole.MEASURED)
+    dataset.set_column_measurement_groups({measured_column_id: "Velocity"})
+    command = DeleteColumnsCommand(app_context, dataset.id, ["b"])
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert dataset.column_measurement_groups == {}
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert dataset.column_measurement_groups == {measured_column_id: "Velocity"}
+
+    assert command.redo() is CommandResult.SUCCESS
+    assert dataset.column_measurement_groups == {}
+
+
 def test_redo_reapplies_deletion_and_removes_references_again(env):
     app_context, dataset, _, chart, _ = env
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])

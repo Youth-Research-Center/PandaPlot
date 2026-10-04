@@ -226,7 +226,7 @@ View descriptive and inferential statistics for dataset columns:
 ### Repeated-Measurement Summary
 Open a dataset and click **Analyze Measurements**, or right-click a dataset in the **Project View** and select **Analyze Measurements...**, to create grouped statistics for an experiment:
 1. Review the suggested **Controlled** (group keys), **Fixed** (constant context), **Measured** (numeric values to summarize), or **Unused** role for each column. Suggestions use column names and observed values, and can be changed before continuing.
-2. Review the grouped result and any excluded values before creating the output dataset. Optionally select **Open the chart wizard after adding the summary dataset** to continue directly to chart setup.
+2. Review the grouped result and any excluded values, then choose **Finish** to create the output dataset or **Plot a Graph** to create it and continue directly to chart setup.
 
 The output has one row per controlled-value group and measured variable, with the valid count, mean, sample standard deviation, and standard error of the mean. If multiple measured columns are replicates of one quantity (for example, `Velocity1` through `Velocity5`), they receive a shared **Measured variable** suggestion; that name is editable. Rows missing a controlled value are excluded from grouping; missing or non-numeric measured values are excluded only for their own variable. Fixed columns must have one observed value; differing values or a column with no observed values block generation. Missing fixed values are reported when the observed values agree. Column roles and measured-variable group names are saved with the source dataset and follow columns across renames.
 
