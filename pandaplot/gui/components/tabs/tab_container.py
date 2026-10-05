@@ -246,6 +246,7 @@ class TabContainer(PWidget):
 
         # Get the widget before removing the tab
         widget = pane.widget(index)
+        tab_data = self.get_tab_data(widget) if widget is not None else {}
 
         item_id_to_remove = None
         for curr_item_id, curr_tab in self.tabs.items():
@@ -275,7 +276,8 @@ class TabContainer(PWidget):
         self.publish_event(UIEvents.TAB_CLOSED, {
             "tab_index": index,
             "tab_title": tab_title,
-            "tab_id": id(widget) if widget else None
+            "tab_type": tab_data.get("type"),
+            "tab_id": item_id_to_remove or tab_data.get("id"),
         })
 
         # Collapse the pane (or show the Welcome placeholder) if it's now empty
@@ -289,9 +291,11 @@ class TabContainer(PWidget):
         if item_id in self.floating_windows:
             window = self.floating_windows.pop(item_id)
             self.tabs.pop(item_id, None)
+            tab_title = window.windowTitle()
             # Detach the content first so we can unsubscribe it synchronously
             # (see _handle_close) before it's deleted along with the window.
             content = window.take_content()
+            tab_data = self.get_tab_data(content) if content is not None else {}
             if content is not None:
                 unsubscribe_widget_tree(content)
                 content.deleteLater()
@@ -301,6 +305,12 @@ class TabContainer(PWidget):
             # needs the same synchronous unsubscribe before that happens.
             unsubscribe_widget_tree(window)
             window.close_without_redock()
+            self.publish_event(UIEvents.TAB_CLOSED, {
+                "tab_index": -1,
+                "tab_title": tab_title,
+                "tab_type": tab_data.get("type"),
+                "tab_id": item_id,
+            })
             self._persist_tab_session()
             return
         if item_id not in self.tabs:
@@ -311,10 +321,17 @@ class TabContainer(PWidget):
             index = pane.indexOf(tab_widget) if pane is not None else -1
             if pane is not None and index >= 0:
                 self._handle_close(pane, index)
-            else:
-                del self.tabs[item_id]
+                return
         except RuntimeError:
-            del self.tabs[item_id]
+            pass
+        self.tabs.pop(item_id, None)
+        self.publish_event(UIEvents.TAB_CLOSED, {
+            "tab_index": -1,
+            "tab_title": "",
+            "tab_type": None,
+            "tab_id": item_id,
+        })
+        self._persist_tab_session()
 
     def popout_tab(self, pane: CustomTabWidget, index: int):
         """Detach the tab at ``index`` of ``pane`` into its own floating window.

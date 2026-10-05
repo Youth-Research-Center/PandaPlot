@@ -895,6 +895,208 @@ def _select_custom_source(panel, dataset, x_column, y_column):
     panel.custom_y_column_combo.setCurrentIndex(y_index)
 
 
+def _show_panel_on_project(app_context, project):
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock(current_project=project)
+    panel.show()
+    QApplication.processEvents()
+    return panel
+
+
+def _switch_fit_tab(panel, item_type, item_id):
+    panel._on_tab_changed({"tab_type": item_type, "tab_id": item_id})
+
+
+def test_fit_inputs_are_independent_per_tab_and_close_discards_context(app_context):
+    project, dataset_a, dataset_b, chart_a = _make_project_with_two_datasets_and_series_on_first()
+    chart_b = Chart(id="chart-2", name="second chart")
+    chart_b.add_data_series(
+        dataset_id=dataset_b.id,
+        x_column_id=dataset_b.column_id("t2"),
+        y_column_id=dataset_b.column_id("v2"),
+    )
+    project.add_item(chart_b)
+    panel = _show_panel_on_project(app_context, project)
+
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    _select_custom_source(panel, dataset_b, "t2", "v2")
+    panel.fit_type_combo.setCurrentIndex(panel.fit_type_combo.findText("Custom Function"))
+    panel.custom_function_edit.setText("a*x+b")
+    panel.custom_params_edit.setText("a,b")
+    panel.initial_guess_edit.setText("a=2")
+    panel.fit_points_spin.setValue(900)
+    panel.confidence_check.setChecked(True)
+    panel.r_squared_check.setChecked(False)
+    panel.range_auto_check.setChecked(False)
+    panel.range_min_spin.setValue(6)
+    panel.range_max_spin.setValue(7)
+    panel.fit_results = _make_fake_fit_result()
+
+    _switch_fit_tab(panel, "dataset", dataset_a.id)
+    assert panel.fit_type_combo.currentIndex() == 0
+    assert panel.custom_function_edit.text() == ""
+    assert panel.fit_results is None
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    assert panel.fit_points_spin.value() == 500
+    panel.fit_points_spin.setValue(700)
+
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.series_combo.currentData() == CUSTOM_SERIES_SENTINEL
+    assert panel.custom_dataset_combo.currentData() == dataset_b.id
+    assert panel.custom_x_column_combo.currentData() == dataset_b.column_id("t2")
+    assert panel.custom_y_column_combo.currentData() == dataset_b.column_id("v2")
+    assert panel.fit_type_combo.currentText() == "Custom Function"
+    assert panel.custom_function_edit.text() == "a*x+b"
+    assert panel.custom_params_edit.text() == "a,b"
+    assert panel.initial_guess_edit.text() == "a=2"
+    assert panel.fit_points_spin.value() == 900
+    assert panel.confidence_check.isChecked()
+    assert not panel.r_squared_check.isChecked()
+    assert not panel.range_auto_check.isChecked()
+    assert panel.range_min_spin.value() == 6
+    assert panel.range_max_spin.value() == 7
+    assert panel.fit_results is None
+    assert all("fit_results" not in state for state in panel._tab_inputs.values())
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    assert panel.fit_points_spin.value() == 700
+    panel._on_tab_closed({"tab_type": "chart", "tab_id": chart_a.id})
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.fit_points_spin.value() == 500
+    assert panel.custom_function_edit.text() == ""
+    panel.close()
+
+
+def test_hidden_fit_panel_restores_latest_tab_without_losing_previous_inputs(app_context):
+    project, _dataset_a, _dataset_b, chart_a = _make_project_with_two_datasets_and_series_on_first()
+    chart_b = Chart(id="chart-2", name="second chart")
+    project.add_item(chart_b)
+    panel = _show_panel_on_project(app_context, project)
+
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    panel.fit_points_spin.setValue(1111)
+    panel.hide()
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    assert panel.fit_points_spin.value() == 1111
+    panel.show()
+    QApplication.processEvents()
+    assert panel.current_chart is chart_b
+    assert panel.fit_points_spin.value() == 500
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.fit_points_spin.value() == 1111
+    panel.close()
+
+
+def test_fit_context_drops_removed_custom_columns_and_remaps_renamed_columns(app_context):
+    project, _dataset_a, dataset_b, chart_a = _make_project_with_two_datasets_and_series_on_first()
+    chart_b = Chart(id="chart-2", name="second chart")
+    project.add_item(chart_b)
+    panel = _show_panel_on_project(app_context, project)
+
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    _select_custom_source(panel, dataset_b, "t2", "v2")
+    saved_x = panel.custom_x_column_combo.currentData()
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    dataset_b.data.rename(columns={"t2": "renamed"}, inplace=True)
+    dataset_b.rename_column("t2", "renamed")
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.custom_x_column_combo.currentData() == saved_x
+    assert panel.custom_x_column_combo.currentText() == "renamed"
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    dataset_b.set_data(dataset_b.data.drop(columns=["renamed"]))
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.custom_x_column_combo.currentData() != saved_x
+    assert panel.custom_x_column_combo.currentData() in dataset_b.column_ids
+    panel.close()
+
+
+def test_fit_series_selection_follows_series_after_reorder_and_falls_back_after_delete(app_context):
+    project, dataset_a, dataset_b, chart_a = _make_project_with_two_datasets_and_series_on_first()
+    chart_a.add_data_series(
+        dataset_id=dataset_b.id,
+        x_column_id=dataset_b.column_id("t2"),
+        y_column_id=dataset_b.column_id("v2"),
+    )
+    chart_b = Chart(id="chart-2", name="second chart")
+    project.add_item(chart_b)
+    panel = _show_panel_on_project(app_context, project)
+
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    panel.series_combo.setCurrentIndex(1)
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    chart_a.data_series.reverse()
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.series_combo.currentIndex() == 0
+    assert panel.series_combo.currentData().dataset_id == dataset_b.id
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    chart_a.data_series.pop(0)
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.series_combo.currentIndex() == 0
+    assert panel.series_combo.currentData().dataset_id == dataset_a.id
+    panel.close()
+
+
+def test_project_close_drops_all_fit_tab_inputs(app_context):
+    project, _dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
+    panel = _show_panel_on_project(app_context, project)
+    _switch_fit_tab(panel, "chart", chart.id)
+    panel.fit_points_spin.setValue(800)
+    _switch_fit_tab(panel, "other", "welcome")
+    assert panel._tab_inputs
+
+    panel._on_project_closed({})
+
+    assert panel._tab_inputs == {}
+    assert panel._active_tab_key is None
+    panel.close()
+
+
+def test_chart_update_does_not_replace_dataset_tab_context(app_context):
+    project, dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
+    panel = _show_panel_on_project(app_context, project)
+    _switch_fit_tab(panel, "dataset", dataset_a.id)
+
+    panel._on_chart_updated({"chart": chart})
+
+    assert panel.current_chart is None
+    assert panel.series_combo.count() == 0
+    panel.close()
+
+
+def test_fit_result_from_previous_tab_visit_is_discarded(app_context):
+    project, _dataset_a, dataset_b, chart_a = _make_project_with_two_datasets_and_series_on_first()
+    chart_b = Chart(id="chart-2", name="second chart")
+    chart_b.add_data_series(
+        dataset_id=dataset_b.id,
+        x_column_id=dataset_b.column_id("t2"),
+        y_column_id=dataset_b.column_id("v2"),
+    )
+    project.add_item(chart_b)
+    panel = _show_panel_on_project(app_context, project)
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    executed = {}
+
+    def _capture_execute(command):
+        executed["command"] = command
+        return True
+
+    panel.app_context.get_command_executor.return_value.execute_command = _capture_execute
+    panel._perform_fit()
+    command = executed["command"]
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    command.result = _make_fake_fit_result()
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is None
+    assert not panel.apply_button.isEnabled()
+    assert panel._pending_fit_command is None
+    panel.close()
+
+
 def test_series_combo_gets_custom_sentinel_entry_when_chart_loaded(app_context):
     project, _dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
 

@@ -8,6 +8,7 @@ reported: 'libshiboken: Internal C++ object (ChartTab) already deleted.'
 from unittest.mock import Mock
 
 from pandaplot.gui.components.tabs.tab_container import TabContainer
+from pandaplot.models.events import UIEvents
 
 
 def _container_stub():
@@ -27,6 +28,7 @@ def test_handle_close_unsubscribes_widget_before_deleting_it():
     widget = Mock()
     widget.unsubscribe_all = Mock()
     widget.deleteLater = Mock()
+    widget.get_tab_data.return_value = {"type": "chart", "id": "item-1"}
     container.tabs["item-1"] = widget
 
     pane = Mock()
@@ -42,6 +44,12 @@ def test_handle_close_unsubscribes_widget_before_deleting_it():
     # callback could still fire in the deleteLater() -> destroyed() window.
     call_names = [name for name, _args, _kwargs in widget.method_calls]
     assert call_names.index("unsubscribe_all") < call_names.index("deleteLater")
+    container.publish_event.assert_called_once_with(UIEvents.TAB_CLOSED, {
+        "tab_index": 0,
+        "tab_title": "My Tab",
+        "tab_type": "chart",
+        "tab_id": "item-1",
+    })
 
 
 def test_close_tab_by_item_id_unsubscribes_floating_window_content():
@@ -53,6 +61,7 @@ def test_close_tab_by_item_id_unsubscribes_floating_window_content():
     content = Mock()
     content.unsubscribe_all = Mock()
     content.deleteLater = Mock()
+    content.get_tab_data.return_value = {"type": "chart", "id": "item-1"}
 
     window = Mock()
     window.take_content.return_value = content
@@ -71,6 +80,8 @@ def test_close_tab_by_item_id_unsubscribes_floating_window_content():
     window.unsubscribe_all.assert_called_once()
     window.close_without_redock.assert_called_once()
     assert "item-1" not in container.floating_windows
+    assert container.publish_event.call_args.args[0] == UIEvents.TAB_CLOSED
+    assert container.publish_event.call_args.args[1]["tab_id"] == "item-1"
 
 
 def test_handle_close_tolerates_widget_without_unsubscribe_all():
