@@ -76,6 +76,10 @@ class ProjectViewPanelContextManager(QMenu):
             self.command_manager.create_chart_from_dataset)
         self.addAction(self.create_chart_action)
 
+        self.analyze_measurements_action = QAction("Analyze Measurements...", self)
+        self.analyze_measurements_action.triggered.connect(self.command_manager.analyze_measurements)
+        self.addAction(self.analyze_measurements_action)
+
         self.import_images_action = QAction("Import Images...", self)
         self.import_images_action.triggered.connect(
             self.command_manager.import_images)
@@ -106,6 +110,9 @@ class ProjectViewPanelContextManager(QMenu):
         item_data = item.data(0, Qt.ItemDataRole.UserRole)
         if not item_data:
             self.logger.debug("Item has no associated data")
+            self.create_chart_action.setVisible(False)
+            self.analyze_measurements_action.setVisible(False)
+            self.import_images_action.setVisible(False)
             self.exec(self.getGlobalPosition(position))
             return
 
@@ -116,6 +123,7 @@ class ProjectViewPanelContextManager(QMenu):
 
         # Show chart creation only for datasets
         self.create_chart_action.setVisible(item_type == "dataset")
+        self.analyze_measurements_action.setVisible(item_type == "dataset")
 
         # Show image import only for image galleries (or a container it could be created under)
         self.import_images_action.setVisible(item_type == "imagegallery")

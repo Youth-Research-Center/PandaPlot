@@ -22,6 +22,7 @@ from pandaplot.models.events.event_data import (
 from pandaplot.models.events.event_types import DatasetEvents, DatasetOperationEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.utils.datetime import parse_timestamp_or_nat
 from pandaplot.utils.pandas import convert_value
 
 
@@ -142,7 +143,9 @@ class PandasTableModel(QAbstractTableModel):
     def _datetime_value(self, value: Any, dtype: Any) -> Any:
         if value is None or (isinstance(value, str) and not value.strip()) or pd.isna(value):
             return pd.NaT
-        timestamp = pd.Timestamp(value)
+        timestamp = parse_timestamp_or_nat(value)
+        if pd.isna(timestamp):
+            raise ValueError(f"Invalid date/time value: {value!r}")
         timezone = getattr(dtype, "tz", None)
         if timezone is not None:
             if timestamp.tzinfo is None:

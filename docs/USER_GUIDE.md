@@ -212,6 +212,14 @@ Interactive curve fitting is available through the **Fit Panel** sidebar when vi
 3. **Fit Results**: Displays optimized parameter estimates, standard errors ($\sigma$), covariance matrix, and coefficient of determination ($R^2$).
 4. **Overlay**: Real-time overlay of the fitted function curve onto the active chart canvas.
 
+#### Walkthrough: fit a straight line
+
+1. Start PandaPlot and import `examples/fit-test-data/f_x_4.2x_minus_2.3.csv` with **File > Import CSV...**. It has `x` and `f(x)` columns.
+2. Open the imported dataset, choose **Create Chart**, and create a **Scatter** or **Line** chart using `x` for X and `f(x)` for Y.
+3. With the chart open, select **Curve Fitting** in the sidebar. In **Chart Series**, choose the series, then set **Fit Type** to **Linear (y = ax + b)** and click **Perform Fit**.
+4. Read **Fit Results**. The parameter estimates give the fitted values of `a` and `b`; their standard errors show how uncertain those estimates are. **R²** closer to 1 means the fitted line explains more of the variation in the data. A good fit has points close to the line and a high R²; a lower R² or a visible pattern in the residual differences suggests a poor fit or a model that does not describe the data well.
+5. To try another equation, set **Fit Type** to **Custom Function**. In **Custom Function**, enter an expression such as `a*x + b` in **Function**, list `a, b` in **Parameters**, and click **Perform Fit**. Use **Define parameters values** to provide starting or fixed values when needed.
+
 ### Signal Processing
 Access the **Signal Panel** for frequency-domain and peak detection tools:
 - **Fast Fourier Transform (FFT)**: Computes real FFT power spectral density distributions.
@@ -222,6 +230,13 @@ Access the **Signal Panel** for frequency-domain and peak detection tools:
 View descriptive and inferential statistics for dataset columns:
 - **Descriptive Statistics**: Count, mean, standard deviation, minimum, maximum, median, 25%/75% quartiles, skewness, and kurtosis.
 - **Statistical Testing**: Normality tests (Shapiro-Wilk, D'Agostino-Pearson) and hypothesis tests ($t$-test, ANOVA).
+
+### Repeated-Measurement Summary
+Open a dataset and click **Analyze Measurements**, or right-click a dataset in the **Project View** and select **Analyze Measurements...**, to create grouped statistics for an experiment:
+1. Review the suggested **Controlled** (group keys), **Fixed** (constant context), **Measured** (numeric values to summarize), or **Unused** role for each column. Suggestions use column names and observed values, and can be changed before continuing.
+2. Review the grouped result and any excluded values, then choose **Finish** to create the output dataset or **Plot a Graph** to create it and continue directly to chart setup.
+
+The output has one row per controlled-value group and measured variable, with the valid count, mean, sample standard deviation, and standard error of the mean. If multiple measured columns are replicates of one quantity (for example, `Velocity1` through `Velocity5`), they receive a shared **Measured variable** suggestion; that name is editable. Rows missing a controlled value are excluded from grouping; missing or non-numeric measured values are excluded only for their own variable. Fixed columns must have one observed value; differing values or a column with no observed values block generation. Missing fixed values are reported when the observed values agree. Column roles and measured-variable group names are saved with the source dataset and follow columns across renames.
 
 ---
 

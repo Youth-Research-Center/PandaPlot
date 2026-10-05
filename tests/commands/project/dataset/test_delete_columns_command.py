@@ -18,7 +18,7 @@ from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.chart.series_style.vector3d import Vector3DSeriesStyle
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project import Project
-from pandaplot.models.project.items import Chart, Dataset
+from pandaplot.models.project.items import Chart, ColumnRole, Dataset
 from pandaplot.models.project.items.chart import resolve_series_column
 
 
@@ -112,6 +112,40 @@ def test_undo_restores_data_and_chart_references(env):
     s1 = chart.data_series[0]
     assert resolve_series_column(dataset, s1.x_column_id, s1.x_column) == "a"
     assert len(chart.fit_data) == 1
+
+
+def test_undo_restores_roles_for_deleted_columns(env):
+    app_context, dataset, _, _, _ = env
+    dataset.set_column_role(dataset.column_id("a"), ColumnRole.CONTROLLED)
+    dataset.set_column_role(dataset.column_id("b"), ColumnRole.MEASURED)
+    original_roles = dict(dataset.column_roles)
+    command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert dataset.column_roles == {dataset.column_id("b"): ColumnRole.MEASURED}
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert dict(dataset.column_roles) == original_roles
+
+    assert command.redo() is CommandResult.SUCCESS
+    assert dataset.column_roles == {dataset.column_id("b"): ColumnRole.MEASURED}
+
+
+def test_undo_restores_measurement_groups_for_deleted_columns(env):
+    app_context, dataset, _, _, _ = env
+    measured_column_id = dataset.column_id("b")
+    dataset.set_column_role(measured_column_id, ColumnRole.MEASURED)
+    dataset.set_column_measurement_groups({measured_column_id: "Velocity"})
+    command = DeleteColumnsCommand(app_context, dataset.id, ["b"])
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert dataset.column_measurement_groups == {}
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert dataset.column_measurement_groups == {measured_column_id: "Velocity"}
+
+    assert command.redo() is CommandResult.SUCCESS
+    assert dataset.column_measurement_groups == {}
 
 
 def test_redo_reapplies_deletion_and_removes_references_again(env):

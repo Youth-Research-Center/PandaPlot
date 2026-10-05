@@ -20,7 +20,9 @@ def finite_numeric_values(values) -> np.ndarray:
 def render_hist_series(axes, series_data: SeriesData, style: HistSeriesStyle,
                         label: str, alpha: float, *, visible: bool, extra: dict):
     """Draw the histogram and return its bar container, or None when no
-    finite numeric values remain (HIST is in SERIES_RENDERERS_REPORTING_NO_DATA)."""
+    finite numeric values remain or the series is hidden (HIST is in SERIES_RENDERERS_REPORTING_NO_DATA)."""
+    if not visible:
+        return None
     values = finite_numeric_values(series_data.y_data)
     if values.size == 0:
         return None

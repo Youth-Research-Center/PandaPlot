@@ -612,6 +612,18 @@ class TabContainer(PWidget):
         """
         return self.command_manager.create_chart_from_dataset(dataset_id, preselected_column_ids)
 
+    def analyze_measurements_for_dataset(
+        self,
+        dataset_id: str,
+        *,
+        parent_widget: QWidget | None = None,
+    ) -> None:
+        """Open measurement analysis for a dataset tab or Project Explorer action."""
+        return self.command_manager.analyze_measurements_for_dataset(
+            dataset_id,
+            parent_widget=parent_widget if parent_widget is not None else self,
+        )
+
     def on_project_closed(self):
         """Called when a project is closed - close all project-related tabs and show welcome tab if no tabs are open."""
         self.logger.info("Closing all project-related tabs")
