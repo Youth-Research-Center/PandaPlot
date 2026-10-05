@@ -10,7 +10,7 @@ per-type render functions live in the GUI layer, in
 pandaplot/gui/components/tabs/chart/series_renderers/, keyed by the same
 SeriesType via SERIES_RENDERERS.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from pandaplot.models.chart.series_style import (
@@ -112,7 +112,7 @@ class SeriesTypeSpec:
     # positions a value against the Y axis (error bars, the Axes tab's
     # data-derived range) must offset by the same running stack the renderer
     # does, so it reads this flag rather than testing the series type.
-    is_stacked: bool = False
+    is_stacked: bool = field(default=False, kw_only=True)
     # Whether this type takes an optional per-point text-label column (a
     # pie's wedge/category names), picked on the Data tab via its own
     # combo. Optional by definition: a blank label column never fails the

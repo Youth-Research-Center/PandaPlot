@@ -95,4 +95,4 @@ def test_labels_step_preview_colors_each_series_from_the_default_palette():
     )
 
     bar_containers = [c for c in canvas.axes.containers if isinstance(c, BarContainer)]
-    assert [to_hex(c.patches[0].get_facecolor()) for c in bar_containers] == DEFAULT_SERIES_COLORS[:2]
+    assert [to_hex(c.patches[0].get_facecolor()) for c in bar_containers] == list(DEFAULT_SERIES_COLORS[:2])

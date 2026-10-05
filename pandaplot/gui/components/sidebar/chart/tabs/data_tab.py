@@ -30,7 +30,7 @@ from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
-from pandaplot.models.chart.series_style_builder import build_series_style
+from pandaplot.models.chart.series_style_builder import DEFAULT_SERIES_COLORS, build_series_style
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS, SeriesTypeSpec
 from pandaplot.models.project.items import Dataset
@@ -1384,13 +1384,10 @@ class DataTab(QWidget):
 
     def _get_next_series_color(self) -> str:
         """Get the next color for a new series."""
-        colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-                 "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
-
         if not self.current_chart or not self.current_chart.data_series:
-            return colors[0]
+            return DEFAULT_SERIES_COLORS[0]
 
-        return colors[len(self.current_chart.data_series) % len(colors)]
+        return DEFAULT_SERIES_COLORS[len(self.current_chart.data_series) % len(DEFAULT_SERIES_COLORS)]
 
     # -- Dataset / column combos ------------------------------------------
 

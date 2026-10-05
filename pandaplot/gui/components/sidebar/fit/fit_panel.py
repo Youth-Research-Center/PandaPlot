@@ -747,10 +747,10 @@ class FitPanel(SidebarPanel):
         """Load a Chart object for fitting analysis.
 
         A chart whose type has ``allows_fit=False`` (Stacked Bar, Density, ...)
-        is treated like no chart at all: its series are never offered to fit.
+        stays the panel's current chart, so deferred refreshes and event
+        filtering keep working when its type changes back, but none of its
+        series are offered to fit.
         """
-        if chart is not None and not CHART_TYPE_SPECS[ChartType(chart.chart_type)].allows_fit:
-            chart = None
         self._clear_results()
         self.current_chart = chart
 
@@ -761,7 +761,7 @@ class FitPanel(SidebarPanel):
         self.series_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         self.series_combo.clear()
 
-        if chart is None:
+        if chart is None or not CHART_TYPE_SPECS[ChartType(chart.chart_type)].allows_fit:
             self.series_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.custom_source_widget.setVisible(False)
             self.update_data_points_display()

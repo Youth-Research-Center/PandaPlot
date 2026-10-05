@@ -16,7 +16,7 @@ from pandaplot.models.chart.chart_type_spec import (
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style import BarSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
-from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS, SeriesTypeSpec
 from pandaplot.models.project.items.chart import Chart, DataSeries
 
 
@@ -102,3 +102,10 @@ def test_stacked_bar_series_round_trips_through_serialization():
     assert reloaded.chart_type == ChartType.STACKED_BAR
     assert reloaded.data_series[0].series_type == SeriesType.STACKED_BAR
     assert reloaded.data_series[0].style == BarSeriesStyle(color="#ff0000", show_value_labels=True)
+
+
+def test_is_stacked_is_keyword_only_so_positional_layout_is_unchanged():
+    from dataclasses import fields
+
+    by_name = {f.name: f for f in fields(SeriesTypeSpec)}
+    assert by_name["is_stacked"].kw_only is True

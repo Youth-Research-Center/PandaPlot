@@ -1391,5 +1391,10 @@ def test_load_chart_object_offers_no_series_when_chart_type_disallows_fits(app_c
     chart.set_chart_type(ChartType.STACKED_BAR)
     panel.load_chart_object(chart)
 
-    assert panel.current_chart is None
+    assert panel.current_chart is chart
     assert panel.series_combo.count() == 0
+
+    chart.set_chart_type(ChartType.BAR)
+    panel.load_chart_object(chart)
+
+    assert panel.series_combo.count() > 1
