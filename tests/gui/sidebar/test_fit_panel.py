@@ -13,7 +13,8 @@ from unittest.mock import Mock
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QFrame, QPlainTextEdit
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
@@ -104,6 +105,70 @@ def test_equation_label_uses_theme_tokens_not_hardcoded_colors(app_context):
     assert "#2A2C2E" in style
     assert "#4A4D52" in style
     assert "#E2E2E2" in style
+
+
+def test_fit_models_are_filtered_by_category(app_context):
+    panel = FitPanel(app_context)
+
+    assert [panel.fit_type_combo.itemData(i) for i in range(panel.fit_type_combo.count())] == [
+        "Linear", "Quadratic", "Cubic", "Quartic", "Quintic"
+    ]
+
+    panel.fit_category_combo.setCurrentText("Exponential")
+
+    assert [panel.fit_type_combo.itemData(i) for i in range(panel.fit_type_combo.count())] == [
+        "Exponential", "Exponential Decay", "Exponential Growth to Maximum"
+    ]
+
+    panel.fit_category_combo.setCurrentText("Custom")
+    assert [panel.fit_type_combo.itemData(i) for i in range(panel.fit_type_combo.count())] == [
+        "Custom Function"
+    ]
+
+
+def test_fit_results_use_a_transparent_plain_text_display(app_context):
+    panel = FitPanel(app_context)
+
+    assert isinstance(panel.results_text, QPlainTextEdit)
+    assert panel.results_text.frameShape() == QFrame.Shape.NoFrame
+    assert "background-color: transparent" in panel.results_text.styleSheet()
+
+
+def test_fit_points_control_is_left_aligned_with_other_inputs(app_context):
+    panel = FitPanel(app_context)
+    fit_points_item = panel.fit_options_layout.itemAtPosition(0, 1)
+
+    assert fit_points_item.alignment() & Qt.AlignmentFlag.AlignLeft
+
+
+def test_series_and_category_combos_are_left_aligned_with_fit_points(app_context):
+    panel = FitPanel(app_context)
+
+    assert panel.data_source_layout.itemAtPosition(0, 1).alignment() & Qt.AlignmentFlag.AlignLeft
+    assert panel.fit_type_layout.itemAtPosition(0, 1).alignment() & Qt.AlignmentFlag.AlignLeft
+    assert panel.fit_type_layout.itemAtPosition(1, 1).alignment() & Qt.AlignmentFlag.AlignLeft
+
+
+def test_series_and_category_combos_match_model_combo_minimum_width(app_context):
+    panel = FitPanel(app_context)
+
+    assert panel.series_combo.minimumWidth() == panel.fit_type_combo.minimumWidth()
+    assert panel.fit_category_combo.minimumWidth() == panel.fit_type_combo.minimumWidth()
+
+
+def test_fit_button_requires_enough_points_for_selected_polynomial_degree(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_type_combo.setCurrentText("Quintic (polynomial, degree 5)")
+
+    assert panel.fit_button.isEnabled() is False
+    assert panel.fit_button.toolTip().startswith("At least 6 valid")
 
 
 def test_clear_button_click_invokes_clear_results(app_context):
@@ -605,6 +670,7 @@ def test_non_positive_min_invalid_for_logarithmic_fit(app_context):
     panel.show()
     QApplication.processEvents()
 
+    panel.fit_category_combo.setCurrentText("Other")
     panel.fit_type_combo.setCurrentText("Logarithmic (y = a*ln(x) + b)")
     panel.range_auto_check.setChecked(False)
     panel.range_min_spin.setValue(0.0)
@@ -627,6 +693,7 @@ def test_non_positive_min_valid_for_linear_fit(app_context):
     panel.app_context.app_state.current_project = project
     panel.load_chart_object(chart)
 
+    panel.fit_category_combo.setCurrentText("Polynomial")
     panel.fit_type_combo.setCurrentText("Linear (y = ax + b)")
     panel.range_auto_check.setChecked(False)
     panel.range_min_spin.setValue(-5.0)
@@ -1308,7 +1375,8 @@ def test_perform_fit_failure_path_shows_error_and_stops_spinner(app_context):
     assert panel.apply_button.isEnabled() is False
     assert panel.fit_results is None
     assert panel.results_text.toPlainText() == "Fit did not converge"
-    assert panel.results_text.styleSheet() == "color: red;"
+    assert "color: red;" in panel.results_text.styleSheet()
+    assert "background-color: transparent;" in panel.results_text.styleSheet()
 
 
 def test_perform_fit_sync_dispatch_failure_stops_spinner_without_on_complete(app_context):

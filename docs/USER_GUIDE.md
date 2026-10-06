@@ -201,14 +201,14 @@ Calculations are computed asynchronously in background threads via the `TaskSche
 
 ### Curve Fitting
 Interactive curve fitting is available through the **Fit Panel** sidebar when viewing a Chart tab:
-1. **Model Selection**: Choose from predefined mathematical functions:
-   - **Linear**: $y = a \cdot x + b$
-   - **Quadratic**: $y = a \cdot x^2 + b \cdot x + c$
-   - **Exponential**: $y = a \cdot e^{b \cdot x}$
-   - **Power**: $y = a \cdot x^b$
-   - **Logarithmic**: $y = a \cdot \ln(x) + b$
-   - **Custom Model**: Enter custom mathematical expressions with user-defined parameters.
-2. **Execution**: Uses `scipy.optimize.curve_fit` (Levenberg-Marquardt algorithm) to optimize parameter values.
+1. **Model Selection**: Choose a model category, then select a fit:
+   - **Polynomial**: Linear, quadratic, cubic, quartic, and quintic.
+   - **Exponential**: General exponential, exponential decay, and growth to a maximum.
+   - **Sigmoid**: Logistic sigmoid.
+   - **Peak**: Gaussian peak.
+   - **Other**: Power and logarithmic.
+   - **Custom**: Enter a mathematical expression with user-defined parameters.
+2. **Execution**: Uses `scipy.optimize.curve_fit` to optimize model parameters. Models with constraints use bounded least squares.
 3. **Fit Results**: Displays optimized parameter estimates, standard errors ($\sigma$), covariance matrix, and coefficient of determination ($R^2$).
 4. **Overlay**: Real-time overlay of the fitted function curve onto the active chart canvas.
 
@@ -216,9 +216,9 @@ Interactive curve fitting is available through the **Fit Panel** sidebar when vi
 
 1. Start PandaPlot and import `examples/fit-test-data/f_x_4.2x_minus_2.3.csv` with **File > Import CSV...**. It has `x` and `f(x)` columns.
 2. Open the imported dataset, choose **Create Chart**, and create a **Scatter** or **Line** chart using `x` for X and `f(x)` for Y.
-3. With the chart open, select **Curve Fitting** in the sidebar. In **Chart Series**, choose the series, then set **Fit Type** to **Linear (y = ax + b)** and click **Perform Fit**.
+3. With the chart open, select **Curve Fitting** in the sidebar. In **Chart Series**, choose the series, select **Polynomial** as the category and **Linear (y = ax + b)** as the model, then click **Perform Fit**.
 4. Read **Fit Results**. The parameter estimates give the fitted values of `a` and `b`; their standard errors show how uncertain those estimates are. **R²** closer to 1 means the fitted line explains more of the variation in the data. A good fit has points close to the line and a high R²; a lower R² or a visible pattern in the residual differences suggests a poor fit or a model that does not describe the data well.
-5. To try another equation, set **Fit Type** to **Custom Function**. In **Custom Function**, enter an expression such as `a*x + b` in **Function**, list `a, b` in **Parameters**, and click **Perform Fit**. Use **Define parameters values** to provide starting or fixed values when needed.
+5. To try another equation, set **Category** to **Custom** and **Model** to **Custom Function**. In **Custom Function**, enter an expression such as `a*x + b` in **Function**, list `a, b` in **Parameters**, and click **Perform Fit**. Use **Define parameters values** to provide fixed values when needed.
 
 ### Signal Processing
 Access the **Signal Panel** for frequency-domain and peak detection tools:

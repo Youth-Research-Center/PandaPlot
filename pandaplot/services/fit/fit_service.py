@@ -6,33 +6,163 @@ import numpy as np
 
 MIN_FIT_POINTS = 2
 
+
+def _polynomial(x: np.ndarray, *coefficients: float) -> np.ndarray:
+    return np.polyval(coefficients, x)
+
+
+def _sigmoid(x: np.ndarray, amplitude: float, slope: float, midpoint: float, offset: float) -> np.ndarray:
+    exponent = np.clip(-slope * (x - midpoint), -700, 700)
+    return amplitude / (1 + np.exp(exponent)) + offset
+
+
+def _gaussian_peak(x: np.ndarray, amplitude: float, center: float, width: float, offset: float) -> np.ndarray:
+    return amplitude * np.exp(-0.5 * ((x - center) / width) ** 2) + offset
+
+
+def _exponential_decay(x: np.ndarray, amplitude: float, rate: float, offset: float) -> np.ndarray:
+    return amplitude * np.exp(np.clip(-rate * x, -700, 700)) + offset
+
+
+def _exponential_growth_to_maximum(x: np.ndarray, amplitude: float, rate: float, offset: float) -> np.ndarray:
+    return amplitude * (1 - np.exp(np.clip(-rate * x, -700, 700))) + offset
+
+
+def _polynomial_initial_guess(x: np.ndarray, y: np.ndarray, *, degree: int) -> list[float]:
+    coefficients = np.polyfit(x, y, degree)
+    return coefficients.tolist()
+
+
+def _peak_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
+    peak_index = int(np.argmax(y))
+    width = max(float(np.ptp(x)) / 6, np.finfo(float).eps)
+    return [float(y.max() - y.min()), float(x[peak_index]), width, float(y.min())]
+
+
+def _sigmoid_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
+    x_range = max(float(np.ptp(x)), np.finfo(float).eps)
+    return [float(y.max() - y.min()), 4 / x_range, float(np.median(x)), float(y.min())]
+
+
+def _decay_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
+    x_range = max(float(np.ptp(x)), np.finfo(float).eps)
+    order = np.argsort(x)
+    sorted_y = y[order]
+    return [float(sorted_y[0] - sorted_y[-1]), 1 / x_range, float(sorted_y[-1])]
+
+
+def _growth_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
+    x_range = max(float(np.ptp(x)), np.finfo(float).eps)
+    order = np.argsort(x)
+    sorted_y = y[order]
+    return [float(sorted_y[-1] - sorted_y[0]), 1 / x_range, float(sorted_y[0])]
+
+
 FIT_DEFINITIONS = {
     "Linear": {
         "function": lambda x, a, b: a * x + b,
         "parameters": ["a", "b"],
         "equation": "a*x + b",
+        "category": "Polynomial",
+        "description": "y = ax + b",
     },
     "Quadratic": {
         "function": lambda x, a, b, c: a * x ** 2 + b * x + c,
         "parameters": ["a", "b", "c"],
         "equation": "a*x**2 + b*x + c",
+        "category": "Polynomial",
+        "description": "y = ax² + bx + c",
+        "initial_guess": lambda x, y: _polynomial_initial_guess(x, y, degree=2),
+    },
+    "Cubic": {
+        "function": _polynomial,
+        "parameters": ["a", "b", "c", "d"],
+        "equation": "a*x**3 + b*x**2 + c*x + d",
+        "category": "Polynomial",
+        "description": "polynomial, degree 3",
+        "initial_guess": lambda x, y: _polynomial_initial_guess(x, y, degree=3),
+    },
+    "Quartic": {
+        "function": _polynomial,
+        "parameters": ["a", "b", "c", "d", "e"],
+        "equation": "a*x**4 + b*x**3 + c*x**2 + d*x + e",
+        "category": "Polynomial",
+        "description": "polynomial, degree 4",
+        "initial_guess": lambda x, y: _polynomial_initial_guess(x, y, degree=4),
+    },
+    "Quintic": {
+        "function": _polynomial,
+        "parameters": ["a", "b", "c", "d", "e", "f"],
+        "equation": "a*x**5 + b*x**4 + c*x**3 + d*x**2 + e*x + f",
+        "category": "Polynomial",
+        "description": "polynomial, degree 5",
+        "initial_guess": lambda x, y: _polynomial_initial_guess(x, y, degree=5),
     },
     "Exponential": {
         "function": lambda x, a, b, c: a * np.exp(b * x) + c,
         "parameters": ["a", "b", "c"],
         "equation": "a*exp(b*x) + c",
+        "category": "Exponential",
+        "description": "y = ae^(bx) + c",
+    },
+    "Exponential Decay": {
+        "function": _exponential_decay,
+        "parameters": ["a", "b", "c"],
+        "equation": "a*exp(-b*x) + c",
+        "category": "Exponential",
+        "description": "y = ae⁻ᵇˣ + c",
+        "initial_guess": _decay_initial_guess,
+        "bounds": {"b": (0, np.inf)},
+    },
+    "Exponential Growth to Maximum": {
+        "function": _exponential_growth_to_maximum,
+        "parameters": ["a", "b", "c"],
+        "equation": "a*(1 - exp(-b*x)) + c",
+        "category": "Exponential",
+        "description": "y = a(1 - e⁻ᵇˣ) + c",
+        "initial_guess": _growth_initial_guess,
+        "bounds": {"b": (0, np.inf)},
+    },
+    "Logistic Sigmoid": {
+        "function": _sigmoid,
+        "parameters": ["a", "b", "x0", "c"],
+        "equation": "a/(1 + exp(-b*(x - x0))) + c",
+        "category": "Sigmoid",
+        "description": "logistic sigmoid",
+        "initial_guess": _sigmoid_initial_guess,
+    },
+    "Gaussian Peak": {
+        "function": _gaussian_peak,
+        "parameters": ["a", "x0", "sigma", "c"],
+        "equation": "a*exp(-0.5*((x - x0)/sigma)**2) + c",
+        "category": "Peak",
+        "description": "Gaussian peak",
+        "initial_guess": _peak_initial_guess,
+        "bounds": {"sigma": (np.finfo(float).eps, np.inf)},
     },
     "Power": {
         "function": lambda x, a, b, c: a * (x ** b) + c,
         "parameters": ["a", "b", "c"],
         "equation": "a*x**b + c",
+        "category": "Other",
+        "description": "y = ax^b + c",
     },
     "Logarithmic": {
         "function": lambda x, a, b: a * np.log(x) + b,
         "parameters": ["a", "b"],
         "equation": "a*ln(x) + b",
+        "category": "Other",
+        "description": "y = a*ln(x) + b",
     },
 }
+
+
+FIT_CATEGORIES: dict[str, tuple[str, ...]] = {}
+for _fit_name, _fit_definition in FIT_DEFINITIONS.items():
+    _category = _fit_definition["category"]
+    FIT_CATEGORIES[_category] = (*FIT_CATEGORIES.get(_category, ()), _fit_name)
+FIT_CATEGORIES["Custom"] = ("Custom Function",)
+
 
 @dataclass
 class FitResult:
@@ -63,6 +193,8 @@ class FitService:
         self.fixed_params = {}
 
     def _get_fit_name(self, fit_type: str) -> str:
+        if fit_type in FIT_DEFINITIONS or fit_type == "Custom Function":
+            return fit_type
         return fit_type.split(" (")[0]
 
     def _get_fit_func(
@@ -181,12 +313,33 @@ class FitService:
                         key, val = item.split("=", 1)
                         fixed_params[key.strip()] = float(val)
 
-            free_count = len([
-                p for p in param_names
-                if p not in fixed_params
-            ])
+            fit_definition = FIT_DEFINITIONS.get(self._get_fit_name(fit_type))
+            free_param_names = [name for name in param_names if name not in fixed_params]
+            if not free_param_names:
+                raise ValueError("At least one fit parameter must remain free.")
+            if len(x_data) < max(MIN_FIT_POINTS, len(free_param_names)):
+                raise ValueError(
+                    f"At least {len(free_param_names)} data points are required for a {fit_type} fit."
+                )
 
-            fit_options = {"p0": [1] * free_count}
+            initial_guess = (
+                fit_definition["initial_guess"](x_data, y_data)
+                if fit_definition is not None and "initial_guess" in fit_definition
+                else [1] * len(param_names)
+            )
+            fit_options = {
+                "p0": [
+                    initial_guess[index]
+                    for index, name in enumerate(param_names)
+                    if name not in fixed_params
+                ]
+            }
+            if fit_definition is not None and "bounds" in fit_definition:
+                bounds = fit_definition["bounds"]
+                fit_options["bounds"] = (
+                    [bounds.get(name, (-np.inf, np.inf))[0] for name in free_param_names],
+                    [bounds.get(name, (-np.inf, np.inf))[1] for name in free_param_names],
+                )
 
             self.logger.debug("Weighted fit: %s", sigma_y is not None)
 

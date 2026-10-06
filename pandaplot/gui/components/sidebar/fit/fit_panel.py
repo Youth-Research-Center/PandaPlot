@@ -3,19 +3,20 @@ import logging
 from typing import override
 
 import pandas as pd
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMenu,
+    QPlainTextEdit,
     QSpinBox,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -31,7 +32,7 @@ from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import DataSeries, resolve_series_column
 from pandaplot.models.state import AppContext
-from pandaplot.services.fit.fit_service import MIN_FIT_POINTS, FitService
+from pandaplot.services.fit.fit_service import FIT_CATEGORIES, FIT_DEFINITIONS, MIN_FIT_POINTS, FitService
 from pandaplot.services.theme import ThemeManager
 from pandaplot.utils.item_display_options import dataset_display_options
 
@@ -144,6 +145,7 @@ class FitPanel(SidebarPanel):
             f"font-family: monospace; background-color: {card_bg}; "
             f"color: {base_fg}; padding: 5px; border: 1px solid {card_border};"
         )
+        self._set_results_text_style(base_fg)
 
         warning_fg = tokens.get("status_modified_text", "#B06A00")
         self.fit_availability_label.setStyleSheet(f"color: {warning_fg};")
@@ -187,12 +189,13 @@ class FitPanel(SidebarPanel):
     def _create_data_source_section(self, layout):
         """Create the data source selection section."""
         data_group = QGroupBox("Data Source")
-        data_layout = QGridLayout(data_group)
+        self.data_source_layout = QGridLayout(data_group)
 
-        data_layout.addWidget(QLabel("Chart Series:"), 0, 0)
+        self.data_source_layout.addWidget(QLabel("Chart Series:"), 0, 0)
 
         self.series_combo = QComboBox()
-        data_layout.addWidget(self.series_combo, 0, 1)
+        self.data_source_layout.addWidget(self.series_combo, 0, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.data_source_layout.setColumnStretch(2, 1)
 
         # Dataset/X/Y column pickers for the "Custom..." data source, only
         # shown when that sentinel entry is selected in series_combo (see
@@ -215,9 +218,9 @@ class FitPanel(SidebarPanel):
         custom_source_layout.addWidget(self.custom_y_column_combo, 2, 1)
 
         self.custom_source_widget.setVisible(False)
-        data_layout.addWidget(self.custom_source_widget, 1, 0, 1, 2)
+        self.data_source_layout.addWidget(self.custom_source_widget, 1, 0, 1, 3)
 
-        data_layout.addWidget(QLabel("Data Points:"), 2, 0)
+        self.data_source_layout.addWidget(QLabel("Data Points:"), 2, 0)
 
         points_layout = QHBoxLayout()
         self.data_points_label = QLabel("No data selected")
@@ -229,11 +232,11 @@ class FitPanel(SidebarPanel):
         points_layout.addWidget(self.data_points_warning_icon)
         points_layout.addStretch()
 
-        data_layout.addLayout(points_layout, 2, 1)
+        self.data_source_layout.addLayout(points_layout, 2, 1)
         self.fit_availability_label = QLabel()
         self.fit_availability_label.setWordWrap(True)
         self.fit_availability_label.setVisible(False)
-        data_layout.addWidget(self.fit_availability_label, 3, 0, 1, 2)
+        self.data_source_layout.addWidget(self.fit_availability_label, 3, 0, 1, 3)
 
         layout.addWidget(data_group)
 
@@ -243,20 +246,24 @@ class FitPanel(SidebarPanel):
         fit_layout = QVBoxLayout(self.fit_configuration_group)
 
         # Fit type selection
-        type_layout = QHBoxLayout()
-        type_layout.addWidget(QLabel("Fit Type:"))
+        self.fit_type_layout = QGridLayout()
+        self.fit_type_layout.addWidget(QLabel("Category:"), 0, 0)
+        self.fit_category_combo = QComboBox()
+        self.fit_category_combo.addItems(FIT_CATEGORIES)
+        self.fit_type_layout.addWidget(self.fit_category_combo, 0, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self.fit_type_layout.addWidget(QLabel("Model:"), 1, 0)
         self.fit_type_combo = QComboBox()
-        self.fit_type_combo.addItems([
-            "Linear (y = ax + b)",
-            "Quadratic (y = ax² + bx + c)", 
-            "Exponential (y = ae^(bx) + c)",
-            "Power (y = ax^b + c)",
-            "Logarithmic (y = a*ln(x) + b)",
-            "Custom Function"
-        ])
-        type_layout.addWidget(self.fit_type_combo)
-        type_layout.addStretch()
-        fit_layout.addLayout(type_layout)
+        self._populate_fit_type_combo()
+        self.fit_type_layout.addWidget(self.fit_type_combo, 1, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.fit_type_layout.setColumnStretch(2, 1)
+        fit_layout.addLayout(self.fit_type_layout)
+        combo_min_width = max(
+            combo.sizeHint().width()
+            for combo in (self.series_combo, self.fit_category_combo, self.fit_type_combo)
+        )
+        for combo in (self.series_combo, self.fit_category_combo, self.fit_type_combo):
+            combo.setMinimumWidth(combo_min_width)
 
         # Custom function input (initially hidden)
         self.custom_group = QGroupBox("Custom Function")
@@ -295,26 +302,27 @@ class FitPanel(SidebarPanel):
         fit_layout.addWidget(self.custom_group)
         
         # Fit options
-        options_layout = QGridLayout()
+        self.fit_options_layout = QGridLayout()
         
         # Number of fit points
-        options_layout.addWidget(QLabel("Fit Points:"), 0, 0)
+        self.fit_options_layout.addWidget(QLabel("Fit Points:"), 0, 0)
         self.fit_points_spin = QSpinBox()
         self.fit_points_spin.setRange(50, 5000)
         self.fit_points_spin.setValue(500)
-        options_layout.addWidget(self.fit_points_spin, 0, 1)
+        self.fit_options_layout.addWidget(self.fit_points_spin, 0, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.fit_options_layout.setColumnStretch(2, 1)
         
         # Show confidence bands
         self.confidence_check = QCheckBox("Show Confidence Bands")
         self.confidence_check.setChecked(False)
-        options_layout.addWidget(self.confidence_check, 1, 0, 1, 2)
+        self.fit_options_layout.addWidget(self.confidence_check, 1, 0, 1, 2)
         
         # R-squared calculation
         self.r_squared_check = QCheckBox("Calculate R²")
         self.r_squared_check.setChecked(True)
-        options_layout.addWidget(self.r_squared_check, 2, 0, 1, 2)
+        self.fit_options_layout.addWidget(self.r_squared_check, 2, 0, 1, 2)
         
-        fit_layout.addLayout(options_layout)
+        fit_layout.addLayout(self.fit_options_layout)
 
         # Fit range (plot the fitted curve outside the source data's own range)
         range_layout = QGridLayout()
@@ -360,9 +368,10 @@ class FitPanel(SidebarPanel):
         results_layout = QVBoxLayout(results_group)
 
         # Results text area
-        self.results_text = QTextEdit()
+        self.results_text = QPlainTextEdit()
         self.results_text.setReadOnly(True)
         self.results_text.setPlaceholderText("Fit results will appear here...")
+        self.results_text.setFrameShape(QFrame.Shape.NoFrame)
         results_layout.addWidget(self.results_text, stretch=1)
 
         # Equation display
@@ -397,6 +406,7 @@ class FitPanel(SidebarPanel):
     
     def _connect_signals(self):
         """Connect widget signals."""
+        self.fit_category_combo.currentTextChanged.connect(self._populate_fit_type_combo)
         self.fit_type_combo.currentTextChanged.connect(self._on_fit_type_changed)
         self.series_combo.currentIndexChanged.connect(self._on_series_changed)
         self.custom_dataset_combo.currentIndexChanged.connect(self._on_custom_dataset_changed)
@@ -405,6 +415,35 @@ class FitPanel(SidebarPanel):
         self.range_auto_check.toggled.connect(self._on_range_auto_toggled)
         self.range_min_spin.valueChanged.connect(self.update_data_points_display)
         self.range_max_spin.valueChanged.connect(self.update_data_points_display)
+
+    def _populate_fit_type_combo(self):
+        """Show only the models belonging to the selected fit category."""
+        category = self.fit_category_combo.currentText()
+        previous_fit = self.fit_type_combo.currentData() if self.fit_type_combo.count() else None
+
+        self.fit_type_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+        self.fit_type_combo.clear()
+        for fit_name in FIT_CATEGORIES.get(category, ()):
+            if fit_name == "Custom Function":
+                self.fit_type_combo.addItem(fit_name, fit_name)
+            else:
+                description = FIT_DEFINITIONS[fit_name]["description"]
+                self.fit_type_combo.addItem(f"{fit_name} ({description})", fit_name)
+        restored_index = self.fit_type_combo.findData(previous_fit)
+        self.fit_type_combo.setCurrentIndex(max(restored_index, 0))
+        self.fit_type_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+        if hasattr(self, "custom_group"):
+            self._on_fit_type_changed()
+
+    def _set_results_text_style(self, color: str | None = None):
+        if color is None:
+            palette = self.app_context.get_manager(ThemeManager).get_surface_palette()
+            text_color = palette.get("base_fg", "#333333") if isinstance(palette, dict) else "#333333"
+        else:
+            text_color = color
+        self.results_text.setStyleSheet(
+            f"QPlainTextEdit {{ color: {text_color}; background-color: transparent; border: none; }}"
+        )
 
     def setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
@@ -437,7 +476,7 @@ class FitPanel(SidebarPanel):
             "Please install SciPy to enable curve fitting: pip install scipy"
         )
         self.results_text.setPlainText(warning_text)
-        self.results_text.setStyleSheet("color: red;")
+        self._set_results_text_style("red")
     
     @property
     def current_project(self):
@@ -620,6 +659,12 @@ class FitPanel(SidebarPanel):
             return "This series has no X column for curve fitting. Select an XY series or choose Custom... with X and Y columns."
         return None
 
+    def _minimum_fit_points(self) -> int:
+        fit_definition = FIT_DEFINITIONS.get(self.fit_type_combo.currentData())
+        if fit_definition is None:
+            return MIN_FIT_POINTS
+        return max(MIN_FIT_POINTS, len(fit_definition["parameters"]))
+
     def update_data_points_display(self):
         """Update the data points display and enable/disable the Fit button accordingly."""
         theme_manager = self.app_context.get_manager(ThemeManager)
@@ -662,8 +707,9 @@ class FitPanel(SidebarPanel):
                 self.range_max_value_label.setText("—")
             self.data_points_label.setText(f"{len(x_data)} points")
 
-            if len(x_data) < MIN_FIT_POINTS:
-                tooltip = f"At least {MIN_FIT_POINTS} valid (x, y) data points are required to perform a fit."
+            minimum_points = self._minimum_fit_points()
+            if len(x_data) < minimum_points:
+                tooltip = f"At least {minimum_points} valid (x, y) data points are required for this fit."
                 self.data_points_label.setStyleSheet("color: red;")
                 self.data_points_label.setToolTip(tooltip)
                 self.data_points_warning_icon.setToolTip(tooltip)
@@ -740,7 +786,7 @@ class FitPanel(SidebarPanel):
         results_text += f"\nData points: {len(results.x_data)}\n"
         results_text += f"Fit points: {len(results.x_fit)}"
 
-        self.results_text.setStyleSheet("")
+        self._set_results_text_style()
         self.results_text.setPlainText(results_text)
 
     def _apply_fit(self):
@@ -796,7 +842,7 @@ class FitPanel(SidebarPanel):
         self.fit_results = None
         self.fit_fixed_parameters = None
         self.results_text.clear()
-        self.results_text.setStyleSheet("")
+        self._set_results_text_style()
         self.equation_label.setText("No fit performed")
         self.apply_button.setEnabled(False)
         if hasattr(self, "busy_spinner"):
@@ -936,7 +982,7 @@ class FitPanel(SidebarPanel):
             return True
         if self.range_max_spin.value() <= self.range_min_spin.value():
             return False
-        fit_name = self.fit_type_combo.currentText().split(" (")[0]
+        fit_name = self.fit_type_combo.currentData()
         return not (fit_name in ("Logarithmic", "Power") and self.range_min_spin.value() <= 0)
 
     def _range_invalid_reason(self) -> str:
@@ -1018,8 +1064,8 @@ class FitPanel(SidebarPanel):
 
         df, mask, x_data, y_data, series = current_data
 
-        fit_type = self.fit_type_combo.currentText()
-        is_custom = fit_type.split(" (")[0] == "Custom Function"
+        fit_type = self.fit_type_combo.currentData()
+        is_custom = fit_type == "Custom Function"
 
         # Chart/series navigation stays enabled while a fit computes in the
         # background, so capture what the fit was actually requested for and
@@ -1058,7 +1104,7 @@ class FitPanel(SidebarPanel):
                 self.logger.error("PerformFitCommand failed: %s", command.error_message)
                 self._clear_results()
                 self.results_text.setPlainText(command.error_message or "Fit failed.")
-                self.results_text.setStyleSheet("color: red;")
+                self._set_results_text_style("red")
                 return
 
             self.fit_results = command.result
@@ -1106,4 +1152,3 @@ class FitPanel(SidebarPanel):
             self.apply_button.setEnabled(apply_was_enabled)
             self._pending_fit_command = None
             self.update_data_points_display()
-
