@@ -40,8 +40,29 @@ def _peak_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
 
 
 def _sigmoid_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
-    x_range = max(float(np.ptp(x)), np.finfo(float).eps)
-    return [float(y.max() - y.min()), 4 / x_range, float(np.median(x)), float(y.min())]
+    order = np.argsort(x)
+    sorted_x = x[order]
+    sorted_y = y[order]
+    tail_count = max(1, len(sorted_y) // 10)
+    start_level = float(np.mean(sorted_y[:tail_count]))
+    end_level = float(np.mean(sorted_y[-tail_count:]))
+    amplitude = end_level - start_level
+
+    if abs(amplitude) <= np.finfo(float).eps:
+        x_range = max(float(np.ptp(sorted_x)), np.finfo(float).eps)
+        return [float(np.ptp(sorted_y)), 4 / x_range, float(np.median(sorted_x)), float(sorted_y.min())]
+
+    fractions = (sorted_y - start_level) / amplitude
+    central_points = (fractions > 0.05) & (fractions < 0.95)
+    if np.count_nonzero(central_points) < 2:
+        midpoint = float(sorted_x[np.argmin(np.abs(fractions - 0.5))])
+        slope = 4 / max(float(np.ptp(sorted_x)), np.finfo(float).eps)
+    else:
+        logits = np.log(fractions[central_points] / (1 - fractions[central_points]))
+        slope, intercept = np.polyfit(sorted_x[central_points], logits, 1)
+        midpoint = float(-intercept / slope) if abs(slope) > np.finfo(float).eps else float(np.median(sorted_x))
+
+    return [amplitude, float(slope), midpoint, start_level]
 
 
 def _decay_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
