@@ -336,6 +336,13 @@ class FitService:
 
             fit_definition = FIT_DEFINITIONS.get(self._get_fit_name(fit_type))
             free_param_names = [name for name in param_names if name not in fixed_params]
+            if fit_definition is not None and fixed_params:
+                original_fit_func = fit_func
+
+                def fit_func(x: np.ndarray, *free_args: float) -> np.ndarray:
+                    parameter_values = dict(zip(free_param_names, free_args, strict=True))
+                    parameter_values.update(fixed_params)
+                    return original_fit_func(x, *(parameter_values[name] for name in param_names))
             if not free_param_names:
                 raise ValueError("At least one fit parameter must remain free.")
             if len(x_data) < max(MIN_FIT_POINTS, len(free_param_names)):
