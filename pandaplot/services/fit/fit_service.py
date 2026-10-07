@@ -66,17 +66,27 @@ def _sigmoid_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
 
 
 def _decay_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
-    x_range = max(float(np.ptp(x)), np.finfo(float).eps)
     order = np.argsort(x)
+    sorted_x = x[order]
     sorted_y = y[order]
-    return [float(sorted_y[0] - sorted_y[-1]), 1 / x_range, float(sorted_y[-1])]
+    x_span = max(float(np.ptp(sorted_x)), np.finfo(float).eps)
+    rate = 1 / max(x_span, abs(float(sorted_x[0])), np.finfo(float).eps)
+    local_amplitude = float(sorted_y[0] - sorted_y[-1]) / -np.expm1(-rate * x_span)
+    amplitude = local_amplitude * np.exp(rate * sorted_x[0])
+    offset = float(sorted_y[0] - local_amplitude)
+    return [amplitude, rate, offset]
 
 
 def _growth_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
-    x_range = max(float(np.ptp(x)), np.finfo(float).eps)
     order = np.argsort(x)
+    sorted_x = x[order]
     sorted_y = y[order]
-    return [float(sorted_y[-1] - sorted_y[0]), 1 / x_range, float(sorted_y[0])]
+    x_span = max(float(np.ptp(sorted_x)), np.finfo(float).eps)
+    rate = 1 / max(x_span, abs(float(sorted_x[0])), np.finfo(float).eps)
+    local_amplitude = float(sorted_y[-1] - sorted_y[0]) / -np.expm1(-rate * x_span)
+    amplitude = local_amplitude * np.exp(rate * sorted_x[0])
+    offset = float(sorted_y[0] - amplitude * -np.expm1(-rate * sorted_x[0]))
+    return [amplitude, rate, offset]
 
 
 FIT_DEFINITIONS = {

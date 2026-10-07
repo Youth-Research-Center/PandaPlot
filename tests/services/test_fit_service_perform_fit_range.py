@@ -125,3 +125,22 @@ def test_polynomial_fit_requires_enough_points_for_its_coefficients():
 
     with pytest.raises(ValueError, match="At least 4 data points"):
         service.perform_fit("Cubic", x_data, y_data)
+
+
+@pytest.mark.parametrize(
+    ("fit_type", "y_function"),
+    [
+        ("Exponential Decay", lambda x: 4 * np.exp(-0.001 * x) + 1),
+        ("Exponential Growth to Maximum", lambda x: 4 * (1 - np.exp(-0.001 * x)) + 1),
+    ],
+)
+def test_translated_x_exponential_fits_recover_parameters(fit_type, y_function):
+    pytest.importorskip("scipy")
+    x_data = np.linspace(1000.0, 1005.0, 80)
+    y_data = y_function(x_data)
+
+    result = FitService().perform_fit(fit_type, x_data, y_data, fit_points=100)
+
+    assert result is not None
+    assert result.params["b"] == pytest.approx(0.001, rel=0.02)
+    np.testing.assert_allclose(result.y_fit, y_function(result.x_fit), rtol=1e-8, atol=1e-8)
