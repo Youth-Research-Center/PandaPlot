@@ -1762,3 +1762,25 @@ def test_no_x_column_hint_ignores_a_leading_fit_series(app_context):
 
     assert all(panel.series_combo.itemData(row) is not chart.data_series[0] for row in range(panel.series_combo.count()))
     assert "no X column" in panel.fit_availability_label.text()
+
+
+def test_live_switch_to_a_type_that_disallows_fits_disables_the_fit_controls_and_keeps_results(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.show()
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_results = _make_fake_fit_result()
+    assert panel.fit_configuration_group.isEnabled()
+
+    chart.set_chart_type("colormap")
+    panel._on_chart_updated({"chart_id": chart.id})
+
+    assert panel.fit_configuration_group.isEnabled() is False
+    assert panel.series_combo.isEnabled() is False
+    assert panel.fit_button.isEnabled() is False
+    assert panel.fit_results is not None

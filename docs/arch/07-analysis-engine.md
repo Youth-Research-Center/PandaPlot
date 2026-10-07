@@ -67,7 +67,7 @@ A fit is stored as a `SeriesType.FIT` `DataSeries` (folded into `chart.data_seri
 `ChartTab` → `ChartRenderEngine` dispatches a FIT-type series through the same `SERIES_RENDERERS` table as every other series type (`series_renderers/fit.py`):
 1. Plot `precomputed_x_data`/`precomputed_y_data` as a dashed line
 2. Overlay the confidence band, if configured
-3. Display equation and R² in the chart legend
+3. Label the curve with the series' `label` (the equation when the fit was applied from the Fit panel); `fit_stats` such as R² is stored on the style but not drawn in the legend
 
 ### ApplyFitCommand
 

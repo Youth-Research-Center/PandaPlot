@@ -54,7 +54,6 @@ class ConvertSeriesToFitCommand(Command):
         # can put it back in the same data_series slot.
         self.removed_series: DataSeries | None = None
         self._fit: DataSeries | None = None
-        self._fill_targets: list[int | None] = []
         self._chart_finder = ChartFinder(app_context)
 
     def _find_dataset(self, dataset_id: str) -> Dataset | None:
@@ -162,14 +161,10 @@ class ConvertSeriesToFitCommand(Command):
             self.removed_series = copy.deepcopy(series)
 
         # A straight slot swap, not remove+insert: the fit takes over the
-        # series' position, so nothing else in data_series moves. A fit isn't
-        # a fill target, though: any series that filled to the converted one
-        # falls back to the baseline (undo restores them).
-        self._fill_targets = chart.fill_targets()
+        # series' position, so nothing else in data_series moves (and no
+        # other series' fill_to_index needs remapping -- a fit is a valid
+        # fill target, so fills aimed at this slot keep working).
         chart.data_series[self.series_index] = self._fit
-        for other in chart.data_series:
-            if getattr(other.style, "fill_to_index", -1) == self.series_index:
-                other.style.fill_to_index = -1
         chart.update_modified_time()
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
@@ -191,7 +186,6 @@ class ConvertSeriesToFitCommand(Command):
             return CommandResult.FAILURE
 
         chart.data_series[self.series_index] = copy.deepcopy(self.removed_series)
-        chart.restore_fill_targets(self._fill_targets)
         chart.update_modified_time()
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
@@ -229,4 +223,3 @@ class ConvertSeriesToFitCommand(Command):
         Command.cleanup)."""
         self.removed_series = None
         self._fit = None
-        self._fill_targets = []

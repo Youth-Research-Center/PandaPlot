@@ -1019,9 +1019,10 @@ class FitPanel(SidebarPanel):
                 # Nothing to reload, but the chart type may have changed
                 # live (e.g. the Chart tab's type combo) without replacing
                 # any series objects -- refresh Apply's enabled/tooltip
-                # state for that case. No reload here, so fit_results must
-                # not be cleared.
+                # state and the Fit button/availability state for that case.
+                # No reload here, so fit_results must not be cleared.
                 self._update_apply_enabled()
+                self.update_data_points_display()
                 return
             chart = self.current_chart
         elif self.current_chart and chart.id != self.current_chart.id:

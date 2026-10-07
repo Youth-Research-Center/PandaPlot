@@ -504,7 +504,7 @@ def test_redo_refuses_without_corrupting_data_series_if_chart_type_changed_since
     assert chart.data_series == series_after_undo
 
 
-def test_converting_a_fill_target_resets_dependent_fills_and_undo_restores_them(app_context_with_chart, dataset):
+def test_converting_a_fill_target_keeps_dependent_fills_pointing_at_its_slot(app_context_with_chart, dataset):
     app_context, chart = app_context_with_chart
     other = chart.add_data_series(
         dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"), label="Other",
@@ -513,7 +513,7 @@ def test_converting_a_fill_target_resets_dependent_fills_and_undo_restores_them(
 
     command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=0)
     assert command.execute() == CommandResult.SUCCESS
-    assert other.style.fill_to_index == -1
+    assert other.style.fill_to_index == 0
 
     assert command.undo() == CommandResult.SUCCESS
     assert chart.data_series[1].style.fill_to_index == 0
