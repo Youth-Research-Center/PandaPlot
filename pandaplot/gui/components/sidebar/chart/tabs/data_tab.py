@@ -1713,8 +1713,8 @@ class DataTab(QWidget):
         self.z_column_combo.setVisible(show)
 
     def _selected_series_spec(self) -> SeriesTypeSpec | None:
-        """The selected, already-existing series' own SeriesTypeSpec, or None
-        when a fit (or nothing) is selected."""
+        """The selected, already-existing series' own SeriesTypeSpec (a fit's is
+        the FIT spec), or None when nothing is selected."""
         if not self.current_chart:
             return None
         row = self._expanded_series_index

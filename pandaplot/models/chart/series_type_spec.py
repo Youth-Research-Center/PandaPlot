@@ -291,7 +291,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
     ),
     SeriesType.FIT: SeriesTypeSpec(
         marker_mode="unsupported", supports_line_style=True, supports_color=True,
-        supports_fill=False, supports_error_bars=False, needs_x_column=False,
+        supports_fill=False, supports_error_bars=False, needs_x_column=True,
         needs_secondary_columns=False, needs_z_column=False,
         supports_gridding=False, uses_color_scale=False, is_3d=False,
         supports_curve_analysis=False,

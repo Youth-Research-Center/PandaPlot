@@ -1137,6 +1137,7 @@ class StyleTab(QWidget):
         """
         kind, obj = self._current_target
         is_chart = kind == "chart"
+        is_fit = isinstance(obj, DataSeries) and obj.is_fit
         for card in self.chart_style_cards:
             card.setVisible(is_chart)
         is_axes = kind == "axes"
@@ -1163,11 +1164,11 @@ class StyleTab(QWidget):
         # line_style/line_width controls have no effect for those types,
         # matching pre-Phase-2 behavior exactly.
         self.line_card.setVisible(
-            kind == "series" and (obj.is_fit or color_supported)
+            kind == "series" and (is_fit or color_supported)
         )
         self.band_card.setVisible(
             kind == "series"
-            and obj.is_fit
+            and is_fit
             and obj.style.confidence_lower is not None
         )
         # The generic Fill card reads/writes FillStyleFields (Line, Scatter);

@@ -1236,3 +1236,10 @@ def test_forcing_the_series_type_combo_on_a_selected_fit_changes_nothing():
     assert tab.series_type_combo.currentData() == "__convert_to_fit__"
     assert tab.dataset_combo.isEnabled() is False
     assert dirty_calls == []
+
+
+def test_fit_spec_needs_an_x_column_so_a_selected_fit_keeps_its_x_row():
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+
+    assert SERIES_TYPE_SPECS[SeriesType.FIT].needs_x_column is True
