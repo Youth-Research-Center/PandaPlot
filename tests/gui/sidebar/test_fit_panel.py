@@ -19,6 +19,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.fit.fit_panel import CUSTOM_SERIES_SENTINEL, FitPanel
+from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.project.items.chart import Chart, YAxis, restore_chart_state, snapshot_chart_state
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
@@ -937,6 +938,62 @@ def test_series_combo_gets_custom_sentinel_entry_when_chart_loaded(app_context):
     assert panel.series_combo.itemText(last_index) == "Custom..."
 
 
+def test_fit_panel_explains_unsupported_chart_and_disables_fit_controls(app_context):
+    chart = Chart(id="box-chart", name="box chart", chart_type="box")
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    project = Mock()
+    project.find_item.return_value = None
+    project.get_all_items.return_value = []
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+
+    assert panel.fit_availability_label.text() == "Curve fits aren't available for Box Plot charts. Use an XY chart instead."
+    assert panel.fit_availability_label.isHidden() is False
+    assert panel.fit_configuration_group.isEnabled() is False
+    assert panel.fit_button.isEnabled() is False
+    assert panel._perform_fit() is None
+
+
+def test_fit_panel_explains_series_without_x_column(app_context):
+    from pandaplot.models.chart.chart_type import ChartType
+
+    dataset = Dataset(id="values", name="values", data=pd.DataFrame({"value": [1.0, 2.0, 3.0]}))
+    chart = Chart(id="hist-chart", name="hist chart", chart_type=ChartType.HIST)
+    chart.add_data_series(dataset_id=dataset.id, y_column_id=dataset.column_id("value"))
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+
+    assert panel.fit_availability_label.text() == (
+        "This series has no X column for curve fitting. Select an XY series or choose Custom... with X and Y columns."
+    )
+    assert panel.fit_availability_label.isHidden() is False
+    assert panel.fit_configuration_group.isEnabled()
+    assert panel.fit_button.isEnabled() is False
+
+
+def test_fit_controls_reenable_for_fit_capable_chart(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+
+    chart.set_chart_type("box")
+    panel.load_chart_object(chart)
+    assert panel.fit_configuration_group.isEnabled() is False
+
+    chart.set_chart_type("scatter")
+    panel.load_chart_object(chart)
+    assert panel.fit_availability_label.isHidden()
+    assert panel.fit_configuration_group.isEnabled()
+
+
 def test_no_chart_leaves_series_combo_empty(app_context):
     panel = FitPanel(app_context)
     panel.app_context.app_state = Mock()
@@ -1137,6 +1194,27 @@ def test_perform_fit_discards_stale_result_after_chart_switch(app_context):
     # a context that's no longer current.
     assert panel.busy_spinner.is_running is False
     assert panel.fit_button.isEnabled() is True
+
+
+def test_perform_fit_completion_keeps_fit_disabled_after_switch_to_unsupported_chart(app_context):
+    """Regression test (PR review): an in-flight fit completing after the user
+    loads a chart without fit support must not re-enable the Fit button."""
+    panel, executed = _build_panel_ready_to_fit(app_context)
+
+    panel._perform_fit()
+    command = executed["command"]
+
+    panel.app_context.app_state.current_project.get_all_items = Mock(return_value=[])
+    panel.load_chart_object(Chart(id="box-chart", name="box chart", chart_type="box"))
+    assert panel.fit_button.isEnabled() is False
+
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.busy_spinner.is_running is False
+    assert panel.fit_button.isEnabled() is False
+    assert panel.fit_availability_label.isHidden() is False
 
 
 def test_perform_fit_success_path_populates_results_and_stops_spinner(app_context):
@@ -1444,41 +1522,6 @@ class TestFitPanelSeriesSelectedEvent:
         assert panel.fit_results is not None
 
 
-def test_perform_fit_completion_disables_apply_on_a_chart_type_that_does_not_allow_fits(app_context):
-    """Minor 4 (round-2 review): the Task-1 tests set panel.fit_results and
-    called _update_apply_enabled() directly, so they'd still pass even if
-    _perform_fit's on_complete callback never called it at all. Drive the
-    real completion path instead."""
-    dataset, chart = _make_dataset_and_chart_with_id_only_series()
-    chart.set_chart_type("scatter3d")
-
-    project = Mock()
-    project.find_item = Mock(return_value=dataset)
-
-    panel = FitPanel(app_context)
-    panel.app_context.app_state = Mock()
-    panel.app_context.app_state.current_project = project
-    panel.load_chart_object(chart)
-
-    executed = {}
-
-    def _capture_execute(command):
-        executed["command"] = command
-        return True
-
-    panel.app_context.get_command_executor.return_value.execute_command = _capture_execute
-
-    panel._perform_fit()
-    command = executed["command"]
-    command.result = _make_fake_fit_result()
-    command.fixed_parameters = None
-    command.on_complete(CommandResult.SUCCESS)
-
-    assert panel.fit_results is not None
-    assert panel.apply_button.isEnabled() is False
-    assert "3D Scatter" in panel.apply_button.toolTip()
-
-
 def test_apply_stays_disabled_with_a_tooltip_on_a_chart_type_that_does_not_allow_fits(app_context):
     dataset, chart = _make_dataset_and_chart_with_id_only_series()
     chart.set_chart_type("scatter3d")
@@ -1541,7 +1584,7 @@ def test_apply_goes_stale_after_a_live_type_switch_to_a_disallowed_type(app_cont
 
 def test_apply_goes_fresh_again_after_a_live_type_switch_back_to_an_allowed_type(app_context):
     """Reverse case of the above: switching back to an allowed type live
-    must re-enable Apply and clear the stale tooltip."""
+    must clear the stale tooltip and offer the chart's series again."""
     dataset, chart = _make_dataset_and_chart_with_id_only_series()
     chart.set_chart_type("colormap")
     project = Mock()
@@ -1559,7 +1602,10 @@ def test_apply_goes_fresh_again_after_a_live_type_switch_back_to_an_allowed_type
     chart.set_chart_type("line")
     panel._on_chart_updated({"chart_id": chart.id})
 
-    assert panel.apply_button.isEnabled() is True
+    # The series combo was empty on the disallowed type, so it reloads (which
+    # clears the stale result); Apply stays off until a new fit runs, but the
+    # "isn't available" tooltip is gone and the series are offered again.
+    assert panel.series_combo.count() > 0
     assert panel.apply_button.toolTip() == ""
 
 
@@ -1586,3 +1632,111 @@ def test_apply_fit_passes_the_fitted_series_y_axis(app_context):
     panel._apply_fit()
 
     assert executed["command"].y_axis == YAxis.SECONDARY
+
+
+def test_load_chart_object_offers_no_series_when_chart_type_disallows_fits(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+
+    panel.load_chart_object(chart)
+    assert panel.series_combo.count() > 1
+
+    chart.set_chart_type(ChartType.STACKED_BAR)
+    panel.load_chart_object(chart)
+
+    assert panel.current_chart is chart
+    assert panel.series_combo.count() == 0
+
+    chart.set_chart_type(ChartType.BAR)
+    panel.load_chart_object(chart)
+
+    assert panel.series_combo.count() > 1
+
+
+def _make_hist_panel(app_context):
+    from pandaplot.models.chart.chart_type import ChartType
+
+    dataset = Dataset(id="values", name="values", data=pd.DataFrame({"value": [1.0, 2.0, 3.0, 4.0, 5.0]}))
+    chart = Chart(id="hist-chart", name="hist chart", chart_type=ChartType.HIST)
+    chart.add_data_series(dataset_id=dataset.id, y_column_id=dataset.column_id("value"))
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+    project.get_all_items = Mock(return_value=[dataset])
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    return panel
+
+
+def test_custom_mode_with_incomplete_picks_does_not_show_no_x_column_reason(app_context):
+    """Regression test for #468: Custom... is a user-in-progress state, not a series without X."""
+    panel = _make_hist_panel(app_context)
+    assert panel.fit_availability_label.isHidden() is False
+
+    panel.series_combo.setCurrentIndex(panel.series_combo.findData(CUSTOM_SERIES_SENTINEL))
+    panel.custom_x_column_combo.setCurrentIndex(-1)
+
+    assert panel._resolve_selected_series() is None
+    assert panel._fit_unavailable_reason() is None
+    assert panel.fit_availability_label.isHidden() is True
+
+
+def test_fit_button_disabled_with_reason_tooltip_for_series_without_x_column(app_context):
+    """Regression test for #469: a series-level unavailable reason must not leave Fit clickable."""
+    panel = _make_hist_panel(app_context)
+
+    assert panel.fit_availability_label.isHidden() is False
+    assert panel.fit_button.isEnabled() is False
+    assert panel.fit_button.toolTip() == panel.fit_availability_label.text()
+
+
+def test_switching_to_unsupported_chart_clears_stale_points_and_range_warning(app_context):
+    """Regression test for #470: chart-level disallowance must clear the previous chart's readouts."""
+    panel, _executed = _build_panel_ready_to_fit(app_context)
+    assert panel.data_points_label.text() != "No data selected"
+    panel.range_warning_label.setVisible(True)
+
+    panel.app_context.app_state.current_project.get_all_items = Mock(return_value=[])
+    panel.load_chart_object(Chart(id="box-chart", name="box chart", chart_type="box"))
+
+    assert panel.data_points_label.text() == "No data selected"
+    assert panel.range_min_value_label.text() == "—"
+    assert panel.range_max_value_label.text() == "—"
+    assert panel.range_warning_label.isHidden() is True
+    assert panel.data_points_warning_icon.isHidden() is True
+
+
+def test_availability_label_uses_theme_warning_color(app_context):
+    app_context.get_manager.return_value.get_design_tokens.return_value = {
+        "font_size_group_title": 9,
+        "status_modified_text": "#123456",
+    }
+    panel = FitPanel(app_context)
+    panel._apply_theme()
+
+    assert "#123456" in panel.fit_availability_label.styleSheet()
+
+
+def test_panel_refresh_does_not_crash_when_series_dataset_has_no_data(app_context):
+    from pandaplot.models.chart.chart_type import ChartType
+
+    dataset = Dataset(id="empty", name="empty")
+    dataset.data = None  # the constructor normalizes None to an empty frame; this state arises later
+    chart = Chart(id="line-chart", name="line chart", chart_type=ChartType.LINE)
+    series = chart.add_data_series(dataset_id=dataset.id, y_column_id="y")
+    series.x_column = "x"  # legacy name-only reference, resolves without reading dataset.data
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+    project.get_all_items = Mock(return_value=[dataset])
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+
+    panel.load_chart_object(chart)
+
+    assert panel.fit_button.isEnabled() is False

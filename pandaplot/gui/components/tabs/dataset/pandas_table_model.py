@@ -22,6 +22,7 @@ from pandaplot.models.events.event_data import (
 from pandaplot.models.events.event_types import DatasetEvents, DatasetOperationEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.utils.datetime import parse_timestamp_or_nat
 from pandaplot.utils.pandas import convert_value
 
 
@@ -135,6 +136,25 @@ class PandasTableModel(QAbstractTableModel):
             self.app_context.event_bus.unsubscribe(event_type, handler)
         self._subscriptions.clear()
 
+    def column_dtype(self, column: int) -> Any:
+        """Return the current dtype, including changes after import/undo."""
+        return self._dataset.data.dtypes.iloc[column]
+
+    def _datetime_value(self, value: Any, dtype: Any) -> Any:
+        if value is None or (isinstance(value, str) and not value.strip()) or pd.isna(value):
+            return pd.NaT
+        timestamp = parse_timestamp_or_nat(value)
+        if pd.isna(timestamp):
+            raise ValueError(f"Invalid date/time value: {value!r}")
+        timezone = getattr(dtype, "tz", None)
+        if timezone is not None:
+            if timestamp.tzinfo is None:
+                return timestamp.tz_localize(timezone, ambiguous="raise", nonexistent="raise")
+            return timestamp.tz_convert(timezone)
+        if timestamp.tzinfo is not None:
+            raise ValueError("A timezone-aware value cannot be entered in a naive datetime column")
+        return timestamp
+
     def setData(self, index: QModelIndex, value: Any, role: int = Qt.ItemDataRole.EditRole) -> bool:
         """
         Set data for the given index.
@@ -157,11 +177,23 @@ class PandasTableModel(QAbstractTableModel):
         
         row = index.row()
         col = index.column()
-        converted_value = convert_value(value, self._dataset.data.dtypes.iloc[col])
+        dtype = self.column_dtype(col)
+        if pd.api.types.is_datetime64_any_dtype(dtype):
+            try:
+                converted_value = self._datetime_value(value, dtype)
+                # Validate the column's actual unit/range before dispatching
+                # an undoable mutation (e.g. datetime64[ns] has finite bounds).
+                pd.array([converted_value], dtype=dtype)
+            except (ValueError, TypeError, OverflowError):
+                return False
+            old_value = self._dataset.data.iloc[row, col]
+            if (pd.isna(old_value) and pd.isna(converted_value)) or old_value == converted_value:
+                return True
+        else:
+            converted_value = convert_value(value, dtype)
         #self._dataset.data.iloc[row, col] = converted_value
         editCommand = EditCommand(self.app_context, self._dataset.id, (row, col,), self._dataset.data.iloc[row, col], converted_value)
-        self.app_context.command_executor.execute_command(editCommand)
-        return True
+        return self.app_context.command_executor.execute_command(editCommand)
     
     def headerData(self, section: int, orientation: Qt.Orientation, 
                    role: int = Qt.ItemDataRole.DisplayRole) -> Any:

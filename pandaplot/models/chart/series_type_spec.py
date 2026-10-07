@@ -10,23 +10,27 @@ per-type render functions live in the GUI layer, in
 pandaplot/gui/components/tabs/chart/series_renderers/, keyed by the same
 SeriesType via SERIES_RENDERERS.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style import (
     Bar3DSeriesStyle,
     BarSeriesStyle,
+    BoxSeriesStyle,
     ColormapSeriesStyle,
+    DensitySeriesStyle,
     HeatmapSeriesStyle,
     HistSeriesStyle,
     Line3DSeriesStyle,
     LineSeriesStyle,
+    PieSeriesStyle,
     Scatter3DSeriesStyle,
     ScatterSeriesStyle,
     SeriesStyleBase,
     SurfaceSeriesStyle,
     TrisurfSeriesStyle,
+    Vector3DSeriesStyle,
     VectorSeriesStyle,
     WireframeSeriesStyle,
 )
@@ -88,13 +92,33 @@ class SeriesTypeSpec:
     supports_curve_analysis: bool
     # Whether this type's renderer can annotate each rendered point/bar with
     # its own numeric value (#125) -- a Line/Scatter point's Y value, or a
-    # Bar's height. True only for LINE/SCATTER/BAR: HIST's bars represent a
+    # Bar's height (a Stacked Bar segment's own height, not the running
+    # stack total). True only for LINE/SCATTER/BAR/STACKED_BAR: HIST's bars represent a
     # computed count matplotlib itself picks bin edges for (no single
     # "value" column to label from series data the way a Bar chart's height
     # already is one), VECTOR/COLORMAP/HEATMAP/every 3-D type have no single
     # scalar value per plotted element that a flat text label reads naturally.
     supports_value_labels: bool
     style_cls: type[SeriesStyleBase]
+    # Whether this type needs a THIRD secondary column (a vector's W
+    # component) on top of the U/V pair needs_secondary_columns already
+    # covers -- only True for VECTOR3D, whose arrows have a Z-axis
+    # component 2-D Vector's U/V pair has no equivalent of. Meaningless
+    # (and always False) unless needs_secondary_columns is also True.
+    needs_w_column: bool = False
+    # Whether each of this type's values is drawn ON TOP of the values every
+    # earlier series of the same type already placed at the same X (and on
+    # the same Y axis), rather than from zero -- only True for STACKED_BAR.
+    # It's the one cross-series rendering behavior: everything else that
+    # positions a value against the Y axis (error bars, the Axes tab's
+    # data-derived range) must offset by the same running stack the renderer
+    # does, so it reads this flag rather than testing the series type.
+    is_stacked: bool = field(default=False, kw_only=True)
+    # Whether this type takes an optional per-point text-label column (a
+    # pie's wedge/category names), picked on the Data tab via its own
+    # combo. Optional by definition: a blank label column never fails the
+    # series, it just renders unlabeled. Only True for PIE.
+    needs_label_column: bool = False
 
 
 SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
@@ -108,7 +132,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         style_cls=LineSeriesStyle,
     ),
     SeriesType.SCATTER: SeriesTypeSpec(
-        marker_mode="required", supports_line_style=False, supports_color=False, supports_fill=False,
+        marker_mode="required", supports_line_style=False, supports_color=False, supports_fill=True,
         supports_error_bars=True, needs_x_column=True, needs_secondary_columns=False,
         needs_z_column=False, supports_gridding=False,
         uses_color_scale=False, is_3d=False,
@@ -125,6 +149,18 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_value_labels=True,
         style_cls=BarSeriesStyle,
     ),
+    # Stacked Bar: the same styling surface as Bar (it reuses BarSeriesStyle
+    # unchanged), differing only in where each bar starts -- see is_stacked.
+    SeriesType.STACKED_BAR: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=False, supports_color=True, supports_fill=False,
+        supports_error_bars=True, needs_x_column=True, needs_secondary_columns=False,
+        needs_z_column=False, supports_gridding=False,
+        uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=True,
+        style_cls=BarSeriesStyle,
+        is_stacked=True,
+    ),
     SeriesType.HIST: SeriesTypeSpec(
         marker_mode="unsupported", supports_line_style=False, supports_color=True, supports_fill=False,
         supports_error_bars=False, needs_x_column=False, needs_secondary_columns=False,
@@ -133,6 +169,24 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_curve_analysis=False,
         supports_value_labels=False,
         style_cls=HistSeriesStyle,
+    ),
+    # Density: a KDE curve computed from one values column -- Hist's exact
+    # column shape (no X), drawn as a smooth line instead of binned bars.
+    # supports_curve_analysis is False for the same reason as Hist: the
+    # plotted (x, y) is a derived estimate, not the series' own data, so
+    # differentiating/integrating "it" would silently analyze something
+    # other than what the user picked. supports_fill means "can shade the
+    # area under the curve" -- Density's fill is its own two-field variant
+    # (DensitySeriesStyle), not FillStyleFields, so the Style tab shows its
+    # Density card rather than the generic Fill card for it.
+    SeriesType.DENSITY: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=True, supports_color=True, supports_fill=True,
+        supports_error_bars=False, needs_x_column=False, needs_secondary_columns=False,
+        needs_z_column=False, supports_gridding=False,
+        uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=DensitySeriesStyle,
     ),
     SeriesType.VECTOR: SeriesTypeSpec(
         marker_mode="unsupported", supports_line_style=False, supports_color=False, supports_fill=False,
@@ -160,6 +214,20 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_curve_analysis=False,
         supports_value_labels=False,
         style_cls=HeatmapSeriesStyle,
+    ),
+    # Pie: one wedge per row of the "values" column (y_column_id, the same
+    # role Hist uses), so no X. No flat color (wedges take the default
+    # color cycle -- see PieSeriesStyle), no curve to analyze, and its own
+    # show_percentages stands in for the generic value-labels system.
+    SeriesType.PIE: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=False, supports_color=False, supports_fill=False,
+        supports_error_bars=False, needs_x_column=False, needs_secondary_columns=False,
+        needs_z_column=False, supports_gridding=False,
+        uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=PieSeriesStyle,
+        needs_label_column=True,
     ),
     # -- 3-D types (is_3d=True) ------------------------------------------
     # None of these support error bars: mplot3d has no errorbar() at all.
@@ -229,5 +297,33 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_curve_analysis=False,
         supports_value_labels=False,
         style_cls=FitStyle,
+    ),
+    # Vector3D: a 3-D quiver plot. Z is the arrow's spatial tail position
+    # (needs_z_column, like every other 3-D type), and needs_secondary_
+    # columns + needs_w_column together require the U/V/W components that
+    # make up the arrow itself -- the 3-D analogue of Vector's U/V pair.
+    SeriesType.VECTOR3D: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=False, supports_color=False, supports_fill=False,
+        supports_error_bars=False, needs_x_column=True, needs_secondary_columns=True,
+        needs_z_column=True, supports_gridding=False,
+        uses_color_scale=False, is_3d=True,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=Vector3DSeriesStyle,
+        needs_w_column=True,
+    ),
+    # Box: like HIST, a single "values" column (resolved into y_data) with
+    # no X -- each series is one box, positioned among its sibling box
+    # series by the renderer rather than by any column. No error bars:
+    # boxplot's whiskers/outliers ARE its spread display, and the generic
+    # errorbar() pass would draw a second, unrelated spread on top.
+    SeriesType.BOX: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=False, supports_color=True, supports_fill=False,
+        supports_error_bars=False, needs_x_column=False, needs_secondary_columns=False,
+        needs_z_column=False, supports_gridding=False,
+        uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=BoxSeriesStyle,
     ),
 }

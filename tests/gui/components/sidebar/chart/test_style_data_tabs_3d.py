@@ -199,3 +199,98 @@ def test_adding_a_series_to_a_3d_chart_carries_the_picked_z_column():
     series = chart.data_series[0]
     assert series.series_type == SeriesType.SCATTER3D
     assert series.style.z_column_id == dataset.column_id("z")
+
+
+# -- Vector3D (#175) ---------------------------------------------------------
+# Not folded into _3D_SERIES_TYPES above: it's the only 3-D type that ALSO
+# needs U/V/W (needs_secondary_columns + needs_w_column), so it gets its
+# own dataset (with u/v/w columns) rather than retrofitting the shared one.
+
+def _app_context_with_vector3d_project():
+    from pandaplot.app import build_app_context
+    app_context = build_app_context()
+    project = Project(name="Vector3D Test Project")
+    df = pd.DataFrame({
+        "x": [0, 1], "y": [0, 1], "z": [10.0, 20.0],
+        "u": [1.0, 0.5], "v": [0.5, -1.0], "w": [0.2, -0.3],
+    })
+    dataset = Dataset(name="ds1", data=df)
+    project.add_item(dataset)
+    app_context.app_state.load_project(project)
+    return app_context, project, dataset
+
+
+def test_the_data_tab_offers_u_v_w_and_z_for_a_vector3d_series():
+    app_context, project, dataset = _app_context_with_vector3d_project()
+    chart = Chart(name="Vector3D Chart", chart_type=ChartType.VECTOR3D)
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        series_type=SeriesType.VECTOR3D,
+        style=build_series_style(
+            SeriesType.VECTOR3D, z_column_id=dataset.column_id("z"),
+            u_column_id=dataset.column_id("u"), v_column_id=dataset.column_id("v"),
+            w_column_id=dataset.column_id("w"),
+        ))
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.show()
+    tab.set_project(project)
+    tab.load(chart)
+    QApplication.processEvents()
+
+    assert tab.z_column_combo.isVisible() is True
+    assert tab.z_column_combo.currentData() == dataset.column_id("z")
+    assert tab.u_column_combo.isVisible() is True
+    assert tab.u_column_combo.currentData() == dataset.column_id("u")
+    assert tab.v_column_combo.isVisible() is True
+    assert tab.v_column_combo.currentData() == dataset.column_id("v")
+    assert tab.w_column_combo.isVisible() is True
+    assert tab.w_column_combo.currentData() == dataset.column_id("w")
+    # The optional Color-by combo is offered for a 3-D quiver too.
+    assert tab.magnitude_column_combo.isVisible() is True
+
+
+def test_w_column_is_hidden_for_a_2d_vector_series():
+    app_context, project, dataset = _app_context_with_vector3d_project()
+    chart = Chart(name="Vector Chart", chart_type=ChartType.VECTOR)
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        series_type=SeriesType.VECTOR,
+        style=build_series_style(SeriesType.VECTOR, u_column_id=dataset.column_id("u"),
+                                  v_column_id=dataset.column_id("v")))
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.show()
+    tab.set_project(project)
+    tab.load(chart)
+    QApplication.processEvents()
+
+    assert tab.u_column_combo.isVisible() is True
+    assert tab.w_column_combo.isVisible() is False
+    assert tab.magnitude_column_combo.isVisible() is True
+
+
+def test_adding_a_series_to_a_vector3d_chart_carries_the_picked_u_v_w_z_columns():
+    app_context, project, dataset = _app_context_with_vector3d_project()
+    chart = Chart(name="Vector3D Chart", chart_type=ChartType.VECTOR3D)
+    project.add_item(chart)
+
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    tab.load(chart)
+    tab._on_dataset_changed()
+    tab.z_column_combo.setCurrentIndex(tab.z_column_combo.findData(dataset.column_id("z")))
+    tab.u_column_combo.setCurrentIndex(tab.u_column_combo.findData(dataset.column_id("u")))
+    tab.v_column_combo.setCurrentIndex(tab.v_column_combo.findData(dataset.column_id("v")))
+    tab.w_column_combo.setCurrentIndex(tab.w_column_combo.findData(dataset.column_id("w")))
+    tab.apply_to(chart)
+
+    assert len(chart.data_series) == 1
+    series = chart.data_series[0]
+    assert series.series_type == SeriesType.VECTOR3D
+    assert series.style.z_column_id == dataset.column_id("z")
+    assert series.style.u_column_id == dataset.column_id("u")
+    assert series.style.v_column_id == dataset.column_id("v")
+    assert series.style.w_column_id == dataset.column_id("w")

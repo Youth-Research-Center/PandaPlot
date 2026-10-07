@@ -48,7 +48,7 @@ Datasets are the primary data source for charts and analyses.
 
 ```
 Chart
-├── chart_type: ChartType       # LINE, SCATTER, BAR, HIST, VECTOR, COLORMAP, HEATMAP, 3-D types
+├── chart_type: ChartType       # LINE, SCATTER, BAR, STACKED_BAR, HIST, DENSITY, VECTOR, COLORMAP, HEATMAP, PIE, SCATTER3D, LINE3D, SURFACE, WIREFRAME, BAR3D, TRISURF, VECTOR3D, BOX
 ├── config: ChartConfiguration  # title, axis labels, legend, grid
 └── data_series: list[DataSeries]  # Plot order = z-order; fits are FIT-type entries in this list
 

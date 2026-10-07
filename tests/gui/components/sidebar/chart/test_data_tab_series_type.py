@@ -232,7 +232,8 @@ def test_add_series_works_on_a_vector_chart_when_a_line_series_is_selected():
     """Regression test: reported live as "+Add series doesn't work when
     chart is vector and series is line." Root cause: a Line series (which
     Vector's spec allows) doesn't need U/V, so its own U/V combos are
-    legitimately hidden and blank (_selected_series_is_vector() is False)
+    legitimately hidden and blank (_selected_series_needs_secondary_columns()
+    is False)
     -- but _add_series used to REQUIRE those same combos to be non-empty
     before creating a new (Vector-typed, chart-default) series, so the
     click silently did nothing. It must create the series anyway, even
@@ -277,9 +278,10 @@ def test_uv_fields_appear_right_after_x_and_y_in_the_form():
     y_row = _row_of(tab.y_column_combo)
     u_row = _row_of(tab.u_column_combo)
     v_row = _row_of(tab.v_column_combo)
+    w_row = _row_of(tab.w_column_combo)
     x_error_row = _row_of(tab.x_error_column_combo)
 
-    assert x_row < y_row < u_row < v_row < x_error_row
+    assert x_row < y_row < u_row < v_row < w_row < x_error_row
 
 
 def test_enabling_asymmetric_error_bars_defaults_minus_columns_to_the_plus_columns():

@@ -163,6 +163,46 @@ def test_line_chart_with_fill_to_index_fills_between_the_two_curves():
     assert max_y >= 19  # reaches up toward series 2's y-values
 
 
+def test_line_chart_with_fill_range_restricts_fill_to_the_x_subrange():
+    """#280: fill_range_enabled/start/end should mask the fill to just the
+    points start..end (0-based, inclusive), not the whole series."""
+    _qapp()
+    project, dataset = _project_and_dataset()  # x: 1..5
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        style=LineSeriesStyle(color="#123456", fill_enabled=True,
+                               fill_range_enabled=True, fill_range_start=1, fill_range_end=3),
+    )
+
+    editor = _editor_for(project, chart)
+
+    fills = editor.chart_canvas.axes.collections
+    assert len(fills) == 1
+    vertices = fills[0].get_paths()[0].vertices
+    assert vertices[:, 0].min() >= 2
+    assert vertices[:, 0].max() <= 4
+
+
+def test_line_chart_with_fill_range_disabled_fills_the_whole_series():
+    """Sanity check: fill_range_start/end are ignored unless fill_range_enabled
+    is set, so an untouched (default) LineSeriesStyle still fills fully."""
+    _qapp()
+    project, dataset = _project_and_dataset()  # x: 1..5
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        style=LineSeriesStyle(color="#123456", fill_enabled=True,
+                               fill_range_start=1, fill_range_end=3),
+    )
+
+    editor = _editor_for(project, chart)
+
+    vertices = editor.chart_canvas.axes.collections[0].get_paths()[0].vertices
+    assert vertices[:, 0].min() <= 1
+    assert vertices[:, 0].max() >= 5
+
+
 def test_switching_chart_type_after_creation_still_renders():
     """Regression test: changing an existing chart's type via
     Chart.set_chart_type must not leave any series' .style mismatched
@@ -266,3 +306,81 @@ def test_error_bars_are_drawn_behind_the_series_not_on_top_of_it():
         "error-bar cap lines must be added to the axes BEFORE the series' "
         "own line, so they draw underneath it"
     )
+
+
+def test_scatter_chart_with_fill_draws_markers_and_a_fill_under_them():
+    """Scatter supports the shared area fill; the fill is drawn beneath the markers."""
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = Chart(name="Scatter Chart", chart_type="scatter")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        style=ScatterSeriesStyle(color="#123456", fill_enabled=True),
+    )
+
+    editor = _editor_for(project, chart)
+
+    collections = editor.chart_canvas.axes.collections
+    assert len(collections) == 2
+    fill, markers = collections
+    assert fill.get_paths()[0].vertices[:, 0].min() <= 1
+    assert fill.get_paths()[0].vertices[:, 0].max() >= 5
+    assert markers.get_offsets().shape[0] == 5
+
+
+def test_scatter_fill_of_unsorted_points_is_ordered_along_x():
+    """fill_between joins points in the order given, so unsorted scatter data
+    must be sorted first or the polygon zig-zags back on itself."""
+    _qapp()
+    project = Project(name="Unsorted")
+    dataset = Dataset(name="ds1", data=pd.DataFrame({"x": [3, 1, 5, 2, 4], "y": [1, 2, 3, 4, 5]}))
+    project.add_item(dataset)
+    chart = Chart(name="Scatter Chart", chart_type="scatter")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        style=ScatterSeriesStyle(fill_enabled=True),
+    )
+
+    editor = _editor_for(project, chart)
+
+    vertices = editor.chart_canvas.axes.collections[0].get_paths()[0].vertices
+    top_edge = vertices[1:6, 0]  # after the baseline start vertex, the sorted upper edge
+    assert list(top_edge) == sorted(top_edge)
+
+
+def test_scatter_fill_range_selects_data_points_by_row():
+    """Range bounds are data-point rows (0-based, inclusive), matching the dataset row
+    order -- not x values -- so rows 1..3 of x=[3,1,5,2,4] are x=1, 5, 2."""
+    _qapp()
+    project = Project(name="Unsorted")
+    dataset = Dataset(name="ds1", data=pd.DataFrame({"x": [3, 1, 5, 2, 4], "y": [1, 2, 3, 4, 5]}))
+    project.add_item(dataset)
+    chart = Chart(name="Scatter Chart", chart_type="scatter")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        style=ScatterSeriesStyle(fill_enabled=True, fill_range_enabled=True, fill_range_start=1, fill_range_end=3),
+    )
+
+    editor = _editor_for(project, chart)
+
+    paths = editor.chart_canvas.axes.collections[0].get_paths()
+    xs = {v for path in paths for v in path.vertices[:, 0]}
+    assert 3 not in xs
+    assert 4 not in xs
+    assert {1, 2}.issubset(xs)
+
+
+def test_fill_range_end_beyond_the_data_is_clamped():
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = Chart(name="Line Chart", chart_type="line")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        style=LineSeriesStyle(fill_enabled=True, fill_range_enabled=True, fill_range_start=2, fill_range_end=99),
+    )
+
+    editor = _editor_for(project, chart)
+
+    vertices = editor.chart_canvas.axes.collections[0].get_paths()[0].vertices
+    assert vertices[:, 0].min() >= 3
+    assert vertices[:, 0].max() >= 5

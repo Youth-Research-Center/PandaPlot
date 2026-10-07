@@ -4,6 +4,8 @@ from contextlib import contextmanager
 from typing import override
 
 import numpy as np
+from matplotlib.collections import PolyCollection
+from matplotlib.legend_handler import HandlerTuple
 from matplotlib.ticker import (
     AutoLocator,
     AutoMinorLocator,
@@ -40,9 +42,14 @@ from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS,
     SERIES_RENDERERS_REPORTING_NO_DATA,
 )
+from pandaplot.gui.components.tabs.chart.series_renderers.box import BOX_POSITIONS_KEY, apply_box_ticks, box_numeric_values
+from pandaplot.gui.components.tabs.chart.series_renderers.density import compute_density_curve
+from pandaplot.gui.components.tabs.chart.series_renderers.hist import finite_numeric_values
+from pandaplot.gui.components.tabs.chart.series_renderers.stacked_bar import BarStack, place_on_stack
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
+from pandaplot.models.chart.series_style import DensitySeriesStyle, LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ChartEvents, ConfigEvents
@@ -280,7 +287,11 @@ def build_legend(
     `font_family`. Matplotlib silently ignores a `fontsize=` kwarg whenever
     `prop=` is also passed -- the legend text falls back to
     rcParams["legend.fontsize"] regardless of what's configured, unless the
-    size is merged into `prop` itself, as done here."""
+    size is merged into `prop` itself, as done here.
+
+    `handler_map` maps `tuple` handles to `HandlerTuple` so a
+    (fill_artist, line_handle) pair built for a filled/area series (#278)
+    draws as one combined patch+line swatch instead of erroring."""
     return axes.legend(
         handles, labels,
         facecolor=bg_color,
@@ -288,6 +299,7 @@ def build_legend(
         ncol=columns,
         framealpha=bg_alpha,
         prop={"family": font_family, "size": font_size},
+        handler_map={tuple: HandlerTuple(ndivide=None)},
         **placement_kwargs,
     )
 
@@ -358,9 +370,12 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     Error columns are resolved leniently since optional (see
     _resolve_error_column); x_err_minus/y_err_minus only matter when
     error_bars.error_symmetric is False. Secondary columns (u_data/v_data
-    required, magnitude_data optional) and the Colormap/Heatmap Z column
-    are resolved the same way, but required ones error out the whole
-    series when unresolvable.
+    required, w_data required only for Vector3D, magnitude_data optional
+    and only for 2-D Vector) and the Z column (a color channel for
+    Colormap/Heatmap, the third spatial axis for every 3-D type including
+    Vector3D) are resolved the same way, but required ones error out the
+    whole series when unresolvable. A pie's optional wedge-label column
+    (label_data) is resolved leniently, like magnitude.
 
     A series carrying precomputed_x_data/precomputed_y_data (SeriesType.FIT)
     short-circuits immediately to that snapshot, without touching `project`
@@ -411,8 +426,9 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     x_err_minus = _resolve_error_column(df, resolve_series_column(dataset, error_bars.x_error_minus_column_id, error_bars.x_error_minus_column))
     y_err_minus = _resolve_error_column(df, resolve_series_column(dataset, error_bars.y_error_minus_column_id, error_bars.y_error_minus_column))
 
-    u_data = v_data = magnitude_data = None
-    if SERIES_TYPE_SPECS[SeriesType(chart_type) if chart_type else series.series_type].needs_secondary_columns:
+    spec = SERIES_TYPE_SPECS[SeriesType(chart_type) if chart_type else series.series_type]
+    u_data = v_data = w_data = magnitude_data = None
+    if spec.needs_secondary_columns:
         u_column = resolve_series_column(dataset, series.style.u_column_id, series.style.u_column)
         v_column = resolve_series_column(dataset, series.style.v_column_id, series.style.v_column)
         if not u_column or not v_column:
@@ -423,12 +439,27 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
             return SeriesData(None, None, None, None, None, None, f"column {cols} not found in '{dataset.name}'")
         u_data = df[u_column]
         v_data = df[v_column]
-        magnitude_column = resolve_series_column(dataset, series.style.magnitude_column_id, series.style.magnitude_column)
-        if magnitude_column and magnitude_column in df.columns:
-            magnitude_data = df[magnitude_column]
+        # A 3-D vector's arrow has a third (W) component -- only
+        # Vector3DSeriesStyle declares w_column_id, so this is a no-op for
+        # the 2-D Vector type.
+        if spec.needs_w_column:
+            w_column = resolve_series_column(dataset, series.style.w_column_id, series.style.w_column)
+            if not w_column:
+                return SeriesData(None, None, None, None, None, None, "no W column configured")
+            if w_column not in df.columns:
+                return SeriesData(None, None, None, None, None, None, f"W column '{w_column}' not found")
+            w_data = df[w_column]
+        # Magnitude-driven coloring is a 2-D Vector-only feature (see
+        # Vector3DSeriesStyle's docstring) -- guarded by hasattr rather than
+        # a spec flag since needs_secondary_columns alone no longer implies
+        # a magnitude field exists.
+        if hasattr(series.style, "magnitude_column_id"):
+            magnitude_column = resolve_series_column(dataset, series.style.magnitude_column_id, series.style.magnitude_column)
+            if magnitude_column and magnitude_column in df.columns:
+                magnitude_data = df[magnitude_column]
 
     z_data = None
-    if SERIES_TYPE_SPECS[SeriesType(chart_type) if chart_type else series.series_type].needs_z_column:
+    if spec.needs_z_column:
         z_column = resolve_series_column(dataset, series.style.z_column_id, series.style.z_column)
         if not z_column:
             return SeriesData(None, None, None, None, None, None, "no Z column configured")
@@ -436,11 +467,21 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
             return SeriesData(None, None, None, None, None, None, f"Z column '{z_column}' not found")
         z_data = df[z_column]
 
+    # Optional, like magnitude: a blank or stale label column just leaves
+    # the pie's wedges unlabeled rather than failing the series.
+    label_data = None
+    if spec.needs_label_column:
+        label_column = resolve_series_column(dataset, series.style.label_column_id, series.style.label_column)
+        if label_column and label_column in df.columns:
+            label_data = df[label_column]
+
     return SeriesData(x_data, df[y_column], x_err, y_err, x_err_minus, y_err_minus, None,
-                      u_data=u_data, v_data=v_data, magnitude_data=magnitude_data, z_data=z_data)
+                      u_data=u_data, v_data=v_data, w_data=w_data, magnitude_data=magnitude_data, z_data=z_data,
+                      label_data=label_data)
 
 
-def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False) -> tuple[float, float] | None:
+def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False,
+                            hist_density_bins: int | None = None) -> tuple[float, float] | None:
     """Compute (min, max) across every series plotted against the given
     axis (`prefix` in "x", "y", "y2", "z"). All series contribute to "x"
     and to "z" (a 3-D chart has no secondary anything to filter by);
@@ -451,15 +492,26 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
 
     Each series' own `series_type` (not a chart-wide type) governs whether
     it needs an x-column, so mixed-type charts do not apply one series'
-    column requirements to another.
+    column requirements to another. A stacked series (SeriesTypeSpec.
+    is_stacked) contributes the tops of its stacked bars to "y"/"y2", not
+    its raw values.
 
     `positive_only` should be True for a Log-scaled axis: matplotlib's
     autoscale silently ignores non-positive values on a log axis, and this
     matches that behavior instead of letting them leak into the Range card
-    or set_xlim/set_ylim."""
+    or set_xlim/set_ylim.
+
+    A Density series spans its KDE grid on X and the estimated density on Y
+    (the renderer's own coordinates, not the raw column). `hist_density_bins`
+    is the chart's bin count when Hist series are drawn normalized (a Density
+    chart): they then span their values on X and 0..peak bar height on Y."""
     from pandaplot.models.project.items.chart import YAxis
 
     ranges: list[tuple[float, float]] = []
+    # Only ever one axis' series reach the stacking below ("y" and "y2" are
+    # filtered apart above), so one stack covers them all.
+    bar_stack: BarStack = {}
+    box_count = 0
     for series in data_series:
         if prefix in ("y", "y2"):
             wants_secondary = prefix == "y2"
@@ -468,16 +520,51 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
         data = resolve_series_data(project, series)
         if data.error:
             continue
-        arr = {"x": data.x_data, "z": data.z_data}.get(prefix, data.y_data)
-        if arr is None:
-            continue
-        values = np.asarray(arr, dtype=float)
-        values = values[np.isfinite(values)]
+        if series.series_type == SeriesType.BOX:
+            # Boxes have no x_data: they sit on numbered slots (see
+            # render_box_series), so X spans the slots and y is the numeric
+            # values the renderer itself would plot.
+            if prefix == "x":
+                box_count += 1 if box_numeric_values(data.y_data).size else 0
+                continue
+            values = box_numeric_values(data.y_data)
+        elif series.series_type == SeriesType.DENSITY:
+            curve = compute_density_curve(data.y_data, series.style.bandwidth)
+            if curve is None:
+                continue
+            values = curve[0] if prefix == "x" else curve[1]
+            if prefix != "x" and series.style.fill_enabled:
+                # The fill is drawn down to y=0, so the range must reach it
+                # (a log axis drops it again via `positive_only` below).
+                values = np.append(values, 0.0)
+        elif series.series_type == SeriesType.HIST and hist_density_bins is not None:
+            sample = finite_numeric_values(data.y_data)
+            if sample.size == 0:
+                continue
+            # np.histogram widens the bin range of a constant sample, so the
+            # edges (not the raw values) are what the bars actually span.
+            heights, edges = np.histogram(sample, bins=hist_density_bins, density=True)
+            values = edges if prefix == "x" else np.array([0.0, heights.max()])
+        else:
+            arr = {"x": data.x_data, "z": data.z_data}.get(prefix, data.y_data)
+            if arr is None:
+                continue
+            if prefix in ("y", "y2") and SERIES_TYPE_SPECS[series.series_type].is_stacked:
+                # A stacked series reaches up to the top of its stack, not just
+                # its own values -- stacked in the same order update_chart draws
+                # them, so the range matches what's actually on screen.
+                arr = place_on_stack(data.x_data, data.y_data, bar_stack) + np.asarray(data.y_data, dtype=float)
+            values = np.asarray(arr, dtype=float)
+            values = values[np.isfinite(values)]
         if positive_only:
             values = values[values > 0]
         if values.size:
             ranges.append((float(values.min()), float(values.max())))
 
+    if box_count:
+        # Slots 1..box_count, half a slot of margin either side (matplotlib's
+        # own boxplot default), which also fits any box_width up to 1.
+        ranges.append((0.5, box_count + 0.5))
     if not ranges:
         return None
     return (min(r[0] for r in ranges), max(r[1] for r in ranges))
@@ -823,12 +910,15 @@ class ChartEditorWidget(PWidget):
         return np.interp(np.asarray(query, dtype=float), xp[order], fp[order])
 
     def _resolve_z_label(self, project, series) -> str:
-        """Current display name of a series' Z (color) column, for the
-        default colorbar label. Empty when it can't be resolved (missing
+        """Current display name of a series' color column (Z, or the
+        magnitude column for a Vector/Vector3D series), for the default
+        colorbar label. Empty when it can't be resolved (missing
         dataset/column) so the colorbar just goes unlabeled rather than
         erroring."""
         from pandaplot.models.project.items.chart import resolve_series_column
         dataset = project.find_item(series.dataset_id) if project else None
+        if hasattr(series.style, "magnitude_column_id"):
+            return resolve_series_column(dataset, series.style.magnitude_column_id, series.style.magnitude_column) or ""
         return resolve_series_column(dataset, series.style.z_column_id, series.style.z_column) or ""
 
     def update_chart(self):
@@ -858,11 +948,22 @@ class ChartEditorWidget(PWidget):
             # axes.clear() below (a 2-D <-> 3-D switch replaces the axes
             # object outright, so clearing the outgoing one is pointless).
             is_3d = CHART_TYPE_SPECS[self.chart.chart_type].is_3d
+            # False for a Pie chart: no axis scale/ticks/limits/grid at all
+            # (see ChartTypeSpec.has_axes). Title, subtitle and legend are
+            # figure-level and still apply.
+            has_axes = CHART_TYPE_SPECS[self.chart.chart_type].has_axes
             self.chart_canvas.set_projection(projection_3d=is_3d)
 
             # Clear the current plot and artist-to-series mapping
             self.chart_canvas.axes.clear()
             self._artist_series_map.clear()
+            if not is_3d:
+                # Axes.pie() turns the frame off and locks an equal aspect,
+                # and clear() undoes neither -- without this, an emptied Pie
+                # chart switched to an (x, y) type would keep a frameless,
+                # square plot area.
+                self.chart_canvas.axes.set_frame_on(True)
+                self.chart_canvas.axes.set_aspect("auto")
 
             # Reset the main axes to a fresh full-figure 1x1 gridspec. A colorbar's
             # default use_gridspec=True *subdivides* the gridspec, and that
@@ -891,7 +992,7 @@ class ChartEditorWidget(PWidget):
             # twinx() has no mplot3d equivalent, and a series' y_axis
             # setting simply doesn't apply there (set_projection already
             # tore down any axes2 left over from a 2-D type).
-            needs_secondary = not is_3d and any(
+            needs_secondary = not is_3d and has_axes and any(
                 series.y_axis == "secondary" for series in self.chart.data_series)
             if needs_secondary:
                 if self.chart_canvas.axes2 is None:
@@ -906,6 +1007,11 @@ class ChartEditorWidget(PWidget):
             series_errors = []
             colorbar_mappable = None
             colorbar_label = ""
+            # Shared by every Box series in this render pass so each can
+            # find its own X slot among its siblings (see series_renderers/
+            # box.py). Rebuilt per update_chart() call, never kept on self:
+            # a stale list would push every re-render's boxes further right.
+            box_positions: list[tuple[int, str]] = []
             if not self.chart.data_series:
                 self.dataset_label.setText("No Data Loaded")
             else:
@@ -944,11 +1050,19 @@ class ChartEditorWidget(PWidget):
                     vmax=self.chart.config.color_vmax,
                 )
 
+                # Stacked Bar series build on each other, so the running stack
+                # height has to outlive any one series' render -- but not this
+                # render pass, or every refresh would stack on the last one.
+                # One stack per axes: a series on the secondary Y axis has its
+                # own scale, so it must not start where a primary one ended.
+                bar_stacks: dict[object, BarStack] = {}
+
                 for i, (series, series_data) in enumerate(zip(self.chart.data_series, resolved_data, strict=True)):
                     # Route this series to its configured Y axis
                     target_axes = (self.chart_canvas.axes2
                                    if series.y_axis == "secondary" and self.chart_canvas.axes2 is not None
                                    else self.chart_canvas.axes)
+                    bar_stack = bar_stacks.setdefault(target_axes, {})
 
                     x_data = series_data.x_data
                     y_data = series_data.y_data
@@ -978,8 +1092,14 @@ class ChartEditorWidget(PWidget):
                             yerr = build_error_array(y_err, y_err_minus, error_bars.error_direction, error_bars.error_symmetric)
                             if xerr is not None or yerr is not None:
                                 err_color = error_bars.error_color or getattr(style, "color", "#1f77b4")
+                                err_y = y_data
+                                if SERIES_TYPE_SPECS[series_type].is_stacked:
+                                    # Anchor each error bar at the top of its stacked
+                                    # segment, not at its raw height. Placed on a copy:
+                                    # the renderer below advances the real stack.
+                                    err_y = place_on_stack(x_data, y_data, dict(bar_stack)) + np.asarray(y_data, dtype=float)
                                 target_axes.errorbar(
-                                    x_data, y_data,
+                                    x_data, err_y,
                                     xerr=xerr,
                                     yerr=yerr,
                                     fmt="none",
@@ -994,6 +1114,7 @@ class ChartEditorWidget(PWidget):
                             visible=series.visible,
                             extra={
                                 "bins": self.chart.config.hist_bins,
+                                "hist_density": CHART_TYPE_SPECS[self.chart.chart_type].hist_density,
                                 "resolve_fill_baseline": (
                                     lambda query, *, horizontal, _i=i, _style=style: self._resolve_fill_baseline(
                                         project, _i, _style.fill_base, _style.fill_to_index, query,
@@ -1001,14 +1122,19 @@ class ChartEditorWidget(PWidget):
                                 ),
                                 "colormap": self.chart.config.colormap,
                                 "color_limits": color_limits,
+                                "stack_bottoms": bar_stack,
+                                BOX_POSITIONS_KEY: box_positions,
                             },
                         )
 
                     if mappable is None and series_type in SERIES_RENDERERS_REPORTING_NO_DATA:
                         series_errors.append(f"{series.label or f'Series {i + 1}'}: no plottable data")
                         continue
+                    # A Vector/Vector3D renderer only returns a mappable when
+                    # its arrows are colored by magnitude; that gets a
+                    # colorbar too, though the type isn't on the shared scale.
                     if (mappable is not None and colorbar_mappable is None
-                            and SERIES_TYPE_SPECS[series_type].uses_color_scale
+                            and (SERIES_TYPE_SPECS[series_type].uses_color_scale or hasattr(style, "magnitude_column_id"))
                             and self.chart.config.colorbar_show):
                         colorbar_mappable = mappable
                         # None means "not customized" -- fall back to the Z
@@ -1124,8 +1250,8 @@ class ChartEditorWidget(PWidget):
                 fontstyle="italic" if config.y.title_italic else "normal",
                 rotation=config.y.label_rotation,
             )
-            x_scale = config.x.scale
-            y_scale = config.y.scale
+            x_scale = config.x.scale if has_axes else "linear"
+            y_scale = config.y.scale if has_axes else "linear"
             self.chart_canvas.axes.set_xscale(x_scale, **resolve_scale_kwargs(x_scale, config.x.log_base))
             self.chart_canvas.axes.set_yscale(y_scale, **resolve_scale_kwargs(y_scale, config.y.log_base))
             self.chart_canvas.axes.xaxis.label.set_size(config.x.font_size)
@@ -1224,9 +1350,12 @@ class ChartEditorWidget(PWidget):
                 else:
                     self.chart_canvas.axes2.grid(visible=False, axis="y", which="minor")
 
-            if not config.x.auto_limits:
+            # A pie sizes its own limits to the circle; a stored manual range
+            # (never editable for one -- the Axes tab hides itself) would
+            # only crop or squash it.
+            if has_axes and not config.x.auto_limits:
                 self.chart_canvas.axes.set_xlim(config.x.min, config.x.max)
-            if not config.y.auto_limits:
+            if has_axes and not config.y.auto_limits:
                 self.chart_canvas.axes.set_ylim(config.y.min, config.y.max)
             if is_3d and not config.z.auto_limits:
                 self.chart_canvas.axes.set_zlim(config.z.min, config.z.max)
@@ -1242,6 +1371,13 @@ class ChartEditorWidget(PWidget):
                 major_color=config.x.major_tick_color,
                 minor_color=config.x.minor_tick_color,
                 labelcolor=config.x.tick_label_color)
+            if box_positions:
+                # apply_axis_ticks just swapped in a numeric locator/
+                # formatter, which would replace each box's named tick with
+                # bare 0.5-step numbers -- the boxes' X positions mean
+                # nothing numerically. Restored before apply_tick_label_font
+                # so the configured tick font still reaches these labels.
+                apply_box_ticks(self.chart_canvas.axes, box_positions)
             apply_tick_label_font(
                 self.chart_canvas.axes.xaxis,
                 config.x.tick_label_font_size,
@@ -1349,6 +1485,17 @@ class ChartEditorWidget(PWidget):
                 else:
                     self.chart_canvas.axes.grid(visible=False, axis="y", which="minor")
 
+            if has_axes:
+                self.chart_canvas.axes.set_axis_on()
+            else:
+                # Rather than skipping the X/Y configuration above piece by
+                # piece, let it run and then hide every axis artist at once:
+                # set_axis_off() drops ticks, tick labels, axis labels,
+                # spines and gridlines from the draw, but not the title or
+                # the legend, which a pie still uses. axes.clear() resets
+                # it, but set_axis_on() above keeps that explicit.
+                self.chart_canvas.axes.set_axis_off()
+
             legend = None
             placement_kwargs = {}
             if config.show_legend and self.chart.data_series:
@@ -1359,6 +1506,7 @@ class ChartEditorWidget(PWidget):
                     handles2, labels2 = self.chart_canvas.axes2.get_legend_handles_labels()
                     handles += handles2
                     labels += labels2
+                handles = self._add_fill_legend_swatches(handles)
                 # Skip drawing the legend when there are no handles to show
                 # (e.g. a chart with only an unlabeled Heatmap series, or any
                 # chart where nothing has a label) -- matplotlib would
@@ -1478,6 +1626,45 @@ class ChartEditorWidget(PWidget):
                 series_idx = self._resolve_series_index_for_handle(part)
                 if series_idx is not None:
                     return series_idx
+        return None
+
+    def _add_fill_legend_swatches(self, handles: list) -> list:
+        """For a filled/area line series (`style.fill_enabled`), pair its
+        line handle with the actual `fill_between`/`fill_betweenx`
+        PolyCollection artist tracked for it in `_artist_series_map`, so the
+        legend swatch shows the filled area's color/alpha instead of just
+        the line (#278). `build_legend`'s `handler_map` draws such a tuple
+        as one combined patch+line key. Series without an enabled fill, or
+        whose fill artist can't be found, pass through unchanged."""
+        augmented = []
+        for handle in handles:
+            series_idx = self._resolve_series_index_for_handle(handle)
+            style = self._line_style_for_data_series_index(series_idx)
+            fill_artist = self._find_fill_artist_for_series(series_idx) if style is not None and style.fill_enabled else None
+            # Line first, fill second -- same z-order render_line_series
+            # draws them in (plot() then fill_between(x)), so the swatch
+            # matches the actual chart appearance.
+            augmented.append((handle, fill_artist) if fill_artist is not None else handle)
+        return augmented
+
+    def _line_style_for_data_series_index(self, series_idx):
+        """The line-with-optional-fill style (`LineSeriesStyle`, or a
+        Density curve's `DensitySeriesStyle`) for
+        `chart.data_series[series_idx]`, or None when `series_idx` is out
+        of range (e.g. a fit curve index, or no match) or the series isn't
+        drawn as a fillable line."""
+        if series_idx is None or not (0 <= series_idx < len(self.chart.data_series)):
+            return None
+        style = self.chart.data_series[series_idx].style
+        return style if isinstance(style, (LineSeriesStyle, DensitySeriesStyle)) else None
+
+    def _find_fill_artist_for_series(self, series_idx):
+        """The PolyCollection added by render_line_series's fill_between(x)
+        call for `series_idx`, found via `_artist_series_map` (populated by
+        `_track_new_artists`)."""
+        for artist, idx in self._artist_series_map.items():
+            if idx == series_idx and isinstance(artist, PolyCollection):
+                return artist
         return None
 
     def _on_pick_event(self, event):

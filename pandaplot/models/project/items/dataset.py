@@ -4,11 +4,13 @@ Dataset model for managing data table items in the project.
 
 import uuid
 from collections import OrderedDict
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
 import pandas as pd
 
+from pandaplot.models.project.items.column_role import ColumnRole
 from pandaplot.models.project.items.item import Item
 
 
@@ -34,6 +36,8 @@ class Dataset(Item):
         # column_ids maps a stable column id -> its current name, ordered to
         # match the DataFrame's columns.
         self.column_ids: OrderedDict[str, str] = OrderedDict()
+        self.column_roles: OrderedDict[str, ColumnRole] = OrderedDict()
+        self.column_measurement_groups: OrderedDict[str, str] = OrderedDict()
         self.data: pd.DataFrame = data if data is not None else pd.DataFrame()
         self.source_file: str | None = source_file
         self._sync_column_ids()
@@ -75,6 +79,16 @@ class Dataset(Item):
             cid = id_by_name.pop(name, None) or str(uuid.uuid4())
             synced[cid] = name
         self.column_ids = synced
+        self.column_roles = OrderedDict(
+            (column_id, role)
+            for column_id, role in self.column_roles.items()
+            if column_id in synced
+        )
+        self.column_measurement_groups = OrderedDict(
+            (column_id, group)
+            for column_id, group in self.column_measurement_groups.items()
+            if column_id in synced and self.column_roles.get(column_id) is ColumnRole.MEASURED
+        )
 
     def column_name(self, column_id: str) -> str | None:
         """Return the current name for a column id, or None if unknown."""
@@ -100,6 +114,80 @@ class Dataset(Item):
         self.column_ids[cid] = new_name
         return cid
 
+    def set_column_role(self, column_id: str, role: ColumnRole | str | None) -> None:
+        """Assign or clear a role for a column, addressed by its stable id.
+
+        Args:
+            column_id: Stable id of a column in this dataset.
+            role: Role to assign, or ``None`` to mark the column unused.
+
+        Raises:
+            ValueError: If ``column_id`` is not in this dataset or ``role`` is
+                not a supported column role.
+        """
+        if column_id not in self.column_ids:
+            raise ValueError(f"Column id '{column_id}' is not in this dataset.")
+
+        parsed_role = ColumnRole(role) if role is not None else None
+        roles = OrderedDict(self.column_roles)
+        if parsed_role is None:
+            roles.pop(column_id, None)
+        else:
+            roles[column_id] = parsed_role
+        self.set_column_roles(roles)
+
+    def set_column_roles(self, roles: Mapping[str, ColumnRole | str]) -> None:
+        """Replace all column-role assignments after validating their ids."""
+        restored: OrderedDict[str, ColumnRole] = OrderedDict()
+        for column_id, role_value in roles.items():
+            if column_id not in self.column_ids:
+                raise ValueError(f"Column id '{column_id}' is not in this dataset.")
+            try:
+                restored[column_id] = ColumnRole(role_value)
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"Unsupported role for column id '{column_id}'.") from error
+        if restored == self.column_roles:
+            return
+        self.column_roles = restored
+        self.column_measurement_groups = OrderedDict(
+            (column_id, group)
+            for column_id, group in self.column_measurement_groups.items()
+            if restored.get(column_id) is ColumnRole.MEASURED
+        )
+        self.update_modified_time()
+
+    def set_column_measurement_groups(self, groups: Mapping[str, str]) -> None:
+        """Set output-variable names for columns tagged as measured."""
+        restored: OrderedDict[str, str] = OrderedDict()
+        for column_id, group in groups.items():
+            if column_id not in self.column_ids:
+                raise ValueError(f"Column id '{column_id}' is not in this dataset.")
+            if self.column_roles.get(column_id) is not ColumnRole.MEASURED:
+                raise ValueError(f"Column id '{column_id}' is not assigned the measured role.")
+            normalized_group = group.strip()
+            if not normalized_group:
+                raise ValueError(f"Measured column '{self.column_name(column_id)}' needs a variable name.")
+            restored[column_id] = normalized_group
+        if restored == self.column_measurement_groups:
+            return
+        self.column_measurement_groups = restored
+        self.update_modified_time()
+
+    def _restore_column_roles(self, saved_roles: object) -> None:
+        """Restore valid roles from persisted metadata without marking edited."""
+        if not isinstance(saved_roles, Mapping):
+            return
+
+        restored: OrderedDict[str, ColumnRole] = OrderedDict()
+        for column_id, role_value in saved_roles.items():
+            if column_id not in self.column_ids:
+                continue
+            try:
+                restored[column_id] = ColumnRole(role_value)
+            except (TypeError, ValueError):
+                continue
+        self.column_roles = restored
+
     def to_dict(self) -> dict[str, Any]:
         """Convert dataset to dictionary for serialization."""
         data = super().to_dict()
@@ -107,6 +195,8 @@ class Dataset(Item):
             "source_file": self.source_file,
             "has_data": self.data is not None,
             "column_ids": dict(self.column_ids),
+            "column_roles": {column_id: role.value for column_id, role in self.column_roles.items()},
+            "column_measurement_groups": dict(self.column_measurement_groups),
         })
 
         # TODO(#219): serialization of dataframe
@@ -135,5 +225,21 @@ class Dataset(Item):
         saved_ids = data.get("column_ids")
         if saved_ids:
             dataset.column_ids = OrderedDict(saved_ids)
+        dataset._restore_column_roles(data.get("column_roles"))
+        dataset._restore_column_measurement_groups(data.get("column_measurement_groups"))
 
         return dataset
+
+    def _restore_column_measurement_groups(self, saved_groups: object) -> None:
+        """Restore valid measured-column group names from persisted metadata."""
+        if not isinstance(saved_groups, Mapping):
+            return
+        self.column_measurement_groups = OrderedDict(
+            (column_id, group.strip())
+            for column_id, group in saved_groups.items()
+            if isinstance(column_id, str)
+            and column_id in self.column_ids
+            and self.column_roles.get(column_id) is ColumnRole.MEASURED
+            and isinstance(group, str)
+            and group.strip()
+        )

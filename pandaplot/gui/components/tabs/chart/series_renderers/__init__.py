@@ -4,7 +4,8 @@ former 5 if/elif branches. Every render function shares the signature
 `visible`/`extra` are keyword-only (ruff FBT001/002/003: boolean-trap
 avoidance) since they're only ever called from our own Python code. `extra`
 carries the few pieces of per-type context that don't fit the uniform
-shape (bins for hist, resolve_fill_baseline for line), ignored by the
+shape (bins/hist_density for hist, resolve_fill_baseline for line, the shared
+box_positions accumulator for box), ignored by the
 renderers that don't need them, so callers can dispatch through one call
 site instead of branching to decide which arguments to gather.
 """
@@ -12,17 +13,22 @@ from collections.abc import Callable
 
 from pandaplot.gui.components.tabs.chart.series_renderers.bar import render_bar_series
 from pandaplot.gui.components.tabs.chart.series_renderers.bar3d import render_bar3d_series
+from pandaplot.gui.components.tabs.chart.series_renderers.box import render_box_series
 from pandaplot.gui.components.tabs.chart.series_renderers.colormap import render_colormap_series
+from pandaplot.gui.components.tabs.chart.series_renderers.density import render_density_series
 from pandaplot.gui.components.tabs.chart.series_renderers.fit import render_fit_series
 from pandaplot.gui.components.tabs.chart.series_renderers.heatmap import render_heatmap_series
 from pandaplot.gui.components.tabs.chart.series_renderers.hist import render_hist_series
 from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.gui.components.tabs.chart.series_renderers.line3d import render_line3d_series
+from pandaplot.gui.components.tabs.chart.series_renderers.pie import render_pie_series
 from pandaplot.gui.components.tabs.chart.series_renderers.scatter import render_scatter_series
 from pandaplot.gui.components.tabs.chart.series_renderers.scatter3d import render_scatter3d_series
+from pandaplot.gui.components.tabs.chart.series_renderers.stacked_bar import render_stacked_bar_series
 from pandaplot.gui.components.tabs.chart.series_renderers.surface import render_surface_series
 from pandaplot.gui.components.tabs.chart.series_renderers.trisurf import render_trisurf_series
 from pandaplot.gui.components.tabs.chart.series_renderers.vector import render_vector_series
+from pandaplot.gui.components.tabs.chart.series_renderers.vector3d import render_vector3d_series
 from pandaplot.gui.components.tabs.chart.series_renderers.wireframe import render_wireframe_series
 from pandaplot.models.chart.series_type import SeriesType
 
@@ -30,10 +36,13 @@ SERIES_RENDERERS: dict[SeriesType, Callable] = {
     SeriesType.LINE: render_line_series,
     SeriesType.SCATTER: render_scatter_series,
     SeriesType.BAR: render_bar_series,
+    SeriesType.STACKED_BAR: render_stacked_bar_series,
     SeriesType.HIST: render_hist_series,
+    SeriesType.DENSITY: render_density_series,
     SeriesType.VECTOR: render_vector_series,
     SeriesType.COLORMAP: render_colormap_series,
     SeriesType.HEATMAP: render_heatmap_series,
+    SeriesType.PIE: render_pie_series,
     SeriesType.SCATTER3D: render_scatter3d_series,
     SeriesType.LINE3D: render_line3d_series,
     SeriesType.SURFACE: render_surface_series,
@@ -41,6 +50,8 @@ SERIES_RENDERERS: dict[SeriesType, Callable] = {
     SeriesType.BAR3D: render_bar3d_series,
     SeriesType.TRISURF: render_trisurf_series,
     SeriesType.FIT: render_fit_series,
+    SeriesType.VECTOR3D: render_vector3d_series,
+    SeriesType.BOX: render_box_series,
 }
 
 # The render functions whose contract is to return None when they have
@@ -53,12 +64,18 @@ SERIES_RENDERERS: dict[SeriesType, Callable] = {
 # of those means nothing at all -- which is exactly why this set has to
 # exist rather than the caller testing `mappable is None` for everything.
 SERIES_RENDERERS_REPORTING_NO_DATA: frozenset[SeriesType] = frozenset({
+    # DENSITY: gaussian_kde can't estimate from <2 points or constant data.
+    SeriesType.DENSITY,
+    # HIST: no finite numeric values left after dropping NaN/text cells.
+    SeriesType.HIST,
     SeriesType.COLORMAP,
     SeriesType.HEATMAP,
     SeriesType.SURFACE,
     SeriesType.WIREFRAME,
     SeriesType.BAR3D,
     SeriesType.TRISURF,
+    SeriesType.BOX,
+    SeriesType.PIE,
 })
 
 __all__ = [
@@ -66,16 +83,21 @@ __all__ = [
     "SERIES_RENDERERS_REPORTING_NO_DATA",
     "render_bar3d_series",
     "render_bar_series",
+    "render_box_series",
     "render_colormap_series",
+    "render_density_series",
     "render_fit_series",
     "render_heatmap_series",
     "render_hist_series",
     "render_line3d_series",
     "render_line_series",
+    "render_pie_series",
     "render_scatter3d_series",
     "render_scatter_series",
+    "render_stacked_bar_series",
     "render_surface_series",
     "render_trisurf_series",
+    "render_vector3d_series",
     "render_vector_series",
     "render_wireframe_series",
 ]

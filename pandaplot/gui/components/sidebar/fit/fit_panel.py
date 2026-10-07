@@ -26,7 +26,7 @@ from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
-from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, get_chart_type_spec
 from pandaplot.models.events import ChartEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import DataSeries, resolve_series_column
@@ -145,6 +145,9 @@ class FitPanel(SidebarPanel):
             f"color: {base_fg}; padding: 5px; border: 1px solid {card_border};"
         )
 
+        warning_fg = tokens.get("status_modified_text", "#B06A00")
+        self.fit_availability_label.setStyleSheet(f"color: {warning_fg};")
+
         self.update_data_points_display()
 
     def _apply_menu_styling(self):
@@ -227,13 +230,17 @@ class FitPanel(SidebarPanel):
         points_layout.addStretch()
 
         data_layout.addLayout(points_layout, 2, 1)
+        self.fit_availability_label = QLabel()
+        self.fit_availability_label.setWordWrap(True)
+        self.fit_availability_label.setVisible(False)
+        data_layout.addWidget(self.fit_availability_label, 3, 0, 1, 2)
 
         layout.addWidget(data_group)
 
     def _create_fit_config_section(self, layout):
         """Create the fit configuration section."""
-        fit_group = QGroupBox("Fit Configuration")
-        fit_layout = QVBoxLayout(fit_group)
+        self.fit_configuration_group = QGroupBox("Fit Configuration")
+        fit_layout = QVBoxLayout(self.fit_configuration_group)
 
         # Fit type selection
         type_layout = QHBoxLayout()
@@ -345,7 +352,7 @@ class FitPanel(SidebarPanel):
         range_layout.addWidget(self.range_warning_label, 3, 0, 1, 2)
 
         fit_layout.addLayout(range_layout)
-        layout.addWidget(fit_group)
+        layout.addWidget(self.fit_configuration_group)
 
     def _create_results_section(self, layout):
         """Create the results display section."""
@@ -612,12 +619,59 @@ class FitPanel(SidebarPanel):
             self.load_chart_object(None)
             self.logger.debug("Fit panel context cleared")
 
+    def _chart_disallows_fit(self) -> bool:
+        """Whether the active chart type has no meaningful 2-D curve to fit."""
+        return self.current_chart is not None and not get_chart_type_spec(self.current_chart.chart_type).allows_fit
+
+    def _fit_unavailable_reason(self) -> str | None:
+        """Explain chart- or series-level reasons a curve fit cannot run."""
+        if self.current_chart is None:
+            return None
+        chart_spec = get_chart_type_spec(self.current_chart.chart_type)
+        if not chart_spec.allows_fit:
+            return f"Curve fits aren't available for {chart_spec.display_name} charts. Use an XY chart instead."
+
+        series = self._resolve_selected_series()
+        if series is None:
+            # Custom... with incomplete picks is a user-in-progress state, not a series without X.
+            if self.series_combo.currentData() == CUSTOM_SERIES_SENTINEL:
+                return None
+            if self.current_chart.data_series and not self.current_chart.data_series[0].x_column_id and not self.current_chart.data_series[0].x_column:
+                return "This series has no X column for curve fitting. Select an XY series or choose Custom... with X and Y columns."
+            return None
+        dataset = self.current_project.find_item(series.dataset_id) if self.current_project else None
+        if not isinstance(dataset, Dataset) or dataset.data is None:
+            return None
+        x_column = resolve_series_column(dataset, series.x_column_id, series.x_column)
+        if not x_column or x_column not in dataset.data.columns:
+            return "This series has no X column for curve fitting. Select an XY series or choose Custom... with X and Y columns."
+        return None
+
     def update_data_points_display(self):
         """Update the data points display and enable/disable the Fit button accordingly."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         base_fg = palette.get("base_fg", "#333333")
         secondary_fg = palette.get("secondary_fg", "#555555")
+
+        unavailable_reason = self._fit_unavailable_reason()
+        self.fit_availability_label.setText(unavailable_reason or "")
+        self.fit_availability_label.setVisible(bool(unavailable_reason))
+        self.fit_configuration_group.setEnabled(not self._chart_disallows_fit())
+        self.series_combo.setEnabled(self.current_chart is not None and not self._chart_disallows_fit())
+        self.custom_source_widget.setEnabled(not self._chart_disallows_fit())
+        if unavailable_reason and self._chart_disallows_fit():
+            self.fit_button.setEnabled(False)
+            self.fit_button.setToolTip(unavailable_reason)
+            # Clear data readouts left over from the previously loaded chart.
+            self.range_warning_label.setVisible(False)
+            self.range_min_value_label.setText("—")
+            self.range_max_value_label.setText("—")
+            self.data_points_label.setText("No data selected")
+            self.data_points_label.setStyleSheet(f"color: {secondary_fg}; font-style: italic;")
+            self.data_points_label.setToolTip("")
+            self.data_points_warning_icon.setVisible(False)
+            return
 
         range_valid = self._is_range_valid()
         self.range_warning_label.setVisible(not range_valid)
@@ -669,6 +723,12 @@ class FitPanel(SidebarPanel):
             self.data_points_warning_icon.setVisible(True)
             self.fit_button.setEnabled(False)
             self.fit_button.setToolTip(tooltip)
+
+        if unavailable_reason:
+            # Series-level reason (e.g. no X column): data readouts above may
+            # still be valid for Y alone, but a fit cannot run.
+            self.fit_button.setEnabled(False)
+            self.fit_button.setToolTip(unavailable_reason)
 
     def _on_fit_type_changed(self):
         """Handle fit type selection change."""
@@ -788,7 +848,13 @@ class FitPanel(SidebarPanel):
         self.apply_button.setEnabled(self.fit_results is not None and allowed and self._pending_fit_command is None)
 
     def load_chart_object(self, chart):
-        """Load a Chart object for fitting analysis."""
+        """Load a Chart object for fitting analysis.
+
+        A chart whose type has ``allows_fit=False`` (Stacked Bar, Density, ...)
+        stays the panel's current chart, so deferred refreshes and event
+        filtering keep working when its type changes back, but none of its
+        series are offered to fit.
+        """
         self._clear_results()
         self.current_chart = chart
         self._update_apply_enabled()
@@ -800,7 +866,7 @@ class FitPanel(SidebarPanel):
         self.series_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         self.series_combo.clear()
 
-        if chart is None:
+        if chart is None or not get_chart_type_spec(chart.chart_type).allows_fit:
             self.series_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.custom_source_widget.setVisible(False)
             self.update_data_points_display()
@@ -1005,6 +1071,8 @@ class FitPanel(SidebarPanel):
 
     def _perform_fit(self):
         """Create and execute a curve fitting command."""
+        if self._fit_unavailable_reason():
+            return
         # update_data_points_display() (fired by unrelated range/series
         # changes while a fit is in flight) re-enables fit_button based only
         # on data validity, not on whether a fit is already running -- so a
@@ -1039,8 +1107,10 @@ class FitPanel(SidebarPanel):
 
         def _on_complete(result):
             self.busy_spinner.stop()
-            self.fit_button.setEnabled(self.scipy_available)
             self._pending_fit_command = None
+            # Recompute from the current chart/selection: the chart may have
+            # switched to an unsupported one while the fit was in flight.
+            self.update_data_points_display()
 
             current_series = self._resolve_selected_series()
             current_context = (
@@ -1104,7 +1174,7 @@ class FitPanel(SidebarPanel):
             # on_complete never fires, so the previous result is still valid
             # and Apply's enabled state must be restored, not left disabled.
             self.busy_spinner.stop()
-            self.fit_button.setEnabled(self.scipy_available)
             self.apply_button.setEnabled(apply_was_enabled)
             self._pending_fit_command = None
+            self.update_data_points_display()
 

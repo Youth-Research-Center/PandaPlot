@@ -7,31 +7,39 @@ reads today. See base.py for why SeriesStyleBase itself is empty.
 from pandaplot.models.chart.series_style.bar import BarSeriesStyle
 from pandaplot.models.chart.series_style.bar3d import Bar3DSeriesStyle
 from pandaplot.models.chart.series_style.base import SeriesStyleBase
+from pandaplot.models.chart.series_style.box import BoxSeriesStyle
 from pandaplot.models.chart.series_style.colormap import ColormapSeriesStyle
+from pandaplot.models.chart.series_style.density import DensitySeriesStyle
 from pandaplot.models.chart.series_style.heatmap import HeatmapSeriesStyle
 from pandaplot.models.chart.series_style.hist import HistSeriesStyle
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
 from pandaplot.models.chart.series_style.line3d import Line3DSeriesStyle
+from pandaplot.models.chart.series_style.pie import PieSeriesStyle
 from pandaplot.models.chart.series_style.scatter import ScatterSeriesStyle
 from pandaplot.models.chart.series_style.scatter3d import Scatter3DSeriesStyle
 from pandaplot.models.chart.series_style.surface import SurfaceSeriesStyle
 from pandaplot.models.chart.series_style.trisurf import TrisurfSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
+from pandaplot.models.chart.series_style.vector3d import Vector3DSeriesStyle
 from pandaplot.models.chart.series_style.wireframe import WireframeSeriesStyle
 
 __all__ = [
     "Bar3DSeriesStyle",
     "BarSeriesStyle",
+    "BoxSeriesStyle",
     "ColormapSeriesStyle",
+    "DensitySeriesStyle",
     "HeatmapSeriesStyle",
     "HistSeriesStyle",
     "Line3DSeriesStyle",
     "LineSeriesStyle",
+    "PieSeriesStyle",
     "Scatter3DSeriesStyle",
     "ScatterSeriesStyle",
     "SeriesStyleBase",
     "SurfaceSeriesStyle",
     "TrisurfSeriesStyle",
+    "Vector3DSeriesStyle",
     "VectorSeriesStyle",
     "WireframeSeriesStyle",
 ]

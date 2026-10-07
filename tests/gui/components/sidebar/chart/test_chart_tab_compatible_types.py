@@ -111,16 +111,12 @@ def test_mixed_scatter_and_vector_series_disables_bar():
     assert _is_option_enabled(tab, ChartType.BAR) is False
 
 
-def test_a_chart_holding_a_fit_still_allows_switching_to_colormap_and_heatmap():
-    """Re-review finding #2: a FIT series lives inline in data_series since
-    #304, but it must stay immune to chart-type-switch gating in the UI --
-    same as it already is in `Chart.set_chart_type` (which never
-    force-retypes a FIT series away). Before the fix, a chart holding ANY
-    fit had SeriesType.FIT included in the set passed to
-    `compatible_chart_types_for_series`, and since FIT isn't in Colormap's
-    or Heatmap's `allowed_series_types`, both options were wrongly
-    disabled -- a regression versus pre-#304, where fits lived in a
-    separate `fit_data` list that never entered this computation."""
+def test_a_chart_holding_a_fit_does_not_allow_switching_to_colormap_and_heatmap():
+    """A FIT series lives inline in data_series since #304 and is never
+    force-retyped by `Chart.set_chart_type`, so it stays on the chart across
+    a switch. It must not count as an ordinary series type, but it does
+    count as `has_fits`: Colormap/Heatmap don't allow fits, so switching
+    there is disabled."""
     tab = ChartTab()
     chart = Chart(name="Chart With Fit", chart_type="line")
     chart.add_data_series(dataset_id="ds1", x_column_id="x", y_column_id="y",
@@ -134,8 +130,11 @@ def test_a_chart_holding_a_fit_still_allows_switching_to_colormap_and_heatmap():
     )
     tab.load(chart)
 
-    assert _is_option_enabled(tab, ChartType.COLORMAP) is True
-    assert _is_option_enabled(tab, ChartType.HEATMAP) is True
+    # Fits stay on the chart across a switch and are still rendered, so a
+    # target whose allows_fit is False can't take them (see
+    # compatible_chart_types_for_series).
+    assert _is_option_enabled(tab, ChartType.COLORMAP) is False
+    assert _is_option_enabled(tab, ChartType.HEATMAP) is False
 
 
 def test_a_fit_only_chart_does_not_allow_switching_to_3d_types():
@@ -160,7 +159,5 @@ def test_a_fit_only_chart_does_not_allow_switching_to_3d_types():
 
     assert _is_option_enabled(tab, ChartType.SCATTER3D) is False
     assert _is_option_enabled(tab, ChartType.SURFACE) is False
-    # Still allows every 2-D target, matching the "nothing to protect"
-    # empty-set behavior for everything except 3-D.
-    assert _is_option_enabled(tab, ChartType.COLORMAP) is True
+    # Still allows every 2-D target that can host a fit.
     assert _is_option_enabled(tab, ChartType.SCATTER) is True

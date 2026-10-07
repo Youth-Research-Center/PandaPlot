@@ -13,10 +13,13 @@ from pandaplot.commands.project.dataset.delete_columns_command import DeleteColu
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
+from pandaplot.models.chart.series_style.pie import PieSeriesStyle
+from pandaplot.models.chart.series_style.scatter3d import Scatter3DSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
+from pandaplot.models.chart.series_style.vector3d import Vector3DSeriesStyle
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project import Project
-from pandaplot.models.project.items import Chart, Dataset
+from pandaplot.models.project.items import Chart, ColumnRole, Dataset
 from pandaplot.models.project.items.chart import resolve_series_column
 
 
@@ -111,6 +114,40 @@ def test_undo_restores_data_and_chart_references(env):
     s1 = chart.data_series[0]
     assert resolve_series_column(dataset, s1.x_column_id, s1.x_column) == "a"
     assert len(chart.fit_data) == 1
+
+
+def test_undo_restores_roles_for_deleted_columns(env):
+    app_context, dataset, _, _, _ = env
+    dataset.set_column_role(dataset.column_id("a"), ColumnRole.CONTROLLED)
+    dataset.set_column_role(dataset.column_id("b"), ColumnRole.MEASURED)
+    original_roles = dict(dataset.column_roles)
+    command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert dataset.column_roles == {dataset.column_id("b"): ColumnRole.MEASURED}
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert dict(dataset.column_roles) == original_roles
+
+    assert command.redo() is CommandResult.SUCCESS
+    assert dataset.column_roles == {dataset.column_id("b"): ColumnRole.MEASURED}
+
+
+def test_undo_restores_measurement_groups_for_deleted_columns(env):
+    app_context, dataset, _, _, _ = env
+    measured_column_id = dataset.column_id("b")
+    dataset.set_column_role(measured_column_id, ColumnRole.MEASURED)
+    dataset.set_column_measurement_groups({measured_column_id: "Velocity"})
+    command = DeleteColumnsCommand(app_context, dataset.id, ["b"])
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert dataset.column_measurement_groups == {}
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert dataset.column_measurement_groups == {measured_column_id: "Velocity"}
+
+    assert command.redo() is CommandResult.SUCCESS
+    assert dataset.column_measurement_groups == {}
 
 
 def test_redo_reapplies_deletion_and_removes_references_again(env):
@@ -548,3 +585,86 @@ def test_delete_and_undo_keep_fill_targets_on_the_same_series(env):
     assert [s.label for s in chart.data_series] == ["FitA", "B", "C", "D"]
     assert chart.data_series[1].style.fill_to_index == 3
     assert chart.data_series[3].style.fill_to_index == 2
+
+
+def _vector3d_chart(dataset, **columns):
+    chart = Chart(name="v3", chart_type="vector3d")
+    ids = {"z": "c", "u": "c", "v": "c", "w": "c"} | columns
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("c"), y_column_id=dataset.column_id("c"),
+        series_type="vector3d", label="v1",
+        style=Vector3DSeriesStyle(**{f"{role}_column_id": dataset.column_id(name) for role, name in ids.items()}),
+    )
+    return chart
+
+
+@pytest.mark.parametrize("role", ["z", "u", "v", "w"])
+def test_deleting_a_vector3d_position_or_component_column_removes_the_series(env, role):
+    app_context, dataset, _, _, _ = env
+    chart = _vector3d_chart(dataset, **{role: "a"})
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    assert DeleteColumnsCommand(app_context, dataset.id, ["a"]).execute() is CommandResult.SUCCESS
+    assert chart.data_series == []
+
+
+def test_deleting_a_vector3d_magnitude_column_clears_it_but_keeps_the_series(env):
+    app_context, dataset, _, _, _ = env
+    chart = _vector3d_chart(dataset)
+    chart.data_series[0].style.magnitude_column_id = dataset.column_id("a")
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    assert DeleteColumnsCommand(app_context, dataset.id, ["a"]).execute() is CommandResult.SUCCESS
+    assert chart.data_series[0].style.magnitude_column_id == ""
+
+
+def test_deleting_a_scatter3d_z_column_removes_the_series(env):
+    app_context, dataset, _, _, _ = env
+    chart = Chart(name="s3", chart_type="scatter3d")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("c"), y_column_id=dataset.column_id("c"),
+        series_type="scatter3d", style=Scatter3DSeriesStyle(z_column_id=dataset.column_id("a")))
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    assert DeleteColumnsCommand(app_context, dataset.id, ["a"]).execute() is CommandResult.SUCCESS
+    assert chart.data_series == []
+
+
+def _add_pie_chart(app_context, dataset, *, values: str, labels: str) -> Chart:
+    pie_chart = Chart(name="pie", chart_type="pie")
+    pie_chart.add_data_series(
+        dataset.id, y_column_id=dataset.column_id(values), label="p1", series_type="pie",
+        style=PieSeriesStyle(label_column_id=dataset.column_id(labels)),
+    )
+    app_context.get_app_state.return_value.current_project.add_item(pie_chart)
+    return pie_chart
+
+
+def test_deleting_a_pie_label_column_clears_it_but_keeps_the_series(env):
+    """Wedge labels are optional -- the pie still renders unlabeled, so
+    deleting that column only clears the reference (mirrors magnitude)."""
+    app_context, dataset, _, _, _ = env
+    pie_chart = _add_pie_chart(app_context, dataset, values="c", labels="a")
+
+    assert DeleteColumnsCommand(app_context, dataset.id, ["a"]).execute() is CommandResult.SUCCESS
+    assert len(pie_chart.data_series) == 1
+    assert pie_chart.data_series[0].style.label_column_id == ""
+
+
+def test_undo_restores_a_cleared_pie_label_reference(env):
+    app_context, dataset, _, _, _ = env
+    pie_chart = _add_pie_chart(app_context, dataset, values="c", labels="a")
+    command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
+    command.execute()
+
+    assert command.undo() is CommandResult.SUCCESS
+    style = pie_chart.data_series[0].style
+    assert resolve_series_column(dataset, style.label_column_id, style.label_column) == "a"
+
+
+def test_deleting_a_pie_values_column_removes_the_series(env):
+    app_context, dataset, _, _, _ = env
+    pie_chart = _add_pie_chart(app_context, dataset, values="c", labels="a")
+
+    assert DeleteColumnsCommand(app_context, dataset.id, ["c"]).execute() is CommandResult.SUCCESS
+    assert pie_chart.data_series == []

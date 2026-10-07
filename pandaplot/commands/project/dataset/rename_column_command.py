@@ -5,7 +5,6 @@ from typing import override
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.events.event_data import DatasetColumnRenamedData
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project.items import Chart, Dataset
@@ -161,15 +160,10 @@ class RenameColumnCommand(Command):
                     error_bars.x_error_minus_column, error_bars.y_error_minus_column,
                 ])
 
-            if isinstance(series.style, VectorSeriesStyle):
-                id_fields.extend([
-                    series.style.u_column_id, series.style.v_column_id,
-                    series.style.magnitude_column_id,
-                ])
-                name_fields.extend([
-                    series.style.u_column, series.style.v_column,
-                    series.style.magnitude_column,
-                ])
+            for role in ("z", "u", "v", "w", "magnitude", "label"):
+                if hasattr(series.style, f"{role}_column_id"):
+                    id_fields.append(getattr(series.style, f"{role}_column_id"))
+                    name_fields.append(getattr(series.style, f"{role}_column", ""))
 
             if column_id and column_id in id_fields:
                 return True
