@@ -12,7 +12,6 @@ counterpart used when a migration doesn't need another item's data.
 """
 from pandaplot.models.project.items.chart import (
     Chart,
-    assign_fit_column_ids,
     assign_series_column_ids,
 )
 from pandaplot.models.project.items.dataset import Dataset
@@ -27,7 +26,3 @@ def migrate_column_ids(project: Project) -> None:
             dataset = project.find_item(series.dataset_id)
             if isinstance(dataset, Dataset):
                 assign_series_column_ids(series, dataset)
-        for fit in item.fit_data:
-            dataset = project.find_item(fit.source_dataset_id)
-            if isinstance(dataset, Dataset):
-                assign_fit_column_ids(fit, dataset)

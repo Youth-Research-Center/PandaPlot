@@ -62,8 +62,7 @@ AppContext
     └── current_project: Project | None
         └── root: ItemCollection
             ├── Dataset  → dataframe: pd.DataFrame
-            ├── Chart    → series: list[DataSeries]
-            │              fit_data: list[FitData]
+            ├── Chart    → data_series: list[DataSeries]  (fits are FIT-type entries)
             ├── Note     → content: str
             └── Folder   → items: list[Item]
 

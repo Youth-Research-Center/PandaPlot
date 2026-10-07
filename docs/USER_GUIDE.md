@@ -43,11 +43,11 @@ On first launch, PandaPlot initializes with a clean workspace displaying the Wel
 
 ### Your First Project
 
-1. Click **New Project** on the Welcome tab or select **File > New Project** (`Ctrl+N`).
+1. Click **New Project** on the Welcome tab or select **File > New**.
 2. Provide a name for your project.
-3. Import a dataset via **File > Import CSV...** or **File > Import Excel...**.
+3. Import a dataset via **Data > Import Data...**.
 4. Double-click the imported dataset in the **Project View** panel to open it in a tabular spreadsheet view.
-5. Save your project using **File > Save Project** (`Ctrl+S`).
+5. Save your project using **File > Save** (`Ctrl+S`).
 
 ---
 
@@ -76,7 +76,7 @@ PandaPlot features a modern, intuitive PySide6 desktop interface divided into th
 - **Edit**: Undo (`Ctrl+Z`), Redo (`Ctrl+Y`), and project editing operations.
 - **View**: Toggle sidebar visibility, switch theme (Light/Dark), zoom, and layout options.
 - **Tools**: Access mathematical analysis, curve fitting, signal analysis, and formula transformation tools.
-- **Help**: Access user documentation, keyboard shortcut reference, and about dialog.
+- **Help**: Open the Welcome tab, examples, and About information.
 
 ### Collapsible Sidebar
 Located on the left, the sidebar uses icon tabs to switch contextual control panels:
@@ -105,17 +105,15 @@ Displays contextual messages, current operation status, background task progress
 PandaPlot organizes all working assets into self-contained project files (`.pplot`).
 
 ### Project Hierarchy & File Format
-A `.pplot` file is a ZIP archive containing structured JSON and Parquet metadata:
-- `project.json`: Defines item hierarchy, UUID relationships, and folder organization.
-- `dataset_{id}.parquet`: High-performance binary storage for dataset DataFrames preserving exact data types.
-- `chart_{id}.json`: Serialization of chart parameters, styling, data series references, and fit parameters.
-- `note_{id}.json`: Markdown text and tag metadata.
-- `folder_{id}.json`: Folder organization metadata.
+A `.pplot` file is a ZIP archive containing a project index and files for its items:
+- `project.json`: Defines item hierarchy, item types, and paths to item files.
+- Dataset items store their tabular data as CSV and metadata as JSON. Metadata includes column IDs, roles, and dtype information used to restore types on load.
+- Chart, note, and folder items store their data and settings as JSON files.
 
 ### Organizing Items
 - **Creating Folders**: Click the **New Folder** button in the Project View toolbar or right-click to add nested subfolders.
 - **Renaming Items**: Select an item in the Project View and press `F2`, or right-click and select **Rename**.
-- **Deleting Items**: Select an item and press `Delete`, or right-click and select **Delete**. All item deletions are fully undoable (`Ctrl+Z`).
+- **Deleting Items**: Right-click an item and select **Delete**. All item deletions are fully undoable (`Ctrl+Z`).
 
 ### Auto-Save & Session Recovery
 PandaPlot supports optional auto-saving and automatic session state preservation across restarts. If enabled in Settings, project changes are automatically flushed to disk upon major operations.
@@ -128,12 +126,12 @@ PandaPlot supports optional auto-saving and automatic session state preservation
 PandaPlot supports multiple data formats:
 
 1. **CSV Import**:
-   - Navigate to **File > Import CSV...** (`Ctrl+I`).
+   - Navigate to **Data > Import Data...**.
    - Select CSV parameters (delimiter, header row, encoding) in the preview dialog.
    - Click **Import** to generate a new Dataset item in the project.
 
 2. **Excel Multi-Sheet Import Wizard**:
-   - Select **File > Import Excel...**.
+   - Select **Data > Import Data...**.
    - Browse worksheets, select individual or multiple sheets to import simultaneously.
    - Preview column names, types, and sheet contents before completing import.
 
@@ -145,7 +143,7 @@ Double-clicking a Dataset opens the spreadsheet view powered by `QTableView`:
 - **Data Types (dtypes)**: Convert columns between integer, floating-point, text, and datetime types via right-click column header context menus.
 
 ### Exporting Data
-Datasets can be exported at any time via **File > Export Dataset...** to standard `.csv` files or Microsoft Excel `.xlsx` workbooks.
+To export a dataset, open it in the Dataset tab and click **Export Data**.
 
 ---
 
@@ -160,13 +158,26 @@ To create a plot from any dataset:
    - Mapping X and Y axes columns from available datasets.
    - Setting initial plot title and axis labels.
 
-### Supported Chart Types
-- **Line Plot**: Visualizes continuous series data over time or continuous variables.
-- **Scatter Plot**: Displays individual data points for correlation analysis.
-- **Bar Chart**: Shows categorical value comparisons.
-- **Histogram**: Visualizes probability distributions and data frequency.
-- **Box Plot**: Summarizes five-number statistical distributions (median, quartiles, outliers).
-- **Violin Plot**: Displays kernel density estimations along with box plot statistical metrics.
+### Supported Series Types
+Charts can contain these series types, depending on the chart and selected data:
+- **Line**: Connects values in order.
+- **Scatter**: Shows individual data points.
+- **Bar**: Compares values with bars.
+- **Stacked Bar**: Stacks bar values at each X position.
+- **Histogram**: Shows the frequency distribution of one values column.
+- **Density**: Shows a kernel density estimate for one values column.
+- **Box**: Summarizes a distribution with quartiles, median, and outliers.
+- **Pie**: Shows values as wedges, with optional category labels.
+- **Vector**: Shows two-dimensional vector fields.
+- **Color Map**: Colors points by a third data column.
+- **Heatmap**: Displays values on a two-dimensional grid.
+- **3D Scatter**: Plots data points in three dimensions.
+- **3D Line**: Connects data points in three dimensions.
+- **3D Surface**: Shows a surface in three dimensions.
+- **3D Wireframe**: Shows a wireframe in three dimensions.
+- **3D Bar**: Shows values as three-dimensional bars.
+- **3D Triangulated Surface**: Shows a triangulated surface in three dimensions.
+- **3D Vector**: Shows a three-dimensional vector field.
 
 ### Plot Customization & Styling
 Open the **Chart Properties** sidebar panel while viewing a plot tab to adjust:
@@ -212,6 +223,14 @@ Interactive curve fitting is available through the **Fit Panel** sidebar when vi
 3. **Fit Results**: Displays optimized parameter estimates, standard errors ($\sigma$), covariance matrix, and coefficient of determination ($R^2$).
 4. **Overlay**: Real-time overlay of the fitted function curve onto the active chart canvas.
 
+#### Walkthrough: fit a straight line
+
+1. Start PandaPlot and import `examples/fit-test-data/f_x_4.2x_minus_2.3.csv` with **File > Import CSV...**. It has `x` and `f(x)` columns.
+2. Open the imported dataset, choose **Create Chart**, and create a **Scatter** or **Line** chart using `x` for X and `f(x)` for Y.
+3. With the chart open, select **Curve Fitting** in the sidebar. In **Chart Series**, choose the series, then set **Fit Type** to **Linear (y = ax + b)** and click **Perform Fit**.
+4. Read **Fit Results**. The parameter estimates give the fitted values of `a` and `b`; their standard errors show how uncertain those estimates are. **R²** closer to 1 means the fitted line explains more of the variation in the data. A good fit has points close to the line and a high R²; a lower R² or a visible pattern in the residual differences suggests a poor fit or a model that does not describe the data well.
+5. To try another equation, set **Fit Type** to **Custom Function**. In **Custom Function**, enter an expression such as `a*x + b` in **Function**, list `a, b` in **Parameters**, and click **Perform Fit**. Use **Define parameters values** to provide starting or fixed values when needed.
+
 ### Signal Processing
 Access the **Signal Panel** for frequency-domain and peak detection tools:
 - **Fast Fourier Transform (FFT)**: Computes real FFT power spectral density distributions.
@@ -223,6 +242,13 @@ View descriptive and inferential statistics for dataset columns:
 - **Descriptive Statistics**: Count, mean, standard deviation, minimum, maximum, median, 25%/75% quartiles, skewness, and kurtosis.
 - **Statistical Testing**: Normality tests (Shapiro-Wilk, D'Agostino-Pearson) and hypothesis tests ($t$-test, ANOVA).
 
+### Repeated-Measurement Summary
+Open a dataset and click **Analyze Measurements**, or right-click a dataset in the **Project View** and select **Analyze Measurements...**, to create grouped statistics for an experiment:
+1. Review the suggested **Controlled** (group keys), **Fixed** (constant context), **Measured** (numeric values to summarize), or **Unused** role for each column. Suggestions use column names and observed values, and can be changed before continuing.
+2. Review the grouped result and any excluded values, then choose **Finish** to create the output dataset or **Plot a Graph** to create it and continue directly to chart setup.
+
+The output has one row per controlled-value group and measured variable, with the valid count, mean, sample standard deviation, and standard error of the mean. If multiple measured columns are replicates of one quantity (for example, `Velocity1` through `Velocity5`), they receive a shared **Measured variable** suggestion; that name is editable. Rows missing a controlled value are excluded from grouping; missing or non-numeric measured values are excluded only for their own variable. Fixed columns must have one observed value; differing values or a column with no observed values block generation. Missing fixed values are reported when the observed values agree. Column roles and measured-variable group names are saved with the source dataset and follow columns across renames.
+
 ---
 
 ## Data Transformation
@@ -230,11 +256,7 @@ View descriptive and inferential statistics for dataset columns:
 The **Transform Panel** allows creation of derived columns using mathematical formulas evaluated across dataset columns.
 
 ### Formula Evaluator
-Transformations use safe vectorized evaluation via `pandas.eval`:
-- Reference existing columns by name: `Velocity = df['Distance'] / df['Time']`
-- Supported mathematical operators: `+`, `-`, `*`, `/`, `**` (exponentiation), `%` (modulo)
-- Supported functions: `sin`, `cos`, `tan`, `exp`, `log`, `sqrt`, `abs`
-- Column transformations append new columns or replace existing columns in place with full Undo/Redo support.
+For a column transformation, select a source column and write a Python expression using `x` for that column's values. For example, use `np.sqrt(x)` for square roots, `x.rolling(3).mean()` for a rolling average over three rows, or `pd.to_datetime(x)` to convert values to dates. The Transform panel supplies selected NumPy and pandas names for expressions; this is not a general-purpose Python interface. Column transformations can append a new column or replace the selected column, with Undo/Redo support.
 
 ---
 
@@ -260,10 +282,7 @@ User preferences are stored in `~/.pandaplot/config.json`:
 
 1. **Non-Destructive Workflows**: Analysis operations (derivatives, smoothing, transforms) never overwrite input data unless explicitly requested; they create new columns for easy comparison.
 2. **Keyboard Shortcuts**:
-   - `Ctrl+N`: New Project
-   - `Ctrl+O`: Open Project
-   - `Ctrl+S`: Save Project
-   - `Ctrl+I`: Import CSV
+   - `Ctrl+S`: Save
    - `Ctrl+Z`: Undo last action
    - `Ctrl+Y`: Redo last action
    - `F2`: Rename selected item
@@ -288,7 +307,7 @@ User preferences are stored in `~/.pandaplot/config.json`:
    - *Solution*: Open Chart Properties and verify that the active series maps to valid dataset columns.
 
 ### Getting Help
-1. **Built-in Help**: Access keyboard shortcut guides from **Help > Shortcuts**.
+1. **Built-in Help**: Access keyboard shortcut guides from the shortcuts listed in this guide.
 2. **Tooltips**: Hover over control panel inputs and toolbar buttons for brief usage context.
 3. **Documentation**: Refer to `docs/ARCHITECTURE.md` and `docs/USER_GUIDE.md` in the source repository.
 4. **Examples**: Explore sample files provided in the `examples/` directory.

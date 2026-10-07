@@ -11,6 +11,7 @@ import zipfile
 
 import pandas as pd
 
+from pandaplot.models.project.items.column_role import ColumnRole
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
@@ -32,6 +33,35 @@ def test_round_trip_preserves_plain_numeric_and_string_columns(tmp_path):
     loaded = _round_trip(dataset, tmp_path)
 
     pd.testing.assert_frame_equal(loaded.data, df)
+
+
+def test_round_trip_preserves_column_roles_by_stable_id(tmp_path):
+    dataset = Dataset(id="ds", name="Data", data=pd.DataFrame({"x": [1], "y": [2]}))
+    x_id = dataset.column_id("x")
+    y_id = dataset.column_id("y")
+    dataset.set_column_role(x_id, ColumnRole.CONTROLLED)
+    dataset.set_column_role(y_id, ColumnRole.MEASURED)
+
+    loaded = _round_trip(dataset, tmp_path)
+
+    assert loaded.column_ids == dataset.column_ids
+    assert loaded.column_roles == {
+        x_id: ColumnRole.CONTROLLED,
+        y_id: ColumnRole.MEASURED,
+    }
+
+
+def test_round_trip_preserves_measured_variable_group_names(tmp_path):
+    dataset = Dataset(id="ds", name="Data", data=pd.DataFrame({"Trial1": [1], "Trial2": [2]}))
+    trial_ids = [dataset.column_id("Trial1"), dataset.column_id("Trial2")]
+    dataset.set_column_roles({column_id: ColumnRole.MEASURED for column_id in trial_ids})
+    dataset.set_column_measurement_groups({column_id: "Velocity" for column_id in trial_ids})
+
+    loaded = _round_trip(dataset, tmp_path)
+
+    assert loaded.column_measurement_groups == {
+        column_id: "Velocity" for column_id in trial_ids
+    }
 
 
 def test_round_trip_preserves_datetime_column_dtype(tmp_path):

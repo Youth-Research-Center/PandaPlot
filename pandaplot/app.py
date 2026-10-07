@@ -12,7 +12,7 @@ from pandaplot.gui.controllers import UIController
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import EventBus
-from pandaplot.models.events.event_types import AppEvents
+from pandaplot.models.events.event_types import AppEvents, ConfigEvents
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.state import AppContext, AppState, UnsavedChangesRegistry
 from pandaplot.services.autosave import AutoSaveManager
@@ -105,7 +105,15 @@ def build_app_context() -> AppContext:
         on_history_changed=lambda: event_bus.emit(AppEvents.HISTORY_CHANGED),
         on_project_modified=app_state.mark_modified,
         on_undo_redo_error=_warn_undo_redo_error,
+        max_undo_levels=config_manager.config.max_undo_levels,
     )
+
+    def _update_undo_limit(event_data: dict) -> None:
+        config = event_data.get("config")
+        if config is not None:
+            command_executor.set_max_undo_levels(config.max_undo_levels)
+
+    event_bus.subscribe(ConfigEvents.CONFIG_UPDATED, _update_undo_limit)
     task_scheduler = TaskScheduler()
 
     # Create list of managers to pass to AppContext. ProjectDataManager is

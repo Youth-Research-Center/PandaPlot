@@ -1,14 +1,15 @@
 """
 Image and ImageGallery models for the image-gallery feature.
 
-An ImageGallery is a thin ItemCollection, structurally identical to Folder.
+An ImageGallery is a thin ItemCollection that, unlike Folder, only accepts
+images and other galleries.
 It is reused both for top-level "Image Gallery" tree nodes and for nested
 "albums" -- an album is simply an ImageGallery nested inside another
 ImageGallery. There is no separate Album class.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, override
 
 from pandaplot.models.project.items.item import Item, ItemCollection
 
@@ -89,3 +90,7 @@ class ImageGallery(ItemCollection):
 
     def __init__(self, id: str | None = None, name: str = "New Image Gallery"):
         super().__init__(id, name)
+
+    @override
+    def accepts_item(self, item: Item) -> bool:
+        return isinstance(item, Image | ImageGallery)

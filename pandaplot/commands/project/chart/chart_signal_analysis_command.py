@@ -33,7 +33,7 @@ from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.commands.project.chart.create_chart_with_analysis_series_command import (
     build_quick_plot_command,
 )
-from pandaplot.commands.project.chart.series_xy import SourceKind, resolve_series_xy
+from pandaplot.commands.project.chart.series_xy import resolve_series_xy
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
@@ -54,7 +54,6 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
         self,
         app_context: AppContext,
         chart_id: str,
-        source_kind: SourceKind,
         source_index: int,
         analysis_type: SignalAnalysisType,
         sampling_rate: float | None = None,
@@ -74,7 +73,6 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
         self.task_scheduler = app_context.get_task_scheduler()
 
         self.chart_id = chart_id
-        self.source_kind = source_kind
         self.source_index = source_index
         self.analysis_type = analysis_type
         self.sampling_rate = sampling_rate
@@ -101,7 +99,7 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
 
     def _resolve_xy(self, chart: Chart) -> tuple[pd.Series, pd.Series, str, str]:
         """Return (x, y, x_label, y_label) for the selected chart series."""
-        return resolve_series_xy(self.app_state, chart, self.source_kind, self.source_index)
+        return resolve_series_xy(self.app_state, chart, self.source_index)
 
     def _resolve_xy_cached(self, chart: Chart) -> tuple[pd.Series, pd.Series, str, str]:
         """``_resolve_xy``, memoized for the lifetime of this command.

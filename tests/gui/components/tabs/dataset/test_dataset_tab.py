@@ -28,3 +28,19 @@ def test_on_dataset_renamed_ignores_other_items():
     tab.on_dataset_renamed({"item_id": "other-id", "new_name": "Renamed"})
 
     tab.refresh_tab_title.assert_not_called()
+
+
+def test_analyze_measurements_routes_dataset_id_and_tab_as_parent():
+    tab = DatasetTab.__new__(DatasetTab)
+    tab.dataset = Mock(id="ds-1")
+    tab.logger = Mock()
+    tab.parent = Mock(return_value=None)
+    container = Mock()
+    tab.parent.side_effect = [container]
+
+    tab.analyze_measurements()
+
+    container.analyze_measurements_for_dataset.assert_called_once_with(
+        "ds-1",
+        parent_widget=tab,
+    )

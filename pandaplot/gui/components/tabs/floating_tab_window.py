@@ -73,5 +73,6 @@ class FloatingTabWindow(PMainWindow):
     @override
     def closeEvent(self, event):
         if self._redock_on_close and self._content is not None:
+            self._redock_on_close = False
             self.redock_requested.emit(self.item_id)
         super().closeEvent(event)

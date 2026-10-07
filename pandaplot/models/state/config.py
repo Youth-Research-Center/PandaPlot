@@ -147,6 +147,7 @@ class ApplicationConfig:
 	"""
 
 	version: str = CONFIG_VERSION
+	max_undo_levels: int = 10
 	auto_save: AutoSaveConfig = field(default_factory=AutoSaveConfig)
 	appearance: AppearanceConfig = field(default_factory=AppearanceConfig)
 	editor: EditorConfig = field(default_factory=EditorConfig)
@@ -179,6 +180,7 @@ class ApplicationConfig:
 
 		return {
 			"version": self.version,
+			"max_undo_levels": self.max_undo_levels,
 			"auto_save": asdict(self.auto_save),
 			"appearance": {
 				**asdict(self.appearance),
@@ -202,6 +204,9 @@ class ApplicationConfig:
 
 	# ----- validation -----------------------------------------------------------
 	def validate(self) -> None:
+		if not isinstance(self.max_undo_levels, int) or isinstance(self.max_undo_levels, bool):
+			self.max_undo_levels = 10
+		self.max_undo_levels = max(1, min(1000, self.max_undo_levels))
 		self.auto_save.validate()
 		self.appearance.validate()
 		self.editor.validate()
@@ -272,6 +277,14 @@ class ApplicationConfig:
 		for key, value in data.items():
 			if key == "version":
 				# We keep existing version if mismatch; manager handles migration.
+				continue
+			if key == "max_undo_levels":
+				try:
+					if isinstance(value, bool):
+						continue
+					self.max_undo_levels = int(value)
+				except (TypeError, ValueError):
+					continue
 				continue
 			section_obj = sections.get(key)
 			if section_obj is None or not isinstance(value, Mapping):
@@ -364,6 +377,7 @@ class ApplicationConfig:
 		self.editor = fresh.editor
 		self.project = fresh.project
 		self.chart_display = fresh.chart_display
+		self.max_undo_levels = fresh.max_undo_levels
 
 
 # Public export surface

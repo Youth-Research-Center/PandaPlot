@@ -1,16 +1,17 @@
-"""Style fields for a "scatter" series -- marker fields only, no line/
-fill; render_scatter_series()
+"""Style fields for a "scatter" series -- marker fields plus the shared
+area-fill fields (FillStyleFields); render_scatter_series()
 (pandaplot/gui/components/tabs/chart/series_renderers/scatter.py) reads
-only marker fields."""
+them, no line."""
 from dataclasses import dataclass, field
 
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style.base import SeriesStyleBase
+from pandaplot.models.chart.series_style.fill import FillStyleFields
 
 
 @dataclass
-class ScatterSeriesStyle(SeriesStyleBase):
+class ScatterSeriesStyle(FillStyleFields, SeriesStyleBase):
     color: str = "#1f77b4"
     marker: MarkerStyle = field(default_factory=MarkerStyle)
     error_bars: ErrorBarConfig = field(default_factory=ErrorBarConfig)

@@ -525,6 +525,8 @@ def print_project_structure(project, item_id, indent_level):
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy code page that cannot print R², γ, emoji.
+    sys.stdout.reconfigure(encoding="utf-8")
     print("Creating damped pendulum simulation project...")
     print("This may take a moment to generate all the simulation data...")
     create_pendulum_project()

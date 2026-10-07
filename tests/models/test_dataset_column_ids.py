@@ -2,13 +2,16 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.project import Project
 from pandaplot.models.project.items.chart import (
     Chart,
     DataSeries,
     resolve_series_column,
 )
+from pandaplot.models.project.items.column_role import ColumnRole
 from pandaplot.models.project.items.dataset import Dataset
 
 
@@ -59,6 +62,66 @@ def test_serialization_round_trip_preserves_ids():
     restored = Dataset.from_dict(ds.to_dict())
     # from_dict restores the registry even before the DataFrame is attached.
     assert restored.column_id("a") == a_id
+
+
+def test_column_role_survives_rename_and_is_removed_with_column():
+    ds = Dataset(name="ds", data=pd.DataFrame({"a": [1], "b": [2]}))
+    a_id = ds.column_id("a")
+    ds.set_column_role(a_id, ColumnRole.CONTROLLED)
+
+    ds.rename_column("a", "time")
+    ds.data.rename(columns={"a": "time"}, inplace=True)
+    assert ds.column_roles[a_id] is ColumnRole.CONTROLLED
+
+    ds.set_data(pd.DataFrame({"time": [1]}))
+    assert ds.column_roles == {a_id: ColumnRole.CONTROLLED}
+
+    ds.set_data(pd.DataFrame({"other": [1]}))
+    assert ds.column_roles == {}
+
+
+def test_measured_variable_groups_round_trip_and_are_removed_when_role_changes():
+    ds = Dataset(name="ds", data=pd.DataFrame({"trial_1": [1], "trial_2": [2]}))
+    first_id = ds.column_id("trial_1")
+    second_id = ds.column_id("trial_2")
+    ds.set_column_roles({
+        first_id: ColumnRole.MEASURED,
+        second_id: ColumnRole.MEASURED,
+    })
+    ds.set_column_measurement_groups({first_id: "Velocity", second_id: "Velocity"})
+
+    restored = Dataset.from_dict(ds.to_dict())
+    assert restored.column_measurement_groups == {
+        first_id: "Velocity",
+        second_id: "Velocity",
+    }
+
+    ds.set_column_role(second_id, ColumnRole.FIXED)
+    assert ds.column_measurement_groups == {first_id: "Velocity"}
+
+
+def test_column_roles_round_trip_and_ignore_invalid_persisted_values():
+    ds = Dataset(name="ds", data=pd.DataFrame({"a": [1], "b": [2]}))
+    a_id = ds.column_id("a")
+    b_id = ds.column_id("b")
+    ds.set_column_role(a_id, ColumnRole.MEASURED)
+
+    restored = Dataset.from_dict(ds.to_dict())
+
+    assert restored.column_roles == {a_id: ColumnRole.MEASURED}
+
+    invalid = ds.to_dict()
+    invalid["column_roles"] = {a_id: "not-a-role", "unknown-id": ColumnRole.FIXED.value}
+    restored_invalid = Dataset.from_dict(invalid)
+    assert restored_invalid.column_roles == {}
+    assert b_id not in restored_invalid.column_roles
+
+
+def test_set_column_role_rejects_unknown_column_id():
+    ds = Dataset(name="ds", data=pd.DataFrame({"a": [1]}))
+
+    with pytest.raises(ValueError, match="not in this dataset"):
+        ds.set_column_role("unknown-id", ColumnRole.MEASURED)
 
 
 def test_resolver_prefers_id_falls_back_to_name():
@@ -123,15 +186,16 @@ def test_add_fit_data_stores_column_ids():
     ds = Dataset(name="ds", data=pd.DataFrame({"a": [1], "b": [2]}))
     chart = Chart(name="c")
 
-    fit = chart.add_fit_data(
-        ds.id, "Linear", np.array([1.0]), np.array([2.0]),
+    fit = chart.add_fit_series(
+        ds.id, np.array([1.0]), np.array([2.0]),
+        "Linear", FitStyle(fit_type="Linear"),
         source_x_column_id=ds.column_id("a"),
         source_y_column_id=ds.column_id("b"),
     )
 
-    assert fit.source_dataset_id == ds.id
-    assert fit.source_x_column_id == ds.column_id("a")
-    assert fit.source_y_column_id == ds.column_id("b")
+    assert fit.dataset_id == ds.id
+    assert fit.x_column_id == ds.column_id("a")
+    assert fit.y_column_id == ds.column_id("b")
 
 
 def test_search_chart_resolves_column_ids_via_project():
