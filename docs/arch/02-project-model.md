@@ -67,7 +67,7 @@ FitStyle (style of a FIT series)
 └── is_manual: bool                               # Converted from a series (editable source)
 ```
 
-`Chart.fit_data` is a read-only convenience view that filters `data_series` to its FIT entries.
+Fits are the `data_series` entries whose `is_fit` is true.
 
 ### Note (`models/project/items/note.py`)
 

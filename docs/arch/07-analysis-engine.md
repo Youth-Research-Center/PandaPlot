@@ -60,7 +60,7 @@ FitService.perform_fit(chart, series_index, fit_config)
 └── Return FitResult(x_fit, y_fit, parameters, errors, r_squared, fit_type)
 ```
 
-A fit is stored as a `SeriesType.FIT` `DataSeries` (folded into `chart.data_series` alongside every other series type, #304), not a separate model -- `chart.fit_data` is a read-only, filtered view over `data_series` for callers that only need "the fits". Its curve is a one-time snapshot in `precomputed_x_data`/`precomputed_y_data` rather than a live column reference, and its fit-only metadata (`fit_type`/`fit_params`/`fit_stats`/confidence band) lives on `DataSeries.style` (a `FitStyle`).
+A fit is stored as a `SeriesType.FIT` `DataSeries` (folded into `chart.data_series` alongside every other series type, #304), not a separate model: filter on `series.is_fit` to get just the fits. Its curve is a one-time snapshot in `precomputed_x_data`/`precomputed_y_data` rather than a live column reference, and its fit-only metadata (`fit_type`/`fit_params`/`fit_stats`/confidence band) lives on `DataSeries.style` (a `FitStyle`).
 
 ### Fit Rendering
 
