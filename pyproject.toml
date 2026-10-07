@@ -22,14 +22,15 @@ dev = [
     "bandit>=1.9.4",
     # Needed by Nuitka/pyside6-deploy on macOS to convert the .ico app icon
     # to a native .icns; without it the deploy build fails.
-    "imageio>=2.31.0",
+    "imageio>=2.38.0",
     "pip-audit>=2.10.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
-    "pytest-mock>=3.15.1",
+    "pytest-mock>=3.16.0",
     "pytest-qt>=4.5.0",
-    "ruff>=0.16.8",
+    "ruff>=0.16.10",
+    "ty>=0.0.84",
     "viztracer>=1.1.1",
     "vulture>=2.16",
 ]

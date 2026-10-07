@@ -16,7 +16,10 @@ import pytest
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
+from pandaplot.models.chart.fit_style import FitStyle
+from pandaplot.models.chart.series_style.pie import PieSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
+from pandaplot.models.chart.series_style.vector3d import Vector3DSeriesStyle
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Chart, Dataset
@@ -37,9 +40,10 @@ def env():
                           y_column_id=dataset.column_id("b"), label="s1")
     chart.add_data_series(other.id, x_column_id=other.column_id("a"),  # other dataset: must not change
                           y_column_id=other.column_id("a"), label="s2")
-    chart.add_fit_data(dataset.id, "Linear", np.array([1.0]), np.array([2.0]),
-                       source_x_column_id=dataset.column_id("a"),
-                       source_y_column_id=dataset.column_id("b"))
+    chart.add_fit_series(dataset.id, np.array([1.0]), np.array([2.0]),
+                         "Linear", FitStyle(fit_type="Linear"),
+                         source_x_column_id=dataset.column_id("a"),
+                         source_y_column_id=dataset.column_id("b"))
     project.add_item(chart)
 
     untouched_chart = Chart(name="c2")
@@ -65,7 +69,7 @@ def _chart_updated_calls(app_context):
 def test_rename_updates_dataframe_and_series_resolve_via_id(env):
     app_context, dataset, other, chart = env
     s1 = chart.data_series[0]
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     x_id_before = s1.x_column_id
 
     command = RenameColumnCommand(app_context, dataset.id, 0, "time")
@@ -77,7 +81,7 @@ def test_rename_updates_dataframe_and_series_resolve_via_id(env):
     assert s1.x_column == ""  # new series hold no name; id is authoritative
     assert resolve_series_column(dataset, s1.x_column_id, s1.x_column) == "time"
     assert resolve_series_column(dataset, s1.y_column_id, s1.y_column) == "b"
-    assert resolve_series_column(dataset, fit.source_x_column_id, fit.source_x_column) == "time"
+    assert resolve_series_column(dataset, fit.x_column_id, fit.x_column) == "time"
     # same column name in another dataset: resolves to its own unchanged column
     assert resolve_series_column(other, chart.data_series[1].x_column_id,
                                  chart.data_series[1].x_column) == "a"
@@ -87,14 +91,14 @@ def test_rename_updates_dataframe_and_series_resolve_via_id(env):
 def test_undo_and_redo_round_trip(env):
     app_context, dataset, _, chart = env
     s1 = chart.data_series[0]
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     command = RenameColumnCommand(app_context, dataset.id, 0, "time")
     command.execute()
 
     command.undo()
     assert list(dataset.data.columns) == ["a", "b"]
     assert resolve_series_column(dataset, s1.x_column_id, s1.x_column) == "a"
-    assert resolve_series_column(dataset, fit.source_x_column_id, fit.source_x_column) == "a"
+    assert resolve_series_column(dataset, fit.x_column_id, fit.x_column) == "a"
 
     command.redo()
     assert list(dataset.data.columns) == ["time", "b"]
@@ -224,6 +228,22 @@ def test_events_emitted_for_a_vector_series_referencing_the_column_by_u_v_or_mag
     assert vector_chart.id in {call.args[1]["chart_id"] for call in updated}
 
 
+@pytest.mark.parametrize("role", ["z", "u", "v", "w", "magnitude"])
+def test_events_emitted_for_a_vector3d_series_referencing_the_column_only_via_one_role(env, role):
+    app_context, dataset, _, _ = env
+    chart = Chart(name="v3", chart_type="vector3d")
+    style = Vector3DSeriesStyle(**{f"{r}_column_id": dataset.column_id("b") for r in ("z", "u", "v", "w")})
+    setattr(style, f"{role}_column_id", dataset.column_id("a"))
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("b"), y_column_id=dataset.column_id("b"),
+        series_type="vector3d", style=style)
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    RenameColumnCommand(app_context, dataset.id, 0, "time").execute()
+
+    assert chart.id in {call.args[1]["chart_id"] for call in _chart_updated_calls(app_context)}
+
+
 def test_cleanup_releases_the_dataset_reference(env):
     app_context, dataset, _, _ = env
     command = RenameColumnCommand(app_context, dataset.id, 0, "time")
@@ -233,3 +253,16 @@ def test_cleanup_releases_the_dataset_reference(env):
     command.cleanup()
 
     assert command.dataset is None
+
+
+def test_events_emitted_for_a_pie_series_referencing_the_column_only_via_its_labels(env):
+    app_context, dataset, _, _ = env
+    chart = Chart(name="pie", chart_type="pie")
+    chart.add_data_series(
+        dataset.id, y_column_id=dataset.column_id("b"), series_type="pie",
+        style=PieSeriesStyle(label_column_id=dataset.column_id("a")))
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    RenameColumnCommand(app_context, dataset.id, 0, "time").execute()
+
+    assert chart.id in {call.args[1]["chart_id"] for call in _chart_updated_calls(app_context)}

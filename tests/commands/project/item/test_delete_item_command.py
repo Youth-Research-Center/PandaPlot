@@ -169,7 +169,7 @@ class TestDeleteItemCommand:
         assert result is CommandResult.FAILURE
         ui_controller.show_question.assert_called_once_with(
             "Delete Item",
-            "Are you sure you want to delete the note 'Test Note'?\nThis action cannot be undone."
+            "Are you sure you want to delete the note 'Test Note'?"
         )
         sample_project.remove_item.assert_not_called()
 
@@ -479,7 +479,9 @@ class TestDeleteItemCommand:
         
         result = command.redo()
 
-        assert result is CommandResult.FAILURE
+        # Removal failed with the item still in the project: nothing changed, so
+        # the redo is ABORTED (the command stays on the redo stack).
+        assert result is CommandResult.ABORTED
         ui_controller.show_error_message.assert_called_once()
         assert "Failed to redo delete item: Test error" in ui_controller.show_error_message.call_args[0][1]
 

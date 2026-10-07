@@ -219,8 +219,7 @@ class AnalysisPanel(SidebarPanel):
 
     def _resolve_point(self, row_number: int) -> tuple | None:
         """Return the resolved (x, y) at a 1-based row number, or None."""
-        if self.current_dataset is None or not hasattr(self.current_dataset, "data") \
-                or self.current_dataset.data is None:
+        if self.current_dataset is None or self.current_dataset.data is None:
             return None
         x_col = self.x_column_combo.currentText()
         y_col = self.y_column_combo.currentText()
@@ -322,7 +321,7 @@ class AnalysisPanel(SidebarPanel):
     
     def update_column_choices(self):
         """Update column choices based on current dataset."""
-        if not self.current_dataset or not hasattr(self.current_dataset, "data"):
+        if self.current_dataset is None:
             return
         
         df = self.current_dataset.data
@@ -366,10 +365,8 @@ class AnalysisPanel(SidebarPanel):
     def update_parameters_ui(self):
         """Update parameters UI based on selected analysis type."""
         # Clear existing parameters
-        while self.parameters_layout.count():
-            child = self.parameters_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+        while self.parameters_layout.rowCount():
+            self.parameters_layout.removeRow(0)
         
         analysis_type = self.analysis_type_combo.currentText()
         
@@ -409,9 +406,6 @@ class AnalysisPanel(SidebarPanel):
     
     def update_smoothing_params(self):
         """Update smoothing parameters based on method."""
-        if not hasattr(self, "smooth_method_combo"):
-            return
-        
         method = self.smooth_method_combo.currentText()
         
         # Remove existing additional parameters
@@ -586,7 +580,7 @@ class AnalysisPanel(SidebarPanel):
             self.preview_text.setText("❌ No dataset selected.")
             return False
 
-        if not hasattr(self.current_dataset, "data") or self.current_dataset.data is None:
+        if self.current_dataset.data is None:
             self.preview_text.setText("❌ Dataset data is not available.")
             return False
         
@@ -629,7 +623,7 @@ class AnalysisPanel(SidebarPanel):
         # Add analysis-specific parameters
         analysis_type = self.analysis_type_combo.currentText()
         
-        if analysis_type == "Derivative" and hasattr(self, "method_combo"):
+        if analysis_type == "Derivative":
             method_map = {
                 "Central Difference": "central",
                 "Forward Difference": "forward",
@@ -637,7 +631,7 @@ class AnalysisPanel(SidebarPanel):
             }
             config["parameters"]["method"] = method_map[self.method_combo.currentText()]
             
-        elif analysis_type == "Smoothing" and hasattr(self, "smooth_method_combo"):
+        elif analysis_type == "Smoothing":
             method_map = {
                 "Savitzky-Golay": "savgol",
                 "Rolling Mean": "rolling_mean",
@@ -645,14 +639,13 @@ class AnalysisPanel(SidebarPanel):
             }
             config["parameters"]["method"] = method_map[self.smooth_method_combo.currentText()]
             
-            if hasattr(self, "window_length_spin"):
+            if self.smooth_method_combo.currentText() == "Savitzky-Golay":
                 config["parameters"]["window_length"] = self.window_length_spin.value()
-            if hasattr(self, "poly_order_spin"):
                 config["parameters"]["polynomial_order"] = self.poly_order_spin.value()
-            if hasattr(self, "window_spin"):
+            elif self.smooth_method_combo.currentText() == "Rolling Mean":
                 config["parameters"]["window"] = self.window_spin.value()
                 
-        elif analysis_type == "Interpolation" and hasattr(self, "interp_method_combo"):
+        elif analysis_type == "Interpolation":
             method_map = {
                 "Linear": "linear",
                 "Cubic": "cubic", 
@@ -660,8 +653,7 @@ class AnalysisPanel(SidebarPanel):
                 "Nearest": "nearest"
             }
             config["parameters"]["method"] = method_map[self.interp_method_combo.currentText()]
-            if hasattr(self, "num_points_spin"):
-                config["parameters"]["num_points"] = self.num_points_spin.value()
+            config["parameters"]["num_points"] = self.num_points_spin.value()
         
         return config
     

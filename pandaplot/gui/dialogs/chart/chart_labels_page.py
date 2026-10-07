@@ -51,6 +51,7 @@ class ChartLabelsPage(PWizardPage):
 
         form = QFormLayout()
         left_column.addLayout(form)
+        self._form = form
 
         self.title_edit = QLineEdit()
         self.title_edit.textChanged.connect(lambda: setattr(self, "_title_touched", True))
@@ -73,7 +74,8 @@ class ChartLabelsPage(PWizardPage):
         toggles_layout.addWidget(QLabel("Show legend"), 0, 0)
         self.show_legend_toggle = ToggleSwitch(checked=True)
         toggles_layout.addWidget(self.show_legend_toggle, 0, 1)
-        toggles_layout.addWidget(QLabel("Show grid lines"), 1, 0)
+        self._show_grid_label = QLabel("Show grid lines")
+        toggles_layout.addWidget(self._show_grid_label, 1, 0)
         self.show_grid_toggle = ToggleSwitch(checked=True)
         toggles_layout.addWidget(self.show_grid_toggle, 1, 1)
         left_column.addWidget(toggles_card)
@@ -168,6 +170,7 @@ class ChartLabelsPage(PWizardPage):
         self._last_project = project
         self._last_chart_type = chart_type
         self._last_series_configs = series_configs
+        self._update_axis_fields_visibility(chart_type)
 
         if self.preview_canvas is not None:
             self._preview_container.layout().removeWidget(self.preview_canvas)
@@ -184,6 +187,18 @@ class ChartLabelsPage(PWizardPage):
         )
         self._preview_container.layout().addWidget(canvas)
         self.preview_canvas = canvas
+
+    def _update_axis_fields_visibility(self, chart_type: str) -> None:
+        """Hide the X/Y axis-label fields and the grid toggle for a chart
+        type with no axes (ChartTypeSpec.has_axes -- Pie): neither the
+        preview nor the created chart would ever show them."""
+        from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
+
+        has_axes = get_chart_type_spec(chart_type).has_axes
+        self._form.setRowVisible(self.x_label_edit, has_axes)
+        self._form.setRowVisible(self.y_label_edit, has_axes)
+        self._show_grid_label.setVisible(has_axes)
+        self.show_grid_toggle.setVisible(has_axes)
 
     def _refresh_preview_from_cache(self, *_args) -> None:
         self.refresh_preview(self._last_project, self._last_chart_type, self._last_series_configs)

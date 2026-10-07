@@ -168,6 +168,13 @@ class DatasetTab(PWidget):
         )
         actions_layout.addWidget(self.create_chart_btn)
 
+        self.analyze_measurements_btn = PButton(
+            "Analyze Measurements",
+            role="secondary",
+            on_click=self.analyze_measurements,
+        )
+        actions_layout.addWidget(self.analyze_measurements_btn)
+
         # Export data button
         self.export_btn = PButton("Export Data", role="secondary", on_click=self.export_data)
         actions_layout.addWidget(self.export_btn)
@@ -271,6 +278,29 @@ class DatasetTab(PWidget):
     def _selected_column_ids(self) -> list[str]:
         """Column ids currently selected in this tab's table view, in column order."""
         return self.table_view.get_selected_column_ids()
+
+    def analyze_measurements(self) -> None:
+        """Open the measurement-analysis wizard for this dataset."""
+        parent_widget = self.parent()
+        while parent_widget is not None and not hasattr(parent_widget, "analyze_measurements_for_dataset"):
+            parent_widget = parent_widget.parent()
+
+        if parent_widget is None:
+            self.logger.warning(
+                "Could not find tab container to analyze dataset %s",
+                self.dataset.id,
+            )
+            return
+
+        analyze_method = getattr(parent_widget, "analyze_measurements_for_dataset", None)
+        if not callable(analyze_method):
+            self.logger.warning(
+                "analyze_measurements_for_dataset not callable on parent for dataset %s",
+                self.dataset.id,
+            )
+            return
+
+        analyze_method(self.dataset.id, parent_widget=self)
 
     def export_data(self):
         """Export the dataset to a file."""

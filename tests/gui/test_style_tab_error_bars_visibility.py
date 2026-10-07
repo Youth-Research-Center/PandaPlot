@@ -87,11 +87,14 @@ def test_error_bars_card_hidden_for_fit():
 
     import numpy as np
 
-    from pandaplot.models.project.items.chart import FitData
-    fit = FitData(
-        source_dataset_id="ds1", fit_type="linear",
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.project.items.chart import Chart
+    chart = Chart(name="c", chart_type="line")
+    fit = chart.add_fit_series(
+        source_dataset_id="ds1",
         x_data=np.array([1.0]), y_data=np.array([2.0]), label="Fit",
+        style=FitStyle(fit_type="linear"),
     )
-    style_tab.set_selected("fit", fit)
+    style_tab.set_selected("series", fit)
 
     assert not style_tab.error_bars_card.isVisible()

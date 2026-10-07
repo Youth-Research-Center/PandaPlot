@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
@@ -10,7 +11,7 @@ from pandaplot.models.state import AppContext, AppState
 
 class DeleteItemCommand(Command):
     """
-    Generic command to delete any project item using to_dict/from_dict serialization.
+    Generic command to delete a project item, retaining collection subtrees for undo.
     This command works with any item type that extends the Item base class.
 
     Also cascades to any item that references something being deleted (directly,
@@ -32,7 +33,9 @@ class DeleteItemCommand(Command):
         # Store state for undo
         self.deleted_item_data: dict[str, Any] | None = None
         self.deleted_item_class: type[Item] | None = None
+        self._deleted_collection: ItemCollection | None = None
         self.parent_item: Item | None = None
+        self._deleted_index: int | None = None
 
         # Items whose on_items_removed() hook fired because they referenced
         # something being deleted, keyed by item id -- captured fresh in
@@ -80,6 +83,53 @@ class DeleteItemCommand(Command):
                 item.restore_removed_items_snapshot(snapshot)
                 self._emit_dependency_update_event(item)
 
+    def _sibling_index(self, project, item: Item) -> int | None:
+        """Position of `item` among its siblings, so undo() can put it back."""
+        parent = project.find_item(item.parent_id) if item.parent_id else project.root
+        if not isinstance(parent, ItemCollection):
+            return None
+        keys = list(parent.items.keys())
+        return keys.index(item.id) if item.id in keys else None
+
+    def _subtree_intact(self, project, item: Item, subtree_ids: set) -> bool:
+        """True if `item` is still attached and every id in its subtree is
+        still indexed, i.e. a failed removal changed nothing."""
+        return project.find_item(item.id) is item and all(project.find_item(i) is not None for i in subtree_ids)
+
+    def _remove_with_rollback(self, project, item: Item) -> None:
+        """Remove `item`; if that raises, undo the dependency cascade already
+        applied so no dependent is left stripped, then re-raise."""
+        try:
+            project.remove_item(item)
+        except Exception:
+            self._restore_dependency_cleanup(project)
+            self._snapshots = {}
+            raise
+
+    def _descendant_removal_payloads(self, item: Item) -> list[dict[str, Any]]:
+        """PROJECT_ITEM_REMOVED payloads (without `project`) for every item
+        nested under `item`, deepest first. project.remove_item() drops the
+        whole subtree, so subscribers keyed on item_id (e.g. the tab closer)
+        must hear about each descendant, not only the collection."""
+        payloads: list[dict[str, Any]] = []
+        if isinstance(item, ItemCollection):
+            for child in item.get_items():
+                payloads.extend(self._descendant_removal_payloads(child))
+                payloads.append({
+                    "item_id": child.id,
+                    "item_type": type(child).__name__.lower(),
+                    "item_name": getattr(child, "name", child.id),
+                    "item_data": child.to_dict(),
+                })
+        return payloads
+
+    def _emit_removed_events(self, project, descendants: list[dict[str, Any]], payload: dict[str, Any]) -> None:
+        """Emit PROJECT_ITEM_REMOVED for each removed descendant, then for the
+        deleted item itself."""
+        for descendant in descendants:
+            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {"project": project, **descendant})
+        self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {"project": project, **payload})
+
     def _emit_dependency_update_event(self, item: Item) -> None:
         event = item.dependency_update_event()
         if event is not None:
@@ -116,24 +166,19 @@ class DeleteItemCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            # Store the item's class type and serialized data for undo
-            self.deleted_item_class = type(item)
-            self.deleted_item_data = item.to_dict()
-
-            # Find the parent to store the relationship
-            if item.parent_id:
-                self.parent_item = project.find_item(item.parent_id)
+            item_class = type(item)
+            parent_item = project.find_item(item.parent_id) if item.parent_id else None
 
             # Get item name for user confirmation
             item_name = getattr(item, "name", self.item_id)
-            item_type = self.deleted_item_class.__name__.lower()
+            item_type = item_class.__name__.lower()
 
             # Confirm deletion (skipped when the caller already confirmed a
             # batch operation, e.g. bulk delete in the gallery tab)
             if self.confirm:
                 response = self.ui_controller.show_question(
                     "Delete Item",
-                    f"Are you sure you want to delete the {item_type} '{item_name}'?\nThis action cannot be undone."
+                    f"Are you sure you want to delete the {item_type} '{item_name}'?"
                 )
                 if not response:
                     return CommandResult.FAILURE
@@ -141,18 +186,30 @@ class DeleteItemCommand(Command):
             # Cascade to any item referencing something this delete is
             # about to remove, before it actually disappears -- otherwise
             # those references silently dangle (see class docstring).
+            # to_dict omits child types and in-memory dataset/image payloads, so
+            # collections also keep a detached subtree snapshot for undo. Undo
+            # state is only stored once the delete has actually succeeded.
+            item_data = item.to_dict()
+            collection_snapshot = deepcopy(item) if isinstance(item, ItemCollection) else None
+            sibling_index = self._sibling_index(project, item)
+            descendants = self._descendant_removal_payloads(item)
             self._apply_dependency_cleanup(project, self._collect_ids_under(item))
 
             # Remove the item from the project
-            project.remove_item(item)
+            self._remove_with_rollback(project, item)
+
+            self._deleted_index = sibling_index
+            self.deleted_item_class = item_class
+            self.deleted_item_data = item_data
+            self._deleted_collection = collection_snapshot
+            self.parent_item = parent_item
 
             # Emit event
-            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
-                "project": project,
+            self._emit_removed_events(project, descendants, {
                 "item_id": self.item_id,
                 "item_type": item_type,
                 "item_name": item_name,
-                "item_data": self.deleted_item_data
+                "item_data": self.deleted_item_data,
             })
             self.logger.info(
                 "DeleteItemCommand: Deleted %s '%s' (id=%s)",
@@ -185,9 +242,12 @@ class DeleteItemCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            # Recreate the item from its serialized data
-            restored_item = self.deleted_item_class.from_dict(
-                self.deleted_item_data)
+            # Restore a fresh snapshot, or deserialize a standalone item
+            restored_item = (
+                deepcopy(self._deleted_collection)
+                if self._deleted_collection is not None
+                else self.deleted_item_class.from_dict(self.deleted_item_data)
+            )
 
             # Determine the parent for restoration
             parent_id = None
@@ -195,7 +255,7 @@ class DeleteItemCommand(Command):
                 parent_id = self.parent_item.id
 
             # Add the item back to the project
-            project.add_item(restored_item, parent_id=parent_id)
+            project.add_item(restored_item, parent_id=parent_id, index=self._deleted_index)
 
             # Restore any items this delete had cascaded into.
             self._restore_dependency_cleanup(project)
@@ -248,25 +308,46 @@ class DeleteItemCommand(Command):
                 self.logger.warning("DeleteItemCommand.redo: item '%s' not found", self.item_id)
                 return CommandResult.FAILURE
 
+            # Re-snapshot the item as it is now, before the cascade touches
+            # anything (as execute() does), so a later undo restores the
+            # state at redo time rather than at the original delete.
+            item_data = item.to_dict()
+            collection_snapshot = deepcopy(item) if isinstance(item, ItemCollection) else None
+            sibling_index = self._sibling_index(project, item)
+            descendants = self._descendant_removal_payloads(item)
+
             # Re-run the dependency cascade -- undo() put those references
             # back, so this recomputes fresh rather than assuming last
             # time's result still applies.
             self._apply_dependency_cleanup(project, self._collect_ids_under(item))
 
             # Remove the item from the project
-            project.remove_item(item)
+            subtree_ids = self._collect_ids_under(item)
+            try:
+                self._remove_with_rollback(project, item)
+            except Exception as remove_error:
+                if not self._subtree_intact(project, item, subtree_ids):
+                    raise
+                # Nothing was removed and dependents are restored, so report
+                # ABORTED: the command stays on the redo stack instead of
+                # moving to the undo stack and replaying over a live item.
+                self.logger.exception("DeleteItemCommand: redo aborted, removal failed (id=%s)", self.item_id)
+                self.ui_controller.show_error_message("Redo Error", f"Failed to redo delete item: {remove_error!s}")
+                return CommandResult.ABORTED
+            self.deleted_item_data = item_data
+            self._deleted_index = sibling_index
+            self._deleted_collection = collection_snapshot
 
             # Get item info for logging and events
             item_name = getattr(item, "name", self.item_id)
             item_type = self.deleted_item_class.__name__.lower()
 
             # Emit event
-            self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
-                "project": project,
+            self._emit_removed_events(project, descendants, {
                 "item_id": self.item_id,
                 "item_type": item_type,
                 "item_name": item_name,
-                "item_data": self.deleted_item_data
+                "item_data": self.deleted_item_data,
             })
             self.logger.info(
                 "DeleteItemCommand: Redone deletion of %s '%s' (id=%s)",
@@ -291,3 +372,5 @@ class DeleteItemCommand(Command):
         self.deleted_item_class = None
         self.parent_item = None
         self._snapshots = {}
+        self._deleted_collection = None
+        self._deleted_index = None

@@ -5,7 +5,7 @@ from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project import Project
-from pandaplot.models.project.items import Item
+from pandaplot.models.project.items import Item, ItemCollection
 from pandaplot.models.state import AppContext, AppState
 
 
@@ -136,6 +136,12 @@ class MoveItemCommand(Command):
                     # would loop over forever (#374 review).
                     if project.is_item_or_descendant(item, self.target_folder_id):
                         error_msg = f"Cannot move '{item_name}' into itself or one of its own subfolders."
+                        self.logger.error(error_msg)
+                        self.ui_controller.show_error_message("Move Item Error", error_msg)
+                        return CommandResult.FAILURE
+
+                    if isinstance(target_folder, ItemCollection) and not target_folder.accepts_item(item):
+                        error_msg = f"Cannot move '{item_name}' into '{target_folder.name}': it does not accept this type of item."
                         self.logger.error(error_msg)
                         self.ui_controller.show_error_message("Move Item Error", error_msg)
                         return CommandResult.FAILURE

@@ -6,7 +6,9 @@ import pandas as pd
 from pandaplot.gui.components.tabs.chart.chart_editor import resolve_series_data
 from pandaplot.gui.components.tabs.chart.chart_error_bars import build_error_array
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import DataSeries, ErrorDirection
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
@@ -62,6 +64,39 @@ def test_no_project_returns_error():
     series = DataSeries(dataset_id="ds", x_column="a", y_column="b")
     result = resolve_series_data(None, series)
     assert result.error is not None
+
+
+def test_resolve_series_data_short_circuits_for_precomputed_data():
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.chart.series_type import SeriesType
+
+    series = DataSeries(
+        dataset_id="does-not-exist", series_type=SeriesType.FIT, style=FitStyle(),
+        precomputed_x_data=np.array([1.0, 2.0, 3.0]),
+        precomputed_y_data=np.array([4.0, 5.0, 6.0]),
+    )
+    result = resolve_series_data(project=None, series=series)
+    assert result.error is None
+    np.testing.assert_array_equal(result.x_data, [1.0, 2.0, 3.0])
+    np.testing.assert_array_equal(result.y_data, [4.0, 5.0, 6.0])
+
+
+def test_a_fit_without_stored_curve_data_returns_an_error_instead_of_reading_a_dataset():
+    """A FIT series without precomputed_x_data/precomputed_y_data (e.g. a
+    legacy migrated fit_data entry with no x_data/y_data) must be caught by
+    the FIT-specific check itself -- not merely happen to trip some other
+    generic check first. Uses a real project/dataset and a real
+    y_column_id/y_column so the 'no project loaded'/'no Y column
+    configured' checks don't fire before the FIT branch is reached."""
+    project, dataset = _project_with_dataset()
+    series = DataSeries(dataset_id=dataset.id, series_type=SeriesType.FIT, style=FitStyle(),
+                        y_column_id=dataset.column_id("b"), y_column="b")
+
+    data = resolve_series_data(project, series)
+
+    assert data.error == "fit has no stored curve data"
+    assert data.x_data is None
+    assert data.y_data is None
 
 
 def test_histogram_ignores_stale_x_column():

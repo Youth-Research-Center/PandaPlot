@@ -596,7 +596,7 @@ class NoteEditorWidget(PWidget):
             document.print_(writer)
 
             self.update_status("PDF exported ✓")
-            QTimer.singleShot(2000, lambda: self.update_status("Ready"))
+            QTimer.singleShot(2000, self._reset_status)
         except Exception as e:
             self.logger.exception("Failed to export note to PDF")
             self.update_status(f"Error: {e!s}")
@@ -955,6 +955,17 @@ class NoteEditorWidget(PWidget):
         self.status_label.setText(status)
         self._update_status_label_style()
 
+    def _reset_status(self) -> None:
+        """Reset the status label to "Ready" once a transient message has been shown.
+
+        Runs from a timer, so the editor may have been closed (and its Qt widgets
+        deleted) in the meantime.
+        """
+        try:
+            self.update_status("Ready")
+        except RuntimeError:
+            self.logger.debug("Note editor closed before the status reset timer fired")
+
     def save_content(self, *, track_undo: bool = True) -> bool:
         """Save the note content. Returns whether the save actually
         committed -- callers (e.g. flush_pending_edits) must not treat
@@ -989,7 +1000,7 @@ class NoteEditorWidget(PWidget):
             self.update_status("Saved ✓")
 
             # Reset status after 2 seconds
-            QTimer.singleShot(2000, lambda: self.update_status("Ready"))
+            QTimer.singleShot(2000, self._reset_status)
             return True
 
         except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI

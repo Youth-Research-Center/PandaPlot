@@ -1,5 +1,6 @@
-"""Renders a "scatter" series -- marker fields only, no line/fill."""
+"""Renders a "scatter" series -- markers plus the optional area fill, no line."""
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData
+from pandaplot.gui.components.tabs.chart.series_renderers.fill import render_area_fill
 from pandaplot.gui.components.tabs.chart.series_renderers.value_labels import annotate_point_labels
 from pandaplot.gui.components.tabs.chart.style_maps import MARKER_MAP
 from pandaplot.models.chart.series_style import ScatterSeriesStyle
@@ -9,6 +10,11 @@ def render_scatter_series(axes, series_data: SeriesData, style: ScatterSeriesSty
                            label: str, alpha: float, *, visible: bool, extra: dict) -> None:
     mfc = style.marker.marker_color or style.color
     mec = style.marker.marker_edge_color or style.color
+    # Fill first so the markers draw on top of it (equal zorder draws in
+    # insertion order). A scatter's points are unordered, hence the sort.
+    if style.fill_enabled:
+        render_area_fill(axes, series_data, style, color=style.fill_color or mfc, visible=visible, extra=extra,
+                         sort_by_independent=True)
     axes.scatter(series_data.x_data, series_data.y_data,
                  c=mfc,
                  edgecolors=mec,

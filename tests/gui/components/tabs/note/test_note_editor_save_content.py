@@ -77,3 +77,15 @@ def test_save_content_can_skip_undo_tracking():
     widget.app_context.get_command_executor.return_value.execute_command.assert_called_once()
     _command, kwargs = widget.app_context.get_command_executor.return_value.execute_command.call_args
     assert kwargs["track_undo"] is False
+
+
+def test_reset_status_ignores_editor_deleted_before_timer_fires():
+    """The "Ready" reset runs from a 2s timer; if the tab was closed meanwhile
+    the status label's C++ object is gone and setText raises RuntimeError."""
+    widget = _widget(execute_command_result=True)
+    widget.logger = Mock()
+    widget.update_status.side_effect = RuntimeError("Internal C++ object already deleted")
+
+    widget._reset_status()  # must not raise
+
+    widget.update_status.assert_called_once_with("Ready")

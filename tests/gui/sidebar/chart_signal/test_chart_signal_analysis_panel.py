@@ -21,6 +21,7 @@ from pandaplot.gui.components.sidebar.chart_signal.chart_signal_analysis_panel i
     ChartSignalAnalysisPanel,
 )
 from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -454,21 +455,21 @@ class TestRangeCommandCaching:
     resolve_segment_x() call instead."""
 
     def test_range_command_is_reused_for_the_same_source(self, panel):
-        first = panel._range_command("series", 0)
-        second = panel._range_command("series", 0)
+        first = panel._range_command(0)
+        second = panel._range_command(0)
         assert first is second
 
     def test_range_command_cache_is_invalidated_on_repopulate(self, panel):
-        first = panel._range_command("series", 0)
+        first = panel._range_command(0)
         panel._populate_sources()
-        second = panel._range_command("series", 0)
+        second = panel._range_command(0)
         assert first is not second
 
     def test_sampling_rate_prefill_uses_resolve_segment_x_not_a_per_index_loop(self, panel):
         index = panel.analysis_combo.findData(SignalAnalysisType.FFT)
         panel.analysis_combo.setCurrentIndex(index)
 
-        command = panel._range_command("series", 0)
+        command = panel._range_command(0)
         command.resolve_point = Mock(
             side_effect=AssertionError("resolve_point should not be used for the sampling-rate prefill")
         )
@@ -484,7 +485,7 @@ class TestRangeCommandCaching:
         _range_command() returned None without ever rebuilding -- leaving
         the old command (and its resolved, potentially large x/y series)
         referenced for the rest of the panel's lifetime."""
-        panel._range_command("series", 0)
+        panel._range_command(0)
         assert panel._range_command_cache is not None
 
         panel.current_chart = None
@@ -621,23 +622,23 @@ class TestDatasetChangedInvalidatesCache:
     letting Add's fast path commit a preview computed from pre-edit data."""
 
     def test_dataset_changed_for_a_plotted_dataset_invalidates_range_command_and_last_result(self, panel):
-        stale_range_command = panel._range_command("series", 0)
+        stale_range_command = panel._range_command(0)
         panel.last_result = Mock()
         panel._last_run_params = panel._get_dispatch_params()
 
         panel._on_dataset_changed({"dataset_id": "ds-1"})
 
-        assert panel._range_command("series", 0) is not stale_range_command
+        assert panel._range_command(0) is not stale_range_command
         assert panel.last_result is None
         assert panel._last_run_params is None
 
     def test_dataset_changed_for_an_unrelated_dataset_is_ignored(self, panel):
-        stale_range_command = panel._range_command("series", 0)
+        stale_range_command = panel._range_command(0)
         panel.last_result = Mock()
 
         panel._on_dataset_changed({"dataset_id": "some-other-dataset"})
 
-        assert panel._range_command("series", 0) is stale_range_command
+        assert panel._range_command(0) is stale_range_command
         assert panel.last_result is not None
 
 
@@ -651,7 +652,7 @@ class TestShowEventRefresh:
     closes that gap."""
 
     def test_show_event_refreshes_sources_and_invalidates_cache(self, panel):
-        stale_range_command = panel._range_command("series", 0)
+        stale_range_command = panel._range_command(0)
         panel.last_result = Mock()
         panel._last_run_params = panel._get_dispatch_params()
         generation_before = panel._generation
@@ -660,7 +661,7 @@ class TestShowEventRefresh:
 
         assert panel._generation != generation_before
         assert panel.last_result is None
-        assert panel._range_command("series", 0) is not stale_range_command
+        assert panel._range_command(0) is not stale_range_command
 
     def test_show_event_is_a_no_op_without_a_current_chart(self, app_context):
         panel = ChartSignalAnalysisPanel(app_context)
@@ -688,21 +689,21 @@ class TestChartSignalAnalysisPanelSeriesSelectedEvent:
             {"chart_id": "chart-1", "kind": "series", "index": 1}
         )
 
-        assert panel.source_combo.currentData() == ("series", 1)
+        assert panel.source_combo.currentData() == 1
 
     def test_fit_click_selects_matching_combo_row(self, panel):
-        panel.current_chart.add_fit_data(
-            source_dataset_id="ds-1", fit_type="linear",
-            x_data=[1.0, 2.0, 3.0], y_data=[1.0, 2.0, 3.0], label="Fit 1",
+        panel.current_chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0, 3.0]), y_data=np.array([1.0, 2.0, 3.0]),
+            label="Fit 1", style=FitStyle(fit_type="linear"),
         )
         panel._populate_sources()
         panel.source_combo.setCurrentIndex(0)
 
         panel._on_series_selected_event(
-            {"chart_id": "chart-1", "kind": "fit", "index": 0}
+            {"chart_id": "chart-1", "kind": "fit", "index": 1}
         )
 
-        assert panel.source_combo.currentData() == ("fit", 0)
+        assert panel.source_combo.currentData() == 1
 
     def test_ignores_event_for_a_different_chart(self, panel):
         panel.source_combo.setCurrentIndex(0)

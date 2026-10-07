@@ -1,6 +1,7 @@
 """Style tab: chart-style card (title/subtitle font, padding, size, dpi) plus
 the Line/Marker cards for whichever series/fit entry is currently selected.
 """
+import numpy as np
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -28,23 +29,31 @@ from pandaplot.models.chart.chart_configuration import (
     LineStyleType,
     MarkerType,
 )
+from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_direction import ErrorDirection
 from pandaplot.models.chart.series_style import (
+    BoxSeriesStyle,
     ColormapSeriesStyle,
+    DensitySeriesStyle,
     HeatmapSeriesStyle,
     Line3DSeriesStyle,
     LineSeriesStyle,
+    PieSeriesStyle,
     Scatter3DSeriesStyle,
     ScatterSeriesStyle,
     SurfaceSeriesStyle,
     TrisurfSeriesStyle,
+    Vector3DSeriesStyle,
     VectorSeriesStyle,
     WireframeSeriesStyle,
 )
+from pandaplot.models.chart.series_style.density import MAX_BANDWIDTH
+from pandaplot.models.chart.series_style.fill import FillStyleFields
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ConfigEvents
-from pandaplot.models.project.items.chart import DataSeries, FitData
+from pandaplot.models.project.items.chart import DataSeries
 from pandaplot.models.state.config import (
     MAX_CHART_HEIGHT_CM,
     MAX_CHART_WIDTH_CM,
@@ -140,7 +149,8 @@ class StyleTab(QWidget):
         self.app_context = app_context
         self._chart = None
         self._updating_controls = False
-        # (kind, obj) where kind is "chart", "series", or "fit".
+        # (kind, obj) where kind is "chart", "axes", or "series" -- a FIT-
+        # type series (obj.is_fit) is a "series" too.
         self._current_target = ("chart", None)
         # Whether `set_series_list` has ever run a real population (i.e. the
         # Data tab has emitted `seriesListChanged` at least once for an
@@ -157,6 +167,9 @@ class StyleTab(QWidget):
         # Fill card's "Fill to" selector can offer the other series to fill
         # between. Indices into this list are what fill_to_index stores.
         self._data_series: list = []
+        # (x, y) arrays of the series shown in the Fill card, for the Limit
+        # range point readouts; None when its data can't be resolved.
+        self._fill_points: tuple | None = None
         # Whether the Custom size/DPI fields have already been pre-filled
         # for the currently loaded chart (reset on every load_chart_style/
         # clear_chart_style call). Prevents re-filling with defaults if the
@@ -428,7 +441,7 @@ class StyleTab(QWidget):
         layout.addWidget(line_card)
 
         # CONFIDENCE BAND group -- shades the region between
-        # FitData.confidence_lower/confidence_upper around a fit line.
+        # FitStyle.confidence_lower/confidence_upper around a fit line.
         # Fit-only (a data series has no confidence interval concept).
         self.band_card = Card()
         band_card = self.band_card
@@ -517,7 +530,74 @@ class StyleTab(QWidget):
         self.fill_opacity_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
         fill_layout.addWidget(self.fill_opacity_slider, 6, 1)
 
+        # Restrict the fill to a sub-range of the series' independent
+        # variable (x for vertical, y for horizontal) instead of its full
+        # extent -- e.g. to shade/integrate over just one segment of a
+        # curve (#280). Off by default: the min/max fields only matter, and
+        # are only shown, while this is on.
+        self.fill_range_label = QLabel("Limit range:")
+        fill_layout.addWidget(self.fill_range_label, 7, 0)
+        self.fill_range_enabled_toggle = ToggleSwitch()
+        fill_layout.addWidget(self.fill_range_enabled_toggle, 7, 1)
+
+        # Both bounds are 1-based data-point row numbers (matching the
+        # dataset table and the Analysis panel's Start/End Row), each with the
+        # point's x/y beside it. They default to the first and last point.
+        self.fill_range_start_label = QLabel("From point:")
+        fill_layout.addWidget(self.fill_range_start_label, 8, 0)
+        self.fill_range_start_spin = QSpinBox()
+        self.fill_range_start_spin.setRange(1, 1)
+        self.fill_range_start_value_label = QLabel("–")
+        fill_layout.addLayout(self._fill_range_row(self.fill_range_start_spin, self.fill_range_start_value_label), 8, 1)
+
+        self.fill_range_end_label = QLabel("To point:")
+        fill_layout.addWidget(self.fill_range_end_label, 9, 0)
+        self.fill_range_end_spin = QSpinBox()
+        self.fill_range_end_spin.setRange(1, 1)
+        self.fill_range_end_value_label = QLabel("–")
+        fill_layout.addLayout(self._fill_range_row(self.fill_range_end_spin, self.fill_range_end_value_label), 9, 1)
+
         layout.addWidget(fill_card)
+
+        # DENSITY group -- a Density (KDE) series' own settings. Its color/
+        # line style/width/opacity come from the shared Line card above
+        # (DensitySeriesStyle declares those fields under the same names),
+        # but the generic Fill card can't serve it: that card writes the
+        # whole FillStyleFields set (orientation, baseline, fill-to-series,
+        # partial range), none of which a density curve -- always filled
+        # down to y=0 under itself -- has. So its fill switch and opacity
+        # live here instead, next to the bandwidth they're tuned alongside.
+        self.density_card = Card()
+        density_card = self.density_card
+        density_layout = QGridLayout(density_card)
+        density_layout.addWidget(SectionHeader("Density"), 0, 0, 1, 2)
+
+        density_layout.addWidget(QLabel("Bandwidth:"), 1, 0)
+        self.density_bandwidth_spin = QDoubleSpinBox()
+        self.density_bandwidth_spin.setRange(0.0, MAX_BANDWIDTH)
+        self.density_bandwidth_spin.setSingleStep(0.05)
+        self.density_bandwidth_spin.setDecimals(2)
+        # 0 is DensitySeriesStyle.bandwidth's "let scipy choose" sentinel.
+        self.density_bandwidth_spin.setSpecialValueText("Auto")
+        self.density_bandwidth_spin.setToolTip(
+            "Kernel width as a multiple of the data's standard deviation. "
+            "Smaller values follow the data more closely; larger values smooth it out. "
+            "Auto uses Scott's rule."
+        )
+        density_layout.addWidget(self.density_bandwidth_spin, 1, 1)
+
+        density_layout.addWidget(QLabel("Fill under curve:"), 2, 0)
+        self.density_fill_toggle = ToggleSwitch()
+        self.density_fill_toggle.setAccessibleName("Fill under curve")
+        self.density_fill_toggle.setAccessibleDescription("Fill the area under the density curve")
+        density_layout.addWidget(self.density_fill_toggle, 2, 1)
+
+        self.density_fill_opacity_label = QLabel("Fill opacity:")
+        density_layout.addWidget(self.density_fill_opacity_label, 3, 0)
+        self.density_fill_opacity_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
+        density_layout.addWidget(self.density_fill_opacity_slider, 3, 1)
+
+        layout.addWidget(density_card)
 
         # MARKERS group
         self.marker_card = Card()
@@ -717,6 +797,87 @@ class StyleTab(QWidget):
 
         layout.addWidget(vector_card)
 
+        # VECTOR3D group -- Vector3D's own card, not a reuse of Vector's:
+        # Axes3D.quiver takes a completely different keyword set than 2-D
+        # quiver (arrow_length_ratio/normalize instead of scale/width/
+        # headwidth/headlength/headaxislength), so Vector's sliders would
+        # silently do nothing for a Vector3D series. Only the color and
+        # color-by-magnitude controls are shared in spirit.
+        self.vector3d_card = Card()
+        vector3d_card = self.vector3d_card
+        vector3d_layout = QGridLayout(vector3d_card)
+        vector3d_layout.addWidget(SectionHeader("Vector"), 0, 0, 1, 2)
+
+        vector3d_layout.addWidget(QLabel("Color:"), 1, 0)
+        self.vector3d_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
+        vector3d_layout.addWidget(self.vector3d_color_row, 1, 1)
+
+        vector3d_layout.addWidget(QLabel("Color by magnitude:"), 2, 0)
+        self.vector3d_colormap_control = ValueComboBox(VECTOR_COLORMAPS)
+        vector3d_layout.addWidget(self.vector3d_colormap_control, 2, 1)
+
+        vector3d_layout.addWidget(QLabel("Arrowhead ratio:"), 3, 0)
+        self.vector3d_arrow_ratio_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
+        vector3d_layout.addWidget(self.vector3d_arrow_ratio_slider, 3, 1)
+
+        vector3d_layout.addWidget(QLabel("Normalize (uniform length):"), 4, 0)
+        self.vector3d_normalize_toggle = ToggleSwitch()
+        vector3d_layout.addWidget(self.vector3d_normalize_toggle, 4, 1)
+
+        layout.addWidget(vector3d_card)
+
+        # BOX group -- the box-and-whisker-specific settings. No color row
+        # here: Box's spec sets supports_color, so the Line card's color/
+        # opacity rows already show for it and write style.color/series.
+        # alpha, exactly as they do for Bar/Hist. A second color row would
+        # make two controls fight over the same field.
+        self.box_card = Card()
+        box_card = self.box_card
+        box_layout = QGridLayout(box_card)
+        box_layout.addWidget(SectionHeader("Box"), 0, 0, 1, 2)
+
+        box_layout.addWidget(QLabel("Show outliers:"), 1, 0)
+        self.box_show_outliers_toggle = ToggleSwitch(checked=True)
+        box_layout.addWidget(self.box_show_outliers_toggle, 1, 1)
+
+        box_layout.addWidget(QLabel("Notched:"), 2, 0)
+        self.box_notch_toggle = ToggleSwitch()
+        box_layout.addWidget(self.box_notch_toggle, 2, 1)
+
+        # Sibling boxes sit 1.0 apart on X, so a width of 1.0 makes
+        # neighbours touch; past that they'd overlap.
+        box_layout.addWidget(QLabel("Width:"), 3, 0)
+        self.box_width_slider = SliderWithSpinbox(minimum=0.05, maximum=1.0, decimals=2)
+        box_layout.addWidget(self.box_width_slider, 3, 1)
+
+        layout.addWidget(box_card)
+        # PIE group -- a pie has no line/marker/fill/error bars and no single
+        # series color (wedges cycle the default palette -- see
+        # PieSeriesStyle), so this card is all a Pie series gets.
+        self.pie_card = Card()
+        pie_layout = QGridLayout(self.pie_card)
+        pie_layout.addWidget(SectionHeader("Pie"), 0, 0, 1, 2)
+
+        start_angle_label = QLabel("Start angle:")
+        start_angle_label.setToolTip("Where the first wedge starts, in degrees counter-clockwise from 3 o'clock (90 = 12 o'clock)")
+        pie_layout.addWidget(start_angle_label, 1, 0)
+        self.pie_start_angle_slider = SliderWithSpinbox(minimum=0.0, maximum=360.0, decimals=0)
+        pie_layout.addWidget(self.pie_start_angle_slider, 1, 1)
+
+        pie_layout.addWidget(QLabel("Show percentages:"), 2, 0)
+        self.pie_show_percentages_toggle = ToggleSwitch(checked=True)
+        pie_layout.addWidget(self.pie_show_percentages_toggle, 2, 1)
+
+        donut_label = QLabel("Donut hole:")
+        donut_label.setToolTip("Size of the hole cut out of the middle, as a fraction of the radius (0 = solid pie)")
+        pie_layout.addWidget(donut_label, 3, 0)
+        # Capped below 1: a hole the full radius would leave a ring of zero
+        # thickness, i.e. nothing drawn at all (see series_renderers/pie.py).
+        self.pie_donut_width_slider = SliderWithSpinbox(minimum=0.0, maximum=0.9, decimals=2)
+        pie_layout.addWidget(self.pie_donut_width_slider, 3, 1)
+
+        layout.addWidget(self.pie_card)
+
         # HEATMAP GRIDDING group -- per-series (SeriesTypeSpec.supports_
         # gridding -- Heatmap only; Colormap, a plain color-mapped scatter,
         # needs no gridding at all). The colormap/colorbar/scale live on
@@ -780,6 +941,14 @@ class StyleTab(QWidget):
         self.axes_style_widgets: list[QWidget] = [self.axes_style_selector]
         layout.addWidget(self.axes_style_selector)
 
+        # Shown in place of the axis-appearance forms when "Axes" is picked
+        # on a chart type that draws none (ChartTypeSpec.has_axes -- Pie),
+        # mirroring the Axes tab's own note.
+        self.no_axes_style_label = QLabel("This chart type has no axes to style.")
+        self.no_axes_style_label.setWordWrap(True)
+        self.no_axes_style_label.setVisible(False)
+        layout.addWidget(self.no_axes_style_label)
+
         self._axes_style_form_container = QWidget()
         self._axes_style_form_container_layout = QVBoxLayout(self._axes_style_form_container)
         self._axes_style_form_container_layout.setContentsMargins(0, 0, 0, 0)
@@ -815,6 +984,12 @@ class StyleTab(QWidget):
         self.fill_color_row.colorChanged.connect(self._on_field_changed)
         self.fill_match_line_toggle.toggled.connect(self._on_fill_match_line_toggled)
         self.fill_opacity_slider.valueChanged.connect(self._on_field_changed)
+        self.fill_range_enabled_toggle.toggled.connect(self._on_fill_range_enabled_toggled)
+        self.fill_range_start_spin.valueChanged.connect(self._on_fill_range_changed)
+        self.fill_range_end_spin.valueChanged.connect(self._on_fill_range_changed)
+        self.density_bandwidth_spin.valueChanged.connect(self._on_field_changed)
+        self.density_fill_toggle.toggled.connect(self._on_density_fill_toggled)
+        self.density_fill_opacity_slider.valueChanged.connect(self._on_field_changed)
         self.markers_enabled_toggle.toggled.connect(self._on_markers_enabled_toggled)
         self.marker_shape_control.currentValueChanged.connect(self._on_field_changed)
         self.marker_size_slider.valueChanged.connect(self._on_field_changed)
@@ -843,6 +1018,16 @@ class StyleTab(QWidget):
         self.vector_head_width_slider.valueChanged.connect(self._on_field_changed)
         self.vector_head_length_slider.valueChanged.connect(self._on_field_changed)
         self.vector_head_axis_length_slider.valueChanged.connect(self._on_field_changed)
+        self.vector3d_color_row.colorChanged.connect(self._on_field_changed)
+        self.vector3d_colormap_control.currentValueChanged.connect(self._on_field_changed)
+        self.vector3d_arrow_ratio_slider.valueChanged.connect(self._on_field_changed)
+        self.vector3d_normalize_toggle.toggled.connect(self._on_field_changed)
+        self.box_show_outliers_toggle.toggled.connect(self._on_field_changed)
+        self.box_notch_toggle.toggled.connect(self._on_field_changed)
+        self.box_width_slider.valueChanged.connect(self._on_field_changed)
+        self.pie_start_angle_slider.valueChanged.connect(self._on_field_changed)
+        self.pie_show_percentages_toggle.toggled.connect(self._on_field_changed)
+        self.pie_donut_width_slider.valueChanged.connect(self._on_field_changed)
         self.heatmap_gridding_control.currentValueChanged.connect(self._on_heatmap_gridding_changed)
         self.heatmap_resolution_spin.valueChanged.connect(self._on_field_changed)
         self.heatmap_render_mode_control.currentValueChanged.connect(self._on_heatmap_render_mode_changed)
@@ -952,11 +1137,14 @@ class StyleTab(QWidget):
         """
         kind, obj = self._current_target
         is_chart = kind == "chart"
+        is_fit = isinstance(obj, DataSeries) and obj.is_fit
         for card in self.chart_style_cards:
             card.setVisible(is_chart)
         is_axes = kind == "axes"
+        has_axes = not self._chart_type or CHART_TYPE_SPECS[ChartType(self._chart_type)].has_axes
         for widget in self.axes_style_widgets:
-            widget.setVisible(is_axes)
+            widget.setVisible(is_axes and has_axes)
+        self.no_axes_style_label.setVisible(is_axes and not has_axes)
         if kind == "series" and isinstance(obj, DataSeries):
             spec = SERIES_TYPE_SPECS[obj.series_type]
         elif self._chart_type:
@@ -975,11 +1163,21 @@ class StyleTab(QWidget):
         # keeps color/opacity available for bar/hist even though their
         # line_style/line_width controls have no effect for those types,
         # matching pre-Phase-2 behavior exactly.
-        self.line_card.setVisible(kind == "fit" or (kind == "series" and color_supported))
-        self.band_card.setVisible(
-            kind == "fit" and isinstance(obj, FitData) and obj.confidence_lower is not None
+        self.line_card.setVisible(
+            kind == "series" and (is_fit or color_supported)
         )
-        self.fill_card.setVisible(kind == "series" and fill_supported)
+        self.band_card.setVisible(
+            kind == "series"
+            and is_fit
+            and obj.style.confidence_lower is not None
+        )
+        # The generic Fill card reads/writes FillStyleFields (Line, Scatter);
+        # a Density series' fill (supports_fill too) has its own two-control
+        # version on the Density card instead -- see density_card.
+        self.fill_card.setVisible(
+            kind == "series" and fill_supported and issubclass(spec.style_cls, FillStyleFields)
+        )
+        self.density_card.setVisible(kind == "series" and spec is not None and spec.style_cls is DensitySeriesStyle)
         self.marker_card.setVisible(kind == "series" and marker_supported)
         # Fit data has no error-bar fields at all (DataSeries-only), and even
         # for a series there's nothing to style unless an error column is
@@ -993,7 +1191,14 @@ class StyleTab(QWidget):
         # bars, so per-point annotation doesn't apply the way it does to a
         # data series.
         self.value_labels_card.setVisible(kind == "series" and value_labels_supported)
-        self.vector_card.setVisible(kind == "series" and spec is not None and spec.needs_secondary_columns)
+        # Gated on style_cls identity rather than needs_secondary_columns:
+        # that flag is now also true for Vector3D, which has its own card
+        # (Axes3D.quiver's keyword set has nothing in common with 2-D
+        # quiver's -- see Vector3DSeriesStyle's docstring).
+        self.vector_card.setVisible(kind == "series" and spec is not None and spec.style_cls is VectorSeriesStyle)
+        self.vector3d_card.setVisible(kind == "series" and spec is not None and spec.style_cls is Vector3DSeriesStyle)
+        self.box_card.setVisible(kind == "series" and spec is not None and spec.style_cls is BoxSeriesStyle)
+        self.pie_card.setVisible(kind == "series" and spec is not None and spec.style_cls is PieSeriesStyle)
         self.heatmap_gridding_card.setVisible(kind == "series" and spec is not None and spec.supports_gridding)
         # Re-evaluate "Match line" visibility: it depends on both kind and
         # chart type (see _is_scatter_series_target), either of which may
@@ -1344,26 +1549,24 @@ class StyleTab(QWidget):
         dataset = project.find_item(series.dataset_id) if project else None
         return resolve_series_column(dataset, series.y_column_id, series.y_column) or ""
 
-    def set_series_list(self, data_series, fit_data, selected_index: int = 0):
-        """Sync `style_series_chips` with the same series+fit list the Data
-        tab's cards are built from, keeping its selection in lockstep with
-        `selected_index` (`DataTab.selected_index`) -- unless "Chart" is the
-        currently selected target, which is independent of the series/fit
-        list and must survive a refresh.
+    def set_series_list(self, data_series: list["DataSeries"], selected_index: int = 0) -> None:
+        """Sync `style_series_chips` with the same combined series list
+        (including FIT-type entries) the Data tab's cards are built from,
+        keeping its selection in lockstep with `selected_index`
+        (`DataTab.selected_index`) -- unless "Chart" is the currently
+        selected target, which is independent of the series list and must
+        survive a refresh.
 
-        Values are the combined index (int) for series/fit, or the "chart"
+        Values are the index (int) into `data_series`, or the "chart"
         sentinel, so selecting an entry can drive `set_selected` directly.
-        `DataTab.seriesListChanged` is a plain `(data_series, fit_data)`
-        two-arg signal, so the panel's connection wraps it to also pass
-        `self.data_tab.selected_index` as `selected_index` here.
 
         The "was Chart explicitly selected" check is based on
         `style_series_chips.currentValue()`, not `self._current_target`:
         `_current_target` gets reflexively reassigned to the
-        currently-expanded series/fit on every Data-tab card rebuild
-        (emitted regardless of whether the user changed anything, e.g. an
-        accordion toggle or theme refresh), so it can't reliably answer "did
-        the user deliberately choose Chart". The chip widget's own value only
+        currently-expanded series on every Data-tab card rebuild (emitted
+        regardless of whether the user changed anything, e.g. an accordion
+        toggle or theme refresh), so it can't reliably answer "did the user
+        deliberately choose Chart". The chip widget's own value only
         changes via a direct chip click or this method's own prior
         conclusion, so it survives those reflexive reassignments.
         """
@@ -1371,12 +1574,11 @@ class StyleTab(QWidget):
         previous_value = self.style_series_chips.currentValue()
         chip_items = [("Chart", "chart"), ("Axes", "axes")]
         for index, series in enumerate(data_series):
-            label = series.label or f"{series.dataset_id}:{self._series_y_name(series)}"
+            if series.is_fit:
+                label = f"\U0001f527 {series.label}"
+            else:
+                label = series.label or f"{series.dataset_id}:{self._series_y_name(series)}"
             chip_items.append((label, index))
-        total_series = len(data_series)
-        for fit_offset, fit in enumerate(fit_data):
-            index = total_series + fit_offset
-            chip_items.append((f"\U0001f527 {fit.label}", index))
 
         self.style_series_chips.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         self.style_series_chips.clear()
@@ -1401,7 +1603,7 @@ class StyleTab(QWidget):
             self.style_series_chips.setCurrentValue(previous_value)
         else:
             self.style_series_chips.setCurrentValue(selected_index)
-        if data_series or fit_data:
+        if data_series:
             self._series_list_initialized = True
 
         final_value = self.style_series_chips.currentValue()
@@ -1411,10 +1613,8 @@ class StyleTab(QWidget):
         elif final_value == "axes":
             self._current_target = ("axes", None)
             self._update_target_cards_visibility()
-        elif final_value < len(data_series):
-            self.set_selected("series", data_series[final_value])
         else:
-            self.set_selected("fit", fit_data[final_value - len(data_series)])
+            self.set_selected("series", data_series[final_value])
 
     def set_selected(self, kind: str, obj):
         self._current_target = (kind, obj)
@@ -1422,9 +1622,10 @@ class StyleTab(QWidget):
         self._updating_controls = True
         try:
             if kind == "series":
-                self.load_series_style(obj)
-            elif kind == "fit":
-                self.load_fit_style(obj)
+                if obj.is_fit:
+                    self.load_fit_style(obj)
+                else:
+                    self.load_series_style(obj)
         finally:
             self._updating_controls = previous_guard
         self._update_target_cards_visibility()
@@ -1602,6 +1803,18 @@ class StyleTab(QWidget):
         self._update_fill_controls_visibility()
         self._on_field_changed()
 
+    def _on_density_fill_toggled(self, _checked: bool) -> None:  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Density card's "Fill under curve" toggle."""
+        self._update_density_controls_visibility()
+        self._on_field_changed()
+
+    def _update_density_controls_visibility(self) -> None:
+        """Fill opacity only matters while the fill is on -- same rule as the
+        generic Fill card (see _update_fill_controls_visibility)."""
+        enabled = self.density_fill_toggle.isChecked()
+        self.density_fill_opacity_label.setVisible(enabled)
+        self.density_fill_opacity_slider.setVisible(enabled)
+
     def _on_fill_orientation_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the vertical/horizontal fill switch: only the baseline
         label's axis (X vs Y) changes in the UI."""
@@ -1645,6 +1858,48 @@ class StyleTab(QWidget):
         self._update_fill_controls_visibility()
         self._on_field_changed()
 
+    def _on_fill_range_enabled_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Fill 'Limit range' toggle: show/hide the From/To fields."""
+        self._update_fill_controls_visibility()
+        self._on_field_changed()
+
+    @staticmethod
+    def _fill_range_row(spin: QSpinBox, value_label: QLabel) -> QHBoxLayout:
+        """A spin box with its data point's x/y readout beside it."""
+        row = QHBoxLayout()
+        row.addWidget(spin)
+        row.addWidget(value_label, 1)
+        return row
+
+    def _on_fill_range_changed(self, _value: int):
+        """Handle an edit of a Limit-range point: refresh its x/y readout, then commit."""
+        self._update_fill_range_labels()
+        self._on_field_changed()
+
+    def _resolve_fill_points(self, series) -> tuple | None:
+        """The (x, y) arrays of `series` as plotted, or None when unresolvable
+        (no project, or the dataset/columns are missing)."""
+        from pandaplot.gui.components.tabs.chart.chart_editor import resolve_series_data
+        app_state = self.app_context.get_app_state() if self.app_context else None
+        project = app_state.current_project if app_state is not None and app_state.has_project else None
+        data = resolve_series_data(project, series)
+        if data.error or data.x_data is None or data.y_data is None:
+            return None
+        return np.asarray(data.x_data), np.asarray(data.y_data)
+
+    def _update_fill_range_labels(self):
+        """Show the x/y of the data point each Limit-range spin box selects."""
+        points = self._fill_points
+        for spin, label in (
+            (self.fill_range_start_spin, self.fill_range_start_value_label),
+            (self.fill_range_end_spin, self.fill_range_end_value_label),
+        ):
+            index = spin.value() - 1
+            if points is None or not 0 <= index < len(points[0]):
+                label.setText("–")
+            else:
+                label.setText(f"x={points[0][index]:.4g}, y={points[1][index]:.4g}")
+
     def _update_fill_controls_visibility(self):
         """Show the fill sub-controls only while fill is on -- hidden, not
         just greyed, when off (same convention as
@@ -1653,6 +1908,11 @@ class StyleTab(QWidget):
         when filling between two curves instead of to a baseline."""
         enabled = self.fill_enabled_toggle.isChecked()
         self.fill_header.setEnabled(enabled)
+
+        # A scatter has no line: its fill inherits the marker color instead.
+        _, target = self._current_target
+        is_scatter = isinstance(target, DataSeries) and target.series_type == SeriesType.SCATTER
+        self.fill_match_line_label.setText("Match marker:" if is_scatter else "Match line:")
 
         for widget in (
             self.fill_horizontal_label, self.fill_horizontal_toggle,
@@ -1675,6 +1935,15 @@ class StyleTab(QWidget):
         show_color = enabled and not self.fill_match_line_toggle.isChecked()
         self.fill_color_label.setVisible(show_color)
         self.fill_color_row.setVisible(show_color)
+
+        self.fill_range_label.setVisible(enabled)
+        self.fill_range_enabled_toggle.setVisible(enabled)
+        show_range_bounds = enabled and self.fill_range_enabled_toggle.isChecked()
+        for widget in (
+            self.fill_range_start_label, self.fill_range_start_spin, self.fill_range_start_value_label,
+            self.fill_range_end_label, self.fill_range_end_spin, self.fill_range_end_value_label,
+        ):
+            widget.setVisible(show_range_bounds)
 
     # -- Value-labels controls ----------------------------------------------
 
@@ -1747,9 +2016,10 @@ class StyleTab(QWidget):
             return
         kind, obj = self._current_target
         if kind == "series":
-            self.apply_series_style_to(obj)
-        elif kind == "fit":
-            self.apply_fit_style_to(obj)
+            if obj.is_fit:
+                self.apply_fit_style_to(obj)
+            else:
+                self.apply_series_style_to(obj)
         else:
             return
         self.configChanged.emit()
@@ -1764,6 +2034,29 @@ class StyleTab(QWidget):
             style.vector_head_width = self.vector_head_width_slider.value()
             style.vector_head_length = self.vector_head_length_slider.value()
             style.vector_head_axis_length = self.vector_head_axis_length_slider.value()
+            return
+
+        if isinstance(style, Vector3DSeriesStyle):
+            style.vector_color = self.vector3d_color_row.currentColor()
+            style.vector_colormap = self.vector3d_colormap_control.currentValue()
+            style.vector_arrow_ratio = self.vector3d_arrow_ratio_slider.value()
+            style.vector_normalize = self.vector3d_normalize_toggle.isChecked()
+            return
+
+        if isinstance(style, BoxSeriesStyle):
+            # No return: color/opacity are written by the shared Line-card
+            # branch below, the same as for Bar/Hist.
+            style.show_outliers = self.box_show_outliers_toggle.isChecked()
+            style.notch = self.box_notch_toggle.isChecked()
+            style.box_width = self.box_width_slider.value()
+        if isinstance(style, PieSeriesStyle):
+            # Nothing else applies -- in particular not opacity: the Line
+            # card owning that slider is hidden for a pie, so it holds
+            # whatever the last visible target left in it (same reasoning
+            # as the color-scaled types below).
+            style.start_angle = self.pie_start_angle_slider.value()
+            style.show_percentages = self.pie_show_percentages_toggle.isChecked()
+            style.donut_width = self.pie_donut_width_slider.value()
             return
 
         # Gridding mode/resolution, for every style class that declares
@@ -1806,10 +2099,15 @@ class StyleTab(QWidget):
             series.alpha = self.line_opacity_slider.value()
         else:
             style.color = self.line_color_row.currentColor()
-            if isinstance(style, (LineSeriesStyle, Line3DSeriesStyle, WireframeSeriesStyle)):
+            if isinstance(style, (LineSeriesStyle, Line3DSeriesStyle, WireframeSeriesStyle, DensitySeriesStyle)):
                 style.line_style = self.line_style_control.currentValue().value
                 style.line_width = self.line_width_slider.value()
             series.alpha = self.line_opacity_slider.value()
+
+        if isinstance(style, DensitySeriesStyle):
+            style.bandwidth = self.density_bandwidth_spin.value()
+            style.fill_enabled = self.density_fill_toggle.isChecked()
+            style.fill_alpha = self.density_fill_opacity_slider.value()
 
         # Value labels (#125): only LineSeriesStyle/ScatterSeriesStyle/
         # BarSeriesStyle declare this field (see SeriesTypeSpec.supports_
@@ -1888,9 +2186,9 @@ class StyleTab(QWidget):
 
         # Area fill. "Match line" reuses the "" == inherit-style.color
         # convention. fill_to_index is -1 (fill down to the constant baseline)
-        # or the index of another series to fill between. Only
-        # LineSeriesStyle declares fill fields.
-        if isinstance(style, LineSeriesStyle):
+        # or the index of another series to fill between. Only styles with
+        # the shared FillStyleFields (Line, Scatter) declare fill fields.
+        if isinstance(style, FillStyleFields):
             style.fill_enabled = self.fill_enabled_toggle.isChecked()
             style.fill_orientation = (
                 "horizontal" if self.fill_horizontal_toggle.isChecked() else "vertical"
@@ -1902,13 +2200,21 @@ class StyleTab(QWidget):
                 else self.fill_color_row.currentColor()
             )
             style.fill_alpha = self.fill_opacity_slider.value()
+            style.fill_range_enabled = self.fill_range_enabled_toggle.isChecked()
+            style.fill_range_start = self.fill_range_start_spin.value() - 1
+            # The last point is stored as -1 so the range keeps tracking the
+            # end of the series if rows are appended.
+            style.fill_range_end = (
+                -1 if self.fill_range_end_spin.value() == self.fill_range_end_spin.maximum()
+                else self.fill_range_end_spin.value() - 1
+            )
 
     def apply_fit_style_to(self, fit):
         style = fit.style
         style.color = self.line_color_row.currentColor()
         style.line_style = self.line_style_control.currentValue().value
         style.line_width = self.line_width_slider.value()
-        style.alpha = self.line_opacity_slider.value()
+        fit.alpha = self.line_opacity_slider.value()
         style.band_fill_enabled = self.band_enabled_toggle.isChecked()
         style.band_color = (
             "" if self.band_match_line_toggle.isChecked()
@@ -1936,6 +2242,18 @@ class StyleTab(QWidget):
             self.vector_head_width_slider.setValue(getattr(style, "vector_head_width", 3.0))
             self.vector_head_length_slider.setValue(getattr(style, "vector_head_length", 5.0))
             self.vector_head_axis_length_slider.setValue(getattr(style, "vector_head_axis_length", 4.5))
+
+            self.vector3d_color_row.setCurrentColor(getattr(style, "vector_color", "#1f77b4"))
+            self.vector3d_colormap_control.setCurrentValue(getattr(style, "vector_colormap", ""))
+            self.vector3d_arrow_ratio_slider.setValue(getattr(style, "vector_arrow_ratio", 0.3))
+            self.vector3d_normalize_toggle.setChecked(checked=getattr(style, "vector_normalize", False))
+
+            self.box_show_outliers_toggle.setChecked(checked=getattr(style, "show_outliers", True))
+            self.box_notch_toggle.setChecked(checked=getattr(style, "notch", False))
+            self.box_width_slider.setValue(getattr(style, "box_width", 0.5))
+            self.pie_start_angle_slider.setValue(getattr(style, "start_angle", 90.0))
+            self.pie_show_percentages_toggle.setChecked(checked=getattr(style, "show_percentages", True))
+            self.pie_donut_width_slider.setValue(getattr(style, "donut_width", 0.0))
 
             # Heatmap-only gridding/render fields (colormap/colorbar/scale
             # live on the Axes tab's "Color" chip instead -- see
@@ -2059,7 +2377,25 @@ class StyleTab(QWidget):
             self.fill_match_line_toggle.setChecked(checked=fill_color == "")
             self.fill_match_line_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.fill_opacity_slider.setValue(getattr(style, "fill_alpha", 0.3))
+            self.fill_range_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.fill_range_enabled_toggle.setChecked(checked=getattr(style, "fill_range_enabled", False))
+            self.fill_range_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+            self._fill_points = self._resolve_fill_points(series)
+            point_count = max(len(self._fill_points[0]), 1) if self._fill_points is not None else 1
+            self.fill_range_start_spin.setRange(1, point_count)
+            self.fill_range_end_spin.setRange(1, point_count)
+            self.fill_range_start_spin.setValue(getattr(style, "fill_range_start", 0) + 1)
+            fill_range_end = getattr(style, "fill_range_end", -1)
+            self.fill_range_end_spin.setValue(point_count if fill_range_end < 0 else fill_range_end + 1)
+            self._update_fill_range_labels()
             self._update_fill_controls_visibility()
+
+            self.density_bandwidth_spin.setValue(getattr(style, "bandwidth", 0.0))
+            self.density_fill_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.density_fill_toggle.setChecked(checked=getattr(style, "fill_enabled", False))
+            self.density_fill_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+            self.density_fill_opacity_slider.setValue(getattr(style, "fill_alpha", 0.3))
+            self._update_density_controls_visibility()
         finally:
             self._updating_controls = previous_guard
 
@@ -2074,7 +2410,7 @@ class StyleTab(QWidget):
             style = fit.style
             self.line_color_row.setCurrentColor(style.color)
             self.line_width_slider.setValue(style.line_width)
-            self.line_opacity_slider.setValue(style.alpha)
+            self.line_opacity_slider.setValue(fit.alpha)
             try:
                 self.line_style_control.setCurrentValue(LineStyleType(style.line_style))
             except ValueError:
@@ -2534,6 +2870,19 @@ class StyleTab(QWidget):
         self.vector_head_width_slider.set_tokens(tokens)
         self.vector_head_length_slider.set_tokens(tokens)
         self.vector_head_axis_length_slider.set_tokens(tokens)
+        self.vector3d_card.set_tokens(tokens)
+        self.vector3d_color_row.set_tokens(tokens)
+        self.vector3d_colormap_control.set_tokens(tokens)
+        self.vector3d_arrow_ratio_slider.set_tokens(tokens)
+        self.vector3d_normalize_toggle.set_tokens(tokens)
+        self.box_card.set_tokens(tokens)
+        self.box_show_outliers_toggle.set_tokens(tokens)
+        self.box_notch_toggle.set_tokens(tokens)
+        self.box_width_slider.set_tokens(tokens)
+        self.pie_card.set_tokens(tokens)
+        self.pie_start_angle_slider.set_tokens(tokens)
+        self.pie_show_percentages_toggle.set_tokens(tokens)
+        self.pie_donut_width_slider.set_tokens(tokens)
         self.heatmap_gridding_card.set_tokens(tokens)
         self.heatmap_gridding_control.set_tokens(tokens)
         self.heatmap_render_mode_control.set_tokens(tokens)

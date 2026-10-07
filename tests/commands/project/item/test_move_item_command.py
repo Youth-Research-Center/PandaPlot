@@ -14,7 +14,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.item.move_item_command import MoveItemCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
-from pandaplot.models.project.items import Item, ItemCollection
+from pandaplot.models.project.items import Dataset, Folder, Image, ImageGallery, Item, ItemCollection, Note
 from pandaplot.models.state import AppContext, AppState
 
 
@@ -563,3 +563,54 @@ class TestMoveItemCommandSubtreePreservation:
         assert command.undo() is CommandResult.SUCCESS
 
         assert list(old_folder.get_items()) == [folder, sibling]
+
+
+class TestMoveItemCommandGalleryTarget:
+    """An image gallery only holds images and other galleries."""
+
+    @pytest.fixture
+    def context(self):
+        app_context = Mock(spec=AppContext)
+        app_state = Mock(spec=AppState)
+        ui_controller = Mock(spec=UIController)
+        app_context.get_app_state.return_value = app_state
+        app_context.get_ui_controller.return_value = ui_controller
+        app_state.event_bus = Mock()
+        app_state.has_project = True
+        return app_context, app_state, ui_controller
+
+    @pytest.mark.parametrize("make_item", [lambda: Note(name="n"), lambda: Folder(name="f"), lambda: Dataset(name="d")])
+    def test_execute_rejects_non_image_items_without_mutating(self, context, make_item):
+        app_context, app_state, ui_controller = context
+        project = Project(name="P")
+        app_state.current_project = project
+        gallery = ImageGallery(name="G")
+        item = make_item()
+        project.add_item(gallery)
+        project.add_item(item)
+
+        result = MoveItemCommand(app_context, item_id=item.id, source_folder_id="root", target_folder_id=gallery.id).execute()
+
+        assert result is CommandResult.FAILURE
+        assert item.parent_id == project.root.id
+        assert item.id not in gallery.items
+        ui_controller.show_error_message.assert_called_once()
+
+    @pytest.mark.parametrize("make_item", [lambda: Image(name="i"), lambda: ImageGallery(name="album")])
+    def test_execute_accepts_images_and_albums(self, context, make_item):
+        app_context, app_state, _ui_controller = context
+        project = Project(name="P")
+        app_state.current_project = project
+        gallery = ImageGallery(name="G")
+        item = make_item()
+        project.add_item(gallery)
+        project.add_item(item)
+
+        command = MoveItemCommand(app_context, item_id=item.id, source_folder_id="root", target_folder_id=gallery.id)
+
+        assert command.execute() is CommandResult.SUCCESS
+        assert item.parent_id == gallery.id
+        assert command.undo() is CommandResult.SUCCESS
+        assert item.parent_id == project.root.id
+        assert command.redo() is CommandResult.SUCCESS
+        assert item.parent_id == gallery.id

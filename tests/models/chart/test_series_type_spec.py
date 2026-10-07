@@ -11,9 +11,12 @@ directly instead of re-deciding the value. bar/hist/vector are
 """
 from pandaplot.models.chart.series_style import (
     BarSeriesStyle,
+    BoxSeriesStyle,
+    DensitySeriesStyle,
     HistSeriesStyle,
     LineSeriesStyle,
     ScatterSeriesStyle,
+    Vector3DSeriesStyle,
     VectorSeriesStyle,
 )
 from pandaplot.models.chart.series_type import SeriesType
@@ -44,7 +47,7 @@ def test_scatter_spec():
     assert spec.marker_mode == "required"
     assert spec.supports_line_style is False
     assert spec.supports_color is False
-    assert spec.supports_fill is False
+    assert spec.supports_fill is True
     assert spec.supports_error_bars is True
     assert spec.needs_x_column is True
     assert spec.needs_secondary_columns is False
@@ -72,6 +75,53 @@ def test_hist_spec():
     assert spec.needs_secondary_columns is False
 
 
+def test_density_spec():
+    """Hist's exact column shape (one values column, no X), but drawn as a
+    line: color, line style and a fill under the curve all apply; markers,
+    error bars, curve analysis and value labels don't."""
+    spec = SERIES_TYPE_SPECS[SeriesType.DENSITY]
+    assert spec.marker_mode == "unsupported"
+    assert spec.supports_line_style is True
+    assert spec.supports_color is True
+    assert spec.supports_fill is True
+    assert spec.supports_error_bars is False
+    assert spec.needs_x_column is False
+    assert spec.needs_secondary_columns is False
+    assert spec.needs_z_column is False
+    assert spec.supports_gridding is False
+    assert spec.uses_color_scale is False
+    assert spec.is_3d is False
+    assert spec.supports_curve_analysis is False
+    assert spec.supports_value_labels is False
+    assert spec.style_cls is DensitySeriesStyle
+
+
+def test_box_spec():
+    """Box mirrors Hist's single-"values"-column shape (no X column); its
+    whiskers/outliers are its own spread display, so no generic error bars."""
+    spec = SERIES_TYPE_SPECS[SeriesType.BOX]
+    assert spec.marker_mode == "unsupported"
+    assert spec.supports_line_style is False
+    assert spec.supports_color is True
+    assert spec.supports_fill is False
+    assert spec.supports_error_bars is False
+    assert spec.needs_x_column is False
+    assert spec.needs_secondary_columns is False
+    assert spec.needs_z_column is False
+    assert spec.supports_gridding is False
+    assert spec.uses_color_scale is False
+    assert spec.is_3d is False
+    assert spec.style_cls is BoxSeriesStyle
+
+
+def test_box_style_defaults():
+    style = BoxSeriesStyle()
+    assert style.color == "#1f77b4"
+    assert style.show_outliers is True
+    assert style.notch is False
+    assert style.box_width == 0.5
+
+
 def test_vector_spec():
     spec = SERIES_TYPE_SPECS[SeriesType.VECTOR]
     assert spec.marker_mode == "unsupported"
@@ -81,6 +131,31 @@ def test_vector_spec():
     assert spec.supports_error_bars is False
     assert spec.needs_x_column is True
     assert spec.needs_secondary_columns is True
+
+
+def test_vector3d_spec():
+    """Vector3D shares Vector's U/V pair (needs_secondary_columns) plus a
+    W component (needs_w_column) on top of the Z every 3-D type needs --
+    but no magnitude-driven coloring, unlike 2-D Vector (see
+    Vector3DSeriesStyle's docstring)."""
+    spec = SERIES_TYPE_SPECS[SeriesType.VECTOR3D]
+    assert spec.marker_mode == "unsupported"
+    assert spec.supports_line_style is False
+    assert spec.supports_color is False
+    assert spec.supports_fill is False
+    assert spec.supports_error_bars is False
+    assert spec.needs_x_column is True
+    assert spec.needs_secondary_columns is True
+    assert spec.needs_z_column is True
+    assert spec.needs_w_column is True
+    assert spec.uses_color_scale is False
+    assert spec.is_3d is True
+
+
+def test_needs_w_column_is_true_only_for_vector3d():
+    for series_type in SeriesType:
+        expected = series_type == SeriesType.VECTOR3D
+        assert SERIES_TYPE_SPECS[series_type].needs_w_column is expected, series_type
 
 
 def test_curve_analysis_is_supported_only_by_line_and_scatter():
@@ -95,13 +170,14 @@ def test_curve_analysis_is_supported_only_by_line_and_scatter():
         assert SERIES_TYPE_SPECS[series_type].supports_curve_analysis is expected, series_type
 
 
-def test_value_labels_are_supported_only_by_line_scatter_and_bar():
+def test_value_labels_are_supported_only_by_line_scatter_and_bar_types():
     """Regression (#125): each rendered point/bar can be annotated with its
     own numeric value only for the types with a single scalar value per
-    plotted element (a Line/Scatter point's Y, a Bar's height). Asserted
-    against the full SeriesType enum so a newly added type defaults to
-    being excluded rather than silently inheriting an unsupported option."""
-    value_label_types = {SeriesType.LINE, SeriesType.SCATTER, SeriesType.BAR}
+    plotted element (a Line/Scatter point's Y, a Bar's or a Stacked Bar
+    segment's height). Asserted against the full SeriesType enum so a newly
+    added type defaults to being excluded rather than silently inheriting an
+    unsupported option."""
+    value_label_types = {SeriesType.LINE, SeriesType.SCATTER, SeriesType.BAR, SeriesType.STACKED_BAR}
     for series_type in SeriesType:
         expected = series_type in value_label_types
         assert SERIES_TYPE_SPECS[series_type].supports_value_labels is expected, series_type
@@ -113,3 +189,44 @@ def test_style_cls_matches_each_series_type():
     assert SERIES_TYPE_SPECS[SeriesType.BAR].style_cls is BarSeriesStyle
     assert SERIES_TYPE_SPECS[SeriesType.HIST].style_cls is HistSeriesStyle
     assert SERIES_TYPE_SPECS[SeriesType.VECTOR].style_cls is VectorSeriesStyle
+    assert SERIES_TYPE_SPECS[SeriesType.VECTOR3D].style_cls is Vector3DSeriesStyle
+
+
+def test_pie_spec():
+    """Pie has a values column and nothing (x, y)-shaped: no X, no flat
+    color (wedges cycle through the default palette), no markers/lines/
+    fill/error bars, and its own show_percentages instead of value labels."""
+    from pandaplot.models.chart.series_style import PieSeriesStyle
+
+    spec = SERIES_TYPE_SPECS[SeriesType.PIE]
+    assert spec.marker_mode == "unsupported"
+    assert spec.supports_line_style is False
+    assert spec.supports_color is False
+    assert spec.supports_fill is False
+    assert spec.supports_error_bars is False
+    assert spec.needs_x_column is False
+    assert spec.needs_secondary_columns is False
+    assert spec.needs_z_column is False
+    assert spec.needs_label_column is True
+    assert spec.uses_color_scale is False
+    assert spec.is_3d is False
+    assert spec.style_cls is PieSeriesStyle
+
+
+def test_needs_label_column_is_true_only_for_pie():
+    for series_type in SeriesType:
+        expected = series_type == SeriesType.PIE
+        assert SERIES_TYPE_SPECS[series_type].needs_label_column is expected, series_type
+
+
+def test_fit_series_type_spec_exists():
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+
+    spec = SERIES_TYPE_SPECS[SeriesType.FIT]
+    assert spec.style_cls is FitStyle
+    assert spec.marker_mode == "unsupported"
+    assert spec.supports_curve_analysis is False
+    assert spec.supports_value_labels is False
+    assert spec.supports_error_bars is False

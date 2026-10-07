@@ -30,11 +30,54 @@ def _paint_bar(painter: QPainter, size: int):
         painter.drawRect(QRectF(x, y, w, h))
 
 
+def _paint_stacked_bar(painter: QPainter, size: int):
+    """Bar's three bars, each split into two stacked segments. The icon is
+    single-color, so the segments are told apart by fill: the lower one
+    solid, the upper one outlined."""
+    bars = [(1, size * 0.5, size * 0.72), (size * 0.4, size * 0.25, size * 0.6),
+            (size * 0.7, size * 0.4, size * 0.68)]
+    bottom = size * 0.9
+    for x, top, split in bars:
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(QRectF(x, top, 3, split - top))
+        painter.setBrush(painter.pen().color())
+        painter.drawRect(QRectF(x, split, 3, bottom - split))
+
+
 def _paint_hist(painter: QPainter, size: int):
     bars = [(1, size * 0.65, 3, size * 0.25), (size * 0.35, size * 0.3, 3, size * 0.6),
             (size * 0.65, size * 0.5, 3, size * 0.4)]
     for x, y, w, h in bars:
         painter.drawRect(QRectF(x, y, w, h))
+
+
+def _paint_density(painter: QPainter, size: int):
+    """A bell curve sampled from a Gaussian, over a baseline -- the shape a
+    KDE of roughly-normal data takes."""
+    baseline = size - 2
+    points = []
+    steps = 16
+    for i in range(steps + 1):
+        t = i / steps
+        bump = math.exp(-((t - 0.5) ** 2) / (2 * 0.16 ** 2))
+        points.append(QPointF(1 + t * (size - 2), baseline - bump * (size - 4)))
+    painter.drawPolyline(points)
+    painter.drawLine(QPointF(1, baseline), QPointF(size - 1, baseline))
+
+
+def _paint_box(painter: QPainter, size: int):
+    """A single box-and-whisker glyph: the box (interquartile range) with
+    its median line across it, and a capped whisker above and below."""
+    center = size * 0.5
+    half_width = size * 0.28
+    box_top, box_bottom = size * 0.3, size * 0.7
+    painter.drawRect(QRectF(center - half_width, box_top, 2 * half_width, box_bottom - box_top))
+    median = size * 0.52
+    painter.drawLine(QPointF(center - half_width, median), QPointF(center + half_width, median))
+    cap_half = half_width * 0.5
+    for whisker_end, box_edge in ((size * 0.06, box_top), (size * 0.94, box_bottom)):
+        painter.drawLine(QPointF(center, box_edge), QPointF(center, whisker_end))
+        painter.drawLine(QPointF(center - cap_half, whisker_end), QPointF(center + cap_half, whisker_end))
 
 
 def _vector_arrow_geometry(size: int):
@@ -80,6 +123,20 @@ def _paint_heatmap(painter: QPainter, size: int):
     for row in range(3):
         for col in range(3):
             painter.drawRect(QRectF(col * cell, row * cell, cell, cell))
+
+
+def _paint_pie(painter: QPainter, size: int):
+    """A circle with three radii -- three wedges read clearly at icon size,
+    where more would blur into a hatched disc."""
+    center = QPointF(size / 2, size / 2)
+    radius = size / 2 - 1
+    painter.drawEllipse(center, radius, radius)
+    # Angles in degrees, measured the same way matplotlib's own pie starts:
+    # the first divider straight up at 12 o'clock.
+    for degrees in (90, 210, 320):
+        angle = math.radians(degrees)
+        painter.drawLine(center, QPointF(center.x() + radius * math.cos(angle),
+                                         center.y() - radius * math.sin(angle)))
 
 
 def _cube_edges(size: int):
@@ -158,6 +215,17 @@ def _paint_bar3d(painter: QPainter, size: int):
                          QPointF(x + depth, base - height - depth))
 
 
+def _paint_vector3d(painter: QPainter, size: int):
+    """A single arrow inside the 3-D axes corner -- one arrowhead reads
+    clearly at icon size, unlike the two overlapping ones _paint_vector
+    uses for its flat 2-D field."""
+    _paint_axes3d(painter, size)
+    start, end, wings = _vector_arrow_geometry(size)[1]
+    painter.drawLine(start, end)
+    for head_point in wings:
+        painter.drawLine(end, head_point)
+
+
 def _paint_trisurf(painter: QPainter, size: int):
     """The same sheet as the surface icon, split into triangles -- the
     triangulation is the whole distinction between the two types."""
@@ -172,16 +240,21 @@ _PAINTERS = {
     "line": _paint_line,
     "scatter": _paint_scatter,
     "bar": _paint_bar,
+    "stacked_bar": _paint_stacked_bar,
     "hist": _paint_hist,
+    "density": _paint_density,
+    "box": _paint_box,
     "vector": _paint_vector,
     "colormap": _paint_colormap,
     "heatmap": _paint_heatmap,
+    "pie": _paint_pie,
     "scatter3d": _paint_scatter3d,
     "line3d": _paint_line3d,
     "surface": _paint_surface,
     "wireframe": _paint_wireframe,
     "bar3d": _paint_bar3d,
     "trisurf": _paint_trisurf,
+    "vector3d": _paint_vector3d,
 }
 
 

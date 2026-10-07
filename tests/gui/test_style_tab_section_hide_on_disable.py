@@ -15,7 +15,7 @@ from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
-from pandaplot.models.project.items.chart import DataSeries, FitData
+from pandaplot.models.project.items.chart import Chart, DataSeries
 
 
 def _qapp():
@@ -30,14 +30,18 @@ def _line_series():
 
 
 def _fit_with_confidence(**style_kwargs):
-    fit = FitData(
-        source_dataset_id="ds1", fit_type="linear",
+    chart = Chart(name="c", chart_type="line")
+    return chart.add_fit_series(
+        source_dataset_id="ds1",
         x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]),
-        label="Fit", style=FitStyle(**style_kwargs),
+        label="Fit",
+        style=FitStyle(
+            fit_type="linear",
+            confidence_lower=np.array([0.5, 1.5]),
+            confidence_upper=np.array([1.5, 2.5]),
+            **style_kwargs,
+        ),
     )
-    fit.confidence_lower = np.array([0.5, 1.5])
-    fit.confidence_upper = np.array([1.5, 2.5])
-    return fit
 
 
 def test_disabling_markers_hides_the_option_rows():
@@ -90,7 +94,7 @@ def test_disabling_confidence_band_hides_the_option_rows():
     style_tab = StyleTab(app_context=build_app_context())
     style_tab.show()
     style_tab.set_selected(
-        "fit", _fit_with_confidence(band_fill_enabled=True, band_color="#445566")
+        "series", _fit_with_confidence(band_fill_enabled=True, band_color="#445566")
     )
 
     assert style_tab.band_color_row.isVisible() is True

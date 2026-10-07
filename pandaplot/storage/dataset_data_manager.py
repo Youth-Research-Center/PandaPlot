@@ -106,6 +106,8 @@ class DatasetDataManager(ItemDataManager[Dataset]):
                 "source_file": item.source_file,
                 "has_data": item.data is not None,
                 "column_ids": dict(item.column_ids),
+                "column_roles": {column_id: role.value for column_id, role in item.column_roles.items()},
+                "column_measurement_groups": dict(item.column_measurement_groups),
                 "column_dtypes": column_dtypes,
                 "column_categoricals": column_categoricals,
             }
@@ -189,6 +191,8 @@ class DatasetDataManager(ItemDataManager[Dataset]):
                         if existing_id is not None:
                             restored[existing_id] = name
                 dataset.column_ids = restored
+            dataset._restore_column_roles(metadata.get("column_roles"))
+            dataset._restore_column_measurement_groups(metadata.get("column_measurement_groups"))
 
             self.logger.info("Successfully loaded dataset '%s' (ID: %s)", dataset_name, dataset_id)
             return dataset

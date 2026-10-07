@@ -130,9 +130,12 @@ class CreateVisualizationDialog(PDialog):
         layout.addWidget(scroll_area)
 
     def _create_chart_item(self, chart: Chart, display_name: str) -> QPushButton:
-        series_count = len(chart.data_series)
+        fit_count = sum(1 for series in chart.data_series if series.is_fit)
+        series_count = len(chart.data_series) - fit_count
         type_name = get_chart_type_spec(chart.chart_type).display_name
         detail_text = f"{type_name} chart · {series_count} series"
+        if fit_count:
+            detail_text += f" · {fit_count} fit{'s' if fit_count != 1 else ''}"
         button = QPushButton()
         button.setObjectName("ChartItemButton")
         button.setMinimumHeight(56)

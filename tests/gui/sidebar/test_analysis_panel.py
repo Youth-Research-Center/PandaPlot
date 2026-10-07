@@ -78,6 +78,29 @@ class TestAnalysisPanelRangeLabels:
         assert params["end_index"] == 50
 
 
+class TestAnalysisPanelParameters:
+    def test_smoothing_config_only_includes_current_method_parameters(self, panel):
+        panel.analysis_type_combo.setCurrentText("Smoothing")
+        panel.smooth_method_combo.setCurrentText("Rolling Mean")
+
+        params = panel.get_analysis_config()["parameters"]
+        assert params == {"start_index": 0, "end_index": 101, "method": "rolling_mean", "window": 5}
+
+        panel.smooth_method_combo.setCurrentText("LOWESS")
+        params = panel.get_analysis_config()["parameters"]
+        assert params == {"start_index": 0, "end_index": 101, "method": "lowess"}
+
+        panel.smooth_method_combo.setCurrentText("Savitzky-Golay")
+        params = panel.get_analysis_config()["parameters"]
+        assert params == {
+            "start_index": 0,
+            "end_index": 101,
+            "method": "savgol",
+            "window_length": 11,
+            "polynomial_order": 3,
+        }
+
+
 def _ready_to_apply(panel, *, dispatch_return=True):
     """Set panel up so validate_inputs() passes, and capture the
     AnalysisCommand dispatched via execute_command (without actually

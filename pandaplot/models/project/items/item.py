@@ -114,6 +114,10 @@ class ItemCollection(Item):
     def __iter__(self):
         return iter(self.items.values())
     
+    def accepts_item(self, item: Item) -> bool:
+        """Return whether `item` may be moved into this collection."""
+        return True
+
     def add_item(self, item: Item, index: int | None = None):
         """Add an item to this collection.
 

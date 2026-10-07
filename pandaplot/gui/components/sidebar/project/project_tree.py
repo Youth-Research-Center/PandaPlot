@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.commands.project.item import MoveItemCommand
+from pandaplot.models.project.items import ItemCollection
 
 
 class ProjectTreeWidget(QTreeWidget):
@@ -75,14 +76,14 @@ class ProjectTreeWidget(QTreeWidget):
                 target_type = target_data.get("type", "")
 
                 # If dropping on a folder, make it the parent
-                if target_type in ["folder", "imagegallery"]:
+                if target_type in ["folder", "imagegallery"] and not self._is_beside_drop(target_item, event):
                     new_parent_id = target_data.get("id", "root")
                     self.logger.debug(
                         "ProjectTreeWidget: dropping on folder new_parent_id=%s", new_parent_id)
                 # If dropping on another item, use its parent folder
-                elif target_type in ["note", "dataset", "chart", "image"]:
+                elif target_type in ["note", "dataset", "chart", "image", "folder", "imagegallery"]:
                     target_item_obj = target_data.get("data")
-                    if target_item_obj and target_item_obj.parent_id:
+                    if target_item_obj is not None and target_item_obj.parent_id:
                         # Check if the parent_id is the root collection ID
                         project = self.parent_panel.app_state.current_project
                         if project and target_item_obj.parent_id == project.root.id:
@@ -103,7 +104,7 @@ class ProjectTreeWidget(QTreeWidget):
 
         # Get current parent folder ID
         current_item_obj = source_data.get("data")
-        if current_item_obj:
+        if current_item_obj is not None:
             # Check if the parent_id is the root collection ID
             project = self.parent_panel.app_state.current_project
             if project and current_item_obj.parent_id == project.root.id:
@@ -134,7 +135,10 @@ class ProjectTreeWidget(QTreeWidget):
             )
             self.parent_panel.app_context.get_command_executor().execute_command(command)
 
-            # Accept the event
+            # The command owns the move and the panel rebuilds the tree from the
+            # resulting event. A MoveAction would make Qt delete the dragged row
+            # itself, which loses it from the view when the command is rejected.
+            event.setDropAction(Qt.DropAction.IgnoreAction)
             event.accept()
         else:
             # No change needed, but allow the visual move
@@ -145,6 +149,29 @@ class ProjectTreeWidget(QTreeWidget):
 
         # Also set a timer to clear drag state in case events are out of order
         QTimer.singleShot(100, lambda: setattr(self, "_is_dragging", False))
+
+    @staticmethod
+    def _rejects_drop_into(target_data, source_data) -> bool:
+        """Whether the target row is a collection that refuses the dragged item."""
+        target_obj = target_data.get("data")
+        source_obj = source_data.get("data") if source_data else None
+        return isinstance(target_obj, ItemCollection) and source_obj is not None and not target_obj.accepts_item(source_obj)
+
+    def _is_beside_drop(self, item, event):
+        """A drop at a row edge targets its parent; the center targets the folder.
+
+        Use the same geometry for feedback and execution. This widget handles
+        dragMoveEvent itself, so Qt's default drop indicator is not updated.
+        """
+        rectangle = self.visualItemRect(item)
+        margin = min(4, max(1, rectangle.height() // 4))
+        y = event.position().toPoint().y()
+        return y < rectangle.top() + margin or y > rectangle.bottom() - margin
+
+    def _dragged_data(self):
+        """Return the UserRole data of the row being dragged, if any."""
+        source_item = self.currentItem()
+        return source_item.data(0, Qt.ItemDataRole.UserRole) if source_item else None
 
     def dragMoveEvent(self, event):
         """Handle drag move events with visual feedback."""
@@ -170,7 +197,12 @@ class ProjectTreeWidget(QTreeWidget):
                         if target_type in ["folder", "project", "note", "dataset", "chart", "imagegallery", "image"]:
                             # Only highlight folders and project root for "drop into" operations
                             # For other items, provide subtle feedback since it's a "drop beside" operation
-                            if target_type in ["folder", "project", "imagegallery"]:
+                            is_into_drop = target_type in ["folder", "imagegallery"] and not self._is_beside_drop(target_item, event)
+                            if is_into_drop and self._rejects_drop_into(target_data, self._dragged_data()):
+                                self.setToolTip("This item cannot be dropped here")
+                                event.ignore()
+                                return
+                            if target_type == "project" or is_into_drop:
                                 self._highlight_item(target_item)
                                 if target_type in ("folder", "imagegallery"):
                                     self.setToolTip("Drop into folder")

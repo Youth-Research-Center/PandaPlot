@@ -129,3 +129,78 @@ def test_resolve_series_data_missing_z_column_errors(project_with_series):
     )
     data = resolve_series_data(project, series)
     assert data.error is not None
+
+
+def _density_range_fixture():
+    import numpy as np
+    import pandas as pd
+
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items import Dataset
+    from pandaplot.models.project.items.chart import Chart
+    from pandaplot.models.project.project import Project
+
+    project = Project(name="p")
+    values = np.random.default_rng(1).normal(10.0, 3.0, 100)
+    dataset = Dataset(name="ds", data=pd.DataFrame({"v": values}))
+    project.add_item(dataset)
+    chart = Chart(name="c", chart_type="density")
+    chart.add_data_series(dataset.id, y_column_id=dataset.column_id("v"), series_type=SeriesType.DENSITY)
+    return project, chart, values
+
+
+def test_axis_range_for_density_uses_the_rendered_kde_coordinates():
+    from pandaplot.gui.components.tabs.chart.series_renderers.density import compute_density_curve
+
+    project, chart, values = _density_range_fixture()
+    grid, density = compute_density_curve(values, bandwidth=0.0)
+
+    assert compute_axis_data_range(project, chart.data_series, "x") == (float(grid.min()), float(grid.max()))
+    assert compute_axis_data_range(project, chart.data_series, "y") == (float(density.min()), float(density.max()))
+
+
+def test_axis_range_includes_normalized_hist_overlay_on_a_density_chart():
+    import numpy as np
+
+    from pandaplot.models.chart.series_type import SeriesType
+
+    project, chart, values = _density_range_fixture()
+    dataset_id = chart.data_series[0].dataset_id
+    chart.add_data_series(dataset_id, y_column_id=chart.data_series[0].y_column_id, series_type=SeriesType.HIST)
+    heights, _ = np.histogram(values, bins=5, density=True)
+    kde_max = compute_axis_data_range(project, chart.data_series[:1], "y")[1]
+
+    low, high = compute_axis_data_range(project, chart.data_series, "y", hist_density_bins=5)
+
+    assert low == 0.0
+    assert high == max(kde_max, float(heights.max()))
+
+
+def test_axis_range_for_a_filled_density_reaches_the_zero_baseline():
+    project, chart, _values = _density_range_fixture()
+    chart.data_series[0].style.fill_enabled = True
+
+    assert compute_axis_data_range(project, chart.data_series, "y")[0] == 0.0
+    assert compute_axis_data_range(project, chart.data_series, "y", positive_only=True)[0] > 0.0
+
+
+def test_axis_range_for_a_constant_hist_overlay_uses_the_widened_bin_edges():
+    import numpy as np
+    import pandas as pd
+
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items import Dataset
+    from pandaplot.models.project.items.chart import Chart
+    from pandaplot.models.project.project import Project
+
+    project = Project(name="p")
+    dataset = Dataset(name="ds", data=pd.DataFrame({"v": [4.0] * 10}))
+    project.add_item(dataset)
+    chart = Chart(name="c", chart_type="density")
+    chart.add_data_series(dataset.id, y_column_id=dataset.column_id("v"), series_type=SeriesType.HIST)
+    _heights, edges = np.histogram([4.0] * 10, bins=5, density=True)
+
+    low, high = compute_axis_data_range(project, chart.data_series, "x", hist_density_bins=5)
+
+    assert (low, high) == (float(edges.min()), float(edges.max()))
+    assert low < high

@@ -21,6 +21,7 @@ class RemoveSeriesCommand(Command):
         self.chart_id = chart_id
         self.series_index = series_index
         self.removed_series_data: DataSeries | None = None
+        self._fill_targets: list[int | None] | None = None
         self._chart_finder = ChartFinder(app_context)
 
     @override
@@ -50,6 +51,10 @@ class RemoveSeriesCommand(Command):
         series = chart.data_series[self.series_index]
         self.removed_series_data = copy.deepcopy(series)
 
+        # remove_data_series retargets other series' fills (and drops fills
+        # that pointed at this one); snapshot them so undo is exact.
+        self._fill_targets = chart.fill_targets()
+
         chart.remove_data_series(self.series_index)
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
@@ -72,6 +77,8 @@ class RemoveSeriesCommand(Command):
         # Re-create and insert at original position
         series = copy.deepcopy(self.removed_series_data)
         chart.data_series.insert(self.series_index, series)
+        if self._fill_targets is not None:
+            chart.restore_fill_targets(self._fill_targets)
         chart.update_modified_time()
 
         self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
@@ -87,6 +94,8 @@ class RemoveSeriesCommand(Command):
 
     @override
     def cleanup(self) -> None:
-        """Release the removed series-data snapshot held for undo once this
-        command is dropped from the stacks for good (see Command.cleanup)."""
+        """Release the removed series-data and fill-target snapshots held
+        for undo once this command is dropped from the stacks for good
+        (see Command.cleanup)."""
         self.removed_series_data = None
+        self._fill_targets = None

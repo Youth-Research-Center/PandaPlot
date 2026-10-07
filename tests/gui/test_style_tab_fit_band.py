@@ -1,6 +1,6 @@
 """Regression test: the Style tab must expose a Confidence Band card
-(enable toggle/color/opacity) for a selected fit-data entry, visible only
-for "fit" targets, reading/writing `FitData.style.band_*` fields.
+(enable toggle/color/opacity) for a selected FIT-type series, visible only
+for such series, reading/writing `FitStyle.band_*` fields.
 """
 import sys
 
@@ -11,7 +11,7 @@ from pandaplot.app import build_app_context
 from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style import LineSeriesStyle
-from pandaplot.models.project.items.chart import DataSeries, FitData
+from pandaplot.models.project.items.chart import Chart, DataSeries
 
 
 def _qapp():
@@ -19,9 +19,9 @@ def _qapp():
 
 
 def _fit(**style_kwargs):
-    return FitData(
+    chart = Chart(name="c", chart_type="line")
+    return chart.add_fit_series(
         source_dataset_id="ds1",
-        fit_type="linear",
         x_data=np.array([1.0, 2.0]),
         y_data=np.array([1.0, 2.0]),
         label="Fit",
@@ -40,10 +40,11 @@ def _series():
 
 
 def _fit_with_confidence(**style_kwargs):
-    fit = _fit(**style_kwargs)
-    fit.confidence_lower = np.array([0.5, 1.5])
-    fit.confidence_upper = np.array([1.5, 2.5])
-    return fit
+    return _fit(
+        confidence_lower=np.array([0.5, 1.5]),
+        confidence_upper=np.array([1.5, 2.5]),
+        **style_kwargs,
+    )
 
 
 def test_band_card_visible_only_for_fit_target_with_confidence_data():
@@ -55,10 +56,10 @@ def test_band_card_visible_only_for_fit_target_with_confidence_data():
     # A fit with no confidence_lower/confidence_upper has nothing for the
     # band card's controls to act on (F4) -- it must stay hidden even when
     # selected.
-    style_tab.set_selected("fit", _fit())
+    style_tab.set_selected("series", _fit())
     assert style_tab.band_card.isVisible() is False
 
-    style_tab.set_selected("fit", _fit_with_confidence())
+    style_tab.set_selected("series", _fit_with_confidence())
     assert style_tab.band_card.isVisible() is True
 
     style_tab.set_selected("series", _series())

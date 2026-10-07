@@ -42,7 +42,15 @@ class Project:
 
         `index`, when given, inserts the item at that position among its new
         siblings instead of appending it (see ItemCollection.add_item()).
+
+        Raises:
+            ValueError: If the item's subtree reuses an id already in the
+                project (the root id included; held by a different item; the added item itself may still
+                overwrite one) or within the subtree, or
+                a descendant's parent_id does not match its container. The
+                project is left unchanged.
         """
+        self._validate_subtree(item)
         if parent_id is None:
             # Add to root
             self.root.add_item(item, index=index)
@@ -57,8 +65,39 @@ class Project:
                 # TODO(#219): see if we need to handle this case differently, e.g. recursively search for a collection
                 self.root.add_item(item, index=index)
 
-        # Update index
+        # Index the full subtree when restoring or attaching a collection.
+        self._index_item_subtree(item)
+
+    def _validate_subtree(self, item: Item) -> None:
+        """Check that indexing `item`'s subtree cannot clobber other items or
+        record inconsistent parent references."""
+        seen: set[str] = set()
+        stack: list[Item] = [item]
+        while stack:
+            current = stack.pop()
+            if current.id in seen:
+                raise ValueError(f"Duplicate item id '{current.id}' within the added subtree")
+            seen.add(current.id)
+            # The root is not in items_index, but find_item() always resolves its
+            # id to the root, so a subtree item reusing it would be unreachable.
+            if current.id == self.root.id:
+                raise ValueError(f"Item id '{current.id}' is the project root id")
+            existing = self.items_index.get(current.id)
+            # The added item itself keeps the long-standing overwrite behaviour
+            # for a duplicate id; only descendants must not clobber other items.
+            if current is not item and existing is not None and existing is not current:
+                raise ValueError(f"Item id '{current.id}' is already used by another item in the project")
+            if isinstance(current, ItemCollection):
+                for child in current.get_items():
+                    if child.parent_id != current.id:
+                        raise ValueError(f"Item '{child.id}' has parent_id '{child.parent_id}', expected '{current.id}'")
+                    stack.append(child)
+
+    def _index_item_subtree(self, item: Item) -> None:
         self.items_index[item.id] = item
+        if isinstance(item, ItemCollection):
+            for child in item.get_items():
+                self._index_item_subtree(child)
 
     def _find_parent_collection(self, item: Item) -> ItemCollection | None:
         """Return the ItemCollection currently holding `item` (its parent, or

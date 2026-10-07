@@ -246,3 +246,72 @@ def test_a_3d_chart_type_is_marked_3d_in_the_spec_the_editor_reads():
     type membership itself; this pins the two together."""
     for chart_type in _3D_CHART_TYPES:
         assert CHART_TYPE_SPECS[chart_type].is_3d is True
+
+
+# -- Vector3D (#175) -------------------------------------------------------
+# Not folded into _3D_CHART_TYPES/_chart_with_series above: every other 3-D
+# type needs only a Z column on top of X/Y, but Vector3D additionally needs
+# U/V/W, so it gets its own dataset/series-building helper rather than
+# retrofitting the shared one every other 3-D test in this file relies on.
+
+def _vector3d_project_and_dataset():
+    project = Project(name="Vector3D Render Project")
+    df = pd.DataFrame({
+        "x": [0.0, 1.0, 2.0], "y": [0.0, 1.0, 2.0], "z": [0.0, 1.0, 2.0],
+        "u": [1.0, 0.5, -1.0], "v": [0.5, -1.0, 0.5], "w": [0.2, -0.3, 0.4],
+    })
+    dataset = Dataset(name="ds1", data=df)
+    project.add_item(dataset)
+    return project, dataset
+
+
+def _vector3d_chart(dataset, **style_kwargs):
+    chart = Chart(name="Vector3D chart", chart_type=ChartType.VECTOR3D)
+    chart.data_series.append(DataSeries(
+        dataset_id=dataset.id,
+        x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        label="s1", series_type=SeriesType.VECTOR3D,
+        style=build_series_style(
+            SeriesType.VECTOR3D, color="#1f77b4",
+            z_column_id=dataset.column_id("z"), u_column_id=dataset.column_id("u"),
+            v_column_id=dataset.column_id("v"), w_column_id=dataset.column_id("w"),
+            **style_kwargs,
+        ),
+    ))
+    return chart
+
+
+def test_a_vector3d_chart_renders_without_error():
+    _qapp()
+    project, dataset = _vector3d_project_and_dataset()
+    editor = _editor_for(project, _vector3d_chart(dataset))
+
+    editor.update_chart()
+
+    assert editor.chart_canvas.is_3d is True
+    assert editor.status_label.text() == "Ready"
+
+
+def test_a_vector3d_series_with_no_w_column_reports_an_error_instead_of_rendering():
+    _qapp()
+    project, dataset = _vector3d_project_and_dataset()
+    chart = _vector3d_chart(dataset)
+    chart.data_series[0].style.w_column_id = ""
+    editor = _editor_for(project, chart)
+
+    editor.update_chart()
+
+    assert "no W column configured" in editor.status_label.text()
+
+
+def test_vector3d_draws_no_colorbar():
+    """Vector3D takes no part in the shared color scale (uses_color_scale
+    is False, like Scatter3D/Line3D/Wireframe/Bar3D) -- it always draws in
+    a flat vector_color."""
+    _qapp()
+    project, dataset = _vector3d_project_and_dataset()
+    editor = _editor_for(project, _vector3d_chart(dataset))
+
+    editor.update_chart()
+
+    assert editor._colorbar is None

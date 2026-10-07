@@ -4,10 +4,12 @@ offered regardless of branch, unlike ExploreDataDialog's either/or.
 """
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 from PySide6.QtWidgets import QApplication, QDialog, QPushButton
 
 from pandaplot.gui.dialogs.create_visualization_dialog import CreateVisualizationDialog
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Chart
 from pandaplot.models.project.items.folder import Folder
@@ -161,6 +163,26 @@ def test_chart_item_uses_canonical_chart_type_display_names():
     buttons = dialog.findChildren(QPushButton, "ChartItemButton")
     descriptions = {button.accessibleDescription() for button in buttons}
     assert descriptions == {"Histogram chart · 0 series", "Color Map chart · 0 series"}
+
+
+def test_chart_item_description_counts_fits_separately_from_series():
+    """Fits live in chart.data_series since #304 -- the picker must not
+    count them as series (2 series + 3 fits used to read "5 series")."""
+    chart = Chart(name="Fitted", chart_type="line")
+    for _ in range(2):
+        chart.add_data_series("ds", x_column="x", y_column="y")
+    for _ in range(3):
+        chart.add_fit_series("ds", x_data=np.array([1.0]), y_data=np.array([1.0]), label="Fit", style=FitStyle())
+    app_context = Mock()
+    app_context.get_app_state.return_value.has_project = True
+    project = Mock()
+    project.get_all_items.return_value = [chart]
+    app_context.get_app_state.return_value.current_project = project
+
+    dialog = _make_dialog(app_context)
+
+    buttons = dialog.findChildren(QPushButton, "ChartItemButton")
+    assert {button.accessibleDescription() for button in buttons} == {"Line chart · 2 series · 3 fits"}
 
 
 def test_handle_create_chart_invokes_callback_and_accepts():

@@ -6,11 +6,13 @@ import pytest
 from PySide6.QtWidgets import QApplication, QComboBox
 
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
+    find_series_fit_combo_index,
     populate_chart_target_combo,
     populate_series_fit_sources,
     series_source_hint,
 )
 from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -50,7 +52,7 @@ class TestPopulateSeriesFitSources:
         has_sources, any_excluded = populate_series_fit_sources(combo, chart)
         assert has_sources is True
         assert any_excluded is False
-        assert combo.itemData(0) == ("series", 0)
+        assert combo.itemData(0) == 0
         assert "Squared" in combo.itemText(0)
 
     def test_bar_series_is_excluded(self, chart):
@@ -61,13 +63,56 @@ class TestPopulateSeriesFitSources:
         assert any_excluded is True
 
     def test_fits_are_offered_alongside_series(self, chart):
-        chart.add_fit_data(
-            source_dataset_id="ds-1", fit_type="linear",
-            x_data=[1.0, 2.0], y_data=[1.0, 2.0], label="Fit 1",
+        chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]),
+            label="Fit 1", style=FitStyle(fit_type="linear"),
         )
         combo = QComboBox()
         populate_series_fit_sources(combo, chart)
-        assert combo.itemData(1) == ("fit", 0)
+        assert combo.itemData(1) == 1
+
+    def test_a_chart_with_only_a_fit_does_not_report_any_series_excluded(self, chart):
+        """Regression test for final-review Minor finding #6: a FIT-type
+        entry in chart.data_series hits the loop's supports_curve_analysis
+        check and used to set any_series_excluded=True even though the fit
+        IS listed, just via the separate fit-listing loop below. A chart
+        whose only non-plain-series entry is a fit must not report any
+        exclusion at all."""
+        only_fit_chart = Chart(id="fit-only", name="Fit Only")
+        only_fit_chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]),
+            label="Fit 1", style=FitStyle(fit_type="linear"),
+        )
+        combo = QComboBox()
+        has_sources, any_excluded = populate_series_fit_sources(combo, only_fit_chart)
+        assert has_sources is True
+        assert any_excluded is False
+        assert combo.itemData(0) == 0
+
+    def test_item_data_is_the_data_series_index_not_the_combo_row(self):
+        """Regression test for final-review Important #1: with a chart whose
+        data_series is [FIT, excluded BAR, LINE], the combo lists the fit
+        and the line in that order (fits-after-series in the loop, but
+        series-then-fits in the combo), so combo row != real data_series
+        index for either entry. itemData must carry the real index anyway."""
+        project = Project(name="P")
+        dataset = Dataset(id="ds-1", name="Data", data=pd.DataFrame({"x": [1.0, 2.0], "y": [1.0, 2.0]}))
+        project.add_item(dataset)
+        chart = Chart(id="c", name="C")
+        chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]),
+            label="Fit A", style=FitStyle(fit_type="linear"),
+        )  # data_series[0]
+        chart.add_data_series(dataset_id="ds-1", label="Bars", series_type=SeriesType.BAR)  # data_series[1], excluded
+        chart.add_data_series(dataset_id="ds-1", label="Line", series_type=SeriesType.LINE)  # data_series[2]
+        project.add_item(chart)
+
+        combo = QComboBox()
+        populate_series_fit_sources(combo, chart)
+
+        assert [combo.itemData(i) for i in range(combo.count())] == [2, 0]
+        assert find_series_fit_combo_index(combo, 0) == 1
+        assert find_series_fit_combo_index(combo, 1) == -1
 
 
 class TestSeriesSourceHint:

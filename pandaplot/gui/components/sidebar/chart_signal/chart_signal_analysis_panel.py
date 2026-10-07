@@ -306,7 +306,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         source = self._selected_source()
         if source is None:
             return
-        command = self._range_command(*source)
+        command = self._range_command(source)
         if command is None:
             return
 
@@ -337,8 +337,8 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- config ---------------------------------------------------------------
 
-    def _selected_source(self):
-        """Return (kind, index) for the selected series, or None."""
+    def _selected_source(self) -> int | None:
+        """Return the selected series/fit's chart.data_series index, or None."""
         return self.source_combo.currentData()
 
     def _current_analysis_type(self) -> SignalAnalysisType | None:
@@ -372,14 +372,12 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         return params
 
     def _get_dispatch_params(self):
-        source = self._selected_source()
-        if source is None or self.current_chart_id is None:
+        index = self._selected_source()
+        if index is None or self.current_chart_id is None:
             return None
-        kind, index = source
 
         return (
             self.current_chart_id,
-            kind,
             index,
             self._current_analysis_type(),
             self.sampling_rate.value() if self.sampling_rate else None,
@@ -391,13 +389,12 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         if params is None:
             return None
 
-        chart_id, kind, index, analysis_type, sampling_rate, parameters = params
+        chart_id, index, analysis_type, sampling_rate, parameters = params
         folder_id = self.current_chart.parent_id if self.current_chart else None
         plot_result = self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled()
         return ChartSignalAnalysisCommand(
             self.app_context,
             chart_id=chart_id,
-            source_kind=kind,
             source_index=index,
             analysis_type=analysis_type,
             sampling_rate=sampling_rate,
@@ -618,7 +615,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- chart context --------------------------------------------------------
 
-    def _range_command(self, kind: str, index: int) -> ChartSignalAnalysisCommand | None:
+    def _range_command(self, index: int) -> ChartSignalAnalysisCommand | None:
         """Return a command to resolve the selected series, reused across
         calls for the same (chart, source) so its _resolved_xy_cache
         actually amortizes the NaN-drop/to_numeric resolution work.
@@ -632,21 +629,20 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         """
         if self.current_chart is None or self.current_chart_id is None:
             return None
-        key = (self.current_chart_id, kind, index)
+        key = (self.current_chart_id, index)
         if self._range_command_key != key:
             self._range_command_cache = ChartSignalAnalysisCommand(
                 self.app_context,
                 chart_id=self.current_chart_id,
-                source_kind=kind,
                 source_index=index,
                 analysis_type=SignalAnalysisType.FFT,
             )
             self._range_command_key = key
         return self._range_command_cache
 
-    def _series_length(self, kind: str, index: int) -> int:
+    def _series_length(self, index: int) -> int:
         """Best-effort length of a source series, for the segment bounds."""
-        command = self._range_command(kind, index)
+        command = self._range_command(index)
         return command.source_length() if command else 0
 
     def _on_source_changed(self):
@@ -654,7 +650,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         if source is None:
             last = 0
         else:
-            last = max(self._series_length(*source) - 1, 0)
+            last = max(self._series_length(source) - 1, 0)
         self.start_index.setMaximum(last)
         self.end_index.setMaximum(last)
         # Default to the whole series -- start at the first point, end at
@@ -683,7 +679,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _update_range_labels(self):
         source = self._selected_source()
-        command = self._range_command(*source) if source else None
+        command = self._range_command(source) if source is not None else None
         if command is None:
             self.start_value_label.setText("–")
             self.end_value_label.setText("–")

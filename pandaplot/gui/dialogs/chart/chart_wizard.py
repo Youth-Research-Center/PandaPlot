@@ -219,10 +219,19 @@ class ChartWizard(PWizard):
         y_label = ""
         if self.data_page.cards:
             names = self.data_page.cards[0].get_display_names()
-            if self.get_chart_type() == "hist":
-                # A histogram plots the binned "Values" column along X; Y is
-                # frequency/count, which nothing here can suggest a name for.
+            chart_type = self.get_chart_type()
+            if chart_type in ("hist", "density"):
+                # A histogram/density chart plots the "Values" column along
+                # X. A histogram's Y is a frequency/count nothing here can
+                # suggest a name for; a density chart's Y is always the
+                # estimated probability density.
                 x_label = names.get("values", "")
+                if chart_type == "density":
+                    y_label = "Density"
+            elif chart_type == "box":
+                # A box plot measures its "Values" column up the Y axis; X
+                # just names each box (one tick per series), so no label.
+                y_label = names.get("values", "")
             else:
                 x_label = names.get("x", "")
                 y_label = names.get("y", "")

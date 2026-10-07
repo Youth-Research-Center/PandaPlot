@@ -5,6 +5,10 @@ import json
 from unittest.mock import patch
 from zipfile import ZipFile
 
+import numpy as np
+
+from pandaplot.models.chart.fit_style import FitStyle
+from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.storage.chart_data_manager import ChartDataManager
 
@@ -92,3 +96,36 @@ def test_a_genuinely_legacy_flat_shaped_chart_loads_through_both_migrations():
     # per-axis default.
     assert loaded.config.y.side == "left"
     assert loaded.config.y2.side == "right"
+
+
+def test_saving_a_fit_series_with_confidence_bands_round_trips_through_real_json():
+    """Regression test for final-review Critical finding #1: a FIT
+    series' confidence_lower/confidence_upper live inside FitStyle and go
+    out through Chart.to_dict()'s generic `asdict(series.style)` path --
+    without converting ndarray values there, json.dumps() (called
+    directly by ChartDataManager.save) raises TypeError, and since
+    ProjectDataManager.save() truncates the zip before writing, a real
+    project save could destroy an already-saved file. This exercises the
+    actual save() -> json.dumps() -> load() path, not just to_dict()."""
+    chart = Chart(id="chart-1", name="Fit Chart", chart_type="line")
+    chart.add_fit_series(
+        source_dataset_id="ds1",
+        x_data=np.array([1.0, 2.0, 3.0]),
+        y_data=np.array([1.0, 4.0, 9.0]),
+        label="My Fit",
+        style=FitStyle(
+            fit_type="linear",
+            confidence_lower=np.array([0.5, 3.5, 8.5]),
+            confidence_upper=np.array([1.5, 4.5, 9.5]),
+        ),
+    )
+
+    loaded = _round_trip(chart)
+
+    assert len(loaded.data_series) == 1
+    fit = loaded.data_series[0]
+    assert fit.series_type == SeriesType.FIT
+    np.testing.assert_array_equal(fit.precomputed_x_data, [1.0, 2.0, 3.0])
+    np.testing.assert_array_equal(fit.precomputed_y_data, [1.0, 4.0, 9.0])
+    np.testing.assert_array_equal(fit.style.confidence_lower, [0.5, 3.5, 8.5])
+    np.testing.assert_array_equal(fit.style.confidence_upper, [1.5, 4.5, 9.5])

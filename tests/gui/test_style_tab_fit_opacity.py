@@ -1,10 +1,12 @@
 """Regression test: the Style tab's opacity slider must actually apply to a
-selected fit-data entry.
+selected FIT-type series.
 
 Before this fix, `FitData` had no `alpha` field at all: `load_fit_style`
 hardcoded the opacity slider to 1.0 on every load, `apply_fit_style_to` never
 wrote it back, and chart_editor.py hardcoded `alpha=1.0` when plotting the
 fit line -- so moving the opacity slider for a fit had no effect whatsoever.
+Post-#304, a fit's opacity is the generic `DataSeries.alpha` field (FitStyle
+itself carries no `alpha`).
 """
 import sys
 
@@ -14,21 +16,22 @@ from PySide6.QtWidgets import QApplication
 from pandaplot.app import build_app_context
 from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
 from pandaplot.models.chart.fit_style import FitStyle
-from pandaplot.models.project.items.chart import FitData
+from pandaplot.models.project.items.chart import Chart
 
 
 def _qapp():
     return QApplication.instance() or QApplication(sys.argv)
 
 
-def _fit(**style_kwargs):
-    return FitData(
+def _fit(alpha=1.0, **style_kwargs):
+    chart = Chart(name="c", chart_type="line")
+    return chart.add_fit_series(
         source_dataset_id="ds1",
-        fit_type="linear",
         x_data=np.array([1.0, 2.0]),
         y_data=np.array([1.0, 2.0]),
         label="Fit",
-        style=FitStyle(**style_kwargs),
+        alpha=alpha,
+        style=FitStyle(fit_type="linear", **style_kwargs),
     )
 
 
@@ -54,4 +57,4 @@ def test_apply_fit_style_persists_opacity_slider_to_alpha():
 
     style_tab.apply_fit_style_to(fit)
 
-    assert fit.style.alpha == 0.3
+    assert fit.alpha == 0.3

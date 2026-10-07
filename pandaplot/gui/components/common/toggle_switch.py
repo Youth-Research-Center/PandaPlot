@@ -1,6 +1,6 @@
-from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QMouseEvent, QPainter
-from PySide6.QtWidgets import QWidget
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QColor, QKeyEvent, QPainter
+from PySide6.QtWidgets import QAbstractButton, QWidget
 
 _TRACK_WIDTH = 26
 _TRACK_HEIGHT = 15
@@ -15,35 +15,37 @@ def knob_x_for_state(*, checked: bool, track_width: int, knob_diameter: int, mar
     return margin
 
 
-class ToggleSwitch(QWidget):
-    """26x15px pill toggle. On = accent bg + knob right; off = gray bg + knob left."""
+class ToggleSwitch(QAbstractButton):
+    """26x15px pill toggle. On = accent bg + knob right; off = gray bg + knob left.
 
-    toggled = Signal(bool)
+    A checkable QAbstractButton, so it is keyboard-focusable, toggles on
+    Space, and is exposed to assistive technology as a check/toggle button
+    with its checked state. Callers should set an accessible name.
+    """
 
     def __init__(self, parent: QWidget | None = None, *, checked: bool = False):
         super().__init__(parent)
-        self._checked = checked
+        self.setCheckable(True)
+        super().setChecked(checked)
         self._tokens: dict = {}
         self.setFixedSize(_TRACK_WIDTH, _TRACK_HEIGHT)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
-    def isChecked(self) -> bool:
-        return self._checked
-
-    def setChecked(self, *, checked: bool):
-        if checked == self._checked:
-            return
-        self._checked = checked
-        self.update()
-        self.toggled.emit(self._checked)
+    def setChecked(self, *, checked: bool):  # type: ignore[override]
+        """Keyword-only to satisfy the FBT rules for callers; emits `toggled` on a change."""
+        super().setChecked(checked)
 
     def set_tokens(self, tokens: dict):
         self._tokens = tokens
         self.update()
 
-    def mousePressEvent(self, event: QMouseEvent):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.setChecked(checked=not self._checked)
+    def keyPressEvent(self, event: QKeyEvent):
+        # QAbstractButton activates on Space; also accept Enter/Return.
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.click()
+        else:
+            super().keyPressEvent(event)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -51,7 +53,7 @@ class ToggleSwitch(QWidget):
 
         on_color = QColor(self._tokens.get("accent", "#4A56C6"))
         off_color = QColor(self._tokens.get("border_panel", "#E5E6EA"))
-        track_color = on_color if self._checked else off_color
+        track_color = on_color if self.isChecked() else off_color
 
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(track_color)
@@ -60,7 +62,7 @@ class ToggleSwitch(QWidget):
         )
 
         knob_x = knob_x_for_state(
-            checked=self._checked,
+            checked=self.isChecked(),
             track_width=_TRACK_WIDTH,
             knob_diameter=_KNOB_DIAMETER,
             margin=_MARGIN,
@@ -69,3 +71,12 @@ class ToggleSwitch(QWidget):
         painter.drawEllipse(
             QRectF(knob_x, (_TRACK_HEIGHT - _KNOB_DIAMETER) / 2, _KNOB_DIAMETER, _KNOB_DIAMETER)
         )
+        if self.hasFocus():
+            # The checked track is already the accent color, so the ring
+            # needs a contrasting color there to stay visible.
+            focus_key = "accent_active_text" if self.isChecked() else "accent"
+            painter.setPen(QColor(self._tokens.get(focus_key, "#4A56C6")))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(
+                QRectF(0.5, 0.5, _TRACK_WIDTH - 1, _TRACK_HEIGHT - 1), _TRACK_HEIGHT / 2, _TRACK_HEIGHT / 2
+            )

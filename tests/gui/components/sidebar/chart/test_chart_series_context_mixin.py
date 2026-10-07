@@ -145,17 +145,17 @@ class TestOnChartListChanged:
 class TestOnSeriesSelectedEvent:
     def test_selects_matching_combo_row(self, panel):
         panel.current_chart_id = "chart-1"
-        panel.source_combo.addItem("Series 1", ("series", 0))
-        panel.source_combo.addItem("Series 2", ("series", 1))
+        panel.source_combo.addItem("Series 1", 0)
+        panel.source_combo.addItem("Series 2", 1)
         panel.source_combo.setCurrentIndex(0)
 
         panel._on_series_selected_event({"chart_id": "chart-1", "kind": "series", "index": 1})
 
-        assert panel.source_combo.currentData() == ("series", 1)
+        assert panel.source_combo.currentData() == 1
 
     def test_ignores_event_for_a_different_chart(self, panel):
         panel.current_chart_id = "chart-1"
-        panel.source_combo.addItem("Series 1", ("series", 0))
+        panel.source_combo.addItem("Series 1", 0)
         panel.source_combo.setCurrentIndex(0)
 
         panel._on_series_selected_event({"chart_id": "other", "kind": "series", "index": 0})
