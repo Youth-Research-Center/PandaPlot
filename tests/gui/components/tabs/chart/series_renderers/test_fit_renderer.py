@@ -77,3 +77,21 @@ def test_series_renderers_dispatch_includes_fit():
     from pandaplot.models.chart.series_type import SeriesType
 
     assert SERIES_RENDERERS[SeriesType.FIT] is render_fit_series
+
+
+def test_render_fit_series_draws_nothing_on_a_3d_axes():
+    fig = plt.figure()
+    try:
+        axes_3d = fig.add_subplot(projection="3d")
+        series_data = SeriesData(
+            x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]),
+            x_err=None, y_err=None, x_err_minus=None, y_err_minus=None, error=None,
+        )
+        style = FitStyle(confidence_lower=np.array([0.5, 1.5]), confidence_upper=np.array([1.5, 2.5]))
+
+        render_fit_series(axes_3d, series_data, style, "Fit", 1.0, visible=True, extra={})
+
+        assert len(axes_3d.get_lines()) == 0
+        assert len(axes_3d.collections) == 0
+    finally:
+        plt.close(fig)

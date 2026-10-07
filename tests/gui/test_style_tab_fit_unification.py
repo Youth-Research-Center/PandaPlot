@@ -47,6 +47,6 @@ def test_set_series_list_takes_one_combined_list(style_tab_fixture, chart_with_f
 
 def test_band_card_visible_for_fit_series_with_confidence_data(style_tab_fixture, chart_with_fit):
     style_tab = style_tab_fixture
-    fit_series = chart_with_fit.fit_data[0]
+    fit_series = next(s for s in chart_with_fit.data_series if s.is_fit)
     style_tab.set_selected("series", fit_series)
     assert style_tab.band_card.isVisible()

@@ -636,7 +636,10 @@ class FitPanel(SidebarPanel):
             # Custom... with incomplete picks is a user-in-progress state, not a series without X.
             if self.series_combo.currentData() == CUSTOM_SERIES_SENTINEL:
                 return None
-            if self.current_chart.data_series and not self.current_chart.data_series[0].x_column_id and not self.current_chart.data_series[0].x_column:
+            # A fit isn't a valid source (see load_chart_object), so only
+            # look at the series that are actually offered.
+            fittable = [s for s in self.current_chart.data_series if not s.is_fit]
+            if fittable and not fittable[0].x_column_id and not fittable[0].x_column:
                 return "This series has no X column for curve fitting. Select an XY series or choose Custom... with X and Y columns."
             return None
         dataset = self.current_project.find_item(series.dataset_id) if self.current_project else None

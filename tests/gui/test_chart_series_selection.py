@@ -184,8 +184,8 @@ def test_fit_series_pick_event_reports_its_real_data_series_index():
     )
     # Sanity: the two fits really do compare equal (the bug's precondition).
     assert chart.data_series[first_fit_index] == chart.data_series[second_fit_index]
-    assert chart.fit_data[0] is chart.data_series[first_fit_index]
-    assert chart.fit_data[1] is chart.data_series[second_fit_index]
+    assert next(s for s in chart.data_series if s.is_fit) is chart.data_series[first_fit_index]
+    assert [s for s in chart.data_series if s.is_fit][1] is chart.data_series[second_fit_index]
 
     app_ctx.app_state.load_project(project)
     widget = ChartEditorWidget(app_context=app_ctx, chart=chart, parent=None)

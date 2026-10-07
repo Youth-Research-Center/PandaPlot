@@ -67,7 +67,7 @@ def test_backfills_fit_column_ids_from_names():
 
     migrate_column_ids(project)
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     assert fit.x_column_id == dataset.column_id("x")
     assert fit.y_column_id == dataset.column_id("y")
 

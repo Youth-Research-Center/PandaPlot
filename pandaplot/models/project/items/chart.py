@@ -4,7 +4,7 @@ Chart model for managing chart/visualization items in the project.
 
 import copy
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
@@ -65,6 +65,19 @@ class DataSeries:
     # assert-equality all use __eq__) the instant any DataSeries carries one.
     precomputed_x_data: np.ndarray | None = field(default=None, compare=False)
     precomputed_y_data: np.ndarray | None = field(default=None, compare=False)
+
+    def __deepcopy__(self, memo: dict) -> "DataSeries":
+        """Deep copy that shares `precomputed_x_data`/`precomputed_y_data`.
+
+        A fit's curve snapshot is only ever replaced wholesale, never mutated
+        in place, and chart snapshots/undo deep-copy every series often --
+        copying large arrays each time is pure overhead."""
+        clone = copy.copy(self)
+        for f in fields(self):
+            value = getattr(self, f.name)
+            if not isinstance(value, np.ndarray):
+                setattr(clone, f.name, copy.deepcopy(value, memo))
+        return clone
 
     def __post_init__(self):
         if isinstance(self.y_axis, str):
@@ -282,7 +295,7 @@ class Chart(Item):
         fit's `precomputed_x_data`/`precomputed_y_data` snapshot has no
         equivalent in any other series type, so that would silently destroy
         fit_type/fit_params/fit_stats/confidence bands. This matches pre-#304
-        behavior, where `chart.fit_data` was a separate list `set_chart_type`
+        behavior, where `fit_data` was a separate list `set_chart_type`
         never touched. A fit can therefore stay on a chart type that can't
         create fits (allows_fit=False) -- that's the intended,
         minimally-destructive outcome, not a bug.
@@ -491,19 +504,6 @@ class Chart(Item):
             series_type=SeriesType.FIT, style=style,
             precomputed_x_data=x_data, precomputed_y_data=y_data,
         )
-
-    @property
-    def fit_data(self) -> list[DataSeries]:
-        """Read-only view of this chart's FIT-type series, in list order.
-
-        Not permanent API surface -- a convenience for call sites that only
-        need "the fits", kept in sync automatically since it's just a
-        filter over data_series (the single source of truth post-#304).
-        Not currently used on any render/per-series-loop path -- avoid
-        calling this from inside a loop over data_series, since each access
-        re-filters the whole list.
-        """
-        return [s for s in self.data_series if s.is_fit]
 
     @property
     def allows_fit(self) -> bool:

@@ -69,7 +69,7 @@ def _chart_updated_calls(app_context):
 def test_rename_updates_dataframe_and_series_resolve_via_id(env):
     app_context, dataset, other, chart = env
     s1 = chart.data_series[0]
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     x_id_before = s1.x_column_id
 
     command = RenameColumnCommand(app_context, dataset.id, 0, "time")
@@ -91,7 +91,7 @@ def test_rename_updates_dataframe_and_series_resolve_via_id(env):
 def test_undo_and_redo_round_trip(env):
     app_context, dataset, _, chart = env
     s1 = chart.data_series[0]
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     command = RenameColumnCommand(app_context, dataset.id, 0, "time")
     command.execute()
 

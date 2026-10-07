@@ -17,7 +17,8 @@ type-specific data already lives. No `alpha` field: a fit's own opacity
 now comes from the generic DataSeries.alpha every other series type
 already uses, not a fit-only duplicate.
 """
-from dataclasses import dataclass, field
+import copy
+from dataclasses import dataclass, field, fields
 from typing import Any
 
 import numpy as np
@@ -41,6 +42,19 @@ class FitStyle(SeriesStyleBase):
     confidence_lower_column_id: str = ""
     confidence_upper_column_id: str = ""
     is_manual: bool = False
+
+    def __deepcopy__(self, memo: dict) -> "FitStyle":
+        """Deep copy that shares the confidence arrays instead of copying them.
+
+        They are snapshots that are only ever replaced wholesale, never
+        mutated in place, and chart snapshots/undo deep-copy every series
+        often -- copying large arrays each time is pure overhead."""
+        clone = copy.copy(self)
+        for f in fields(self):
+            value = getattr(self, f.name)
+            if not isinstance(value, np.ndarray):
+                setattr(clone, f.name, copy.deepcopy(value, memo))
+        return clone
 
     def __post_init__(self) -> None:
         if self.fit_params is None:

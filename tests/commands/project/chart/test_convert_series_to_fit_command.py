@@ -72,11 +72,11 @@ def test_execute_moves_series_to_fit_data(app_context_with_chart):
     assert command.execute() is CommandResult.SUCCESS
     # The converted series is now a FIT-type entry IN data_series (the
     # unified list, #304) -- not removed from it -- so the count stays 1;
-    # chart.fit_data is just a read-only filtered view over data_series.
+    # [s for s in chart.data_series if s.is_fit] is just a read-only filtered view over data_series.
     assert len(chart.data_series) == 1
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     assert fit is chart.data_series[0]
     assert fit.series_type == SeriesType.FIT
     assert fit.dataset_id == "ds-1"
@@ -100,7 +100,7 @@ def test_execute_snapshots_confidence_columns_when_given(app_context_with_chart,
 
     assert command.execute() is CommandResult.SUCCESS
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     np.testing.assert_array_equal(fit.style.confidence_lower, np.array([9.0, 19.0, 29.0]))
     np.testing.assert_array_equal(fit.style.confidence_upper, np.array([11.0, 21.0, 31.0]))
     assert fit.style.confidence_lower_column_id == dataset.column_id("y_lower")
@@ -112,7 +112,7 @@ def test_fit_data_is_independent_of_later_source_mutations(app_context_with_char
     command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=0)
 
     assert command.execute() is CommandResult.SUCCESS
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
 
     original_x = fit.precomputed_x_data.copy()
     original_y = fit.precomputed_y_data.copy()
@@ -137,7 +137,7 @@ def test_execute_out_of_range_returns_failure(app_context_with_chart, caplog):
     with caplog.at_level(logging.WARNING):
         assert command.execute() is CommandResult.FAILURE
     assert len(chart.data_series) == 1
-    assert len(chart.fit_data) == 0
+    assert len([s for s in chart.data_series if s.is_fit]) == 0
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
 
@@ -168,7 +168,7 @@ def test_undo_restores_the_original_series(app_context_with_chart, chart_with_se
     command.undo()
 
     assert len(chart.data_series) == 1
-    assert len(chart.fit_data) == 0
+    assert len([s for s in chart.data_series if s.is_fit]) == 0
     restored = chart.data_series[0]
     assert restored.dataset_id == original_series.dataset_id
     assert restored.x_column_id == original_series.x_column_id
@@ -196,12 +196,12 @@ def test_undo_restores_the_original_series_at_its_original_position(app_context_
     # "Second Series" was replaced in-place by its FIT counterpart, so
     # data_series still holds 2 entries: [My Series, <fit>].
     assert len(chart.data_series) == 2
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
 
     command.undo()
 
     assert len(chart.data_series) == 2
-    assert len(chart.fit_data) == 0
+    assert len([s for s in chart.data_series if s.is_fit]) == 0
     assert chart.data_series[0].label == "My Series"
     assert chart.data_series[1].label == "Second Series"
 
@@ -215,7 +215,7 @@ def test_redo_converts_again(app_context_with_chart):
     command.redo()
 
     assert len(chart.data_series) == 1
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
 
 
 def test_datetime_x_column_is_coerced_to_numeric_and_json_safe(app_context_with_chart):
@@ -261,7 +261,7 @@ def test_datetime_x_column_is_coerced_to_numeric_and_json_safe(app_context_with_
 
     assert command.execute() is CommandResult.SUCCESS
 
-    fit = next(f for f in chart.fit_data if f.label == "Datetime Series")
+    fit = next(f for f in [s for s in chart.data_series if s.is_fit] if f.label == "Datetime Series")
     assert np.issubdtype(fit.precomputed_x_data.dtype, np.number)
     assert np.issubdtype(fit.precomputed_y_data.dtype, np.number)
 
@@ -307,7 +307,7 @@ def test_wholly_non_numeric_x_column_fails_instead_of_producing_an_all_nan_fit(a
     command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=series_index)
 
     assert command.execute() is CommandResult.FAILURE
-    assert not any(f.label == "Text Series" for f in chart.fit_data)
+    assert not any(f.label == "Text Series" for f in [s for s in chart.data_series if s.is_fit])
     assert any(s.label == "Text Series" for s in chart.data_series)
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
@@ -329,7 +329,7 @@ def test_a_non_empty_but_unresolvable_confidence_column_fails_the_whole_conversi
     )
 
     assert command.execute() is CommandResult.FAILURE
-    assert len(chart.fit_data) == 0
+    assert len([s for s in chart.data_series if s.is_fit]) == 0
     assert len(chart.data_series) == 1
 
 
@@ -368,7 +368,7 @@ def test_a_column_with_some_unconvertible_values_still_succeeds(app_context_with
     command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=series_index)
 
     assert command.execute() is CommandResult.SUCCESS
-    fit = next(f for f in chart.fit_data if f.label == "Mixed Series")
+    fit = next(f for f in [s for s in chart.data_series if s.is_fit] if f.label == "Mixed Series")
     assert fit.precomputed_x_data[0] == 1.0
     assert np.isnan(fit.precomputed_x_data[1])
     assert fit.precomputed_x_data[2] == 3.0
@@ -394,7 +394,7 @@ def test_empty_series_label_falls_back_to_custom_fit(app_context_with_chart, dat
 
     assert command.execute() is CommandResult.SUCCESS
 
-    fit = chart.fit_data[-1]
+    fit = [s for s in chart.data_series if s.is_fit][-1]
     assert fit.label == "Custom Fit"
 
 
@@ -502,3 +502,18 @@ def test_redo_refuses_without_corrupting_data_series_if_chart_type_changed_since
 
     assert command.redo() is CommandResult.ABORTED
     assert chart.data_series == series_after_undo
+
+
+def test_converting_a_fill_target_resets_dependent_fills_and_undo_restores_them(app_context_with_chart, dataset):
+    app_context, chart = app_context_with_chart
+    other = chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"), label="Other",
+    )
+    other.style.fill_to_index = 0
+
+    command = ConvertSeriesToFitCommand(app_context, chart_id="chart-1", series_index=0)
+    assert command.execute() == CommandResult.SUCCESS
+    assert other.style.fill_to_index == -1
+
+    assert command.undo() == CommandResult.SUCCESS
+    assert chart.data_series[1].style.fill_to_index == 0

@@ -71,10 +71,10 @@ def test_execute_adds_fit_to_chart(app_context_with_chart, fit_results):
 
     assert command.execute() is CommandResult.SUCCESS
 
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
     assert command.added_index == 0
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
 
     assert fit.style.fit_type == "linear"
     assert list(fit.precomputed_x_data) == [1.0, 2.0, 3.0]
@@ -108,7 +108,7 @@ def test_execute_places_the_fit_on_the_given_y_axis(app_context_with_chart, fit_
     )
 
     assert command.execute() is CommandResult.SUCCESS
-    assert chart.fit_data[0].y_axis == YAxis.PRIMARY
+    assert next(s for s in chart.data_series if s.is_fit).y_axis == YAxis.PRIMARY
 
 
 def test_execute_uses_the_secondary_axis_when_asked(app_context_with_chart, fit_results):
@@ -125,7 +125,7 @@ def test_execute_uses_the_secondary_axis_when_asked(app_context_with_chart, fit_
     )
 
     assert command.execute() is CommandResult.SUCCESS
-    assert chart.fit_data[0].y_axis == YAxis.SECONDARY
+    assert next(s for s in chart.data_series if s.is_fit).y_axis == YAxis.SECONDARY
 
 
 def test_execute_defaults_to_the_primary_axis_without_guessing_from_other_series(app_context_with_chart, fit_results):
@@ -142,7 +142,7 @@ def test_execute_defaults_to_the_primary_axis_without_guessing_from_other_series
     )
 
     assert command.execute() is CommandResult.SUCCESS
-    assert chart.fit_data[0].y_axis == YAxis.PRIMARY
+    assert next(s for s in chart.data_series if s.is_fit).y_axis == YAxis.PRIMARY
 
 
 def test_undo_restores_original_series_order(app_context_with_chart, fit_results):
@@ -285,13 +285,13 @@ def test_undo_removes_fit_and_report_from_chart(app_context_with_chart, fit_resu
     )
 
     assert command.execute() is CommandResult.SUCCESS
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
     note_id = command.report_note_id
     dataset_id = command.result_dataset_id
 
     command.undo()
 
-    assert len(chart.fit_data) == 0
+    assert len([s for s in chart.data_series if s.is_fit]) == 0
     assert project.find_item(note_id) is None
     assert project.find_item(dataset_id) is None
 
@@ -311,13 +311,13 @@ def test_redo_adds_fit_and_report_again(app_context_with_chart, fit_results):
     command.execute()
     command.undo()
 
-    assert len(chart.fit_data) == 0
+    assert len([s for s in chart.data_series if s.is_fit]) == 0
 
     command.redo()
 
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     assert fit.style.fit_type == "linear"
     assert list(fit.precomputed_x_data) == [1.0, 2.0, 3.0]
     assert list(fit.precomputed_y_data) == [2.0, 4.0, 6.0]

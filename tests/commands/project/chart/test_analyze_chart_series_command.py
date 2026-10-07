@@ -224,7 +224,7 @@ class TestAnalyzeChartSeriesCommand:
         chart = project.find_item("chart-1")
         # Point the fit at a non-Dataset item id (the chart itself) to
         # simulate a stale/mistyped reference.
-        chart.fit_data[0].source_dataset_id = "chart-1"
+        next(s for s in chart.data_series if s.is_fit).source_dataset_id = "chart-1"
         command = _cmd(ctx, source_index=1, analysis_type=AnalysisType.INTEGRAL)
         assert command.execute() is CommandResult.SUCCESS
 

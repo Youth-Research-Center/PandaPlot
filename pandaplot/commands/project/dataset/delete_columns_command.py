@@ -18,7 +18,7 @@ class ChartReferenceMatch:
     chart: Chart
     series_indices: list[int]
     # Real chart.data_series indices of matched FIT-type series (#304 folded
-    # the old separate chart.fit_data list into chart.data_series, so these
+    # the old separate fit_data list into chart.data_series, so these
     # are no longer fit_data-relative positions -- same index space as
     # series_indices/error_only_indices/confidence_only_indices below).
     fit_indices: list[int]
@@ -104,7 +104,7 @@ class DeleteColumnsCommand(Command):
         # chart_id -> {"series": [(index, DataSeries)], "fits": [(index, DataSeries)], "fill_targets": [int | None]}
         # populated when columns being deleted are referenced by chart series/fits.
         # Both "series" and "fits" indices are real chart.data_series positions
-        # (#304 folded the old separate chart.fit_data list into data_series),
+        # (#304 folded the old separate fit_data list into data_series),
         # so restoring them on undo requires merging both groups into a single
         # ascending-by-index pass -- see _restore_chart_references.
         # "fill_targets" is chart.fill_targets() taken before removal, restored on undo.
@@ -308,7 +308,7 @@ class DeleteColumnsCommand(Command):
         data_series indices) for every chart with at least one matching
         reference. All four index lists share the same index space: real
         positions in chart.data_series (#304 folded the old separate
-        chart.fit_data list into data_series, so "fit" indices are no
+        fit_data list into data_series, so "fit" indices are no
         longer fit_data-relative). A series lands in error-only indices
         (instead of the plain data_series indices) when the only matching
         reference is one of its optional columns (x_error_column/
@@ -505,7 +505,7 @@ class DeleteColumnsCommand(Command):
             removed = self.removed_chart_refs.get(chart_id, {"series": [], "fits": []})
             # "series" and "fits" entries are both real chart.data_series
             # indices into the SAME list post-#304 (a FIT-type series is no
-            # longer a separate chart.fit_data list), so they must be merged
+            # longer a separate fit_data list), so they must be merged
             # into one ascending-by-index pass before inserting -- reinserting
             # all "series" entries first and only then all "fits" entries
             # (each group internally ascending) silently misplaces items

@@ -50,7 +50,7 @@ class TestFitDataConfidenceBandRoundTrip:
 
         restored = Chart.from_dict(chart.to_dict())
 
-        fit = restored.fit_data[0]
+        fit = next(s for s in restored.data_series if s.is_fit)
         assert fit.style.confidence_lower is not None
         assert fit.style.confidence_upper is not None
         assert list(fit.style.confidence_lower) == [0.5, 1.5, 2.5]
@@ -71,7 +71,7 @@ class TestFitDataConfidenceBandRoundTrip:
 
         restored = Chart.from_dict(chart.to_dict())
 
-        fit = restored.fit_data[0]
+        fit = next(s for s in restored.data_series if s.is_fit)
         assert fit.style.confidence_lower is None
         assert fit.style.confidence_upper is None
 
@@ -495,7 +495,7 @@ class TestSetChartTypeRetypesSeries:
         precomputed_x_data/precomputed_y_data snapshot has no equivalent in
         any other series type, so retyping it would silently destroy
         fit_type/fit_params/fit_stats/confidence bands. This matches the
-        pre-#304 behavior where chart.fit_data was a separate list
+        pre-#304 behavior where [s for s in chart.data_series if s.is_fit] was a separate list
         set_chart_type never touched -- a chart can legitimately end up
         carrying a FIT series its own chart type doesn't formally allow."""
         chart = Chart(name="C", chart_type="line")
@@ -1166,7 +1166,7 @@ class TestChartDependencyHook:
 
         assert chart.on_items_removed({"ds-1"}) is None
         assert [s.dataset_id for s in chart.data_series] == ["ds-unrelated", "ds-1"]
-        assert [f.dataset_id for f in chart.fit_data] == ["ds-1"]
+        assert [f.dataset_id for f in [s for s in chart.data_series if s.is_fit]] == ["ds-1"]
 
 
 def test_dataseries_precomputed_fields_default_to_none():
@@ -1211,7 +1211,7 @@ def test_add_fit_series_creates_fit_type_data_series():
     assert series.series_type == SeriesType.FIT
     assert series.dataset_id == "ds1"
     assert series in chart.data_series
-    assert chart.fit_data == [series]
+    assert [s for s in chart.data_series if s.is_fit] == [series]
 
 
 def test_fit_data_property_filters_by_series_type():
@@ -1226,16 +1226,8 @@ def test_fit_data_property_filters_by_series_type():
         source_dataset_id="ds1", x_data=np.array([1.0]), y_data=np.array([2.0]),
         label="Fit", style=FitStyle(),
     )
-    assert chart.fit_data == [fit]
+    assert [s for s in chart.data_series if s.is_fit] == [fit]
     assert len(chart.data_series) == 2
-
-
-def test_fit_data_has_no_setter():
-    from pandaplot.models.project.items.chart import Chart
-    chart = Chart(name="c", chart_type="line")
-    with pytest.raises(AttributeError):
-        chart.fit_data = []
-
 
 def test_fit_series_round_trips_through_to_dict_from_dict():
     import numpy as np
@@ -1259,7 +1251,7 @@ def test_fit_series_round_trips_through_to_dict_from_dict():
 
     restored = Chart.from_dict(data)
     assert len(restored.data_series) == 1
-    fit = restored.fit_data[0]
+    fit = next(s for s in restored.data_series if s.is_fit)
     assert fit.series_type == SeriesType.FIT
     assert fit.dataset_id == "ds1"
     np.testing.assert_array_equal(fit.precomputed_x_data, [1.0, 2.0])

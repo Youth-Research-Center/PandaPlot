@@ -356,8 +356,8 @@ def test_selecting_fit_converts_the_series_to_fit_data():
     # The converted series is now a FIT-type entry IN data_series (the
     # unified list, #304), not removed from it.
     assert len(chart.data_series) == 1
-    assert len(chart.fit_data) == 1
-    fit = chart.fit_data[0]
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
+    fit = next(s for s in chart.data_series if s.is_fit)
     assert fit.style.fit_type == "Custom"
     assert fit.label == "My Series"
     assert fit.dataset_id == dataset.id
@@ -442,7 +442,7 @@ def test_selecting_fit_snapshots_the_chosen_confidence_columns():
     fit_index = tab.series_type_combo.findData("__convert_to_fit__")
     tab.series_type_combo.setCurrentIndex(fit_index)
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     import numpy as np
     np.testing.assert_array_equal(fit.style.confidence_lower, dataset.data["y_lower"].to_numpy())
     np.testing.assert_array_equal(fit.style.confidence_upper, dataset.data["y_upper"].to_numpy())
@@ -467,7 +467,7 @@ def test_selecting_fit_selects_the_new_fit_card():
     # the fit is a FIT-type entry IN data_series, not removed from it.
     assert tab.selected_index == 1
     assert len(chart.data_series) == 2
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
 
 
 def test_converting_a_non_last_series_selects_the_new_fit_not_the_last_card():
@@ -509,12 +509,12 @@ def test_converting_to_fit_is_undoable():
 
     fit_index = tab.series_type_combo.findData("__convert_to_fit__")
     tab.series_type_combo.setCurrentIndex(fit_index)
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
 
     app_context.command_executor.undo()
 
     assert len(chart.data_series) == 1
-    assert len(chart.fit_data) == 0
+    assert len([s for s in chart.data_series if s.is_fit]) == 0
 
 
 def test_a_manually_converted_fit_keeps_its_columns_editable():
@@ -530,7 +530,7 @@ def test_a_manually_converted_fit_keeps_its_columns_editable():
     fit_index = tab.series_type_combo.findData("__convert_to_fit__")
     tab.series_type_combo.setCurrentIndex(fit_index)
 
-    assert chart.fit_data[0].style.is_manual is True
+    assert next(s for s in chart.data_series if s.is_fit).style.is_manual is True
     assert tab.dataset_combo.isEnabled() is True
     assert tab.x_column_combo.isEnabled() is True
     assert tab.y_column_combo.isEnabled() is True
@@ -555,14 +555,14 @@ def test_editing_a_manual_fits_y_column_resnapshots_its_data():
     fit_index = tab.series_type_combo.findData("__convert_to_fit__")
     tab.series_type_combo.setCurrentIndex(fit_index)
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     import numpy as np
     np.testing.assert_array_equal(fit.precomputed_y_data, dataset.data["y"].to_numpy())
 
     y2_index = tab.y_column_combo.findData(dataset.column_id("y2"))
     tab.y_column_combo.setCurrentIndex(y2_index)
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     assert fit.y_column_id == dataset.column_id("y2")
     np.testing.assert_array_equal(fit.precomputed_y_data, dataset.data["y2"].to_numpy())
 
@@ -586,7 +586,7 @@ def test_editing_a_manual_fits_column_to_an_unresolvable_one_rolls_back_atomical
     fit_index = tab.series_type_combo.findData("__convert_to_fit__")
     tab.series_type_combo.setCurrentIndex(fit_index)
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     original_y_column_id = fit.y_column_id
     import numpy as np
     original_y_data = fit.precomputed_y_data.copy()
@@ -594,7 +594,7 @@ def test_editing_a_manual_fits_column_to_an_unresolvable_one_rolls_back_atomical
     label_index = tab.y_column_combo.findData(dataset.column_id("label"))
     tab.y_column_combo.setCurrentIndex(label_index)
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     assert fit.y_column_id == original_y_column_id
     np.testing.assert_array_equal(fit.precomputed_y_data, original_y_data)
     # The controls must also reflect the rollback, not the rejected pick.
@@ -620,14 +620,14 @@ def test_picking_an_unresolvable_confidence_column_rolls_back_the_whole_edit():
     fit_index = tab.series_type_combo.findData("__convert_to_fit__")
     tab.series_type_combo.setCurrentIndex(fit_index)
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     assert fit.style.confidence_lower_column_id == ""
     assert fit.style.confidence_lower is None
 
     label_index = tab.confidence_lower_column_combo.findData(dataset.column_id("label"))
     tab.confidence_lower_column_combo.setCurrentIndex(label_index)
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     assert fit.style.confidence_lower_column_id == ""
     assert fit.style.confidence_lower is None
     assert tab.confidence_lower_column_combo.currentData() == ""
@@ -676,7 +676,7 @@ def test_an_auto_applied_fit_stays_non_editable():
     tab.set_project(project)
     tab.load(chart)
 
-    assert chart.fit_data[0].style.is_manual is False
+    assert next(s for s in chart.data_series if s.is_fit).style.is_manual is False
     assert tab.dataset_combo.isEnabled() is False
     assert tab.x_column_combo.isEnabled() is False
     assert tab.y_column_combo.isEnabled() is False
@@ -701,8 +701,8 @@ def test_an_auto_applied_custom_fit_stays_non_editable_despite_the_shared_fit_ty
     tab.set_project(project)
     tab.load(chart)
 
-    assert chart.fit_data[0].style.fit_type == "Custom"
-    assert chart.fit_data[0].style.is_manual is False
+    assert next(s for s in chart.data_series if s.is_fit).style.fit_type == "Custom"
+    assert next(s for s in chart.data_series if s.is_fit).style.is_manual is False
     assert tab.dataset_combo.isEnabled() is False
     assert tab.x_column_combo.isEnabled() is False
     assert tab.y_column_combo.isEnabled() is False
@@ -745,7 +745,7 @@ def test_selecting_fit_on_a_failed_conversion_reloads_the_real_series_type():
 
     # The series was NOT converted: still a DataSeries, not turned into a fit.
     assert len(chart.data_series) == 1
-    assert len(chart.fit_data) == 0
+    assert len([s for s in chart.data_series if s.is_fit]) == 0
     # The combo must reflect the series' real, unchanged type -- not left
     # stuck on the "__convert_to_fit__" sentinel.
     assert tab.series_type_combo.currentData() == SeriesType.LINE
@@ -820,18 +820,18 @@ def test_apply_to_does_not_recreate_a_series_after_converting_the_only_series_to
     # The fit is a FIT-type entry IN data_series (the unified list, #304),
     # not removed from it -- data_series is never "empty" here.
     assert len(chart.data_series) == 1
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
 
     tab.apply_to(chart)
 
     assert len(chart.data_series) == 1
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
 
 
 def test_remove_series_at_passes_the_real_data_series_index_for_a_fit():
     """`_remove_series_at` must hand `RemoveSeriesCommand` the same plain
     `chart.data_series` index it was given, for a FIT entry too.
-    Regression test: this used to require resolving a `chart.fit_data`-
+    Regression test: this used to require resolving a `[s for s in chart.data_series if s.is_fit]`-
     relative index by identity (`is`, not `==`/`.index()`, since two FIT
     series with identical dataset/columns/label/style but different
     snapshotted curve data compare `==`-equal); that whole translation
@@ -1202,7 +1202,7 @@ def test_selecting_the_disabled_fit_entry_does_not_convert_on_a_colormap_chart()
 
     assert len(chart.data_series) == 1
     assert chart.data_series[0].series_type == SeriesType.SCATTER
-    assert len(chart.fit_data) == 0
+    assert len([s for s in chart.data_series if s.is_fit]) == 0
     # Controls are reloaded back to the series' real, unchanged type.
     assert tab.series_type_combo.currentData() == SeriesType.SCATTER
 

@@ -71,13 +71,13 @@ def test_restore_only_touches_fit_style_fields():
     )
     snap = snapshot_chart_state(chart)
 
-    chart.fit_data[0].style.color = "#00ff00"
-    chart.fit_data[0].style.line_width = 5.0
+    next(s for s in chart.data_series if s.is_fit).style.color = "#00ff00"
+    next(s for s in chart.data_series if s.is_fit).style.line_width = 5.0
 
     restore_chart_state(chart, snap)
 
-    assert chart.fit_data[0].style.color == "#ff0000"
-    assert chart.fit_data[0].style.line_width == 2.0
+    assert next(s for s in chart.data_series if s.is_fit).style.color == "#ff0000"
+    assert next(s for s in chart.data_series if s.is_fit).style.line_width == 2.0
 
 
 def test_restore_reverts_fit_alpha():
@@ -95,11 +95,11 @@ def test_restore_reverts_fit_alpha():
     )
     snap = snapshot_chart_state(chart)
 
-    chart.fit_data[0].alpha = 0.3
+    next(s for s in chart.data_series if s.is_fit).alpha = 0.3
 
     restore_chart_state(chart, snap)
 
-    assert chart.fit_data[0].alpha == 1.0
+    assert next(s for s in chart.data_series if s.is_fit).alpha == 1.0
 
 
 def test_restore_reverts_fit_label():
@@ -114,11 +114,11 @@ def test_restore_reverts_fit_label():
     )
     snap = snapshot_chart_state(chart)
 
-    chart.fit_data[0].label = "Renamed Fit"
+    next(s for s in chart.data_series if s.is_fit).label = "Renamed Fit"
 
     restore_chart_state(chart, snap)
 
-    assert chart.fit_data[0].label == "Original Fit"
+    assert next(s for s in chart.data_series if s.is_fit).label == "Original Fit"
 
 
 def test_restore_reverts_a_manual_fits_source_and_data_edits():
@@ -136,7 +136,7 @@ def test_restore_reverts_a_manual_fits_source_and_data_edits():
     )
     snap = snapshot_chart_state(chart)
 
-    fit = chart.fit_data[0]
+    fit = next(s for s in chart.data_series if s.is_fit)
     fit.dataset_id = "ds2"
     fit.x_column_id = "x-col-2"
     fit.y_column_id = "y-col-2"
@@ -145,7 +145,7 @@ def test_restore_reverts_a_manual_fits_source_and_data_edits():
 
     restore_chart_state(chart, snap)
 
-    restored = chart.fit_data[0]
+    restored = next(s for s in chart.data_series if s.is_fit)
     assert restored.dataset_id == "ds1"
     assert restored.x_column_id == "x-col"
     assert restored.y_column_id == "y-col"
@@ -164,11 +164,11 @@ def test_snapshot_restore_round_trips_fit_series():
     )
     snap = snapshot_chart_state(chart)
     chart.data_series.clear()
-    assert chart.fit_data == []
+    assert [s for s in chart.data_series if s.is_fit] == []
 
     restore_chart_state(chart, snap)
-    assert len(chart.fit_data) == 1
-    assert chart.fit_data[0].style.color == "#123456"
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
+    assert next(s for s in chart.data_series if s.is_fit).style.color == "#123456"
 
 
 def test_restore_reverts_fit_line_style():
@@ -182,8 +182,29 @@ def test_restore_reverts_fit_line_style():
     )
     snap = snapshot_chart_state(chart)
 
-    chart.fit_data[0].style.line_style = "dotted"
+    next(s for s in chart.data_series if s.is_fit).style.line_style = "dotted"
 
     restore_chart_state(chart, snap)
 
-    assert chart.fit_data[0].style.line_style == "solid"
+    assert next(s for s in chart.data_series if s.is_fit).style.line_style == "solid"
+
+
+def test_snapshot_shares_fit_arrays_instead_of_copying_them():
+    from pandaplot.models.chart.fit_style import FitStyle
+
+    chart = Chart(id="c", name="c")
+    fit = chart.add_fit_series(
+        "ds", np.array([1.0, 2.0]), np.array([3.0, 4.0]), "Fit",
+        FitStyle(fit_type="Linear", confidence_lower=np.array([2.0, 3.0]), confidence_upper=np.array([4.0, 5.0])),
+    )
+
+    snapshot = snapshot_chart_state(chart)
+    copied = snapshot["data_series"][0]
+
+    assert copied is not fit
+    assert copied.style is not fit.style
+    assert copied.precomputed_x_data is fit.precomputed_x_data
+    assert copied.style.confidence_lower is fit.style.confidence_lower
+    # Everything else is still an independent copy.
+    copied.style.fit_params["a"] = 1
+    assert "a" not in fit.style.fit_params

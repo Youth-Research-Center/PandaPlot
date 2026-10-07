@@ -1076,6 +1076,9 @@ class ChartEditorWidget(PWidget):
                             f"{series.label or f'Series {i + 1}'}: {error}")
                         continue
 
+                    # Hidden series (fits included) are drawn faded rather than
+                    # omitted. Whether to omit them instead, for every series type
+                    # and its secondary elements, is tracked in #471.
                     alpha = series.alpha if series.visible else 0.3
                     series_type = series.series_type
                     style = series.style

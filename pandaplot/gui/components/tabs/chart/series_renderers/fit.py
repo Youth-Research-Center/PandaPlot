@@ -13,7 +13,14 @@ from pandaplot.models.chart.series_style import LineSeriesStyle
 
 def render_fit_series(axes: Axes, series_data: SeriesData, style: FitStyle,
                        label: str, alpha: float, *, visible: bool, extra: dict) -> None:
-    """Draw a fit's curve (as a marker-less line) plus its optional confidence band on `axes`."""
+    """Draw a fit's curve (as a marker-less line) plus its optional confidence band on `axes`.
+
+    Draws nothing on a 3-D axes: a fit only has 2-D curve data, and mplot3d
+    rejects the band's `fill_between`. A fit may stay on a chart that was
+    switched to a 3-D type (see Chart.set_chart_type), so this must not raise.
+    """
+    if getattr(axes, "name", "") == "3d":
+        return
     line_style_adapter = LineSeriesStyle(
         color=style.color,
         line_style=style.line_style,

@@ -1740,3 +1740,25 @@ def test_panel_refresh_does_not_crash_when_series_dataset_has_no_data(app_contex
     panel.load_chart_object(chart)
 
     assert panel.fit_button.isEnabled() is False
+
+
+def test_no_x_column_hint_ignores_a_leading_fit_series(app_context):
+    """A fit is never offered as a source, so a fit at index 0 (which does
+    carry x column ids) must not hide the hint for the series that are."""
+    from pandaplot.models.chart.chart_type import ChartType
+    from pandaplot.models.chart.fit_style import FitStyle
+
+    dataset = Dataset(id="values", name="values", data=pd.DataFrame({"value": [1.0, 2.0, 3.0]}))
+    chart = Chart(id="hist-chart", name="hist chart", chart_type=ChartType.HIST)
+    chart.add_fit_series(dataset.id, np.array([1.0, 2.0]), np.array([1.0, 2.0]), "Fit", FitStyle(fit_type="Linear"),
+                         source_x_column_id=dataset.column_id("value"), source_y_column_id=dataset.column_id("value"))
+    chart.add_data_series(dataset_id=dataset.id, y_column_id=dataset.column_id("value"))
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+
+    assert all(panel.series_combo.itemData(row) is not chart.data_series[0] for row in range(panel.series_combo.count()))
+    assert "no X column" in panel.fit_availability_label.text()

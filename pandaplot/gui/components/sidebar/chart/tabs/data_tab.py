@@ -93,8 +93,8 @@ class DataTab(QWidget):
         # restyle it in place. See _on_series_y_axis_changed.
         self._expanded_card_y_axis_badge: QLabel | None = None
         self._expanded_card_y_axis_badge_tokens: dict = {}
-        # Which entry (data series index, then fit-data index appended after
-        # all series) is currently *selected* -- drives the Style tab's
+        # Index into chart.data_series (fits included) of the entry currently
+        # *selected* -- drives the Style tab's
         # editing target and the live configuration form shown below.
         # Independent of `_expanded_card_indices` below: a card can be
         # expanded (accordion open) without being selected.

@@ -74,7 +74,7 @@ def test_delete_removes_column_and_cascades_referencing_series_and_fits(env):
     assert list(dataset.data.columns) == ["b", "c", "d"]
     assert len(chart.data_series) == 1  # s1 (column 'a') removed, s2 (other dataset) kept
     assert chart.data_series[0].label == "s2"
-    assert chart.fit_data == []
+    assert [s for s in chart.data_series if s.is_fit] == []
     # unrelated-column chart is untouched
     s3 = untouched_chart.data_series[0]
     assert resolve_series_column(dataset, s3.x_column_id, s3.x_column) == "c"
@@ -113,7 +113,7 @@ def test_undo_restores_data_and_chart_references(env):
     # After undo, the restored column keeps its id so the series resolves again.
     s1 = chart.data_series[0]
     assert resolve_series_column(dataset, s1.x_column_id, s1.x_column) == "a"
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
 
 
 def test_undo_restores_roles_for_deleted_columns(env):
@@ -160,7 +160,7 @@ def test_redo_reapplies_deletion_and_removes_references_again(env):
     assert list(dataset.data.columns) == ["b", "c", "d"]
     assert len(chart.data_series) == 1
     assert chart.data_series[0].label == "s2"
-    assert chart.fit_data == []
+    assert [s for s in chart.data_series if s.is_fit] == []
 
 
 def test_redo_failure_surfaces_error_message(env):
@@ -300,8 +300,8 @@ def test_delete_confidence_column_clears_reference_but_keeps_manual_fit(env):
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
 
     assert command.execute() is CommandResult.SUCCESS
-    assert len(fit_chart.fit_data) == 1
-    fit = fit_chart.fit_data[0]
+    assert len([s for s in fit_chart.data_series if s.is_fit]) == 1
+    fit = next(s for s in fit_chart.data_series if s.is_fit)
     assert fit.style.confidence_lower_column_id == ""
     assert fit.style.confidence_lower is None
     assert fit.x_column_id == dataset.column_id("c")
@@ -362,7 +362,7 @@ def test_undo_restores_a_cleared_confidence_reference(env):
     command.execute()
     command.undo()
 
-    fit = fit_chart.fit_data[0]
+    fit = next(s for s in fit_chart.data_series if s.is_fit)
     assert fit.style.confidence_lower_column_id == original_confidence_lower_column_id
     np.testing.assert_array_equal(fit.style.confidence_lower, np.array([0.5]))
 
