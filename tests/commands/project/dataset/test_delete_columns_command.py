@@ -11,6 +11,7 @@ import pytest
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.delete_columns_command import DeleteColumnsCommand
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
 from pandaplot.models.chart.series_style.pie import PieSeriesStyle
 from pandaplot.models.chart.series_style.scatter3d import Scatter3DSeriesStyle
@@ -36,9 +37,10 @@ def env():
                           y_column_id=dataset.column_id("b"), label="s1")
     chart.add_data_series(other.id, x_column_id=other.column_id("a"),  # other dataset: must not be touched
                           y_column_id=other.column_id("a"), label="s2")
-    chart.add_fit_data(dataset.id, "Linear", np.array([1.0]), np.array([2.0]),
-                       source_x_column_id=dataset.column_id("a"),
-                       source_y_column_id=dataset.column_id("b"))
+    chart.add_fit_series(dataset.id, np.array([1.0]), np.array([2.0]),
+                         "Linear", FitStyle(fit_type="Linear"),
+                         source_x_column_id=dataset.column_id("a"),
+                         source_y_column_id=dataset.column_id("b"))
     project.add_item(chart)
 
     untouched_chart = Chart(name="c2")
@@ -72,7 +74,7 @@ def test_delete_removes_column_and_cascades_referencing_series_and_fits(env):
     assert list(dataset.data.columns) == ["b", "c", "d"]
     assert len(chart.data_series) == 1  # s1 (column 'a') removed, s2 (other dataset) kept
     assert chart.data_series[0].label == "s2"
-    assert chart.fit_data == []
+    assert [s for s in chart.data_series if s.is_fit] == []
     # unrelated-column chart is untouched
     s3 = untouched_chart.data_series[0]
     assert resolve_series_column(dataset, s3.x_column_id, s3.x_column) == "c"
@@ -97,7 +99,7 @@ def test_delete_declined_confirmation_aborts(env):
 
     assert command.execute() is CommandResult.FAILURE
     assert list(dataset.data.columns) == ["a", "b", "c", "d"]
-    assert len(chart.data_series) == 2
+    assert len(chart.data_series) == 3  # s1, s2, fit -- fit now lives in data_series too (#304)
 
 
 def test_undo_restores_data_and_chart_references(env):
@@ -107,11 +109,11 @@ def test_undo_restores_data_and_chart_references(env):
 
     assert command.undo() is CommandResult.SUCCESS
     assert list(dataset.data.columns) == ["a", "b", "c", "d"]
-    assert len(chart.data_series) == 2
+    assert len(chart.data_series) == 3  # s1, s2, fit -- fit now lives in data_series too (#304)
     # After undo, the restored column keeps its id so the series resolves again.
     s1 = chart.data_series[0]
     assert resolve_series_column(dataset, s1.x_column_id, s1.x_column) == "a"
-    assert len(chart.fit_data) == 1
+    assert len([s for s in chart.data_series if s.is_fit]) == 1
 
 
 def test_undo_restores_roles_for_deleted_columns(env):
@@ -158,7 +160,7 @@ def test_redo_reapplies_deletion_and_removes_references_again(env):
     assert list(dataset.data.columns) == ["b", "c", "d"]
     assert len(chart.data_series) == 1
     assert chart.data_series[0].label == "s2"
-    assert chart.fit_data == []
+    assert [s for s in chart.data_series if s.is_fit] == []
 
 
 def test_redo_failure_surfaces_error_message(env):
@@ -281,24 +283,28 @@ def test_delete_confidence_column_clears_reference_but_keeps_manual_fit(env):
     cached array) instead of removing the whole fit."""
     app_context, dataset, _, _, _ = env
     fit_chart = Chart(name="fc")
-    fit_chart.add_fit_data(
-        dataset.id, "Custom", np.array([1.0]), np.array([2.0]),
+    fit_chart.add_fit_series(
+        dataset.id, np.array([1.0]), np.array([2.0]),
+        "Custom",
+        FitStyle(
+            fit_type="Custom",
+            confidence_lower_column_id=dataset.column_id("a"),
+            confidence_lower=np.array([0.5]),
+            is_manual=True,
+        ),
         source_x_column_id=dataset.column_id("c"),
         source_y_column_id=dataset.column_id("c"),
-        confidence_lower_column_id=dataset.column_id("a"),
-        confidence_lower=np.array([0.5]),
-        is_manual=True,
     )
     app_context.get_app_state.return_value.current_project.add_item(fit_chart)
 
     command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
 
     assert command.execute() is CommandResult.SUCCESS
-    assert len(fit_chart.fit_data) == 1
-    fit = fit_chart.fit_data[0]
-    assert fit.confidence_lower_column_id == ""
-    assert fit.confidence_lower is None
-    assert fit.source_x_column_id == dataset.column_id("c")
+    assert len([s for s in fit_chart.data_series if s.is_fit]) == 1
+    fit = next(s for s in fit_chart.data_series if s.is_fit)
+    assert fit.style.confidence_lower_column_id == ""
+    assert fit.style.confidence_lower is None
+    assert fit.x_column_id == dataset.column_id("c")
 
 
 def test_confirmation_details_mention_fits_losing_confidence_bands(env):
@@ -310,13 +316,17 @@ def test_confirmation_details_mention_fits_losing_confidence_bands(env):
     this case -- just an optional band cleared."""
     app_context, dataset, _, _, _ = env
     fit_chart = Chart(name="fc")
-    fit_chart.add_fit_data(
-        dataset.id, "Custom", np.array([1.0]), np.array([2.0]),
+    fit_chart.add_fit_series(
+        dataset.id, np.array([1.0]), np.array([2.0]),
+        "Custom",
+        FitStyle(
+            fit_type="Custom",
+            confidence_lower_column_id=dataset.column_id("a"),
+            confidence_lower=np.array([0.5]),
+            is_manual=True,
+        ),
         source_x_column_id=dataset.column_id("c"),
         source_y_column_id=dataset.column_id("c"),
-        confidence_lower_column_id=dataset.column_id("a"),
-        confidence_lower=np.array([0.5]),
-        is_manual=True,
     )
     app_context.get_app_state.return_value.current_project.add_item(fit_chart)
     ui_controller = app_context.get_ui_controller.return_value
@@ -333,13 +343,17 @@ def test_confirmation_details_mention_fits_losing_confidence_bands(env):
 def test_undo_restores_a_cleared_confidence_reference(env):
     app_context, dataset, _, _, _ = env
     fit_chart = Chart(name="fc")
-    fit_chart.add_fit_data(
-        dataset.id, "Custom", np.array([1.0]), np.array([2.0]),
+    fit_chart.add_fit_series(
+        dataset.id, np.array([1.0]), np.array([2.0]),
+        "Custom",
+        FitStyle(
+            fit_type="Custom",
+            confidence_lower_column_id=dataset.column_id("a"),
+            confidence_lower=np.array([0.5]),
+            is_manual=True,
+        ),
         source_x_column_id=dataset.column_id("c"),
         source_y_column_id=dataset.column_id("c"),
-        confidence_lower_column_id=dataset.column_id("a"),
-        confidence_lower=np.array([0.5]),
-        is_manual=True,
     )
     app_context.get_app_state.return_value.current_project.add_item(fit_chart)
     original_confidence_lower_column_id = dataset.column_id("a")
@@ -348,9 +362,46 @@ def test_undo_restores_a_cleared_confidence_reference(env):
     command.execute()
     command.undo()
 
-    fit = fit_chart.fit_data[0]
-    assert fit.confidence_lower_column_id == original_confidence_lower_column_id
-    np.testing.assert_array_equal(fit.confidence_lower, np.array([0.5]))
+    fit = next(s for s in fit_chart.data_series if s.is_fit)
+    assert fit.style.confidence_lower_column_id == original_confidence_lower_column_id
+    np.testing.assert_array_equal(fit.style.confidence_lower, np.array([0.5]))
+
+
+def test_undo_restores_correct_order_when_removed_series_and_fits_interleave(env):
+    """FIT-type series now live in the same chart.data_series list as
+    ordinary series (#304), so a chart can have a removed fit at a LOWER
+    real index than a removed (non-fit) series, with a kept series between
+    them. Reinserting all removed series first (in ascending order) and
+    only then all removed fits (in ascending order) -- rather than merging
+    both groups into one ascending-by-real-index pass -- silently
+    misplaces entries in exactly this interleaved case. This asserts the
+    full original order (identified by label, and by real data_series
+    index) survives execute()+undo()."""
+    app_context, dataset, _, _, _ = env
+    mix_chart = Chart(name="mix")
+    mix_chart.add_fit_series(
+        dataset.id, np.array([1.0]), np.array([2.0]),
+        "FitA", FitStyle(fit_type="Linear"),
+        source_x_column_id=dataset.column_id("a"),
+        source_y_column_id=dataset.column_id("a"),
+    )  # index 0: removed (references col 'a')
+    mix_chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("c"), y_column_id=dataset.column_id("c"), label="B",
+    )  # index 1: kept
+    mix_chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("a"), y_column_id=dataset.column_id("a"), label="C",
+    )  # index 2: removed (references col 'a')
+    mix_chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("d"), y_column_id=dataset.column_id("d"), label="D",
+    )  # index 3: kept
+    app_context.get_app_state.return_value.current_project.add_item(mix_chart)
+
+    command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
+    assert command.execute() is CommandResult.SUCCESS
+    assert [s.label for s in mix_chart.data_series] == ["B", "D"]
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert [s.label for s in mix_chart.data_series] == ["FitA", "B", "C", "D"]
 
 
 def test_execute_logs_a_warning_when_no_column_specs(env, caplog):
@@ -507,6 +558,33 @@ def test_cleanup_releases_the_undo_snapshots():
     assert command.removed_chart_refs == {}
     assert command.cleared_error_refs == {}
     assert command.cleared_confidence_refs == {}
+
+
+def test_delete_and_undo_keep_fill_targets_on_the_same_series(env):
+    """Deleting a column drops the series/fits that plot it; the survivors'
+    fill_to_index must follow their target series, and undo must restore
+    the original positions exactly (PR #416 review)."""
+    app_context, dataset, _, _, _ = env
+    chart = Chart(name="fills")
+    chart.add_fit_series(dataset.id, np.array([1.0]), np.array([2.0]), "FitA", FitStyle(fit_type="Linear"),
+                         source_x_column_id=dataset.column_id("a"), source_y_column_id=dataset.column_id("a"))
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("c"), y_column_id=dataset.column_id("c"), label="B")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("a"), y_column_id=dataset.column_id("a"), label="C")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("d"), y_column_id=dataset.column_id("d"), label="D")
+    chart.data_series[1].style.fill_to_index = 3  # B fills to D
+    chart.data_series[3].style.fill_to_index = 2  # D fills to C, which gets removed
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    command = DeleteColumnsCommand(app_context, dataset.id, ["a"])
+    assert command.execute() is CommandResult.SUCCESS
+    assert [s.label for s in chart.data_series] == ["B", "D"]
+    assert chart.data_series[0].style.fill_to_index == 1
+    assert chart.data_series[1].style.fill_to_index == -1
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert [s.label for s in chart.data_series] == ["FitA", "B", "C", "D"]
+    assert chart.data_series[1].style.fill_to_index == 3
+    assert chart.data_series[3].style.fill_to_index == 2
 
 
 def _vector3d_chart(dataset, **columns):

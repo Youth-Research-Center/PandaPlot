@@ -53,7 +53,7 @@ from pandaplot.models.chart.series_style.fill import FillStyleFields
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_types import ConfigEvents
-from pandaplot.models.project.items.chart import DataSeries, FitData
+from pandaplot.models.project.items.chart import DataSeries
 from pandaplot.models.state.config import (
     MAX_CHART_HEIGHT_CM,
     MAX_CHART_WIDTH_CM,
@@ -149,7 +149,8 @@ class StyleTab(QWidget):
         self.app_context = app_context
         self._chart = None
         self._updating_controls = False
-        # (kind, obj) where kind is "chart", "series", or "fit".
+        # (kind, obj) where kind is "chart", "axes", or "series" -- a FIT-
+        # type series (obj.is_fit) is a "series" too.
         self._current_target = ("chart", None)
         # Whether `set_series_list` has ever run a real population (i.e. the
         # Data tab has emitted `seriesListChanged` at least once for an
@@ -440,7 +441,7 @@ class StyleTab(QWidget):
         layout.addWidget(line_card)
 
         # CONFIDENCE BAND group -- shades the region between
-        # FitData.confidence_lower/confidence_upper around a fit line.
+        # FitStyle.confidence_lower/confidence_upper around a fit line.
         # Fit-only (a data series has no confidence interval concept).
         self.band_card = Card()
         band_card = self.band_card
@@ -1136,6 +1137,7 @@ class StyleTab(QWidget):
         """
         kind, obj = self._current_target
         is_chart = kind == "chart"
+        is_fit = isinstance(obj, DataSeries) and obj.is_fit
         for card in self.chart_style_cards:
             card.setVisible(is_chart)
         is_axes = kind == "axes"
@@ -1161,9 +1163,13 @@ class StyleTab(QWidget):
         # keeps color/opacity available for bar/hist even though their
         # line_style/line_width controls have no effect for those types,
         # matching pre-Phase-2 behavior exactly.
-        self.line_card.setVisible(kind == "fit" or (kind == "series" and color_supported))
+        self.line_card.setVisible(
+            kind == "series" and (is_fit or color_supported)
+        )
         self.band_card.setVisible(
-            kind == "fit" and isinstance(obj, FitData) and obj.confidence_lower is not None
+            kind == "series"
+            and is_fit
+            and obj.style.confidence_lower is not None
         )
         # The generic Fill card reads/writes FillStyleFields (Line, Scatter);
         # a Density series' fill (supports_fill too) has its own two-control
@@ -1543,26 +1549,24 @@ class StyleTab(QWidget):
         dataset = project.find_item(series.dataset_id) if project else None
         return resolve_series_column(dataset, series.y_column_id, series.y_column) or ""
 
-    def set_series_list(self, data_series, fit_data, selected_index: int = 0):
-        """Sync `style_series_chips` with the same series+fit list the Data
-        tab's cards are built from, keeping its selection in lockstep with
-        `selected_index` (`DataTab.selected_index`) -- unless "Chart" is the
-        currently selected target, which is independent of the series/fit
-        list and must survive a refresh.
+    def set_series_list(self, data_series: list["DataSeries"], selected_index: int = 0) -> None:
+        """Sync `style_series_chips` with the same combined series list
+        (including FIT-type entries) the Data tab's cards are built from,
+        keeping its selection in lockstep with `selected_index`
+        (`DataTab.selected_index`) -- unless "Chart" is the currently
+        selected target, which is independent of the series list and must
+        survive a refresh.
 
-        Values are the combined index (int) for series/fit, or the "chart"
+        Values are the index (int) into `data_series`, or the "chart"
         sentinel, so selecting an entry can drive `set_selected` directly.
-        `DataTab.seriesListChanged` is a plain `(data_series, fit_data)`
-        two-arg signal, so the panel's connection wraps it to also pass
-        `self.data_tab.selected_index` as `selected_index` here.
 
         The "was Chart explicitly selected" check is based on
         `style_series_chips.currentValue()`, not `self._current_target`:
         `_current_target` gets reflexively reassigned to the
-        currently-expanded series/fit on every Data-tab card rebuild
-        (emitted regardless of whether the user changed anything, e.g. an
-        accordion toggle or theme refresh), so it can't reliably answer "did
-        the user deliberately choose Chart". The chip widget's own value only
+        currently-expanded series on every Data-tab card rebuild (emitted
+        regardless of whether the user changed anything, e.g. an accordion
+        toggle or theme refresh), so it can't reliably answer "did the user
+        deliberately choose Chart". The chip widget's own value only
         changes via a direct chip click or this method's own prior
         conclusion, so it survives those reflexive reassignments.
         """
@@ -1570,12 +1574,11 @@ class StyleTab(QWidget):
         previous_value = self.style_series_chips.currentValue()
         chip_items = [("Chart", "chart"), ("Axes", "axes")]
         for index, series in enumerate(data_series):
-            label = series.label or f"{series.dataset_id}:{self._series_y_name(series)}"
+            if series.is_fit:
+                label = f"\U0001f527 {series.label}"
+            else:
+                label = series.label or f"{series.dataset_id}:{self._series_y_name(series)}"
             chip_items.append((label, index))
-        total_series = len(data_series)
-        for fit_offset, fit in enumerate(fit_data):
-            index = total_series + fit_offset
-            chip_items.append((f"\U0001f527 {fit.label}", index))
 
         self.style_series_chips.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         self.style_series_chips.clear()
@@ -1600,7 +1603,7 @@ class StyleTab(QWidget):
             self.style_series_chips.setCurrentValue(previous_value)
         else:
             self.style_series_chips.setCurrentValue(selected_index)
-        if data_series or fit_data:
+        if data_series:
             self._series_list_initialized = True
 
         final_value = self.style_series_chips.currentValue()
@@ -1610,10 +1613,8 @@ class StyleTab(QWidget):
         elif final_value == "axes":
             self._current_target = ("axes", None)
             self._update_target_cards_visibility()
-        elif final_value < len(data_series):
-            self.set_selected("series", data_series[final_value])
         else:
-            self.set_selected("fit", fit_data[final_value - len(data_series)])
+            self.set_selected("series", data_series[final_value])
 
     def set_selected(self, kind: str, obj):
         self._current_target = (kind, obj)
@@ -1621,9 +1622,10 @@ class StyleTab(QWidget):
         self._updating_controls = True
         try:
             if kind == "series":
-                self.load_series_style(obj)
-            elif kind == "fit":
-                self.load_fit_style(obj)
+                if obj.is_fit:
+                    self.load_fit_style(obj)
+                else:
+                    self.load_series_style(obj)
         finally:
             self._updating_controls = previous_guard
         self._update_target_cards_visibility()
@@ -2014,9 +2016,10 @@ class StyleTab(QWidget):
             return
         kind, obj = self._current_target
         if kind == "series":
-            self.apply_series_style_to(obj)
-        elif kind == "fit":
-            self.apply_fit_style_to(obj)
+            if obj.is_fit:
+                self.apply_fit_style_to(obj)
+            else:
+                self.apply_series_style_to(obj)
         else:
             return
         self.configChanged.emit()
@@ -2211,7 +2214,7 @@ class StyleTab(QWidget):
         style.color = self.line_color_row.currentColor()
         style.line_style = self.line_style_control.currentValue().value
         style.line_width = self.line_width_slider.value()
-        style.alpha = self.line_opacity_slider.value()
+        fit.alpha = self.line_opacity_slider.value()
         style.band_fill_enabled = self.band_enabled_toggle.isChecked()
         style.band_color = (
             "" if self.band_match_line_toggle.isChecked()
@@ -2407,7 +2410,7 @@ class StyleTab(QWidget):
             style = fit.style
             self.line_color_row.setCurrentColor(style.color)
             self.line_width_slider.setValue(style.line_width)
-            self.line_opacity_slider.setValue(style.alpha)
+            self.line_opacity_slider.setValue(fit.alpha)
             try:
                 self.line_style_control.setCurrentValue(LineStyleType(style.line_style))
             except ValueError:

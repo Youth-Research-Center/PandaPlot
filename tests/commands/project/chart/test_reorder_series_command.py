@@ -124,3 +124,14 @@ def test_execute_logs_a_warning_when_index_out_of_range(app_context_with_chart, 
         assert command.execute() is CommandResult.FAILURE
     assert _labels(chart) == ["A", "B", "C"]
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+
+
+def test_reorder_and_undo_keep_fill_targets_on_the_same_series(app_context_with_chart):
+    app_context, chart = app_context_with_chart
+    chart.data_series[0].style.fill_to_index = 2  # A fills to C
+
+    command = ReorderSeriesCommand(app_context, chart_id=chart.id, from_index=2, to_index=0)
+    assert command.execute() is CommandResult.SUCCESS  # order: C, A, B
+    assert chart.data_series[1].style.fill_to_index == 0
+    assert command.undo() is CommandResult.SUCCESS
+    assert chart.data_series[0].style.fill_to_index == 2

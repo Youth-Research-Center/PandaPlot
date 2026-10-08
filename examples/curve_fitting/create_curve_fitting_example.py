@@ -19,7 +19,7 @@ from pandaplot.models.chart.series_style.scatter import ScatterSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Chart, Dataset, Folder, Note
-from pandaplot.models.project.items.chart import DataSeries, FitData
+from pandaplot.models.project.items.chart import DataSeries
 from pandaplot.services.fit.fit_service import FitResult, FitService
 from pandaplot.storage.chart_data_manager import ChartDataManager
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
@@ -242,17 +242,14 @@ def create_curve_fitting_project() -> Path:
                 style=ScatterSeriesStyle(error_bars=error_bars),
             )
         )
-        chart.fit_data.append(
-            FitData(
-                source_dataset_id=dataset.id,
-                source_x_column_id=dataset.column_id(x_column) or "",
-                source_y_column_id=dataset.column_id(y_column) or "",
-                source_x_column=x_column,
-                source_y_column=y_column,
+        chart.add_fit_series(
+            source_dataset_id=dataset.id,
+            x_data=result.x_fit,
+            y_data=result.y_fit,
+            label=result.equation or f"{example.fit_type} fit",
+            style=FitStyle(
+                color="#d1495b", line_style="solid", line_width=2.0,
                 fit_type=example.fit_type,
-                x_data=result.x_fit,
-                y_data=result.y_fit,
-                label=result.equation or f"{example.fit_type} fit",
                 fit_params={name: float(value) for name, value in result.params.items()},
                 fit_stats={
                     "equation": result.equation,
@@ -261,8 +258,11 @@ def create_curve_fitting_project() -> Path:
                 },
                 confidence_lower=result.confidence_lower,
                 confidence_upper=result.confidence_upper,
-                style=FitStyle(color="#d1495b", line_style="solid", line_width=2.0),
-            )
+            ),
+            source_x_column_id=dataset.column_id(x_column) or "",
+            source_y_column_id=dataset.column_id(y_column) or "",
+            source_x_column=x_column,
+            source_y_column=y_column,
         )
         project.add_item(chart, examples_folder.id)
 
@@ -291,4 +291,6 @@ def create_curve_fitting_project() -> Path:
 
 
 if __name__ == "__main__":
+    # Windows consoles default to a legacy code page that cannot print R², γ, emoji.
+    sys.stdout.reconfigure(encoding="utf-8")
     create_curve_fitting_project()

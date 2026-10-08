@@ -12,13 +12,14 @@ class CommandExecutor:
 
     def __init__(self, on_history_changed: Callable[[], None] | None = None,
                  on_project_modified: Callable[[], None] | None = None,
-                 on_undo_redo_error: Callable[[str, str], None] | None = None):
+                 on_undo_redo_error: Callable[[str, str], None] | None = None,
+                 max_undo_levels: int = 10):
         self.logger = logging.getLogger(self.__class__.__name__)
 
         # Undo/Redo functionality
         self.undo_stack: list[Command] = []
         self.redo_stack: list[Command] = []
-        self.max_undo_levels = 10
+        self.max_undo_levels = max(1, max_undo_levels)
 
         # Called after a command that marks_project_modified() succeeds; wired
         # by app.py to AppState.mark_modified.
@@ -246,6 +247,8 @@ class CommandExecutor:
             return False
 
         self.undo_stack.append(command)
+        while len(self.undo_stack) > self.max_undo_levels:
+            self._safe_cleanup(self.undo_stack.pop(0))
         if result is CommandResult.FAILURE:
             self.logger.warning("Command redo reported failure: %s", command_name)
         elif result is CommandResult.NOOP:
@@ -256,6 +259,18 @@ class CommandExecutor:
         self._notify_history_changed()
         return True
     
+    def set_max_undo_levels(self, max_undo_levels: int) -> None:
+        """Set the undo limit and clean up evicted commands."""
+        max_undo_levels = max(1, max_undo_levels)
+        if max_undo_levels == self.max_undo_levels:
+            return
+        self.max_undo_levels = max_undo_levels
+        trimmed = len(self.undo_stack) > max_undo_levels
+        while len(self.undo_stack) > max_undo_levels:
+            self._safe_cleanup(self.undo_stack.pop(0))
+        if trimmed:
+            self._notify_history_changed()
+
     def can_undo(self) -> bool:
         """Check if undo is available."""
         return len(self.undo_stack) > 0

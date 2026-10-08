@@ -46,7 +46,10 @@ The repo has no `ruff format` step; `ruff check` (rules `E`, `F`, `B`, `Q`, `I`,
 uv run ruff check .                     # Lint check
 uv run ruff check --fix .               # Lint auto-fix
 uv run ruff check --select I --fix .     # Auto-sort imports
+uv run ty check                          # Type check
 ```
+
+`ty` ([Astral](https://github.com/astral-sh/ty)) is still catching up with the existing codebase, so it currently reports pre-existing diagnostics unrelated to any given change -- focus on not introducing new ones in files you touch rather than clearing the full backlog.
 
 ## Architectural Patterns
 - **Architecture:** MVC, Clean Architecture, Event-Driven, Command Pattern.

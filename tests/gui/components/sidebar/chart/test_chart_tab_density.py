@@ -1,11 +1,13 @@
 """Tests for ChartTab's Density chart-type support (#398)."""
 import sys
 
+import numpy as np
 import pytest
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.sidebar.chart.tabs.chart_tab import ChartTab
 from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.project.items.chart import Chart
 
 
@@ -46,8 +48,6 @@ def _type_item_enabled(tab: ChartTab, chart_type: ChartType) -> bool:
 
 
 def test_fits_on_a_hist_chart_disable_density_but_never_the_charts_own_type():
-    from unittest.mock import MagicMock
-
     from pandaplot.models.chart.series_type import SeriesType
 
     chart = Chart(name="h", chart_type="hist")
@@ -56,7 +56,7 @@ def test_fits_on_a_hist_chart_disable_density_but_never_the_charts_own_type():
     tab.load(chart)
     assert _type_item_enabled(tab, ChartType.DENSITY) is True
 
-    chart.fit_data.append(MagicMock())
+    chart.add_fit_series("ds", np.array([1.0]), np.array([1.0]), "Fit", FitStyle(fit_type="Linear"))
     tab._update_chart_type_compatibility()
 
     assert _type_item_enabled(tab, ChartType.DENSITY) is False
@@ -64,10 +64,9 @@ def test_fits_on_a_hist_chart_disable_density_but_never_the_charts_own_type():
 
 
 def test_a_density_chart_that_holds_fits_keeps_its_own_type_enabled():
-    from unittest.mock import MagicMock
-
-    chart = Chart(name="d", chart_type="density")
-    chart.fit_data.append(MagicMock())
+    chart = Chart(name="d", chart_type="hist")
+    chart.add_fit_series("ds", np.array([1.0]), np.array([1.0]), "Fit", FitStyle(fit_type="Linear"))
+    chart.set_chart_type("density")  # a fit may stay on a type that cannot create one
     tab = ChartTab()
 
     tab.load(chart)

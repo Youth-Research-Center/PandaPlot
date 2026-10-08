@@ -26,5 +26,6 @@ class SeriesType(str, Enum):
     WIREFRAME = "wireframe"
     BAR3D = "bar3d"
     TRISURF = "trisurf"
+    FIT = "fit"
     VECTOR3D = "vector3d"
     BOX = "box"

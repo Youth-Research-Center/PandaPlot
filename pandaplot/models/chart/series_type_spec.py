@@ -13,6 +13,7 @@ SeriesType via SERIES_RENDERERS.
 from dataclasses import dataclass, field
 from typing import Literal
 
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style import (
     Bar3DSeriesStyle,
     BarSeriesStyle,
@@ -287,6 +288,15 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_curve_analysis=False,
         supports_value_labels=False,
         style_cls=TrisurfSeriesStyle,
+    ),
+    SeriesType.FIT: SeriesTypeSpec(
+        marker_mode="unsupported", supports_line_style=True, supports_color=True,
+        supports_fill=False, supports_error_bars=False, needs_x_column=True,
+        needs_secondary_columns=False, needs_z_column=False,
+        supports_gridding=False, uses_color_scale=False, is_3d=False,
+        supports_curve_analysis=False,
+        supports_value_labels=False,
+        style_cls=FitStyle,
     ),
     # Vector3D: a 3-D quiver plot. Z is the arrow's spatial tail position
     # (needs_z_column, like every other 3-D type), and needs_secondary_

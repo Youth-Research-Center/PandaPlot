@@ -27,6 +27,10 @@ class ChartTypeSpec:
     # plain `set` value is still mutable in place (`spec.allowed_series_
     # types.add(...)`), which would silently corrupt every chart using
     # this shared, module-level registry entry. frozenset closes that gap.
+    #
+    # Never contains SeriesType.FIT: a fit isn't a user-selectable series
+    # type. Where a fit can be created is `allows_fit`, and an existing fit
+    # survives any chart-type switch (Chart.set_chart_type never retypes it).
     allowed_series_types: frozenset[SeriesType]
     allows_fit: bool
     default_series_type: SeriesType
@@ -246,6 +250,10 @@ def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]", *, 
     empty `series_types` (a new chart) has nothing to protect, so every type
     qualifies.
 
+    SeriesType.FIT entries are "fits": they never narrow the result through
+    `_survives_switch` (no chart type lists FIT, and Chart.set_chart_type
+    never retypes a fit), but they count as `has_fits` below.
+
     `has_fits` is whether the chart holds fit entries: those stay on the
     chart across a type switch and are still rendered, so a target whose
     `allows_fit` is False (Density, Colormap, ...) is not safe either.
@@ -255,6 +263,8 @@ def compatible_chart_types_for_series(series_types: "frozenset[SeriesType]", *, 
     silently discarding the VECTOR series' config on switch.
     """
     types = frozenset(series_types)
+    has_fits = has_fits or SeriesType.FIT in types
+    types -= {SeriesType.FIT}
     return frozenset(
         target for target, spec in CHART_TYPE_SPECS.items()
         if all(_survives_switch(series_type, spec) for series_type in types) and (spec.allows_fit or not has_fits)

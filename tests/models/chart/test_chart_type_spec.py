@@ -301,6 +301,28 @@ def test_compatible_chart_types_for_series_single_vector_matches_existing_vector
     assert ChartType.VECTOR in result
 
 
+def test_no_chart_type_lists_fit_in_allowed_series_types():
+    """FIT isn't a user-selectable series type -- `allows_fit` says where a
+    fit can be created, and set_chart_type never retypes one -- so listing
+    it in allowed_series_types only forced every consumer to subtract it
+    again (PR #416 review)."""
+    for chart_type, spec in CHART_TYPE_SPECS.items():
+        assert SeriesType.FIT not in spec.allowed_series_types, chart_type
+
+
+def test_compatible_chart_types_for_series_treats_fit_as_has_fits():
+    from pandaplot.models.chart.chart_type_spec import compatible_chart_types_for_series
+
+    with_fit = compatible_chart_types_for_series(frozenset({SeriesType.LINE, SeriesType.FIT}))
+    assert with_fit == compatible_chart_types_for_series(frozenset({SeriesType.LINE}), has_fits=True)
+
+    fit_only = compatible_chart_types_for_series(frozenset({SeriesType.FIT}))
+    # A fit only survives on chart types that can render one (allows_fit),
+    # which also rules out every 3-D type.
+    assert fit_only == frozenset(t for t, spec in CHART_TYPE_SPECS.items() if spec.allows_fit)
+    assert ChartType.COLORMAP not in fit_only
+
+
 def test_hist_density_is_keyword_only_so_positional_has_axes_callers_keep_working():
     import dataclasses
 

@@ -217,3 +217,16 @@ def test_needs_label_column_is_true_only_for_pie():
     for series_type in SeriesType:
         expected = series_type == SeriesType.PIE
         assert SERIES_TYPE_SPECS[series_type].needs_label_column is expected, series_type
+
+
+def test_fit_series_type_spec_exists():
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+
+    spec = SERIES_TYPE_SPECS[SeriesType.FIT]
+    assert spec.style_cls is FitStyle
+    assert spec.marker_mode == "unsupported"
+    assert spec.supports_curve_analysis is False
+    assert spec.supports_value_labels is False
+    assert spec.supports_error_bars is False
