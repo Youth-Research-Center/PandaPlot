@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 
 MIN_FIT_POINTS = 2
+_MAX_EXP_ARGUMENT = 700
 
 
 def _polynomial(x: np.ndarray, *coefficients: float) -> np.ndarray:
@@ -149,14 +150,14 @@ def _damped_sine_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
     sorted_x = x[order]
     residual = y[order] - offset
     half = len(sorted_x) // 2
-    x_span = max(float(np.ptp(sorted_x)), np.finfo(float).eps)
     first_rms = float(np.sqrt(np.mean(residual[:half] ** 2))) if half else 0.0
     second_rms = float(np.sqrt(np.mean(residual[half:] ** 2)))
     spacing = float(np.mean(sorted_x[half:]) - np.mean(sorted_x[:half])) if half else 0.0
+    decay = 0.0
     if first_rms > second_rms > 0 and spacing > 0:
         decay = float(np.log(first_rms / second_rms) / spacing)
-    else:
-        decay = 1 / x_span
+    if decay * float(np.max(np.abs(sorted_x))) > _MAX_EXP_ARGUMENT:
+        decay = 0.0
     return [amplitude * float(np.exp(decay * np.mean(sorted_x))), decay, frequency, phase, offset]
 
 
@@ -451,6 +452,11 @@ class FitService:
 
             fit_definition = FIT_DEFINITIONS.get(self._get_fit_name(fit_type))
             free_param_names = [name for name in param_names if name not in fixed_params]
+            if fit_definition is not None:
+                for name, value in fixed_params.items():
+                    lower, upper = fit_definition.get("bounds", {}).get(name, (-np.inf, np.inf))
+                    if not lower <= value <= upper:
+                        raise ValueError(f"Fixed parameter {name}={value:g} must be within [{lower:g}, {upper:g}] for a {fit_type} fit.")
             if fit_definition is not None and fixed_params:
                 original_fit_func = fit_func
 

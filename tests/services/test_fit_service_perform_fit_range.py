@@ -174,3 +174,46 @@ def test_power_and_logarithmic_fits_share_a_category():
     assert FIT_CATEGORIES["Power & Logarithmic"] == ("Power", "Logarithmic")
     assert "Other" not in FIT_CATEGORIES
     assert FIT_CATEGORIES["Periodic"] == ("Sine", "Cosine", "Damped Sine")
+
+
+def test_fixed_polynomial_coefficient_is_applied_to_the_fitted_curve():
+    pytest.importorskip("scipy")
+    x_data = np.linspace(-3.0, 3.0, 60)
+    y_data = 1.0 * x_data**3 - 2.0 * x_data**2 + 0.5 * x_data + 4.0
+
+    result = FitService().perform_fit("Cubic", x_data, y_data, fit_points=50, fixed_parameters="a=1")
+
+    assert result is not None
+    assert result.params["a"] == 1.0
+    reported = np.polyval([result.params[name] for name in ("a", "b", "c", "d")], result.x_fit)
+    np.testing.assert_allclose(result.y_fit, reported, rtol=1e-8, atol=1e-8)
+    np.testing.assert_allclose(result.y_fit, np.polyval([1.0, -2.0, 0.5, 4.0], result.x_fit), rtol=1e-6, atol=1e-6)
+
+
+def test_damped_sine_without_visible_decay_fits_translated_x_data():
+    pytest.importorskip("scipy")
+    x_data = np.linspace(1000.0, 1001.0, 6)
+    y_data = np.sin(2 * np.pi * (x_data - 1000.0) + np.pi / 4) + 1
+
+    result = FitService().perform_fit("Damped Sine", x_data, y_data, fit_points=20)
+
+    assert result is not None
+    assert np.all(np.isfinite(result.y_fit))
+
+
+@pytest.mark.parametrize(
+    ("fit_type", "fixed_parameters"),
+    [
+        ("Exponential Decay", "b=-1"),
+        ("Exponential Growth to Maximum", "b=-0.5"),
+        ("Gaussian Peak", "sigma=0"),
+        ("Lorentzian Peak", "gamma=-2"),
+        ("Damped Sine", "k=-0.1"),
+    ],
+)
+def test_fixed_parameter_outside_model_bounds_is_rejected(fit_type, fixed_parameters):
+    x_data = np.linspace(0.0, 5.0, 40)
+    y_data = np.exp(-x_data)
+
+    with pytest.raises(ValueError, match="must be within"):
+        FitService().perform_fit(fit_type, x_data, y_data, fixed_parameters=fixed_parameters)
