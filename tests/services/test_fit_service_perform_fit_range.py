@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from pandaplot.services.fit.fit_service import FIT_CATEGORIES, FitService
+from pandaplot.services.fit.fit_service import FIT_CATEGORIES, FitService, _periodic_initial_guess
 
 
 def _linear_data():
@@ -217,3 +217,15 @@ def test_fixed_parameter_outside_model_bounds_is_rejected(fit_type, fixed_parame
 
     with pytest.raises(ValueError, match="must be within"):
         FitService().perform_fit(fit_type, x_data, y_data, fixed_parameters=fixed_parameters)
+
+
+@pytest.mark.parametrize("cosine", [False, True])
+def test_periodic_initial_guess_uses_fft_sample_period_for_short_series(cosine):
+    x_data = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
+    y_data = np.sin(4 * np.pi * x_data / 5)
+
+    amplitude, frequency, _phase, offset = _periodic_initial_guess(x_data, y_data, cosine=cosine)
+
+    assert frequency == pytest.approx(4 * np.pi / 5)
+    assert amplitude == pytest.approx(1.0)
+    assert offset == pytest.approx(0.0, abs=1e-9)

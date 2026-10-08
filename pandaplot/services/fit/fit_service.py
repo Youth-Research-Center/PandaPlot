@@ -71,7 +71,8 @@ def _periodic_initial_guess(x: np.ndarray, y: np.ndarray, *, cosine: bool) -> li
     resampled = np.interp(grid, sorted_x, sorted_y)
     spectrum = np.abs(np.fft.rfft(resampled - resampled.mean()))
     peak_bin = int(np.argmax(spectrum[1:])) + 1 if len(spectrum) > 1 else 1
-    frequency = 2 * np.pi * peak_bin / x_span
+    sample_period = len(grid) * x_span / max(len(grid) - 1, 1)
+    frequency = 2 * np.pi * peak_bin / sample_period
 
     design = np.column_stack([np.sin(frequency * sorted_x), np.cos(frequency * sorted_x), np.ones_like(sorted_x)])
     (sin_coefficient, cos_coefficient, offset), *_ = np.linalg.lstsq(design, sorted_y, rcond=None)
