@@ -80,7 +80,8 @@ class EventBus:
         if data is None:
             data = {}
         
-        self.logger.debug("Emitting event: %s with data keys: %s", event_type, list(data.keys()))
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug("Emitting event: %s with data keys: %s", event_type, list(data.keys()))
         
         # Get hierarchy for this event type
         hierarchy = EventHierarchy.get_hierarchy(event_type)
@@ -125,9 +126,7 @@ class EventBus:
                 self.logger.debug("Emitted event '%s' to %d direct subscribers and %d pattern matches", 
                                 event_level, subscriber_count, pattern_matches)
         
-        if total_callbacks_called == 0:
-            self.logger.debug("Event '%s' emitted but no subscribers found", event_type)
-        else:
+        if total_callbacks_called > 0:
             self.logger.debug("Event '%s' completed: %d total callbacks executed", event_type, total_callbacks_called)
 
     def clear_all_subscriptions(self) -> None:
