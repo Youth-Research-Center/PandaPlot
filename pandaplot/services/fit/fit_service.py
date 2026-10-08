@@ -28,6 +28,60 @@ def _exponential_growth_to_maximum(x: np.ndarray, amplitude: float, rate: float,
     return amplitude * (1 - np.exp(np.clip(-rate * x, -700, 700))) + offset
 
 
+def _sine(x: np.ndarray, amplitude: float, frequency: float, phase: float, offset: float) -> np.ndarray:
+    return amplitude * np.sin(frequency * x + phase) + offset
+
+
+def _cosine(x: np.ndarray, amplitude: float, frequency: float, phase: float, offset: float) -> np.ndarray:
+    return amplitude * np.cos(frequency * x + phase) + offset
+
+
+def _lorentzian_peak(x: np.ndarray, amplitude: float, center: float, width: float, offset: float) -> np.ndarray:
+    return amplitude / (1 + ((x - center) / width) ** 2) + offset
+
+
+def _damped_sine(
+    x: np.ndarray, amplitude: float, decay: float, frequency: float, phase: float, offset: float,
+) -> np.ndarray:
+    return amplitude * np.exp(np.clip(-decay * x, -700, 700)) * np.sin(frequency * x + phase) + offset
+
+
+def _periodic_initial_guess(x: np.ndarray, y: np.ndarray, *, cosine: bool) -> list[float]:
+    """Estimate amplitude, angular frequency, phase and offset of a sinusoid.
+
+    The frequency comes from the strongest non-DC FFT bin of the data resampled
+    onto a uniform grid; amplitude, phase and offset then follow from a linear
+    least-squares fit at that frequency.
+
+    Args:
+        x: Independent variable values.
+        y: Dependent variable values.
+        cosine: Report the phase for a cosine model instead of a sine model.
+
+    Returns:
+        Initial ``[amplitude, frequency, phase, offset]``.
+    """
+    order = np.argsort(x)
+    sorted_x = x[order]
+    sorted_y = y[order]
+    x_span = max(float(np.ptp(sorted_x)), np.finfo(float).eps)
+
+    grid = np.linspace(sorted_x[0], sorted_x[-1], len(sorted_x))
+    resampled = np.interp(grid, sorted_x, sorted_y)
+    spectrum = np.abs(np.fft.rfft(resampled - resampled.mean()))
+    peak_bin = int(np.argmax(spectrum[1:])) + 1 if len(spectrum) > 1 else 1
+    frequency = 2 * np.pi * peak_bin / x_span
+
+    design = np.column_stack([np.sin(frequency * sorted_x), np.cos(frequency * sorted_x), np.ones_like(sorted_x)])
+    (sin_coefficient, cos_coefficient, offset), *_ = np.linalg.lstsq(design, sorted_y, rcond=None)
+    amplitude = float(np.hypot(sin_coefficient, cos_coefficient))
+    if cosine:
+        phase = float(np.arctan2(-sin_coefficient, cos_coefficient))
+    else:
+        phase = float(np.arctan2(cos_coefficient, sin_coefficient))
+    return [amplitude, float(frequency), phase, float(offset)]
+
+
 def _polynomial_initial_guess(x: np.ndarray, y: np.ndarray, *, degree: int) -> list[float]:
     coefficients = np.polyfit(x, y, degree)
     return coefficients.tolist()
@@ -87,6 +141,23 @@ def _growth_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
     amplitude = local_amplitude * np.exp(rate * sorted_x[0])
     offset = float(sorted_y[0] - amplitude * -np.expm1(-rate * sorted_x[0]))
     return [amplitude, rate, offset]
+
+
+def _damped_sine_initial_guess(x: np.ndarray, y: np.ndarray) -> list[float]:
+    amplitude, frequency, phase, offset = _periodic_initial_guess(x, y, cosine=False)
+    order = np.argsort(x)
+    sorted_x = x[order]
+    residual = y[order] - offset
+    half = len(sorted_x) // 2
+    x_span = max(float(np.ptp(sorted_x)), np.finfo(float).eps)
+    first_rms = float(np.sqrt(np.mean(residual[:half] ** 2))) if half else 0.0
+    second_rms = float(np.sqrt(np.mean(residual[half:] ** 2)))
+    spacing = float(np.mean(sorted_x[half:]) - np.mean(sorted_x[:half])) if half else 0.0
+    if first_rms > second_rms > 0 and spacing > 0:
+        decay = float(np.log(first_rms / second_rms) / spacing)
+    else:
+        decay = 1 / x_span
+    return [amplitude * float(np.exp(decay * np.mean(sorted_x))), decay, frequency, phase, offset]
 
 
 FIT_DEFINITIONS = {
@@ -171,18 +242,52 @@ FIT_DEFINITIONS = {
         "initial_guess": _peak_initial_guess,
         "bounds": {"sigma": (np.finfo(float).eps, np.inf)},
     },
+    "Lorentzian Peak": {
+        "function": _lorentzian_peak,
+        "parameters": ["a", "x0", "gamma", "c"],
+        "equation": "a/(1 + ((x - x0)/gamma)**2) + c",
+        "category": "Peak",
+        "description": "Lorentzian peak",
+        "initial_guess": _peak_initial_guess,
+        "bounds": {"gamma": (np.finfo(float).eps, np.inf)},
+    },
+    "Sine": {
+        "function": _sine,
+        "parameters": ["a", "b", "c", "d"],
+        "equation": "a*sin(b*x + c) + d",
+        "category": "Periodic",
+        "description": "y = a·sin(bx + c) + d",
+        "initial_guess": lambda x, y: _periodic_initial_guess(x, y, cosine=False),
+    },
+    "Cosine": {
+        "function": _cosine,
+        "parameters": ["a", "b", "c", "d"],
+        "equation": "a*cos(b*x + c) + d",
+        "category": "Periodic",
+        "description": "y = a·cos(bx + c) + d",
+        "initial_guess": lambda x, y: _periodic_initial_guess(x, y, cosine=True),
+    },
+    "Damped Sine": {
+        "function": _damped_sine,
+        "parameters": ["a", "k", "b", "c", "d"],
+        "equation": "a*exp(-k*x)*sin(b*x + c) + d",
+        "category": "Periodic",
+        "description": "y = a·e⁻ᵏˣ·sin(bx + c) + d",
+        "initial_guess": _damped_sine_initial_guess,
+        "bounds": {"k": (0, np.inf)},
+    },
     "Power": {
         "function": lambda x, a, b, c: a * (x ** b) + c,
         "parameters": ["a", "b", "c"],
         "equation": "a*x**b + c",
-        "category": "Other",
+        "category": "Power & Logarithmic",
         "description": "y = ax^b + c",
     },
     "Logarithmic": {
         "function": lambda x, a, b: a * np.log(x) + b,
         "parameters": ["a", "b"],
         "equation": "a*ln(x) + b",
-        "category": "Other",
+        "category": "Power & Logarithmic",
         "description": "y = a*ln(x) + b",
     },
 }

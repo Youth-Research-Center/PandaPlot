@@ -699,7 +699,7 @@ def test_non_positive_min_invalid_for_logarithmic_fit(app_context):
     panel.show()
     QApplication.processEvents()
 
-    panel.fit_category_combo.setCurrentText("Other")
+    panel.fit_category_combo.setCurrentText("Power & Logarithmic")
     panel.fit_type_combo.setCurrentText("Logarithmic (y = a*ln(x) + b)")
     panel.range_auto_check.setChecked(False)
     panel.range_min_spin.setValue(0.0)

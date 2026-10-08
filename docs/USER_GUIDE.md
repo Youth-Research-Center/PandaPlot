@@ -216,8 +216,9 @@ Interactive curve fitting is available through the **Fit Panel** sidebar when vi
    - **Polynomial**: Linear, quadratic, cubic, quartic, and quintic.
    - **Exponential**: General exponential, exponential decay, and growth to a maximum.
    - **Sigmoid**: Logistic sigmoid.
-   - **Peak**: Gaussian peak.
-   - **Other**: Power and logarithmic.
+   - **Peak**: Gaussian and Lorentzian peaks.
+   - **Periodic**: Sine, cosine and damped sine, $y = a \cdot \sin(b \cdot x + c) + d$ (b is the angular frequency).
+   - **Power & Logarithmic**: Power and logarithmic.
    - **Custom**: Enter a mathematical expression with user-defined parameters.
 2. **Execution**: Uses `scipy.optimize.curve_fit` to optimize model parameters. Models with constraints use bounded least squares.
 3. **Fit Results**: Displays optimized parameter estimates, standard errors ($\sigma$), covariance matrix, and coefficient of determination ($R^2$).

@@ -71,6 +71,10 @@ def test_fit_categories_cover_every_fit_model_once():
         "Exponential Growth to Maximum",
         "Logistic Sigmoid",
         "Gaussian Peak",
+        "Lorentzian Peak",
+        "Sine",
+        "Damped Sine",
+        "Cosine",
         "Power",
         "Logarithmic",
         "Custom Function",
@@ -104,6 +108,26 @@ def test_fit_categories_cover_every_fit_model_once():
             "Gaussian Peak",
             np.linspace(-5.0, 5.0, 100),
             lambda x: 5 * np.exp(-0.5 * ((x - 0.7) / 0.8) ** 2) + 0.5,
+        ),
+        (
+            "Lorentzian Peak",
+            np.linspace(-6.0, 6.0, 150),
+            lambda x: 4 / (1 + ((x - 0.5) / 0.9) ** 2) + 0.3,
+        ),
+        (
+            "Damped Sine",
+            np.linspace(0.0, 10.0, 300),
+            lambda x: 5 * np.exp(-0.3 * x) * np.sin(2.1 * x + 0.4) + 1,
+        ),
+        (
+            "Sine",
+            np.linspace(0.0, 10.0, 200),
+            lambda x: 3 * np.sin(1.7 * x + 0.6) + 1,
+        ),
+        (
+            "Cosine",
+            np.linspace(0.0, 10.0, 200),
+            lambda x: 2.5 * np.cos(2.3 * x - 1.1) - 0.5,
         ),
     ],
 )
@@ -144,3 +168,9 @@ def test_translated_x_exponential_fits_recover_parameters(fit_type, y_function):
     assert result is not None
     assert result.params["b"] == pytest.approx(0.001, rel=0.02)
     np.testing.assert_allclose(result.y_fit, y_function(result.x_fit), rtol=1e-8, atol=1e-8)
+
+
+def test_power_and_logarithmic_fits_share_a_category():
+    assert FIT_CATEGORIES["Power & Logarithmic"] == ("Power", "Logarithmic")
+    assert "Other" not in FIT_CATEGORIES
+    assert FIT_CATEGORIES["Periodic"] == ("Sine", "Cosine", "Damped Sine")
