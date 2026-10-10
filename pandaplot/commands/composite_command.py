@@ -68,10 +68,16 @@ class CompositeCommand(Command):
     least loud rather than silent.
     """
 
-    def __init__(self, commands: Iterable[Command] | None = None):
+    def __init__(self, commands: Iterable[Command] | None = None, *, display_name: str | None = None):
         super().__init__()
         self.commands: list[Command] = list(commands) if commands is not None else []
         self._executed: list[Command] = []
+        self._custom_display_name = display_name
+
+    def display_name(self) -> str:
+        if self._custom_display_name:
+            return self._custom_display_name
+        return super().display_name()
 
     def add_command(self, command: Command) -> None:
         """Add a sub-command to the composite."""

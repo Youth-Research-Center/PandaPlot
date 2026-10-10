@@ -5,6 +5,9 @@ import pytest
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication
 
+from pandaplot.commands.base_command import Command, CommandResult
+from pandaplot.commands.command_executor import CommandExecutor
+from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -41,6 +44,8 @@ def app_context():
     command_executor = Mock()
     command_executor.can_undo.return_value = False
     command_executor.can_redo.return_value = False
+    command_executor.get_undo_description.return_value = None
+    command_executor.get_redo_description.return_value = None
     ctx.get_command_executor.return_value = command_executor
 
     theme_manager = Mock()
@@ -158,6 +163,8 @@ class TestMainMenuUndoRedoActions:
     def test_starts_disabled_when_history_is_empty(self, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
 
+        assert menu.undo_action.text() == "Undo"
+        assert menu.redo_action.text() == "Redo"
         assert menu.undo_action.isEnabled() is False
         assert menu.redo_action.isEnabled() is False
 
@@ -176,11 +183,97 @@ class TestMainMenuUndoRedoActions:
         menu = MainMenu(parent=None, app_context=app_context)
         assert menu.undo_action.isEnabled() is False
 
-        app_context.get_command_executor().can_undo.return_value = True
+        command_executor = app_context.get_command_executor()
+        command_executor.can_undo.return_value = True
+        command_executor.get_undo_description.return_value = "Rename column"
+        command_executor.get_redo_description.return_value = None
         menu._update_undo_redo_actions()
 
+        assert menu.undo_action.text() == "Undo Rename column"
+        assert menu.redo_action.text() == "Redo"
         assert menu.undo_action.isEnabled() is True
         assert menu.redo_action.isEnabled() is False
+
+        command_executor.can_undo.return_value = False
+        command_executor.can_redo.return_value = True
+        command_executor.get_undo_description.return_value = None
+        command_executor.get_redo_description.return_value = "Delete chart"
+        menu._update_undo_redo_actions()
+        assert menu.undo_action.text() == "Undo"
+        assert menu.redo_action.text() == "Redo Delete chart"
+
+    def test_labels_follow_execute_undo_redo_and_clear_history(self, app_context):
+        class NamedCommand(Command):
+            def __init__(self, name):
+                super().__init__()
+                self.name = name
+
+            def display_name(self):
+                return self.name
+
+            def execute(self):
+                return CommandResult.SUCCESS
+
+            def undo(self):
+                return CommandResult.SUCCESS
+
+            def redo(self):
+                return CommandResult.SUCCESS
+
+        executor = CommandExecutor()
+        app_context.get_command_executor.return_value = executor
+        menu = MainMenu(parent=None, app_context=app_context)
+        executor.on_history_changed = menu._update_undo_redo_actions
+
+        composite = CompositeCommand(
+            [NamedCommand("Rename column")], display_name="Analyze chart series",
+        )
+        executor.execute_command(composite)
+        assert menu.undo_action.text() == "Undo Analyze chart series"
+        assert menu.undo_action.isEnabled() is True
+
+        executor.undo()
+        assert menu.undo_action.text() == "Undo"
+        assert menu.redo_action.text() == "Redo Analyze chart series"
+
+        executor.redo()
+        assert menu.undo_action.text() == "Undo Analyze chart series"
+        assert menu.redo_action.text() == "Redo"
+
+        executor.clear_history()
+        assert menu.undo_action.text() == "Undo"
+        assert menu.redo_action.text() == "Redo"
+        assert menu.undo_action.isEnabled() is False
+        assert menu.redo_action.isEnabled() is False
+
+    def test_labels_update_when_oldest_command_is_evicted(self, app_context):
+        class NamedCommand(Command):
+            def __init__(self, name):
+                super().__init__()
+                self.name = name
+
+            def display_name(self):
+                return self.name
+
+            def execute(self):
+                return CommandResult.SUCCESS
+
+            def undo(self):
+                return CommandResult.SUCCESS
+
+            def redo(self):
+                return CommandResult.SUCCESS
+
+        executor = CommandExecutor(max_undo_levels=1)
+        app_context.get_command_executor.return_value = executor
+        menu = MainMenu(parent=None, app_context=app_context)
+        executor.on_history_changed = menu._update_undo_redo_actions
+
+        executor.execute_command(NamedCommand("Older action"))
+        executor.execute_command(NamedCommand("Rename column"))
+
+        assert menu.undo_action.text() == "Undo Rename column"
+        assert len(executor.undo_stack) == 1
 
     def test_subscribes_to_history_changed_event(self, app_context):
         from pandaplot.models.events.event_types import AppEvents

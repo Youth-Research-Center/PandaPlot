@@ -271,6 +271,10 @@ class MainMenu(PMenuBar):
         e.g. Cmd+Z stops doing anything once the undo stack is empty rather
         than silently no-op'ing via CommandExecutor.undo()'s own guard."""
         command_executor = self.app_context.get_command_executor()
+        undo_description = command_executor.get_undo_description()
+        redo_description = command_executor.get_redo_description()
+        self.undo_action.setText(f"Undo {undo_description}" if undo_description else "Undo")
+        self.redo_action.setText(f"Redo {redo_description}" if redo_description else "Redo")
         self.undo_action.setEnabled(command_executor.can_undo())
         self.redo_action.setEnabled(command_executor.can_redo())
 

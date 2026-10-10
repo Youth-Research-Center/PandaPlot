@@ -282,13 +282,13 @@ class CommandExecutor:
     def get_undo_description(self) -> str | None:
         """Get description of the command that would be undone."""
         if self.undo_stack:
-            return str(self.undo_stack[-1])
+            return self._safe_display_name(self.undo_stack[-1])
         return None
     
     def get_redo_description(self) -> str | None:
         """Get description of the command that would be redone."""
         if self.redo_stack:
-            return str(self.redo_stack[-1])
+            return self._safe_display_name(self.redo_stack[-1])
         return None
     
     def clear_history(self):

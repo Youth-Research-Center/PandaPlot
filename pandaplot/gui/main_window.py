@@ -2,7 +2,7 @@ from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QScreen
-from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QSplitter, QToolBar, QVBoxLayout, QWidget
 
 from pandaplot.commands.project.project.unsaved_changes import confirm_discard_unsaved_changes
 from pandaplot.gui.components import CollapsibleSidebar, TabContainer
@@ -81,6 +81,13 @@ class PandaMainWindow(PMainWindow):
         # Create menu
         self.main_menu = MainMenu(self, self.app_context)
         self.setMenuBar(self.main_menu)
+
+        # Keep global undo/redo available in the main toolbar as well as Edit.
+        self.edit_toolbar = QToolBar("Edit", self)
+        self.edit_toolbar.setObjectName("editToolbar")
+        self.edit_toolbar.addAction(self.main_menu.undo_action)
+        self.edit_toolbar.addAction(self.main_menu.redo_action)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.edit_toolbar)
 
         # Create main horizontal splitter
         self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
