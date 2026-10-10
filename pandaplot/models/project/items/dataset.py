@@ -11,6 +11,7 @@ from typing import Any
 import pandas as pd
 
 from pandaplot.models.project.items.column_role import ColumnRole
+from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.project.items.item import Item
 
 
@@ -26,6 +27,11 @@ class Dataset(Item):
     the ``column_ids`` registry (id -> current name) lets other items
     (chart series, fits) reference a column by id so a rename doesn't have to
     cascade into every reference. See ``column_name`` / ``column_id``.
+
+    A column may additionally be a *formula* column (#154): the
+    ``formula_columns`` registry (column id -> FormulaColumnSpec) records the
+    expression that defines it, so it can be recomputed later instead of only
+    ever holding the values one transform run happened to produce.
     """
 
     def __init__(self, id: str | None = None, name: str = "",
@@ -36,6 +42,7 @@ class Dataset(Item):
         # column_ids maps a stable column id -> its current name, ordered to
         # match the DataFrame's columns.
         self.column_ids: OrderedDict[str, str] = OrderedDict()
+        self.formula_columns: dict[str, FormulaColumnSpec] = {}
         self.column_roles: OrderedDict[str, ColumnRole] = OrderedDict()
         self.column_measurement_groups: OrderedDict[str, str] = OrderedDict()
         self.data: pd.DataFrame = data if data is not None else pd.DataFrame()
@@ -79,6 +86,14 @@ class Dataset(Item):
             cid = id_by_name.pop(name, None) or str(uuid.uuid4())
             synced[cid] = name
         self.column_ids = synced
+        # A formula spec for a column that no longer exists is dead weight and
+        # would otherwise resurrect itself if a column of the same name were
+        # added back later (it would get a fresh id, but stale entries would
+        # still be serialized).
+        if self.formula_columns:
+            self.formula_columns = {
+                cid: spec for cid, spec in self.formula_columns.items() if cid in synced
+            }
         self.column_roles = OrderedDict(
             (column_id, role)
             for column_id, role in self.column_roles.items()
@@ -113,6 +128,46 @@ class Dataset(Item):
             return None
         self.column_ids[cid] = new_name
         return cid
+
+    # ------------------------------------------------------------------
+    # Formula columns (#154)
+    # ------------------------------------------------------------------
+    def set_formula_column(self, column_id: str, spec: FormulaColumnSpec) -> None:
+        """Register (or replace) the formula that defines ``column_id``."""
+        self.formula_columns[column_id] = spec
+
+    def remove_formula_column(self, column_id: str) -> FormulaColumnSpec | None:
+        """Drop the formula for ``column_id``, turning it back into a plain
+        static column. Returns the removed spec, if there was one."""
+        return self.formula_columns.pop(column_id, None)
+
+    def formula_column(self, column_id: str) -> FormulaColumnSpec | None:
+        """Return the formula spec for a column id, or None if it's a plain column."""
+        return self.formula_columns.get(column_id)
+
+    def formula_column_by_name(self, name: str) -> FormulaColumnSpec | None:
+        """Return the formula spec for a column's current name, if any."""
+        cid = self.column_id(name)
+        return self.formula_columns.get(cid) if cid else None
+
+    def formula_columns_dict(self) -> dict[str, dict[str, Any]]:
+        """The formula registry in its serialized (JSON-safe) form."""
+        return {cid: spec.to_dict() for cid, spec in self.formula_columns.items()}
+
+    def load_formula_columns(self, data: dict[str, Any] | None) -> None:
+        """Restore the formula registry from its serialized form.
+
+        Entries whose column id is no longer present are dropped -- the same
+        reconciliation ``_sync_column_ids`` does, applied here because the
+        DataFrame is typically loaded before the registry is handed over.
+        """
+        if not data:
+            return
+        self.formula_columns = {
+            cid: FormulaColumnSpec.from_dict(spec)
+            for cid, spec in data.items()
+            if cid in self.column_ids
+        }
 
     def set_column_role(self, column_id: str, role: ColumnRole | str | None) -> None:
         """Assign or clear a role for a column, addressed by its stable id.
@@ -195,6 +250,7 @@ class Dataset(Item):
             "source_file": self.source_file,
             "has_data": self.data is not None,
             "column_ids": dict(self.column_ids),
+            "formula_columns": self.formula_columns_dict(),
             "column_roles": {column_id: role.value for column_id, role in self.column_roles.items()},
             "column_measurement_groups": dict(self.column_measurement_groups),
         })
@@ -227,6 +283,8 @@ class Dataset(Item):
             dataset.column_ids = OrderedDict(saved_ids)
         dataset._restore_column_roles(data.get("column_roles"))
         dataset._restore_column_measurement_groups(data.get("column_measurement_groups"))
+
+        dataset.load_formula_columns(data.get("formula_columns"))
 
         return dataset
 
