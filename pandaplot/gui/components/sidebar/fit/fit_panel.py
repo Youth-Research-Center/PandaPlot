@@ -62,7 +62,6 @@ class FitPanel(SidebarPanel):
         self._needs_chart_refresh: bool = False
         self._tab_inputs: dict[tuple[str, str], dict] = {}
         self._active_tab_key: tuple[str, str] | None = None
-        self._context_generation = 0
 
         # Check scipy availability lazily (only when FitPanel is instantiated)
         self.scipy_available = self._check_scipy_available()
@@ -453,7 +452,8 @@ class FitPanel(SidebarPanel):
         """Set up event subscriptions for tab changes."""
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(UIEvents.TAB_CLOSED, self._on_tab_closed)
-        self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, self._on_project_closed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, self._on_project_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, self._on_project_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
         self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
 
@@ -623,9 +623,6 @@ class FitPanel(SidebarPanel):
         would needlessly reload the chart and wipe any completed fit
         results, even though nothing changed while it was hidden.
         """
-        target_key = self._tab_key(event_data)
-        if target_key != self._active_tab_key:
-            self._context_generation += 1
         if not self.isVisible():
             self._pending_tab_event_data = event_data
             return
@@ -756,14 +753,12 @@ class FitPanel(SidebarPanel):
             self._pending_tab_event_data = None
         if self._active_tab_key is not None and self._active_tab_key[1] == tab_id:
             self._active_tab_key = None
-            self._context_generation += 1
             self.load_chart_object(None)
 
-    def _on_project_closed(self, _event_data):
+    def _on_project_changed(self, _event_data):
         self._tab_inputs.clear()
         self._active_tab_key = None
         self._pending_tab_event_data = None
-        self._context_generation += 1
         self.load_chart_object(None)
         self._restore_inputs(self._default_inputs)
 
@@ -1270,7 +1265,8 @@ class FitPanel(SidebarPanel):
             self.current_chart.id if self.current_chart else None,
             series.dataset_id, series.x_column_id, series.y_column_id,
         )
-        dispatch_generation = self._context_generation
+        dispatch_tab_key = self._active_tab_key
+        dispatch_revision = self.app_context.app_state.modification_revision
         dispatch_selection = self.series_combo.currentData()
 
         def _on_complete(result):
@@ -1280,9 +1276,15 @@ class FitPanel(SidebarPanel):
             # switched to an unsupported one while the fit was in flight.
             self.update_data_points_display()
 
-            if self._context_generation != dispatch_generation:
+            # Drop the result if the user is on a different tab, or the project was
+            # edited, since the fit started. Returning to the same tab keeps it,
+            # because that tab's inputs were restored. A tab closed and reopened
+            # mid-fit is not tracked: the worst case is a fit the user can clear.
+            if self._active_tab_key != dispatch_tab_key:
                 self.logger.info("Discarding stale fit result: active tab changed while fitting.")
-                self.update_data_points_display()
+                return
+            if self.app_context.app_state.modification_revision != dispatch_revision:
+                self.logger.info("Discarding stale fit result: project was modified while fitting.")
                 return
 
             current_series = self._resolve_selected_series()
