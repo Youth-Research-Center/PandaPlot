@@ -1325,6 +1325,35 @@ def test_fit_result_is_discarded_when_project_is_modified_on_another_tab(app_con
     panel.close()
 
 
+def test_fit_result_is_discarded_when_dispatch_tab_is_closed_and_reopened(app_context):
+    panel, chart_a, chart_b, command = _dispatch_fit_on_chart_a(app_context)
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    panel._on_tab_closed({"tab_type": "chart", "tab_id": chart_a.id})
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is None
+    assert not panel.apply_button.isEnabled()
+    panel.close()
+
+
+def test_fit_result_is_applied_after_an_unrelated_tab_is_closed(app_context):
+    panel, chart_a, chart_b, command = _dispatch_fit_on_chart_a(app_context)
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    panel._on_tab_closed({"tab_type": "chart", "tab_id": chart_b.id})
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is command.result
+    panel.close()
+
+
 def test_fit_result_is_discarded_after_dispatch_tab_is_closed(app_context):
     panel, chart_a, _chart_b, command = _dispatch_fit_on_chart_a(app_context)
 
