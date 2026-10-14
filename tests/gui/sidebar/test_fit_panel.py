@@ -1240,7 +1240,7 @@ def test_chart_update_does_not_replace_dataset_tab_context(app_context):
     panel.close()
 
 
-def test_fit_result_from_previous_tab_visit_is_discarded(app_context):
+def _dispatch_fit_on_chart_a(app_context):
     project, _dataset_a, dataset_b, chart_a = _make_project_with_two_datasets_and_series_on_first()
     chart_b = Chart(id="chart-2", name="second chart")
     chart_b.add_data_series(
@@ -1259,16 +1259,46 @@ def test_fit_result_from_previous_tab_visit_is_discarded(app_context):
 
     panel.app_context.get_command_executor.return_value.execute_command = _capture_execute
     panel._perform_fit()
-    command = executed["command"]
+    return panel, chart_a, chart_b, executed["command"]
+
+
+def test_fit_result_is_applied_when_user_returns_to_the_dispatch_tab(app_context):
+    panel, chart_a, chart_b, command = _dispatch_fit_on_chart_a(app_context)
 
     _switch_fit_tab(panel, "chart", chart_b.id)
     _switch_fit_tab(panel, "chart", chart_a.id)
     command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is command.result
+    assert panel._pending_fit_command is None
+    panel.close()
+
+
+def test_fit_result_is_discarded_while_another_tab_is_active(app_context):
+    panel, _chart_a, chart_b, command = _dispatch_fit_on_chart_a(app_context)
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
     command.on_complete(CommandResult.SUCCESS)
 
     assert panel.fit_results is None
     assert not panel.apply_button.isEnabled()
     assert panel._pending_fit_command is None
+    panel.close()
+
+
+def test_fit_result_is_discarded_after_dispatch_tab_is_closed(app_context):
+    panel, chart_a, _chart_b, command = _dispatch_fit_on_chart_a(app_context)
+
+    panel._on_tab_closed({"tab_type": "chart", "tab_id": chart_a.id})
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is None
     panel.close()
 
 
