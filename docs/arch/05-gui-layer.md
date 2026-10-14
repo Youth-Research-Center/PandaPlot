@@ -138,3 +138,15 @@ TaskScheduler
 ```
 
 During asynchronous tasks, panels display a `BusySpinner` widget to give visual progress feedback without blocking the UI or Qt event loop.
+
+## Numeric Inputs (`gui/components/common/number_input.py`)
+
+Number fields are `DecimalInput` (float) or `IntegerInput` (int), never `QDoubleSpinBox` / `QSpinBox`. They keep the spin-box API (`setRange`, `setDecimals`, `setSingleStep`, `setSuffix`, `setSpecialValueText`, `setValue`, `value`, `valueChanged`), including its keyboard tracking: `value()` follows what is typed as soon as it is a complete number in range, which matters on macOS where clicking a push button does not move focus out of the field.
+
+What differs from a spin box:
+
+- `-` / `+` step buttons (omit with `steppers=False` where a slider already moves the value); only the text field takes Tab focus, and Up/Down, Page Up/Down and Shift step from the keyboard.
+- The wheel only edits the value while the field has focus; otherwise the event is ignored so the enclosing scroll area scrolls.
+- `.` and `,` are both decimal separators, at most `decimals` digits can be typed, and the unit is a separate label instead of text in the field.
+
+The frame draws the border and is styled by `ThemeManager` (`QFrame[numberInput="true"]`, driven by `focused` / `invalid` dynamic properties); the inner line edit sets its own flat stylesheet so a dialog-level `QLineEdit` rule cannot draw a second box inside it.
