@@ -1276,6 +1276,10 @@ class FitPanel(SidebarPanel):
             # switched to an unsupported one while the fit was in flight.
             self.update_data_points_display()
 
+            # Drop the result if the user is on a different tab, or the project was
+            # edited, since the fit started. Returning to the same tab keeps it,
+            # because that tab's inputs were restored. A tab closed and reopened
+            # mid-fit is not tracked: the worst case is a fit the user can clear.
             if self._active_tab_key != dispatch_tab_key:
                 self.logger.info("Discarding stale fit result: active tab changed while fitting.")
                 return
