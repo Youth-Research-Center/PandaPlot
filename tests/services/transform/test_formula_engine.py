@@ -60,6 +60,67 @@ class TestEvaluateFormula:
             )
 
 
+class TestSourceAliases:
+    """A formula's expression names its sources the way they were called when
+    it was written. Renaming a source column must not break that (#154)."""
+
+    def test_column_transform_resolves_the_original_name_of_a_renamed_source(self):
+        df = pd.DataFrame({"alpha": [1.0, 2.0]})
+        result = formula_engine.evaluate_formula(
+            df, expression='cols["a"] * 2', transform_type="column",
+            source_columns=["alpha"], source_aliases=["a"],
+        )
+        assert list(result) == [2.0, 4.0]
+
+    def test_multi_column_transform_resolves_original_names(self):
+        df = pd.DataFrame({"alpha": [1.0, 2.0], "b": [10.0, 20.0]})
+        result = formula_engine.evaluate_formula(
+            df, expression='cols["a"] + cols["b"]', transform_type="multi_column",
+            source_columns=["alpha", "b"], source_aliases=["a", "b"],
+        )
+        assert list(result) == [11.0, 22.0]
+
+    def test_row_transform_resolves_original_names(self):
+        df = pd.DataFrame({"alpha": [1.0, 2.0], "b": [10.0, 20.0]})
+        result = formula_engine.evaluate_formula(
+            df, expression='row["a"] + row["b"]', transform_type="row",
+            source_columns=["alpha", "b"], source_aliases=["a", "b"],
+        )
+        assert list(result) == [11.0, 22.0]
+
+    def test_two_sources_that_swapped_names_still_resolve_to_the_right_column(self):
+        # Originally a=[1,2], b=[10,20]; afterwards a was renamed to b and b to a.
+        df = pd.DataFrame({"b": [1.0, 2.0], "a": [10.0, 20.0]})
+        result = formula_engine.evaluate_formula(
+            df, expression='cols["a"] - cols["b"]', transform_type="multi_column",
+            source_columns=["b", "a"], source_aliases=["a", "b"],
+        )
+        assert list(result) == [-9.0, -18.0]
+
+    def test_a_new_unrelated_column_does_not_hijack_a_row_alias(self):
+        df = pd.DataFrame({"alpha": [1.0, 2.0], "a": [100.0, 200.0]})
+        result = formula_engine.evaluate_formula(
+            df, expression='row["a"] + 1', transform_type="row",
+            source_columns=["alpha"], source_aliases=["a"],
+        )
+        assert list(result) == [2.0, 3.0]
+
+    def test_aliases_default_to_the_current_names(self):
+        df = pd.DataFrame({"a": [1.0, 2.0]})
+        result = formula_engine.evaluate_formula(
+            df, expression='cols["a"] * 3', transform_type="column", source_columns=["a"],
+        )
+        assert list(result) == [3.0, 6.0]
+
+    def test_aliases_must_match_the_sources_one_to_one(self):
+        df = pd.DataFrame({"a": [1.0]})
+        with pytest.raises(ValueError, match="aliases"):
+            formula_engine.evaluate_formula(
+                df, expression="x", transform_type="column",
+                source_columns=["a"], source_aliases=["a", "b"],
+            )
+
+
 class TestResolveRecomputeOrder:
     def test_multi_hop_chain_is_ordered_dependencies_first(self):
         # C reads B, B reads A; A is a plain column (not a node).

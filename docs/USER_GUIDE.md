@@ -258,6 +258,13 @@ The **Transform Panel** allows creation of derived columns using mathematical fo
 ### Formula Evaluator
 For a column transformation, select a source column and write a Python expression using `x` for that column's values. For example, use `np.sqrt(x)` for square roots, `x.rolling(3).mean()` for a rolling average over three rows, or `pd.to_datetime(x)` to convert values to dates. The Transform panel supplies selected NumPy and pandas names for expressions; this is not a general-purpose Python interface. Column transformations can append a new column or replace the selected column, with Undo/Redo support.
 
+### Formula Columns
+Check **Save as formula column** to keep the expression on the new column. The data table marks such a column with `fx` in its header, and hovering the header shows the expression. By default the values stay as computed until you run the transform again.
+
+Also check **Live** to keep the column up to date automatically (`fx live`). Whenever a source column changes — by editing a cell, pasting, adding or removing rows, or Undo/Redo — the live column is recomputed, and so are any live columns built on it. A live column is **read-only**: you cannot type, paste, preprocess, change the type of, or write analysis results into it. To change them, edit a source column, or run the transform again without **Live** to turn the column back into ordinary data.
+
+Formulas refer to their source columns by the names they had when the formula was created, so renaming a source column does not break a formula column. A formula that would depend on itself, directly or through other formula columns, is rejected. Formula expressions may only use arithmetic, NumPy and pandas; file access and Python internals are not available.
+
 ---
 
 ## Customization & Settings

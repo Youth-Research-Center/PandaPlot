@@ -215,6 +215,13 @@ class TestFormulaColumnRegistration:
         assert spec.live is True
         assert list(dataset.data["a_x2"]) == [2.0, 4.0, 6.0]
 
+    def test_the_spec_remembers_the_source_names_the_expression_was_written_with(self, ctx):
+        app_context, dataset, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2", expression='cols["a"] * 2') | {"as_formula": True})
+        assert command.execute() is CommandResult.SUCCESS
+
+        assert dataset.formula_column_by_name("a_x2").source_aliases == ["a"]
+
     def test_a_formula_reading_its_own_column_is_rejected(self, ctx):
         app_context, dataset, _ = ctx
         command = TransformColumnCommand(app_context, "ds-1", {
@@ -254,6 +261,83 @@ class TestFormulaColumnRegistration:
 
         assert list(dataset.data["c"]) == [3.0, 5.0, 7.0]
         assert set(dataset.formula_columns) == {dataset.column_id("b"), dataset.column_id("c")}
+
+
+class TestRedo:
+    """redo() must replay the original action: later commands in the history
+    (chart series, fits) reference the column by the id it was first given."""
+
+    def test_redo_of_a_new_column_keeps_its_original_column_id(self, ctx):
+        app_context, dataset, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2"))
+        command.execute()
+        original_id = dataset.column_id("a_x2")
+
+        assert command.undo() is CommandResult.SUCCESS
+        assert dataset.column_id("a_x2") is None
+        assert command.redo() is CommandResult.SUCCESS
+
+        assert dataset.column_id("a_x2") == original_id
+        assert list(dataset.data["a_x2"]) == [2.0, 4.0, 6.0]
+
+    def test_redo_re_registers_the_formula_under_the_original_id(self, ctx):
+        app_context, dataset, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2") | {"as_formula": True, "live": True})
+        command.execute()
+        original_id = dataset.column_id("a_x2")
+        command.undo()
+
+        assert command.redo() is CommandResult.SUCCESS
+
+        assert set(dataset.formula_columns) == {original_id}
+        assert dataset.formula_column(original_id).live is True
+
+    def test_redo_keeps_the_column_in_its_position(self, ctx):
+        app_context, dataset, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2"))
+        command.execute()
+        a_id = dataset.column_id("a")
+        command.undo()
+        command.redo()
+
+        assert list(dataset.column_ids.values()) == ["a", "a_x2"]
+        assert dataset.column_id("a") == a_id
+
+    def test_a_second_undo_redo_cycle_still_keeps_the_id(self, ctx):
+        app_context, dataset, _ = ctx
+        command = TransformColumnCommand(app_context, "ds-1", _config("a_x2"))
+        command.execute()
+        original_id = dataset.column_id("a_x2")
+
+        for _ in range(2):
+            command.undo()
+            command.redo()
+
+        assert dataset.column_id("a_x2") == original_id
+
+    def test_redo_of_a_replacing_run_re_registers_the_new_formula(self, ctx):
+        app_context, dataset, _ = ctx
+        TransformColumnCommand(app_context, "ds-1", _config("a_x2") | {"as_formula": True}).execute()
+        column_id = dataset.column_id("a_x2")
+        second = TransformColumnCommand(app_context, "ds-1", {
+            "new_column_name": "a_x2", "transform_type": "column", "source_columns": ["a"],
+            "expression": "value * 3", "replace_existing": True, "as_formula": True, "live": True,
+        })
+        second.execute()
+        second.undo()
+        assert dataset.formula_column(column_id).expression == "value * 2"
+
+        assert second.redo() is CommandResult.SUCCESS
+
+        spec = dataset.formula_column(column_id)
+        assert spec.expression == "value * 3"
+        assert spec.live is True
+        assert dataset.column_id("a_x2") == column_id
+        assert list(dataset.data["a_x2"]) == [3.0, 6.0, 9.0]
+
+        assert second.undo() is CommandResult.SUCCESS
+        assert dataset.formula_column(column_id).expression == "value * 2"
+        assert list(dataset.data["a_x2"]) == [2.0, 4.0, 6.0]
 
 
 def _make_command(app_context=None):

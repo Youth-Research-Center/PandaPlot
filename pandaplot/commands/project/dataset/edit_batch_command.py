@@ -4,6 +4,7 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCommand
 from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
+from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -109,6 +110,16 @@ class EditBatchCommand(Command):
                     self.dataset = None
                     self.project = None
                     return CommandResult.FAILURE
+
+            # Refuse before anything is expanded or written, so a paste that
+            # reaches into a derived column changes nothing at all.
+            if refuse_live_formula_edit(
+                self.dataset, self.ui_controller, title="Batch Edit",
+                column_positions=range(self.start_column, self.end_column + 1),
+            ):
+                self.dataset = None
+                self.project = None
+                return CommandResult.FAILURE
 
             # Check if data fits in current dataframe dimensions
             current_rows, current_cols = self.dataset.data.shape

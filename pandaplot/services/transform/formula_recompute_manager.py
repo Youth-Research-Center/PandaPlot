@@ -13,6 +13,9 @@ Doing it here rather than inside each command matters for two reasons:
 * Undo/redo needs no special casing: ``EditCommand.undo()`` restores the old
   value and emits the same event, so the dependent formula column recomputes
   back to its old value on the way out too.
+
+A live formula column is read-only (see ``formula_guard``): the way to change
+its values is to edit a source column, which lands here and recomputes it.
 """
 
 import logging
@@ -121,17 +124,29 @@ class FormulaRecomputeManager:
         df = dataset.data.copy()
         safe_globals = formula_engine.build_formula_globals()
         recomputed: list[str] = []
+        # Columns this cascade could not bring up to date. Anything reading
+        # one of them would be computed from values that are now out of date,
+        # so it is left alone as well (and so on down the chain).
+        stale: set[str] = set()
 
         for column_id in order:
             spec = dataset.formula_column(column_id)
             name = dataset.column_name(column_id)
             if spec is None or name is None or name not in df.columns:
+                stale.add(column_id)
+                continue
+            if any(source in stale for source in spec.source_column_ids):
+                self._logger.warning(
+                    "Skipping live recompute of '%s': a column it reads could not be updated", name,
+                )
+                stale.add(column_id)
                 continue
             source_names = [dataset.column_name(cid) for cid in spec.source_column_ids]
             if any(source is None for source in source_names):
                 self._logger.warning(
                     "Skipping live recompute of '%s': a source column no longer exists", name,
                 )
+                stale.add(column_id)
                 continue
             try:
                 series = formula_engine.evaluate_formula(
@@ -139,10 +154,12 @@ class FormulaRecomputeManager:
                     expression=spec.expression,
                     transform_type=spec.transform_type,
                     source_columns=[str(source) for source in source_names],
+                    source_aliases=spec.source_aliases,
                     safe_globals=safe_globals,
                 )
             except Exception as e:  # noqa: BLE001 -- a user-authored expression can raise anything; one bad formula must not abort the rest of the cascade
                 self._logger.error("Live recompute of column '%s' failed: %s", name, e)
+                stale.add(column_id)
                 continue
             df[name] = series
             recomputed.append(str(name))
@@ -177,8 +194,9 @@ class FormulaRecomputeManager:
         if changed_column_ids is None:
             return topological
 
-        # A column that was itself just edited stays as edited -- it's the
-        # input to this cascade, not an output of it. Only what reads from it
+        # A column that is itself part of the change (say, one a transform
+        # just overwrote) is the input to this cascade, not an output of it,
+        # so it keeps what was just written. Only what reads from it
         # (transitively) is recomputed.
         dirty = set(changed_column_ids)
         order: list[str] = []

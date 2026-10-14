@@ -10,7 +10,8 @@ def formula_marker(dataset, column_name: str) -> str:
 
     Borrowed from spreadsheets: "fx" says the displayed values came from an
     expression rather than being typed in; "fx live" says the expression is
-    re-evaluated on its own when a source column changes.
+    re-evaluated on its own when a source column changes (and so can't be
+    edited by hand).
     """
     if dataset is None:
         return ""
@@ -28,7 +29,7 @@ def formula_tooltip(dataset, column_name: str) -> str | None:
     if spec is None:
         return None
     kind = (
-        "Live formula column (recomputes automatically)"
+        "Live formula column (read-only, recomputes automatically)"
         if spec.live
         else "Formula column (static until the transform is re-run)"
     )

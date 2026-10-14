@@ -68,9 +68,25 @@ class TransformColumnCommand(Command):
         self._formula_column_id: str | None = None
         self._previous_formula_spec: FormulaColumnSpec | None = None
 
+        # What redo() needs to replay the first run rather than start over:
+        # whether a run has succeeded yet, and the stable id the new column
+        # was given (later commands in the history reference it).
+        self._applied_once = False
+        self._created_column_id: str | None = None
+
     @override
     def execute(self) -> CommandResult:
         """Execute the transformation and add new column to dataset."""
+        return self._apply(replay=False)
+
+    def _apply(self, *, replay: bool) -> CommandResult:
+        """Run the transformation.
+
+        Args:
+            replay: True when re-applying a run that was undone. The "before"
+                snapshot taken by the first run is kept, and a column that run
+                created gets its original stable id back.
+        """
         try:
             self.logger.info("Executing TransformColumnCommand")
             # Get dataset from app context
@@ -98,8 +114,9 @@ class TransformColumnCommand(Command):
 
             df = self.dataset.data.copy()  # Work with a copy
 
-            # Store original state for undo
-            self._store_original_state(df)
+            # Store original state for undo (a replay keeps the first run's)
+            if not replay:
+                self._store_original_state(df)
 
             # Build and vet the formula spec before touching any data, so a
             # circular formula is rejected without half-applying it.
@@ -121,6 +138,8 @@ class TransformColumnCommand(Command):
 
             # Update dataset using proper method
             self.dataset.set_data(df)
+            if replay and self._created_column_id is not None:
+                self.dataset.reassign_column_id(self.new_column_name, self._created_column_id)
 
             # Register/detach before emitting: the live-recompute listener
             # reacts to the events below and must see a consistent formula
@@ -137,6 +156,10 @@ class TransformColumnCommand(Command):
                 added_columns=[] if self.column_existed_before else [self.new_column_name],
                 replaced_columns=[self.new_column_name] if self.column_existed_before else [],
             )
+
+            if not replay and not self.column_existed_before:
+                self._created_column_id = self.dataset.column_id(self.new_column_name)
+            self._applied_once = True
 
             self.logger.info(
                 f"Transform applied: '{self.new_column_name}' created from {self.source_columns}")
@@ -220,8 +243,8 @@ class TransformColumnCommand(Command):
 
     @override
     def redo(self) -> CommandResult:
-        """Re-execute the transformation."""
-        return self.execute()
+        """Re-apply the transformation, keeping the new column's original id."""
+        return self._apply(replay=self._applied_once)
 
     @override
     def cleanup(self) -> None:
@@ -229,6 +252,7 @@ class TransformColumnCommand(Command):
         command is dropped from the stacks for good (see Command.cleanup)."""
         self.original_data = None
         self._previous_formula_spec = None
+        self._created_column_id = None
 
     def _get_dataset(self):
         """Get dataset from app context."""
@@ -342,6 +366,7 @@ class TransformColumnCommand(Command):
             transform_type=self.transform_type,
             source_column_ids=source_ids,
             live=self.live,
+            source_aliases=[str(name) for name in self.source_columns],
         )
 
     def _validate_no_cycle(self, dataset: Dataset, spec: FormulaColumnSpec) -> bool:

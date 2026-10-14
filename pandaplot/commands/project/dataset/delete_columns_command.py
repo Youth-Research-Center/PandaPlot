@@ -97,6 +97,7 @@ class DeleteColumnsCommand(Command):
         self.original_column_ids = None
         self.original_column_roles = None
         self.original_column_measurement_groups = None
+        self.original_formula_columns = None
         self.deleted_columns_data = None
         self.project = None
         self.dataset = None
@@ -281,6 +282,7 @@ class DeleteColumnsCommand(Command):
             self.original_column_ids = OrderedDict(self.dataset.column_ids)
             self.original_column_roles = OrderedDict(self.dataset.column_roles)
             self.original_column_measurement_groups = OrderedDict(self.dataset.column_measurement_groups)
+            self.original_formula_columns = dict(self.dataset.formula_columns)
 
             # Store the deleted columns data for potential restoration
             self.deleted_columns_data = {}
@@ -594,6 +596,12 @@ class DeleteColumnsCommand(Command):
                     self.dataset.set_column_roles(self.original_column_roles)
                 if self.original_column_measurement_groups is not None:
                     self.dataset.set_column_measurement_groups(self.original_column_measurement_groups)
+                if self.original_formula_columns is not None:
+                    # set_data() above pruned the specs of the deleted formula
+                    # columns along with the columns; bring their expressions
+                    # back before the column-added event wakes the live
+                    # recompute listener.
+                    self.dataset.formula_columns = dict(self.original_formula_columns)
                 self._restore_chart_references()
 
                 # Emit event
@@ -635,6 +643,7 @@ class DeleteColumnsCommand(Command):
         self.original_column_ids = None
         self.original_column_roles = None
         self.original_column_measurement_groups = None
+        self.original_formula_columns = None
         self.deleted_columns_data = None
         self.removed_chart_refs = {}
         self.cleared_error_refs = {}

@@ -12,6 +12,7 @@ import pytest
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.edit_command import EditCommand
+from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
 from pandaplot.commands.project.dataset.transform_column_command import TransformColumnCommand
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.project.items.dataset import Dataset
@@ -231,3 +232,92 @@ class TestRobustness:
         _edit(app_context, dataset, 0, 0, 1.0, 10.0)
 
         assert list(dataset.data["a"]) == [10.0, 2.0, 3.0]
+
+
+class TestFailedUpstream:
+    """A formula that couldn't be updated leaves its dependents with nothing
+    new to read, so they must not be recomputed off its stale values."""
+
+    def test_dependents_of_a_failed_formula_are_skipped(self, env):
+        app_context, dataset, _ = env
+        # a -> b (raises) -> c, plus an independent branch a -> d. The seeded
+        # values are distinct from anything a recompute off the stale b would
+        # produce (99 + 1 = 100), so a wrongly recomputed c can't hide.
+        _add_formula_column(dataset, "b", "1 / 0", ["a"], [99.0, 99.0, 99.0], live=True)
+        _add_formula_column(dataset, "c", "x + 1", ["b"], [0.0, 0.0, 0.0], live=True)
+        _add_formula_column(dataset, "d", "x * 3", ["a"], [0.0, 0.0, 0.0], live=True)
+
+        _edit(app_context, dataset, 0, 0, 1.0, 10.0)
+
+        assert list(dataset.data["b"]) == [99.0, 99.0, 99.0]
+        assert list(dataset.data["c"]) == [0.0, 0.0, 0.0]
+        assert list(dataset.data["d"]) == [30.0, 6.0, 9.0]
+
+    def test_the_skip_is_transitive(self, env):
+        app_context, dataset, _ = env
+        _add_formula_column(dataset, "b", "1 / 0", ["a"], [99.0, 99.0, 99.0], live=True)
+        _add_formula_column(dataset, "c", "x + 1", ["b"], [0.0, 0.0, 0.0], live=True)
+        _add_formula_column(dataset, "d", "x + 1", ["c"], [0.0, 0.0, 0.0], live=True)
+
+        _edit(app_context, dataset, 0, 0, 1.0, 10.0)
+
+        assert list(dataset.data["c"]) == [0.0, 0.0, 0.0]
+        assert list(dataset.data["d"]) == [0.0, 0.0, 0.0]
+
+    def test_dependents_of_a_formula_with_a_vanished_source_are_skipped(self, env):
+        _app_context, dataset, manager = env
+        df = dataset.data.copy()
+        df["gone"] = [1.0, 1.0, 1.0]
+        dataset.set_data(df)
+        _add_formula_column(dataset, "b", "x * 2", ["gone"], [99.0, 99.0, 99.0], live=True)
+        _add_formula_column(dataset, "c", "x + 1", ["b"], [0.0, 0.0, 0.0], live=True)
+        dataset.set_data(dataset.data.drop(columns=["gone"]))
+
+        manager.recompute(dataset)
+
+        assert list(dataset.data["b"]) == [99.0, 99.0, 99.0]
+        assert list(dataset.data["c"]) == [0.0, 0.0, 0.0]
+
+
+class TestPersistedFormulaSafety:
+    def test_a_persisted_formula_outside_the_allowlist_is_not_executed(self, env, caplog):
+        """Formulas come back from project files, so a crafted one must be
+        refused by the engine itself -- not rely on the Transform panel
+        having vetted it at creation time."""
+        app_context, dataset, _ = env
+        _add_formula_column(dataset, "b", "__import__('os').getcwd()", ["a"], [2.0, 4.0, 6.0], live=True)
+
+        _edit(app_context, dataset, 0, 0, 1.0, 10.0)
+
+        assert list(dataset.data["b"]) == [2.0, 4.0, 6.0]
+        assert "'b'" in caplog.text
+
+
+class TestRenamedSource:
+    def test_a_live_formula_survives_renaming_its_source_column(self, env):
+        """The expression says cols["a"]; after "a" becomes "alpha" it must
+        keep recomputing rather than failing on every later edit."""
+        app_context, dataset, _ = env
+        assert TransformColumnCommand(app_context, "ds-1", {
+            "new_column_name": "double", "transform_type": "column", "source_columns": ["a"],
+            "expression": 'cols["a"] * 2', "live": True,
+        }).execute() is CommandResult.SUCCESS
+
+        assert RenameColumnCommand(app_context, "ds-1", 0, "alpha").execute() is CommandResult.SUCCESS
+        _edit(app_context, dataset, 0, 0, 1.0, 10.0)
+
+        assert list(dataset.data["double"]) == [20.0, 4.0, 6.0]
+
+    def test_renaming_a_source_back_and_forth_keeps_working(self, env):
+        app_context, dataset, _ = env
+        TransformColumnCommand(app_context, "ds-1", {
+            "new_column_name": "double", "transform_type": "column", "source_columns": ["a"],
+            "expression": 'cols["a"] * 2', "live": True,
+        }).execute()
+        rename = RenameColumnCommand(app_context, "ds-1", 0, "alpha")
+        rename.execute()
+        rename.undo()
+
+        _edit(app_context, dataset, 0, 0, 1.0, 10.0)
+
+        assert list(dataset.data["double"]) == [20.0, 4.0, 6.0]

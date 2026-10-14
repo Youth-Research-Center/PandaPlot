@@ -229,7 +229,8 @@ class TransformPanel(SidebarPanel):
         )
         self.live_recompute_check = QCheckBox("Live (recompute when sources change)")
         self.live_recompute_check.setToolTip(
-            "Recompute this column automatically whenever one of its source columns changes."
+            "Recompute this column automatically whenever one of its source columns changes. "
+            "A live column is read-only: edit its source columns to change it."
         )
         # Only meaningful for a formula column, so it's hidden until one is
         # requested rather than shown permanently disabled.

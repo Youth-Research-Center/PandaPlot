@@ -26,6 +26,8 @@ from pandaplot.models.state.app_context import AppContext
 from pandaplot.utils.datetime import parse_timestamp_or_nat
 from pandaplot.utils.pandas import convert_value
 
+LIVE_FORMULA_CELL_TOOLTIP = "Computed by a live formula. Edit its source column to change this value."
+
 
 class PandasTableModel(QAbstractTableModel):
     def __init__(self, app_context: AppContext, dataset: Dataset, parent=None):
@@ -53,6 +55,11 @@ class PandasTableModel(QAbstractTableModel):
         """Return the number of columns in the DataFrame."""
         return len(self._dataset.data.columns)
     
+    def _is_live_formula_column(self, column: int) -> bool:
+        """Whether the column at ``column`` is derived data that can't be edited by hand (#154)."""
+        columns = self._dataset.data.columns
+        return 0 <= column < len(columns) and self._dataset.is_live_formula_column(str(columns[column]))
+
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         """
         Return data for the given index and role.
@@ -66,6 +73,8 @@ class PandasTableModel(QAbstractTableModel):
         """
         if not index.isValid():
             return None
+        if role == Qt.ItemDataRole.ToolTipRole:
+            return LIVE_FORMULA_CELL_TOOLTIP if self._is_live_formula_column(index.column()) else None
         value = self._dataset.data.iloc[index.row(), index.column()]
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
             return "" if pd.isna(value) else str(value)
@@ -76,6 +85,11 @@ class PandasTableModel(QAbstractTableModel):
         start_index = self.index(event["start_index"][0], event["start_index"][1])
         end_index = self.index(event["end_index"][0], event["end_index"][1])
         self.dataChanged.emit(start_index, end_index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
+        # The header's "fx" marker is painted from the formula registry, which
+        # changes together with a column's values (a transform re-run as or off
+        # a formula), and dataChanged only repaints cells.
+        first_column, last_column = sorted((event["start_index"][1], event["end_index"][1]))
+        self.headerDataChanged.emit(Qt.Orientation.Horizontal, first_column, last_column)
         self.logger.info("On dataset changed: end")
 
     def on_add_column_event(self, event):
@@ -178,6 +192,9 @@ class PandasTableModel(QAbstractTableModel):
         
         row = index.row()
         col = index.column()
+        if self._is_live_formula_column(col):
+            self.logger.debug("setData refused - column %s is a live formula column", col)
+            return False
         dtype = self.column_dtype(col)
         if pd.api.types.is_datetime64_any_dtype(dtype):
             try:
@@ -234,7 +251,9 @@ class PandasTableModel(QAbstractTableModel):
         if not index.isValid():
             return Qt.ItemFlag.NoItemFlags
         
-        # All valid cells are selectable, enabled, and editable (Excel-like)
-        return (Qt.ItemFlag.ItemIsSelectable | 
-                Qt.ItemFlag.ItemIsEnabled | 
-                Qt.ItemFlag.ItemIsEditable)
+        # Cells are selectable, enabled, and editable (Excel-like) -- except in
+        # a live formula column, whose values follow from its source columns.
+        flags = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled
+        if not self._is_live_formula_column(index.column()):
+            flags |= Qt.ItemFlag.ItemIsEditable
+        return flags

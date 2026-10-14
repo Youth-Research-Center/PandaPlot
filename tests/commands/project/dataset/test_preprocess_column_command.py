@@ -11,6 +11,7 @@ from pandaplot.commands.project.dataset.preprocess_column_command import (
     PreprocessColumnCommand,
 )
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
 
@@ -173,3 +174,47 @@ def test_cleanup_releases_the_undo_state():
     command.cleanup()
 
     assert command._undo_state == []
+
+
+class TestLiveFormulaTargets:
+    """A live formula column's values come from its formula, so preprocessing
+    must not overwrite them."""
+
+    @staticmethod
+    def _make_b_live(dataset):
+        dataset.set_formula_column(dataset.column_id("B"), FormulaColumnSpec(
+            expression="x * 10", source_column_ids=[dataset.column_id("A")], live=True,
+        ))
+
+    def test_replacing_a_live_formula_column_in_place_is_refused(self, app_context_with_project):
+        app_context, _, dataset = app_context_with_project
+        self._make_b_live(dataset)
+        command = PreprocessColumnCommand(
+            app_context, "ds-1",
+            {"method": "center", "source_columns": ["B"], "replace_existing": True},
+        )
+
+        assert command.execute() is CommandResult.FAILURE
+        assert dataset.data["B"].tolist() == [10.0, 20.0, 30.0, 40.0]
+
+    def test_writing_a_result_over_a_live_formula_column_is_refused(self, app_context_with_project):
+        app_context, _, dataset = app_context_with_project
+        self._make_b_live(dataset)
+        command = PreprocessColumnCommand(
+            app_context, "ds-1",
+            {"method": "center", "source_columns": ["A"], "replace_existing": True, "column_names": {"A": "B"}},
+        )
+
+        assert command.execute() is CommandResult.FAILURE
+        assert dataset.data["B"].tolist() == [10.0, 20.0, 30.0, 40.0]
+        assert dataset.data["A"].tolist() == [1.0, 2.0, 3.0, 4.0]
+
+    def test_preprocessing_the_source_of_a_live_column_into_a_new_column_is_allowed(self, app_context_with_project):
+        app_context, _, dataset = app_context_with_project
+        self._make_b_live(dataset)
+        command = PreprocessColumnCommand(
+            app_context, "ds-1", {"method": "center", "source_columns": ["A"]},
+        )
+
+        assert command.execute() is CommandResult.SUCCESS
+        assert "A_centered" in dataset.data.columns

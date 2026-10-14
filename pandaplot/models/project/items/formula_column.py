@@ -28,12 +28,18 @@ class FormulaColumnSpec:
         live: When True the column is recomputed automatically whenever one of
             its sources changes. Off by default: a plain formula column keeps
             its last computed values until the transform is re-run manually.
+        source_aliases: The names those columns had when the expression was
+            written, parallel to ``source_column_ids``. The expression refers
+            to its sources by these names (``cols["a"]``), so they stay valid
+            after a source column is renamed. Empty means "use the current
+            names" (specs saved before aliases existed).
     """
 
     expression: str
     transform_type: str = "column"
     source_column_ids: list[str] = field(default_factory=list)
     live: bool = False
+    source_aliases: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -41,6 +47,7 @@ class FormulaColumnSpec:
             "transform_type": self.transform_type,
             "source_column_ids": list(self.source_column_ids),
             "live": self.live,
+            "source_aliases": list(self.source_aliases),
         }
 
     @classmethod
@@ -50,4 +57,5 @@ class FormulaColumnSpec:
             transform_type=data.get("transform_type", "column"),
             source_column_ids=list(data.get("source_column_ids") or []),
             live=bool(data.get("live", False)),
+            source_aliases=[str(alias) for alias in data.get("source_aliases") or []],
         )

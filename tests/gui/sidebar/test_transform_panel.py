@@ -363,6 +363,9 @@ class TestFormulaColumnCheckboxes:
         transform_panel.formula_column_check.setChecked(True)
         assert transform_panel.live_recompute_check.isHidden() is False
 
+    def test_live_option_tells_the_user_the_column_becomes_read_only(self, transform_panel):
+        assert "read-only" in transform_panel.live_recompute_check.toolTip()
+
     def test_unchecking_formula_also_clears_live(self, transform_panel):
         transform_panel.formula_column_check.setChecked(True)
         transform_panel.live_recompute_check.setChecked(True)

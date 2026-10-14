@@ -129,6 +129,28 @@ class Dataset(Item):
         self.column_ids[cid] = new_name
         return cid
 
+    def reassign_column_id(self, name: str, column_id: str) -> None:
+        """Give the column called ``name`` the id ``column_id``, keeping its position.
+
+        Lets a command that re-creates a column on redo bring back the id the
+        column had the first time, so references made to it in between (chart
+        series, fits) still resolve. Call it right after the column is
+        created, before any role or formula is attached to its fresh id.
+        An unknown ``name`` is ignored.
+
+        Raises:
+            ValueError: If ``column_id`` already belongs to a different column.
+        """
+        current_id = self.column_id(name)
+        if current_id is None or current_id == column_id:
+            return
+        if column_id in self.column_ids:
+            raise ValueError(f"Column id '{column_id}' already belongs to column '{self.column_ids[column_id]}'.")
+        self.column_ids = OrderedDict(
+            (column_id if cid == current_id else cid, column_name)
+            for cid, column_name in self.column_ids.items()
+        )
+
     # ------------------------------------------------------------------
     # Formula columns (#154)
     # ------------------------------------------------------------------
@@ -149,6 +171,12 @@ class Dataset(Item):
         """Return the formula spec for a column's current name, if any."""
         cid = self.column_id(name)
         return self.formula_columns.get(cid) if cid else None
+
+    def is_live_formula_column(self, name: str) -> bool:
+        """Whether ``name`` is a live formula column, i.e. derived data that
+        recomputes itself and so must not be edited by hand."""
+        spec = self.formula_column_by_name(name)
+        return spec is not None and spec.live
 
     def formula_columns_dict(self) -> dict[str, dict[str, Any]]:
         """The formula registry in its serialized (JSON-safe) form."""

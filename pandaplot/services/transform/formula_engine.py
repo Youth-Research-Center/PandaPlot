@@ -47,6 +47,7 @@ def evaluate_formula(
     expression: str,
     transform_type: str,
     source_columns: Sequence[str],
+    source_aliases: Sequence[str] | None = None,
     safe_globals: dict[str, Any] | None = None,
 ) -> pd.Series:
     """Evaluate a transform/formula expression against ``df``.
@@ -55,28 +56,40 @@ def evaluate_formula(
         df: The dataframe to read source columns from.
         expression: The expression to evaluate.
         transform_type: "column", "row" or "multi_column".
-        source_columns: Source column *names* (already resolved from ids).
+        source_columns: Source column *names* as they are in ``df`` now
+            (already resolved from ids).
+        source_aliases: The names the expression uses for those columns,
+            parallel to ``source_columns``. They differ from the current names
+            once a source column has been renamed; ``None`` or empty means
+            the expression uses the current names.
         safe_globals: Optional pre-built globals, to avoid rebuilding them per
             column when recomputing a cascade.
 
     Raises:
-        ValueError: For an unknown transform type or missing source column.
+        ValueError: For an unknown transform type, a missing source column, or
+            aliases that don't match the source columns one-to-one.
+        UnsafeExpressionError: If the expression is outside the supported dialect.
         Exception: Whatever the expression itself raises -- callers are the
             command/service boundary that turns that into a user-facing error.
     """
     if safe_globals is None:
         safe_globals = build_formula_globals()
 
-    missing = [name for name in source_columns if name not in df.columns]
+    names = list(source_columns)
+    aliases = list(source_aliases) if source_aliases else names
+    if len(aliases) != len(names):
+        raise ValueError("Source aliases must match the source columns one-to-one")
+
+    missing = [name for name in names if name not in df.columns]
     if missing:
         raise ValueError(f"Source columns not found: {missing}")
 
     if transform_type == "column":
-        return _evaluate_column(df, expression, source_columns, safe_globals)
+        return _evaluate_column(df, expression, names, aliases, safe_globals)
     if transform_type == "row":
-        return _evaluate_row(df, expression, safe_globals)
+        return _evaluate_row(df, expression, names, aliases, safe_globals)
     if transform_type == "multi_column":
-        return _evaluate_multi_column(df, expression, source_columns, safe_globals)
+        return _evaluate_multi_column(df, expression, names, aliases, safe_globals)
     raise ValueError(f"Unknown transform type: {transform_type}")
 
 
@@ -89,38 +102,50 @@ def _as_series(result: Any, index: pd.Index) -> pd.Series:
 
 
 def _evaluate_column(df: pd.DataFrame, expression: str, source_columns: Sequence[str],
-                     safe_globals: dict[str, Any]) -> pd.Series:
+                     aliases: Sequence[str], safe_globals: dict[str, Any]) -> pd.Series:
     if not source_columns:
         raise ValueError("A column transform needs a source column")
-    source_column = source_columns[0]
-    source_data = df[source_column]
+    source_data = df[source_columns[0]]
     local_vars = {
         "value": source_data,
         "x": source_data,
         "column": source_data,
         "data": source_data,
-        # Look up the column by its own real name (#203), e.g. cols["t"] for a
-        # column named "t" -- a dict subscript rather than binding "t" as a
-        # bare local variable, so it works for ANY column name (spaces,
-        # leading digits, ...) and can never shadow a Python keyword or one of
-        # safe_globals' bare names (sqrt/log/mean/std/...) the way a
-        # same-named bound identifier would.
-        "cols": {source_column: source_data},
+        # Look up the column by the name the expression was written with (#203),
+        # e.g. cols["t"] for a column named "t" -- a dict subscript rather than
+        # binding "t" as a bare local variable, so it works for ANY column name
+        # (spaces, leading digits, ...) and can never shadow a Python keyword or
+        # one of safe_globals' bare names (sqrt/log/mean/std/...) the way a
+        # same-named bound identifier would. That name is the alias, which
+        # stays put when the source column is renamed.
+        "cols": {aliases[0]: source_data},
     }
     result = expression_engine.evaluate_expression(expression, local_vars, safe_globals)
     return _as_series(result, source_data.index)
 
 
-def _evaluate_row(df: pd.DataFrame, expression: str, safe_globals: dict[str, Any]) -> pd.Series:
+def _evaluate_row(df: pd.DataFrame, expression: str, source_columns: Sequence[str],
+                  aliases: Sequence[str], safe_globals: dict[str, Any]) -> pd.Series:
+    renames = {name: alias for name, alias in zip(source_columns, aliases, strict=True) if name != alias}
+    if renames:
+        # An unrelated column that now holds a source's old name would
+        # otherwise answer to the alias instead of the source.
+        shadowing = [column for column in df.columns if column in renames.values() and column not in renames]
+        df = df.drop(columns=shadowing).rename(columns=renames)
+
+    code = expression_engine.compile_expression(expression)
+
     def row_transform(row):
-        return expression_engine.evaluate_expression(expression, {"row": row, "r": row}, safe_globals)
+        return expression_engine.evaluate_expression(code, {"row": row, "r": row}, safe_globals)
 
     return df.apply(row_transform, axis=1)
 
 
 def _evaluate_multi_column(df: pd.DataFrame, expression: str, source_columns: Sequence[str],
-                           safe_globals: dict[str, Any]) -> pd.Series:
+                           aliases: Sequence[str], safe_globals: dict[str, Any]) -> pd.Series:
     selected_columns = df[list(source_columns)]
+    if list(aliases) != list(source_columns):
+        selected_columns = selected_columns.set_axis(list(aliases), axis=1)
     local_vars = {
         "cols": selected_columns,
         "columns": selected_columns,
