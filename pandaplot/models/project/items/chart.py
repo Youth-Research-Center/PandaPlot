@@ -44,6 +44,7 @@ _SWAPPABLE_SERIES_TYPES = frozenset({SeriesType.LINE, SeriesType.SCATTER})
 _SWAPPED_AXIS_FIELDS = (
     "label", "scale", "log_base", "auto_limits", "min", "max",
     "tick_mode", "tick_count", "tick_step", "tick_format", "tick_format_custom",
+    "show_grid", "minor_ticks", "show_minor_grid",
 )
 _SWAPPED_ERROR_BAR_FIELD_PAIRS = (
     ("x_error_column_id", "y_error_column_id"),
