@@ -458,6 +458,7 @@ def test_style_field_names_match_the_real_style_dataclasses():
         "show_value_labels", "value_label_mode", "value_label_show_arrow",
         "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
         "value_label_bg_color", "value_label_bg_alpha",
+        "value_label_subset_mode", "value_label_custom_indices",
         # #280/#433 -- partial-range fields and section-list replacement.
         "fill_range_enabled", "fill_range_start", "fill_range_end", "fill_sections",
     }
