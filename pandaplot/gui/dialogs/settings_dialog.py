@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
-    QDoubleSpinBox,
     QFrame,
     QGroupBox,
     QHBoxLayout,
@@ -19,7 +18,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
-    QSpinBox,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -27,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.commands.app.change_settings_command import ChangeSettingsCommand
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.config import (
@@ -127,7 +126,6 @@ class SettingsDialog(PDialog):
         card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#000000")
         secondary_fg = palette.get("secondary_fg", "#555555")
-        accent = palette.get("accent", "#4A90E2")
         
         # Apply main dialog styling
         self.setStyleSheet(f"""
@@ -177,16 +175,6 @@ class SettingsDialog(PDialog):
             QLabel {{
                 color: {base_fg};
             }}
-            QSpinBox {{
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 3px;
-                padding: 2px 5px;
-                color: {base_fg};
-            }}
-            QSpinBox:focus {{
-                border-color: {accent};
-            }}
             QCheckBox {{
                 color: {base_fg};
             }}
@@ -235,7 +223,7 @@ class SettingsDialog(PDialog):
         ag_layout.addWidget(self.auto_save_check)
         interval_layout = QHBoxLayout()
         interval_layout.addWidget(QLabel("Interval:"))
-        self.auto_save_interval = QSpinBox()
+        self.auto_save_interval = IntegerInput()
         self.auto_save_interval.setRange(10, 3600)
         self.auto_save_interval.setSuffix(" s")
         self.auto_save_interval.setSingleStep(10)
@@ -252,7 +240,7 @@ class SettingsDialog(PDialog):
         dpi_layout = QHBoxLayout()
         self._dpi_label = QLabel("Preview DPI:")
         dpi_layout.addWidget(self._dpi_label)
-        self.chart_dpi_spin = QSpinBox()
+        self.chart_dpi_spin = IntegerInput()
         self.chart_dpi_spin.setRange(50, 600)
         self.chart_dpi_spin.setSingleStep(10)
         self.chart_dpi_spin.setSuffix(" dpi")
@@ -278,7 +266,7 @@ class SettingsDialog(PDialog):
         size_layout = QHBoxLayout()
         self._size_label = QLabel("Default size:")
         size_layout.addWidget(self._size_label)
-        self.chart_width_spin = QDoubleSpinBox()
+        self.chart_width_spin = DecimalInput()
         self.chart_width_spin.setRange(MIN_CHART_WIDTH_CM, MAX_CHART_WIDTH_CM)
         self.chart_width_spin.setDecimals(1)
         self.chart_width_spin.setValue(20)
@@ -289,7 +277,7 @@ class SettingsDialog(PDialog):
         self._multiply_label = QLabel("×")
         size_layout.addWidget(self._multiply_label)
 
-        self.chart_height_spin = QDoubleSpinBox()
+        self.chart_height_spin = DecimalInput()
         self.chart_height_spin.setRange(MIN_CHART_HEIGHT_CM, MAX_CHART_HEIGHT_CM)
         self.chart_height_spin.setDecimals(1)
         self.chart_height_spin.setValue(15)
@@ -384,7 +372,7 @@ class SettingsDialog(PDialog):
         font_layout = QVBoxLayout(font_group)
         interface_font_layout = QHBoxLayout()
         interface_font_layout.addWidget(QLabel("Interface font size:"))
-        self.interface_font_size = QSpinBox()
+        self.interface_font_size = IntegerInput()
         self.interface_font_size.setRange(8, 36)
         self.interface_font_size.setValue(12)
         self.interface_font_size.setSuffix(" pt")
@@ -393,7 +381,7 @@ class SettingsDialog(PDialog):
         font_layout.addLayout(interface_font_layout)
         editor_font_layout = QHBoxLayout()
         editor_font_layout.addWidget(QLabel("Editor font size:"))
-        self.editor_font_size = QSpinBox()
+        self.editor_font_size = IntegerInput()
         self.editor_font_size.setRange(8, 48)
         self.editor_font_size.setValue(12)
         self.editor_font_size.setSuffix(" pt")
@@ -430,7 +418,7 @@ class SettingsDialog(PDialog):
         # Tab size
         tab_size_layout = QHBoxLayout()
         tab_size_layout.addWidget(QLabel("Tab size:"))
-        self.tab_size_spin = QSpinBox()
+        self.tab_size_spin = IntegerInput()
         self.tab_size_spin.setRange(2, 8)
         self.tab_size_spin.setValue(4)
         self.tab_size_spin.setSuffix(" spaces")

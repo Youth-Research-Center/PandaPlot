@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
-    QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -23,6 +22,7 @@ from PySide6.QtWidgets import (
 from pandaplot.analysis import STAT_TESTS, InputMode, StatTestResult, StatTestType
 from pandaplot.commands.project.dataset.statistical_test_command import StatisticalTestCommand
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import DecimalInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.statistics.test_info_dialog import InfoDialogHelper
@@ -217,7 +217,7 @@ class StatisticsPanel(SidebarPanel):
         self._clear_layout(self.parameters_layout)
 
         # Significance level is common to every test.
-        self.alpha_spin = QDoubleSpinBox()
+        self.alpha_spin = DecimalInput()
         self.alpha_spin.setDecimals(4)
         self.alpha_spin.setRange(0.0001, 0.5)
         self.alpha_spin.setSingleStep(0.01)
@@ -226,7 +226,7 @@ class StatisticsPanel(SidebarPanel):
 
         self.popmean_spin = None
         if info.uses_popmean:
-            self.popmean_spin = QDoubleSpinBox()
+            self.popmean_spin = DecimalInput()
             self.popmean_spin.setDecimals(6)
             self.popmean_spin.setRange(-1e12, 1e12)
             self.popmean_spin.setValue(0.0)

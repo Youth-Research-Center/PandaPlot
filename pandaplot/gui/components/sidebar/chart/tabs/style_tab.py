@@ -5,11 +5,9 @@ import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
-    QDoubleSpinBox,
     QGridLayout,
     QHBoxLayout,
     QLabel,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -19,6 +17,7 @@ from pandaplot.gui.components.common.color_swatch_row import ColorSwatchRow
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.font_family_options import list_available_font_families
 from pandaplot.gui.components.common.line_style_icons import build_line_style_icon
+from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.slider_with_spinbox import SliderWithSpinbox
@@ -222,7 +221,7 @@ class StyleTab(QWidget):
         font_size_layout = QGridLayout(self.font_size_card)
         font_size_layout.addWidget(SectionHeader("Font Size"), 0, 0, 1, 2)
 
-        self.title_font_size_spin = QSpinBox()
+        self.title_font_size_spin = IntegerInput()
         self.title_font_size_spin.setRange(8, 32)
         self.title_font_size_spin.setValue(14)
         _field_row(font_size_layout, 1, "Title", self.title_font_size_spin)
@@ -235,7 +234,7 @@ class StyleTab(QWidget):
         self.title_font_family_combo = ValueComboBox(list_available_font_families())
         _field_row(font_size_layout, 3, "Title font", self.title_font_family_combo)
 
-        self.subtitle_font_size_spin = QSpinBox()
+        self.subtitle_font_size_spin = IntegerInput()
         self.subtitle_font_size_spin.setRange(8, 32)
         self.subtitle_font_size_spin.setValue(12)
         _field_row(font_size_layout, 4, "Subtitle", self.subtitle_font_size_spin)
@@ -273,25 +272,25 @@ class StyleTab(QWidget):
         padding_layout = QGridLayout(self.padding_card)
         padding_layout.addWidget(SectionHeader("Padding"), 0, 0, 1, 2)
 
-        self.chart_padding_spin = QDoubleSpinBox()
+        self.chart_padding_spin = DecimalInput()
         self.chart_padding_spin.setRange(0.0, 10.0)
         self.chart_padding_spin.setSingleStep(0.5)
         self.chart_padding_spin.setValue(2.0)
         _field_row(padding_layout, 1, "Figure", self.chart_padding_spin)
 
-        self.chart_padding_w_spin = QDoubleSpinBox()
+        self.chart_padding_w_spin = DecimalInput()
         self.chart_padding_w_spin.setRange(0.0, 10.0)
         self.chart_padding_w_spin.setSingleStep(0.5)
         self.chart_padding_w_spin.setValue(2.0)
         _field_row(padding_layout, 2, "Width", self.chart_padding_w_spin)
 
-        self.chart_padding_h_spin = QDoubleSpinBox()
+        self.chart_padding_h_spin = DecimalInput()
         self.chart_padding_h_spin.setRange(0.0, 10.0)
         self.chart_padding_h_spin.setSingleStep(0.5)
         self.chart_padding_h_spin.setValue(2.0)
         _field_row(padding_layout, 3, "Height", self.chart_padding_h_spin)
 
-        self.main_title_padding_spin = QDoubleSpinBox()
+        self.main_title_padding_spin = DecimalInput()
         self.main_title_padding_spin.setRange(0.0, 100.0)
         self.main_title_padding_spin.setSingleStep(1.0)
         self.main_title_padding_spin.setValue(10.0)
@@ -300,7 +299,7 @@ class StyleTab(QWidget):
             tooltip="Gap between the top edge of the figure and the main title",
         )
 
-        self.title_padding_spin = QDoubleSpinBox()
+        self.title_padding_spin = DecimalInput()
         self.title_padding_spin.setRange(0.0, 50.0)
         self.title_padding_spin.setSingleStep(1.0)
         self.title_padding_spin.setValue(6.0)
@@ -309,7 +308,7 @@ class StyleTab(QWidget):
             tooltip="Gap between the plot area and the subtitle text",
         )
 
-        self.top_margin_spin = QDoubleSpinBox()
+        self.top_margin_spin = DecimalInput()
         self.top_margin_spin.setRange(0.5, 1.0)
         self.top_margin_spin.setSingleStep(0.01)
         self.top_margin_spin.setDecimals(2)
@@ -343,10 +342,10 @@ class StyleTab(QWidget):
         self.custom_size_row = QWidget()
         custom_size_layout = QGridLayout(self.custom_size_row)
         custom_size_layout.setContentsMargins(0, 0, 0, 0)
-        self.chart_width_spin = QDoubleSpinBox()
+        self.chart_width_spin = DecimalInput()
         self._configure_size_spin(self.chart_width_spin, MIN_CHART_WIDTH_CM, MAX_CHART_WIDTH_CM)
         _field_row(custom_size_layout, 0, "Width", self.chart_width_spin)
-        self.chart_height_spin = QDoubleSpinBox()
+        self.chart_height_spin = DecimalInput()
         self._configure_size_spin(self.chart_height_spin, MIN_CHART_HEIGHT_CM, MAX_CHART_HEIGHT_CM)
         _field_row(custom_size_layout, 1, "Height", self.chart_height_spin)
         size_layout.addWidget(self.custom_size_row, 2, 0, 1, 2)
@@ -375,7 +374,7 @@ class StyleTab(QWidget):
         self.custom_dpi_row = QWidget()
         custom_dpi_layout = QGridLayout(self.custom_dpi_row)
         custom_dpi_layout.setContentsMargins(0, 0, 0, 0)
-        self.chart_dpi_spin = QSpinBox()
+        self.chart_dpi_spin = IntegerInput()
         self.chart_dpi_spin.setRange(50, 600)
         _field_row(custom_dpi_layout, 0, "DPI", self.chart_dpi_spin)
         dpi_layout.addWidget(self.custom_dpi_row, 2, 0, 1, 2)
@@ -510,7 +509,7 @@ class StyleTab(QWidget):
 
         self.fill_base_label = QLabel("Baseline:")
         fill_layout.addWidget(self.fill_base_label, 3, 0)
-        self.fill_base_spin = QDoubleSpinBox()
+        self.fill_base_spin = DecimalInput()
         self.fill_base_spin.setRange(-1e9, 1e9)
         self.fill_base_spin.setDecimals(3)
         fill_layout.addWidget(self.fill_base_spin, 3, 1)
@@ -569,7 +568,7 @@ class StyleTab(QWidget):
         density_layout.addWidget(SectionHeader("Density"), 0, 0, 1, 2)
 
         density_layout.addWidget(QLabel("Bandwidth:"), 1, 0)
-        self.density_bandwidth_spin = QDoubleSpinBox()
+        self.density_bandwidth_spin = DecimalInput()
         self.density_bandwidth_spin.setRange(0.0, MAX_BANDWIDTH)
         self.density_bandwidth_spin.setSingleStep(0.05)
         self.density_bandwidth_spin.setDecimals(2)
@@ -716,14 +715,14 @@ class StyleTab(QWidget):
 
         self.value_labels_offset_x_label = QLabel("Offset X:")
         value_labels_layout.addWidget(self.value_labels_offset_x_label, 3, 0)
-        self.value_labels_offset_x_spin = QDoubleSpinBox()
+        self.value_labels_offset_x_spin = DecimalInput()
         self.value_labels_offset_x_spin.setRange(-100.0, 100.0)
         self.value_labels_offset_x_spin.setDecimals(1)
         value_labels_layout.addWidget(self.value_labels_offset_x_spin, 3, 1)
 
         self.value_labels_offset_y_label = QLabel("Offset Y:")
         value_labels_layout.addWidget(self.value_labels_offset_y_label, 4, 0)
-        self.value_labels_offset_y_spin = QDoubleSpinBox()
+        self.value_labels_offset_y_spin = DecimalInput()
         self.value_labels_offset_y_spin.setRange(-100.0, 100.0)
         self.value_labels_offset_y_spin.setDecimals(1)
         value_labels_layout.addWidget(self.value_labels_offset_y_spin, 4, 1)
@@ -902,7 +901,7 @@ class StyleTab(QWidget):
 
         self.heatmap_resolution_label = QLabel("Resolution:")
         heatmap_gridding_layout.addWidget(self.heatmap_resolution_label, 3, 0)
-        self.heatmap_resolution_spin = QSpinBox()
+        self.heatmap_resolution_spin = IntegerInput()
         self.heatmap_resolution_spin.setRange(2, 500)
         self.heatmap_resolution_spin.setValue(50)
         heatmap_gridding_layout.addWidget(self.heatmap_resolution_spin, 3, 1)
@@ -911,7 +910,7 @@ class StyleTab(QWidget):
         # lines are actually drawn, inline value labels on them.
         self.heatmap_contour_levels_label = QLabel("Contour levels:")
         heatmap_gridding_layout.addWidget(self.heatmap_contour_levels_label, 4, 0)
-        self.heatmap_contour_levels_spin = QSpinBox()
+        self.heatmap_contour_levels_spin = IntegerInput()
         self.heatmap_contour_levels_spin.setRange(2, 100)
         self.heatmap_contour_levels_spin.setValue(10)
         heatmap_gridding_layout.addWidget(self.heatmap_contour_levels_spin, 4, 1)
@@ -1214,7 +1213,7 @@ class StyleTab(QWidget):
         title_layout.addWidget(SectionHeader("Axis title"), 0, 0, 1, 2)
 
         title_layout.addWidget(QLabel("Font size:"), 1, 0)
-        font_size_spin = QSpinBox()
+        font_size_spin = IntegerInput()
         font_size_spin.setRange(6, 32)
         font_size_spin.setValue(12)
         title_layout.addWidget(font_size_spin, 1, 1)
@@ -1246,7 +1245,7 @@ class StyleTab(QWidget):
             color_row.setVisible(False)
 
         title_layout.addWidget(QLabel("Rotation:"), 5, 0)
-        rotation_spin = QSpinBox()
+        rotation_spin = IntegerInput()
         rotation_spin.setRange(-90, 90)
         rotation_spin.setSuffix("°")
         rotation_spin.setValue(90 if prefix in ("y", "y2") else 0)
@@ -1259,7 +1258,7 @@ class StyleTab(QWidget):
         ticks_layout.addWidget(SectionHeader("Tick values"), 0, 0, 1, 2)
 
         ticks_layout.addWidget(QLabel("Font size:"), 1, 0)
-        tick_font_size_spin = QSpinBox()
+        tick_font_size_spin = IntegerInput()
         tick_font_size_spin.setRange(6, 32)
         tick_font_size_spin.setValue(10)
         ticks_layout.addWidget(tick_font_size_spin, 1, 1)
@@ -1283,7 +1282,7 @@ class StyleTab(QWidget):
         ticks_layout.addWidget(tick_color_row, 4, 1)
 
         ticks_layout.addWidget(QLabel("Rotation:"), 5, 0)
-        tick_rotation_spin = QSpinBox()
+        tick_rotation_spin = IntegerInput()
         tick_rotation_spin.setRange(-90, 90)
         tick_rotation_spin.setSuffix("°")
         ticks_layout.addWidget(tick_rotation_spin, 5, 1)
@@ -1863,9 +1862,9 @@ class StyleTab(QWidget):
         row = QVBoxLayout(row_widget)
         row.setContentsMargins(0, 0, 0, 0)
         point_count = max(len(self._fill_points[0]), 1) if self._fill_points is not None else 1
-        start_spin = QSpinBox()
+        start_spin = IntegerInput()
         start_spin.setAccessibleName("Fill section start point")
-        end_spin = QSpinBox()
+        end_spin = IntegerInput()
         end_spin.setAccessibleName("Fill section end point")
         for spin in (start_spin, end_spin):
             spin.setRange(1, point_count)

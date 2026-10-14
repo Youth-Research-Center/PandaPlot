@@ -184,6 +184,80 @@ class ThemeManager:
             }}
         """
 
+    @staticmethod
+    def _number_input_rules(tokens: dict, *, accent: str) -> str:
+        """QSS for ``DecimalInput`` / ``IntegerInput`` (``QFrame[numberInput]``).
+
+        The frame draws the field border so the ``-`` / ``+`` buttons, the
+        number and the unit read as one control; the inner line edit is
+        flat (``NumberInput`` sets that on the edit itself). The frame carries ``focused`` and ``invalid`` dynamic
+        properties because a stylesheet cannot style a parent by its child's
+        focus.
+
+        Args:
+            tokens: Design tokens from ``get_design_tokens()``.
+            accent: Accent colour for the hover and focus border.
+
+        Returns:
+            The QSS block for the number inputs and their parts.
+        """
+        return f"""
+            QFrame[numberInput="true"] {{
+                background-color: {tokens['surface_white']};
+                border: 1px solid {tokens['border_control']};
+                border-radius: {tokens['radius_control']}px;
+            }}
+            QFrame[numberInput="true"]:hover, QFrame[numberInput="true"][focused="true"] {{
+                border-color: {accent};
+            }}
+            QFrame[numberInput="true"][invalid="true"] {{
+                border-color: {tokens['status_danger']};
+            }}
+            QFrame[numberInput="true"]:disabled {{
+                background-color: {tokens['surface_inset']};
+                border-color: {tokens['border_subtle']};
+            }}
+            QFrame[numberInput="true"] QLineEdit {{
+                color: {tokens['text_primary']};
+            }}
+            QFrame[numberInput="true"] QLineEdit:disabled {{
+                color: {tokens['text_hint']};
+            }}
+            QFrame[numberInput="true"] QLabel#numberInputSuffix {{
+                background-color: transparent;
+                border: none;
+                color: {tokens['text_muted']};
+                padding-right: 6px;
+            }}
+            QFrame[numberInput="true"] QToolButton {{
+                background-color: transparent;
+                border: none;
+                color: {tokens['text_secondary']};
+                font-size: 15px;
+                font-weight: 600;
+            }}
+            QFrame[numberInput="true"] QToolButton:hover {{
+                background-color: {tokens['surface_inset']};
+                color: {tokens['text_primary']};
+            }}
+            QFrame[numberInput="true"] QToolButton:pressed {{
+                background-color: {tokens['surface_chrome']};
+            }}
+            QFrame[numberInput="true"] QToolButton:disabled {{
+                color: {tokens['text_hint']};
+            }}
+            QFrame[numberInput="true"] QToolButton#numberInputDecrease {{
+                border-right: 1px solid {tokens['border_subtle']};
+                border-top-left-radius: {tokens['radius_control'] - 1}px;
+                border-bottom-left-radius: {tokens['radius_control'] - 1}px;
+            }}
+            QFrame[numberInput="true"] QToolButton#numberInputIncrease {{
+                border-left: 1px solid {tokens['border_subtle']};
+                border-top-right-radius: {tokens['radius_control'] - 1}px;
+                border-bottom-right-radius: {tokens['radius_control'] - 1}px;
+            }}
+        """
+
     def build_stylesheet(self, ctx: ThemeContext) -> str:
         accent = ctx.accent
         text_color = "#000000"  # fallback
@@ -275,6 +349,7 @@ class ThemeManager:
                 color: {tokens['text_muted']};
             }}
             {self._combo_box_rules(tokens, accent=accent, selected_text=text_color)}
+            {self._number_input_rules(tokens, accent=accent)}
             QMessageBox QPushButton, QDialogButtonBox QPushButton {{
                 color: {tokens['text_primary']};
                 background-color: {tokens['surface_white']};

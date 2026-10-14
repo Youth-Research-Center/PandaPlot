@@ -30,7 +30,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -38,6 +37,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.state.app_context import AppContext
@@ -170,7 +170,7 @@ class ImportWizardDialog(PDialog):
         form.addRow("Header:", self.header_checkbox)
 
         # Skip rows
-        self.skip_rows_spin = QSpinBox()
+        self.skip_rows_spin = IntegerInput()
         self.skip_rows_spin.setRange(0, 100000)
         self.skip_rows_spin.valueChanged.connect(self._on_option_changed)
         form.addRow("Skip top rows:", self.skip_rows_spin)
@@ -500,7 +500,7 @@ class ImportWizardDialog(PDialog):
             QLabel, QCheckBox {{
                 color: {base_fg};
             }}
-            QLineEdit, QSpinBox {{
+            QLineEdit {{
                 background-color: {input_bg};
                 border: 1px solid {card_border};
                 border-radius: 4px;
@@ -508,13 +508,13 @@ class ImportWizardDialog(PDialog):
                 min-height: 22px;
                 color: {base_fg};
             }}
-            QLineEdit:focus, QSpinBox:focus {{
+            QLineEdit:focus {{
                 border-color: {accent};
             }}
-            QLineEdit:hover, QSpinBox:hover {{
+            QLineEdit:hover {{
                 border-color: {accent};
             }}
-            QLineEdit:disabled, QSpinBox:disabled {{
+            QLineEdit:disabled {{
                 color: {secondary_fg};
                 background-color: {card_bg};
                 border-color: {card_border};

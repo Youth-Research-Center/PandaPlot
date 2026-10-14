@@ -12,12 +12,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.gui.dialogs.image.crop_canvas import CropCanvas, clamp_rect_to_bounds
@@ -129,12 +129,12 @@ class ImageEditorDialog(PDialog):
 
         size_inputs_layout = QHBoxLayout()
         size_inputs_layout.addWidget(QLabel("Width:"))
-        self.spin_width = QSpinBox()
+        self.spin_width = IntegerInput()
         self.spin_width.setRange(1, 20000)
         size_inputs_layout.addWidget(self.spin_width)
 
         size_inputs_layout.addWidget(QLabel("Height:"))
-        self.spin_height = QSpinBox()
+        self.spin_height = IntegerInput()
         self.spin_height.setRange(1, 20000)
         size_inputs_layout.addWidget(self.spin_height)
 
@@ -155,12 +155,12 @@ class ImageEditorDialog(PDialog):
 
         crop_grid = QHBoxLayout()
         crop_grid.addWidget(QLabel("X:"))
-        self.spin_crop_x = QSpinBox()
+        self.spin_crop_x = IntegerInput()
         self.spin_crop_x.setRange(0, 20000)
         crop_grid.addWidget(self.spin_crop_x)
 
         crop_grid.addWidget(QLabel("Y:"))
-        self.spin_crop_y = QSpinBox()
+        self.spin_crop_y = IntegerInput()
         self.spin_crop_y.setRange(0, 20000)
         crop_grid.addWidget(self.spin_crop_y)
 
@@ -168,12 +168,12 @@ class ImageEditorDialog(PDialog):
 
         crop_dim_grid = QHBoxLayout()
         crop_dim_grid.addWidget(QLabel("W:"))
-        self.spin_crop_w = QSpinBox()
+        self.spin_crop_w = IntegerInput()
         self.spin_crop_w.setRange(1, 20000)
         crop_dim_grid.addWidget(self.spin_crop_w)
 
         crop_dim_grid.addWidget(QLabel("H:"))
-        self.spin_crop_h = QSpinBox()
+        self.spin_crop_h = IntegerInput()
         self.spin_crop_h.setRange(1, 20000)
         crop_dim_grid.addWidget(self.spin_crop_h)
 

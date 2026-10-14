@@ -4,10 +4,11 @@ Dialog for data smoothing configuration.
 
 from typing import Any
 
-from PySide6.QtWidgets import QFormLayout, QGroupBox, QSpinBox
+from PySide6.QtWidgets import QFormLayout, QGroupBox
 
 from pandaplot.analysis import AnalysisEngine, AnalysisType
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 
 from .base_analysis_dialog import BaseAnalysisDialog
 
@@ -45,13 +46,13 @@ class SmoothingDialog(BaseAnalysisDialog):
         layout.addRow("Method:", self.method_combo)
         
         # Window length for Savgol and Rolling Mean
-        self.window_length = QSpinBox()
+        self.window_length = IntegerInput()
         self.window_length.setRange(3, 101)
         self.window_length.setValue(11)
         self.window_length_label = layout.addRow("Window Length:", self.window_length)
         
         # Polynomial order for Savgol
-        self.poly_order = QSpinBox()
+        self.poly_order = IntegerInput()
         self.poly_order.setRange(1, 10)
         self.poly_order.setValue(3)
         self.poly_order_label = layout.addRow("Polynomial Order:", self.poly_order)

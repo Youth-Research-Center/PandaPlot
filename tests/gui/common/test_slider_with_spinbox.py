@@ -1,4 +1,5 @@
 import pytest
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.common.slider_with_spinbox import (
@@ -52,3 +53,26 @@ def test_moving_slider_emits_value_changed():
     widget.valueChanged.connect(seen.append)
     widget._slider.setValue(widget._slider.maximum())
     assert seen and seen[-1] == pytest.approx(10.0)
+
+
+def test_numeric_field_beside_the_slider_has_no_step_buttons():
+    """The slider already moves the value; -/+ buttons would crowd the row."""
+    widget = SliderWithSpinbox(minimum=0.0, maximum=10.0)
+    widget.show()
+    try:
+        assert not widget._spinbox._increase.isVisible()
+        assert not widget._spinbox._decrease.isVisible()
+    finally:
+        widget.close()
+
+
+def test_typing_in_the_numeric_field_moves_the_slider():
+    widget = SliderWithSpinbox(minimum=0.0, maximum=10.0)
+    seen = []
+    widget.valueChanged.connect(seen.append)
+
+    widget._spinbox._edit.selectAll()
+    QTest.keyClicks(widget._spinbox._edit, "5")
+
+    assert widget._slider.value() == 50
+    assert seen and seen[-1] == pytest.approx(5.0)
