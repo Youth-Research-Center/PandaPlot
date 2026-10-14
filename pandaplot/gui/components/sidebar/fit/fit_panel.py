@@ -62,8 +62,6 @@ class FitPanel(SidebarPanel):
         self._needs_chart_refresh: bool = False
         self._tab_inputs: dict[tuple[str, str], dict] = {}
         self._active_tab_key: tuple[str, str] | None = None
-        self._project_epoch = 0
-        self._tab_epochs: dict[str, int] = {}
 
         # Check scipy availability lazily (only when FitPanel is instantiated)
         self.scipy_available = self._check_scipy_available()
@@ -744,16 +742,10 @@ class FitPanel(SidebarPanel):
         self._on_fit_type_changed()
         self.update_data_points_display()
 
-    def _tab_lifecycle(self, tab_key: tuple[str, str] | None) -> tuple[int, int]:
-        """Token that changes when the project changes or the tab is closed, so a fit dispatched earlier can be rejected."""
-        tab_id = tab_key[1] if tab_key else ""
-        return (self._project_epoch, self._tab_epochs.get(tab_id, 0))
-
     def _on_tab_closed(self, event_data):
         tab_id = event_data.get("tab_id")
         if not tab_id:
             return
-        self._tab_epochs[tab_id] = self._tab_epochs.get(tab_id, 0) + 1
         for key in list(self._tab_inputs):
             if key[1] == tab_id:
                 del self._tab_inputs[key]
@@ -767,7 +759,6 @@ class FitPanel(SidebarPanel):
         self._tab_inputs.clear()
         self._active_tab_key = None
         self._pending_tab_event_data = None
-        self._project_epoch += 1
         self.load_chart_object(None)
         self._restore_inputs(self._default_inputs)
 
@@ -1275,7 +1266,6 @@ class FitPanel(SidebarPanel):
             series.dataset_id, series.x_column_id, series.y_column_id,
         )
         dispatch_tab_key = self._active_tab_key
-        dispatch_lifecycle = self._tab_lifecycle(dispatch_tab_key)
         dispatch_revision = self.app_context.app_state.modification_revision
         dispatch_selection = self.series_combo.currentData()
 
@@ -1286,7 +1276,7 @@ class FitPanel(SidebarPanel):
             # switched to an unsupported one while the fit was in flight.
             self.update_data_points_display()
 
-            if self._active_tab_key != dispatch_tab_key or self._tab_lifecycle(dispatch_tab_key) != dispatch_lifecycle:
+            if self._active_tab_key != dispatch_tab_key:
                 self.logger.info("Discarding stale fit result: active tab changed while fitting.")
                 return
             if self.app_context.app_state.modification_revision != dispatch_revision:
