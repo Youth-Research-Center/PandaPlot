@@ -497,7 +497,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                     target_chart_id=self.plot_target_combo.currentData(),
                     folder_id=folder_id,
                 )
-                success = executor.execute_command(CompositeCommand([apply_command, plot_command]))
+                success = executor.execute_command(CompositeCommand([apply_command, plot_command], display_name="Analyze chart signal"))
             else:
                 success = executor.execute_command(apply_command)
 

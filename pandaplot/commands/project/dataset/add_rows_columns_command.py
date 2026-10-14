@@ -67,6 +67,10 @@ class AddRowsColumnsCommand(Command):
         self.added_column_positions: list[int] = []
 
     @override
+    def display_name(self) -> str:
+        return "Add rows / columns"
+
+    @override
     def execute(self) -> CommandResult:
         """Execute the add rows/columns command."""
         try:

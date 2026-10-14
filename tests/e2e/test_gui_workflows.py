@@ -173,10 +173,10 @@ def test_undo_redo_import_through_edit_menu(app_window: PandaMainWindow, qtbot: 
     new_project(qtbot, app_window)
     dataset = import_csv(qtbot, app_window, monkeypatch, tmp_path)
     project = app_window.app_context.app_state.current_project
-    click_menu(qtbot, app_window, "Edit", "Undo")
+    click_menu(qtbot, app_window, "Edit", app_window.main_menu.undo_action.text())
     qtbot.waitUntil(lambda: project.find_item(dataset.id) is None)
     assert app_window.main_menu.redo_action.isEnabled()
-    click_menu(qtbot, app_window, "Edit", "Redo")
+    click_menu(qtbot, app_window, "Edit", app_window.main_menu.redo_action.text())
     qtbot.waitUntil(lambda: project.find_item(dataset.id) is not None)
     restored = project.find_item(dataset.id)
     assert restored.data.to_dict("list") == {"x": [0, 1, 2], "y": [1, 3, 5]}

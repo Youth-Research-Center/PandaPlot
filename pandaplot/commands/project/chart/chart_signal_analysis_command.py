@@ -314,7 +314,7 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
                 target_chart_id=self.plot_target_chart_id,
                 folder_id=self.folder_id,
             )
-            composite = CompositeCommand([apply_command, plot_command])
+            composite = CompositeCommand([apply_command, plot_command], display_name="Analyze chart signal")
             success = executor.execute_command(composite)
         else:
             success = executor.execute_command(apply_command)
