@@ -51,9 +51,7 @@ class DescriptiveStatsPanel(SidebarPanel):
         self._set_title("📋 Descriptive Statistics")
 
         content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(4, 4, 4, 4)
-        content_layout.setSpacing(6)
+        content_layout = self._new_content_layout(content_widget)
 
         self._create_input_section(content_layout)
         self._create_options_section(content_layout)
@@ -278,38 +276,3 @@ class DescriptiveStatsPanel(SidebarPanel):
         palette = theme_manager.get_surface_palette()
         secondary_fg = palette.get("secondary_fg", "#666666")
         label.setStyleSheet(f"QLabel {{ color: {secondary_fg}; font-style: italic; background-color: transparent; }}")
-
-    @override
-    def _apply_theme(self):
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        tokens = theme_manager.get_design_tokens()
-
-        card_bg = palette.get("card_bg", "#ffffff")
-        card_border = palette.get("card_border", "#dee2e6")
-        base_fg = palette.get("base_fg", "#333333")
-
-        self.setStyleSheet(f"""
-            DescriptiveStatsPanel {{
-                background-color: {card_bg};
-                color: {base_fg};
-            }}
-            QGroupBox {{
-                font-weight: bold;
-                font-size: {tokens['font_size_group_title']}pt;
-                color: {base_fg};
-                margin-top: 5px;
-                padding-top: 10px;
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                background-color: {card_bg};
-            }}
-        """)
-
-        self._apply_title_theme(base_fg, card_border)
