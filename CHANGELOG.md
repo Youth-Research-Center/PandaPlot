@@ -14,6 +14,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 ## [Unreleased]
 
 ### Added
+- Fit panel input settings are remembered independently for each chart or dataset tab, including tabs in floating windows.
 - "Swap X/Y" chart toolbar action (#266): swaps a Line or Scatter chart's X and Y columns, error-bar columns, fill direction, and axis titles, scales, ranges and ticks in one undoable step.
 - Stacked Bar chart type: each series stacks on top of the earlier ones at the same X (negative values stack downward), with error bars, value labels, a wizard preview, and lossless switching to and from Bar. Fits are not available on stacked charts.
 - Ready-to-open curve-fitting example project with fitted charts, uncertainty bars, confidence bands, and a PNG preview.

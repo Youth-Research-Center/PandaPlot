@@ -28,9 +28,9 @@ from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, get_chart_type_spec
-from pandaplot.models.events import ChartEvents, UIEvents
+from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items import Dataset
-from pandaplot.models.project.items.chart import DataSeries, resolve_series_column
+from pandaplot.models.project.items.chart import Chart, DataSeries, resolve_series_column
 from pandaplot.models.state import AppContext
 from pandaplot.services.fit.fit_service import FIT_CATEGORIES, FIT_DEFINITIONS, MIN_FIT_POINTS, FitService
 from pandaplot.services.theme import ThemeManager
@@ -60,12 +60,16 @@ class FitPanel(SidebarPanel):
         self.datasets = []
         self._pending_tab_event_data: dict | None = None
         self._needs_chart_refresh: bool = False
+        self._tab_inputs: dict[tuple[str, str], dict] = {}
+        self._active_tab_key: tuple[str, str] | None = None
+        self._context_generation = 0
 
         # Check scipy availability lazily (only when FitPanel is instantiated)
         self.scipy_available = self._check_scipy_available()
 
         self._initialize()
         self._connect_signals()
+        self._default_inputs = self._capture_inputs()
 
         if not self.scipy_available:
             self._show_scipy_warning()
@@ -448,6 +452,8 @@ class FitPanel(SidebarPanel):
     def setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
+        self.subscribe_to_event(UIEvents.TAB_CLOSED, self._on_tab_closed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, self._on_project_closed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
         self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
 
@@ -617,6 +623,9 @@ class FitPanel(SidebarPanel):
         would needlessly reload the chart and wipe any completed fit
         results, even though nothing changed while it was hidden.
         """
+        target_key = self._tab_key(event_data)
+        if target_key != self._active_tab_key:
+            self._context_generation += 1
         if not self.isVisible():
             self._pending_tab_event_data = event_data
             return
@@ -624,39 +633,139 @@ class FitPanel(SidebarPanel):
         self._apply_tab_change(event_data)
 
     def _apply_tab_change(self, event_data):
+        target_key = self._tab_key(event_data)
+        if target_key == self._active_tab_key:
+            return
+        if self._active_tab_key is not None:
+            self._tab_inputs[self._active_tab_key] = self._capture_inputs()
+        self._active_tab_key = target_key
+
         current_tab_type = event_data.get("tab_type")
         tab_id = event_data.get("tab_id")
         chart_id = tab_id if current_tab_type == "chart" else None
         dataset_id = tab_id if current_tab_type == "dataset" else None
 
-        # Check if current tab is a chart tab
+        # Resolve the target from the live project, so a removed item cannot
+        # revive an old selection from the in-memory cache.
+        chart = None
+        project = self.current_project
         if current_tab_type == "chart" and chart_id:
-            # Get the chart from the project using chart_id
-            project = self.app_context.app_state.current_project
-            if project is not None:
-                chart = project.find_item(chart_id)
-                if chart:
-                    # Load the chart into the fit panel for data analysis
-                    self.load_chart_object(chart)
-                    self.logger.info("Fit panel context set to chart %s", chart.name)
-                else:
-                    self.logger.warning("Fit panel: chart id %s not found in project", chart_id)
+            candidate = project.find_item(chart_id) if project else None
+            if isinstance(candidate, Chart):
+                chart = candidate
             else:
-                self.logger.warning("No current project available while switching tab")
-
+                self._tab_inputs.pop(target_key, None)
         elif current_tab_type == "dataset" and dataset_id:
-            # For dataset tabs, provide context for data fitting
-            project = self.app_context.app_state.current_project
-            if project is not None:
-                dataset = project.find_item(dataset_id)
-                if dataset:
-                    # Set project context for dataset access
-                    self.load_chart_object(None)  # Clear chart context
-                    self.logger.debug("Fit panel dataset context set for dataset %s", dataset.name)
+            candidate = project.find_item(dataset_id) if project else None
+            if not isinstance(candidate, Dataset):
+                self._tab_inputs.pop(target_key, None)
+
+        for combo in (self.custom_dataset_combo, self.custom_x_column_combo, self.custom_y_column_combo):
+            combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            combo.clear()
+            combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+        self.load_chart_object(chart)
+        saved = self._tab_inputs.get(target_key)
+        self._restore_inputs(saved if saved is not None else self._default_inputs, restore_series=saved is not None)
+
+    @staticmethod
+    def _tab_key(event_data):
+        tab_type = event_data.get("tab_type")
+        tab_id = event_data.get("tab_id")
+        return (tab_type, tab_id) if tab_type in ("chart", "dataset") and tab_id else None
+
+    @staticmethod
+    def _series_key(series):
+        return (series.dataset_id, series.x_column_id or series.x_column,
+                series.y_column_id or series.y_column)
+
+    def _capture_inputs(self):
+        selected = self.series_combo.currentData()
+        return {
+            "series_index": self.series_combo.currentIndex(),
+            "series_object": selected if isinstance(selected, DataSeries) else None,
+            "series_key": self._series_key(selected) if isinstance(selected, DataSeries) else None,
+            "custom_series": selected == CUSTOM_SERIES_SENTINEL if isinstance(selected, str) else False,
+            "dataset_id": self.custom_dataset_combo.currentData(),
+            "x_column_id": self.custom_x_column_combo.currentData(),
+            "y_column_id": self.custom_y_column_combo.currentData(),
+            "fit_type": self.fit_type_combo.currentText(),
+            "fit_category": self.fit_category_combo.currentText(),
+            "function": self.custom_function_edit.text(),
+            "parameters": self.custom_params_edit.text(),
+            "initial_guess": self.initial_guess_edit.text(),
+            "fit_points": self.fit_points_spin.value(),
+            "confidence": self.confidence_check.isChecked(),
+            "r_squared": self.r_squared_check.isChecked(),
+            "range_auto": self.range_auto_check.isChecked(),
+            "range_min": self.range_min_spin.value(),
+            "range_max": self.range_max_spin.value(),
+        }
+
+    def _restore_inputs(self, state: dict, *, restore_series: bool = True) -> None:
+        if state["custom_series"] and self.series_combo.count():
+            series_index = self.series_combo.findData(CUSTOM_SERIES_SENTINEL)
+        elif state["series_key"] is not None:
+            series_index = next((index for index in range(self.series_combo.count())
+                                 if self.series_combo.itemData(index) is state["series_object"]), -1)
+            matches = [index for index in range(self.series_combo.count())
+                       if isinstance(self.series_combo.itemData(index), DataSeries)
+                       and self._series_key(self.series_combo.itemData(index)) == state["series_key"]]
+            if series_index < 0:
+                series_index = state["series_index"] if state["series_index"] in matches else (matches[0] if matches else 0)
         else:
-            # Clear fit panel context when no relevant tab is active
+            series_index = -1
+        if restore_series and series_index != self.series_combo.currentIndex():
+            self.series_combo.setCurrentIndex(series_index)
+
+        if self.series_combo.currentData() == CUSTOM_SERIES_SENTINEL:
+            dataset_index = self.custom_dataset_combo.findData(state["dataset_id"])
+            if dataset_index >= 0:
+                self.custom_dataset_combo.setCurrentIndex(dataset_index)
+            self._populate_custom_column_combos(self.custom_dataset_combo.currentData())
+            for combo, column_id in ((self.custom_x_column_combo, state["x_column_id"]),
+                                     (self.custom_y_column_combo, state["y_column_id"])):
+                index = combo.findData(column_id)
+                if index >= 0:
+                    combo.setCurrentIndex(index)
+
+        self.fit_category_combo.setCurrentText(state["fit_category"])
+        fit_index = self.fit_type_combo.findText(state["fit_type"])
+        if fit_index >= 0:
+            self.fit_type_combo.setCurrentIndex(fit_index)
+        self.custom_function_edit.setText(state["function"])
+        self.custom_params_edit.setText(state["parameters"])
+        self.initial_guess_edit.setText(state["initial_guess"])
+        self.fit_points_spin.setValue(state["fit_points"])
+        self.confidence_check.setChecked(state["confidence"])
+        self.r_squared_check.setChecked(state["r_squared"])
+        self.range_auto_check.setChecked(state["range_auto"])
+        self.range_min_spin.setValue(state["range_min"])
+        self.range_max_spin.setValue(state["range_max"])
+        self._on_fit_type_changed()
+        self.update_data_points_display()
+
+    def _on_tab_closed(self, event_data):
+        tab_id = event_data.get("tab_id")
+        if not tab_id:
+            return
+        for key in list(self._tab_inputs):
+            if key[1] == tab_id:
+                del self._tab_inputs[key]
+        if (self._pending_tab_event_data or {}).get("tab_id") == tab_id:
+            self._pending_tab_event_data = None
+        if self._active_tab_key is not None and self._active_tab_key[1] == tab_id:
+            self._active_tab_key = None
+            self._context_generation += 1
             self.load_chart_object(None)
-            self.logger.debug("Fit panel context cleared")
+
+    def _on_project_closed(self, _event_data):
+        self._tab_inputs.clear()
+        self._active_tab_key = None
+        self._pending_tab_event_data = None
+        self._context_generation += 1
+        self.load_chart_object(None)
+        self._restore_inputs(self._default_inputs)
 
     def _chart_disallows_fit(self) -> bool:
         """Whether the active chart type has no meaningful 2-D curve to fit."""
@@ -1051,6 +1160,9 @@ class FitPanel(SidebarPanel):
     def _on_chart_updated(self, event_data):
         chart = event_data.get("chart")
 
+        if self.current_chart is None:
+            return
+
         if not chart:
             # Some emitters send only chart_id: the properties panel's live
             # edits and Reset, and a dataset delete's undo (via
@@ -1071,7 +1183,7 @@ class FitPanel(SidebarPanel):
                 self.update_data_points_display()
                 return
             chart = self.current_chart
-        elif self.current_chart and chart.id != self.current_chart.id:
+        elif chart.id != self.current_chart.id:
             return
 
         # Skip doing the reload now while the panel isn't visible, but
@@ -1085,7 +1197,9 @@ class FitPanel(SidebarPanel):
             self._needs_chart_refresh = True
             return
 
+        saved = self._capture_inputs()
         self.load_chart_object(chart)
+        self._restore_inputs(saved)
 
     @override
     def showEvent(self, event):
@@ -1104,7 +1218,9 @@ class FitPanel(SidebarPanel):
         elif needs_chart_refresh and self.current_chart is not None:
             project = self.app_context.app_state.current_project
             chart = project.find_item(self.current_chart.id) if project else None
+            saved = self._capture_inputs()
             self.load_chart_object(chart)
+            self._restore_inputs(saved)
 
     def _insert_function(self, function_str):
         cursor_pos = self.custom_function_edit.cursorPosition()
@@ -1147,13 +1263,15 @@ class FitPanel(SidebarPanel):
         # compare against the panel's context once the result is back --
         # applying a stale fit to whatever chart/series happens to be
         # selected when the background thread finishes would silently
-        # attach the wrong data. Content-based (not object identity): a
-        # "Custom..." selection builds a fresh transient DataSeries on every
-        # _resolve_selected_series() call, so identity would always differ.
+        # attach the wrong data. Real series also need an identity check:
+        # duplicates can share columns but use different error bars.
+        # Custom sources use column identity because their DataSeries is transient.
         dispatch_context = (
             self.current_chart.id if self.current_chart else None,
             series.dataset_id, series.x_column_id, series.y_column_id,
         )
+        dispatch_generation = self._context_generation
+        dispatch_selection = self.series_combo.currentData()
 
         def _on_complete(result):
             self.busy_spinner.stop()
@@ -1162,6 +1280,11 @@ class FitPanel(SidebarPanel):
             # switched to an unsupported one while the fit was in flight.
             self.update_data_points_display()
 
+            if self._context_generation != dispatch_generation:
+                self.logger.info("Discarding stale fit result: active tab changed while fitting.")
+                self.update_data_points_display()
+                return
+
             current_series = self._resolve_selected_series()
             current_context = (
                 self.current_chart.id if self.current_chart else None,
@@ -1169,7 +1292,9 @@ class FitPanel(SidebarPanel):
                 current_series.x_column_id if current_series else None,
                 current_series.y_column_id if current_series else None,
             )
-            if current_context != dispatch_context:
+            if current_context != dispatch_context or (
+                isinstance(dispatch_selection, DataSeries) and self.series_combo.currentData() is not dispatch_selection
+            ):
                 self.logger.info(
                     "Discarding stale fit result: chart/series changed while fitting."
                 )

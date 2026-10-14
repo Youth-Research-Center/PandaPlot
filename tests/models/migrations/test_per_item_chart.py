@@ -458,8 +458,8 @@ def test_style_field_names_match_the_real_style_dataclasses():
         "show_value_labels", "value_label_mode", "value_label_show_arrow",
         "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
         "value_label_bg_color", "value_label_bg_alpha",
-        # #280 -- partial-range fill.
-        "fill_range_enabled", "fill_range_start", "fill_range_end",
+        # #280/#433 -- partial-range fields and section-list replacement.
+        "fill_range_enabled", "fill_range_start", "fill_range_end", "fill_sections",
     }
     # Scatter gained the shared fill fields (FillStyleFields) after this
     # migration; Line already had the first six as legacy flat fields.
@@ -673,3 +673,34 @@ def test_migrate_chart_runs_the_full_schema_0_to_v3_chain_for_a_populated_fit():
     assert "x_min" not in migrated["config"]
     # v1_to_v1's effect on the plain data series.
     assert migrated["data_series"][0]["style"]["color"] == "#112233"
+
+
+def test_migrate_chart_v3_to_v4_moves_single_fill_range_into_sections():
+    from pandaplot.models.migrations.per_item.chart import migrate_chart_v3_to_v4
+
+    raw = {"data_series": [
+        {"series_type": "line", "style": {"fill_range_enabled": True, "fill_range_start": 2, "fill_range_end": -1}},
+        {"series_type": "scatter", "style": {"fill_range_enabled": False, "fill_range_start": 0, "fill_range_end": 3}},
+        {"series_type": "line", "style": {"fill_enabled": True}},
+        {"series_type": "fit", "style": None},
+        {"series_type": "hist"},
+    ]}
+
+    migrated = migrate_chart_v3_to_v4(raw)
+
+    assert migrated["data_series"] == [
+        {"series_type": "line", "style": {"fill_range_enabled": True, "fill_sections": [(2, -1)]}},
+        {"series_type": "scatter", "style": {"fill_range_enabled": False, "fill_sections": [(0, 3)]}},
+        {"series_type": "line", "style": {"fill_enabled": True}},
+        {"series_type": "fit", "style": None},
+        {"series_type": "hist"},
+    ]
+    assert raw["data_series"][0]["style"]["fill_range_start"] == 2
+
+
+def test_migrate_chart_dispatches_through_v3_to_v4():
+    from pandaplot.models.migrations.per_item.chart import migrate_chart
+
+    result = migrate_chart({"data_series": [{"style": {"fill_range_start": 1, "fill_range_end": 4}}]}, schema_version=3)
+
+    assert result["data_series"][0]["style"] == {"fill_sections": [(1, 4)]}

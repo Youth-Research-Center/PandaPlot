@@ -31,7 +31,7 @@ class TabContainer(PWidget):
 
     active_tab_changed = Signal(object)  # the widget of the active pane's current tab, or None
 
-    def __init__(self, app_context: AppContext, parent: QWidget):
+    def __init__(self, app_context: AppContext, parent: QWidget | None):
         super().__init__(app_context=app_context, parent=parent)
         self.tabs = {}
         self.panes: list[CustomTabWidget] = []
@@ -118,6 +118,7 @@ class TabContainer(PWidget):
             p.set_active(is_active=show_indicator and p is pane)
 
         if pane is self._active_pane:
+            self._emit_tab_changed_for_active_pane()
             return
         self._active_pane = pane
         self._emit_tab_changed_for_active_pane()
@@ -126,6 +127,10 @@ class TabContainer(PWidget):
         """Clicking anywhere inside a pane (not just its tab header) activates it."""
         if new is None:
             return
+        for item_id, window in self.floating_windows.items():
+            if window is new or window.isAncestorOf(new):
+                self._on_floating_tab_activated(item_id)
+                return
         for pane in self.panes:
             if pane is new or pane.isAncestorOf(new):
                 self._activate_pane(pane)
@@ -244,6 +249,7 @@ class TabContainer(PWidget):
         can_close = getattr(widget, "can_close", None)
         if user_initiated and callable(can_close) and not can_close():
             return
+        tab_data = self.get_tab_data(widget) if widget is not None else {}
 
         item_id_to_remove = None
         for curr_item_id, curr_tab in self.tabs.items():
@@ -273,7 +279,8 @@ class TabContainer(PWidget):
         self.publish_event(UIEvents.TAB_CLOSED, {
             "tab_index": index,
             "tab_title": tab_title,
-            "tab_id": id(widget) if widget else None
+            "tab_type": tab_data.get("type"),
+            "tab_id": item_id_to_remove or tab_data.get("id"),
         })
 
         # Collapse the pane (or show the Welcome placeholder) if it's now empty
@@ -290,9 +297,11 @@ class TabContainer(PWidget):
                 return
             window = self.floating_windows.pop(item_id)
             self.tabs.pop(item_id, None)
+            tab_title = window.windowTitle()
             # Detach the content first so we can unsubscribe it synchronously
             # (see _handle_close) before it's deleted along with the window.
             content = window.take_content()
+            tab_data = self.get_tab_data(content) if content is not None else {}
             if content is not None:
                 unsubscribe_widget_tree(content)
                 content.deleteLater()
@@ -302,6 +311,12 @@ class TabContainer(PWidget):
             # needs the same synchronous unsubscribe before that happens.
             unsubscribe_widget_tree(window)
             window.close_without_redock()
+            self.publish_event(UIEvents.TAB_CLOSED, {
+                "tab_index": -1,
+                "tab_title": tab_title,
+                "tab_type": tab_data.get("type"),
+                "tab_id": item_id,
+            })
             self._persist_tab_session()
             return
         if item_id not in self.tabs:
@@ -312,10 +327,17 @@ class TabContainer(PWidget):
             index = pane.indexOf(tab_widget) if pane is not None else -1
             if pane is not None and index >= 0:
                 self._handle_close(pane, index, user_initiated=user_initiated)
-            else:
-                del self.tabs[item_id]
+                return
         except RuntimeError:
-            del self.tabs[item_id]
+            pass
+        self.tabs.pop(item_id, None)
+        self.publish_event(UIEvents.TAB_CLOSED, {
+            "tab_index": -1,
+            "tab_title": "",
+            "tab_type": None,
+            "tab_id": item_id,
+        })
+        self._persist_tab_session()
 
     def popout_tab(self, pane: CustomTabWidget, index: int):
         """Detach the tab at ``index`` of ``pane`` into its own floating window.
@@ -345,6 +367,7 @@ class TabContainer(PWidget):
 
         window = FloatingTabWindow(self.app_context, item_id, widget, title)
         window.redock_requested.connect(self.redock_tab)
+        window.activated.connect(self._on_floating_tab_activated)
         self.floating_windows[item_id] = window
         window.show()
         window.raise_()
@@ -706,7 +729,17 @@ class TabContainer(PWidget):
         current tab, deduped so unrelated focus churn doesn't spam the sidebar."""
         pane = self._active_pane
         widget = pane.currentWidget() if pane else None
+        index = pane.currentIndex() if pane else -1
+        title = pane.tabText(index) if pane and index >= 0 else ""
+        self._emit_tab_changed_for_widget(widget, index=index, title=title)
 
+    def _on_floating_tab_activated(self, item_id: str) -> None:
+        window = self.floating_windows.get(item_id)
+        widget = self.tabs.get(item_id)
+        if window is not None and widget is not None:
+            self._emit_tab_changed_for_widget(widget, index=-1, title=window.windowTitle())
+
+    def _emit_tab_changed_for_widget(self, widget: QWidget | None, *, index: int, title: str) -> None:
         if widget is self._last_emitted_widget:
             return
         self._last_emitted_widget = widget
@@ -714,13 +747,12 @@ class TabContainer(PWidget):
         self.active_tab_changed.emit(widget)
 
         tab_data = self.get_tab_data(widget) if widget is not None else {"type": None, "id": None}
-        index = pane.currentIndex() if pane else -1
 
         self.publish_event(UIEvents.TAB_CHANGED, {
             "tab_index": index,
             "tab_type": tab_data.get("type"),
             "tab_id": tab_data.get("id"),
-            "tab_title": pane.tabText(index) if pane and index >= 0 else "",
+            "tab_title": title,
         })
 
         self._persist_tab_session()

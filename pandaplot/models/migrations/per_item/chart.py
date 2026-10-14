@@ -264,10 +264,29 @@ def migrate_chart_v2_to_v3(raw: dict) -> dict:
     return new_raw
 
 
+def migrate_chart_v3_to_v4(raw: dict) -> dict:
+    """Store the former single fill range as a one-section list (#433)."""
+    new_raw = dict(raw)
+    migrated_series = []
+    for series in raw.get("data_series", []):
+        new_series = dict(series)
+        style = new_series.get("style")
+        if isinstance(style, dict) and ("fill_range_start" in style or "fill_range_end" in style):
+            style = dict(style)
+            start = style.pop("fill_range_start", 0)
+            end = style.pop("fill_range_end", -1)
+            style["fill_sections"] = [(start, end)]
+            new_series["style"] = style
+        migrated_series.append(new_series)
+    new_raw["data_series"] = migrated_series
+    return new_raw
+
+
 PER_ITEM_CHART_MIGRATIONS: dict[int, Callable[[dict], dict]] = {
     0: migrate_chart_legacy_to_v1,
     1: migrate_chart_v1_to_v2,
     2: migrate_chart_v2_to_v3,
+    3: migrate_chart_v3_to_v4,
 }
 
 

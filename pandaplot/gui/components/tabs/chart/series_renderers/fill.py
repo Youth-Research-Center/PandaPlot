@@ -5,21 +5,42 @@ from pandaplot.gui.components.tabs.chart.series_data import SeriesData
 from pandaplot.models.chart.series_style.fill import FillStyleFields
 
 
-def fill_range_bounds(style: FillStyleFields, point_count: int) -> tuple[int, int]:
-    """Resolve a style's data-point range to inclusive, clamped 0-based (start, end).
+def fill_range_mask(style: FillStyleFields, point_count: int) -> np.ndarray:
+    """Build a boolean mask covering the union of the configured point ranges.
+
+    The ranges use inclusive, zero-based point indexes. Out-of-bounds indexes
+    are clamped to the available points, reversed ranges are ignored, and
+    touching or overlapping ranges are coalesced. An empty section list means
+    the whole series.
 
     Args:
-        style: A style carrying the shared fill fields.
-        point_count: Number of points in the series.
+        style: Fill style with the configured point sections.
+        point_count: Number of data points in the series.
 
     Returns:
-        The first and last point index to fill. fill_range_end == -1 means the
-        last point; a bound past the data is clamped to it.
+        Boolean array with one entry per point, true for points in a section.
     """
+    mask = np.zeros(point_count, dtype=bool)
+    if not style.fill_sections:
+        mask[:] = True
+        return mask
+
     last = max(point_count - 1, 0)
-    start = min(max(style.fill_range_start, 0), last)
-    end = last if style.fill_range_end < 0 else min(style.fill_range_end, last)
-    return start, end
+    sections = sorted(
+        (min(max(int(start), 0), last), last if int(end) < 0 else min(int(end), last))
+        for start, end in style.fill_sections
+    )
+    merged: list[tuple[int, int]] = []
+    for start, end in sections:
+        if end < start:
+            continue
+        if merged and start <= merged[-1][1] + 1:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    for start, end in merged:
+        mask[start:end + 1] = True
+    return mask
 
 
 def render_area_fill(axes, series_data: SeriesData, style: FillStyleFields, *, color: str, visible: bool, extra: dict,
@@ -42,11 +63,7 @@ def render_area_fill(axes, series_data: SeriesData, style: FillStyleFields, *, c
     y = np.asarray(series_data.y_data)
     independent = y if horizontal else x
 
-    where = None
-    if style.fill_range_enabled:
-        start, end = fill_range_bounds(style, len(x))
-        rows = np.arange(len(x))
-        where = (rows >= start) & (rows <= end)
+    where = fill_range_mask(style, len(x)) if style.fill_range_enabled else None
 
     baseline = extra["resolve_fill_baseline"](independent, horizontal=horizontal)
     if sort_by_independent:

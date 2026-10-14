@@ -2,7 +2,7 @@
 the Line/Marker cards for whichever series/fit entry is currently selected.
 """
 import numpy as np
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -540,22 +540,18 @@ class StyleTab(QWidget):
         self.fill_range_enabled_toggle = ToggleSwitch()
         fill_layout.addWidget(self.fill_range_enabled_toggle, 7, 1)
 
-        # Both bounds are 1-based data-point row numbers (matching the
-        # dataset table and the Analysis panel's Start/End Row), each with the
-        # point's x/y beside it. They default to the first and last point.
-        self.fill_range_start_label = QLabel("From point:")
-        fill_layout.addWidget(self.fill_range_start_label, 8, 0)
-        self.fill_range_start_spin = QSpinBox()
-        self.fill_range_start_spin.setRange(1, 1)
-        self.fill_range_start_value_label = QLabel("–")
-        fill_layout.addLayout(self._fill_range_row(self.fill_range_start_spin, self.fill_range_start_value_label), 8, 1)
-
-        self.fill_range_end_label = QLabel("To point:")
-        fill_layout.addWidget(self.fill_range_end_label, 9, 0)
-        self.fill_range_end_spin = QSpinBox()
-        self.fill_range_end_spin.setRange(1, 1)
-        self.fill_range_end_value_label = QLabel("–")
-        fill_layout.addLayout(self._fill_range_row(self.fill_range_end_spin, self.fill_range_end_value_label), 9, 1)
+        # Each section uses 1-based data-point rows with an adjacent x/y
+        # readout. Sections share the series fill style.
+        self.fill_sections_label = QLabel("Sections:")
+        fill_layout.addWidget(self.fill_sections_label, 8, 0, Qt.AlignmentFlag.AlignTop)
+        self.fill_sections_container = QWidget()
+        self.fill_sections_layout = QVBoxLayout(self.fill_sections_container)
+        self.fill_sections_layout.setContentsMargins(0, 0, 0, 0)
+        self.fill_section_rows = []
+        fill_layout.addWidget(self.fill_sections_container, 8, 1)
+        self.fill_add_section_button = PButton("Add section", on_click=self._add_fill_section)
+        fill_layout.addWidget(self.fill_add_section_button, 9, 1)
+        self._add_fill_section()
 
         layout.addWidget(fill_card)
 
@@ -985,8 +981,6 @@ class StyleTab(QWidget):
         self.fill_match_line_toggle.toggled.connect(self._on_fill_match_line_toggled)
         self.fill_opacity_slider.valueChanged.connect(self._on_field_changed)
         self.fill_range_enabled_toggle.toggled.connect(self._on_fill_range_enabled_toggled)
-        self.fill_range_start_spin.valueChanged.connect(self._on_fill_range_changed)
-        self.fill_range_end_spin.valueChanged.connect(self._on_fill_range_changed)
         self.density_bandwidth_spin.valueChanged.connect(self._on_field_changed)
         self.density_fill_toggle.toggled.connect(self._on_density_fill_toggled)
         self.density_fill_opacity_slider.valueChanged.connect(self._on_field_changed)
@@ -1863,22 +1857,80 @@ class StyleTab(QWidget):
         self._update_fill_controls_visibility()
         self._on_field_changed()
 
-    @staticmethod
-    def _fill_range_row(spin: QSpinBox, value_label: QLabel) -> QHBoxLayout:
-        """A spin box with its data point's x/y readout beside it."""
-        row = QHBoxLayout()
-        row.addWidget(spin)
-        row.addWidget(value_label, 1)
-        return row
+    def _add_fill_section(self, start: int = 1, end: int | None = None) -> None:
+        """Add one From/To row pair, defaulting to the full data range."""
+        row_widget = QWidget(self.fill_sections_container)
+        row = QVBoxLayout(row_widget)
+        row.setContentsMargins(0, 0, 0, 0)
+        point_count = max(len(self._fill_points[0]), 1) if self._fill_points is not None else 1
+        start_spin = QSpinBox()
+        start_spin.setAccessibleName("Fill section start point")
+        end_spin = QSpinBox()
+        end_spin.setAccessibleName("Fill section end point")
+        for spin in (start_spin, end_spin):
+            spin.setRange(1, point_count)
+        start_spin.setValue(start)
+        end_spin.setValue(point_count if end is None else end)
+        start_label = QLabel("–")
+        end_label = QLabel("–")
+        header = QHBoxLayout()
+        header.addWidget(QLabel(f"Section {len(self.fill_section_rows) + 1}"))
+        header.addStretch(1)
+        remove_button = PButton("Remove", role="destructive", on_click=lambda: self._remove_fill_section(row_widget))
+        header.addWidget(remove_button)
+        row.addLayout(header)
+        for label_text, spin, value_label in (
+            ("From point:", start_spin, start_label),
+            ("To point:", end_spin, end_label),
+        ):
+            endpoint = QHBoxLayout()
+            endpoint.addWidget(QLabel(label_text))
+            endpoint.addWidget(spin)
+            endpoint.addWidget(value_label, 1)
+            row.addLayout(endpoint)
+        self.fill_sections_layout.addWidget(row_widget)
+        self.fill_section_rows.append((row_widget, start_spin, start_label, end_spin, end_label))
+        start_spin.valueChanged.connect(self._on_fill_range_changed)
+        end_spin.valueChanged.connect(self._on_fill_range_changed)
+        self._update_fill_range_labels()
+        self._update_fill_controls_visibility()
+        if not self._updating_controls:
+            self._on_field_changed()
 
-    def _on_fill_range_changed(self, _value: int):
-        """Handle an edit of a Limit-range point: refresh its x/y readout, then commit."""
+    def _remove_fill_section(self, row_widget: QWidget) -> None:
+        """Remove a section; no rows means an unrestricted whole-series fill."""
+        self.fill_sections_layout.removeWidget(row_widget)
+        row_widget.hide()
+        row_widget.deleteLater()
+        self.fill_section_rows = [row for row in self.fill_section_rows if row[0] is not row_widget]
+        for index, row in enumerate(self.fill_section_rows, start=1):
+            labels = row[0].findChildren(QLabel)
+            if labels:
+                labels[0].setText(f"Section {index}")
+        self._update_fill_controls_visibility()
+        self._on_field_changed()
+
+    def _on_fill_range_changed(self, _value: int) -> None:
+        """Refresh endpoint readouts and apply the edited section ranges.
+
+        Args:
+            _value: New spin-box value emitted by Qt.
+
+        Returns:
+            None.
+        """
         self._update_fill_range_labels()
         self._on_field_changed()
 
-    def _resolve_fill_points(self, series) -> tuple | None:
-        """The (x, y) arrays of `series` as plotted, or None when unresolvable
-        (no project, or the dataset/columns are missing)."""
+    def _resolve_fill_points(self, series: DataSeries) -> tuple[np.ndarray, np.ndarray] | None:
+        """Resolve a series' plotted coordinates for fill-section readouts.
+
+        Args:
+            series: Series whose x and y point coordinates should be read.
+
+        Returns:
+            A pair of NumPy arrays, or None if the project data is unavailable.
+        """
         from pandaplot.gui.components.tabs.chart.chart_editor import resolve_series_data
         app_state = self.app_context.get_app_state() if self.app_context else None
         project = app_state.current_project if app_state is not None and app_state.has_project else None
@@ -1888,17 +1940,15 @@ class StyleTab(QWidget):
         return np.asarray(data.x_data), np.asarray(data.y_data)
 
     def _update_fill_range_labels(self):
-        """Show the x/y of the data point each Limit-range spin box selects."""
+        """Show x/y readouts for all section endpoints."""
         points = self._fill_points
-        for spin, label in (
-            (self.fill_range_start_spin, self.fill_range_start_value_label),
-            (self.fill_range_end_spin, self.fill_range_end_value_label),
-        ):
-            index = spin.value() - 1
-            if points is None or not 0 <= index < len(points[0]):
-                label.setText("–")
-            else:
-                label.setText(f"x={points[0][index]:.4g}, y={points[1][index]:.4g}")
+        for _, start_spin, start_label, end_spin, end_label in self.fill_section_rows:
+            for spin, label in ((start_spin, start_label), (end_spin, end_label)):
+                index = spin.value() - 1
+                if points is None or not 0 <= index < len(points[0]):
+                    label.setText("–")
+                else:
+                    label.setText(f"x={points[0][index]:.4g}, y={points[1][index]:.4g}")
 
     def _update_fill_controls_visibility(self):
         """Show the fill sub-controls only while fill is on -- hidden, not
@@ -1939,11 +1989,9 @@ class StyleTab(QWidget):
         self.fill_range_label.setVisible(enabled)
         self.fill_range_enabled_toggle.setVisible(enabled)
         show_range_bounds = enabled and self.fill_range_enabled_toggle.isChecked()
-        for widget in (
-            self.fill_range_start_label, self.fill_range_start_spin, self.fill_range_start_value_label,
-            self.fill_range_end_label, self.fill_range_end_spin, self.fill_range_end_value_label,
-        ):
-            widget.setVisible(show_range_bounds)
+        self.fill_sections_label.setVisible(show_range_bounds)
+        self.fill_sections_container.setVisible(show_range_bounds)
+        self.fill_add_section_button.setVisible(show_range_bounds)
 
     # -- Value-labels controls ----------------------------------------------
 
@@ -2201,13 +2249,14 @@ class StyleTab(QWidget):
             )
             style.fill_alpha = self.fill_opacity_slider.value()
             style.fill_range_enabled = self.fill_range_enabled_toggle.isChecked()
-            style.fill_range_start = self.fill_range_start_spin.value() - 1
-            # The last point is stored as -1 so the range keeps tracking the
-            # end of the series if rows are appended.
-            style.fill_range_end = (
-                -1 if self.fill_range_end_spin.value() == self.fill_range_end_spin.maximum()
-                else self.fill_range_end_spin.value() - 1
-            )
+            point_count = max(len(self._fill_points[0]), 1) if self._fill_points is not None else 1
+            style.fill_sections = [
+                (
+                    start_spin.value() - 1,
+                    -1 if end_spin.value() == point_count else end_spin.value() - 1,
+                )
+                for _, start_spin, _, end_spin, _ in self.fill_section_rows
+            ]
 
     def apply_fit_style_to(self, fit):
         style = fit.style
@@ -2382,11 +2431,14 @@ class StyleTab(QWidget):
             self.fill_range_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self._fill_points = self._resolve_fill_points(series)
             point_count = max(len(self._fill_points[0]), 1) if self._fill_points is not None else 1
-            self.fill_range_start_spin.setRange(1, point_count)
-            self.fill_range_end_spin.setRange(1, point_count)
-            self.fill_range_start_spin.setValue(getattr(style, "fill_range_start", 0) + 1)
-            fill_range_end = getattr(style, "fill_range_end", -1)
-            self.fill_range_end_spin.setValue(point_count if fill_range_end < 0 else fill_range_end + 1)
+            for row_widget, *_ in self.fill_section_rows:
+                self.fill_sections_layout.removeWidget(row_widget)
+                row_widget.hide()
+                row_widget.deleteLater()
+            self.fill_section_rows.clear()
+            sections = getattr(style, "fill_sections", [])
+            for start, end in sections:
+                self._add_fill_section(start + 1, point_count if end < 0 else end + 1)
             self._update_fill_range_labels()
             self._update_fill_controls_visibility()
 
