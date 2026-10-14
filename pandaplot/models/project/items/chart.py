@@ -569,6 +569,8 @@ class Chart(Item):
                 return "X and Y can't be swapped while a series uses the secondary Y axis."
             if not (series.x_column_id or series.x_column):
                 return "X and Y can't be swapped while a series plots against the row index."
+            if not (series.y_column_id or series.y_column):
+                return "X and Y can't be swapped while a series has no Y column."
         return None
 
     def swap_axes(self) -> None:
