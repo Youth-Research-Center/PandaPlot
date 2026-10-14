@@ -802,7 +802,7 @@ class ImageGalleryTab(PWidget):
             DeleteItemCommand(self.app_context, item_id=item.id, confirm=False)
             for item in selected
         ]
-        self.app_context.get_command_executor().execute_command(CompositeCommand(commands))
+        self.app_context.get_command_executor().execute_command(CompositeCommand(commands, display_name="Delete selected items"))
 
     def _on_move_clicked(self) -> None:
         selected = [c for c in self._selected_children() if isinstance(c, Image)]
@@ -847,7 +847,7 @@ class ImageGalleryTab(PWidget):
                 source_folder_id=self.current_gallery.id, target_folder_id=target_gallery_id,
             ))
         if commands:
-            self.app_context.get_command_executor().execute_command(CompositeCommand(commands))
+            self.app_context.get_command_executor().execute_command(CompositeCommand(commands, display_name="Move images"))
 
     def _on_copy_clicked(self) -> None:
         selected = [c for c in self._selected_children() if isinstance(c, Image)]

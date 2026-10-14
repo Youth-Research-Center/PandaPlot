@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.command_executor import CommandExecutor
@@ -39,6 +39,9 @@ class MockCommand(Command):
 
     def cleanup(self):
         self.cleanup_count += 1
+
+    def display_name(self):
+        return self.name
 
     def __repr__(self):
         return f"{self.__class__.__name__}(name='{self.name}')"
@@ -652,7 +655,7 @@ class TestDescriptionMethods:
         
         executor.execute_command(command)
         description = executor.get_undo_description()
-        assert description == "MockCommand(name='TestCommand')"
+        assert description == "TestCommand"
         
         executor.undo()
         assert executor.get_undo_description() is None
@@ -669,7 +672,7 @@ class TestDescriptionMethods:
         
         executor.undo()
         description = executor.get_redo_description()
-        assert description == "MockCommand(name='TestCommand')"
+        assert description == "TestCommand"
         
         executor.redo()
         assert executor.get_redo_description() is None
@@ -686,15 +689,62 @@ class TestDescriptionMethods:
         executor.execute_command(cmd3)
         
         # Should return description of last command
-        assert executor.get_undo_description() == "MockCommand(name='Command3')"
+        assert executor.get_undo_description() == "Command3"
         
         executor.undo()
-        assert executor.get_undo_description() == "MockCommand(name='Command2')"
-        assert executor.get_redo_description() == "MockCommand(name='Command3')"
+        assert executor.get_undo_description() == "Command2"
+        assert executor.get_redo_description() == "Command3"
         
         executor.undo()
-        assert executor.get_undo_description() == "MockCommand(name='Command1')"
-        assert executor.get_redo_description() == "MockCommand(name='Command2')"
+        assert executor.get_undo_description() == "Command1"
+        assert executor.get_redo_description() == "Command2"
+
+
+    def test_descriptions_use_safe_user_facing_name_on_each_stack(self):
+        executor = CommandExecutor()
+        command = MockCommand("Rename column")
+
+        executor.execute_command(command)
+        assert executor.get_undo_description() == "Rename column"
+
+        executor.undo()
+        assert executor.get_redo_description() == "Rename column"
+
+    def test_builtin_command_name_is_user_facing(self):
+        from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
+
+        app_context = Mock()
+        command = RenameColumnCommand(app_context, dataset_id="dataset", column_index=0, new_name="renamed")
+        executor = CommandExecutor()
+        executor.undo_stack.append(command)
+
+        assert executor.get_undo_description() == "Rename column"
+
+    def test_composite_display_name_is_used_for_undo_and_redo(self):
+        from pandaplot.commands.composite_command import CompositeCommand
+
+        executor = CommandExecutor()
+        composite = CompositeCommand([MockCommand("Rename column")], display_name="Analyze chart series")
+
+        executor.execute_command(composite)
+        assert executor.get_undo_description() == "Analyze chart series"
+
+        executor.undo()
+        assert executor.get_redo_description() == "Analyze chart series"
+
+    def test_description_tracks_stack_eviction_and_clear(self):
+        executor = CommandExecutor(max_undo_levels=1)
+        executor.execute_command(MockCommand("Older command"))
+        newest = MockCommand("Rename column")
+        executor.execute_command(newest)
+        assert executor.get_undo_description() == "Rename column"
+        assert len(executor.undo_stack) == 1
+        assert executor.undo_stack == [newest]
+
+        executor.clear_history()
+
+        assert executor.get_undo_description() is None
+        assert executor.get_redo_description() is None
 
 
 class TestMaxUndoLevels:
@@ -1145,7 +1195,7 @@ class TestUndoRedoErrorHook:
 
         executor.undo()
 
-        assert calls == [("Mock", "undo")]
+        assert calls == [("FailingCommand", "undo")]
 
     def test_redo_failure_calls_the_hook_with_command_display_name_and_operation(self):
         executor = CommandExecutor()
@@ -1156,7 +1206,7 @@ class TestUndoRedoErrorHook:
 
         executor.redo()
 
-        assert calls == [("Mock", "redo")]
+        assert calls == [("FailingCommand", "redo")]
 
     def test_successful_undo_does_not_call_the_hook(self):
         executor = CommandExecutor()

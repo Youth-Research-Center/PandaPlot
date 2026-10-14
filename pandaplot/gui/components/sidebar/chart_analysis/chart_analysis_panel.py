@@ -337,7 +337,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 target_chart_id=target_chart_id,
                 folder_id=command.folder_id,
             )
-            success = executor.execute_command(CompositeCommand([command, plot_command]))
+            success = executor.execute_command(CompositeCommand([command, plot_command], display_name="Analyze chart series"))
         else:
             success = executor.execute_command(command)
 
