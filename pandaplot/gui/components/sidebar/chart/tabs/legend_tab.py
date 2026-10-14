@@ -1,7 +1,6 @@
 """Legend tab: chart legend visibility, position, columns, frame, background."""
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QComboBox,
     QDoubleSpinBox,
     QGridLayout,
     QGroupBox,
@@ -14,6 +13,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.color_swatch_row import ColorSwatchRow
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.font_family_options import list_available_font_families
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
@@ -46,7 +46,7 @@ class LegendTab(QWidget):
         legend_layout = QGridLayout(self.legend_group)
 
         legend_layout.addWidget(QLabel("Position:"), 0, 0)
-        self.legend_position_combo = QComboBox()
+        self.legend_position_combo = DropDownComboBox()
         for position in LegendPosition:
             self.legend_position_combo.addItem(position.value.title(), position.value)
         for label, value in [
@@ -74,7 +74,7 @@ class LegendTab(QWidget):
         self.legend_custom_y_spin.setValue(0.5)
         custom_layout.addWidget(self.legend_custom_y_spin, 1, 1)
         custom_layout.addWidget(QLabel("Anchor:"), 2, 0)
-        self.legend_custom_anchor_combo = QComboBox()
+        self.legend_custom_anchor_combo = DropDownComboBox()
         for anchor in ("upper left", "upper right", "lower left", "lower right", "center",
                        "center left", "center right", "upper center", "lower center"):
             self.legend_custom_anchor_combo.addItem(anchor.title(), anchor)

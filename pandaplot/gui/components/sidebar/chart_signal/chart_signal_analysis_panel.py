@@ -20,7 +20,6 @@ from typing import override
 import numpy as np
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -44,6 +43,7 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
     ApplySignalAnalysisResultCommand,
 )
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
@@ -147,7 +147,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     def _create_source_section(self, layout):
         group = QGroupBox("Series")
         form = QFormLayout(group)
-        self.source_combo = QComboBox()
+        self.source_combo = DropDownComboBox()
         form.addRow("Analyze:", self.source_combo)
         self.source_hint = QLabel("Data series and fitted curves of this chart.")
         self.source_hint.setWordWrap(True)
@@ -158,7 +158,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         group = QGroupBox("Method")
         form = QFormLayout(group)
 
-        self.analysis_combo = QComboBox()
+        self.analysis_combo = DropDownComboBox()
         for analysis_type, info in SIGNAL_ANALYSES.items():
             self.analysis_combo.addItem(info.label, analysis_type)
         form.addRow("Method:", self.analysis_combo)
@@ -224,7 +224,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         target_row_layout = QHBoxLayout(self.plot_target_row)
         target_row_layout.setContentsMargins(0, 0, 0, 0)
         target_row_layout.addWidget(QLabel("Plot on:"))
-        self.plot_target_combo = QComboBox()
+        self.plot_target_combo = DropDownComboBox()
         target_row_layout.addWidget(self.plot_target_combo)
         layout.addWidget(self.plot_target_row)
 

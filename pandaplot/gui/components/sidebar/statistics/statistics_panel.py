@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.analysis import STAT_TESTS, InputMode, StatTestResult, StatTestType
 from pandaplot.commands.project.dataset.statistical_test_command import StatisticalTestCommand
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.statistics.test_info_dialog import InfoDialogHelper
@@ -74,7 +75,7 @@ class StatisticsPanel(SidebarPanel):
         group_layout = QVBoxLayout()
 
         form = QFormLayout()
-        self.test_type_combo = QComboBox()
+        self.test_type_combo = DropDownComboBox()
         for test_type, info in STAT_TESTS.items():
             self.test_type_combo.addItem(info.label, test_type)
         self.test_type_combo.currentIndexChanged.connect(self._on_test_type_changed)
@@ -183,14 +184,14 @@ class StatisticsPanel(SidebarPanel):
         columns = self._numeric_columns()
 
         if input_mode == InputMode.ONE:
-            combo = QComboBox()
+            combo = DropDownComboBox()
             combo.addItems(columns)
             self.column_combos.append(combo)
             self.input_layout.addRow("Sample column:", combo)
 
         elif input_mode == InputMode.TWO:
-            combo_a = QComboBox()
-            combo_b = QComboBox()
+            combo_a = DropDownComboBox()
+            combo_b = DropDownComboBox()
             combo_a.addItems(columns)
             combo_b.addItems(columns)
             if len(columns) >= 2:
@@ -233,7 +234,7 @@ class StatisticsPanel(SidebarPanel):
 
         self.alternative_combo = None
         if info.uses_alternative:
-            self.alternative_combo = QComboBox()
+            self.alternative_combo = DropDownComboBox()
             self.alternative_combo.addItems(["two-sided", "less", "greater"])
             self.parameters_layout.addRow("Alternative:", self.alternative_combo)
 

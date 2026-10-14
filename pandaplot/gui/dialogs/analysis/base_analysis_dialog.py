@@ -6,7 +6,6 @@ from typing import Any
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -19,6 +18,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.models.project.items.dataset import Dataset
 
@@ -79,8 +79,8 @@ class BaseAnalysisDialog(QDialog):
         group = QGroupBox("Column Selection")
         layout = QFormLayout()
         
-        self.x_column_combo = QComboBox()
-        self.y_column_combo = QComboBox()
+        self.x_column_combo = DropDownComboBox()
+        self.y_column_combo = DropDownComboBox()
         
         layout.addRow("X Column:", self.x_column_combo)
         layout.addRow("Y Column:", self.y_column_combo)

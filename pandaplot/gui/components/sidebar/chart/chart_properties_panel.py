@@ -3,7 +3,6 @@ from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QScrollArea,
     QTabWidget,
     QVBoxLayout,
@@ -12,6 +11,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.commands.project.chart import ApplyChartPropertiesCommand
 from pandaplot.gui.components.common.dirty_footer import DirtyFooter
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.sidebar.chart.tabs.axes_tab import AxesTab
 from pandaplot.gui.components.sidebar.chart.tabs.chart_tab import ChartTab
 from pandaplot.gui.components.sidebar.chart.tabs.data_tab import DataTab
@@ -55,7 +55,7 @@ class ChartPropertiesPanel(SidebarPanel):
         # `tab_selector_combo` (a dropdown driving the same pages) instead of
         # letting Qt shrink/elide/scroll the tab labels.
         self._tab_titles = ["Chart", "Data", "Style", "Axes", "Legend"]
-        self.tab_selector_combo = QComboBox(self)
+        self.tab_selector_combo = DropDownComboBox(self)
         self.tab_selector_combo.addItems(self._tab_titles)
         self.tab_selector_combo.setVisible(False)
         self.tab_selector_combo.currentIndexChanged.connect(self._on_tab_selector_combo_changed)

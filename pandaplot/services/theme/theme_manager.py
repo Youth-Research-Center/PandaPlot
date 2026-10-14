@@ -25,6 +25,7 @@ from PySide6.QtWidgets import QApplication
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ConfigEvents, ThemeEvents
 from pandaplot.models.state.config import ApplicationConfig, Theme
+from pandaplot.services.theme.caret_icon import caret_icon_path
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,78 @@ class ThemeManager:
         white_contrast = (1.0 + 0.05) / (lum + 0.05)
         black_contrast = (lum + 0.05) / (0.0 + 0.05)
         return QColor(255, 255, 255) if white_contrast >= black_contrast else QColor(0, 0, 0)
+
+    @staticmethod
+    def _combo_box_rules(tokens: dict, *, accent: str, selected_text: str) -> str:
+        """QSS for the app-wide dropdown (QComboBox) style.
+
+        Every combo box -- sidebar panels, dialogs and wizards -- gets this one
+        look, so a dialog must not restyle ``QComboBox`` itself. Where the list
+        opens is not a stylesheet matter (macOS opens a native menu over the
+        field whatever the QSS says); ``DropDownComboBox`` takes care of that.
+        Styling ``::drop-down`` removes Qt's own arrow, so a caret in the
+        theme's muted text colour is supplied (a hint-coloured one while
+        disabled).
+
+        Args:
+            tokens: Design tokens from ``get_design_tokens()``.
+            accent: Accent colour used for the hover/focus border and selection.
+            selected_text: Legible text colour on top of ``accent``.
+
+        Returns:
+            The QSS block for ``QComboBox`` and its popup list.
+        """
+        caret = caret_icon_path(tokens["text_muted"])
+        caret_disabled = caret_icon_path(tokens["text_hint"])
+        return f"""
+            QComboBox {{
+                background-color: {tokens['surface_white']};
+                color: {tokens['text_primary']};
+                border: 1px solid {tokens['border_control']};
+                border-radius: {tokens['radius_control']}px;
+                padding: 4px 8px;
+                min-height: 18px;
+            }}
+            QComboBox:hover, QComboBox:focus, QComboBox:on {{
+                border-color: {accent};
+            }}
+            QComboBox:disabled {{
+                background-color: {tokens['surface_inset']};
+                color: {tokens['text_hint']};
+                border-color: {tokens['border_subtle']};
+            }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: center right;
+                width: 22px;
+                border: none;
+            }}
+            QComboBox::down-arrow {{
+                image: url("{caret}");
+                width: 12px;
+                height: 12px;
+            }}
+            QComboBox::down-arrow:disabled {{
+                image: url("{caret_disabled}");
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {tokens['surface_white']};
+                color: {tokens['text_primary']};
+                border: 1px solid {tokens['border_control']};
+                outline: none;
+                padding: 2px;
+                selection-background-color: {accent};
+                selection-color: {selected_text};
+            }}
+            QComboBox QAbstractItemView::item {{
+                min-height: 22px;
+                padding: 2px 8px;
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: {accent};
+                color: {selected_text};
+            }}
+        """
 
     def build_stylesheet(self, ctx: ThemeContext) -> str:
         accent = ctx.accent
@@ -201,12 +274,7 @@ class ThemeManager:
                 border: none;
                 color: {tokens['text_muted']};
             }}
-            QComboBox {{
-                padding: 4px 8px;
-            }}
-            QComboBox QAbstractItemView::item {{
-                padding: 4px 8px;
-            }}
+            {self._combo_box_rules(tokens, accent=accent, selected_text=text_color)}
             QMessageBox QPushButton, QDialogButtonBox QPushButton {{
                 color: {tokens['text_primary']};
                 background-color: {tokens['surface_white']};

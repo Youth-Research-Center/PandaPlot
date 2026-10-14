@@ -4,9 +4,10 @@ Dialog for data smoothing configuration.
 
 from typing import Any
 
-from PySide6.QtWidgets import QComboBox, QFormLayout, QGroupBox, QSpinBox
+from PySide6.QtWidgets import QFormLayout, QGroupBox, QSpinBox
 
 from pandaplot.analysis import AnalysisEngine, AnalysisType
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 
 from .base_analysis_dialog import BaseAnalysisDialog
 
@@ -32,7 +33,7 @@ class SmoothingDialog(BaseAnalysisDialog):
         layout = QFormLayout()
         
         # Method selection
-        self.method_combo = QComboBox()
+        self.method_combo = DropDownComboBox()
         self.method_combo.addItems([
             "Savitzky-Golay",
             "Rolling Mean",

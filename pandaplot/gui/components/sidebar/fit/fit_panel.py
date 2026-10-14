@@ -6,7 +6,6 @@ import pandas as pd
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
@@ -25,6 +24,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, get_chart_type_spec
@@ -196,7 +196,7 @@ class FitPanel(SidebarPanel):
 
         self.data_source_layout.addWidget(QLabel("Chart Series:"), 0, 0)
 
-        self.series_combo = QComboBox()
+        self.series_combo = DropDownComboBox()
         self.data_source_layout.addWidget(self.series_combo, 0, 1, alignment=Qt.AlignmentFlag.AlignLeft)
         self.data_source_layout.setColumnStretch(2, 1)
 
@@ -209,15 +209,15 @@ class FitPanel(SidebarPanel):
         custom_source_layout.setContentsMargins(0, 0, 0, 0)
 
         custom_source_layout.addWidget(QLabel("Dataset:"), 0, 0)
-        self.custom_dataset_combo = QComboBox()
+        self.custom_dataset_combo = DropDownComboBox()
         custom_source_layout.addWidget(self.custom_dataset_combo, 0, 1)
 
         custom_source_layout.addWidget(QLabel("X Column:"), 1, 0)
-        self.custom_x_column_combo = QComboBox()
+        self.custom_x_column_combo = DropDownComboBox()
         custom_source_layout.addWidget(self.custom_x_column_combo, 1, 1)
 
         custom_source_layout.addWidget(QLabel("Y Column:"), 2, 0)
-        self.custom_y_column_combo = QComboBox()
+        self.custom_y_column_combo = DropDownComboBox()
         custom_source_layout.addWidget(self.custom_y_column_combo, 2, 1)
 
         self.custom_source_widget.setVisible(False)
@@ -251,12 +251,12 @@ class FitPanel(SidebarPanel):
         # Fit type selection
         self.fit_type_layout = QGridLayout()
         self.fit_type_layout.addWidget(QLabel("Category:"), 0, 0)
-        self.fit_category_combo = QComboBox()
+        self.fit_category_combo = DropDownComboBox()
         self.fit_category_combo.addItems(FIT_CATEGORIES)
         self.fit_type_layout.addWidget(self.fit_category_combo, 0, 1, alignment=Qt.AlignmentFlag.AlignLeft)
 
         self.fit_type_layout.addWidget(QLabel("Model:"), 1, 0)
-        self.fit_type_combo = QComboBox()
+        self.fit_type_combo = DropDownComboBox()
         self._populate_fit_type_combo()
         self.fit_type_layout.addWidget(self.fit_type_combo, 1, 1, alignment=Qt.AlignmentFlag.AlignLeft)
         self.fit_type_layout.setColumnStretch(2, 1)

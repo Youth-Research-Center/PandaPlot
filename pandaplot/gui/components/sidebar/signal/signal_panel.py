@@ -1,7 +1,6 @@
 from typing import override
 
 from PySide6.QtWidgets import (
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -18,6 +17,7 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
 )
 from pandaplot.commands.project.dataset.signal_analysis_command import SignalAnalysisCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
@@ -63,7 +63,7 @@ class SignalPanel(SidebarPanel):
         group = QGroupBox("Analysis")
         form = QFormLayout()
 
-        self.analysis_combo = QComboBox()
+        self.analysis_combo = DropDownComboBox()
 
         for analysis_type, info in SIGNAL_ANALYSES.items():
             self.analysis_combo.addItem(
@@ -92,7 +92,7 @@ class SignalPanel(SidebarPanel):
 
         layout.addWidget(self.input_group)
 
-        self.column_combo = QComboBox()
+        self.column_combo = DropDownComboBox()
         self.input_layout.addRow(
             "Signal column:",
             self.column_combo
