@@ -14,6 +14,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 ## [Unreleased]
 
 ### Added
+- Fit panel input settings are remembered independently for each chart or dataset tab, including tabs in floating windows.
 - Stacked Bar chart type: each series stacks on top of the earlier ones at the same X (negative values stack downward), with error bars, value labels, a wizard preview, and lossless switching to and from Bar. Fits are not available on stacked charts.
 - Ready-to-open curve-fitting example project with fitted charts, uncertainty bars, confidence bands, and a PNG preview.
 - Date-typed dataset cells support text entry and calendar selection, with undo/redo and timezone-aware values preserved.
