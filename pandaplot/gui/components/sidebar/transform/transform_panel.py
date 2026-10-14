@@ -11,7 +11,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -26,14 +25,15 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.label_role import set_error_state, set_label_role
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.sidebar.panels.panel_form_layout import PanelFormLayout
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.gui.components.sidebar.transform.transform_controller import TransformController
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class TransformPanel(SidebarPanel):
@@ -43,9 +43,7 @@ class TransformPanel(SidebarPanel):
     """
 
     def __init__(self, app_context: AppContext, parent: QWidget | None=None):
-        # Set before self._initialize() below -- that call runs _init_ui()
-        # then _apply_theme(), and _apply_theme() needs this to style
-        # preview_text correctly on the very first render.
+        # Set before self._initialize() below, which builds the UI.
         self._preview_has_error = False
         super().__init__(app_context=app_context, parent=parent)
         self.current_dataset_tab = None
@@ -80,9 +78,7 @@ class TransformPanel(SidebarPanel):
 
         # Content widget
         content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(4, 4, 4, 4)
-        content_layout.setSpacing(6)
+        content_layout = self._new_content_layout(content_widget)
 
         # Header section (dataset info)
         self.create_header_section(content_layout)
@@ -108,68 +104,6 @@ class TransformPanel(SidebarPanel):
         # Set content widget in scroll area
         self._set_content(content_widget, scrollable=True)
     
-    @override
-    def _apply_theme(self):
-        """Apply current theme to transform panel components."""
-        # Get theme colors
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        tokens = theme_manager.get_design_tokens()
-
-        card_bg = palette.get("card_bg", "#ffffff")
-        card_border = palette.get("card_border", "#dee2e6")
-        base_fg = palette.get("base_fg", "#333333")
-        secondary_fg = palette.get("secondary_fg", "#666666")
-
-        # Apply theme to main widget (like project view panel)
-        self.setStyleSheet(f"""
-            TransformPanel {{
-                background-color: {card_bg};
-                color: {base_fg};
-            }}
-            QGroupBox {{
-                font-weight: bold;
-                font-size: {tokens['font_size_group_title']}pt;
-                color: {base_fg};
-                margin-top: 5px;
-                padding-top: 10px;
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                background-color: {card_bg};
-            }}
-        """)
-        
-        # Style panel title
-        self._apply_title_theme(base_fg, card_border)
-        
-        # Style dataset labels in header
-        self.dataset_label.setStyleSheet(f"""
-            QLabel {{
-                font-weight: bold;
-                color: {base_fg};
-                background-color: transparent;
-            }}
-        """)
-        
-        self.row_count_label.setStyleSheet(f"""
-            QLabel {{
-                color: {secondary_fg};
-                font-size: 10px;
-                background-color: transparent;
-            }}
-        """)
-        
-        # Style preview text area, preserving whatever error state it's
-        # currently in (see _style_preview_text) so a theme switch doesn't
-        # wipe a validation error's color along with the rest of the QSS.
-        self._style_preview_text(is_error=self._preview_has_error)
-
     def create_header_section(self, layout):
         """Create header section showing current dataset info."""
         header_group = QGroupBox("Active Dataset")
@@ -177,10 +111,10 @@ class TransformPanel(SidebarPanel):
         
         self.dataset_label = QLabel("No dataset selected")
         self.dataset_label.setWordWrap(True)
-        # Remove hardcoded styling - will be applied in _apply_theme
-        
+        self.dataset_label.setStyleSheet("QLabel { font-weight: bold; background-color: transparent; }")
+
         self.row_count_label = QLabel("")
-        # Remove hardcoded styling - will be applied in _apply_theme
+        set_label_role(self.row_count_label, "hint")
         
         header_layout.addWidget(self.dataset_label)
         header_layout.addWidget(self.row_count_label)
@@ -190,7 +124,7 @@ class TransformPanel(SidebarPanel):
     def create_transform_type_section(self, layout):
         """Create transform type selection section."""
         type_group = QGroupBox("Transform Type")
-        type_layout = QFormLayout(type_group)
+        type_layout = PanelFormLayout(type_group)
         
         self.transform_type_combo = DropDownComboBox()
         self.transform_type_combo.addItems(self.transform_types)
@@ -205,7 +139,7 @@ class TransformPanel(SidebarPanel):
         column_layout = QVBoxLayout(column_group)
         
         # Source columns
-        form_layout = QFormLayout()
+        form_layout = PanelFormLayout()
         
         # Use QListWidget for multiple selection instead of QComboBox
         self.source_column_list = QListWidget()
@@ -304,19 +238,17 @@ class TransformPanel(SidebarPanel):
         
         # Preview text area (compact)
         self.preview_text = QTextEdit()
+        self.preview_text.setStyleSheet("QTextEdit { font-family: monospace; padding: 4px; }")
         self.preview_text.setMaximumHeight(80)
         self.preview_text.setReadOnly(True)
-        # Remove hardcoded styling - will be applied in _apply_theme
         
         # Preview controls
         preview_controls = QHBoxLayout()
         self.preview_btn = PButton("Preview", role="secondary", on_click=self.update_preview)
-        self.preview_btn.setMaximumWidth(70)
         
         self.preview_rows_combo = DropDownComboBox()
         self.preview_rows_combo.addItems(["5", "10", "20"])
         self.preview_rows_combo.setCurrentText("5")
-        self.preview_rows_combo.setMaximumWidth(50)
         
         preview_controls.addWidget(self.preview_btn)
         preview_controls.addWidget(QLabel("rows:"))
@@ -333,10 +265,8 @@ class TransformPanel(SidebarPanel):
         button_layout = QHBoxLayout()
         
         self.apply_btn = PButton("Apply", role="primary", on_click=self.apply_transform)
-        # Remove hardcoded styling - will be applied in _apply_theme
 
         self.clear_btn = PButton("Clear", role="secondary", on_click=self.clear_panel)
-        # Remove hardcoded styling - will be applied in _apply_theme
 
         button_layout.addWidget(self.apply_btn)
         button_layout.addWidget(self.clear_btn)
@@ -498,32 +428,10 @@ class TransformPanel(SidebarPanel):
             self._style_preview_text(is_error=False)
 
     def _style_preview_text(self, *, is_error: bool):
-        """(Re)apply preview_text's themed QSS -- background, border, font,
-        padding -- swapping only the foreground color for the danger token
-        when `is_error`. A bare setStyleSheet("") or a color-only rule would
-        instead replace the whole stylesheet _apply_theme() installs,
-        dropping the border/background/padding along with it."""
+        """Mark preview_text as showing an error (the theme's danger colour,
+        set in ThemeManager's panel rules) or as normal preview text."""
         self._preview_has_error = is_error
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        card_bg = palette.get("card_bg", "#ffffff")
-        card_border = palette.get("card_border", "#dee2e6")
-        base_fg = palette.get("base_fg", "#333333")
-        if is_error:
-            tokens = theme_manager.get_design_tokens()
-            color = tokens.get("status_danger", "#DC3545")
-        else:
-            color = base_fg
-        self.preview_text.setStyleSheet(f"""
-            QTextEdit {{
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-                font-family: monospace;
-                color: {color};
-                padding: 4px;
-            }}
-        """)
+        set_error_state(self.preview_text, error=is_error)
 
     def _set_preview_message(self, message: str, *, is_error: bool = False):
         """Write a message to preview_text, visually marking error states

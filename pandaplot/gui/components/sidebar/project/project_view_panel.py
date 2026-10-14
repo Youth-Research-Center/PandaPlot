@@ -229,33 +229,6 @@ class ProjectViewPanel(SidebarPanel):
         accent = palette.get("accent", "#0078d4")
         card_hover = palette.get("card_hover", "#e5f3ff")
         
-        # Apply theme to main widget (like other panels)
-        self.setStyleSheet(f"""
-            ProjectViewPanel {{
-                background-color: {card_bg};
-                color: {base_fg};
-            }}
-            QGroupBox {{
-                font-weight: bold;
-                font-size: {tokens['font_size_group_title']}pt;
-                color: {base_fg};
-                margin-top: 5px;
-                padding-top: 10px;
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                background-color: {card_bg};
-            }}
-        """)
-        
-        # Style panel title (like other panels)
-        self._apply_title_theme(base_fg, card_border)
-        
         # Apply theme to project title and file labels
         self.project_title_label.setStyleSheet(f"""
             QLabel {{

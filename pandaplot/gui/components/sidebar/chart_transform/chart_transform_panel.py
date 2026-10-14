@@ -12,7 +12,6 @@ from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -28,6 +27,7 @@ from pandaplot.commands.project.chart.transform_chart_series_command import (
     TransformChartSeriesCommand,
 )
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.label_role import set_label_role
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
@@ -41,11 +41,11 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_series_fit_sources,
     series_source_hint,
 )
+from pandaplot.gui.components.sidebar.panels.panel_form_layout import PanelFormLayout
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.services.transform import expression_engine
 
 _EXPRESSION_REFERENCE_HTML = (
@@ -77,9 +77,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
         self._set_title("🔧 Chart Transform")
 
         content = QWidget()
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(4, 4, 4, 4)
-        content_layout.setSpacing(6)
+        content_layout = self._new_content_layout(content)
 
         self._create_source_section(content_layout)
         self._create_target_section(content_layout)
@@ -93,22 +91,24 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _create_source_section(self, layout):
         group = QGroupBox("Series")
-        form = QFormLayout(group)
+        form = PanelFormLayout(group)
         self.source_combo = DropDownComboBox()
         form.addRow("Transform:", self.source_combo)
         self.source_hint = QLabel("Data series and fitted curves of this chart.")
+        set_label_role(self.source_hint, "hint")
         self.source_hint.setWordWrap(True)
         form.addRow(self.source_hint)
         layout.addWidget(group)
 
     def _create_target_section(self, layout):
         group = QGroupBox("Target")
-        form = QFormLayout(group)
+        form = PanelFormLayout(group)
         self.target_combo = DropDownComboBox()
         self.target_combo.addItem("Y", "y")
         self.target_combo.addItem("X", "x")
         form.addRow("Replace:", self.target_combo)
         self.target_hint = QLabel()
+        set_label_role(self.target_hint, "hint")
         self.target_hint.setWordWrap(True)
         form.addRow(self.target_hint)
         layout.addWidget(group)
@@ -189,7 +189,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _create_result_section(self, layout):
         group = QGroupBox("Result")
-        form = QFormLayout(group)
+        form = PanelFormLayout(group)
         self.result_name = QLineEdit()
         self.result_name.setPlaceholderText("Auto-named from series and target")
         form.addRow("Dataset name:", self.result_name)
@@ -300,44 +300,3 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     @override
     def setup_event_subscriptions(self):
         self.setup_chart_series_context_subscriptions()
-
-    @override
-    def _apply_theme(self):
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        tokens = theme_manager.get_design_tokens()
-
-        card_bg = palette.get("card_bg", "#ffffff")
-        card_border = palette.get("card_border", "#dee2e6")
-        base_fg = palette.get("base_fg", "#333333")
-        secondary_fg = palette.get("secondary_fg", "#666666")
-
-        self.setStyleSheet(f"""
-            ChartTransformPanel {{
-                background-color: {card_bg};
-                color: {base_fg};
-            }}
-            QGroupBox {{
-                font-weight: bold;
-                font-size: {tokens['font_size_group_title']}pt;
-                color: {base_fg};
-                margin-top: 5px;
-                padding-top: 10px;
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                background-color: {card_bg};
-            }}
-        """)
-        self._apply_title_theme(base_fg, card_border)
-        self.source_hint.setStyleSheet(
-            f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
-        )
-        self.target_hint.setStyleSheet(
-            f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
-        )

@@ -1,7 +1,6 @@
 from typing import override
 
 from PySide6.QtWidgets import (
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -18,7 +17,9 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
 from pandaplot.commands.project.dataset.signal_analysis_command import SignalAnalysisCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.label_role import set_label_role
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.sidebar.panels.panel_form_layout import PanelFormLayout
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
     build_signal_parameter_widgets,
@@ -26,7 +27,6 @@ from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class SignalPanel(SidebarPanel):
@@ -55,13 +55,11 @@ class SignalPanel(SidebarPanel):
         self._set_title("📡 Signal Analysis")
 
         content_widget = QWidget()
-        layout = QVBoxLayout(content_widget)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(8)
+        layout = self._new_content_layout(content_widget)
 
         # Analysis selector
         group = QGroupBox("Analysis")
-        form = QFormLayout()
+        form = PanelFormLayout()
 
         self.analysis_combo = DropDownComboBox()
 
@@ -78,6 +76,8 @@ class SignalPanel(SidebarPanel):
         form.addRow("Method:", self.analysis_combo)
 
         self.description_label = QLabel()
+
+        set_label_role(self.description_label, "hint")
         self.description_label.setWordWrap(True)
 
         form.addRow("", self.description_label)
@@ -87,7 +87,7 @@ class SignalPanel(SidebarPanel):
 
         # Input
         self.input_group = QGroupBox("Input")
-        self.input_layout = QFormLayout()
+        self.input_layout = PanelFormLayout()
         self.input_group.setLayout(self.input_layout)
 
         layout.addWidget(self.input_group)
@@ -100,7 +100,7 @@ class SignalPanel(SidebarPanel):
 
         # Parameters
         self.parameters_group = QGroupBox("Parameters")
-        self.parameters_layout = QFormLayout()
+        self.parameters_layout = PanelFormLayout()
         self.parameters_group.setLayout(self.parameters_layout)
 
         layout.addWidget(self.parameters_group)
@@ -488,47 +488,6 @@ class SignalPanel(SidebarPanel):
             self.add_btn.setEnabled(False)
         if hasattr(self, "busy_spinner"):
             self.busy_spinner.stop()
-
-    @override
-    def _apply_theme(self):
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        tokens = theme_manager.get_design_tokens()
-
-        card_bg = palette.get("card_bg", "#ffffff")
-        card_border = palette.get("card_border", "#dee2e6")
-        base_fg = palette.get("base_fg", "#333333")
-
-        self.setStyleSheet(f"""
-            QGroupBox {{
-                font-weight: bold;
-                font-size: {tokens['font_size_group_title']}pt;
-                color: {base_fg};
-                margin-top: 5px;
-                padding-top: 10px;
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-                background-color: {card_bg};
-            }}
-        """)
-
-        self._apply_title_theme(base_fg, card_border)
-
-        self.results_text.setStyleSheet(f"""
-            QTextEdit {{
-                background-color: {card_bg};
-                color: {base_fg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-        """)
 
     @override
     def setup_event_subscriptions(self):

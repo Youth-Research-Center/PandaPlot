@@ -8,7 +8,6 @@ from typing import Any, override
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -24,13 +23,14 @@ from pandaplot.commands.project.dataset.preprocess_column_command import (
     PreprocessColumnCommand,
 )
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.label_role import set_label_role
 from pandaplot.gui.components.common.number_input import DecimalInput
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.sidebar.panels.panel_form_layout import PanelFormLayout
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class PreprocessingPanel(SidebarPanel):
@@ -55,9 +55,7 @@ class PreprocessingPanel(SidebarPanel):
         self._set_title("⚖️ Preprocessing")
 
         content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(4, 4, 4, 4)
-        content_layout.setSpacing(6)
+        content_layout = self._new_content_layout(content_widget)
 
         self.create_method_section(content_layout)
         self.create_column_selection_section(content_layout)
@@ -75,7 +73,7 @@ class PreprocessingPanel(SidebarPanel):
         group = QGroupBox("Transformation")
         group_layout = QVBoxLayout()
 
-        form = QFormLayout()
+        form = PanelFormLayout()
         self.method_combo = DropDownComboBox()
         for info in list_methods():
             self.method_combo.addItem(info.label, info.method.value)
@@ -83,10 +81,13 @@ class PreprocessingPanel(SidebarPanel):
         group_layout.addLayout(form)
 
         self.description_label = QLabel("")
+
+        set_label_role(self.description_label, "hint")
         self.description_label.setWordWrap(True)
         group_layout.addWidget(self.description_label)
 
         self.formula_label = QLabel("")
+        self.formula_label.setStyleSheet("QLabel { font-family: monospace; background-color: transparent; }")
         self.formula_label.setWordWrap(True)
         group_layout.addWidget(self.formula_label)
 
@@ -112,7 +113,7 @@ class PreprocessingPanel(SidebarPanel):
     def create_parameters_section(self, layout):
         """Create the method-specific parameters (min-max range)."""
         self.parameters_group = QGroupBox("Parameters")
-        self.parameters_layout = QFormLayout()
+        self.parameters_layout = PanelFormLayout()
 
         self.range_min_spin = DecimalInput()
         self.range_min_spin.setRange(-1_000_000.0, 1_000_000.0)
@@ -141,6 +142,8 @@ class PreprocessingPanel(SidebarPanel):
         group_layout.addWidget(self.replace_check)
 
         self.naming_hint = QLabel("")
+
+        set_label_role(self.naming_hint, "hint")
         self.naming_hint.setWordWrap(True)
         group_layout.addWidget(self.naming_hint)
 
@@ -379,46 +382,3 @@ class PreprocessingPanel(SidebarPanel):
             self.current_dataset = None
             self.current_dataset_id = None
         self.update_column_choices()
-
-    @override
-    def _apply_theme(self):
-        """Apply the current theme to the panel."""
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        tokens = theme_manager.get_design_tokens()
-
-        card_bg = palette.get("card_bg", "#ffffff")
-        card_border = palette.get("card_border", "#dee2e6")
-        base_fg = palette.get("base_fg", "#333333")
-        secondary_fg = palette.get("secondary_fg", "#666666")
-
-        self.setStyleSheet(f"""
-            PreprocessingPanel {{
-                background-color: {card_bg};
-                color: {base_fg};
-            }}
-            QGroupBox {{
-                font-weight: bold;
-                font-size: {tokens['font_size_group_title']}pt;
-                color: {base_fg};
-                margin-top: 5px;
-                padding-top: 10px;
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                background-color: {card_bg};
-            }}
-        """)
-
-        self._apply_title_theme(base_fg, card_border)
-
-        for label in (self.description_label, self.naming_hint):
-            label.setStyleSheet(f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}")
-        self.formula_label.setStyleSheet(
-            f"QLabel {{ color: {base_fg}; font-family: monospace; background-color: transparent; }}"
-        )

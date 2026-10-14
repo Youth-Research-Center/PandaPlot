@@ -150,3 +150,22 @@ What differs from a spin box:
 - `.` and `,` are both decimal separators, at most `decimals` digits can be typed, and the unit is a separate label instead of text in the field.
 
 The frame draws the border and is styled by `ThemeManager` (`QFrame[numberInput="true"]`, driven by `focused` / `invalid` dynamic properties); the inner line edit sets its own flat stylesheet so a dialog-level `QLineEdit` rule cannot draw a second box inside it.
+
+## Sidebar Panel Styling (`gui/components/sidebar/panels/`)
+
+Panels do not carry their own copy of the panel stylesheet. `SidebarPanel` sets the `sidebarPanel` dynamic property, and `ThemeManager` (`_sidebar_panel_rules`) styles everything under it once, from the design tokens: panel background, `QGroupBox` and its title, the title bar (`#sidebarPanelTitle`), result text areas (`QTextEdit` / `QPlainTextEdit`), line edits and list widgets. A panel only styles what is specific to it, and most no longer override `_apply_theme()` at all.
+
+Per-widget colours are semantic hooks rather than stylesheets (`gui/components/common/label_role.py`):
+
+| Hook | Use |
+|---|---|
+| `set_label_role(label, "hint")` | secondary helper text |
+| `set_label_role(label, "warning")` / `"error"` | something to be careful about / a problem |
+| `set_label_role(label, "code")` | monospace boxed value, e.g. a fitted equation |
+| `set_error_state(text_area, error=...)` | show a result or preview text area's content as an error |
+
+Do not write `color: red` or a hex colour in a panel: the hooks follow the theme.
+
+Layout is shared too: build the content widget's layout with `SidebarPanel._new_content_layout(content)` (same margin and section spacing in every panel) and rows of label/field pairs with `PanelFormLayout` (left-aligned labels, fields that fill the row, combo boxes that can shrink so a long dataset name cannot widen the panel). `SidebarPanel._set_content` also makes every combo box already in the content compact.
+
+Adding a rule that depends on a stylesheet selector like `QWidget[sidebarPanel="true"] QLabel { color: ... }` would out-rank the label roles (higher specificity), so label colours are only set through the `role` property.

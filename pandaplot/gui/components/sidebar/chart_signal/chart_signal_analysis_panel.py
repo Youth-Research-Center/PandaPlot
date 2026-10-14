@@ -20,7 +20,6 @@ from typing import override
 import numpy as np
 from PySide6.QtWidgets import (
     QCheckBox,
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -43,6 +42,7 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
 )
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.label_role import set_label_role
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
@@ -54,6 +54,7 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     refresh_chart_target_combo_preserving_selection,
     series_source_hint,
 )
+from pandaplot.gui.components.sidebar.panels.panel_form_layout import PanelFormLayout
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.signal.signal_panel import SignalPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
@@ -62,7 +63,6 @@ from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
 from pandaplot.models.events import DatasetEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
@@ -125,9 +125,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self._set_title("📡 Chart Signal Analysis")
 
         content_widget = QWidget()
-        layout = QVBoxLayout(content_widget)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(8)
+        layout = self._new_content_layout(content_widget)
 
         self._create_source_section(layout)
         self._create_method_section(layout)
@@ -146,17 +144,18 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _create_source_section(self, layout):
         group = QGroupBox("Series")
-        form = QFormLayout(group)
+        form = PanelFormLayout(group)
         self.source_combo = DropDownComboBox()
         form.addRow("Analyze:", self.source_combo)
         self.source_hint = QLabel("Data series and fitted curves of this chart.")
+        set_label_role(self.source_hint, "hint")
         self.source_hint.setWordWrap(True)
         form.addRow(self.source_hint)
         layout.addWidget(group)
 
     def _create_method_section(self, layout):
         group = QGroupBox("Method")
-        form = QFormLayout(group)
+        form = PanelFormLayout(group)
 
         self.analysis_combo = DropDownComboBox()
         for analysis_type, info in SIGNAL_ANALYSES.items():
@@ -164,6 +163,8 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         form.addRow("Method:", self.analysis_combo)
 
         self.description_label = QLabel()
+
+        set_label_role(self.description_label, "hint")
         self.description_label.setWordWrap(True)
         form.addRow("", self.description_label)
 
@@ -171,17 +172,18 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _create_parameters_section(self, layout):
         self.parameters_group = QGroupBox("Parameters")
-        self.parameters_layout = QFormLayout(self.parameters_group)
+        self.parameters_layout = PanelFormLayout(self.parameters_group)
         layout.addWidget(self.parameters_group)
 
     def _create_range_section(self, layout):
         group = QGroupBox("Segment (index range)")
-        form = QFormLayout(group)
+        form = PanelFormLayout(group)
 
         self.start_index = IntegerInput()
         self.start_index.setMinimum(0)
         self.start_index.setMaximum(0)
         self.start_value_label = QLabel("–")
+        set_label_role(self.start_value_label, "hint")
         start_row = QHBoxLayout()
         start_row.addWidget(self.start_index)
         start_row.addWidget(self.start_value_label)
@@ -191,6 +193,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self.end_index.setMinimum(0)
         self.end_index.setMaximum(0)
         self.end_value_label = QLabel("–")
+        set_label_role(self.end_value_label, "hint")
         end_row = QHBoxLayout()
         end_row.addWidget(self.end_index)
         end_row.addWidget(self.end_value_label)
@@ -836,56 +839,3 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self._populate_sources()
 
     # -- theme ------------------------------------------------------------------
-
-    @override
-    def _apply_theme(self):
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        tokens = theme_manager.get_design_tokens()
-
-        card_bg = palette.get("card_bg", "#ffffff")
-        card_border = palette.get("card_border", "#dee2e6")
-        base_fg = palette.get("base_fg", "#333333")
-        secondary_fg = palette.get("secondary_fg", "#666666")
-
-        self.setStyleSheet(f"""
-            ChartSignalAnalysisPanel {{
-                background-color: {card_bg};
-                color: {base_fg};
-            }}
-            QGroupBox {{
-                font-weight: bold;
-                font-size: {tokens['font_size_group_title']}pt;
-                color: {base_fg};
-                margin-top: 5px;
-                padding-top: 10px;
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                background-color: {card_bg};
-            }}
-        """)
-
-        self._apply_title_theme(base_fg, card_border)
-
-        self.source_hint.setStyleSheet(
-            f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
-        )
-        value_label_style = f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
-        self.start_value_label.setStyleSheet(value_label_style)
-        self.end_value_label.setStyleSheet(value_label_style)
-        self.plot_result_cb.setStyleSheet(f"QCheckBox {{ color: {base_fg}; background-color: transparent; }}")
-
-        self.results_text.setStyleSheet(f"""
-            QTextEdit {{
-                background-color: {card_bg};
-                color: {base_fg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-        """)
