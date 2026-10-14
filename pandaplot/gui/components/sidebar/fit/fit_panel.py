@@ -452,7 +452,8 @@ class FitPanel(SidebarPanel):
         """Set up event subscriptions for tab changes."""
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(UIEvents.TAB_CLOSED, self._on_tab_closed)
-        self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, self._on_project_closed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, self._on_project_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, self._on_project_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
         self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
 
@@ -754,7 +755,7 @@ class FitPanel(SidebarPanel):
             self._active_tab_key = None
             self.load_chart_object(None)
 
-    def _on_project_closed(self, _event_data):
+    def _on_project_changed(self, _event_data):
         self._tab_inputs.clear()
         self._active_tab_key = None
         self._pending_tab_event_data = None
@@ -1265,6 +1266,7 @@ class FitPanel(SidebarPanel):
             series.dataset_id, series.x_column_id, series.y_column_id,
         )
         dispatch_tab_key = self._active_tab_key
+        dispatch_revision = self.app_context.app_state.modification_revision
         dispatch_selection = self.series_combo.currentData()
 
         def _on_complete(result):
@@ -1276,6 +1278,9 @@ class FitPanel(SidebarPanel):
 
             if self._active_tab_key != dispatch_tab_key:
                 self.logger.info("Discarding stale fit result: active tab changed while fitting.")
+                return
+            if self.app_context.app_state.modification_revision != dispatch_revision:
+                self.logger.info("Discarding stale fit result: project was modified while fitting.")
                 return
 
             current_series = self._resolve_selected_series()

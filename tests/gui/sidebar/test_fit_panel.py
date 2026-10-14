@@ -21,6 +21,8 @@ from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.fit.fit_panel import CUSTOM_SERIES_SENTINEL, FitPanel
 from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.events import ProjectEvents
+from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.project.items.chart import Chart, DataSeries, YAxis, restore_chart_state, snapshot_chart_state
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
@@ -994,7 +996,7 @@ def _select_custom_source(panel, dataset, x_column, y_column):
 
 def _show_panel_on_project(app_context, project):
     panel = FitPanel(app_context)
-    panel.app_context.app_state = Mock(current_project=project)
+    panel.app_context.app_state = Mock(current_project=project, modification_revision=0)
     panel.show()
     QApplication.processEvents()
     return panel
@@ -1221,10 +1223,27 @@ def test_project_close_drops_all_fit_tab_inputs(app_context):
     _switch_fit_tab(panel, "other", "welcome")
     assert panel._tab_inputs
 
-    panel._on_project_closed({})
+    panel._on_project_changed({})
 
     assert panel._tab_inputs == {}
     assert panel._active_tab_key is None
+    panel.close()
+
+
+def test_project_loaded_event_drops_fit_tab_inputs(app_context):
+    app_context.event_bus = EventBus()
+    project, _dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
+    panel = _show_panel_on_project(app_context, project)
+    _switch_fit_tab(panel, "chart", chart.id)
+    panel.fit_points_spin.setValue(800)
+    _switch_fit_tab(panel, "other", "welcome")
+    assert panel._tab_inputs
+
+    app_context.event_bus.emit(ProjectEvents.PROJECT_LOADED, {"project": project, "previous_project": project})
+
+    assert panel._tab_inputs == {}
+    assert panel._active_tab_key is None
+    assert panel.fit_points_spin.value() == 500
     panel.close()
 
 
@@ -1280,6 +1299,22 @@ def test_fit_result_is_discarded_while_another_tab_is_active(app_context):
     panel, _chart_a, chart_b, command = _dispatch_fit_on_chart_a(app_context)
 
     _switch_fit_tab(panel, "chart", chart_b.id)
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is None
+    assert not panel.apply_button.isEnabled()
+    assert panel._pending_fit_command is None
+    panel.close()
+
+
+def test_fit_result_is_discarded_when_project_is_modified_on_another_tab(app_context):
+    panel, chart_a, chart_b, command = _dispatch_fit_on_chart_a(app_context)
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    panel.app_context.app_state.modification_revision += 1
+    _switch_fit_tab(panel, "chart", chart_a.id)
     command.result = _make_fake_fit_result()
     command.fixed_parameters = None
     command.on_complete(CommandResult.SUCCESS)
