@@ -5,7 +5,6 @@ import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDoubleSpinBox,
     QGridLayout,
     QHBoxLayout,
@@ -17,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.color_swatch_row import ColorSwatchRow
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.font_family_options import list_available_font_families
 from pandaplot.gui.components.common.line_style_icons import build_line_style_icon
 from pandaplot.gui.components.common.p_button import PButton
@@ -333,7 +333,7 @@ class StyleTab(QWidget):
         size_layout = QGridLayout(self.size_card)
         size_layout.addWidget(SectionHeader("Size"), 0, 0, 1, 2)
 
-        self.chart_size_combo = QComboBox()
+        self.chart_size_combo = DropDownComboBox()
         self.chart_size_combo.addItem(format_size(15.0, 8.0, self._chart_size_unit), (15.0, 8.0))
         self.chart_size_combo.addItem(format_size(20.0, 15.0, self._chart_size_unit), (20.0, 15.0))
         self.chart_size_combo.addItem("Custom", "custom")
@@ -364,7 +364,7 @@ class StyleTab(QWidget):
         dpi_layout = QGridLayout(self.dpi_card)
         dpi_layout.addWidget(SectionHeader("DPI"), 0, 0, 1, 2)
 
-        self.chart_dpi_combo = QComboBox()
+        self.chart_dpi_combo = DropDownComboBox()
         self.chart_dpi_combo.addItem("100 dpi", 100)
         self.chart_dpi_combo.addItem("150 dpi", 150)
         self.chart_dpi_combo.addItem("300 dpi", 300)

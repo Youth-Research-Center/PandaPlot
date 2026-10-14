@@ -3,7 +3,6 @@ import math
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QComboBox,
     QDoubleSpinBox,
     QGridLayout,
     QLabel,
@@ -15,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.chip_row import ChipRow
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
@@ -168,7 +168,7 @@ class AxesTab(QWidget):
         log_base_layout.setContentsMargins(0, 0, 0, 0)
         log_base_label = QLabel("Base:")
         log_base_layout.addWidget(log_base_label, 0, 0)
-        log_base_combo = QComboBox()
+        log_base_combo = DropDownComboBox()
         for text, value in [("10", 10.0), ("2", 2.0), ("e (natural log)", math.e), ("Custom...", "custom")]:
             log_base_combo.addItem(text, value)
         log_base_layout.addWidget(log_base_combo, 0, 1)
@@ -233,7 +233,7 @@ class AxesTab(QWidget):
         count_spin.setVisible(False)
         step_label.setVisible(False)
         step_spin.setVisible(False)
-        format_combo = QComboBox()
+        format_combo = DropDownComboBox()
         for text, value in [("Auto", "auto"), ("Integer", "integer"), ("1 Decimal", "1decimal"),
                             ("2 Decimals", "2decimal"), ("Scientific", "scientific"), ("Custom...", "custom")]:
             format_combo.addItem(text, value)
