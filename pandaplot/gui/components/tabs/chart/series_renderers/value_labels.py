@@ -103,7 +103,7 @@ def annotate_point_labels(
         {"boxstyle": "round,pad=0.2", "facecolor": bg_color, "edgecolor": "none", "alpha": bg_alpha * alpha}
         if bg_color else None
     )
-    label_indices = resolve_label_indices(y_data, subset_mode, custom_indices)
+    label_indices = resolve_label_indices(y_data, subset_mode=subset_mode, custom_indices=custom_indices)
     for index, (x, y) in enumerate(zip(x_data, y_data, strict=True)):
         if index not in label_indices:
             continue

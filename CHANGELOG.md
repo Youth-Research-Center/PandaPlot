@@ -12,14 +12,17 @@ When you open a PR with a user-facing change, add an entry under
 into the GitHub Release notes automatically (see `.github/workflows/release_installer.yml`).
 
 ## [Unreleased]
+- Value labels on Line and Scatter series can be limited to the minimum and maximum points, only the minimum, or only the maximum, using the new "Label points" option in the Style tab.
 
 ### Added
+- Value labels on Line and Scatter series can be limited to the minimum and maximum points, only the minimum, or only the maximum, using the new "Label points" option in the Style tab.
 - Fit panel input settings are remembered independently for each chart or dataset tab, including tabs in floating windows.
 - Stacked Bar chart type: each series stacks on top of the earlier ones at the same X (negative values stack downward), with error bars, value labels, a wizard preview, and lossless switching to and from Bar. Fits are not available on stacked charts.
 - Ready-to-open curve-fitting example project with fitted charts, uncertainty bars, confidence bands, and a PNG preview.
 - Date-typed dataset cells support text entry and calendar selection, with undo/redo and timezone-aware values preserved.
 - Standalone desktop installer packaging via `pyside6-deploy`/Nuitka (`scripts/build_installer.py`, `pysidedeploy.spec`).
 - `Build Release Installer` GitHub Actions workflow: builds installers for Linux, Windows, and macOS, and publishes them to a GitHub Release with SHA256 checksums under a user-supplied version tag.
+
 
 ### Changed
 - The packaged Windows executable no longer opens a console window; logs are written to `~/.pandaplot/application.log` instead of the process's working directory.
