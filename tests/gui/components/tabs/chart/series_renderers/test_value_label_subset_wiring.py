@@ -1,13 +1,17 @@
 """Tests that the line and scatter renderers honor the label subset setting."""
-from types import SimpleNamespace
-
 from matplotlib.figure import Figure
 
+from pandaplot.gui.components.tabs.chart.series_data import SeriesData
 from pandaplot.gui.components.tabs.chart.series_renderers.line import render_line_series
 from pandaplot.gui.components.tabs.chart.series_renderers.scatter import render_scatter_series
 from pandaplot.models.chart.series_style import LineSeriesStyle, ScatterSeriesStyle
 
-DATA = SimpleNamespace(x_data=[0, 1, 2, 3], y_data=[3.0, 9.0, 1.0, 5.0])  # min at x=2, max at x=1
+DATA = SeriesData(
+    x_data=[0, 1, 2, 3],
+    y_data=[3.0, 9.0, 1.0, 5.0],  # min at x=2, max at x=1
+    x_err=None, y_err=None, x_err_minus=None, y_err_minus=None,
+    error=None,
+)
 
 
 def test_line_renderer_labels_only_the_min_and_max_points():
@@ -26,3 +30,4 @@ def test_scatter_renderer_labels_only_the_max_point():
     render_scatter_series(axes, DATA, style, "s", 1.0, visible=True, extra={})
 
     assert [annotation.xy for annotation in axes.texts] == [(1, 9.0)]
+    
