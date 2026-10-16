@@ -13,6 +13,9 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 
 ## [Unreleased]
 
+### Fixed
+- Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
+
 ### Added
 - Fit panel input settings are remembered independently for each chart or dataset tab, including tabs in floating windows.
 - Stacked Bar chart type: each series stacks on top of the earlier ones at the same X (negative values stack downward), with error bars, value labels, a wizard preview, and lossless switching to and from Bar. Fits are not available on stacked charts.
