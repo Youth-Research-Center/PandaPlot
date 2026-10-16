@@ -1,3 +1,4 @@
+import dataclasses
 import time
 import warnings
 from contextlib import contextmanager
@@ -375,7 +376,8 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     Colormap/Heatmap, the third spatial axis for every 3-D type including
     Vector3D) are resolved the same way, but required ones error out the
     whole series when unresolvable. A pie's optional wedge-label column
-    (label_data) is resolved leniently, like magnitude.
+    (label_data) and a line/scatter series' optional twin Y column
+    (twin_y_data, #402) are resolved leniently, like magnitude.
 
     A series carrying precomputed_x_data/precomputed_y_data (SeriesType.FIT)
     short-circuits immediately to that snapshot, without touching `project`
@@ -475,9 +477,19 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
         if label_column and label_column in df.columns:
             label_data = df[label_column]
 
+    # Optional too: a blank or stale twin Y column just drops the twin trace.
+    # getattr because wizard_preview.py's throwaway series may pass a
+    # `chart_type` whose spec doesn't match the series' own style class.
+    twin_y_data = None
+    if spec.supports_twin_y_column:
+        twin_y_column = resolve_series_column(
+            dataset, getattr(series.style, "twin_y_column_id", ""), getattr(series.style, "twin_y_column", ""))
+        if twin_y_column and twin_y_column in df.columns:
+            twin_y_data = df[twin_y_column]
+
     return SeriesData(x_data, df[y_column], x_err, y_err, x_err_minus, y_err_minus, None,
                       u_data=u_data, v_data=v_data, w_data=w_data, magnitude_data=magnitude_data, z_data=z_data,
-                      label_data=label_data)
+                      label_data=label_data, twin_y_data=twin_y_data)
 
 
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False,
@@ -485,7 +497,8 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
     """Compute (min, max) across every series plotted against the given
     axis (`prefix` in "x", "y", "y2", "z"). All series contribute to "x"
     and to "z" (a 3-D chart has no secondary anything to filter by);
-    "y"/"y2" are filtered by `series.y_axis`. Returns None if no series
+    "y"/"y2" are filtered by `series.y_axis`, and a series' twin Y column
+    (#402) contributes to the opposite one. Returns None if no series
     have resolvable data for this axis (no series yet, every reference is
     broken, or -- for "z" -- no series on the chart carries a Z column at
     all) -- callers fall back to a fixed default range in that case.
@@ -513,13 +526,21 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
     bar_stack: BarStack = {}
     box_count = 0
     for series in data_series:
+        on_twin_axis = False
         if prefix in ("y", "y2"):
-            wants_secondary = prefix == "y2"
-            if (series.y_axis == YAxis.SECONDARY) != wants_secondary:
+            wanted_axis = YAxis.SECONDARY if prefix == "y2" else YAxis.PRIMARY
+            on_twin_axis = series.y_axis != wanted_axis
+            if on_twin_axis and series.twin_y_axis != wanted_axis:
                 continue
         data = resolve_series_data(project, series)
         if data.error:
             continue
+        if on_twin_axis:
+            # Only the twin values sit on this axis; line/scatter (the only
+            # types with a twin column) take the plain-array branch below.
+            if data.twin_y_data is None:
+                continue
+            data = SeriesData(data.x_data, data.twin_y_data, None, None, None, None, None)
         if series.series_type == SeriesType.BOX:
             # Boxes have no x_data: they sit on numbered slots (see
             # render_box_series), so X spans the slots and y is the numeric
@@ -595,6 +616,10 @@ class ChartEditorWidget(PWidget):
         # `pick_event` on either can be traced back to a series. Rebuilt
         # from scratch on every update_chart() (see axes.clear() below).
         self._artist_series_map: dict = {}
+        # Artists drawn for a series' twin Y column (#402). Also in
+        # _artist_series_map (a click selects the owning series); kept apart
+        # so the legend doesn't pair a twin trace with the series' own fill.
+        self._twin_y_artists: set = set()
         self._last_hover_check_time: float = 0.0
         # Trailing-edge state for the hover throttle: the most recent
         # motion event skipped by it, and whether a timer is already
@@ -957,6 +982,7 @@ class ChartEditorWidget(PWidget):
             # Clear the current plot and artist-to-series mapping
             self.chart_canvas.axes.clear()
             self._artist_series_map.clear()
+            self._twin_y_artists.clear()
             if not is_3d:
                 # Axes.pie() turns the frame off and locks an equal aspect,
                 # and clear() undoes neither -- without this, an emptied Pie
@@ -993,7 +1019,7 @@ class ChartEditorWidget(PWidget):
             # setting simply doesn't apply there (set_projection already
             # tore down any axes2 left over from a 2-D type).
             needs_secondary = not is_3d and has_axes and any(
-                series.y_axis == "secondary" for series in self.chart.data_series)
+                series.uses_secondary_y_axis for series in self.chart.data_series)
             if needs_secondary:
                 if self.chart_canvas.axes2 is None:
                     self.chart_canvas.axes2 = self.chart_canvas.axes.twinx()
@@ -1112,23 +1138,27 @@ class ChartEditorWidget(PWidget):
                                     alpha=alpha)
 
                         renderer = SERIES_RENDERERS[series_type]
+                        render_extra = {
+                            "bins": self.chart.config.hist_bins,
+                            "hist_density": CHART_TYPE_SPECS[self.chart.chart_type].hist_density,
+                            "resolve_fill_baseline": (
+                                lambda query, *, horizontal, _i=i, _style=style: self._resolve_fill_baseline(
+                                    project, _i, _style.fill_base, _style.fill_to_index, query,
+                                    horizontal=horizontal)
+                            ),
+                            "colormap": self.chart.config.colormap,
+                            "color_limits": color_limits,
+                            "stack_bottoms": bar_stack,
+                            BOX_POSITIONS_KEY: box_positions,
+                        }
                         mappable = renderer(
                             target_axes, series_data, style, series.label, alpha,
                             visible=series.visible,
-                            extra={
-                                "bins": self.chart.config.hist_bins,
-                                "hist_density": CHART_TYPE_SPECS[self.chart.chart_type].hist_density,
-                                "resolve_fill_baseline": (
-                                    lambda query, *, horizontal, _i=i, _style=style: self._resolve_fill_baseline(
-                                        project, _i, _style.fill_base, _style.fill_to_index, query,
-                                        horizontal=horizontal)
-                                ),
-                                "colormap": self.chart.config.colormap,
-                                "color_limits": color_limits,
-                                "stack_bottoms": bar_stack,
-                                BOX_POSITIONS_KEY: box_positions,
-                            },
+                            extra=render_extra,
                         )
+                        if series_data.twin_y_data is not None:
+                            self._render_twin_y_trace(
+                                renderer, series, series_data, target_axes, alpha, render_extra)
 
                     if mappable is None and series_type in SERIES_RENDERERS_REPORTING_NO_DATA:
                         series_errors.append(f"{series.label or f'Series {i + 1}'}: no plottable data")
@@ -1574,6 +1604,31 @@ class ChartEditorWidget(PWidget):
             self.logger.exception("Error updating chart")
             self.update_status(f"Chart error: {e!s}")
 
+    def _render_twin_y_trace(self, renderer, series, series_data: SeriesData, target_axes, alpha: float,
+                             extra: dict) -> None:
+        """Draw a series' twin Y column (#402) on the Y axis opposite
+        `target_axes`, with the series' own style and X values.
+
+        The twin trace skips the area fill (its baseline and fill-to-series
+        target are defined against the series' own values and axis) and
+        error bars (they describe the series' own Y). Its legend entry is the
+        series label tagged with the twin's axis, and it is left out when the
+        series has no label, matching the series' own entry.
+        """
+        axes2 = self.chart_canvas.axes2
+        twin_axes = self.chart_canvas.axes if target_axes is axes2 else axes2
+        if twin_axes is None or twin_axes is target_axes:
+            return
+        axis_tag = "Y₂" if twin_axes is axes2 else "Y₁"
+        twin_label = f"{series.label} ({axis_tag})" if series.label else ""
+        twin_style = series.style
+        if getattr(twin_style, "fill_enabled", False):
+            twin_style = dataclasses.replace(twin_style, fill_enabled=False)
+        twin_data = SeriesData(series_data.x_data, series_data.twin_y_data, None, None, None, None, None)
+        before = self._axes_children()
+        renderer(twin_axes, twin_data, twin_style, twin_label, alpha, visible=series.visible, extra=extra)
+        self._twin_y_artists.update(self._axes_children() - before)
+
     def _axes_children(self) -> set:
         """All child artists across the primary and (if present) secondary axes."""
         children = set(self.chart_canvas.axes.get_children())
@@ -1641,6 +1696,10 @@ class ChartEditorWidget(PWidget):
         whose fill artist can't be found, pass through unchanged."""
         augmented = []
         for handle in handles:
+            if handle in self._twin_y_artists:
+                # A twin Y trace is drawn without the series' fill.
+                augmented.append(handle)
+                continue
             series_idx = self._resolve_series_index_for_handle(handle)
             style = self._line_style_for_data_series_index(series_idx)
             fill_artist = self._find_fill_artist_for_series(series_idx) if style is not None and style.fill_enabled else None

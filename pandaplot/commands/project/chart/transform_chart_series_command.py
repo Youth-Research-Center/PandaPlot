@@ -149,8 +149,8 @@ class TransformChartSeriesCommand(Command):
         return results_df, default_name
 
     @staticmethod
-    def _copied_style_without_stale_error_columns(style):
-        """Deep-copy `style`, clearing any error-bar column bindings.
+    def _copied_style_without_stale_column_bindings(style):
+        """Deep-copy `style`, clearing any error-bar and twin Y column bindings.
 
         The result dataset only ever has the two axis columns -- an
         error-bar column id/name copied verbatim from the source series
@@ -158,12 +158,17 @@ class TransformChartSeriesCommand(Command):
         accidentally resolve against a same-named axis column that means
         something else entirely). ErrorBarConfig.without_column_bindings()
         keeps the rest of the error-bar config (color, symmetry, cap size),
-        which is pure visual styling, not a data binding.
+        which is pure visual styling, not a data binding. A twin Y column
+        (#402) is cleared for the same reason: the transform only produces
+        the series' own (x, y) values.
         """
         new_style = copy.deepcopy(style)
         error_bars = getattr(new_style, "error_bars", None)
         if error_bars is not None:
             new_style.error_bars = error_bars.without_column_bindings()
+        if hasattr(new_style, "twin_y_column_id"):
+            new_style.twin_y_column_id = ""
+            new_style.twin_y_column = ""
         return new_style
 
     def _resolve_result_series_type(self, chart: Chart) -> SeriesType:
@@ -242,7 +247,7 @@ class TransformChartSeriesCommand(Command):
                 # _resolve_result_series_type), so the pairing is valid.
                 source_series = chart.data_series[self.source_index]
                 style_kwargs.update({
-                    "style": self._copied_style_without_stale_error_columns(source_series.style),
+                    "style": self._copied_style_without_stale_column_bindings(source_series.style),
                     "alpha": source_series.alpha,
                     "y_axis": source_series.y_axis,
                 })
