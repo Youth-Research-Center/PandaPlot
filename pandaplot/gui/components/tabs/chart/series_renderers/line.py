@@ -34,7 +34,6 @@ def render_line_series(axes, series_data: SeriesData, style: LineSeriesStyle,
             bg_color=style.value_label_bg_color,
             bg_alpha=style.value_label_bg_alpha,
             subset_mode=style.value_label_subset_mode,
-            custom_indices=style.value_label_custom_indices,
             alpha=alpha,
         )
     if style.fill_enabled:

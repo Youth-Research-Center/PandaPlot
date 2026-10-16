@@ -14,6 +14,7 @@ already positions the label without any offset/arrow concept.
 """
 import numpy as np
 import pandas as pd
+from numpy.typing import ArrayLike
 
 
 def _format_number(value) -> str:
@@ -31,40 +32,39 @@ def _format_label(x: float, y: float, mode: str) -> str:
     return _format_number(y)
 
 
-def resolve_label_indices(y_data, subset_mode: str = "all", custom_indices=()) -> set[int]:
+def resolve_label_indices(x_data: ArrayLike, y_data: ArrayLike, *, subset_mode: str = "all") -> set[int]:
     """Decide which points of a series should get a value label.
 
-    Minimum and maximum are global (over the whole series) and ignore NaN
-    values. If several points tie for the minimum or maximum, the first one
-    is used.
+    Minimum and maximum are by Y value, over the whole series. Only points
+    that can actually be drawn are considered: a point whose x or y is
+    missing (NaN/NaT), or whose y is infinite, is never chosen. If several
+    points tie, the first one is used.
 
     Args:
+        x_data: X values of the series, one per point.
         y_data: Y values of the series, one per point.
-        subset_mode: One of "all", "extremes" (min and max), "min", "max" or
-            "custom". An unknown value is treated as "all".
-        custom_indices: 0-based point positions to label when subset_mode is
-            "custom". Positions outside the data are ignored.
+        subset_mode: One of "all", "extremes" (min and max), "min" or "max".
+            An unknown value is treated as "all".
 
     Returns:
         The set of 0-based point positions that should be labeled.
     """
-    values = pd.to_numeric(pd.Series(y_data), errors="coerce").to_numpy(dtype=float)
-    count = len(values)
+    y = pd.Series(np.asarray(y_data))
+    if subset_mode not in ("extremes", "min", "max"):
+        return set(range(len(y)))
 
-    if subset_mode == "custom":
-        return {index for index in custom_indices if 0 <= index < count}
+    drawable = pd.notna(np.asarray(x_data)) & y.notna().to_numpy()
+    values = pd.to_numeric(y, errors="coerce").to_numpy(dtype=float)
+    values = np.where(drawable & np.isfinite(values), values, np.nan)
+    if np.isnan(values).all():  # also true for empty data
+        return set()
 
-    if subset_mode in ("extremes", "min", "max"):
-        if np.isnan(values).all():  # also true for empty data
-            return set()
-        indices = set()
-        if subset_mode in ("extremes", "min"):
-            indices.add(int(np.nanargmin(values)))
-        if subset_mode in ("extremes", "max"):
-            indices.add(int(np.nanargmax(values)))
-        return indices
-
-    return set(range(count))
+    indices = set()
+    if subset_mode in ("extremes", "min"):
+        indices.add(int(np.nanargmin(values)))
+    if subset_mode in ("extremes", "max"):
+        indices.add(int(np.nanargmax(values)))
+    return indices
 
 
 def annotate_point_labels(
@@ -79,7 +79,6 @@ def annotate_point_labels(
     bg_alpha: float = 1.0,
     alpha: float = 1.0,
     subset_mode: str = "all",
-    custom_indices=(),
 ) -> None:
     """Label each (x, y) point per `mode` ("x", "y", or "xy"), offset from
     the point by (offset_x, offset_y) points.
@@ -90,7 +89,7 @@ def annotate_point_labels(
     text/arrow/background so a faded-out or hidden series' labels fade with
     it instead of staying fully opaque.
 
-    `subset_mode` and `custom_indices` choose which points are labeled; see
+    `subset_mode` chooses which points are labeled; see
     resolve_label_indices(). The default labels every point.
 
     Intended for the small datasets the issue this implements (#125) calls
@@ -103,7 +102,7 @@ def annotate_point_labels(
         {"boxstyle": "round,pad=0.2", "facecolor": bg_color, "edgecolor": "none", "alpha": bg_alpha * alpha}
         if bg_color else None
     )
-    label_indices = resolve_label_indices(y_data, subset_mode=subset_mode, custom_indices=custom_indices)
+    label_indices = resolve_label_indices(x_data, y_data, subset_mode=subset_mode)
     for index, (x, y) in enumerate(zip(x_data, y_data, strict=True)):
         if index not in label_indices:
             continue

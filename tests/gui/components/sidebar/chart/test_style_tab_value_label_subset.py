@@ -106,3 +106,14 @@ def test_subset_dropdown_hidden_for_bar_series():
 
     assert tab.value_labels_enabled_toggle.isChecked() is True
     assert tab.value_labels_subset_control.isVisible() is False
+
+
+def test_unknown_subset_mode_shows_all_points_not_the_previous_series_value():
+    tab = _tab()
+    first = _line_series(show_value_labels=True, value_label_subset_mode="min")
+    second = _line_series(show_value_labels=True, value_label_subset_mode="not-a-mode")
+
+    tab.load_series_style(first)
+    tab.load_series_style(second)
+
+    assert tab.value_labels_subset_control.currentValue() == "all"

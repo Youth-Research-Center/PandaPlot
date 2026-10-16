@@ -262,7 +262,7 @@ class Chart(Item):
             "show_value_labels", "value_label_mode", "value_label_show_arrow",
             "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
             "value_label_bg_color", "value_label_bg_alpha",
-            "value_label_subset_mode", "value_label_custom_indices",
+            "value_label_subset_mode",
             # Area fill: Line/Scatter share the full FillStyleFields set.
             "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base",
             "fill_to_index", "fill_range_enabled", "fill_sections",
@@ -271,7 +271,7 @@ class Chart(Item):
         ):
             if hasattr(old_style, field_name) and hasattr(new_style, field_name):
                 value = getattr(old_style, field_name)
-                if field_name in ("fill_sections", "value_label_custom_indices"):
+                if field_name == "fill_sections":
                     value = list(value)
                 setattr(new_style, field_name, value)
         # Sibling boxes share one set of numbered X slots and named ticks on

@@ -761,12 +761,17 @@ class StyleTab(QWidget):
         value_labels_layout.addWidget(self.value_labels_bg_alpha_label, 9, 0)
         self.value_labels_bg_alpha_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
         value_labels_layout.addWidget(self.value_labels_bg_alpha_slider, 9, 1)
-        
+
         self.value_labels_subset_label = QLabel("Label points:")
         value_labels_layout.addWidget(self.value_labels_subset_label, 10, 0)
         self.value_labels_subset_control = ValueComboBox(VALUE_LABEL_SUBSET_OPTIONS)
         value_labels_layout.addWidget(self.value_labels_subset_control, 10, 1)
-
+        subset_tooltip = (
+            "Min and max are by Y value; if several points tie, the first one is used. "
+            "With X labels, 'Only max' shows the X of the highest-Y point."
+        )
+        self.value_labels_subset_label.setToolTip(subset_tooltip)
+        self.value_labels_subset_control.setToolTip(subset_tooltip)
         layout.addWidget(value_labels_card)
 
         # VECTOR group -- shown instead of Line/Fill/Marker/Error Bars for a
@@ -2390,7 +2395,10 @@ class StyleTab(QWidget):
             self.value_labels_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
             self.value_labels_mode_control.setCurrentValue(getattr(style, "value_label_mode", "y"))
-            self.value_labels_subset_control.setCurrentValue(getattr(style, "value_label_subset_mode", "all"))
+            subset_mode = getattr(style, "value_label_subset_mode", "all")
+            if subset_mode not in {value for _, value in VALUE_LABEL_SUBSET_OPTIONS}:
+                subset_mode = "all"
+            self.value_labels_subset_control.setCurrentValue(subset_mode)
             self.value_labels_arrow_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             self.value_labels_arrow_toggle.setChecked(checked=getattr(style, "value_label_show_arrow", False))
             self.value_labels_arrow_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only

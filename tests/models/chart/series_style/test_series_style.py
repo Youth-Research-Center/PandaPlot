@@ -89,7 +89,6 @@ def test_line_series_style_fields_and_defaults():
     assert style.value_label_bg_color == ""
     assert style.value_label_bg_alpha == 1.0
     assert style.value_label_subset_mode == "all"
-    assert style.value_label_custom_indices == []
     assert isinstance(style.marker, MarkerStyle)
     assert isinstance(style.error_bars, ErrorBarConfig)
     assert {f.name for f in dataclasses.fields(style)} == {
@@ -100,7 +99,7 @@ def test_line_series_style_fields_and_defaults():
         "value_label_mode", "value_label_show_arrow",
         "value_label_offset_x", "value_label_offset_y",
         "value_label_text_color", "value_label_bg_color", "value_label_bg_alpha",
-         "value_label_subset_mode", "value_label_custom_indices",
+         "value_label_subset_mode", 
     }
 
 
@@ -127,7 +126,6 @@ def test_scatter_series_style_fields_and_defaults():
     assert style.value_label_bg_color == ""
     assert style.value_label_bg_alpha == 1.0
     assert style.value_label_subset_mode == "all"
-    assert style.value_label_custom_indices == []
     assert isinstance(style.marker, MarkerStyle)
     assert isinstance(style.error_bars, ErrorBarConfig)
     assert style.fill_enabled is False
@@ -138,7 +136,7 @@ def test_scatter_series_style_fields_and_defaults():
         "value_label_mode", "value_label_show_arrow",
         "value_label_offset_x", "value_label_offset_y",
         "value_label_text_color", "value_label_bg_color", "value_label_bg_alpha",
-        "value_label_subset_mode", "value_label_custom_indices",
+        "value_label_subset_mode",
         "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base",
         "fill_to_index", "fill_range_enabled", "fill_sections",
     }

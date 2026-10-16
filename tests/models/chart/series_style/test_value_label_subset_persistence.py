@@ -1,4 +1,4 @@
-"""Tests that value-label subset settings survive save/load and retyping."""
+"""Tests that the value-label subset setting survives save/load and retyping."""
 import json
 
 from pandaplot.models.chart.series_type import SeriesType
@@ -11,42 +11,29 @@ def _chart_with_line_series() -> Chart:
     return chart
 
 
-def test_subset_settings_survive_save_and_load():
+def test_subset_mode_survives_save_and_load():
     chart = _chart_with_line_series()
-    style = chart.data_series[0].style
-    style.value_label_subset_mode = "custom"
-    style.value_label_custom_indices = [0, 3, 5]
+    chart.data_series[0].style.value_label_subset_mode = "max"
 
     loaded = Chart.from_dict(json.loads(json.dumps(chart.to_dict())))
 
-    loaded_style = loaded.data_series[0].style
-    assert loaded_style.value_label_subset_mode == "custom"
-    assert loaded_style.value_label_custom_indices == [0, 3, 5]
+    assert loaded.data_series[0].style.value_label_subset_mode == "max"
 
 
-def test_old_saved_style_without_subset_fields_uses_defaults():
+def test_old_saved_style_without_subset_field_uses_default():
     chart = _chart_with_line_series()
     data = chart.to_dict()
     del data["data_series"][0]["style"]["value_label_subset_mode"]
-    del data["data_series"][0]["style"]["value_label_custom_indices"]
 
     loaded = Chart.from_dict(data)
 
-    loaded_style = loaded.data_series[0].style
-    assert loaded_style.value_label_subset_mode == "all"
-    assert loaded_style.value_label_custom_indices == []
+    assert loaded.data_series[0].style.value_label_subset_mode == "all"
 
 
-def test_retype_line_to_scatter_keeps_subset_settings_as_independent_copy():
+def test_retype_line_to_scatter_keeps_subset_mode():
     chart = _chart_with_line_series()
-    old_style = chart.data_series[0].style
-    old_style.value_label_subset_mode = "custom"
-    old_style.value_label_custom_indices = [1, 2]
+    chart.data_series[0].style.value_label_subset_mode = "extremes"
 
     chart.retype_series(0, SeriesType.SCATTER)
 
-    new_style = chart.data_series[0].style
-    assert new_style.value_label_subset_mode == "custom"
-    assert new_style.value_label_custom_indices == [1, 2]
-    new_style.value_label_custom_indices.append(9)
-    assert old_style.value_label_custom_indices == [1, 2]
+    assert chart.data_series[0].style.value_label_subset_mode == "extremes"

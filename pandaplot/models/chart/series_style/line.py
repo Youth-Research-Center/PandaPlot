@@ -32,9 +32,6 @@ class LineSeriesStyle(FillStyleFields, SeriesStyleBase):
     # "" means no background box drawn; bg_alpha only applies when bg_color is set.
     value_label_bg_color: str = ""
     value_label_bg_alpha: float = 1.0
-    # Which points get a label: "all", "extremes" (min and max), "min", "max"
-    # or "custom" (see series_renderers/value_labels.py).
+    # Which points get a label: "all", "extremes" (min and max by Y value),
+    # "min" or "max" (see series_renderers/value_labels.py).
     value_label_subset_mode: str = "all"
-    # 0-based point positions to label when value_label_subset_mode is
-    # "custom". Positional, so it can shift if the dataset is reordered.
-    value_label_custom_indices: list[int] = field(default_factory=list)
