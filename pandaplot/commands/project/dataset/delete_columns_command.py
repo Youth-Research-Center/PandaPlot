@@ -54,6 +54,10 @@ def _error_field_targets(series):
     # leaves the wedges unlabeled rather than removing the pie.
     if hasattr(series.style, "label_column_id"):
         targets.append((series.style, "label_column_id", "label_column"))
+    # A line/scatter series' twin Y column (#402) is optional as well:
+    # deleting it drops the twin trace and keeps the series.
+    if hasattr(series.style, "twin_y_column_id"):
+        targets.append((series.style, "twin_y_column_id", "twin_y_column"))
     return targets
 
 
@@ -257,7 +261,7 @@ class DeleteColumnsCommand(Command):
                     f"{match.chart.name}: " + ", ".join(
                         ([f"{len(match.series_indices)} series"] if match.series_indices else [])
                         + ([f"{len(match.fit_indices)} fit curve(s)"] if match.fit_indices else [])
-                        + ([f"{len(match.error_only_indices)} series losing error bars"] if match.error_only_indices else [])
+                        + ([f"{len(match.error_only_indices)} series losing optional columns"] if match.error_only_indices else [])
                         + ([f"{len(match.confidence_only_indices)} fit(s) losing confidence bands"]
                            if match.confidence_only_indices else [])
                     )
@@ -268,7 +272,8 @@ class DeleteColumnsCommand(Command):
                     f"{len(self.column_names)} column(s) are used by {len(references)} "
                     "chart(s). Deleting them will remove the dependent series/fit "
                     "curves from those charts (series only using the column for "
-                    "error bars, or fits only using it for a confidence band, will "
+                    "error bars or another optional role, or fits only using it "
+                    "for a confidence band, will "
                     "keep plotting with that optional data cleared). Continue?",
                     details=details
                 )

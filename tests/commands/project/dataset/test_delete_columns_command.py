@@ -668,3 +668,40 @@ def test_deleting_a_pie_values_column_removes_the_series(env):
 
     assert DeleteColumnsCommand(app_context, dataset.id, ["c"]).execute() is CommandResult.SUCCESS
     assert pie_chart.data_series == []
+
+
+def _add_twin_y_series(chart, dataset, *, x: str, y: str, twin: str) -> None:
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id(x), y_column_id=dataset.column_id(y), label="twin",
+        style=LineSeriesStyle(twin_y_column_id=dataset.column_id(twin)),
+    )
+
+
+def test_deleting_a_twin_y_column_clears_it_but_keeps_the_series(env):
+    """A twin Y column (#402) is optional -- the series still plots its own
+    values, so deleting that column only drops the twin trace."""
+    app_context, dataset, _, _, untouched_chart = env
+    _add_twin_y_series(untouched_chart, dataset, x="c", y="c", twin="d")
+
+    assert DeleteColumnsCommand(app_context, dataset.id, ["d"]).execute() is CommandResult.SUCCESS
+
+    assert len(untouched_chart.data_series) == 2
+    series = untouched_chart.data_series[1]
+    assert series.style.twin_y_column_id == ""
+    assert series.has_twin_y_column is False
+    details = app_context.get_ui_controller.return_value.show_confirmation.call_args.kwargs["details"]
+    assert "1 series losing optional columns" in details
+
+
+def test_undo_and_redo_of_a_cleared_twin_y_reference(env):
+    app_context, dataset, _, _, untouched_chart = env
+    _add_twin_y_series(untouched_chart, dataset, x="c", y="c", twin="d")
+    twin_id = dataset.column_id("d")
+    command = DeleteColumnsCommand(app_context, dataset.id, ["d"])
+    command.execute()
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert untouched_chart.data_series[1].style.twin_y_column_id == twin_id
+
+    assert command.redo() is CommandResult.SUCCESS
+    assert untouched_chart.data_series[1].style.twin_y_column_id == ""
