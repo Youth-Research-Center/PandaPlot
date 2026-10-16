@@ -32,3 +32,6 @@ class LineSeriesStyle(FillStyleFields, SeriesStyleBase):
     # "" means no background box drawn; bg_alpha only applies when bg_color is set.
     value_label_bg_color: str = ""
     value_label_bg_alpha: float = 1.0
+    # Which points get a label: "all", "extremes" (min and max by Y value),
+    # "min" or "max" (see series_renderers/value_labels.py).
+    value_label_subset_mode: str = "all"
