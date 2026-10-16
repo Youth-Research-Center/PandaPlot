@@ -39,6 +39,7 @@ from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events import ChartEvents
+from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.transform import expression_engine
@@ -262,11 +263,11 @@ class TransformChartSeriesCommand(Command):
             # would make index() return the earlier, wrong one.
             self.added_series_index = len(chart.data_series) - 1
 
-            self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, {
-                "chart_id": self.chart_id,
-                "update_type": "series_added",
-                "chart": chart,
-            })
+            self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+                chart_id=self.chart_id,
+                update_type="series_added",
+                chart=chart,
+            ).to_dict())
 
             self.logger.info(
                 "Created chart-transform dataset '%s' (%s) and added it as a series to chart '%s'",
@@ -292,11 +293,11 @@ class TransformChartSeriesCommand(Command):
             chart = self._get_chart()
             if chart is not None and self.added_series_index is not None:
                 chart.remove_data_series(self.added_series_index)
-                self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, {
-                    "chart_id": self.chart_id,
-                    "update_type": "series_removed",
-                    "chart": chart,
-                })
+                self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+                    chart_id=self.chart_id,
+                    update_type="series_removed",
+                    chart=chart,
+                ).to_dict())
 
             remove_result_dataset(self.app_state, self.result_dataset_id)
             return CommandResult.SUCCESS

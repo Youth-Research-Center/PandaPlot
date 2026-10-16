@@ -52,6 +52,7 @@ from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style import DensitySeriesStyle, LineSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.events.event_data import SeriesSelectedData
 from pandaplot.models.events.event_types import ChartEvents, ConfigEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -1687,20 +1688,11 @@ class ChartEditorWidget(PWidget):
             kind = "fit" if self.chart.data_series[series_index].is_fit else "series"
             self.publish_event(
                 ChartEvents.SERIES_SELECTED,
-                {
-                    "chart_id": self.chart.id,
-                    # Consumed by the properties panel's Data tab.
-                    "series_index": series_index,
-                    # kind/index: index is the real data_series position
-                    # (same value as series_index, for fits too, #304) that
-                    # all four series/fit-scoped sidebar panels (Analysis,
-                    # Signal Analysis, Transform, Fit) key their source
-                    # pickers on. kind is only still consulted by the Fit
-                    # panel, to ignore a click on a fit as an invalid fit
-                    # source (#419) -- the other three panels use index alone.
-                    "kind": kind,
-                    "index": series_index,
-                },
+                SeriesSelectedData(
+                    chart_id=self.chart.id,
+                    series_index=series_index,
+                    kind=kind,
+                ).to_dict(),
             )
 
     def _on_canvas_motion(self, event):

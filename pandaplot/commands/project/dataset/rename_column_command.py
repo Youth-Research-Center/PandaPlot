@@ -5,7 +5,7 @@ from typing import override
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.events.event_data import DatasetColumnRenamedData
+from pandaplot.models.events.event_data import ChartUpdatedData, DatasetColumnRenamedData
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -128,10 +128,10 @@ class RenameColumnCommand(Command):
             ).to_dict())
         for chart in affected_charts:
             chart.update_modified_time()
-            self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-                "chart_id": chart.id,
-                "chart": chart,
-            })
+            self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+                chart_id=chart.id,
+                chart=chart,
+            ).to_dict())
 
     def _charts_referencing_column(self, current_name: str) -> list[Chart]:
         """Return charts whose series/fits reference the renamed column.

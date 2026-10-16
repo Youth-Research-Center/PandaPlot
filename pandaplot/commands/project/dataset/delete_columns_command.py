@@ -5,7 +5,7 @@ from typing import override
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.events.event_data import DatasetColumnsAddedData, DatasetColumnsRemovedData
+from pandaplot.models.events.event_data import ChartUpdatedData, DatasetColumnsAddedData, DatasetColumnsRemovedData
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project.items import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -482,10 +482,10 @@ class DeleteColumnsCommand(Command):
                     self.cleared_error_refs[chart.id] = cleared_series
                 if cleared_fits:
                     self.cleared_confidence_refs[chart.id] = cleared_fits
-                self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, {
-                    "chart_id": chart.id,
-                    "chart": chart,
-                })
+                self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+                    chart_id=chart.id,
+                    chart=chart,
+                ).to_dict())
 
     def _restore_chart_references(self) -> None:
         """Re-insert chart series/fits removed by _perform_deletion, for undo."""
@@ -541,10 +541,10 @@ class DeleteColumnsCommand(Command):
                 or chart_id in self.cleared_confidence_refs
             ):
                 chart.update_modified_time()
-                self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, {
-                    "chart_id": chart.id,
-                    "chart": chart,
-                })
+                self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+                    chart_id=chart.id,
+                    chart=chart,
+                ).to_dict())
         self.removed_chart_refs = {}
         self.cleared_error_refs = {}
         self.cleared_confidence_refs = {}

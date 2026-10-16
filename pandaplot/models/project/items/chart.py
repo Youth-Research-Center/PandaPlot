@@ -23,6 +23,7 @@ from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import SeriesStyleBase
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.project.items.item import Item
 
@@ -473,7 +474,7 @@ class Chart(Item):
     def dependency_update_event(self) -> tuple | None:
         """Event DeleteItemCommand should emit after this chart's series
         are stripped or restored."""
-        return ChartEvents.CHART_UPDATED, {"chart_id": self.id}
+        return ChartEvents.CHART_UPDATED, ChartUpdatedData(chart_id=self.id).to_dict()
 
     def add_fit_series(self, source_dataset_id: str, x_data: np.ndarray, y_data: np.ndarray,
                         label: str, style: FitStyle, *, source_x_column_id: str = "",
