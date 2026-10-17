@@ -9,6 +9,7 @@ from pandaplot.commands.project.dataset.change_column_dtype_command import Chang
 from pandaplot.commands.project.dataset.delete_columns_command import DeleteColumnsCommand
 from pandaplot.commands.project.dataset.recompute_formula_columns_command import RecomputeFormulaColumnsCommand
 from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
+from pandaplot.models.project.items import Dataset
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -115,9 +116,9 @@ class ColumnHeaderContextMenu(QMenu):
         """Whether any selected column is a formula column that doesn't recompute itself (#154)."""
         project = self.app_context.app_state.current_project
         dataset = project.find_item(self.dataset_id) if project else None
-        data = getattr(dataset, "data", None)
-        if data is None:
+        if not isinstance(dataset, Dataset) or dataset.data is None:
             return False
+        data = dataset.data
         for index in self.column_indices:
             if 0 <= index < len(data.columns):
                 spec = dataset.formula_column_by_name(str(data.columns[index]))
