@@ -338,6 +338,7 @@ class TransformColumnCommand(Command):
                 expression=self.expression,
                 transform_type=self.transform_type,
                 source_columns=self.source_columns,
+                row_sources_only=self.as_formula,
             )
         except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.error_message = str(e)

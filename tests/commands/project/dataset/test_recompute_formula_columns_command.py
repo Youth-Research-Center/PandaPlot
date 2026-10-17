@@ -178,3 +178,34 @@ class TestRecomputeFormulaColumnsCommand:
         command.cleanup()
         assert command.dataset is None
         assert command.undo() is CommandResult.FAILURE
+
+
+class TestLiveColumnBetweenSelectedColumns:
+    def test_a_live_intermediate_is_evaluated_before_the_column_that_reads_it(self, ctx):
+        """a -> b (static) -> c (live) -> d (static): recomputing b and d must not leave d on c's old values."""
+        app_context, dataset = ctx
+        _add_formula(app_context, "b", "x * 2")
+        _add_formula(app_context, "c", "x + 1", source="b", live=True)
+        _add_formula(app_context, "d", "x * 10", source="c")
+        dataset.data.loc[0, "a"] = 10.0
+
+        positions = [_position(dataset, "b"), _position(dataset, "d")]
+        command = RecomputeFormulaColumnsCommand(app_context, "ds-1", positions)
+        assert command.execute() is CommandResult.SUCCESS
+
+        assert list(dataset.data["b"]) == [20.0, 4.0, 6.0]
+        assert list(dataset.data["c"]) == [21.0, 5.0, 7.0]
+        assert list(dataset.data["d"]) == [210.0, 50.0, 70.0]
+
+        assert command.undo() is CommandResult.SUCCESS
+        assert [list(dataset.data[name]) for name in ("b", "c", "d")] == [[2.0, 4.0, 6.0], [3.0, 5.0, 7.0], [30.0, 50.0, 70.0]]
+
+    def test_a_live_column_that_only_depends_on_a_selected_one_is_left_to_the_live_recompute(self, ctx):
+        app_context, dataset = ctx
+        _add_formula(app_context, "b", "x * 2")
+        _add_formula(app_context, "c", "x + 1", source="b", live=True)
+        dataset.data.loc[0, "a"] = 10.0
+
+        assert RecomputeFormulaColumnsCommand(app_context, "ds-1", [_position(dataset, "b")]).execute() is CommandResult.SUCCESS
+        assert list(dataset.data["b"]) == [20.0, 4.0, 6.0]
+        assert list(dataset.data["c"]) == [3.0, 5.0, 7.0]  # refreshed by the live listener in the app, not by this command

@@ -156,6 +156,7 @@ class FormulaRecomputeManager:
                     source_columns=[str(source) for source in source_names],
                     source_aliases=spec.source_aliases,
                     safe_globals=safe_globals,
+                    row_sources_only=True,
                 )
             except Exception as e:  # noqa: BLE001 -- a user-authored expression can raise anything; one bad formula must not abort the rest of the cascade
                 self._logger.error("Live recompute of column '%s' failed: %s", name, e)

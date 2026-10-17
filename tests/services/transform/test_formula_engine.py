@@ -163,3 +163,30 @@ class TestFindCircularDependency:
         cycle = formula_engine.find_circular_dependency({"a": ["b"], "b": ["a"]})
         assert cycle is not None
         assert set(cycle) == {"a", "b"}
+
+
+class TestRowSourcesOnly:
+    """Regression: a stored row formula sees only its declared sources."""
+
+    def _df(self):
+        return pd.DataFrame({"a": [1.0, 2.0], "b": [10.0, 20.0]})
+
+    def test_the_whole_row_is_visible_by_default(self):
+        result = formula_engine.evaluate_formula(
+            self._df(), expression="row.sum()", transform_type="row", source_columns=["a"],
+        )
+        assert list(result) == [11.0, 22.0]
+
+    def test_only_declared_sources_are_visible_when_restricted(self):
+        result = formula_engine.evaluate_formula(
+            self._df(), expression="row.sum()", transform_type="row", source_columns=["a"], row_sources_only=True,
+        )
+        assert list(result) == [1.0, 2.0]
+
+    def test_restricted_rows_use_the_aliases(self):
+        df = self._df().rename(columns={"a": "alpha"})
+        result = formula_engine.evaluate_formula(
+            df, expression="row['a'] * 2", transform_type="row", source_columns=["alpha"],
+            source_aliases=["a"], row_sources_only=True,
+        )
+        assert list(result) == [2.0, 4.0]

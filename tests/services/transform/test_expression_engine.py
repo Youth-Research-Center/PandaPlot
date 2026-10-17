@@ -75,6 +75,31 @@ class TestEvaluateExpression:
         assert expression_engine.evaluate_expression(code, {"x": 10}) == 11
 
 
+class TestPersistedFormulaCannotWriteFiles:
+    """Regression: a persisted live formula must not create files when a source changes."""
+
+    @pytest.mark.parametrize("expression", [
+        "x.to_string(buf='{path}')",
+        "x.agg('to_csv', path_or_buf='{path}')",
+        "x.apply('to_csv', path_or_buf='{path}')",
+    ])
+    def test_no_file_is_created(self, tmp_path, expression):
+        target = tmp_path / "probe.out"
+        with pytest.raises(expression_engine.UnsafeExpressionError):
+            expression_engine.evaluate_expression(expression.format(path=target.as_posix()), {"x": pd.Series([1, 2])})
+        assert not target.exists()
+
+    @pytest.mark.parametrize("expression", [
+        "x.agg(np.mean)",
+        "x.agg(lambda v: v.sum())",
+        "x.apply(lambda v: v * 2)",
+        "x.transform(np.sqrt)",
+        "x.rolling(2).agg(lambda w: w.max())",
+    ])
+    def test_callable_aggregation_still_works(self, expression):
+        expression_engine.evaluate_expression(expression, {"x": pd.Series([1.0, 4.0, 9.0])})
+
+
 class TestExpressionAllowlist:
     """The AST allowlist enforced at the engine boundary (#154).
 
@@ -108,6 +133,18 @@ class TestExpressionAllowlist:
         "np.fromfile('f.bin')",
         "x.to_pickle('f.pkl')",
         "x.to_csv('f.csv')",
+        "x.to_string(buf='f.txt')",
+        "x.agg('to_csv', path_or_buf='f.csv')",
+        "x.aggregate('to_csv')",
+        "x.apply('to_pickle', path='f.pkl')",
+        "x.transform('to_csv')",
+        "x.agg(x.iloc[0])",
+        "x.agg(func=x.name)",
+        "x.agg(**{'func': 'to_csv'})",
+        "x.agg(['to_csv'])",
+        "x.agg('to_' + 'csv')",
+        "(lambda s: x.agg(s))('to_csv')",
+        "x.rolling(2).agg('to_csv')",
         "x.eval('1 + 1')",
         "(y := x)",
         "f'{x.__class__}'",

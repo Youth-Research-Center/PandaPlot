@@ -25,7 +25,8 @@ class RecomputeFormulaColumnsCommand(Command):
     """Recompute the non-live formula columns among the given column positions.
 
     Columns that are not formula columns, and live ones (which recompute
-    themselves), are ignored. If a selected column reads another selected one,
+    themselves), are ignored, except that a live column between two selected
+    ones is recomputed along the way. If a selected column reads another selected one,
     the source is recomputed first. All columns are evaluated before any is
     written, so a failing formula changes nothing.
     """
@@ -100,16 +101,48 @@ class RecomputeFormulaColumnsCommand(Command):
         self._new_values = {}
 
     def _target_column_ids(self, dataset: Dataset) -> list[str]:
-        """Ids of the selected non-live formula columns, sources before dependents."""
-        selected: dict[str, list[str]] = {}
+        """Ids to evaluate, sources before dependents.
+
+        Those are the selected non-live formula columns plus any live formula
+        column sitting between two of them (a -> b -> live c -> d, with b and d
+        selected). Evaluating d against c's old values would leave it wrong, and
+        c would only be refreshed afterwards by the live recompute that b's
+        change triggers.
+        """
+        selected: set[str] = set()
         for position in self.column_positions:
             if not 0 <= position < len(dataset.data.columns):
                 continue
             column_id = dataset.column_id(str(dataset.data.columns[position]))
             spec = dataset.formula_column(column_id) if column_id is not None else None
             if column_id is not None and spec is not None and not spec.live:
-                selected[column_id] = spec.source_column_ids
-        return formula_engine.resolve_recompute_order(selected.keys(), selected)
+                selected.add(column_id)
+        if not selected:
+            return []
+
+        dependencies = {cid: spec.source_column_ids for cid, spec in dataset.formula_columns.items()}
+        upstream = self._reachable(selected, dependencies)
+        dependents: dict[str, list[str]] = {}
+        for cid, sources in dependencies.items():
+            for source in sources:
+                dependents.setdefault(source, []).append(cid)
+        downstream = self._reachable(selected, dependents)
+        between = {cid for cid in upstream & downstream if dataset.formula_column(cid).live}
+
+        nodes = selected | between
+        return formula_engine.resolve_recompute_order(nodes, {cid: dependencies[cid] for cid in nodes})
+
+    @staticmethod
+    def _reachable(start: set[str], edges: dict[str, list[str]]) -> set[str]:
+        """Ids reachable from ``start`` along ``edges`` (``start`` itself excluded unless it is on a cycle)."""
+        seen: set[str] = set()
+        stack = [nxt for cid in start for nxt in edges.get(cid, ())]
+        while stack:
+            cid = stack.pop()
+            if cid not in seen:
+                seen.add(cid)
+                stack.extend(edges.get(cid, ()))
+        return seen
 
     def _evaluate(self, dataset: Dataset, df: pd.DataFrame, targets: list[str]) -> dict[str, pd.Series] | None:
         """Evaluate each target against ``df`` (updated as it goes). None, after telling the user, on failure."""
@@ -130,6 +163,7 @@ class RecomputeFormulaColumnsCommand(Command):
                     source_columns=[str(source) for source in source_names],
                     source_aliases=spec.source_aliases,
                     safe_globals=safe_globals,
+                    row_sources_only=True,
                 )
             except Exception as e:  # noqa: BLE001 -- a user-authored expression can raise anything; report it instead of crashing
                 self.logger.error("Recompute of column '%s' failed: %s", name, e)

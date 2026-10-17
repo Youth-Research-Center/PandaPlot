@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.commands.project.dataset.edit_batch_command import EditBatchCommand
 from pandaplot.commands.project.dataset.edit_command import EditCommand
 from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
 from pandaplot.commands.project.dataset.transform_column_command import TransformColumnCommand
@@ -321,3 +322,40 @@ class TestRenamedSource:
         _edit(app_context, dataset, 0, 0, 1.0, 10.0)
 
         assert list(dataset.data["double"]) == [20.0, 4.0, 6.0]
+
+
+class TestRowFormulaSelfReference:
+    def test_a_live_row_formula_does_not_read_its_own_previous_value(self, env):
+        """Regression: row.sum() over declared source [a] must stay a, not a + the old result."""
+        app_context, dataset, _ = env
+        dataset.set_data(pd.DataFrame({"a": [1.0]}))
+        assert TransformColumnCommand(app_context, "ds-1", {
+            "new_column_name": "b", "transform_type": "row", "source_columns": ["a"],
+            "expression": "row.sum()", "live": True,
+        }).execute() is CommandResult.SUCCESS
+        assert list(dataset.data["b"]) == [1.0]
+
+        _edit(app_context, dataset, 0, 0, 1.0, 2.0)
+
+        assert list(dataset.data["b"]) == [2.0]
+
+
+class TestBatchEditUndoRedo:
+    def test_paste_undo_and_redo_keep_live_dependents_in_step(self, env):
+        """Regression: EditBatchCommand's undo/redo events carried no dataset_id, so the listener ignored them."""
+        app_context, dataset, _ = env
+        assert TransformColumnCommand(app_context, "ds-1", {
+            "new_column_name": "b", "transform_type": "column", "source_columns": ["a"],
+            "expression": "x * 2", "live": True,
+        }).execute() is CommandResult.SUCCESS
+
+        paste = EditBatchCommand(app_context, "ds-1", 0, 0, [[10.0], [20.0]])
+        assert paste.execute() is CommandResult.SUCCESS
+        assert list(dataset.data["b"]) == [20.0, 40.0, 6.0]
+
+        assert paste.undo() is CommandResult.SUCCESS
+        assert list(dataset.data["a"]) == [1.0, 2.0, 3.0]
+        assert list(dataset.data["b"]) == [2.0, 4.0, 6.0]
+
+        assert paste.redo() is CommandResult.SUCCESS
+        assert list(dataset.data["b"]) == [20.0, 40.0, 6.0]

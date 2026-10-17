@@ -91,7 +91,17 @@ _BLOCKED_ATTRIBUTES = frozenset({
     "to_pickle", "to_csv", "to_excel", "to_json", "to_hdf", "to_sql", "to_parquet",
     "to_feather", "to_clipboard", "to_stata", "to_xml", "to_orc", "to_latex",
     "to_html", "to_markdown", "to_gbq",
+    # to_string(buf=<path>) writes to the filesystem like the to_* writers above.
+    "to_string",
 })
+
+# Methods that accept a method *name* as a string and look it up with getattr
+# (``x.agg("to_csv", path_or_buf=...)``), which would reach a blocked attribute
+# without it ever appearing as an attribute in the syntax tree. A string could
+# also come from the data itself (``x.agg(x.iloc[0])``), so these calls may only
+# be given a callable the checker can see: a lambda or an np/pd/math function.
+_NAME_DISPATCH_METHODS = frozenset({"agg", "aggregate", "apply", "transform"})
+_CALLABLE_MODULE_ROOTS = frozenset({"np", "pd", "math"})
 
 
 def _is_blocked_attribute(name: str) -> bool:
@@ -214,6 +224,30 @@ def _check_node(node: ast.AST) -> None:
 
     if isinstance(node, ast.Attribute) and _is_blocked_attribute(node.attr):
         raise UnsafeExpressionError(f"Access to '{node.attr}' is not allowed in an expression")
+
+    if isinstance(node, ast.Call):
+        _check_dispatch_call(node)
+
+
+def _is_visible_callable(node: ast.expr) -> bool:
+    """A lambda, or a plain ``np.mean`` / ``pd.to_numeric``-style attribute chain."""
+    if isinstance(node, ast.Lambda):
+        return True
+    while isinstance(node, ast.Attribute):
+        node = node.value
+    return isinstance(node, ast.Name) and node.id in _CALLABLE_MODULE_ROOTS
+
+
+def _check_dispatch_call(node: ast.Call) -> None:
+    """Refuse string-based method dispatch (``x.agg("to_csv")``) and anything that could smuggle one in."""
+    if not (isinstance(node.func, ast.Attribute) and node.func.attr in _NAME_DISPATCH_METHODS):
+        return
+    func_args = [*node.args[:1], *(kw.value for kw in node.keywords if kw.arg == "func")]
+    unpacked = any(kw.arg is None for kw in node.keywords)
+    if unpacked or len(func_args) != 1 or not _is_visible_callable(func_args[0]):
+        raise UnsafeExpressionError(
+            f"'{node.func.attr}' must be given a lambda or a numpy/pandas function, not a method name or computed value",
+        )
 
 
 def compile_expression(expression: str) -> CodeType:

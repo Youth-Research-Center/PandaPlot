@@ -49,6 +49,7 @@ def evaluate_formula(
     source_columns: Sequence[str],
     source_aliases: Sequence[str] | None = None,
     safe_globals: dict[str, Any] | None = None,
+    row_sources_only: bool = False,
 ) -> pd.Series:
     """Evaluate a transform/formula expression against ``df``.
 
@@ -64,6 +65,12 @@ def evaluate_formula(
             the expression uses the current names.
         safe_globals: Optional pre-built globals, to avoid rebuilding them per
             column when recomputing a cascade.
+        row_sources_only: For a "row" transform, give the expression only the
+            declared source columns (under their aliases) instead of every
+            column of ``df``. Formula columns need this: only declared sources
+            are tracked as dependencies, so reading anything else (such as the
+            formula column itself) would bypass change tracking and cycle
+            detection, and make a recompute disagree with the first run.
 
     Raises:
         ValueError: For an unknown transform type, a missing source column, or
@@ -87,7 +94,7 @@ def evaluate_formula(
     if transform_type == "column":
         return _evaluate_column(df, expression, names, aliases, safe_globals)
     if transform_type == "row":
-        return _evaluate_row(df, expression, names, aliases, safe_globals)
+        return _evaluate_row(df, expression, names, aliases, safe_globals, sources_only=row_sources_only)
     if transform_type == "multi_column":
         return _evaluate_multi_column(df, expression, names, aliases, safe_globals)
     raise ValueError(f"Unknown transform type: {transform_type}")
@@ -125,9 +132,13 @@ def _evaluate_column(df: pd.DataFrame, expression: str, source_columns: Sequence
 
 
 def _evaluate_row(df: pd.DataFrame, expression: str, source_columns: Sequence[str],
-                  aliases: Sequence[str], safe_globals: dict[str, Any]) -> pd.Series:
+                  aliases: Sequence[str], safe_globals: dict[str, Any], *, sources_only: bool) -> pd.Series:
     renames = {name: alias for name, alias in zip(source_columns, aliases, strict=True) if name != alias}
-    if renames:
+    if sources_only:
+        df = df[list(source_columns)]
+        if renames:
+            df = df.set_axis(list(aliases), axis=1)
+    elif renames:
         # An unrelated column that now holds a source's old name would
         # otherwise answer to the alias instead of the source.
         shadowing = [column for column in df.columns if column in renames.values() and column not in renames]
