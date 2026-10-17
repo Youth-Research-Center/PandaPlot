@@ -10,7 +10,7 @@ def test_fit_style_has_moved_over_metadata_fields():
     field_names = {f.name for f in dataclasses.fields(FitStyle)}
     assert field_names == {
         "color", "line_style", "line_width",
-        "band_fill_enabled", "band_fill_alpha", "band_color",
+        "band_fill_enabled", "band_fill_alpha", "band_color", "band_orientation",
         "fit_type", "fit_params", "fit_stats",
         "confidence_lower", "confidence_upper",
         "confidence_lower_column_id", "confidence_upper_column_id",
