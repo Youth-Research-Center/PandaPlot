@@ -198,6 +198,37 @@ class TestEventBus:
         # Should not raise any error
         event_bus.emit("nonexistent_event", {"data": "test"})
 
+    def test_emit_without_debug_logging_does_not_read_data_keys(self):
+        """Avoid building debug-only log arguments when DEBUG is disabled."""
+        event_bus = EventBus()
+        event_bus.logger.setLevel("INFO")
+
+        class KeysTrackingDict(dict):
+            def keys(self):
+                raise AssertionError("debug-only data keys were evaluated")
+
+        event_bus.emit("nonexistent_event", KeysTrackingDict(data="test"))
+
+    def test_emit_without_subscribers_has_no_debug_summary(self, caplog):
+        """Do not emit the empty-event summary when nothing was delivered."""
+        event_bus = EventBus()
+        caplog.set_level("DEBUG", logger="EventBus")
+        caplog.clear()
+
+        event_bus.emit("nonexistent_event", {"data": "test"})
+
+        messages = [record.getMessage() for record in caplog.records if record.name == "EventBus"]
+        assert "Event 'nonexistent_event' emitted but no subscribers found" not in messages
+        assert "Emitting event: nonexistent_event with data keys: ['data']" in messages
+
+        event_bus.subscribe("nonexistent_event", lambda _: None)
+        caplog.clear()
+        event_bus.emit("nonexistent_event", {"data": "test"})
+
+        assert "Event 'nonexistent_event' completed: 1 total callbacks executed" in [
+            record.getMessage() for record in caplog.records if record.name == "EventBus"
+        ]
+
     def test_emit_multiple_events(self):
         """Test emitting multiple different events."""
         event_bus = EventBus()
