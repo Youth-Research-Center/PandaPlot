@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QInputDialog, QMenu
 from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCommand
 from pandaplot.commands.project.dataset.change_column_dtype_command import ChangeColumnDtypeCommand
 from pandaplot.commands.project.dataset.delete_columns_command import DeleteColumnsCommand
+from pandaplot.commands.project.dataset.recompute_formula_columns_command import RecomputeFormulaColumnsCommand
 from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
 from pandaplot.services.theme.theme_manager import ThemeManager
 
@@ -87,6 +88,18 @@ class ColumnHeaderContextMenu(QMenu):
             self.addMenu(dtype_menu)
             self.addSeparator()
         
+        if self._has_non_live_formula_column():
+            recompute_action = QAction("Recompute formula column(s)", self)
+            recompute_action.triggered.connect(
+                lambda: self.app_context.command_executor.execute_command(RecomputeFormulaColumnsCommand(
+                    self.app_context,
+                    self.dataset_id,
+                    self.column_indices
+                ))
+            )
+            self.addAction(recompute_action)
+            self.addSeparator()
+
         # Delete column action
         delete_cols_action = QAction("Delete selected column(s)", self)
         delete_cols_action.triggered.connect(
@@ -97,6 +110,20 @@ class ColumnHeaderContextMenu(QMenu):
             ))
         )
         self.addAction(delete_cols_action)
+
+    def _has_non_live_formula_column(self) -> bool:
+        """Whether any selected column is a formula column that doesn't recompute itself (#154)."""
+        project = self.app_context.app_state.current_project
+        dataset = project.find_item(self.dataset_id) if project else None
+        data = getattr(dataset, "data", None)
+        if data is None:
+            return False
+        for index in self.column_indices:
+            if 0 <= index < len(data.columns):
+                spec = dataset.formula_column_by_name(str(data.columns[index]))
+                if spec is not None and not spec.live:
+                    return True
+        return False
 
     def _rename_column(self):
         """Prompt for a new name for the selected column and execute the rename."""

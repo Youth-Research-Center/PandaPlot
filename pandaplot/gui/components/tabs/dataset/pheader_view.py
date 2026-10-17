@@ -31,7 +31,7 @@ def formula_tooltip(dataset, column_name: str) -> str | None:
     kind = (
         "Live formula column (read-only, recomputes automatically)"
         if spec.live
-        else "Formula column (static until the transform is re-run)"
+        else "Formula column (static until recomputed -- right-click the header)"
     )
     return f"{kind}\n{spec.expression}"
 
