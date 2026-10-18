@@ -57,3 +57,44 @@ def test_command_execution_failure_surfaces_the_commands_specific_reason(ctx):
 
     assert result is False
     assert received == ["Expression referenced an out-of-range index"]
+
+
+def test_formula_flags_are_threaded_into_the_transform_config(ctx):
+    """Issue #154: the panel's "save as formula" / "live" checkboxes have to
+    reach TransformColumnCommand, which is what actually registers the spec."""
+    app_context, _ = ctx
+    controller = TransformController(app_context)
+
+    captured = []
+    executor = Mock()
+    executor.execute_command.side_effect = lambda command: captured.append(command.transform_config) or True
+    app_context.get_command_executor.return_value = executor
+
+    controller.apply_transformation(
+        dataset_id="ds-1",
+        source_column="a",
+        new_column_name="a_x2",
+        function_code="x * 2",
+        as_formula=True,
+        live=True,
+    )
+
+    assert captured[0]["as_formula"] is True
+    assert captured[0]["live"] is True
+
+
+def test_formula_flags_default_to_off(ctx):
+    app_context, _ = ctx
+    controller = TransformController(app_context)
+
+    captured = []
+    executor = Mock()
+    executor.execute_command.side_effect = lambda command: captured.append(command.transform_config) or True
+    app_context.get_command_executor.return_value = executor
+
+    controller.apply_transformation(
+        dataset_id="ds-1", source_column="a", new_column_name="a_x2", function_code="x * 2",
+    )
+
+    assert captured[0]["as_formula"] is False
+    assert captured[0]["live"] is False
