@@ -13,12 +13,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QTextEdit,
     QVBoxLayout,
 )
 
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.models.project.items.dataset import Dataset
 
@@ -109,7 +109,7 @@ class BaseAnalysisDialog(QDialog):
 
         # Both spinboxes show 1-based row numbers, matching the row numbers
         # in the dataset table (pandas_table_model.py shows "row + 1").
-        self.start_index = QSpinBox()
+        self.start_index = IntegerInput()
         self.start_index.setMinimum(0)
         self.start_index.setValue(0)
         self.start_value_label = QLabel("–")
@@ -118,7 +118,7 @@ class BaseAnalysisDialog(QDialog):
         start_row.addWidget(self.start_value_label)
         layout.addRow("Start Row:", start_row)
 
-        self.end_index = QSpinBox()
+        self.end_index = IntegerInput()
         self.end_index.setMinimum(0)
         self.end_index.setValue(0)
         self.end_value_label = QLabel("–")

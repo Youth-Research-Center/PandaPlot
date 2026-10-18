@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -44,6 +43,7 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
 )
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
@@ -178,7 +178,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         group = QGroupBox("Segment (index range)")
         form = QFormLayout(group)
 
-        self.start_index = QSpinBox()
+        self.start_index = IntegerInput()
         self.start_index.setMinimum(0)
         self.start_index.setMaximum(0)
         self.start_value_label = QLabel("–")
@@ -187,7 +187,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         start_row.addWidget(self.start_value_label)
         form.addRow("Start index:", start_row)
 
-        self.end_index = QSpinBox()
+        self.end_index = IntegerInput()
         self.end_index.setMinimum(0)
         self.end_index.setMaximum(0)
         self.end_value_label = QLabel("–")

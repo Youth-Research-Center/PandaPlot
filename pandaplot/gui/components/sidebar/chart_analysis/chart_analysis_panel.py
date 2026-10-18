@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -30,6 +29,7 @@ from pandaplot.commands.project.chart.create_chart_with_analysis_series_command 
     build_quick_plot_command,
 )
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
@@ -117,7 +117,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         group = QGroupBox("Segment (index range)")
         form = QFormLayout(group)
 
-        self.start_index = QSpinBox()
+        self.start_index = IntegerInput()
         self.start_index.setMinimum(0)
         self.start_index.setMaximum(0)
         self.start_value_label = QLabel("–")
@@ -126,7 +126,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         start_row.addWidget(self.start_value_label)
         form.addRow("Start index:", start_row)
 
-        self.end_index = QSpinBox()
+        self.end_index = IntegerInput()
         self.end_index.setMinimum(0)
         self.end_index.setMaximum(0)
         self.end_value_label = QLabel("–")
@@ -228,7 +228,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                                 ("Quadratic", "quadratic"), ("Nearest", "nearest")):
                 self.interp_method_combo.addItem(name, value)
             self.parameters_layout.addRow("Method:", self.interp_method_combo)
-            self.num_points_spin = QSpinBox()
+            self.num_points_spin = IntegerInput()
             self.num_points_spin.setRange(10, 100000)
             self.num_points_spin.setValue(200)
             self.parameters_layout.addRow("Points:", self.num_points_spin)
@@ -243,16 +243,16 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
         method = self.smooth_method_combo.currentData()
         if method == "savgol":
-            self.window_length_spin = QSpinBox()
+            self.window_length_spin = IntegerInput()
             self.window_length_spin.setRange(3, 101)
             self.window_length_spin.setValue(11)
             self.parameters_layout.addRow("Window length:", self.window_length_spin)
-            self.poly_order_spin = QSpinBox()
+            self.poly_order_spin = IntegerInput()
             self.poly_order_spin.setRange(1, 10)
             self.poly_order_spin.setValue(3)
             self.parameters_layout.addRow("Polynomial order:", self.poly_order_spin)
         elif method == "rolling_mean":
-            self.window_spin = QSpinBox()
+            self.window_spin = IntegerInput()
             self.window_spin.setRange(2, 100)
             self.window_spin.setValue(5)
             self.parameters_layout.addRow("Window size:", self.window_spin)

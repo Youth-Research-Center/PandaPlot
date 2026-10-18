@@ -1,12 +1,10 @@
 """Legend tab: chart legend visibility, position, columns, frame, background."""
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QDoubleSpinBox,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -15,6 +13,7 @@ from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.color_swatch_row import ColorSwatchRow
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.font_family_options import list_available_font_families
+from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.gui.components.common.slider_with_spinbox import SliderWithSpinbox
@@ -62,13 +61,13 @@ class LegendTab(QWidget):
         custom_layout = QGridLayout(self.legend_custom_row)
         custom_layout.setContentsMargins(0, 0, 0, 0)
         custom_layout.addWidget(QLabel("X:"), 0, 0)
-        self.legend_custom_x_spin = QDoubleSpinBox()
+        self.legend_custom_x_spin = DecimalInput()
         self.legend_custom_x_spin.setRange(0.0, 1.0)
         self.legend_custom_x_spin.setSingleStep(0.05)
         self.legend_custom_x_spin.setValue(1.02)
         custom_layout.addWidget(self.legend_custom_x_spin, 0, 1)
         custom_layout.addWidget(QLabel("Y:"), 1, 0)
-        self.legend_custom_y_spin = QDoubleSpinBox()
+        self.legend_custom_y_spin = DecimalInput()
         self.legend_custom_y_spin.setRange(0.0, 1.0)
         self.legend_custom_y_spin.setSingleStep(0.05)
         self.legend_custom_y_spin.setValue(0.5)
@@ -83,7 +82,7 @@ class LegendTab(QWidget):
         self.legend_custom_row.setVisible(False)
 
         legend_layout.addWidget(QLabel("Font Size:"), 2, 0)
-        self.legend_font_size_spin = QSpinBox()
+        self.legend_font_size_spin = IntegerInput()
         self.legend_font_size_spin.setRange(6, 18)
         self.legend_font_size_spin.setValue(10)
         legend_layout.addWidget(self.legend_font_size_spin, 2, 1)

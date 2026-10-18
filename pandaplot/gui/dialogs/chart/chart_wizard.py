@@ -130,7 +130,7 @@ class ChartWizard(PWizard):
                 background-color: {accent};
                 border-color: {accent};
             }}
-            QLineEdit, QSpinBox {{
+            QLineEdit {{
                 background-color: {input_bg};
                 border: 1px solid {card_border};
                 border-radius: 4px;
@@ -138,13 +138,13 @@ class ChartWizard(PWizard):
                 min-height: 22px;
                 color: {base_fg};
             }}
-            QLineEdit:focus, QSpinBox:focus {{
+            QLineEdit:focus {{
                 border-color: {accent};
             }}
-            QLineEdit:hover, QSpinBox:hover {{
+            QLineEdit:hover {{
                 border-color: {accent};
             }}
-            QLineEdit:disabled, QSpinBox:disabled {{
+            QLineEdit:disabled {{
                 color: {secondary_fg};
                 background-color: {card_bg};
                 border-color: {card_border};

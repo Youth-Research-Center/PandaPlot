@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidget,
-    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -21,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.analysis import DescriptiveStatsResult
 from pandaplot.commands.project.dataset.descriptive_stats_command import DescriptiveStatsCommand
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
@@ -91,7 +91,7 @@ class DescriptiveStatsPanel(SidebarPanel):
 
         digits_row = QHBoxLayout()
         digits_row.addWidget(QLabel("Significant digits:"))
-        self.digits_spin = QSpinBox()
+        self.digits_spin = IntegerInput()
         self.digits_spin.setRange(1, 12)
         self.digits_spin.setValue(6)
         digits_row.addWidget(self.digits_spin)

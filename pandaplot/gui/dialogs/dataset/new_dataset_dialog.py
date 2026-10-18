@@ -7,12 +7,12 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QLineEdit,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 
 _MAX_SPINBOX_VALUE = 2_147_483_647
 
@@ -37,13 +37,13 @@ class NewDatasetDialog(QDialog):
         self.name_edit = QLineEdit("New Dataset")
         form.addRow("Name:", self.name_edit)
 
-        self.rows_spinbox = QSpinBox()
+        self.rows_spinbox = IntegerInput()
         self.rows_spinbox.setMinimum(1)
         self.rows_spinbox.setMaximum(_MAX_SPINBOX_VALUE)
         self.rows_spinbox.setValue(10)
         form.addRow("Rows:", self.rows_spinbox)
 
-        self.columns_spinbox = QSpinBox()
+        self.columns_spinbox = IntegerInput()
         self.columns_spinbox.setMinimum(1)
         self.columns_spinbox.setMaximum(_MAX_SPINBOX_VALUE)
         self.columns_spinbox.setValue(3)

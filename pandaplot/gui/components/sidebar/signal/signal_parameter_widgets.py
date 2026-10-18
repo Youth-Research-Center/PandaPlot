@@ -1,7 +1,8 @@
-from PySide6.QtWidgets import QDoubleSpinBox, QFormLayout, QSpinBox, QWidget
+from PySide6.QtWidgets import QFormLayout, QWidget
 
 from pandaplot.analysis.signal.signal_types import SignalAnalysisInfo
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 
 
 def build_signal_parameter_widgets(
@@ -20,7 +21,7 @@ def build_signal_parameter_widgets(
 
     # Sampling rate
     if info.uses_sampling_rate:
-        sampling_rate = QDoubleSpinBox()
+        sampling_rate = DecimalInput()
         sampling_rate.setRange(0.001, 1e9)
         sampling_rate.setValue(1000)
 
@@ -32,7 +33,7 @@ def build_signal_parameter_widgets(
 
     # FFT size
     if info.uses_nfft:
-        nfft_spin = QSpinBox()
+        nfft_spin = IntegerInput()
         nfft_spin.setRange(16, 1_000_000)
         nfft_spin.setValue(info.default_nfft)
         parameters_layout.addRow(
@@ -57,7 +58,7 @@ def build_signal_parameter_widgets(
 
     # STFT / PSD
     if info.uses_nperseg:
-        nperseg_spin = QSpinBox()
+        nperseg_spin = IntegerInput()
         nperseg_spin.setRange(8, 1_000_000)
         nperseg_spin.setValue(
             info.default_nperseg
@@ -70,7 +71,7 @@ def build_signal_parameter_widgets(
         widgets["nperseg"] = nperseg_spin
 
     if info.uses_overlap:
-        overlap_spin = QDoubleSpinBox()
+        overlap_spin = DecimalInput()
         overlap_spin.setRange(0.0, 0.99)
         overlap_spin.setSingleStep(0.05)
         overlap_spin.setValue(
@@ -85,7 +86,7 @@ def build_signal_parameter_widgets(
 
     # Peak detection
     if info.uses_height:
-        height_spin = QDoubleSpinBox()
+        height_spin = DecimalInput()
         height_spin.setRange(
             -1e12,
             1e12
@@ -98,7 +99,7 @@ def build_signal_parameter_widgets(
         widgets["height"] = height_spin
 
     if info.uses_distance:
-        distance_spin = QSpinBox()
+        distance_spin = IntegerInput()
         distance_spin.setRange(
             1,
             1_000_000
@@ -112,7 +113,7 @@ def build_signal_parameter_widgets(
         widgets["distance"] = distance_spin
 
     if info.uses_prominence:
-        prominence_spin = QDoubleSpinBox()
+        prominence_spin = DecimalInput()
         prominence_spin.setRange(
             0,
             1e12
@@ -125,7 +126,7 @@ def build_signal_parameter_widgets(
         widgets["prominence"] = prominence_spin
 
     if info.uses_threshold:
-        threshold_spin = QDoubleSpinBox()
+        threshold_spin = DecimalInput()
         threshold_spin.setRange(
             -1e12,
             1e12

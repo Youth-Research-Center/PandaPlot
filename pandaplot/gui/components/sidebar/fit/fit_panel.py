@@ -6,7 +6,6 @@ import pandas as pd
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
-    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -15,7 +14,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMenu,
     QPlainTextEdit,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -25,6 +23,7 @@ from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, get_chart_type_spec
@@ -309,7 +308,7 @@ class FitPanel(SidebarPanel):
         
         # Number of fit points
         self.fit_options_layout.addWidget(QLabel("Fit Points:"), 0, 0)
-        self.fit_points_spin = QSpinBox()
+        self.fit_points_spin = IntegerInput()
         self.fit_points_spin.setRange(50, 5000)
         self.fit_points_spin.setValue(500)
         self.fit_options_layout.addWidget(self.fit_points_spin, 0, 1, alignment=Qt.AlignmentFlag.AlignLeft)
@@ -338,7 +337,7 @@ class FitPanel(SidebarPanel):
         # live via update_data_points_display()) rather than disabled
         # spinboxes, so switching series/tabs or applying a fit never leaves
         # a stale manually-typed number on screen.
-        self.range_min_spin = QDoubleSpinBox()
+        self.range_min_spin = DecimalInput()
         self.range_min_spin.setRange(-1e9, 1e9)
         self.range_min_spin.setDecimals(6)
         self.range_min_spin.setVisible(False)
@@ -347,7 +346,7 @@ class FitPanel(SidebarPanel):
         range_layout.addWidget(self.range_min_spin, 1, 1)
         range_layout.addWidget(self.range_min_value_label, 1, 1)
 
-        self.range_max_spin = QDoubleSpinBox()
+        self.range_max_spin = DecimalInput()
         self.range_max_spin.setRange(-1e9, 1e9)
         self.range_max_spin.setDecimals(6)
         self.range_max_spin.setValue(1.0)
