@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.commands.app.change_settings_command import ChangeSettingsCommand
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.config import (
@@ -176,14 +177,14 @@ class SettingsDialog(PDialog):
             QLabel {{
                 color: {base_fg};
             }}
-            QSpinBox, QComboBox {{
+            QSpinBox {{
                 background-color: {card_bg};
                 border: 1px solid {card_border};
                 border-radius: 3px;
                 padding: 2px 5px;
                 color: {base_fg};
             }}
-            QSpinBox:focus, QComboBox:focus {{
+            QSpinBox:focus {{
                 border-color: {accent};
             }}
             QCheckBox {{
@@ -265,7 +266,7 @@ class SettingsDialog(PDialog):
         unit_layout = QHBoxLayout()
         self._unit_label = QLabel("Measurement unit:")
         unit_layout.addWidget(self._unit_label)
-        self.chart_unit_combo = QComboBox()
+        self.chart_unit_combo = DropDownComboBox()
         self.chart_unit_combo.addItems(list(UNIT_DISPLAY.values()))
         self.chart_unit_combo.setToolTip("Unit used to display chart width/height")
         self.chart_unit_combo.currentTextChanged.connect(self._on_chart_unit_combo_changed)
@@ -351,7 +352,7 @@ class SettingsDialog(PDialog):
         theme_layout = QVBoxLayout(theme_group)
         theme_selection_layout = QHBoxLayout()
         theme_selection_layout.addWidget(QLabel("Application theme:"))
-        self.theme_combo = QComboBox()
+        self.theme_combo = DropDownComboBox()
         self.theme_combo.addItems(["Light", "Dark", "Auto (System)"])
         self.theme_combo.setCurrentText("Auto (System)")
         self.theme_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)

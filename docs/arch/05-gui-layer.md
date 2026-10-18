@@ -122,6 +122,8 @@ The `UIController` stores the `parent_widget` reference so all dialogs are prope
 2. All `WidgetExtension` subclasses receive the event and call `_apply_theme()`
 3. `_apply_theme()` reads the current theme from `ThemeManager` and updates Qt stylesheets
 
+Shared controls are styled once, in `ThemeManager.build_stylesheet()`, from the design tokens rather than per dialog or panel. Dropdowns are the example: create them with `DropDownComboBox` (or `ValueComboBox`, which extends it) and do not write a `QComboBox` rule in a widget or dialog stylesheet. The app-wide rule gives the field, caret, hover/focus and disabled states and the popup list, and `DropDownComboBox` makes the list open below the field (macOS otherwise opens a native menu over it).
+
 ## Background Tasks & Busy Operations (`services/qtasks/` & `gui/components/common/`)
 
 Long-running operations (large CSV imports, analysis, signal processing, fitting on big datasets) run via `TaskScheduler`:

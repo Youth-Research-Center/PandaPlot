@@ -23,4 +23,5 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - `Build Release Installer` GitHub Actions workflow: builds installers for Linux, Windows, and macOS, and publishes them to a GitHub Release with SHA256 checksums under a user-supplied version tag.
 
 ### Changed
+- Dropdowns (combo boxes) share one themed style in sidebar panels, dialogs, and wizards: rounded bordered field, caret arrow, accent outline on hover and focus, an inset disabled state, and a list that always opens below the field instead of over it on macOS (#406).
 - The packaged Windows executable no longer opens a console window; logs are written to `~/.pandaplot/application.log` instead of the process's working directory.

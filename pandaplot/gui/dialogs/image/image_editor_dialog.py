@@ -8,7 +8,6 @@ from PySide6.QtCore import QBuffer, QIODevice, QRect, Qt
 from PySide6.QtGui import QImage, QImageReader, QImageWriter, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -18,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.gui.dialogs.image.crop_canvas import CropCanvas, clamp_rect_to_bounds
@@ -181,7 +181,7 @@ class ImageEditorDialog(PDialog):
 
         aspect_row = QHBoxLayout()
         aspect_row.addWidget(QLabel("Aspect:"))
-        self.aspect_combo = QComboBox()
+        self.aspect_combo = DropDownComboBox()
         self.aspect_combo.addItems(["Free", "1:1", "Original", "16:9", "4:3"])
         aspect_row.addWidget(self.aspect_combo)
         crop_layout.addLayout(aspect_row)

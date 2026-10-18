@@ -12,7 +12,6 @@ from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -28,6 +27,7 @@ from PySide6.QtWidgets import (
 from pandaplot.commands.project.chart.transform_chart_series_command import (
     TransformChartSeriesCommand,
 )
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
@@ -94,7 +94,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     def _create_source_section(self, layout):
         group = QGroupBox("Series")
         form = QFormLayout(group)
-        self.source_combo = QComboBox()
+        self.source_combo = DropDownComboBox()
         form.addRow("Transform:", self.source_combo)
         self.source_hint = QLabel("Data series and fitted curves of this chart.")
         self.source_hint.setWordWrap(True)
@@ -104,7 +104,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     def _create_target_section(self, layout):
         group = QGroupBox("Target")
         form = QFormLayout(group)
-        self.target_combo = QComboBox()
+        self.target_combo = DropDownComboBox()
         self.target_combo.addItem("Y", "y")
         self.target_combo.addItem("X", "x")
         form.addRow("Replace:", self.target_combo)

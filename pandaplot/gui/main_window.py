@@ -5,11 +5,12 @@ from PySide6.QtGui import QScreen
 from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
 from pandaplot.commands.project.project.unsaved_changes import confirm_discard_unsaved_changes
-from pandaplot.gui.components import CollapsibleSidebar, TabContainer
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
 from pandaplot.gui.components.sidebar.panels.sidebar_panel_coordinator import (
     SidebarPanelCoordinator,
 )
+from pandaplot.gui.components.sidebar.sidebar import CollapsibleSidebar
+from pandaplot.gui.components.tabs.tab_container import TabContainer
 from pandaplot.gui.core.widget_extension import PMainWindow
 from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import AppEvents

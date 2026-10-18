@@ -6,7 +6,6 @@ from typing import Any, override
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -22,6 +21,7 @@ from pandaplot.analysis import AnalysisEngine
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import AnalysisEvents, DatasetEvents, DatasetOperationEvents, UIEvents
@@ -146,7 +146,7 @@ class AnalysisPanel(SidebarPanel):
         group = QGroupBox("Analysis Type")
         group_layout = QFormLayout()
         
-        self.analysis_type_combo = QComboBox()
+        self.analysis_type_combo = DropDownComboBox()
         self.analysis_type_combo.addItems([
             "Derivative",
             "Integral", 
@@ -165,8 +165,8 @@ class AnalysisPanel(SidebarPanel):
         group = QGroupBox("Column Selection")
         group_layout = QFormLayout()
         
-        self.x_column_combo = QComboBox()
-        self.y_column_combo = QComboBox()
+        self.x_column_combo = DropDownComboBox()
+        self.y_column_combo = DropDownComboBox()
         
         group_layout.addRow("X Column:", self.x_column_combo)
         group_layout.addRow("Y Column:", self.y_column_combo)
@@ -371,7 +371,7 @@ class AnalysisPanel(SidebarPanel):
         analysis_type = self.analysis_type_combo.currentText()
         
         if analysis_type == "Derivative":
-            self.method_combo = QComboBox()
+            self.method_combo = DropDownComboBox()
             self.method_combo.addItems(["Central Difference", "Forward Difference", "Backward Difference"])
             self.parameters_layout.addRow("Method:", self.method_combo)
             
@@ -386,7 +386,7 @@ class AnalysisPanel(SidebarPanel):
             self.parameters_layout.addRow("", info_label)
             
         elif analysis_type == "Smoothing":
-            self.smooth_method_combo = QComboBox()
+            self.smooth_method_combo = DropDownComboBox()
             self.smooth_method_combo.addItems(["Savitzky-Golay", "Rolling Mean", "LOWESS"])
             self.smooth_method_combo.currentTextChanged.connect(self.update_smoothing_params)
             self.parameters_layout.addRow("Method:", self.smooth_method_combo)
@@ -395,7 +395,7 @@ class AnalysisPanel(SidebarPanel):
             self.update_smoothing_params()
             
         elif analysis_type == "Interpolation":
-            self.interp_method_combo = QComboBox()
+            self.interp_method_combo = DropDownComboBox()
             self.interp_method_combo.addItems(["Linear", "Cubic", "Quadratic", "Nearest"])
             self.parameters_layout.addRow("Method:", self.interp_method_combo)
             

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWizard,
 )
 
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.core.widget_extension import PWizard, PWizardPage
 from pandaplot.models.project.items.column_role import ColumnRole
 from pandaplot.models.project.items.dataset import Dataset
@@ -74,7 +75,7 @@ class _ColumnRolesPage(PWizardPage):
             dtype_item.setFlags(dtype_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
             self.table.setItem(row, 1, dtype_item)
 
-            role_combo = QComboBox()
+            role_combo = DropDownComboBox()
             role_combo.setAccessibleName(f"Role for column {column_name}")
             for label, role in _ROLE_OPTIONS:
                 role_combo.addItem(label, role.value if role is not None else "")
@@ -361,12 +362,12 @@ class MeasurementAnalysisWizard(PWizard):
             QLabel, QTableWidget {{
                 color: {foreground};
             }}
-            QLineEdit, QComboBox, QTableWidget {{
+            QLineEdit, QTableWidget {{
                 background-color: {input_background};
                 border: 1px solid {border};
                 padding: 4px;
             }}
-            QLineEdit:focus, QComboBox:focus {{
+            QLineEdit:focus {{
                 border-color: {accent};
             }}
         """)

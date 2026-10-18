@@ -1,6 +1,7 @@
-from PySide6.QtWidgets import QComboBox, QDoubleSpinBox, QFormLayout, QSpinBox, QWidget
+from PySide6.QtWidgets import QDoubleSpinBox, QFormLayout, QSpinBox, QWidget
 
 from pandaplot.analysis.signal.signal_types import SignalAnalysisInfo
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 
 
 def build_signal_parameter_widgets(
@@ -42,7 +43,7 @@ def build_signal_parameter_widgets(
 
     # Window
     if info.uses_window:
-        window_combo = QComboBox()
+        window_combo = DropDownComboBox()
 
         window_combo.addItems(
             info.windows

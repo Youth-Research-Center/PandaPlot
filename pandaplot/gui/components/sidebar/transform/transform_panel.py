@@ -11,7 +11,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -26,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
@@ -192,7 +192,7 @@ class TransformPanel(SidebarPanel):
         type_group = QGroupBox("Transform Type")
         type_layout = QFormLayout(type_group)
         
-        self.transform_type_combo = QComboBox()
+        self.transform_type_combo = DropDownComboBox()
         self.transform_type_combo.addItems(self.transform_types)
         self.transform_type_combo.setCurrentText("Custom Function")
         
@@ -337,7 +337,7 @@ class TransformPanel(SidebarPanel):
         self.preview_btn = PButton("Preview", role="secondary", on_click=self.update_preview)
         self.preview_btn.setMaximumWidth(70)
         
-        self.preview_rows_combo = QComboBox()
+        self.preview_rows_combo = DropDownComboBox()
         self.preview_rows_combo.addItems(["5", "10", "20"])
         self.preview_rows_combo.setCurrentText("5")
         self.preview_rows_combo.setMaximumWidth(50)

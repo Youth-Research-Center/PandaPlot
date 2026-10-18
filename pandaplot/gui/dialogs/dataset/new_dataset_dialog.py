@@ -3,7 +3,6 @@
 import math
 
 from PySide6.QtWidgets import (
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -12,6 +11,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 
 _MAX_SPINBOX_VALUE = 2_147_483_647
 
@@ -48,7 +49,7 @@ class NewDatasetDialog(QDialog):
         self.columns_spinbox.setValue(3)
         form.addRow("Columns:", self.columns_spinbox)
 
-        self.fill_value_combo = QComboBox()
+        self.fill_value_combo = DropDownComboBox()
         self.fill_value_combo.addItem("Empty (NaN)")
         self.fill_value_combo.addItem("Zero (0.0)")
         form.addRow("Initial value:", self.fill_value_combo)

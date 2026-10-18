@@ -130,7 +130,7 @@ class ChartWizard(PWizard):
                 background-color: {accent};
                 border-color: {accent};
             }}
-            QLineEdit, QSpinBox, QComboBox {{
+            QLineEdit, QSpinBox {{
                 background-color: {input_bg};
                 border: 1px solid {card_border};
                 border-radius: 4px;
@@ -138,26 +138,16 @@ class ChartWizard(PWizard):
                 min-height: 22px;
                 color: {base_fg};
             }}
-            QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
+            QLineEdit:focus, QSpinBox:focus {{
                 border-color: {accent};
             }}
-            QLineEdit:hover, QSpinBox:hover, QComboBox:hover {{
+            QLineEdit:hover, QSpinBox:hover {{
                 border-color: {accent};
             }}
-            QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled {{
+            QLineEdit:disabled, QSpinBox:disabled {{
                 color: {secondary_fg};
                 background-color: {card_bg};
                 border-color: {card_border};
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {input_bg};
-                color: {base_fg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-                outline: none;
-                padding: 2px;
-                selection-background-color: {accent};
-                selection-color: white;
             }}
             QListWidget {{
                 background-color: {input_bg};

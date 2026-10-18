@@ -8,7 +8,6 @@ from typing import Any, override
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
@@ -25,6 +24,7 @@ from pandaplot.analysis.preprocessing_types import PREPROCESSING_METHODS, list_m
 from pandaplot.commands.project.dataset.preprocess_column_command import (
     PreprocessColumnCommand,
 )
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
@@ -76,7 +76,7 @@ class PreprocessingPanel(SidebarPanel):
         group_layout = QVBoxLayout()
 
         form = QFormLayout()
-        self.method_combo = QComboBox()
+        self.method_combo = DropDownComboBox()
         for info in list_methods():
             self.method_combo.addItem(info.label, info.method.value)
         form.addRow("Method:", self.method_combo)
