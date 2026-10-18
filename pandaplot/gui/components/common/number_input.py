@@ -12,7 +12,8 @@ number, so a button that reads it right after typing sees the typed value), but:
   scrolls the surrounding panel.
 * Up/Down step by the single step, Page Up/Down and Shift step ten times as
   much, and Escape discards text that is not a usable number.
-* ``.`` and ``,`` are both accepted as the decimal separator, at most
+* ``.`` and ``,`` (and the locale's own separator and digits) are accepted as
+  the decimal separator, grouped spellings such as ``1,234.5`` work, at most
   ``decimals`` digits can follow it, and values are clamped into range when
   the field is left; text outside the range is outlined as invalid while it is
   typed.
@@ -24,11 +25,12 @@ by dynamic properties like ``PButton``.
 from __future__ import annotations
 
 import math
+import re
 
 import shiboken6
-from PySide6.QtCore import QEvent, QLocale, QObject, QRegularExpression, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QKeyEvent, QRegularExpressionValidator, QWheelEvent
-from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QLineEdit, QToolButton, QWidget
+from PySide6.QtCore import QEvent, QLocale, QObject, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QKeyEvent, QValidator, QWheelEvent
+from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QLineEdit, QSizePolicy, QToolButton, QWidget
 
 _FIELD_HEIGHT = 28
 _BUTTON_WIDTH = 24
@@ -40,6 +42,38 @@ _INT_MAX = 2_147_483_647
 _REPEAT_DELAY_MS = 400
 _REPEAT_INTERVAL_MS = 60
 _MINUS_SIGNS = ("−", "–")
+_DIRECTION_MARKS = ("\u200e", "\u200f", "\u061c")
+_WHEEL_NOTCH = 120
+_NUMBER_PATTERN = re.compile(r"([^eE]*)(?:[eE]([+-]?)(\d*))?")
+_MANTISSA_PATTERN = re.compile(r"[\d.,]*")
+_GROUP_SIZE = 3
+_TEXT_VERTICAL_SPACE = 12
+
+
+class _NumberValidator(QValidator):
+    """Lets through only text that can still become a number the input reads.
+
+    Unlike a single regular expression it understands grouped spellings
+    (``1,234.5``, ``1.234,5``) and the locale's own digits and separators, and
+    still limits the digits after the decimal separator.
+    """
+
+    def __init__(self, owner: NumberInput):
+        super().__init__(owner)
+        self._owner = owner
+
+    def validate(self, text: str, pos: int) -> tuple[QValidator.State, str, int]:
+        """Qt validator hook.
+
+        Args:
+            text: Proposed field text.
+            pos: Cursor position, passed through unchanged.
+
+        Returns:
+            Acceptable if the text can be (part of) a number, otherwise Invalid.
+        """
+        state = QValidator.State.Acceptable if self._owner._could_become_number(text) else QValidator.State.Invalid
+        return state, text, pos
 
 
 class NumberInput(QFrame):
@@ -80,12 +114,13 @@ class NumberInput(QFrame):
         self.setProperty("numberInput", True)  # noqa: FBT003 -- Qt dynamic-property API takes the value positionally
         self.setProperty("focused", False)  # noqa: FBT003 -- Qt dynamic-property API takes the value positionally
         self.setProperty("invalid", False)  # noqa: FBT003 -- Qt dynamic-property API takes the value positionally
-        self.setFixedHeight(_FIELD_HEIGHT)
+        self.setMinimumHeight(_FIELD_HEIGHT)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self._wheel_pending = 0
 
         self._edit = QLineEdit(self)
         self._allow_fraction = allow_fraction
-        self._edit.setValidator(QRegularExpressionValidator(self._edit))
-        self._refresh_validator()
+        self._edit.setValidator(_NumberValidator(self))
         # The frame draws the border, so the edit inside it must stay flat. A
         # widget's own stylesheet outranks any dialog-level ``QLineEdit`` rule,
         # which would otherwise draw a second box inside the field.
@@ -144,7 +179,14 @@ class NumberInput(QFrame):
         self._refresh_display()
 
     def setValue(self, value: float) -> None:
-        """Set the value, clamped into range; emits ``valueChanged`` if it changed."""
+        """Set the value, clamped into range; emits ``valueChanged`` if it changed.
+
+        Setting the value the field already holds leaves its text alone, so a
+        listener that echoes the value back while the user types does not
+        rewrite (and move the cursor in) what they are typing.
+        """
+        if math.isfinite(float(value)) and self._normalise(float(value)) == self._value and self._parse(self._edit.text()) == self._value:
+            return
         self._apply_value(value)
 
     def minimum(self) -> float:
@@ -178,11 +220,22 @@ class NumberInput(QFrame):
     def sizeHint(self) -> QSize:
         """A compact field: room for the buttons and about eight digits."""
         steppers = 2 * _BUTTON_WIDTH if self._decrease.isVisibleTo(self) else 0
-        return QSize(steppers + _TEXT_WIDTH, _FIELD_HEIGHT)
+        return QSize(steppers + _TEXT_WIDTH, self._field_height())
 
     def minimumSizeHint(self) -> QSize:
         steppers = 2 * _BUTTON_WIDTH if self._decrease.isVisibleTo(self) else 0
-        return QSize(steppers + _MIN_TEXT_WIDTH, _FIELD_HEIGHT)
+        return QSize(steppers + _MIN_TEXT_WIDTH, self._field_height())
+
+    def _field_height(self) -> int:
+        """At least ``_FIELD_HEIGHT``, taller when a large font needs the room."""
+        return max(_FIELD_HEIGHT, self.fontMetrics().height() + _TEXT_VERTICAL_SPACE)
+
+    def changeEvent(self, event: QEvent) -> None:
+        """Re-measure the field when the font changes."""
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.FontChange:
+            self.setMinimumHeight(self._field_height())
+            self.updateGeometry()
 
     def setAccessibleName(self, name: str) -> None:
         """Name the field itself for assistive technology, not just its frame."""
@@ -203,7 +256,7 @@ class NumberInput(QFrame):
         return min(max(value, self._minimum), self._maximum)
 
     def _normalise(self, value: float) -> float:
-        return round(self._clamp(value), self._decimals)
+        return round(self._clamp(value), self._decimals) + 0.0  # + 0.0 turns -0.0 into 0.0
 
     def _apply_value(self, value: float, *, rewrite_text: bool = True) -> None:
         """Store ``value`` (clamped, rounded), refresh the field, emit on change.
@@ -241,38 +294,123 @@ class NumberInput(QFrame):
     def _parse(self, text: str) -> float | None:
         """Read a number from typed text; ``None`` if it is not a finite number.
 
-        Both ``.`` and ``,`` work as the decimal separator. When both appear,
-        the last one is the decimal separator and the other is a thousands
-        separator, so ``1,234.5`` and ``1.234,5`` both mean 1234.5.
+        Both ``.`` and ``,`` work as the decimal separator, as does the
+        locale's own, and digits from any script are read. When both ``.`` and
+        ``,`` appear, the last one is the decimal separator and the other
+        groups thousands, so ``1,234.5`` and ``1.234,5`` both mean 1234.5; a
+        separator that repeats (``1,234,567``) groups thousands.
         """
         text = text.strip()
         if self._special_text and text.casefold() == self._special_text.casefold():
             return self._minimum
-        for minus in _MINUS_SIGNS:
-            text = text.replace(minus, "-")
-        text = text.replace(" ", "").replace(" ", "")
-        if "," in text and "." in text:
-            decimal = "," if text.rfind(",") > text.rfind(".") else "."
-            thousands = "." if decimal == "," else ","
-            text = text.replace(thousands, "").replace(decimal, ".")
-        else:
-            text = text.replace(",", ".")
+        parts = self._split_number(text, final=True)
+        if parts is None:
+            return None
+        sign, integer, fraction, exponent = parts
+        if not integer and not fraction:
+            return None
         try:
-            number = float(text)
+            number = float(f"{sign}{integer or '0'}.{fraction or '0'}{exponent}")
         except ValueError:
             return None
         return number if math.isfinite(number) else None
 
-    def _refresh_validator(self) -> None:
-        """Only let characters through that can still become a number."""
-        sign = "[+\\-\u2212]?"
-        if not self._allow_fraction or self._decimals == 0:
-            pattern = f"^{sign}[0-9]*$"
-        else:
-            pattern = f"^{sign}[0-9]*([.,][0-9]{{0,{self._decimals}}})?([eE][+\\-]?[0-9]*)?$"
-        validator = self._edit.validator()
-        if isinstance(validator, QRegularExpressionValidator):
-            validator.setRegularExpression(QRegularExpression(pattern))
+    def _could_become_number(self, text: str) -> bool:
+        """Whether typing more could turn ``text`` into a number (the validator's test)."""
+        return self._split_number(text, final=False) is not None
+
+    def _takes_fraction(self) -> bool:
+        return self._allow_fraction and self._decimals > 0
+
+    def _clean_text(self, text: str) -> str:
+        """Spaces, direction marks and locale-specific signs and separators mapped to ASCII."""
+        for mark in _DIRECTION_MARKS:
+            text = text.replace(mark, "")
+        for minus in (*_MINUS_SIGNS, self._locale.negativeSign()):
+            if minus.strip("".join(_DIRECTION_MARKS)):
+                text = text.replace(minus, "-")
+        text = text.replace(" ", "").replace("\u00a0", "").replace("\u202f", "")
+        point = self._locale.decimalPoint()
+        if point and point not in ".,":
+            text = text.replace(point, ".")
+        return text
+
+    def _split_number(self, text: str, *, final: bool) -> tuple[str, str, str, str] | None:
+        """Break text into ``(sign, integer digits, fraction digits, exponent)``.
+
+        Args:
+            text: Field text.
+            final: ``False`` also accepts text that is still being typed (``-``,
+                ``1e``, ``1,23``); ``True`` requires a complete number.
+
+        Returns:
+            The pieces, ready to join into a ``float()`` string (the exponent
+            is ``""`` or like ``"e-3"``), or ``None`` if the text cannot be, or
+            cannot become, a number.
+        """
+        text = self._clean_text(text)
+        sign = ""
+        if text[:1] in ("+", "-"):
+            sign, text = text[0], text[1:]
+        match = _NUMBER_PATTERN.fullmatch(text)
+        if match is None:
+            return None
+        mantissa, exponent_sign, exponent_digits = match.groups()
+        if not self._takes_fraction():
+            if exponent_digits is not None or (mantissa and not mantissa.isdigit()):
+                return None
+            return sign, mantissa, "", ""
+        if final and exponent_digits is not None and not exponent_digits:
+            return None
+        if _MANTISSA_PATTERN.fullmatch(mantissa) is None:
+            return None
+        split = self._split_separators(mantissa, final=final)
+        if split is None:
+            return None
+        integer, fraction = split
+        # "1,234" typed on the way to "1,234.5" has one separator and a full
+        # group of digits after it; hold that third digit until the field is left.
+        could_be_group = len(re.findall(r"[.,]", mantissa)) == 1 and 0 < len(integer) <= _GROUP_SIZE
+        if len(fraction) > (max(self._decimals, _GROUP_SIZE) if could_be_group else self._decimals):
+            return None
+        exponent = f"e{exponent_sign}{exponent_digits}" if exponent_digits else ""
+        return sign, integer, fraction, exponent
+
+    @staticmethod
+    def _split_separators(mantissa: str, *, final: bool) -> tuple[str, str] | None:
+        """Split digits and ``.`` / ``,`` into ``(integer digits, fraction digits)``."""
+        separators = [char for char in mantissa if char in ".,"]
+        if not separators:
+            return mantissa, ""
+        if len(set(separators)) == 2:
+            index = max(mantissa.rfind("."), mantissa.rfind(","))
+            decimal = mantissa[index]
+            thousands = "," if decimal == "." else "."
+            if decimal in mantissa[:index]:
+                return None
+            integer = NumberInput._ungroup(mantissa[:index], thousands, final=final)
+            return None if integer is None else (integer, mantissa[index + 1 :])
+        if len(separators) == 1:
+            index = mantissa.index(separators[0])
+            return mantissa[:index], mantissa[index + 1 :]
+        integer = NumberInput._ungroup(mantissa, separators[0], final=final)
+        return None if integer is None else (integer, "")
+
+    @staticmethod
+    def _ungroup(text: str, separator: str, *, final: bool) -> str | None:
+        """Join thousands groups (``1,234,567``); ``None`` if the groups are not 3 digits.
+
+        While typing (``final=False``) the last group may still be short.
+        """
+        groups = text.split(separator)
+        head, *rest = groups
+        if not 0 < len(head) <= _GROUP_SIZE:
+            return None
+        for position, group in enumerate(rest):
+            is_last = position == len(rest) - 1
+            if len(group) != _GROUP_SIZE and not (is_last and not final and len(group) < _GROUP_SIZE):
+                return None
+        return "".join(groups)
 
     def _refresh_display(self) -> None:
         text = self._format(self._value)
@@ -362,6 +500,7 @@ class NumberInput(QFrame):
                 QTimer.singleShot(0, self._select_all)
             elif kind == QEvent.Type.FocusOut:
                 self._set_state_property("focused", state=False)
+                self._wheel_pending = 0
         return super().eventFilter(watched, event)
 
     def _select_all(self) -> None:
@@ -374,6 +513,9 @@ class NumberInput(QFrame):
     def _handle_wheel(self, event: QWheelEvent) -> bool:
         """Step on the wheel only while focused; otherwise let the panel scroll.
 
+        Partial notches (high-resolution wheels) add up to one step per 120
+        units, and a delta of several notches steps that many times.
+
         Returns:
             Whether the event was consumed.
         """
@@ -382,7 +524,13 @@ class NumberInput(QFrame):
             return False
         delta = event.angleDelta().y()
         if delta:
-            self._step(1 if delta > 0 else -1, self._modifier_factor())
+            if self._wheel_pending and (delta > 0) != (self._wheel_pending > 0):
+                self._wheel_pending = 0
+            self._wheel_pending += delta
+            notches = int(self._wheel_pending / _WHEEL_NOTCH)
+            if notches:
+                self._wheel_pending -= notches * _WHEEL_NOTCH
+                self._step(1 if notches > 0 else -1, abs(notches) * self._modifier_factor())
         event.accept()
         return True
 
@@ -421,7 +569,6 @@ class DecimalInput(NumberInput):
     def setDecimals(self, decimals: int) -> None:
         """Set how many digits follow the decimal separator (0 to 15)."""
         self._decimals = min(max(int(decimals), 0), 15)
-        self._refresh_validator()
         self._apply_value(self._value)
 
     def decimals(self) -> int:

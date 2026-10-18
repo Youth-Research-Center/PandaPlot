@@ -9,7 +9,7 @@ import ast
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+from PySide6.QtCore import QEvent, QLocale, QPoint, QPointF, Qt
 from PySide6.QtGui import QColor, QKeyEvent, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
@@ -298,8 +298,9 @@ def test_no_more_decimals_can_be_typed_than_the_input_shows(shown):
     widget.setDecimals(2)
 
     _type(widget, "1.2345")
+    QTest.keyClick(widget._edit, Qt.Key.Key_Return)
 
-    assert widget._edit.text() == "1.23"
+    assert widget._edit.text() in ("1.23", "1,23")
 
 
 def test_a_decimal_input_with_no_decimals_takes_no_separator(shown):
@@ -804,3 +805,195 @@ def test_no_stylesheet_targets_a_spin_box():
     ]
 
     assert offenders == [], f"QSpinBox QSS no longer matches anything: {offenders}"
+
+
+# -- review follow-ups (#487) -------------------------------------------------------
+
+
+def test_setting_the_value_it_already_has_leaves_the_typed_text_alone(shown):
+    widget = shown(DecimalInput())
+    widget.setRange(0.0, 100.0)
+    widget.setDecimals(1)
+    widget._edit.setFocus()
+    _type(widget, "5")
+    cursor_text = widget._edit.text()
+
+    widget.setValue(widget.value())
+
+    assert widget._edit.text() == cursor_text == "5"
+
+
+def test_setting_the_same_value_still_restores_text_that_is_not_a_number(shown):
+    widget = shown(DecimalInput())
+    widget.setRange(0.0, 100.0)
+    widget.setValue(5.0)
+    _type(widget, "500")
+
+    widget.setValue(5.0)
+
+    assert widget.value() == 5.0
+    assert widget._edit.text() in ("5,00", "5.00")
+
+
+def test_a_tiny_negative_value_is_stored_as_plain_zero():
+    widget = DecimalInput()
+    widget.setRange(-10.0, 10.0)
+
+    widget.setValue(-0.001)
+
+    assert str(widget.value()) == "0.0"
+
+
+@pytest.mark.parametrize("point_size", [10, 24, 36])
+def test_the_field_grows_with_the_font_instead_of_clipping_the_text(shown, point_size):
+    widget = DecimalInput()
+    font = widget.font()
+    font.setPointSize(point_size)
+    widget.setFont(font)
+    shown(widget)
+    QApplication.processEvents()
+
+    needed = widget.fontMetrics().height()
+
+    assert widget.height() >= needed
+    assert widget.sizeHint().height() >= needed
+    assert widget.height() >= 28
+
+
+def test_the_field_resizes_when_the_font_changes_after_it_is_shown(shown):
+    widget = shown(DecimalInput())
+    before = widget.height()
+    font = widget.font()
+    font.setPointSize(40)
+
+    widget.setFont(font)
+    QApplication.processEvents()
+    widget.parentWidget().layout().activate()
+
+    assert widget.height() > before
+    assert widget.height() >= widget.fontMetrics().height()
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        ("1,234.5", 1234.5),
+        ("1.234,5", 1234.5),
+        ("1,234,567", 1234567.0),
+        ("12.5", 12.5),
+        ("-1,234.5", -1234.5),
+    ],
+)
+def test_grouped_spellings_can_be_typed_not_just_committed(shown, typed, expected):
+    widget = shown(DecimalInput())
+    widget.setRange(-1e9, 1e9)
+    widget.setDecimals(2)
+
+    _type(widget, typed)
+    QTest.keyClick(widget._edit, Qt.Key.Key_Return)
+
+    assert widget.value() == pytest.approx(expected)
+
+
+def test_grouped_spellings_still_respect_the_decimal_limit(shown):
+    widget = shown(DecimalInput())
+    widget.setRange(0.0, 1e9)
+    widget.setDecimals(2)
+
+    _type(widget, "1,234.567")
+
+    assert widget._edit.text() == "1,234.56"
+
+
+def test_a_grouped_number_can_be_pasted(shown):
+    widget = shown(DecimalInput())
+    widget.setRange(0.0, 1e9)
+    widget.setDecimals(2)
+    widget._edit.selectAll()
+
+    widget._edit.insert("1.234,5")
+    QTest.keyClick(widget._edit, Qt.Key.Key_Return)
+
+    assert widget.value() == pytest.approx(1234.5)
+
+
+@pytest.fixture
+def arabic_locale():
+    previous = QLocale()
+    QLocale.setDefault(QLocale(QLocale.Language.Arabic, QLocale.Country.Egypt))
+    try:
+        yield
+    finally:
+        QLocale.setDefault(previous)
+
+
+def test_a_value_shown_in_a_non_latin_locale_reads_back_the_same(arabic_locale):
+    widget = DecimalInput()
+    widget.setRange(0.0, 1000.0)
+    widget.setValue(12.5)
+    shown_text = widget._edit.text()
+
+    widget._edit.setText(shown_text)
+    widget._commit_text()
+
+    assert shown_text not in ("12.50", "12,50")
+    assert widget.value() == pytest.approx(12.5)
+
+
+def test_a_value_shown_in_a_non_latin_locale_can_be_edited_by_typing(shown, arabic_locale):
+    widget = shown(DecimalInput())
+    widget.setRange(0.0, 1000.0)
+    widget.setValue(12.5)
+    shown_text = widget._edit.text()
+    widget._edit.setFocus()
+    widget._edit.setCursorPosition(len(shown_text))
+
+    QTest.keyClick(widget._edit, Qt.Key.Key_Backspace)
+    QTest.keyClick(widget._edit, Qt.Key.Key_Backspace)
+    QTest.keyClicks(widget._edit, "7")
+    QTest.keyClick(widget._edit, Qt.Key.Key_Return)
+
+    assert widget.value() == pytest.approx(12.7)
+
+
+def test_the_wheel_accumulates_partial_notches(shown):
+    widget = shown(DecimalInput())
+    widget.setRange(0.0, 100.0)
+    widget.setValue(5.0)
+    widget._edit.setFocus()
+    QApplication.processEvents()
+
+    for _ in range(7):
+        _wheel(widget._edit, 15)
+    assert widget.value() == 5.0
+    _wheel(widget._edit, 15)
+
+    assert widget.value() == 6.0
+
+
+def test_one_large_wheel_delta_steps_once_per_notch(shown):
+    widget = shown(DecimalInput())
+    widget.setRange(0.0, 100.0)
+    widget.setValue(5.0)
+    widget._edit.setFocus()
+    QApplication.processEvents()
+
+    _wheel(widget._edit, 240)
+    assert widget.value() == 7.0
+    _wheel(widget._edit, -360)
+
+    assert widget.value() == 4.0
+
+
+def test_reversing_the_wheel_discards_the_pending_remainder(shown):
+    widget = shown(DecimalInput())
+    widget.setRange(0.0, 100.0)
+    widget.setValue(5.0)
+    widget._edit.setFocus()
+    QApplication.processEvents()
+
+    _wheel(widget._edit, 90)
+    _wheel(widget._edit, -60)
+    _wheel(widget._edit, -60)
+
+    assert widget.value() == 4.0

@@ -76,3 +76,17 @@ def test_typing_in_the_numeric_field_moves_the_slider():
 
     assert widget._slider.value() == 50
     assert seen and seen[-1] == pytest.approx(5.0)
+
+
+def test_typing_a_multi_character_decimal_keeps_every_character():
+    """The first digit moves the slider, which sets the field back to the same
+    value; that echo must not rewrite the text under the cursor."""
+    widget = SliderWithSpinbox(minimum=0.0, maximum=10.0)
+    edit = widget._spinbox._edit
+
+    edit.selectAll()
+    QTest.keyClicks(edit, "5.5")
+
+    assert edit.text() in ("5.5", "5,5")
+    assert widget.value() == pytest.approx(5.5)
+    assert widget._slider.value() == 55
