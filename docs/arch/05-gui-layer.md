@@ -92,6 +92,16 @@ TabContainer
 - Plain text editor with optional markdown preview split
 - Subscribes to `NoteEvents` to sync content
 
+### Sketch canvas (`gui/components/tabs/sketch/`)
+
+The only Qt Graphics View (`QGraphicsScene`/`QGraphicsView`) surface in the app; every other drawing surface is matplotlib. It is used because sketches need direct manipulation (hit-testing, dragging, resize handles, live strokes) that matplotlib does not provide.
+
+- `SketchCanvas` draws a `Sketch` and never changes it: `rebuild()` replaces the scene with a fresh drawing of the model, so the model stays the single source of truth.
+- The scene holds a paper rectangle of the canvas size (z = -1) and one invisible parent item per layer. A layer's z-value is its index, and each element's z-value is its index within the layer. Children stack only among siblings, so this gives the model's order with no limit on elements per layer. Layer visibility and opacity are set on the parent and apply to every child.
+- `graphics_items.build_graphics_item()` turns an element into a `QGraphicsItem` through `GRAPHICS_ITEM_BUILDERS` (element class to builder). The item is placed at the element's anchor and rotated around it, so its local coordinates are the element's relative geometry. Text sizes are pixel sizes, so a sketch lays out the same on every platform.
+- Scroll bars are always off: scroll bars that appear and vanish as the zoom changes resize the viewport during `fit_to_canvas()` and push the canvas off-centre.
+- GUI tests that build text items need a `QApplication`; use pytest-qt's `qapp` fixture even when no widget is shown.
+
 ## UIController (`gui/controllers/`)
 
 Facade over all Qt dialog types. GUI components call `UIController` instead of constructing dialogs directly:
