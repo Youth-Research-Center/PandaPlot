@@ -460,3 +460,27 @@ def test_redo_refuses_without_corrupting_data_series_if_chart_type_changed_since
 
     assert command.redo() is CommandResult.ABORTED
     assert chart.data_series == series_after_undo
+
+
+@pytest.mark.parametrize("fit_type", ["Exponential Decay", "Exponential Growth to Maximum", "Damped Sine"])
+def test_apply_fit_keeps_full_model_name_in_label_and_report_names(app_context_with_chart, fit_results, fit_type):
+    app_context, project, chart, source = app_context_with_chart
+    fit_results.fit_type = fit_type
+
+    command = ApplyFitCommand(
+        app_context=app_context,
+        chart_id=chart.id,
+        fit_results=fit_results,
+        source_dataset_id=source.id,
+        source_x_column_id="x_id",
+        source_y_column_id="y_id",
+        source_x_column="x",
+        source_y_column="y",
+    )
+
+    assert command.execute() is CommandResult.SUCCESS
+
+    fit = next(s for s in chart.data_series if s.is_fit)
+    assert fit.label.startswith(f"{fit_type} Fit:")
+    assert project.find_item(command.report_note_id).name == f"{fit_type} Fit Report"
+    assert project.find_item(command.result_dataset_id).name == f"{fit_type} Fit Data"

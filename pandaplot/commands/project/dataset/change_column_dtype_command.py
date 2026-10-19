@@ -5,6 +5,7 @@ import pandas as pd
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -103,6 +104,11 @@ class ChangeColumnDtypeCommand(Command):
                     "Change Column Type",
                     f"Column index {self.column_index} is out of range."
                 )
+                return CommandResult.FAILURE
+
+            if refuse_live_formula_edit(
+                self.dataset, self.ui_controller, title="Change Column Type", column_positions=[self.column_index],
+            ):
                 return CommandResult.FAILURE
 
             # Get column information

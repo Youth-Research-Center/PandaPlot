@@ -13,7 +13,9 @@ import pytest
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.edit_command import EditCommand
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -193,3 +195,67 @@ def test_edit_command_updates_modified_at_on_execute_undo_redo(mock_app_context,
     dataset.modified_at = "2020-01-01T00:00:00.000000"
     assert command.redo() is CommandResult.SUCCESS
     assert dataset.modified_at != "2020-01-01T00:00:00.000000"
+
+
+def _dataset_with_formula_column(*, live: bool) -> Dataset:
+    """a is plain; b is a formula column over a."""
+    dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1.0, 2.0], "b": [2.0, 4.0]}))
+    dataset.set_formula_column(dataset.column_id("b"), FormulaColumnSpec(
+        expression="x * 2", source_column_ids=[dataset.column_id("a")], live=live,
+    ))
+    return dataset
+
+
+def test_editing_a_cell_of_a_live_formula_column_is_refused(mock_app_context, sample_project):
+    """A live formula column is derived data: its values are changed by editing its source."""
+    mock_app_context.app_state.has_project = True
+    mock_app_context.app_state.current_project = sample_project
+    dataset = _dataset_with_formula_column(live=True)
+    sample_project.find_item.return_value = dataset
+    command = EditCommand(mock_app_context, "ds-1", (0, 1), old_value=2.0, new_value=99.0)
+
+    assert command.execute() is CommandResult.FAILURE
+
+    assert dataset.data["b"].tolist() == [2.0, 4.0]
+    mock_app_context.get_ui_controller().show_warning_message.assert_called_once()
+    message = mock_app_context.get_ui_controller().show_warning_message.call_args.args[1]
+    assert "'b'" in message
+    assert "source" in message
+    mock_app_context.event_bus.emit.assert_not_called()
+
+
+def test_a_refused_edit_cannot_be_undone_or_redone(mock_app_context, sample_project):
+    mock_app_context.app_state.has_project = True
+    mock_app_context.app_state.current_project = sample_project
+    dataset = _dataset_with_formula_column(live=True)
+    sample_project.find_item.return_value = dataset
+    command = EditCommand(mock_app_context, "ds-1", (0, 1), old_value=2.0, new_value=99.0)
+    command.execute()
+
+    assert command.undo() is CommandResult.FAILURE
+    assert command.redo() is CommandResult.FAILURE
+    assert dataset.data["b"].tolist() == [2.0, 4.0]
+
+
+def test_editing_a_static_formula_column_is_still_allowed(mock_app_context, sample_project):
+    mock_app_context.app_state.has_project = True
+    mock_app_context.app_state.current_project = sample_project
+    dataset = _dataset_with_formula_column(live=False)
+    sample_project.find_item.return_value = dataset
+    command = EditCommand(mock_app_context, "ds-1", (0, 1), old_value=2.0, new_value=99.0)
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert dataset.data["b"].tolist() == [99.0, 4.0]
+
+
+def test_editing_the_source_of_a_live_formula_column_is_allowed(mock_app_context, sample_project):
+    mock_app_context.app_state.has_project = True
+    mock_app_context.app_state.current_project = sample_project
+    dataset = _dataset_with_formula_column(live=True)
+    sample_project.find_item.return_value = dataset
+    command = EditCommand(mock_app_context, "ds-1", (0, 0), old_value=1.0, new_value=10.0)
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert dataset.data["a"].tolist() == [10.0, 2.0]
+    emitted = [call.args[0] for call in mock_app_context.event_bus.emit.call_args_list]
+    assert DatasetEvents.DATASET_DATA_CHANGED in emitted

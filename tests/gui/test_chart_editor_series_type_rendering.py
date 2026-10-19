@@ -164,36 +164,35 @@ def test_line_chart_with_fill_to_index_fills_between_the_two_curves():
 
 
 def test_line_chart_with_fill_range_restricts_fill_to_the_x_subrange():
-    """#280: fill_range_enabled/start/end should mask the fill to just the
-    points start..end (0-based, inclusive), not the whole series."""
+    """Multiple fill sections union point masks while preserving gaps."""
     _qapp()
     project, dataset = _project_and_dataset()  # x: 1..5
     chart = Chart(name="Line Chart", chart_type="line")
     chart.add_data_series(
         dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
         style=LineSeriesStyle(color="#123456", fill_enabled=True,
-                               fill_range_enabled=True, fill_range_start=1, fill_range_end=3),
+                               fill_range_enabled=True, fill_sections=[(0, 1), (3, 4)]),
     )
 
     editor = _editor_for(project, chart)
 
     fills = editor.chart_canvas.axes.collections
     assert len(fills) == 1
-    vertices = fills[0].get_paths()[0].vertices
-    assert vertices[:, 0].min() >= 2
-    assert vertices[:, 0].max() <= 4
+    all_vertices = [vertex for path in fills[0].get_paths() for vertex in path.vertices]
+    assert min(vertex[0] for vertex in all_vertices) == 1
+    assert max(vertex[0] for vertex in all_vertices) == 5
+    assert len(fills[0].get_paths()) == 2
 
 
 def test_line_chart_with_fill_range_disabled_fills_the_whole_series():
-    """Sanity check: fill_range_start/end are ignored unless fill_range_enabled
-    is set, so an untouched (default) LineSeriesStyle still fills fully."""
+    """Sanity check: fill_sections is ignored unless range limiting is enabled."""
     _qapp()
     project, dataset = _project_and_dataset()  # x: 1..5
     chart = Chart(name="Line Chart", chart_type="line")
     chart.add_data_series(
         dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
         style=LineSeriesStyle(color="#123456", fill_enabled=True,
-                               fill_range_start=1, fill_range_end=3),
+                               fill_sections=[(1, 3)]),
     )
 
     editor = _editor_for(project, chart)
@@ -358,7 +357,7 @@ def test_scatter_fill_range_selects_data_points_by_row():
     chart = Chart(name="Scatter Chart", chart_type="scatter")
     chart.add_data_series(
         dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
-        style=ScatterSeriesStyle(fill_enabled=True, fill_range_enabled=True, fill_range_start=1, fill_range_end=3),
+        style=ScatterSeriesStyle(fill_enabled=True, fill_range_enabled=True, fill_sections=[(1, 1), (3, 3)]),
     )
 
     editor = _editor_for(project, chart)
@@ -376,7 +375,7 @@ def test_fill_range_end_beyond_the_data_is_clamped():
     chart = Chart(name="Line Chart", chart_type="line")
     chart.add_data_series(
         dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
-        style=LineSeriesStyle(fill_enabled=True, fill_range_enabled=True, fill_range_start=2, fill_range_end=99),
+        style=LineSeriesStyle(fill_enabled=True, fill_range_enabled=True, fill_sections=[(2, 99)]),
     )
 
     editor = _editor_for(project, chart)

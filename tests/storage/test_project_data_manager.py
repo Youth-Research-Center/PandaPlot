@@ -162,3 +162,29 @@ def test_a_schema_version_newer_than_current_is_rejected(tmp_path, manager):
 
     with pytest.raises(ValueError, match="schema_version"):
         manager.load(str(zip_path))
+
+
+def test_formula_columns_raised_the_schema_version_past_the_last_pre_formula_release():
+    """Regression: formula columns persist data an older build would drop on its next save, so the
+    version must be one older builds reject (they only accept <= their own CURRENT_SCHEMA_VERSION)."""
+    assert CURRENT_SCHEMA_VERSION >= 4
+
+
+def test_a_version_3_project_loads_and_is_stamped_current(tmp_path, manager):
+    project_dict = {
+        "name": "Before Formulas",
+        "description": "",
+        "root": {"id": "root", "items": []},
+        "metadata": {},
+        "version": "1.0",
+        "schema_version": 3,
+        "path": None,
+        "item_files": {},
+    }
+    zip_path = tmp_path / "v3.pplot"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("project.json", json.dumps(project_dict))
+
+    project = manager.load(str(zip_path))
+
+    assert project.schema_version == CURRENT_SCHEMA_VERSION

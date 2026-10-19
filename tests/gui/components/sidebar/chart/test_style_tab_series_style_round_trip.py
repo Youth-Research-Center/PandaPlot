@@ -7,8 +7,9 @@ convention that must survive the .style migration unchanged.
 import dataclasses
 import sys
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
+from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
@@ -136,7 +137,7 @@ def test_load_then_apply_round_trips_fill_range_fields_for_line_series():
     tab = StyleTab(app_context=None)
     tab.set_chart_type(ChartType.LINE)
     series = _line_series(color="#112233", fill_enabled=True,
-                           fill_range_enabled=True, fill_range_start=0, fill_range_end=-1)
+                           fill_range_enabled=True, fill_sections=[(0, -1)])
 
     tab.load_series_style(series)
 
@@ -145,8 +146,7 @@ def test_load_then_apply_round_trips_fill_range_fields_for_line_series():
     tab.apply_series_style_to(series)
 
     assert series.style.fill_range_enabled is True
-    assert series.style.fill_range_start == 0
-    assert series.style.fill_range_end == -1
+    assert series.style.fill_sections == [(0, -1)]
 
 
 def test_fill_range_defaults_to_disabled_and_whole_series():
@@ -159,8 +159,41 @@ def test_fill_range_defaults_to_disabled_and_whole_series():
     tab.apply_series_style_to(series)
 
     assert series.style.fill_range_enabled is False
-    assert series.style.fill_range_start == 0
-    assert series.style.fill_range_end == -1
+    assert series.style.fill_sections == []
+    assert tab.fill_section_rows == []
+
+
+def test_disabling_range_preserves_configured_sections():
+    tab, series = _tab_with_project_series(rows=7, fill_range_enabled=True, fill_sections=[(1, 3), (5, -1)])
+    tab.load_series_style(series)
+
+    tab.fill_range_enabled_toggle.setChecked(checked=False)
+    tab.apply_series_style_to(series)
+
+    assert series.style.fill_range_enabled is False
+    assert series.style.fill_sections == [(1, 3), (5, -1)]
+
+
+def test_add_and_remove_fill_section_controls_update_rows_and_style():
+    tab, series = _tab_with_project_series(rows=7, fill_range_enabled=True, fill_sections=[(1, 3)])
+    tab.set_selected("series", series)
+
+    changes = []
+    tab.configChanged.connect(lambda: changes.append(True))
+    tab.fill_add_section_button.click()
+    assert len(tab.fill_section_rows) == 2
+    _, start_spin, _, end_spin, _ = tab.fill_section_rows[1]
+    assert (start_spin.value(), end_spin.value()) == (1, 7)
+    assert series.style.fill_sections == [(1, 3), (0, -1)]
+    assert changes
+    tab.fill_section_rows[1][0].findChild(PButton).click()
+    assert len(tab.fill_section_rows) == 1
+    assert tab.fill_section_rows[0][0].findChild(QLabel).text() == "Section 1"
+
+    tab.fill_section_rows[0][0].findChild(PButton).click()
+    assert series.style.fill_sections == []
+    tab.set_selected("series", series)
+    assert tab.fill_section_rows == []
 
 
 def test_load_then_apply_round_trips_vector_series():
@@ -583,45 +616,52 @@ def _tab_with_project_series(rows: int, **style_overrides):
     return tab, series
 
 
-def test_fill_range_points_default_to_first_and_last_data_point():
+def test_fill_range_defaults_to_empty_then_added_section_uses_full_data_range():
     tab, series = _tab_with_project_series(rows=7)
 
-    tab.load_series_style(series)
+    tab.set_selected("series", series)
 
-    assert tab.fill_range_start_spin.value() == 1
-    assert tab.fill_range_end_spin.value() == 7
-    assert tab.fill_range_start_spin.maximum() == 7
-    assert tab.fill_range_start_value_label.text() == "x=10, y=100"
-    assert tab.fill_range_end_value_label.text() == "x=70, y=700"
+    assert tab.fill_section_rows == []
+    tab.fill_range_enabled_toggle.setChecked(checked=True)
+    tab.fill_add_section_button.click()
+
+    assert len(tab.fill_section_rows) == 1
+    _, start_spin, start_label, end_spin, end_label = tab.fill_section_rows[0]
+    assert start_spin.value() == 1
+    assert end_spin.value() == 7
+    assert start_spin.maximum() == 7
+    assert start_label.text() == "x=10, y=100"
+    assert end_label.text() == "x=70, y=700"
 
 
 def test_fill_range_selected_points_round_trip_and_show_their_values():
-    tab, series = _tab_with_project_series(rows=7, fill_range_enabled=True, fill_range_start=2, fill_range_end=4)
+    tab, series = _tab_with_project_series(rows=7, fill_range_enabled=True, fill_sections=[(2, 4)])
 
     tab.load_series_style(series)
 
-    assert tab.fill_range_start_spin.value() == 3
-    assert tab.fill_range_end_spin.value() == 5
-    assert tab.fill_range_start_value_label.text() == "x=30, y=300"
-    assert tab.fill_range_end_value_label.text() == "x=50, y=500"
+    _, start_spin, start_label, end_spin, end_label = tab.fill_section_rows[0]
+    assert start_spin.value() == 3
+    assert end_spin.value() == 5
+    assert start_label.text() == "x=30, y=300"
+    assert end_label.text() == "x=50, y=500"
 
-    tab.fill_range_end_spin.setValue(6)
-    assert tab.fill_range_end_value_label.text() == "x=60, y=600"
+    end_spin.setValue(6)
+    assert end_label.text() == "x=60, y=600"
+    tab._add_fill_section(2, 4)
     tab.apply_series_style_to(series)
 
-    assert series.style.fill_range_start == 2
-    assert series.style.fill_range_end == 5
+    assert series.style.fill_sections == [(2, 5), (1, 3)]
 
 
 def test_fill_range_end_at_the_last_point_is_stored_as_minus_one():
     """So the range keeps tracking the end of the series if rows are appended."""
-    tab, series = _tab_with_project_series(rows=7, fill_range_enabled=True, fill_range_start=1, fill_range_end=3)
+    tab, series = _tab_with_project_series(rows=7, fill_range_enabled=True, fill_sections=[(1, 3)])
 
     tab.load_series_style(series)
-    tab.fill_range_end_spin.setValue(7)
+    tab.fill_section_rows[0][3].setValue(7)
     tab.apply_series_style_to(series)
 
-    assert series.style.fill_range_end == -1
+    assert series.style.fill_sections == [(1, -1)]
 
 
 def test_fill_match_label_says_marker_for_scatter_and_line_otherwise():

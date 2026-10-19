@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.common.card import Card
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.models.chart.chart_type_spec import ChartTypeSpec
 
@@ -99,14 +100,14 @@ class SeriesConfigCard(Card):
         row += 1
 
         grid.addWidget(QLabel("Dataset:"), row, 0)
-        self.dataset_combo = QComboBox()
+        self.dataset_combo = DropDownComboBox()
         self.dataset_combo.currentIndexChanged.connect(self._on_dataset_changed)
         grid.addWidget(self.dataset_combo, row, 1)
         row += 1
 
         for role in self._role_spec.roles:
             grid.addWidget(QLabel(f"{_ROLE_LABELS[role]}:"), row, 0)
-            combo = QComboBox()
+            combo = DropDownComboBox()
             combo.currentIndexChanged.connect(lambda _index=None: self.configChanged.emit())
             self._role_combos[role] = combo
             setattr(self, f"{role}_column_combo", combo)
@@ -129,7 +130,7 @@ class SeriesConfigCard(Card):
                 ("y_error", "Y error (+) column"), ("y_error_minus", "Y error (-) column"),
             ):
                 error_label = QLabel(f"{label}:")
-                combo = QComboBox()
+                combo = DropDownComboBox()
                 combo.currentIndexChanged.connect(lambda _index=None: self.configChanged.emit())
                 self._role_combos[error_role] = combo
                 setattr(self, f"{error_role}_column_combo", combo)

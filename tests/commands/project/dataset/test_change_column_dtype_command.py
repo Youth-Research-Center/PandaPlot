@@ -8,6 +8,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.change_column_dtype_command import ChangeColumnDtypeCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.state import AppContext, AppState
 
 
@@ -216,3 +217,29 @@ def test_cleanup_releases_the_original_data_snapshot():
     command.cleanup()
 
     assert command.original_data is None
+
+
+class TestLiveFormulaColumn:
+    def test_changing_the_type_of_a_live_formula_column_is_refused(self):
+        """Its dtype is whatever the formula yields; the next recompute would
+        silently undo a manual conversion."""
+        app_context = Mock(spec=AppContext)
+        app_state = Mock(spec=AppState)
+        ui_controller = Mock(spec=UIController)
+        app_context.get_app_state.return_value = app_state
+        app_context.get_ui_controller.return_value = ui_controller
+        app_context.event_bus = Mock()
+        project = Mock()
+        app_state.has_project = True
+        app_state.current_project = project
+        dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2, 3], "b": [2, 4, 6]}))
+        dataset.set_formula_column(dataset.column_id("b"), FormulaColumnSpec(
+            expression="x * 2", source_column_ids=[dataset.column_id("a")], live=True,
+        ))
+        project.find_item.return_value = dataset
+
+        command = ChangeColumnDtypeCommand(app_context, "ds-1", 1, "float64")
+
+        assert command.execute() is CommandResult.FAILURE
+        assert str(dataset.data["b"].dtype) == "int64"
+        ui_controller.show_warning_message.assert_called_once()

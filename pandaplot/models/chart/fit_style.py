@@ -34,6 +34,9 @@ class FitStyle(SeriesStyleBase):
     band_fill_enabled: bool = True
     band_fill_alpha: float = 0.2
     band_color: str = ""  # "" => inherit the fit line's own color
+    # "vertical": confidence_lower/upper are Y bounds at each curve X.
+    # "horizontal": they are X bounds at each curve Y (after swapping X/Y).
+    band_orientation: str = "vertical"
     fit_type: str = ""
     fit_params: dict[str, Any] | None = None
     fit_stats: dict[str, Any] | None = None

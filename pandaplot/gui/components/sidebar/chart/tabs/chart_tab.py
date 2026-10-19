@@ -5,11 +5,11 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, compatible_chart_types_for_series
@@ -62,7 +62,7 @@ class ChartTab(QWidget):
 
         self.hist_bins_label = QLabel("Bins:")
         info_layout.addWidget(self.hist_bins_label, 3, 0)
-        self.hist_bins_spin = QSpinBox()
+        self.hist_bins_spin = IntegerInput()
         self.hist_bins_spin.setRange(2, 200)
         self.hist_bins_spin.setValue(20)
         self.hist_bins_spin.setToolTip("Number of bins used by histogram series")

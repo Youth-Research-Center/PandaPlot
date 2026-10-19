@@ -8,12 +8,12 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QLabel,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 
 _MAX_SPINBOX_VALUE = 2_147_483_647
 # Dataset combo sizing: characters of width it always reserves, and the width
@@ -77,12 +77,12 @@ class AddRowsColumnsDialog(QDialog):
         self.current_size_label = QLabel()
         form.addRow("Current size:", self.current_size_label)
 
-        self.rows_spinbox = QSpinBox()
+        self.rows_spinbox = IntegerInput()
         self.rows_spinbox.setMaximum(_MAX_SPINBOX_VALUE)
         self.rows_spinbox.valueChanged.connect(self._update_ok_enabled)
         form.addRow("Total rows:", self.rows_spinbox)
 
-        self.columns_spinbox = QSpinBox()
+        self.columns_spinbox = IntegerInput()
         self.columns_spinbox.setMaximum(_MAX_SPINBOX_VALUE)
         self.columns_spinbox.valueChanged.connect(self._update_ok_enabled)
         form.addRow("Total columns:", self.columns_spinbox)

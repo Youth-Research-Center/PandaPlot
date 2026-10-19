@@ -21,6 +21,7 @@ from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEve
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Chart, ColumnRole, Dataset
 from pandaplot.models.project.items.chart import resolve_series_column
+from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 
 
 @pytest.fixture
@@ -668,3 +669,72 @@ def test_deleting_a_pie_values_column_removes_the_series(env):
 
     assert DeleteColumnsCommand(app_context, dataset.id, ["c"]).execute() is CommandResult.SUCCESS
     assert pie_chart.data_series == []
+
+
+def _make_c_a_live_formula(dataset):
+    """Turn column "c" into a live formula over "a"; returns (column id, spec)."""
+    c_id = dataset.column_id("c")
+    spec = FormulaColumnSpec(
+        expression="x * 2", transform_type="column",
+        source_column_ids=[dataset.column_id("a")], source_aliases=["a"], live=True,
+    )
+    dataset.set_formula_column(c_id, spec)
+    return c_id, spec
+
+
+def test_undo_restores_the_formula_of_a_deleted_formula_column(env):
+    """Deleting prunes the registry with the column; undo must bring the
+    expression and live flag back, not just a plain column with the old id."""
+    app_context, dataset, *_ = env
+    c_id, spec = _make_c_a_live_formula(dataset)
+    command = DeleteColumnsCommand(app_context, dataset.id, ["c"])
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert dataset.formula_columns == {}
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert dataset.column_id("c") == c_id
+    assert dataset.formula_column(c_id) == spec
+    assert dataset.is_live_formula_column("c") is True
+
+
+def test_redo_drops_the_formula_again_and_a_second_undo_restores_it(env):
+    app_context, dataset, *_ = env
+    c_id, spec = _make_c_a_live_formula(dataset)
+    command = DeleteColumnsCommand(app_context, dataset.id, ["c"])
+    command.execute()
+    command.undo()
+
+    assert command.redo() is CommandResult.SUCCESS
+    assert dataset.formula_columns == {}
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert dataset.formula_column(c_id) == spec
+
+
+def test_undo_announces_the_restored_columns_after_the_formula_is_back(env):
+    """The live-recompute listener reacts to the column-added event, so the
+    registry must already be restored by the time it is emitted."""
+    app_context, dataset, *_ = env
+    c_id, spec = _make_c_a_live_formula(dataset)
+    command = DeleteColumnsCommand(app_context, dataset.id, ["c"])
+    command.execute()
+    seen = []
+    app_context.event_bus.emit.side_effect = lambda name, *_a, **_k: seen.append(
+        (name, dataset.formula_column(c_id)))
+
+    command.undo()
+
+    added = [formula for name, formula in seen if name == DatasetOperationEvents.DATASET_COLUMN_ADDED]
+    assert added == [spec]
+
+
+def test_cleanup_releases_the_formula_snapshot(env):
+    app_context, dataset, *_ = env
+    _make_c_a_live_formula(dataset)
+    command = DeleteColumnsCommand(app_context, dataset.id, ["c"])
+    command.execute()
+
+    command.cleanup()
+
+    assert command.original_formula_columns is None

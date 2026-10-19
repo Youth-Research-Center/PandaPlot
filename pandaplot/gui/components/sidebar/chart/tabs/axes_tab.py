@@ -3,18 +3,17 @@ import math
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QComboBox,
-    QDoubleSpinBox,
     QGridLayout,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.chip_row import ChipRow
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
@@ -128,7 +127,7 @@ class AxesTab(QWidget):
         layout = QGridLayout(card)
         layout.addWidget(SectionHeader("3D View"), 0, 0, 1, 2)
         layout.addWidget(QLabel("Elevation:"), 1, 0)
-        self.view_elev_spin = QDoubleSpinBox()
+        self.view_elev_spin = DecimalInput()
         self.view_elev_spin.setRange(-90.0, 90.0)
         self.view_elev_spin.setDecimals(1)
         self.view_elev_spin.setValue(30.0)
@@ -136,7 +135,7 @@ class AxesTab(QWidget):
         self.view_elev_spin.setToolTip("Camera height above the X/Y plane, in degrees")
         layout.addWidget(self.view_elev_spin, 1, 1)
         layout.addWidget(QLabel("Azimuth:"), 2, 0)
-        self.view_azim_spin = QDoubleSpinBox()
+        self.view_azim_spin = DecimalInput()
         self.view_azim_spin.setRange(-180.0, 180.0)
         self.view_azim_spin.setDecimals(1)
         self.view_azim_spin.setValue(-60.0)
@@ -168,11 +167,11 @@ class AxesTab(QWidget):
         log_base_layout.setContentsMargins(0, 0, 0, 0)
         log_base_label = QLabel("Base:")
         log_base_layout.addWidget(log_base_label, 0, 0)
-        log_base_combo = QComboBox()
+        log_base_combo = DropDownComboBox()
         for text, value in [("10", 10.0), ("2", 2.0), ("e (natural log)", math.e), ("Custom...", "custom")]:
             log_base_combo.addItem(text, value)
         log_base_layout.addWidget(log_base_combo, 0, 1)
-        log_base_custom_spin = QDoubleSpinBox()
+        log_base_custom_spin = DecimalInput()
         log_base_custom_spin.setRange(0.001, 1000.0)
         log_base_custom_spin.setSingleStep(0.1)
         log_base_custom_spin.setValue(10.0)
@@ -192,7 +191,7 @@ class AxesTab(QWidget):
         range_layout.addWidget(QLabel("Auto"), 0, 1)
         auto_toggle = ToggleSwitch(checked=True)
         range_layout.addWidget(auto_toggle, 0, 2)
-        min_spin = QDoubleSpinBox()
+        min_spin = DecimalInput()
         min_spin.setRange(-1e9, 1e9)
         # Task 4 made these boxes display machine-computed data ranges (not
         # just user-typed values); Qt's default of 2 decimal places silently
@@ -201,7 +200,7 @@ class AxesTab(QWidget):
         # Auto->Manual toggle.
         min_spin.setDecimals(6)
         min_spin.setEnabled(False)
-        max_spin = QDoubleSpinBox()
+        max_spin = DecimalInput()
         max_spin.setRange(-1e9, 1e9)
         max_spin.setDecimals(6)
         max_spin.setValue(1.0)
@@ -217,10 +216,10 @@ class AxesTab(QWidget):
         ticks_layout.addWidget(SectionHeader("Ticks"), 0, 0, 1, 2)
         mode_control = SegmentedControl([("Auto", "auto"), ("Count", "count"), ("Step", "step")])
         ticks_layout.addWidget(mode_control, 1, 0, 1, 2)
-        count_spin = QSpinBox()
+        count_spin = IntegerInput()
         count_spin.setRange(2, 50)
         count_spin.setValue(5)
-        step_spin = QDoubleSpinBox()
+        step_spin = DecimalInput()
         step_spin.setRange(0.001, 1e9)
         step_spin.setValue(1.0)
         count_label = QLabel("Count:")
@@ -233,7 +232,7 @@ class AxesTab(QWidget):
         count_spin.setVisible(False)
         step_label.setVisible(False)
         step_spin.setVisible(False)
-        format_combo = QComboBox()
+        format_combo = DropDownComboBox()
         for text, value in [("Auto", "auto"), ("Integer", "integer"), ("1 Decimal", "1decimal"),
                             ("2 Decimals", "2decimal"), ("Scientific", "scientific"), ("Custom...", "custom")]:
             format_combo.addItem(text, value)
@@ -374,14 +373,14 @@ class AxesTab(QWidget):
 
         color_vmin_label = QLabel("Min:")
         colormap_layout.addWidget(color_vmin_label, 5, 0)
-        color_vmin_spin = QDoubleSpinBox()
+        color_vmin_spin = DecimalInput()
         color_vmin_spin.setRange(-1e9, 1e9)
         color_vmin_spin.setDecimals(3)
         colormap_layout.addWidget(color_vmin_spin, 5, 1)
 
         color_vmax_label = QLabel("Max:")
         colormap_layout.addWidget(color_vmax_label, 6, 0)
-        color_vmax_spin = QDoubleSpinBox()
+        color_vmax_spin = DecimalInput()
         color_vmax_spin.setRange(-1e9, 1e9)
         color_vmax_spin.setDecimals(3)
         color_vmax_spin.setValue(1.0)
@@ -569,7 +568,7 @@ class AxesTab(QWidget):
         """Resolve the effective log base from the Base combo, reading the
         custom spin box when "Custom..." is selected. Rejects exactly 1.0
         (matplotlib's LogScale forbids it) by falling back to 10.0 --
-        QDoubleSpinBox can't exclude a single interior value via setRange,
+        DecimalInput can't exclude a single interior value via setRange,
         so this is enforced here instead."""
         form = self.axes_forms[prefix]
         data = form["log_base_combo"].currentData()

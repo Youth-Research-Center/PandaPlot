@@ -12,6 +12,8 @@ EXPECTED_STORY_NAMES = [
     "ColorSwatchRow",
     "DirtyFooter",
     "DropDownComboBox",
+    "DecimalInput",
+    "IntegerInput",
     "SectionHeader",
     "SliderWithSpinbox",
     "ValueComboBox",

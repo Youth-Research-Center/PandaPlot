@@ -42,9 +42,17 @@ def render_fit_series(axes: Axes, series_data: SeriesData, style: FitStyle,
         # same 0.3x scaling explicitly -- otherwise a hidden fit's band
         # stays fully opaque while its line fades.
         band_fill_alpha = style.band_fill_alpha if visible else 0.3 * style.band_fill_alpha
-        axes.fill_between(
-            series_data.x_data,
-            style.confidence_lower,
-            style.confidence_upper,
-            color=band_color,
-            alpha=band_fill_alpha)
+        if style.band_orientation == "horizontal":
+            axes.fill_betweenx(
+                series_data.y_data,
+                style.confidence_lower,
+                style.confidence_upper,
+                color=band_color,
+                alpha=band_fill_alpha)
+        else:
+            axes.fill_between(
+                series_data.x_data,
+                style.confidence_lower,
+                style.confidence_upper,
+                color=band_color,
+                alpha=band_fill_alpha)

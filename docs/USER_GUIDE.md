@@ -212,14 +212,15 @@ Calculations are computed asynchronously in background threads via the `TaskSche
 
 ### Curve Fitting
 Interactive curve fitting is available through the **Fit Panel** sidebar when viewing a Chart tab:
-1. **Model Selection**: Choose from predefined mathematical functions:
-   - **Linear**: $y = a \cdot x + b$
-   - **Quadratic**: $y = a \cdot x^2 + b \cdot x + c$
-   - **Exponential**: $y = a \cdot e^{b \cdot x}$
-   - **Power**: $y = a \cdot x^b$
-   - **Logarithmic**: $y = a \cdot \ln(x) + b$
-   - **Custom Model**: Enter custom mathematical expressions with user-defined parameters.
-2. **Execution**: Uses `scipy.optimize.curve_fit` (Levenberg-Marquardt algorithm) to optimize parameter values.
+1. **Model Selection**: Choose a model category, then select a fit:
+   - **Polynomial**: Linear, quadratic, cubic, quartic, and quintic.
+   - **Exponential**: General exponential, exponential decay, and growth to a maximum.
+   - **Sigmoid**: Logistic sigmoid.
+   - **Peak**: Gaussian and Lorentzian peaks.
+   - **Periodic**: Sine, cosine and damped sine, $y = a \cdot \sin(b \cdot x + c) + d$ (b is the angular frequency).
+   - **Power & Logarithmic**: Power and logarithmic.
+   - **Custom**: Enter a mathematical expression with user-defined parameters.
+2. **Execution**: Uses `scipy.optimize.curve_fit` to optimize model parameters. Models with constraints use bounded least squares.
 3. **Fit Results**: Displays optimized parameter estimates, standard errors ($\sigma$), covariance matrix, and coefficient of determination ($R^2$).
 4. **Overlay**: Real-time overlay of the fitted function curve onto the active chart canvas.
 
@@ -227,9 +228,9 @@ Interactive curve fitting is available through the **Fit Panel** sidebar when vi
 
 1. Start PandaPlot and import `examples/fit-test-data/f_x_4.2x_minus_2.3.csv` with **File > Import CSV...**. It has `x` and `f(x)` columns.
 2. Open the imported dataset, choose **Create Chart**, and create a **Scatter** or **Line** chart using `x` for X and `f(x)` for Y.
-3. With the chart open, select **Curve Fitting** in the sidebar. In **Chart Series**, choose the series, then set **Fit Type** to **Linear (y = ax + b)** and click **Perform Fit**.
+3. With the chart open, select **Curve Fitting** in the sidebar. In **Chart Series**, choose the series, select **Polynomial** as the category and **Linear (y = ax + b)** as the model, then click **Perform Fit**.
 4. Read **Fit Results**. The parameter estimates give the fitted values of `a` and `b`; their standard errors show how uncertain those estimates are. **R²** closer to 1 means the fitted line explains more of the variation in the data. A good fit has points close to the line and a high R²; a lower R² or a visible pattern in the residual differences suggests a poor fit or a model that does not describe the data well.
-5. To try another equation, set **Fit Type** to **Custom Function**. In **Custom Function**, enter an expression such as `a*x + b` in **Function**, list `a, b` in **Parameters**, and click **Perform Fit**. Use **Define parameters values** to provide starting or fixed values when needed.
+5. To try another equation, set **Category** to **Custom** and **Model** to **Custom Function**. In **Custom Function**, enter an expression such as `a*x + b` in **Function**, list `a, b` in **Parameters**, and click **Perform Fit**. Use **Define parameters values** to provide fixed values when needed.
 
 ### Signal Processing
 Access the **Signal Panel** for frequency-domain and peak detection tools:
@@ -257,6 +258,13 @@ The **Transform Panel** allows creation of derived columns using mathematical fo
 
 ### Formula Evaluator
 For a column transformation, select a source column and write a Python expression using `x` for that column's values. For example, use `np.sqrt(x)` for square roots, `x.rolling(3).mean()` for a rolling average over three rows, or `pd.to_datetime(x)` to convert values to dates. The Transform panel supplies selected NumPy and pandas names for expressions; this is not a general-purpose Python interface. Column transformations can append a new column or replace the selected column, with Undo/Redo support.
+
+### Formula Columns
+Check **Save as formula column** to keep the expression on the new column. The data table marks such a column with `fx` in its header, and hovering the header shows the expression. By default the values stay as computed until you run the transform again.
+
+Also check **Live** to keep the column up to date automatically (`fx live`). Whenever a source column changes — by editing a cell, pasting, adding or removing rows, or Undo/Redo — the live column is recomputed, and so are any live columns built on it. A live column is **read-only**: you cannot type, paste, preprocess, change the type of, or write analysis results into it. To change them, edit a source column, or run the transform again without **Live** to turn the column back into ordinary data.
+
+Formulas refer to their source columns by the names they had when the formula was created, so renaming a source column does not break a formula column. A formula that would depend on itself, directly or through other formula columns, is rejected. Formula expressions may only use arithmetic, NumPy and pandas; file access and Python internals are not available.
 
 ---
 

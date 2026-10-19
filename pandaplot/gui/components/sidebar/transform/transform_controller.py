@@ -102,17 +102,22 @@ class TransformController(QObject):
     
     def apply_transformation(self, dataset_id: str, source_column: str,
                            new_column_name: str, function_code: str,
-                           *, replace_existing: bool = False) -> bool:
+                           *, replace_existing: bool = False,
+                           as_formula: bool = False, live: bool = False) -> bool:
         """
         Apply the transformation to the dataset.
-        
+
         Args:
             dataset_id: ID of the dataset
             source_column: Name of the source column
             new_column_name: Name for the new column
             function_code: Transformation function code
             replace_existing: Whether to replace existing column
-            
+            as_formula: Remember the expression on the column so it can be
+                recomputed later (#154) rather than writing static values
+            live: Recompute the formula column automatically whenever a source
+                column changes (implies as_formula)
+
         Returns:
             True if successful, False otherwise
         """
@@ -153,7 +158,9 @@ class TransformController(QObject):
                 "transform_type": "column",  # Default to column operation for now
                 "source_columns": [source_column],
                 "expression": function_code,
-                "replace_existing": replace_existing
+                "replace_existing": replace_existing,
+                "as_formula": as_formula,
+                "live": live,
             }
             
             # Create and execute command through the executor so the transform

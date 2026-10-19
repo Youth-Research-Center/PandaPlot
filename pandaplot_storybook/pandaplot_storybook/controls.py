@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.slider_with_spinbox import SliderWithSpinbox
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -71,13 +71,13 @@ class ControlsPanel(QWidget):
             editor.toggled.connect(lambda checked: self._set(control.name, checked))
             return editor
         if isinstance(control, ChoiceControl):
-            editor = QComboBox()
+            editor = DropDownComboBox()
             editor.addItems(control.options)
             editor.setCurrentText(control.default)
             editor.currentTextChanged.connect(lambda text: self._set(control.name, text))
             return editor
         if isinstance(control, IntControl):
-            editor = QSpinBox()
+            editor = IntegerInput()
             editor.setRange(control.minimum, control.maximum)
             editor.setValue(control.default)
             editor.valueChanged.connect(lambda value: self._set(control.name, value))

@@ -9,6 +9,7 @@ from .create_chart_from_wizard_command import CreateChartFromWizardCommand
 from .create_chart_with_analysis_series_command import CreateChartWithAnalysisSeriesCommand
 from .remove_series_command import RemoveSeriesCommand
 from .reorder_series_command import ReorderSeriesCommand
+from .swap_chart_axes_command import SwapChartAxesCommand
 
 __all__ = [
     "AddAnalysisSeriesCommand",
@@ -20,4 +21,5 @@ __all__ = [
     "CreateChartWithAnalysisSeriesCommand",
     "RemoveSeriesCommand",
     "ReorderSeriesCommand",
+    "SwapChartAxesCommand",
 ]

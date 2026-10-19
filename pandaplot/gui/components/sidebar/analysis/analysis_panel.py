@@ -6,13 +6,11 @@ from typing import Any, override
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -22,6 +20,8 @@ from pandaplot.analysis import AnalysisEngine
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import AnalysisEvents, DatasetEvents, DatasetOperationEvents, UIEvents
@@ -146,7 +146,7 @@ class AnalysisPanel(SidebarPanel):
         group = QGroupBox("Analysis Type")
         group_layout = QFormLayout()
         
-        self.analysis_type_combo = QComboBox()
+        self.analysis_type_combo = DropDownComboBox()
         self.analysis_type_combo.addItems([
             "Derivative",
             "Integral", 
@@ -165,8 +165,8 @@ class AnalysisPanel(SidebarPanel):
         group = QGroupBox("Column Selection")
         group_layout = QFormLayout()
         
-        self.x_column_combo = QComboBox()
-        self.y_column_combo = QComboBox()
+        self.x_column_combo = DropDownComboBox()
+        self.y_column_combo = DropDownComboBox()
         
         group_layout.addRow("X Column:", self.x_column_combo)
         group_layout.addRow("Y Column:", self.y_column_combo)
@@ -191,7 +191,7 @@ class AnalysisPanel(SidebarPanel):
 
         # Both spinboxes show 1-based row numbers, matching the row numbers
         # in the dataset table (pandas_table_model.py shows "row + 1").
-        self.start_index = QSpinBox()
+        self.start_index = IntegerInput()
         self.start_index.setMinimum(0)
         self.start_index.setValue(0)
         self.start_value_label = QLabel("–")
@@ -200,7 +200,7 @@ class AnalysisPanel(SidebarPanel):
         start_row.addWidget(self.start_value_label)
         group_layout.addRow("Start Row:", start_row)
 
-        self.end_index = QSpinBox()
+        self.end_index = IntegerInput()
         self.end_index.setMinimum(0)
         self.end_index.setValue(0)
         self.end_value_label = QLabel("–")
@@ -371,7 +371,7 @@ class AnalysisPanel(SidebarPanel):
         analysis_type = self.analysis_type_combo.currentText()
         
         if analysis_type == "Derivative":
-            self.method_combo = QComboBox()
+            self.method_combo = DropDownComboBox()
             self.method_combo.addItems(["Central Difference", "Forward Difference", "Backward Difference"])
             self.parameters_layout.addRow("Method:", self.method_combo)
             
@@ -386,7 +386,7 @@ class AnalysisPanel(SidebarPanel):
             self.parameters_layout.addRow("", info_label)
             
         elif analysis_type == "Smoothing":
-            self.smooth_method_combo = QComboBox()
+            self.smooth_method_combo = DropDownComboBox()
             self.smooth_method_combo.addItems(["Savitzky-Golay", "Rolling Mean", "LOWESS"])
             self.smooth_method_combo.currentTextChanged.connect(self.update_smoothing_params)
             self.parameters_layout.addRow("Method:", self.smooth_method_combo)
@@ -395,11 +395,11 @@ class AnalysisPanel(SidebarPanel):
             self.update_smoothing_params()
             
         elif analysis_type == "Interpolation":
-            self.interp_method_combo = QComboBox()
+            self.interp_method_combo = DropDownComboBox()
             self.interp_method_combo.addItems(["Linear", "Cubic", "Quadratic", "Nearest"])
             self.parameters_layout.addRow("Method:", self.interp_method_combo)
             
-            self.num_points_spin = QSpinBox()
+            self.num_points_spin = IntegerInput()
             self.num_points_spin.setRange(10, 10000)
             self.num_points_spin.setValue(100)
             self.parameters_layout.addRow("Points:", self.num_points_spin)
@@ -413,18 +413,18 @@ class AnalysisPanel(SidebarPanel):
             self.parameters_layout.removeRow(1)
         
         if method == "Savitzky-Golay":
-            self.window_length_spin = QSpinBox()
+            self.window_length_spin = IntegerInput()
             self.window_length_spin.setRange(3, 101)
             self.window_length_spin.setValue(11)
             self.parameters_layout.addRow("Window Length:", self.window_length_spin)
             
-            self.poly_order_spin = QSpinBox()
+            self.poly_order_spin = IntegerInput()
             self.poly_order_spin.setRange(1, 10)
             self.poly_order_spin.setValue(3)
             self.parameters_layout.addRow("Polynomial Order:", self.poly_order_spin)
             
         elif method == "Rolling Mean":
-            self.window_spin = QSpinBox()
+            self.window_spin = IntegerInput()
             self.window_spin.setRange(2, 50)
             self.window_spin.setValue(5)
             self.parameters_layout.addRow("Window Size:", self.window_spin)

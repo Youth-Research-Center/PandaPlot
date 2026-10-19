@@ -1,5 +1,7 @@
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QDoubleSpinBox, QHBoxLayout, QSlider, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QSlider, QWidget
+
+from pandaplot.gui.components.common.number_input import DecimalInput
 
 _DEFAULT_STEPS = 100
 
@@ -20,7 +22,7 @@ def value_to_slider(value: float, minimum: float, maximum: float, steps: int) ->
 
 
 class SliderWithSpinbox(QWidget):
-    """Track+knob slider paired with a synced numeric spinbox."""
+    """Track+knob slider paired with a synced numeric input."""
 
     valueChanged = Signal(float)
 
@@ -36,7 +38,9 @@ class SliderWithSpinbox(QWidget):
         self._slider = QSlider(Qt.Orientation.Horizontal, self)
         self._slider.setRange(0, self._steps)
 
-        self._spinbox = QDoubleSpinBox(self)
+        # The slider already moves the value in coarse steps, so the field
+        # beside it is a plain number box without its own -/+ buttons.
+        self._spinbox = DecimalInput(self, steppers=False)
         self._spinbox.setDecimals(decimals)
         self._spinbox.setRange(minimum, maximum)
         self._spinbox.setFixedWidth(72)
@@ -56,7 +60,7 @@ class SliderWithSpinbox(QWidget):
         self._set_value(value, emit=False)
 
     def set_tokens(self, tokens: dict):
-        pass  # slider/spinbox track color handled by global QSS; placeholder for interface parity
+        pass  # slider/number-input colors handled by global QSS; placeholder for interface parity
 
     def _on_slider_changed(self, slider_pos: int):
         if self._updating:

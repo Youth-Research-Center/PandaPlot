@@ -13,14 +13,17 @@ from unittest.mock import Mock
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QFrame, QPlainTextEdit
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.fit.fit_panel import CUSTOM_SERIES_SENTINEL, FitPanel
 from pandaplot.models.chart.chart_type import ChartType
-from pandaplot.models.project.items.chart import Chart, YAxis, restore_chart_state, snapshot_chart_state
+from pandaplot.models.events import ProjectEvents
+from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.project.items.chart import Chart, DataSeries, YAxis, restore_chart_state, snapshot_chart_state
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
@@ -104,6 +107,70 @@ def test_equation_label_uses_theme_tokens_not_hardcoded_colors(app_context):
     assert "#2A2C2E" in style
     assert "#4A4D52" in style
     assert "#E2E2E2" in style
+
+
+def test_fit_models_are_filtered_by_category(app_context):
+    panel = FitPanel(app_context)
+
+    assert [panel.fit_type_combo.itemData(i) for i in range(panel.fit_type_combo.count())] == [
+        "Linear", "Quadratic", "Cubic", "Quartic", "Quintic"
+    ]
+
+    panel.fit_category_combo.setCurrentText("Exponential")
+
+    assert [panel.fit_type_combo.itemData(i) for i in range(panel.fit_type_combo.count())] == [
+        "Exponential", "Exponential Decay", "Exponential Growth to Maximum"
+    ]
+
+    panel.fit_category_combo.setCurrentText("Custom")
+    assert [panel.fit_type_combo.itemData(i) for i in range(panel.fit_type_combo.count())] == [
+        "Custom Function"
+    ]
+
+
+def test_fit_results_use_a_transparent_plain_text_display(app_context):
+    panel = FitPanel(app_context)
+
+    assert isinstance(panel.results_text, QPlainTextEdit)
+    assert panel.results_text.frameShape() == QFrame.Shape.NoFrame
+    assert "background-color: transparent" in panel.results_text.styleSheet()
+
+
+def test_fit_points_control_is_left_aligned_with_other_inputs(app_context):
+    panel = FitPanel(app_context)
+    fit_points_item = panel.fit_options_layout.itemAtPosition(0, 1)
+
+    assert fit_points_item.alignment() & Qt.AlignmentFlag.AlignLeft
+
+
+def test_series_and_category_combos_are_left_aligned_with_fit_points(app_context):
+    panel = FitPanel(app_context)
+
+    assert panel.data_source_layout.itemAtPosition(0, 1).alignment() & Qt.AlignmentFlag.AlignLeft
+    assert panel.fit_type_layout.itemAtPosition(0, 1).alignment() & Qt.AlignmentFlag.AlignLeft
+    assert panel.fit_type_layout.itemAtPosition(1, 1).alignment() & Qt.AlignmentFlag.AlignLeft
+
+
+def test_series_and_category_combos_match_model_combo_minimum_width(app_context):
+    panel = FitPanel(app_context)
+
+    assert panel.series_combo.minimumWidth() == panel.fit_type_combo.minimumWidth()
+    assert panel.fit_category_combo.minimumWidth() == panel.fit_type_combo.minimumWidth()
+
+
+def test_fit_button_requires_enough_points_for_selected_polynomial_degree(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_type_combo.setCurrentText("Quintic (polynomial, degree 5)")
+
+    assert panel.fit_button.isEnabled() is False
+    assert panel.fit_button.toolTip().startswith("At least 6 valid")
 
 
 def test_clear_button_click_invokes_clear_results(app_context):
@@ -634,6 +701,7 @@ def test_non_positive_min_invalid_for_logarithmic_fit(app_context):
     panel.show()
     QApplication.processEvents()
 
+    panel.fit_category_combo.setCurrentText("Power & Logarithmic")
     panel.fit_type_combo.setCurrentText("Logarithmic (y = a*ln(x) + b)")
     panel.range_auto_check.setChecked(False)
     panel.range_min_spin.setValue(0.0)
@@ -656,6 +724,7 @@ def test_non_positive_min_valid_for_linear_fit(app_context):
     panel.app_context.app_state.current_project = project
     panel.load_chart_object(chart)
 
+    panel.fit_category_combo.setCurrentText("Polynomial")
     panel.fit_type_combo.setCurrentText("Linear (y = ax + b)")
     panel.range_auto_check.setChecked(False)
     panel.range_min_spin.setValue(-5.0)
@@ -925,6 +994,349 @@ def _select_custom_source(panel, dataset, x_column, y_column):
     panel.custom_y_column_combo.setCurrentIndex(y_index)
 
 
+def _show_panel_on_project(app_context, project):
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock(current_project=project, modification_revision=0)
+    panel.show()
+    QApplication.processEvents()
+    return panel
+
+
+def _switch_fit_tab(panel, item_type, item_id):
+    panel._on_tab_changed({"tab_type": item_type, "tab_id": item_id})
+
+
+def test_fit_inputs_are_independent_per_tab_and_close_discards_context(app_context):
+    project, dataset_a, dataset_b, chart_a = _make_project_with_two_datasets_and_series_on_first()
+    chart_b = Chart(id="chart-2", name="second chart")
+    chart_b.add_data_series(
+        dataset_id=dataset_b.id,
+        x_column_id=dataset_b.column_id("t2"),
+        y_column_id=dataset_b.column_id("v2"),
+    )
+    project.add_item(chart_b)
+    panel = _show_panel_on_project(app_context, project)
+
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    _select_custom_source(panel, dataset_b, "t2", "v2")
+    panel.fit_category_combo.setCurrentText("Custom")
+    panel.fit_type_combo.setCurrentIndex(panel.fit_type_combo.findText("Custom Function"))
+    panel.custom_function_edit.setText("a*x+b")
+    panel.custom_params_edit.setText("a,b")
+    panel.initial_guess_edit.setText("a=2")
+    panel.fit_points_spin.setValue(900)
+    panel.confidence_check.setChecked(True)
+    panel.r_squared_check.setChecked(False)
+    panel.range_auto_check.setChecked(False)
+    panel.range_min_spin.setValue(6)
+    panel.range_max_spin.setValue(7)
+    panel.fit_results = _make_fake_fit_result()
+
+    _switch_fit_tab(panel, "dataset", dataset_a.id)
+    assert panel.fit_category_combo.currentText() == panel.fit_category_combo.itemText(0)
+    assert panel.fit_type_combo.currentIndex() == 0
+    assert panel.custom_function_edit.text() == ""
+    assert panel.fit_results is None
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    assert panel.fit_points_spin.value() == 500
+    panel.fit_points_spin.setValue(700)
+
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.series_combo.currentData() == CUSTOM_SERIES_SENTINEL
+    assert panel.custom_dataset_combo.currentData() == dataset_b.id
+    assert panel.custom_x_column_combo.currentData() == dataset_b.column_id("t2")
+    assert panel.custom_y_column_combo.currentData() == dataset_b.column_id("v2")
+    assert panel.fit_type_combo.currentText() == "Custom Function"
+    assert panel.fit_category_combo.currentText() == "Custom"
+    assert panel.custom_function_edit.text() == "a*x+b"
+    assert panel.custom_params_edit.text() == "a,b"
+    assert panel.initial_guess_edit.text() == "a=2"
+    assert panel.fit_points_spin.value() == 900
+    assert panel.confidence_check.isChecked()
+    assert not panel.r_squared_check.isChecked()
+    assert not panel.range_auto_check.isChecked()
+    assert panel.range_min_spin.value() == 6
+    assert panel.range_max_spin.value() == 7
+    assert panel.fit_results is None
+    assert all("fit_results" not in state for state in panel._tab_inputs.values())
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    assert panel.fit_points_spin.value() == 700
+    panel._on_tab_closed({"tab_type": "chart", "tab_id": chart_a.id})
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.fit_points_spin.value() == 500
+    assert panel.custom_function_edit.text() == ""
+    panel.close()
+
+
+def test_hidden_fit_panel_restores_latest_tab_without_losing_previous_inputs(app_context):
+    project, _dataset_a, _dataset_b, chart_a = _make_project_with_two_datasets_and_series_on_first()
+    chart_b = Chart(id="chart-2", name="second chart")
+    project.add_item(chart_b)
+    panel = _show_panel_on_project(app_context, project)
+
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    panel.fit_points_spin.setValue(1111)
+    panel.hide()
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    assert panel.fit_points_spin.value() == 1111
+    panel.show()
+    QApplication.processEvents()
+    assert panel.current_chart is chart_b
+    assert panel.fit_points_spin.value() == 500
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.fit_points_spin.value() == 1111
+    panel.close()
+
+
+def test_fit_context_drops_removed_custom_columns_and_remaps_renamed_columns(app_context):
+    project, _dataset_a, dataset_b, chart_a = _make_project_with_two_datasets_and_series_on_first()
+    chart_b = Chart(id="chart-2", name="second chart")
+    project.add_item(chart_b)
+    panel = _show_panel_on_project(app_context, project)
+
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    _select_custom_source(panel, dataset_b, "t2", "v2")
+    saved_x = panel.custom_x_column_combo.currentData()
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    dataset_b.data.rename(columns={"t2": "renamed"}, inplace=True)
+    dataset_b.rename_column("t2", "renamed")
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.custom_x_column_combo.currentData() == saved_x
+    assert panel.custom_x_column_combo.currentText() == "renamed"
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    dataset_b.set_data(dataset_b.data.drop(columns=["renamed"]))
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.custom_x_column_combo.currentData() != saved_x
+    assert panel.custom_x_column_combo.currentData() in dataset_b.column_ids
+    panel.close()
+
+
+def test_fit_series_selection_follows_series_after_reorder_and_falls_back_after_delete(app_context):
+    project, dataset_a, dataset_b, chart_a = _make_project_with_two_datasets_and_series_on_first()
+    chart_a.add_data_series(
+        dataset_id=dataset_b.id,
+        x_column_id=dataset_b.column_id("t2"),
+        y_column_id=dataset_b.column_id("v2"),
+    )
+    chart_b = Chart(id="chart-2", name="second chart")
+    project.add_item(chart_b)
+    panel = _show_panel_on_project(app_context, project)
+
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    panel.series_combo.setCurrentIndex(1)
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    chart_a.data_series.reverse()
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.series_combo.currentIndex() == 0
+    assert panel.series_combo.currentData().dataset_id == dataset_b.id
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    chart_a.data_series.pop(0)
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    assert panel.series_combo.currentIndex() == 0
+    assert panel.series_combo.currentData().dataset_id == dataset_a.id
+    panel.close()
+
+
+def test_restore_empty_series_selection_clears_a_current_selection(app_context, qtbot):
+    project, _dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
+    panel = _show_panel_on_project(app_context, project)
+    qtbot.addWidget(panel)
+    panel.load_chart_object(chart)
+    panel.series_combo.setCurrentIndex(-1)
+    saved = panel._capture_inputs()
+    panel.series_combo.setCurrentIndex(0)
+
+    panel._restore_inputs(saved)
+
+    assert panel.series_combo.currentIndex() == -1
+    assert panel._resolve_selected_series() is None
+    assert not panel.fit_button.isEnabled()
+
+
+def test_empty_series_selection_remains_empty_after_leaving_and_returning(app_context, qtbot):
+    project, _dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
+    panel = _show_panel_on_project(app_context, project)
+    qtbot.addWidget(panel)
+    _switch_fit_tab(panel, "chart", chart.id)
+    panel.series_combo.setCurrentIndex(-1)
+    _switch_fit_tab(panel, "other", "welcome")
+
+    _switch_fit_tab(panel, "chart", chart.id)
+
+    assert panel.series_combo.currentIndex() == -1
+
+
+def test_duplicate_series_selection_follows_object_after_reordering(app_context, qtbot):
+    project, dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
+    chart.add_data_series(
+        dataset_id=dataset_a.id,
+        x_column_id=dataset_a.column_id("time"),
+        y_column_id=dataset_a.column_id("value"),
+    )
+    selected = chart.data_series[1]
+    panel = _show_panel_on_project(app_context, project)
+    qtbot.addWidget(panel)
+    _switch_fit_tab(panel, "chart", chart.id)
+    panel.series_combo.setCurrentIndex(1)
+    _switch_fit_tab(panel, "other", "welcome")
+    chart.data_series.reverse()
+
+    _switch_fit_tab(panel, "chart", chart.id)
+
+    assert panel.series_combo.currentIndex() == 0
+    assert panel.series_combo.currentData() is selected
+
+
+def test_replaced_series_selection_falls_back_to_column_identity(app_context, qtbot):
+    project, _dataset_a, dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
+    chart.add_data_series(
+        dataset_id=dataset_b.id,
+        x_column_id=dataset_b.column_id("t2"),
+        y_column_id=dataset_b.column_id("v2"),
+    )
+    panel = _show_panel_on_project(app_context, project)
+    qtbot.addWidget(panel)
+    _switch_fit_tab(panel, "chart", chart.id)
+    panel.series_combo.setCurrentIndex(1)
+    _switch_fit_tab(panel, "other", "welcome")
+    chart.data_series[1] = DataSeries(
+        dataset_id=dataset_b.id,
+        x_column_id=dataset_b.column_id("t2"),
+        y_column_id=dataset_b.column_id("v2"),
+    )
+    replacement = chart.data_series[1]
+    chart.data_series.reverse()
+
+    _switch_fit_tab(panel, "chart", chart.id)
+
+    assert panel.series_combo.currentData() is replacement
+
+
+def test_project_close_drops_all_fit_tab_inputs(app_context):
+    project, _dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
+    panel = _show_panel_on_project(app_context, project)
+    _switch_fit_tab(panel, "chart", chart.id)
+    panel.fit_points_spin.setValue(800)
+    _switch_fit_tab(panel, "other", "welcome")
+    assert panel._tab_inputs
+
+    panel._on_project_changed({})
+
+    assert panel._tab_inputs == {}
+    assert panel._active_tab_key is None
+    panel.close()
+
+
+def test_project_loaded_event_drops_fit_tab_inputs(app_context):
+    app_context.event_bus = EventBus()
+    project, _dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
+    panel = _show_panel_on_project(app_context, project)
+    _switch_fit_tab(panel, "chart", chart.id)
+    panel.fit_points_spin.setValue(800)
+    _switch_fit_tab(panel, "other", "welcome")
+    assert panel._tab_inputs
+
+    app_context.event_bus.emit(ProjectEvents.PROJECT_LOADED, {"project": project, "previous_project": project})
+
+    assert panel._tab_inputs == {}
+    assert panel._active_tab_key is None
+    assert panel.fit_points_spin.value() == 500
+    panel.close()
+
+
+def test_chart_update_does_not_replace_dataset_tab_context(app_context):
+    project, dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
+    panel = _show_panel_on_project(app_context, project)
+    _switch_fit_tab(panel, "dataset", dataset_a.id)
+
+    panel._on_chart_updated({"chart": chart})
+
+    assert panel.current_chart is None
+    assert panel.series_combo.count() == 0
+    panel.close()
+
+
+def _dispatch_fit_on_chart_a(app_context):
+    project, _dataset_a, dataset_b, chart_a = _make_project_with_two_datasets_and_series_on_first()
+    chart_b = Chart(id="chart-2", name="second chart")
+    chart_b.add_data_series(
+        dataset_id=dataset_b.id,
+        x_column_id=dataset_b.column_id("t2"),
+        y_column_id=dataset_b.column_id("v2"),
+    )
+    project.add_item(chart_b)
+    panel = _show_panel_on_project(app_context, project)
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    executed = {}
+
+    def _capture_execute(command):
+        executed["command"] = command
+        return True
+
+    panel.app_context.get_command_executor.return_value.execute_command = _capture_execute
+    panel._perform_fit()
+    return panel, chart_a, chart_b, executed["command"]
+
+
+def test_fit_result_is_applied_when_user_returns_to_the_dispatch_tab(app_context):
+    panel, chart_a, chart_b, command = _dispatch_fit_on_chart_a(app_context)
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is command.result
+    assert panel._pending_fit_command is None
+    panel.close()
+
+
+def test_fit_result_is_discarded_while_another_tab_is_active(app_context):
+    panel, _chart_a, chart_b, command = _dispatch_fit_on_chart_a(app_context)
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is None
+    assert not panel.apply_button.isEnabled()
+    assert panel._pending_fit_command is None
+    panel.close()
+
+
+def test_fit_result_is_discarded_when_project_is_modified_on_another_tab(app_context):
+    panel, chart_a, chart_b, command = _dispatch_fit_on_chart_a(app_context)
+
+    _switch_fit_tab(panel, "chart", chart_b.id)
+    panel.app_context.app_state.modification_revision += 1
+    _switch_fit_tab(panel, "chart", chart_a.id)
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is None
+    assert not panel.apply_button.isEnabled()
+    assert panel._pending_fit_command is None
+    panel.close()
+
+
+def test_fit_result_is_discarded_after_dispatch_tab_is_closed(app_context):
+    panel, chart_a, _chart_b, command = _dispatch_fit_on_chart_a(app_context)
+
+    panel._on_tab_closed({"tab_type": "chart", "tab_id": chart_a.id})
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is None
+    panel.close()
+
+
 def test_series_combo_gets_custom_sentinel_entry_when_chart_loaded(app_context):
     project, _dataset_a, _dataset_b, chart = _make_project_with_two_datasets_and_series_on_first()
 
@@ -1166,6 +1578,28 @@ def _build_panel_ready_to_fit(app_context):
     return panel, executed
 
 
+def test_perform_fit_discards_stale_result_after_switch_to_duplicate_series(app_context, qtbot):
+    panel, executed = _build_panel_ready_to_fit(app_context)
+    qtbot.addWidget(panel)
+    source = panel.current_chart.data_series[0]
+    panel.current_chart.add_data_series(
+        dataset_id=source.dataset_id,
+        x_column_id=source.x_column_id,
+        y_column_id=source.y_column_id,
+    )
+    panel.load_chart_object(panel.current_chart)
+    panel._perform_fit()
+    command = executed["command"]
+    panel.series_combo.setCurrentIndex(1)
+    command.result = _make_fake_fit_result()
+    command.fixed_parameters = None
+
+    command.on_complete(CommandResult.SUCCESS)
+
+    assert panel.fit_results is None
+    assert not panel.apply_button.isEnabled()
+
+
 def test_perform_fit_discards_stale_result_after_chart_switch(app_context):
     """Regression test (PR review): chart/series navigation stays enabled
     while a fit computes in the background. If the user switches to a
@@ -1337,7 +1771,8 @@ def test_perform_fit_failure_path_shows_error_and_stops_spinner(app_context):
     assert panel.apply_button.isEnabled() is False
     assert panel.fit_results is None
     assert panel.results_text.toPlainText() == "Fit did not converge"
-    assert panel.results_text.styleSheet() == "color: red;"
+    assert "color: red;" in panel.results_text.styleSheet()
+    assert "background-color: transparent;" in panel.results_text.styleSheet()
 
 
 def test_perform_fit_sync_dispatch_failure_stops_spinner_without_on_complete(app_context):
