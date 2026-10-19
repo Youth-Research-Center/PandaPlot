@@ -15,6 +15,9 @@ already positions the label without any offset/arrow concept.
 import numpy as np
 import pandas as pd
 from numpy.typing import ArrayLike
+from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
+
+from pandaplot.models.chart.value_label_subset import ValueLabelSubset
 
 
 def _format_number(value) -> str:
@@ -32,7 +35,20 @@ def _format_label(x: float, y: float, mode: str) -> str:
     return _format_number(y)
 
 
-def resolve_label_indices(x_data: ArrayLike, y_data: ArrayLike, *, subset_mode: str = "all") -> set[int]:
+def _drawable_mask(x_data: ArrayLike, y: pd.Series) -> np.ndarray:
+    """Which points can be drawn: neither x nor y is missing (NaN/NaT)."""
+    return pd.notna(np.asarray(x_data)) & y.notna().to_numpy()
+
+
+def _as_series(y_data: ArrayLike) -> pd.Series:
+    """Y data as a Series, keeping datetime dtypes (tz-aware included) intact; anything else non-numeric is coerced."""
+    y = pd.Series(y_data).reset_index(drop=True)
+    if not (is_numeric_dtype(y) or is_datetime64_any_dtype(y)):
+        y = pd.to_numeric(y, errors="coerce")
+    return y
+
+
+def resolve_label_indices(x_data: ArrayLike, y_data: ArrayLike, *, subset_mode: str = ValueLabelSubset.ALL) -> set[int]:
     """Decide which points of a series should get a value label.
 
     Minimum and maximum are by Y value, over the whole series. Only points
@@ -43,27 +59,29 @@ def resolve_label_indices(x_data: ArrayLike, y_data: ArrayLike, *, subset_mode: 
     Args:
         x_data: X values of the series, one per point.
         y_data: Y values of the series, one per point.
-        subset_mode: One of "all", "extremes" (min and max), "min" or "max".
-            An unknown value is treated as "all".
+        subset_mode: A ValueLabelSubset or its string value. An unknown
+            value is treated as ALL.
 
     Returns:
         The set of 0-based point positions that should be labeled.
     """
-    y = pd.Series(np.asarray(y_data))
-    if subset_mode not in ("extremes", "min", "max"):
-        return set(range(len(y)))
+    mode = ValueLabelSubset.coerce(subset_mode)
+    y = _as_series(y_data)
+    if mode is ValueLabelSubset.ALL:
+        return set(np.flatnonzero(_drawable_mask(x_data, y)).tolist())
 
-    drawable = pd.notna(np.asarray(x_data)) & y.notna().to_numpy()
-    values = pd.to_numeric(y, errors="coerce").to_numpy(dtype=float)
-    values = np.where(drawable & np.isfinite(values), values, np.nan)
-    if np.isnan(values).all():  # also true for empty data
+    drawable = _drawable_mask(x_data, y)
+    if is_numeric_dtype(y):
+        drawable &= np.isfinite(y.to_numpy(dtype=float, na_value=np.nan))
+    candidates = y[drawable]
+    if candidates.empty:
         return set()
 
     indices = set()
-    if subset_mode in ("extremes", "min"):
-        indices.add(int(np.nanargmin(values)))
-    if subset_mode in ("extremes", "max"):
-        indices.add(int(np.nanargmax(values)))
+    if mode in (ValueLabelSubset.EXTREMES, ValueLabelSubset.MIN):
+        indices.add(int(candidates.idxmin()))
+    if mode in (ValueLabelSubset.EXTREMES, ValueLabelSubset.MAX):
+        indices.add(int(candidates.idxmax()))
     return indices
 
 
@@ -78,7 +96,7 @@ def annotate_point_labels(
     bg_color: str = "",
     bg_alpha: float = 1.0,
     alpha: float = 1.0,
-    subset_mode: str = "all",
+    subset_mode: str = ValueLabelSubset.ALL,
 ) -> None:
     """Label each (x, y) point per `mode` ("x", "y", or "xy"), offset from
     the point by (offset_x, offset_y) points.
@@ -90,7 +108,7 @@ def annotate_point_labels(
     it instead of staying fully opaque.
 
     `subset_mode` chooses which points are labeled; see
-    resolve_label_indices(). The default labels every point.
+    resolve_label_indices(). The default labels every drawable point.
 
     Intended for the small datasets the issue this implements (#125) calls
     out (lab reports, a handful of points) -- no cap on point count, since a
@@ -105,8 +123,6 @@ def annotate_point_labels(
     label_indices = resolve_label_indices(x_data, y_data, subset_mode=subset_mode)
     for index, (x, y) in enumerate(zip(x_data, y_data, strict=True)):
         if index not in label_indices:
-            continue
-        if pd.isna(x) or pd.isna(y):
             continue
         axes.annotate(
             _format_label(x, y, mode),

@@ -99,7 +99,7 @@ def test_line_series_style_fields_and_defaults():
         "value_label_mode", "value_label_show_arrow",
         "value_label_offset_x", "value_label_offset_y",
         "value_label_text_color", "value_label_bg_color", "value_label_bg_alpha",
-         "value_label_subset_mode", 
+         "value_label_subset_mode",
     }
 
 

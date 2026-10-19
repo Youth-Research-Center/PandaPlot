@@ -37,3 +37,12 @@ def test_retype_line_to_scatter_keeps_subset_mode():
     chart.retype_series(0, SeriesType.SCATTER)
 
     assert chart.data_series[0].style.value_label_subset_mode == "extremes"
+
+
+def test_invalid_subset_mode_falls_back_to_all():
+    from pandaplot.models.chart.series_style.line import LineSeriesStyle
+    from pandaplot.models.chart.value_label_subset import ValueLabelSubset
+
+    assert LineSeriesStyle(value_label_subset_mode="typo").value_label_subset_mode is ValueLabelSubset.ALL
+    assert LineSeriesStyle(value_label_subset_mode="max").value_label_subset_mode is ValueLabelSubset.MAX
+

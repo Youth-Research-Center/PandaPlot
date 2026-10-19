@@ -51,6 +51,7 @@ from pandaplot.models.chart.series_style.density import MAX_BANDWIDTH
 from pandaplot.models.chart.series_style.fill import FillStyleFields
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.chart.value_label_subset import ValueLabelSubset
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.project.items.chart import DataSeries
 from pandaplot.models.state.config import (
@@ -112,10 +113,10 @@ HEATMAP_RENDER_MODE_OPTIONS = [
 # Which points the Value Labels card labels (#337): every point, or only the
 # global minimum and/or maximum of the series.
 VALUE_LABEL_SUBSET_OPTIONS = [
-    ("All points", "all"),
-    ("Min and max", "extremes"),
-    ("Only min", "min"),
-    ("Only max", "max"),
+    ("All points", ValueLabelSubset.ALL),
+    ("Min and max", ValueLabelSubset.EXTREMES),
+    ("Only min", ValueLabelSubset.MIN),
+    ("Only max", ValueLabelSubset.MAX),
 ]
 
 
@@ -2394,10 +2395,9 @@ class StyleTab(QWidget):
             self.value_labels_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
             self.value_labels_mode_control.setCurrentValue(getattr(style, "value_label_mode", "y"))
-            subset_mode = getattr(style, "value_label_subset_mode", "all")
-            if subset_mode not in {value for _, value in VALUE_LABEL_SUBSET_OPTIONS}:
-                subset_mode = "all"
-            self.value_labels_subset_control.setCurrentValue(subset_mode)
+            self.value_labels_subset_control.setCurrentValue(
+                ValueLabelSubset.coerce(getattr(style, "value_label_subset_mode", ValueLabelSubset.ALL))
+            )
             self.value_labels_arrow_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             self.value_labels_arrow_toggle.setChecked(checked=getattr(style, "value_label_show_arrow", False))
             self.value_labels_arrow_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only

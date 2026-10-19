@@ -30,4 +30,3 @@ def test_scatter_renderer_labels_only_the_max_point():
     render_scatter_series(axes, DATA, style, "s", 1.0, visible=True, extra={})
 
     assert [annotation.xy for annotation in axes.texts] == [(1, 9.0)]
-    

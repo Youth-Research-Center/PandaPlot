@@ -94,3 +94,16 @@ def test_annotate_extremes_labels_the_min_and_max_points():
 
 def test_annotate_min_skips_a_point_with_missing_x_and_labels_the_real_min():
     assert _labeled_points([NAN, 1, 2, 3], [0, 5, 3, 4], subset_mode="min") == [(2, 3)]
+
+
+def test_tz_aware_datetime_y_still_picks_min_and_max():
+    y = pd.to_datetime(["2020-01-02", "2020-01-01", "2020-01-03"]).tz_localize("UTC")
+    assert resolve_label_indices([0, 1, 2], y, subset_mode="extremes") == {1, 2}
+    assert resolve_label_indices([0, 1, 2], list(y), subset_mode="min") == {1}
+
+
+def test_datetime_y_ranks_without_losing_nanosecond_precision():
+    y = pd.to_datetime(["2020-01-01 00:00:00.000000002", "2020-01-01 00:00:00.000000001", "2020-01-01 00:00:00.000000003"])
+    assert resolve_label_indices([0, 1, 2], y, subset_mode="min") == {1}
+    assert resolve_label_indices([0, 1, 2], y, subset_mode="max") == {2}
+
