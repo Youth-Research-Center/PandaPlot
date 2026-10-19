@@ -1,5 +1,6 @@
 """Tests for the Sketch item model, its layers and element primitives."""
 import json
+from typing import Any
 
 import pytest
 
@@ -56,6 +57,7 @@ class TestElements:
 
         restored = SketchElement.from_dict(json.loads(json.dumps(element.to_dict())))
 
+        assert isinstance(restored, FreehandElement)
         assert restored.points == [(1.0, 2.0)]
         assert isinstance(restored.points[0], tuple)
 
@@ -81,10 +83,13 @@ class TestElements:
     def test_malformed_freehand_points_are_dropped(self):
         restored = SketchElement.from_dict({"type": "freehand", "points": [[1, 2], [3], "x", [None, 4], [5.5, 6]]})
 
+        assert isinstance(restored, FreehandElement)
         assert restored.points == [(1.0, 2.0), (5.5, 6.0)]
 
     def test_string_enums_are_coerced_on_construction(self):
-        element = TextElement(stroke_style="dotted", alignment="right")
+        kwargs: dict[str, Any] = {"stroke_style": "dotted", "alignment": "right"}
+
+        element = TextElement(**kwargs)
 
         assert element.stroke_style is StrokeStyle.DOTTED
         assert element.alignment is TextAlignment.RIGHT
@@ -247,7 +252,10 @@ class TestSketch:
         element = EllipseElement(id="e")
         sketch = Sketch(layers=[SketchLayer(id="a"), SketchLayer(id="b", elements=[element])])
 
-        layer, found = sketch.find_element("e")
+        result = sketch.find_element("e")
+
+        assert result is not None
+        layer, found = result
 
         assert layer.id == "b"
         assert found is element

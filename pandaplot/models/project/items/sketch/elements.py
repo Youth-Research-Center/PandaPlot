@@ -12,6 +12,8 @@ from pandaplot.models.project.items.sketch.sketch_element import (
     parse_str,
 )
 
+DEFAULT_FONT_FAMILY = "Arial"
+
 
 @dataclass(kw_only=True)
 class FreehandElement(SketchElement):
@@ -119,7 +121,7 @@ class TextElement(SketchElement):
     TYPE: ClassVar[str] = "text"
 
     text: str = ""
-    font_family: str = "Sans Serif"
+    font_family: str = DEFAULT_FONT_FAMILY
     font_size: int = 14
     is_bold: bool = False
     is_italic: bool = False
@@ -149,7 +151,7 @@ class TextElement(SketchElement):
         font_size = data.get("font_size")
         return {
             "text": parse_str(data, "text", ""),
-            "font_family": parse_str(data, "font_family", "Sans Serif"),
+            "font_family": parse_str(data, "font_family", DEFAULT_FONT_FAMILY),
             "font_size": font_size if isinstance(font_size, int) and not isinstance(font_size, bool) and font_size > 0 else 14,
             "is_bold": data.get("is_bold") is True,
             "is_italic": data.get("is_italic") is True,
