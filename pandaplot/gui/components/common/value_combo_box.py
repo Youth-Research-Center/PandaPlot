@@ -1,10 +1,12 @@
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QComboBox, QWidget
+from PySide6.QtWidgets import QWidget
+
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 
 
-class ValueComboBox(QComboBox):
-    """QComboBox carrying a (label, value) item list, exposing the same
+class ValueComboBox(DropDownComboBox):
+    """DropDownComboBox carrying a (label, value) item list, exposing the same
     currentValue()/setCurrentValue()/currentValueChanged/set_tokens() API
     as SegmentedControl so it's a drop-in replacement wherever a control's
     option count no longer fits a segmented control at 300px panel width.
@@ -44,7 +46,7 @@ class ValueComboBox(QComboBox):
         self.blockSignals(False)  # noqa: FBT003 -- Qt bound method, positional-only
 
     def set_tokens(self, tokens: dict):
-        pass  # native Qt combo box styling; no token-driven QSS needed today
+        pass  # styled by ThemeManager's app-wide QComboBox rules; kept for interface parity
 
     def _on_current_index_changed(self, index: int):
         self.currentValueChanged.emit(self.itemData(index))

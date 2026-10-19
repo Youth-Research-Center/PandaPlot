@@ -11,7 +11,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -26,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
@@ -192,7 +192,7 @@ class TransformPanel(SidebarPanel):
         type_group = QGroupBox("Transform Type")
         type_layout = QFormLayout(type_group)
         
-        self.transform_type_combo = QComboBox()
+        self.transform_type_combo = DropDownComboBox()
         self.transform_type_combo.addItems(self.transform_types)
         self.transform_type_combo.setCurrentText("Custom Function")
         
@@ -220,11 +220,35 @@ class TransformPanel(SidebarPanel):
         
         # Option to replace existing column
         self.replace_column_check = QCheckBox("Replace existing column")
-        
+
+        # Formula column (#154): remember the expression on the column so it
+        # can be recomputed, optionally automatically.
+        self.formula_column_check = QCheckBox("Save as formula column")
+        self.formula_column_check.setToolTip(
+            "Remember this expression on the new column so it can be recomputed later."
+        )
+        self.live_recompute_check = QCheckBox("Live (recompute when sources change)")
+        self.live_recompute_check.setToolTip(
+            "Recompute this column automatically whenever one of its source columns changes. "
+            "A live column is read-only: edit its source columns to change it."
+        )
+        # Only meaningful for a formula column, so it's hidden until one is
+        # requested rather than shown permanently disabled.
+        self.live_recompute_check.setVisible(False)
+        self.formula_column_check.toggled.connect(self._on_formula_column_toggled)
+
         column_layout.addLayout(form_layout)
         column_layout.addWidget(self.replace_column_check)
-        
+        column_layout.addWidget(self.formula_column_check)
+        column_layout.addWidget(self.live_recompute_check)
+
         layout.addWidget(column_group)
+
+    def _on_formula_column_toggled(self, checked: bool) -> None:  # noqa: FBT001 - Qt-invoked callback (signal.connect)
+        """Show the live-recompute option only while a formula column is requested."""
+        self.live_recompute_check.setVisible(checked)
+        if not checked:
+            self.live_recompute_check.setChecked(False)
     
     def create_function_section(self, layout):
         """Create function definition section."""
@@ -313,7 +337,7 @@ class TransformPanel(SidebarPanel):
         self.preview_btn = PButton("Preview", role="secondary", on_click=self.update_preview)
         self.preview_btn.setMaximumWidth(70)
         
-        self.preview_rows_combo = QComboBox()
+        self.preview_rows_combo = DropDownComboBox()
         self.preview_rows_combo.addItems(["5", "10", "20"])
         self.preview_rows_combo.setCurrentText("5")
         self.preview_rows_combo.setMaximumWidth(50)
@@ -694,6 +718,8 @@ class TransformPanel(SidebarPanel):
         new_column_name = self.new_column_name.text().strip()
         function_code = self.function_text.toPlainText().strip()
         replace_existing = self.replace_column_check.isChecked()
+        as_formula = self.formula_column_check.isChecked()
+        live = as_formula and self.live_recompute_check.isChecked()
 
         if not new_column_name:
             self.logger.warning("TransformPanel: no new column name provided")
@@ -720,7 +746,9 @@ class TransformPanel(SidebarPanel):
                 source_column=source_column,
                 new_column_name=new_column_name,
                 function_code=function_code,
-                replace_existing=replace_existing
+                replace_existing=replace_existing,
+                as_formula=as_formula,
+                live=live,
             )
 
             if success:
@@ -747,7 +775,9 @@ class TransformPanel(SidebarPanel):
         self.new_column_name.clear()
         self.preview_text.clear()
         self.replace_column_check.setChecked(False)
-        
+        self.formula_column_check.setChecked(False)
+        self.live_recompute_check.setChecked(False)
+
         # Reset to first column if available
         if self.source_column_list.count() > 0:
             self.source_column_list.setCurrentRow(0)

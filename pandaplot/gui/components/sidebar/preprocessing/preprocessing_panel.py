@@ -8,8 +8,6 @@ from typing import Any, override
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QComboBox,
-    QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -25,6 +23,8 @@ from pandaplot.analysis.preprocessing_types import PREPROCESSING_METHODS, list_m
 from pandaplot.commands.project.dataset.preprocess_column_command import (
     PreprocessColumnCommand,
 )
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import DecimalInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
@@ -76,7 +76,7 @@ class PreprocessingPanel(SidebarPanel):
         group_layout = QVBoxLayout()
 
         form = QFormLayout()
-        self.method_combo = QComboBox()
+        self.method_combo = DropDownComboBox()
         for info in list_methods():
             self.method_combo.addItem(info.label, info.method.value)
         form.addRow("Method:", self.method_combo)
@@ -114,12 +114,12 @@ class PreprocessingPanel(SidebarPanel):
         self.parameters_group = QGroupBox("Parameters")
         self.parameters_layout = QFormLayout()
 
-        self.range_min_spin = QDoubleSpinBox()
+        self.range_min_spin = DecimalInput()
         self.range_min_spin.setRange(-1_000_000.0, 1_000_000.0)
         self.range_min_spin.setDecimals(3)
         self.range_min_spin.setValue(0.0)
 
-        self.range_max_spin = QDoubleSpinBox()
+        self.range_max_spin = DecimalInput()
         self.range_max_spin.setRange(-1_000_000.0, 1_000_000.0)
         self.range_max_spin.setDecimals(3)
         self.range_max_spin.setValue(1.0)

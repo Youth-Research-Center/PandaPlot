@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
+from pandaplot.commands.project.chart.swap_chart_axes_command import SwapChartAxesCommand
 from pandaplot.gui.components.tabs.chart.chart_canvas import (
     ChartCanvas,
     cm_to_inches,
@@ -876,6 +877,12 @@ class ChartEditorWidget(PWidget):
         reset_zoom_action.triggered.connect(self._on_reset_zoom)
         toolbar.addAction(reset_zoom_action)
 
+        self._swap_axes_action = QAction("⇄ Swap X/Y", toolbar)
+        self._swap_axes_action.setToolTip("Swap the X and Y axes, including their titles, scales and ranges")
+        self._swap_axes_action.triggered.connect(self._on_swap_axes)
+        toolbar.addAction(self._swap_axes_action)
+        self._update_swap_axes_visibility()
+
     def load_chart_config(self):
         """Load chart configuration into UI controls."""
         # No configuration UI to load since it's now in the side panel
@@ -928,6 +935,7 @@ class ChartEditorWidget(PWidget):
             self.logger.debug("Chart canvas already deleted, skipping update")
             return
 
+        self._update_swap_axes_visibility()
         try:
             # Remove the previous colorbar (a colormap/heatmap render adds
             # one on its own figure axes, which axes.clear() below doesn't
@@ -1849,6 +1857,25 @@ class ChartEditorWidget(PWidget):
 
             # Reset status after 2 seconds
             QTimer.singleShot(2000, lambda: self.update_status("Ready"))
+
+    def _update_swap_axes_visibility(self) -> None:
+        """Show the swap action only on chart types that can be swapped."""
+        action = getattr(self, "_swap_axes_action", None)
+        if action is not None and isValid(action):
+            action.setVisible(self.chart.supports_swap_axes)
+
+    def _on_swap_axes(self):
+        """Swap the chart's X and Y axes as an undoable command (#266)."""
+        blocker = self.chart.swap_axes_blocker()
+        if blocker is not None:
+            self.update_status(blocker)
+        else:
+            command = SwapChartAxesCommand(self.app_context, chart_id=self.chart.id)
+            if self.app_context.command_executor.execute_command(command):
+                self.update_status("Swapped X and Y ✓")
+            else:
+                self.update_status("Couldn't swap X and Y")
+        QTimer.singleShot(2000, lambda: self.update_status("Ready"))
 
     def get_chart(self) -> Chart:
         """Get the current chart object."""

@@ -10,13 +10,11 @@ from typing import override
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -30,6 +28,8 @@ from pandaplot.commands.project.chart.analyze_chart_series_command import (
 from pandaplot.commands.project.chart.create_chart_with_analysis_series_command import (
     build_quick_plot_command,
 )
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
@@ -89,7 +89,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     def _create_source_section(self, layout):
         group = QGroupBox("Series")
         form = QFormLayout(group)
-        self.source_combo = QComboBox()
+        self.source_combo = DropDownComboBox()
         form.addRow("Analyze:", self.source_combo)
         self.source_hint = QLabel("Data series and fitted curves of this chart.")
         self.source_hint.setWordWrap(True)
@@ -99,7 +99,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     def _create_operation_section(self, layout):
         group = QGroupBox("Operation")
         form = QFormLayout(group)
-        self.operation_combo = QComboBox()
+        self.operation_combo = DropDownComboBox()
         self.operation_combo.addItem("Derivative", AnalysisType.DERIVATIVE)
         self.operation_combo.addItem("Integral", AnalysisType.INTEGRAL)
         self.operation_combo.addItem("Arc length (line length)", AnalysisType.ARC_LENGTH)
@@ -117,7 +117,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         group = QGroupBox("Segment (index range)")
         form = QFormLayout(group)
 
-        self.start_index = QSpinBox()
+        self.start_index = IntegerInput()
         self.start_index.setMinimum(0)
         self.start_index.setMaximum(0)
         self.start_value_label = QLabel("–")
@@ -126,7 +126,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         start_row.addWidget(self.start_value_label)
         form.addRow("Start index:", start_row)
 
-        self.end_index = QSpinBox()
+        self.end_index = IntegerInput()
         self.end_index.setMinimum(0)
         self.end_index.setMaximum(0)
         self.end_value_label = QLabel("–")
@@ -150,7 +150,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         target_row_layout = QHBoxLayout(self.plot_target_row)
         target_row_layout.setContentsMargins(0, 0, 0, 0)
         target_row_layout.addWidget(QLabel("Plot on:"))
-        self.plot_target_combo = QComboBox()
+        self.plot_target_combo = DropDownComboBox()
         target_row_layout.addWidget(self.plot_target_combo)
         form.addRow("", self.plot_target_row)
         layout.addWidget(group)
@@ -203,7 +203,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         op = self.operation_combo.currentData()
 
         if op == AnalysisType.DERIVATIVE:
-            self.method_combo = QComboBox()
+            self.method_combo = DropDownComboBox()
             self.method_combo.addItem("Central difference", "central")
             self.method_combo.addItem("Forward difference", "forward")
             self.method_combo.addItem("Backward difference", "backward")
@@ -214,7 +214,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self.parameters_layout.addRow(QLabel(f"Method: {label}"))
 
         elif op == AnalysisType.SMOOTHING:
-            self.smooth_method_combo = QComboBox()
+            self.smooth_method_combo = DropDownComboBox()
             self.smooth_method_combo.addItem("Savitzky-Golay", "savgol")
             self.smooth_method_combo.addItem("Rolling mean", "rolling_mean")
             self.smooth_method_combo.addItem("LOWESS", "lowess")
@@ -223,12 +223,12 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self._update_smoothing_params()
 
         elif op == AnalysisType.INTERPOLATION:
-            self.interp_method_combo = QComboBox()
+            self.interp_method_combo = DropDownComboBox()
             for name, value in (("Linear", "linear"), ("Cubic", "cubic"),
                                 ("Quadratic", "quadratic"), ("Nearest", "nearest")):
                 self.interp_method_combo.addItem(name, value)
             self.parameters_layout.addRow("Method:", self.interp_method_combo)
-            self.num_points_spin = QSpinBox()
+            self.num_points_spin = IntegerInput()
             self.num_points_spin.setRange(10, 100000)
             self.num_points_spin.setValue(200)
             self.parameters_layout.addRow("Points:", self.num_points_spin)
@@ -243,16 +243,16 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
         method = self.smooth_method_combo.currentData()
         if method == "savgol":
-            self.window_length_spin = QSpinBox()
+            self.window_length_spin = IntegerInput()
             self.window_length_spin.setRange(3, 101)
             self.window_length_spin.setValue(11)
             self.parameters_layout.addRow("Window length:", self.window_length_spin)
-            self.poly_order_spin = QSpinBox()
+            self.poly_order_spin = IntegerInput()
             self.poly_order_spin.setRange(1, 10)
             self.poly_order_spin.setValue(3)
             self.parameters_layout.addRow("Polynomial order:", self.poly_order_spin)
         elif method == "rolling_mean":
-            self.window_spin = QSpinBox()
+            self.window_spin = IntegerInput()
             self.window_spin.setRange(2, 100)
             self.window_spin.setValue(5)
             self.parameters_layout.addRow("Window size:", self.window_spin)

@@ -171,3 +171,65 @@ def test_build_context_menu_stylesheet_selected_text_contrasts_with_accent():
         assert "color: #ffffff;" in selected_rule.lower(), (
             f"expected white text for default accent in {theme}, got: {selected_rule}"
         )
+
+
+def _rule(qss: str, selector: str) -> str:
+    return qss.split(f"{selector} {{")[1].split("}")[0]
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+def test_build_stylesheet_styles_combo_boxes_from_design_tokens(theme):
+    manager = _manager_with_context(theme)
+    tokens = manager.get_design_tokens()
+    qss = manager.build_stylesheet(manager._current)
+
+    combo_rule = _rule(qss, "QComboBox")
+    assert f"background-color: {tokens['surface_white']}" in combo_rule
+    assert f"color: {tokens['text_primary']}" in combo_rule
+    assert f"border: 1px solid {tokens['border_control']}" in combo_rule
+    assert f"border-radius: {tokens['radius_control']}px" in combo_rule
+
+    interactive_rule = _rule(qss, "QComboBox:hover, QComboBox:focus, QComboBox:on")
+    assert f"border-color: {tokens['accent']}" in interactive_rule
+
+    disabled_rule = _rule(qss, "QComboBox:disabled")
+    assert f"background-color: {tokens['surface_inset']}" in disabled_rule
+    assert f"color: {tokens['text_hint']}" in disabled_rule
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+def test_build_stylesheet_supplies_a_caret_for_the_combo_box_arrow(theme):
+    """Styling ::drop-down removes Qt's native arrow, so without an explicit
+    image the field would show no sign that it opens a list."""
+    manager = _manager_with_context(theme)
+    qss = manager.build_stylesheet(manager._current)
+
+    arrow_rule = _rule(qss, "QComboBox::down-arrow")
+    assert 'image: url("' in arrow_rule
+    assert "pandaplot_caret_" in arrow_rule
+    assert "pandaplot_caret_" in _rule(qss, "QComboBox::down-arrow:disabled")
+    assert _rule(qss, "QComboBox::down-arrow") != _rule(qss, "QComboBox::down-arrow:disabled")
+
+
+def test_build_stylesheet_combo_popup_list_follows_the_theme():
+    for theme in (Theme.LIGHT, Theme.DARK):
+        manager = _manager_with_context(theme)
+        tokens = manager.get_design_tokens()
+        qss = manager.build_stylesheet(manager._current)
+
+        popup_rule = _rule(qss, "QComboBox QAbstractItemView")
+        assert f"background-color: {tokens['surface_white']}" in popup_rule
+        assert f"border: 1px solid {tokens['border_control']}" in popup_rule
+        assert f"selection-background-color: {tokens['accent']}" in popup_rule
+        # Same legibility rule as the primary button: black or white,
+        # whichever contrasts with the accent.
+        assert "selection-color: #ffffff" in popup_rule.lower()
+
+
+def test_build_stylesheet_combo_selection_text_contrasts_with_a_light_accent():
+    manager = _manager_with_context(Theme.LIGHT)
+    manager._current.accent = "#FFEB3B"
+    qss = manager.build_stylesheet(manager._current)
+
+    assert "selection-color: #000000" in _rule(qss, "QComboBox QAbstractItemView").lower()
+    assert "color: #000000" in _rule(qss, "QComboBox QAbstractItemView::item:hover").lower()
