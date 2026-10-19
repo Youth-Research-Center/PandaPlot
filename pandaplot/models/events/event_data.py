@@ -35,6 +35,10 @@ class NoteContentChangedData(EventData):
     new_content: str
 
 @dataclass(frozen=True)
+class SketchChangedData(EventData):
+    sketch_id: str
+
+@dataclass(frozen=True)
 class ChartCreatedData(EventData):
     # TODO(#219): we need project id ideally
     chart_id: str
