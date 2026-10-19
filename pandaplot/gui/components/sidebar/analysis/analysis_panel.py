@@ -6,7 +6,6 @@ from typing import Any, override
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -21,13 +20,14 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.label_role import set_label_role
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.sidebar.panels.panel_form_layout import PanelFormLayout
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import AnalysisEvents, DatasetEvents, DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class AnalysisPanel(SidebarPanel):
@@ -55,9 +55,7 @@ class AnalysisPanel(SidebarPanel):
 
         # Content widget
         content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(4, 4, 4, 4)
-        content_layout.setSpacing(6)
+        content_layout = self._new_content_layout(content_widget)
 
         # Analysis type selection
         self.create_analysis_type_section(content_layout)
@@ -85,66 +83,10 @@ class AnalysisPanel(SidebarPanel):
 
         self._set_content(content_widget, scrollable=True)
     
-    @override
-    def _apply_theme(self):
-        """Apply current theme to analysis panel components."""
-        # Get theme colors
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        tokens = theme_manager.get_design_tokens()
-
-        card_bg = palette.get("card_bg", "#ffffff")
-        card_border = palette.get("card_border", "#dee2e6")
-        base_fg = palette.get("base_fg", "#333333")
-
-        # Apply theme to main widget
-        self.setStyleSheet(f"""
-            AnalysisPanel {{
-                background-color: {card_bg};
-                color: {base_fg};
-            }}
-            QGroupBox {{
-                font-weight: bold;
-                font-size: {tokens['font_size_group_title']}pt;
-                color: {base_fg};
-                margin-top: 5px;
-                padding-top: 10px;
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                background-color: {card_bg};
-            }}
-        """)
-        
-        # Style title label
-        self._apply_title_theme(base_fg, card_border)
-
-        self.apply_info_label_theme(self.start_value_label)
-        self.apply_info_label_theme(self.end_value_label)
-
-    def apply_info_label_theme(self, label):
-        """Apply theme styling to info labels."""
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        secondary_fg = palette.get("secondary_fg", "#666666")
-        
-        label.setStyleSheet(f"""
-            QLabel {{
-                color: {secondary_fg};
-                font-style: italic;
-                background-color: transparent;
-            }}
-        """)
-
     def create_analysis_type_section(self, layout):
         """Create analysis type selection section."""
         group = QGroupBox("Analysis Type")
-        group_layout = QFormLayout()
+        group_layout = PanelFormLayout()
         
         self.analysis_type_combo = DropDownComboBox()
         self.analysis_type_combo.addItems([
@@ -163,7 +105,7 @@ class AnalysisPanel(SidebarPanel):
     def create_column_selection_section(self, layout):
         """Create column selection section."""
         group = QGroupBox("Column Selection")
-        group_layout = QFormLayout()
+        group_layout = PanelFormLayout()
         
         self.x_column_combo = DropDownComboBox()
         self.y_column_combo = DropDownComboBox()
@@ -177,7 +119,7 @@ class AnalysisPanel(SidebarPanel):
     def create_parameters_section(self, layout):
         """Create dynamic parameters section."""
         self.parameters_group = QGroupBox("Parameters")
-        self.parameters_layout = QFormLayout()
+        self.parameters_layout = PanelFormLayout()
         self.parameters_group.setLayout(self.parameters_layout)
         layout.addWidget(self.parameters_group)
         
@@ -187,7 +129,7 @@ class AnalysisPanel(SidebarPanel):
     def create_range_section(self, layout):
         """Create data range selection section."""
         group = QGroupBox("Data Range")
-        group_layout = QFormLayout()
+        group_layout = PanelFormLayout()
 
         # Both spinboxes show 1-based row numbers, matching the row numbers
         # in the dataset table (pandas_table_model.py shows "row + 1").
@@ -195,6 +137,7 @@ class AnalysisPanel(SidebarPanel):
         self.start_index.setMinimum(0)
         self.start_index.setValue(0)
         self.start_value_label = QLabel("–")
+        set_label_role(self.start_value_label, "hint")
         start_row = QHBoxLayout()
         start_row.addWidget(self.start_index)
         start_row.addWidget(self.start_value_label)
@@ -204,6 +147,7 @@ class AnalysisPanel(SidebarPanel):
         self.end_index.setMinimum(0)
         self.end_index.setValue(0)
         self.end_value_label = QLabel("–")
+        set_label_role(self.end_value_label, "hint")
         end_row = QHBoxLayout()
         end_row.addWidget(self.end_index)
         end_row.addWidget(self.end_value_label)
@@ -247,7 +191,7 @@ class AnalysisPanel(SidebarPanel):
     def create_result_section(self, layout):
         """Create result configuration section."""
         group = QGroupBox("Result Configuration")
-        group_layout = QFormLayout()
+        group_layout = PanelFormLayout()
         
         self.result_column_name = QLineEdit()
         self.result_column_name.setPlaceholderText("Enter column name...")
@@ -377,12 +321,12 @@ class AnalysisPanel(SidebarPanel):
             
         elif analysis_type == "Integral":
             info_label = QLabel("Method: Trapezoidal Rule")
-            self.apply_info_label_theme(info_label)
+            set_label_role(info_label, "hint")
             self.parameters_layout.addRow("", info_label)
             
         elif analysis_type == "Arc Length":
             info_label = QLabel("Method: Euclidean Distance")
-            self.apply_info_label_theme(info_label)
+            set_label_role(info_label, "hint")
             self.parameters_layout.addRow("", info_label)
             
         elif analysis_type == "Smoothing":

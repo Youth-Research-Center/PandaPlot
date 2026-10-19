@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.gui.components.common.label_role import set_label_role
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events.event_types import NoteEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items.note import Note
@@ -174,6 +175,7 @@ class SearchPanel(SidebarPanel):
 
         # Summary line
         self.summary_label = QLabel("")
+        set_label_role(self.summary_label, "hint")
         self.main_layout.addWidget(self.summary_label)
 
         # Results tree
@@ -209,27 +211,6 @@ class SearchPanel(SidebarPanel):
         accent = palette.get("accent", "#4A90E2")
         card_hover = palette.get("card_hover", "#e9ecef")
         base_fg = palette.get("base_fg", "#333333")
-        secondary_fg = palette.get("secondary_fg", "#666666")
-
-        self.setStyleSheet(f"""
-            SearchPanel {{
-                background-color: {card_bg};
-                color: {base_fg};
-            }}
-        """)
-
-        self._apply_title_theme(base_fg, card_border)
-        self.summary_label.setStyleSheet(f"color: {secondary_fg}; font-size: 11px; background-color: transparent;")
-
-        self.search_input.setStyleSheet(f"""
-            QLineEdit {{
-                color: {base_fg};
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-                padding: 4px;
-            }}
-        """)
 
         self.results.setStyleSheet(f"""
             QTreeWidget {{

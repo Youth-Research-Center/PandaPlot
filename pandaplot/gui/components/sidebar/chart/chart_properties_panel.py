@@ -184,33 +184,6 @@ class ChartPropertiesPanel(SidebarPanel):
         base_fg = palette.get("base_fg", "#333333")
         card_hover = palette.get("card_hover", "#e5f3ff")
         
-        # Apply theme to main widget
-        self.setStyleSheet(f"""
-            ChartPropertiesPanel {{
-                background-color: {card_bg};
-                color: {base_fg};
-            }}
-            QGroupBox {{
-                font-weight: bold;
-                font-size: {tokens['font_size_group_title']}pt;
-                color: {base_fg};
-                margin-top: 5px;
-                padding-top: 10px;
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                background-color: {card_bg};
-            }}
-        """)
-        
-        # Title label with improved styling
-        self._apply_title_theme(base_fg, card_border)
-        
         # Tab widget with theme-aware colors
         self.tab_widget.setStyleSheet(f"""
             QTabWidget::pane {{ 

@@ -22,14 +22,15 @@ from PySide6.QtWidgets import (
 from pandaplot.analysis import STAT_TESTS, InputMode, StatTestResult, StatTestType
 from pandaplot.commands.project.dataset.statistical_test_command import StatisticalTestCommand
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.label_role import set_label_role
 from pandaplot.gui.components.common.number_input import DecimalInput
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.sidebar.panels.panel_form_layout import PanelFormLayout
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.statistics.test_info_dialog import InfoDialogHelper
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class StatisticsPanel(SidebarPanel):
@@ -54,9 +55,7 @@ class StatisticsPanel(SidebarPanel):
         self._set_title("🧪 Statistical Tests")
 
         content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(4, 4, 4, 4)
-        content_layout.setSpacing(6)
+        content_layout = self._new_content_layout(content_widget)
 
         self._create_test_type_section(content_layout)
         self._create_input_section(content_layout)
@@ -74,7 +73,7 @@ class StatisticsPanel(SidebarPanel):
         group = QGroupBox("Test")
         group_layout = QVBoxLayout()
 
-        form = QFormLayout()
+        form = PanelFormLayout()
         self.test_type_combo = DropDownComboBox()
         for test_type, info in STAT_TESTS.items():
             self.test_type_combo.addItem(info.label, test_type)
@@ -92,10 +91,13 @@ class StatisticsPanel(SidebarPanel):
         group_layout.addLayout(form)
 
         self.description_label = QLabel()
+
+        set_label_role(self.description_label, "hint")
         self.description_label.setWordWrap(True)
         group_layout.addWidget(self.description_label)
 
         self.assumptions_label = QLabel()
+        set_label_role(self.assumptions_label, "hint")
         self.assumptions_label.setWordWrap(True)
         group_layout.addWidget(self.assumptions_label)
 
@@ -104,13 +106,13 @@ class StatisticsPanel(SidebarPanel):
 
     def _create_input_section(self, layout):
         self.input_group = QGroupBox("Data Selection")
-        self.input_layout = QFormLayout()
+        self.input_layout = PanelFormLayout()
         self.input_group.setLayout(self.input_layout)
         layout.addWidget(self.input_group)
 
     def _create_parameters_section(self, layout):
         self.parameters_group = QGroupBox("Parameters")
-        self.parameters_layout = QFormLayout()
+        self.parameters_layout = PanelFormLayout()
         self.parameters_group.setLayout(self.parameters_layout)
         layout.addWidget(self.parameters_group)
 
@@ -166,8 +168,8 @@ class StatisticsPanel(SidebarPanel):
 
         self.description_label.setText(f"ℹ️ {info.description}")
         self.assumptions_label.setText(f"Assumptions: {info.assumptions}" if info.assumptions else "")
-        self._apply_hint_label_theme(self.description_label)
-        self._apply_hint_label_theme(self.assumptions_label)
+        set_label_role(self.description_label, "hint")
+        set_label_role(self.assumptions_label, "hint")
 
         self._build_input_widgets(info.input_mode)
         self._build_parameter_widgets(info)
@@ -209,7 +211,7 @@ class StatisticsPanel(SidebarPanel):
             for i in range(min(2, len(columns))):
                 self.group_list.item(i).setSelected(True)
             hint = QLabel("Select 2+ numeric group columns (Ctrl/Shift-click).")
-            self._apply_hint_label_theme(hint)
+            set_label_role(hint, "hint")
             self.input_layout.addRow("Groups:", self.group_list)
             self.input_layout.addRow("", hint)
 
@@ -410,43 +412,3 @@ class StatisticsPanel(SidebarPanel):
             if child.widget():
                 child.widget().deleteLater()
 
-    def _apply_hint_label_theme(self, label: QLabel):
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        secondary_fg = palette.get("secondary_fg", "#666666")
-        label.setStyleSheet(f"QLabel {{ color: {secondary_fg}; font-style: italic; background-color: transparent; }}")
-
-    @override
-    def _apply_theme(self):
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        tokens = theme_manager.get_design_tokens()
-
-        card_bg = palette.get("card_bg", "#ffffff")
-        card_border = palette.get("card_border", "#dee2e6")
-        base_fg = palette.get("base_fg", "#333333")
-
-        self.setStyleSheet(f"""
-            StatisticsPanel {{
-                background-color: {card_bg};
-                color: {base_fg};
-            }}
-            QGroupBox {{
-                font-weight: bold;
-                font-size: {tokens['font_size_group_title']}pt;
-                color: {base_fg};
-                margin-top: 5px;
-                padding-top: 10px;
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-                background-color: {card_bg};
-            }}
-        """)
-
-        self._apply_title_theme(base_fg, card_border)

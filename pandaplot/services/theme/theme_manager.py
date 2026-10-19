@@ -258,6 +258,105 @@ class ThemeManager:
             }}
         """
 
+    @staticmethod
+    def _sidebar_panel_rules(tokens: dict, *, accent: str) -> str:
+        """QSS shared by every sidebar panel and the label roles they use.
+
+        ``SidebarPanel`` carries the ``sidebarPanel`` dynamic property, so the
+        panel background, group boxes, title bar and result text areas are
+        styled here once instead of in each panel (they had drifted apart).
+        The ``role`` rules colour helper text, errors and warnings (see
+        ``label_role.set_label_role``); a result text area flags a failure with
+        ``error="true"``.
+
+        Args:
+            tokens: Design tokens from ``get_design_tokens()``.
+            accent: Accent colour for a focused text field's border.
+
+        Returns:
+            The QSS block for sidebar panels and label roles.
+        """
+        return f"""
+            QWidget[sidebarPanel="true"] {{
+                background-color: {tokens['surface_white']};
+                color: {tokens['text_primary']};
+            }}
+            QWidget[sidebarPanel="true"] QGroupBox {{
+                font-weight: bold;
+                font-size: {tokens['font_size_group_title']}pt;
+                color: {tokens['text_primary']};
+                margin-top: 5px;
+                padding-top: 10px;
+                background-color: {tokens['surface_white']};
+                border: 1px solid {tokens['border_control']};
+                border-radius: {tokens['radius_card']}px;
+            }}
+            QWidget[sidebarPanel="true"] QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+                background-color: {tokens['surface_white']};
+            }}
+            QWidget[sidebarPanel="true"] QCheckBox, QWidget[sidebarPanel="true"] QRadioButton {{
+                color: {tokens['text_primary']};
+                background-color: transparent;
+            }}
+            QLabel#sidebarPanelTitle {{
+                font-size: 14px;
+                font-weight: bold;
+                color: {tokens['text_primary']};
+                padding: 5px;
+                background-color: {tokens['border_control']};
+                border-radius: 3px;
+            }}
+            QWidget[sidebarPanel="true"] QTextEdit, QWidget[sidebarPanel="true"] QPlainTextEdit {{
+                background-color: {tokens['surface_white']};
+                color: {tokens['text_primary']};
+                border: 1px solid {tokens['border_control']};
+                border-radius: {tokens['radius_control']}px;
+            }}
+            QWidget[sidebarPanel="true"] QLineEdit, QWidget[sidebarPanel="true"] QListWidget {{
+                background-color: {tokens['surface_white']};
+                color: {tokens['text_primary']};
+                border: 1px solid {tokens['border_control']};
+                border-radius: {tokens['radius_control']}px;
+            }}
+            QWidget[sidebarPanel="true"] QLineEdit {{
+                padding: 4px 6px;
+            }}
+            QWidget[sidebarPanel="true"] QLineEdit:focus {{
+                border-color: {accent};
+            }}
+            QWidget[sidebarPanel="true"] QLineEdit:disabled {{
+                background-color: {tokens['surface_inset']};
+                color: {tokens['text_hint']};
+                border-color: {tokens['border_subtle']};
+            }}
+            QWidget[sidebarPanel="true"] QTextEdit[error="true"], QWidget[sidebarPanel="true"] QPlainTextEdit[error="true"] {{
+                color: {tokens['status_danger']};
+            }}
+            QLabel[role="hint"] {{
+                color: {tokens['text_secondary']};
+                font-style: italic;
+                background-color: transparent;
+            }}
+            QLabel[role="error"] {{
+                color: {tokens['status_danger']};
+                background-color: transparent;
+            }}
+            QLabel[role="warning"] {{
+                color: {tokens['status_modified_text']};
+                background-color: transparent;
+            }}
+            QLabel[role="code"] {{
+                font-family: monospace;
+                color: {tokens['text_primary']};
+                background-color: {tokens['surface_white']};
+                padding: 5px;
+                border: 1px solid {tokens['border_control']};
+            }}
+        """
+
     def build_stylesheet(self, ctx: ThemeContext) -> str:
         accent = ctx.accent
         text_color = "#000000"  # fallback
@@ -350,6 +449,7 @@ class ThemeManager:
             }}
             {self._combo_box_rules(tokens, accent=accent, selected_text=text_color)}
             {self._number_input_rules(tokens, accent=accent)}
+            {self._sidebar_panel_rules(tokens, accent=accent)}
             QMessageBox QPushButton, QDialogButtonBox QPushButton {{
                 color: {tokens['text_primary']};
                 background-color: {tokens['surface_white']};

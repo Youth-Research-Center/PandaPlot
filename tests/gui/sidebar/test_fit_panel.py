@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QFrame, QPlainTextEdit
+from PySide6.QtWidgets import QApplication, QPlainTextEdit
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
@@ -84,29 +84,15 @@ def test_apply_button_starts_disabled(fit_panel):
     assert fit_panel.apply_button.isEnabled() is False
 
 
-def test_equation_label_uses_theme_tokens_not_hardcoded_colors(app_context):
-    """equation_label used to hardcode background-color: #f5f5f5; color:
-    #333333; border: 1px solid #ddd at construction, never refreshed by
-    _apply_theme() -- a light-mode-only box against a dark app theme."""
-    theme_manager = Mock()
-    theme_manager.get_surface_palette.return_value = {
-        "card_bg": "#2A2C2E", "card_border": "#4A4D52", "base_fg": "#E2E2E2",
-        "card_hover": "#26282B", "card_pressed": "#232527", "secondary_fg": "#C7CAD1",
-        "accent": "#4A56C6",
-    }
-    theme_manager.get_design_tokens.return_value = {"font_size_group_title": 9}
-    app_context.get_manager.return_value = theme_manager
-
+def test_equation_label_takes_its_colors_from_the_theme_not_from_hardcoded_values(app_context):
+    """equation_label used to hardcode a light-mode-only box (background
+    #f5f5f5, color #333333, border #ddd). It must carry no colors of its own:
+    the "code" role is styled from the design tokens by ThemeManager (see
+    tests/services/theme/test_theme_manager.py), so it follows light and dark."""
     panel = FitPanel(app_context)
-    panel._apply_theme()
 
-    style = panel.equation_label.styleSheet()
-    assert "#f5f5f5" not in style
-    assert "#333333" not in style
-    assert "#ddd" not in style
-    assert "#2A2C2E" in style
-    assert "#4A4D52" in style
-    assert "#E2E2E2" in style
+    assert panel.equation_label.property("role") == "code"
+    assert panel.equation_label.styleSheet() == ""
 
 
 def test_fit_models_are_filtered_by_category(app_context):
@@ -128,12 +114,13 @@ def test_fit_models_are_filtered_by_category(app_context):
     ]
 
 
-def test_fit_results_use_a_transparent_plain_text_display(app_context):
+def test_fit_results_use_the_shared_plain_text_display(app_context):
     panel = FitPanel(app_context)
 
     assert isinstance(panel.results_text, QPlainTextEdit)
-    assert panel.results_text.frameShape() == QFrame.Shape.NoFrame
-    assert "background-color: transparent" in panel.results_text.styleSheet()
+    assert panel.results_text.isReadOnly()
+    # No look of its own: the shared sidebar text-area style applies.
+    assert panel.results_text.styleSheet() == ""
 
 
 def test_fit_points_control_is_left_aligned_with_other_inputs(app_context):
@@ -1771,8 +1758,8 @@ def test_perform_fit_failure_path_shows_error_and_stops_spinner(app_context):
     assert panel.apply_button.isEnabled() is False
     assert panel.fit_results is None
     assert panel.results_text.toPlainText() == "Fit did not converge"
-    assert "color: red;" in panel.results_text.styleSheet()
-    assert "background-color: transparent;" in panel.results_text.styleSheet()
+    assert panel.results_text.property("error") is True
+    assert panel.results_text.styleSheet() == ""
 
 
 def test_perform_fit_sync_dispatch_failure_stops_spinner_without_on_complete(app_context):
@@ -2146,15 +2133,23 @@ def test_switching_to_unsupported_chart_clears_stale_points_and_range_warning(ap
     assert panel.data_points_warning_icon.isHidden() is True
 
 
-def test_availability_label_uses_theme_warning_color(app_context):
-    app_context.get_manager.return_value.get_design_tokens.return_value = {
-        "font_size_group_title": 9,
-        "status_modified_text": "#123456",
-    }
+def test_availability_label_is_styled_as_a_warning(app_context):
+    """The warning color itself comes from ThemeManager's QLabel[role="warning"]
+    rule (status_modified_text token) rather than a per-panel stylesheet."""
     panel = FitPanel(app_context)
-    panel._apply_theme()
 
-    assert "#123456" in panel.fit_availability_label.styleSheet()
+    assert panel.fit_availability_label.property("role") == "warning"
+    assert panel.fit_availability_label.styleSheet() == ""
+
+
+def test_data_points_readout_uses_roles_instead_of_hardcoded_red(app_context):
+    panel = FitPanel(app_context)
+
+    panel.update_data_points_display()
+    assert panel.data_points_label.property("role") == "hint"
+    assert panel.data_points_label.styleSheet() == ""
+    assert panel.data_points_warning_icon.property("role") == "error"
+    assert panel.range_warning_label.property("role") == "error"
 
 
 def test_panel_refresh_does_not_crash_when_series_dataset_has_no_data(app_context):

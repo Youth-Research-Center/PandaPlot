@@ -169,18 +169,20 @@ class TestPreviewErrorStyling:
 
         assert transform_panel._preview_has_error is True
 
-    def test_error_styling_keeps_the_base_theme_qss(self, transform_panel):
+    def test_error_styling_does_not_replace_the_panels_own_stylesheet(self, transform_panel):
         """Regression: setting an error color used to replace preview_text's
-        whole stylesheet, dropping the background/border/padding _apply_theme()
-        installs -- not just the foreground color."""
+        whole stylesheet, dropping its background/border/padding -- not just
+        the foreground color. The error is now a property (ThemeManager swaps
+        only the color), so the widget's own stylesheet must be untouched."""
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
         transform_panel._populate_column_list(["a"])
+        before = transform_panel.preview_text.styleSheet()
 
         transform_panel.apply_transform()
 
-        style = transform_panel.preview_text.styleSheet()
-        assert "border" in style
-        assert "background-color" in style
+        assert transform_panel.preview_text.property("error") is True
+        assert transform_panel.preview_text.styleSheet() == before
+        assert "monospace" in before
 
     def test_successful_preview_clears_any_error_styling(self, transform_panel):
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))

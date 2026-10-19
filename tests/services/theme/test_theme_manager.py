@@ -233,3 +233,75 @@ def test_build_stylesheet_combo_selection_text_contrasts_with_a_light_accent():
 
     assert "selection-color: #000000" in _rule(qss, "QComboBox QAbstractItemView").lower()
     assert "color: #000000" in _rule(qss, "QComboBox QAbstractItemView::item:hover").lower()
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+def test_build_stylesheet_styles_sidebar_panels_from_design_tokens(theme):
+    manager = _manager_with_context(theme)
+    tokens = manager.get_design_tokens()
+    qss = manager.build_stylesheet(manager._current)
+
+    panel_rule = _rule(qss, 'QWidget[sidebarPanel="true"]')
+    assert f"background-color: {tokens['surface_white']}" in panel_rule
+    assert f"color: {tokens['text_primary']}" in panel_rule
+
+    group_rule = _rule(qss, 'QWidget[sidebarPanel="true"] QGroupBox')
+    assert f"font-size: {tokens['font_size_group_title']}pt" in group_rule
+    assert f"border: 1px solid {tokens['border_control']}" in group_rule
+    assert f"border-radius: {tokens['radius_card']}px" in group_rule
+    assert tokens["surface_white"] in _rule(qss, 'QWidget[sidebarPanel="true"] QGroupBox::title')
+
+    title_rule = _rule(qss, "QLabel#sidebarPanelTitle")
+    assert f"background-color: {tokens['border_control']}" in title_rule
+    assert f"color: {tokens['text_primary']}" in title_rule
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+def test_build_stylesheet_gives_sidebar_text_areas_and_fields_one_look(theme):
+    manager = _manager_with_context(theme)
+    tokens = manager.get_design_tokens()
+    qss = manager.build_stylesheet(manager._current)
+
+    area_rule = _rule(qss, 'QWidget[sidebarPanel="true"] QTextEdit, QWidget[sidebarPanel="true"] QPlainTextEdit')
+    assert f"border: 1px solid {tokens['border_control']}" in area_rule
+    assert f"border-radius: {tokens['radius_control']}px" in area_rule
+
+    error_rule = _rule(qss, 'QWidget[sidebarPanel="true"] QTextEdit[error="true"], QWidget[sidebarPanel="true"] QPlainTextEdit[error="true"]')
+    assert f"color: {tokens['status_danger']}" in error_rule
+
+    assert f"border-color: {tokens['accent']}" in _rule(qss, 'QWidget[sidebarPanel="true"] QLineEdit:focus')
+    assert f"background-color: {tokens['surface_inset']}" in _rule(qss, 'QWidget[sidebarPanel="true"] QLineEdit:disabled')
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+def test_build_stylesheet_colours_label_roles_from_status_tokens(theme):
+    manager = _manager_with_context(theme)
+    tokens = manager.get_design_tokens()
+    qss = manager.build_stylesheet(manager._current)
+
+    assert f"color: {tokens['text_secondary']}" in _rule(qss, 'QLabel[role="hint"]')
+    assert f"color: {tokens['status_danger']}" in _rule(qss, 'QLabel[role="error"]')
+    assert f"color: {tokens['status_modified_text']}" in _rule(qss, 'QLabel[role="warning"]')
+
+
+def test_code_label_role_follows_the_dark_theme_instead_of_a_light_only_box():
+    """The fit equation label used to hardcode background #f5f5f5, color
+    #333333 and border #ddd -- a light-mode-only box in a dark app."""
+    manager = _manager_with_context(Theme.DARK)
+    tokens = manager.get_design_tokens()
+    code_rule = _rule(manager.build_stylesheet(manager._current), 'QLabel[role="code"]')
+
+    assert "font-family: monospace" in code_rule
+    assert tokens["surface_white"] in code_rule
+    assert tokens["border_control"] in code_rule
+    for light_only in ("#f5f5f5", "#333333", "#ddd"):
+        assert light_only not in code_rule.lower()
+
+
+def test_build_stylesheet_does_not_set_a_generic_label_color_that_would_override_roles():
+    """A `QWidget[sidebarPanel] QLabel { color }` rule would out-rank the role
+    rules (higher specificity) and flatten hint/error/warning labels."""
+    manager = _manager_with_context(Theme.LIGHT)
+    qss = manager.build_stylesheet(manager._current)
+
+    assert 'QWidget[sidebarPanel="true"] QLabel {' not in qss
