@@ -51,6 +51,7 @@ from pandaplot.models.chart.series_style.density import MAX_BANDWIDTH
 from pandaplot.models.chart.series_style.fill import FillStyleFields
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.chart.value_label_subset import ValueLabelSubset
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.project.items.chart import DataSeries
 from pandaplot.models.state.config import (
@@ -107,6 +108,15 @@ HEATMAP_RENDER_MODE_OPTIONS = [
     ("Contour lines", "contour_lines"),
     ("Filled contour", "contour_filled"),
     ("Filled contour + lines", "contour_filled_lines"),
+]
+
+# Which points the Value Labels card labels (#337): every point, or only the
+# global minimum and/or maximum of the series.
+VALUE_LABEL_SUBSET_OPTIONS = [
+    ("All points", ValueLabelSubset.ALL),
+    ("Min and max", ValueLabelSubset.EXTREMES),
+    ("Only min", ValueLabelSubset.MIN),
+    ("Only max", ValueLabelSubset.MAX),
 ]
 
 
@@ -752,6 +762,16 @@ class StyleTab(QWidget):
         self.value_labels_bg_alpha_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
         value_labels_layout.addWidget(self.value_labels_bg_alpha_slider, 9, 1)
 
+        self.value_labels_subset_label = QLabel("Label points:")
+        value_labels_layout.addWidget(self.value_labels_subset_label, 10, 0)
+        self.value_labels_subset_control = ValueComboBox(VALUE_LABEL_SUBSET_OPTIONS)
+        value_labels_layout.addWidget(self.value_labels_subset_control, 10, 1)
+        subset_tooltip = (
+            "Min and max are by Y value; if several points tie, the first one is used. "
+            "With X labels, 'Only max' shows the X of the highest-Y point."
+        )
+        self.value_labels_subset_label.setToolTip(subset_tooltip)
+        self.value_labels_subset_control.setToolTip(subset_tooltip)
         layout.addWidget(value_labels_card)
 
         # VECTOR group -- shown instead of Line/Fill/Marker/Error Bars for a
@@ -996,6 +1016,7 @@ class StyleTab(QWidget):
         self.error_cap_size_slider.valueChanged.connect(self._on_field_changed)
         self.value_labels_enabled_toggle.toggled.connect(self._on_value_labels_enabled_toggled)
         self.value_labels_mode_control.currentValueChanged.connect(self._on_field_changed)
+        self.value_labels_subset_control.currentValueChanged.connect(self._on_field_changed)
         self.value_labels_arrow_toggle.toggled.connect(self._on_field_changed)
         self.value_labels_offset_x_spin.valueChanged.connect(self._on_field_changed)
         self.value_labels_offset_y_spin.valueChanged.connect(self._on_field_changed)
@@ -2029,6 +2050,7 @@ class StyleTab(QWidget):
             self.value_labels_arrow_label, self.value_labels_arrow_toggle,
             self.value_labels_offset_x_label, self.value_labels_offset_x_spin,
             self.value_labels_offset_y_label, self.value_labels_offset_y_spin,
+            self.value_labels_subset_label, self.value_labels_subset_control,
         ):
             widget.setVisible(supports_mode)
 
@@ -2170,6 +2192,7 @@ class StyleTab(QWidget):
             style.value_label_show_arrow = self.value_labels_arrow_toggle.isChecked()
             style.value_label_offset_x = self.value_labels_offset_x_spin.value()
             style.value_label_offset_y = self.value_labels_offset_y_spin.value()
+            style.value_label_subset_mode = self.value_labels_subset_control.currentValue()
         # Text/background color+alpha: all three value-label-capable types.
         # "" == match series color (text) / no background box (bg) -- same
         # "" -sentinel convention as marker_color/fill_color.
@@ -2372,6 +2395,9 @@ class StyleTab(QWidget):
             self.value_labels_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
             self.value_labels_mode_control.setCurrentValue(getattr(style, "value_label_mode", "y"))
+            self.value_labels_subset_control.setCurrentValue(
+                ValueLabelSubset.coerce(getattr(style, "value_label_subset_mode", ValueLabelSubset.ALL))
+            )
             self.value_labels_arrow_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             self.value_labels_arrow_toggle.setChecked(checked=getattr(style, "value_label_show_arrow", False))
             self.value_labels_arrow_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
