@@ -3,7 +3,7 @@ label/field rows the same way."""
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QComboBox, QFormLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QFormLayout, QLayout, QWidget
 
 LABEL_ALIGNMENT = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 FORM_HORIZONTAL_SPACING = 8
@@ -43,9 +43,23 @@ class PanelFormLayout(QFormLayout):
         self.setHorizontalSpacing(FORM_HORIZONTAL_SPACING)
         self.setVerticalSpacing(FORM_VERTICAL_SPACING)
 
-    def addRow(self, *args):
+    def addRow(self, *args: QWidget | QLayout | str) -> None:
         """Add a row as ``QFormLayout.addRow`` does, compacting a combo box field."""
-        for arg in args:
-            if isinstance(arg, QComboBox):
-                compact_combo(arg)
-        return super().addRow(*args)
+        self._compact_combos(args)
+        super().addRow(*args)
+
+    def insertRow(self, row: int, *args: QWidget | QLayout | str) -> None:
+        """Insert a row as ``QFormLayout.insertRow`` does, compacting a combo box field."""
+        self._compact_combos(args)
+        super().insertRow(row, *args)
+
+    def setWidget(self, row: int, role: QFormLayout.ItemRole, widget: QWidget) -> None:
+        """Place a widget as ``QFormLayout.setWidget`` does, compacting a combo box."""
+        self._compact_combos((widget,))
+        super().setWidget(row, role, widget)
+
+    @staticmethod
+    def _compact_combos(items: tuple[QWidget | QLayout | str, ...]) -> None:
+        for item in items:
+            if isinstance(item, QComboBox):
+                compact_combo(item)

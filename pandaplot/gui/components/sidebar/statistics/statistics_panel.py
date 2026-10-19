@@ -31,7 +31,6 @@ from pandaplot.gui.components.sidebar.statistics.test_info_dialog import InfoDia
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class StatisticsPanel(SidebarPanel):
@@ -169,8 +168,8 @@ class StatisticsPanel(SidebarPanel):
 
         self.description_label.setText(f"ℹ️ {info.description}")
         self.assumptions_label.setText(f"Assumptions: {info.assumptions}" if info.assumptions else "")
-        self._apply_hint_label_theme(self.description_label)
-        self._apply_hint_label_theme(self.assumptions_label)
+        set_label_role(self.description_label, "hint")
+        set_label_role(self.assumptions_label, "hint")
 
         self._build_input_widgets(info.input_mode)
         self._build_parameter_widgets(info)
@@ -212,7 +211,7 @@ class StatisticsPanel(SidebarPanel):
             for i in range(min(2, len(columns))):
                 self.group_list.item(i).setSelected(True)
             hint = QLabel("Select 2+ numeric group columns (Ctrl/Shift-click).")
-            self._apply_hint_label_theme(hint)
+            set_label_role(hint, "hint")
             self.input_layout.addRow("Groups:", self.group_list)
             self.input_layout.addRow("", hint)
 
@@ -413,8 +412,3 @@ class StatisticsPanel(SidebarPanel):
             if child.widget():
                 child.widget().deleteLater()
 
-    def _apply_hint_label_theme(self, label: QLabel):
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        secondary_fg = palette.get("secondary_fg", "#666666")
-        label.setStyleSheet(f"QLabel {{ color: {secondary_fg}; font-style: italic; background-color: transparent; }}")

@@ -20,13 +20,13 @@ from PySide6.QtWidgets import (
 
 from pandaplot.analysis import DescriptiveStatsResult
 from pandaplot.commands.project.dataset.descriptive_stats_command import DescriptiveStatsCommand
+from pandaplot.gui.components.common.label_role import set_label_role
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class DescriptiveStatsPanel(SidebarPanel):
@@ -72,7 +72,7 @@ class DescriptiveStatsPanel(SidebarPanel):
 
         hint = QLabel("Select one or more numeric columns (Ctrl/Shift-click).")
         hint.setWordWrap(True)
-        self._apply_hint_label_theme(hint)
+        set_label_role(hint, "hint")
         group_layout.addWidget(hint)
 
         self.select_all_btn = PButton(
@@ -271,8 +271,3 @@ class DescriptiveStatsPanel(SidebarPanel):
     # Helpers / theming
     # ------------------------------------------------------------------
 
-    def _apply_hint_label_theme(self, label: QLabel):
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
-        secondary_fg = palette.get("secondary_fg", "#666666")
-        label.setStyleSheet(f"QLabel {{ color: {secondary_fg}; font-style: italic; background-color: transparent; }}")

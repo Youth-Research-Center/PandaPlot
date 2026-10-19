@@ -164,6 +164,24 @@ def test_compact_combo_helper_works_on_a_standalone_combo():
     assert compact.minimumSizeHint().width() < plain.minimumSizeHint().width()
 
 
+@pytest.mark.parametrize("add", ["insertRow", "setWidget", "addRow_single"])
+def test_combo_added_through_any_form_entry_point_is_compacted(add):
+    owner = QWidget()
+    form = PanelFormLayout(owner)
+    combo = QComboBox()
+    combo.addItem("x" * 80)
+
+    if add == "insertRow":
+        form.insertRow(0, "Dataset:", combo)
+    elif add == "setWidget":
+        form.setWidget(0, PanelFormLayout.ItemRole.FieldRole, combo)
+    else:
+        form.addRow(combo)
+
+    assert combo.sizeAdjustPolicy() == QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+    assert combo.minimumContentsLength() == COMBO_MINIMUM_CONTENTS_LENGTH
+
+
 def test_form_rows_without_a_combo_are_added_unchanged(panel):
     form = panel.group.layout()
     label = QLabel("Plain")
@@ -276,6 +294,17 @@ def test_panel_modules_do_not_hardcode_status_colors():
     assert offenders == [], f"use set_label_role(..., 'error') / set_error_state(): {offenders}"
 
 
+def test_panel_modules_do_not_restyle_hint_labels_per_widget():
+    """A per-label stylesheet beats QLabel[role="hint"] and is not refreshed on a theme change."""
+    offenders = []
+    for path in _panel_sources():
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if "_apply_hint_label_theme" in line:
+                offenders.append(f"{path.name}:{number}: {line.strip()}")
+
+    assert offenders == [], f"use set_label_role(label, 'hint'): {offenders}"
+
+
 def test_panel_modules_use_the_shared_form_layout():
     offenders = []
     for path in _panel_sources():
@@ -284,3 +313,22 @@ def test_panel_modules_use_the_shared_form_layout():
                 offenders.append(f"{path.name}:{node.lineno}")
 
     assert offenders == [], f"use PanelFormLayout so rows line up across panels: {offenders}"
+
+
+@pytest.mark.parametrize("panel_name", ["statistics", "descriptive"])
+def test_statistics_hint_labels_carry_no_local_stylesheet(panel_name):
+    """A widget-local stylesheet beats QLabel[role="hint"], so the label kept the old theme's colour."""
+    from pandaplot.gui.components.sidebar.statistics.descriptive_panel import DescriptiveStatsPanel
+    from pandaplot.gui.components.sidebar.statistics.statistics_panel import StatisticsPanel
+
+    panel_cls = {"statistics": StatisticsPanel, "descriptive": DescriptiveStatsPanel}[panel_name]
+    ctx = Mock(spec=AppContext)
+    ctx.event_bus = Mock()
+    widget = panel_cls(ctx)
+    try:
+        hints = [label for label in widget.findChildren(QLabel) if label.property("role") == "hint"]
+
+        assert hints, "the panel should show at least one hint label"
+        assert [label.text() for label in hints if label.styleSheet()] == []
+    finally:
+        widget.close()
