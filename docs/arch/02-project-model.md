@@ -8,6 +8,7 @@ Project (ItemCollection)
     ├── Dataset      (wraps pandas.DataFrame)
     ├── Chart        (DataSeries, incl. FIT-type fits + ChartConfiguration)
     ├── Note         (markdown text + tags)
+    ├── Sketch       (vector drawing: ordered layers of elements)
     └── Folder       (ItemCollection — nested container)
 ```
 
@@ -76,6 +77,37 @@ Note
 ├── content: str                # Raw markdown text
 └── tags: list[str]             # User-defined tags
 ```
+
+### Sketch (`models/project/items/sketch/`)
+
+```
+Sketch
+├── layers: list[SketchLayer]   # Index 0 is drawn first (bottom-most); never empty
+├── active_layer_id: str        # Layer new elements go on; always names an existing layer
+├── canvas_width / canvas_height  # Canvas size in canvas units (default 1920 x 1080)
+└── background_color: str
+
+SketchLayer
+├── name, visible, locked, opacity (0.0-1.0)
+└── elements: list[SketchElement]   # Index order = drawing order within the layer
+
+SketchElement (base)
+├── x, y                        # Anchor in canvas coordinates
+├── rotation                    # Degrees
+└── stroke_color / stroke_width / stroke_style: StrokeStyle / fill_color (None = no fill)
+```
+
+Each element type keeps its geometry relative to its anchor, so moving an element only changes `x`/`y`:
+
+| Type | Anchor | Geometry |
+|------|--------|----------|
+| `FreehandElement` | stroke origin | `points`: polyline vertices, offsets from the anchor |
+| `LineElement` | start point | `dx`, `dy`: end point offset |
+| `RectangleElement` | top-left corner | `width`, `height`, `corner_radius` |
+| `EllipseElement` | centre | `rx`, `ry`: radii |
+| `TextElement` | top-left corner | `text`, font fields, `alignment: TextAlignment` |
+
+Layers and elements are value data of the sketch, not project-tree items, so `Sketch` is a plain `Item` rather than an `ItemCollection`. Element dicts carry a `type` string; `SketchElement.from_dict()` looks it up in the module-level `ELEMENT_TYPES` dict, so a new element type registers by adding to that dict. Elements of an unknown type are skipped on load.
 
 ### Folder (`models/project/items/folder.py`)
 
