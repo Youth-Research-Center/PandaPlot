@@ -1188,7 +1188,6 @@ class DataTab(QWidget):
             self._update_vector_field_visibility()
             self._update_z_column_field_visibility()
             self._update_label_column_field_visibility()
-            self._update_twin_y_column_field_visibility()
             self._update_axis_field_visibility()
 
             # Set columns by stable id (combos carry the id as itemData)
@@ -1203,6 +1202,9 @@ class DataTab(QWidget):
             # Set Y axis (primary/secondary). SegmentedControl.setCurrentValue
             # doesn't emit currentValueChanged, so no signal-blocking needed.
             self.series_y_axis_control.setCurrentValue(series.y_axis)
+            # The twin row is named for the axis opposite this control, so it
+            # can only be refreshed once the series' own y_axis is loaded.
+            self._update_twin_y_column_field_visibility()
 
             # Set error columns by id (block signals while populating)
             error_bars = getattr(series.style, "error_bars", None) or ErrorBarConfig()

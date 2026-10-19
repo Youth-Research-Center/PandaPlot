@@ -171,3 +171,26 @@ def test_axis_ranges_follow_a_series_moved_to_the_secondary_axis():
 
     assert compute_axis_data_range(project, series, "y") == (990.0, 1010.0)
     assert compute_axis_data_range(project, series, "y2") == (20.0, 22.0)
+
+
+def test_a_stale_twin_y_column_does_not_create_an_empty_secondary_axis():
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = _twin_chart(dataset, style=LineSeriesStyle(twin_y_column_id="missing-id", twin_y_column="gone"))
+
+    editor = _editor_for(project, chart)
+
+    assert editor.chart_canvas.axes2 is None
+    assert len(editor.chart_canvas.axes.lines) == 1
+
+
+def test_a_stale_twin_y_column_keeps_the_secondary_axis_for_a_secondary_series():
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = _twin_chart(
+        dataset, y_axis=YAxis.SECONDARY, style=LineSeriesStyle(twin_y_column_id="missing-id", twin_y_column="gone"))
+
+    editor = _editor_for(project, chart)
+
+    assert editor.chart_canvas.axes2 is not None
+    assert len(editor.chart_canvas.axes2.lines) == 1

@@ -492,6 +492,20 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
                       label_data=label_data, twin_y_data=twin_y_data)
 
 
+def series_needs_secondary_axis(project, series) -> bool:
+    """Whether `series` actually draws something on the secondary Y axis.
+
+    Like `DataSeries.uses_secondary_y_axis`, except a twin Y column that
+    sits on Y2 only counts when it still resolves: a stale binding draws
+    nothing, so it must not leave an empty secondary axis behind.
+    """
+    from pandaplot.models.project.items.chart import YAxis
+
+    if series.y_axis == YAxis.SECONDARY:
+        return True
+    return series.twin_y_axis == YAxis.SECONDARY and resolve_series_data(project, series).twin_y_data is not None
+
+
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False,
                             hist_density_bins: int | None = None) -> tuple[float, float] | None:
     """Compute (min, max) across every series plotted against the given
@@ -1018,8 +1032,9 @@ class ChartEditorWidget(PWidget):
             # twinx() has no mplot3d equivalent, and a series' y_axis
             # setting simply doesn't apply there (set_projection already
             # tore down any axes2 left over from a 2-D type).
+            current_project = self.app_context.get_app_state().current_project
             needs_secondary = not is_3d and has_axes and any(
-                series.uses_secondary_y_axis for series in self.chart.data_series)
+                series_needs_secondary_axis(current_project, series) for series in self.chart.data_series)
             if needs_secondary:
                 if self.chart_canvas.axes2 is None:
                     self.chart_canvas.axes2 = self.chart_canvas.axes.twinx()

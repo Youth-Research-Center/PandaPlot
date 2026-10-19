@@ -104,3 +104,33 @@ def test_bar_series_hides_the_twin_y_row():
     tab = _loaded_tab(app_context, project, chart)
 
     assert tab.twin_y_column_combo.isVisible() is False
+
+
+def test_opening_a_saved_y2_series_labels_its_twin_row_as_y1():
+    app_context, project, dataset = _app_context_with_project()
+    chart = _chart(project, dataset, twin="pressure")
+    chart.data_series[0].y_axis = YAxis.SECONDARY
+
+    tab = _loaded_tab(app_context, project, chart)
+
+    assert tab.twin_y_column_label.text() == "Y₁ Column (optional):"
+    assert tab.twin_y_column_combo.accessibleName() == "Y₁ column"
+
+
+def test_switching_between_series_on_opposite_axes_updates_the_twin_label():
+    app_context, project, dataset = _app_context_with_project()
+    chart = _chart(project, dataset, twin="pressure")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("t"), y_column_id=dataset.column_id("temp"),
+        series_type=SeriesType.LINE, style=LineSeriesStyle(twin_y_column_id=dataset.column_id("pressure")),
+        y_axis=YAxis.SECONDARY,
+    )
+    tab = _loaded_tab(app_context, project, chart)
+
+    tab._load_entry_into_controls(chart.data_series[1])
+    assert tab.twin_y_column_label.text() == "Y₁ Column (optional):"
+    assert tab.twin_y_column_combo.accessibleName() == "Y₁ column"
+
+    tab._load_entry_into_controls(chart.data_series[0])
+    assert tab.twin_y_column_label.text() == "Y₂ Column (optional):"
+    assert tab.twin_y_column_combo.accessibleName() == "Y₂ column"
