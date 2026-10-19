@@ -164,6 +164,15 @@ class NoteEvents:
     NOTE_CONTENT_CHANGED = "note.content_changed"
 
 
+class SketchEvents:
+    """Sketch-specific events."""
+    # Any change to a sketch's layers or elements. Stands alone rather than
+    # bubbling to project.changed: element edits never change the project
+    # tree or window title, which are that event's only consumers, and the
+    # unsaved-changes flag is set by CommandExecutor.
+    SKETCH_CHANGED = "sketch.changed"
+
+
 class EventHierarchy:
     """Defines automatic event hierarchy mappings."""
     
@@ -174,6 +183,9 @@ class EventHierarchy:
         # Note events
         "note.content_changed": ["note.content_changed", "project.changed"],
         
+        # Sketch events
+        "sketch.changed": ["sketch.changed"],
+
         # Dataset operation events
         "dataset.column_added": ["dataset.column_added", "dataset.structure_changed", "dataset.changed"],
         "dataset.column_removed": ["dataset.column_removed", "dataset.structure_changed", "dataset.changed"],

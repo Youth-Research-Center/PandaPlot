@@ -85,6 +85,16 @@ Every `execute()`, `undo()`, and `redo()` is expected to emit the appropriate `E
 | `RemoveSeriesCommand` | Removes a DataSeries from a Chart |
 | `ApplyChartPropertiesCommand` | Updates ChartConfiguration (title, labels, grid…) |
 
+### Sketch Commands (`commands/project/sketch/`)
+
+| Command | Description |
+|---------|-------------|
+| `AddSketchElementCommand` | Adds a drawn element to a layer (on top, or at an index); fails on a missing or locked layer |
+| `DeleteSketchElementsCommand` | Deletes elements across layers in one step; undo restores each at its original index |
+| `TransformSketchElementsCommand` | Moves, resizes or rotates elements by setting geometry fields (`GEOMETRY_FIELDS` of each element type); `NOOP` if nothing changes |
+
+These take the `Sketch` itself rather than an id, so undo and redo act on the object the edit was made on and do not look the project up again. Redo re-inserts the original element objects with their original ids. Each command validates everything first and changes nothing on failure, and announces a change with `SketchEvents.SKETCH_CHANGED`.
+
 ### Fit Commands
 
 | Command | Description |

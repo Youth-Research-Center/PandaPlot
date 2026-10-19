@@ -69,6 +69,9 @@ class SketchElement:
     """
 
     TYPE: ClassVar[str] = ""
+    # Fields that place and size the element (changed by move, resize and
+    # rotate), as opposed to its style.
+    GEOMETRY_FIELDS: ClassVar[frozenset[str]] = frozenset({"x", "y", "rotation"})
 
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     x: float = 0.0
