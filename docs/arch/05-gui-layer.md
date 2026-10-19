@@ -58,6 +58,8 @@ Hierarchical tree view of all project items. Subscribes to:
 
 Double-clicking an item opens it in a tab.
 
+Each label is the item type's emoji prefix plus the name (e.g. `✏️ Diagram` for a sketch). The prefixes live in one map, `utils/item_labels.py` (`ITEM_TYPE_PREFIXES`); build labels with `item_label(item_type, name)` and remove the prefix with `strip_item_prefix(label)`, never by slicing, because some prefixes are two characters (an emoji plus a variation selector).
+
 ## TabContainer (`gui/components/tabs/`)
 
 Manages the workspace tabbed area:
@@ -68,7 +70,8 @@ TabContainer
 ├── WelcomeTab                  # Shown when no project is open
 ├── DatasetTab                  # Spreadsheet editor for a Dataset
 ├── ChartTab                    # Matplotlib chart canvas
-└── NoteTab                     # Markdown note editor
+├── NoteTab                     # Markdown note editor
+└── SketchTab                   # Qt Graphics View sketch canvas
 ```
 
 ### DatasetTab
@@ -91,6 +94,13 @@ TabContainer
 
 - Plain text editor with optional markdown preview split
 - Subscribes to `NoteEvents` to sync content
+
+### SketchTab
+
+- Hosts a `SketchCanvas` (below) for one `Sketch`, created from the tree's "Add Sketch" or the Data menu's "New Sketch" (`CreateSketchCommand`)
+- Subscribes to `sketch.changed` for its own sketch and calls `canvas.rebuild()`, so edits, undo and redo all redraw the same way
+- Fits the whole canvas into view the first time it is shown
+- Sets the canvas frame colours from the theme's design tokens (`border_panel` around the paper, `border_control` for its edge) in `_apply_theme()`, so it follows theme changes. The window background colour can't be used: in the light theme it is the same white as a default sketch, which hides where the canvas ends
 
 ### Sketch canvas (`gui/components/tabs/sketch/`)
 

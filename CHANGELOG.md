@@ -14,6 +14,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 ## [Unreleased]
 
 ### Added
+- Sketch items (#148, in progress): **Data → New Sketch**, or **Add Sketch** in the project tree, creates a sketch that opens in its own tab on a drawing canvas and is saved with the project. Drawing tools, layers and styling follow in later changes.
 - Fit panel input settings are remembered independently for each chart or dataset tab, including tabs in floating windows.
 - "Swap X/Y" chart toolbar action (#266): swaps a Line, Scatter or Vector chart's X and Y columns (and vector U/V), fits, error-bar columns, fill direction, and axis titles, scales, ranges and ticks in one undoable step.
 - Stacked Bar chart type: each series stacks on top of the earlier ones at the same X (negative values stack downward), with error bars, value labels, a wizard preview, and lossless switching to and from Bar. Fits are not available on stacked charts.
@@ -26,3 +27,6 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - Dropdowns (combo boxes) share one themed style in sidebar panels, dialogs, and wizards: rounded bordered field, caret arrow, accent outline on hover and focus, an inset disabled state, and a list that always opens below the field instead of over it on macOS (#406).
 - The packaged Windows executable no longer opens a console window; logs are written to `~/.pandaplot/application.log` instead of the process's working directory.
 - Numeric fields (decimals and whole numbers) in sidebar panels, dialogs, and the chart editor are now a shared input instead of spin boxes: large `-` / `+` buttons that repeat when held, Up/Down arrows to step (Page Up/Down or Shift for ten times as much), a fixed unit label, and `.` or `,` as the decimal separator. The mouse wheel only changes a value while its field has focus, so scrolling a panel no longer edits numbers by accident (#407).
+
+### Fixed
+- Renaming an image gallery inline in the project tree no longer puts its 🖼️ icon into the new name. A rejected rename now keeps each item's own icon instead of switching to the chart icon, and no longer blanks the label of an empty folder or gallery.

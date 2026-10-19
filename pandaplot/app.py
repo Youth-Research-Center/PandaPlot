@@ -69,10 +69,15 @@ def create_tab_factory() -> TabFactory:
         from pandaplot.gui.components.tabs.image.image_gallery_tab import ImageGalleryTab
         return ImageGalleryTab(app_context=app_context, gallery=item, parent=parent)
 
+    def _load_sketch_tab(app_context, item, parent):
+        from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
+        return SketchTab(app_context=app_context, sketch=item, parent=parent)
+
     factory.register(Note, _load_note_tab)
     factory.register(Chart, _load_chart_tab)
     factory.register(Dataset, _load_dataset_tab)
     factory.register(ImageGallery, _load_image_gallery_tab)
+    factory.register(Sketch, _load_sketch_tab)
     return factory
 
 

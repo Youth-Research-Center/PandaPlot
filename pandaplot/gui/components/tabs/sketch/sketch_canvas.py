@@ -48,6 +48,11 @@ class SketchCanvas(QGraphicsView):
         self._sketch = sketch
         self._layer_items: dict[str, _LayerItem] = {}
         self._element_items: dict[str, QGraphicsItem] = {}
+        self._paper: QGraphicsRectItem | None = None
+        # Theme colours for the area around the paper and the paper's edge;
+        # until set_frame_colors() is called, the palette is used.
+        self._surround_color: QColor | None = None
+        self._paper_border_color: QColor | None = None
 
         self.setScene(QGraphicsScene(self))
         self.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.TextAntialiasing)
@@ -76,9 +81,10 @@ class SketchCanvas(QGraphicsView):
         paper = QGraphicsRectItem(canvas_rect)
         background = QColor(self._sketch.background_color)
         paper.setBrush(QBrush(background if background.isValid() else QColor(Qt.GlobalColor.white)))
-        paper.setPen(QPen(Qt.PenStyle.NoPen))
+        paper.setPen(self._paper_pen())
         paper.setZValue(self.PAPER_Z)
         scene.addItem(paper)
+        self._paper = paper
         scene.setSceneRect(canvas_rect)
 
         for layer_index, layer in enumerate(self._sketch.layers):
@@ -104,11 +110,31 @@ class SketchCanvas(QGraphicsView):
         """The item drawing the element with `element_id`, or None."""
         return self._element_items.get(element_id)
 
+    def set_frame_colors(self, *, surround: QColor, paper_border: QColor) -> None:
+        """Set the colour around the paper and of the paper's edge.
+
+        The theme sets these: the window background colour can match a
+        white paper exactly, which would hide where the canvas ends.
+        """
+        self._surround_color = surround
+        self._paper_border_color = paper_border
+        if self._paper is not None:
+            self._paper.setPen(self._paper_pen())
+        self.viewport().update()
+
+    def _paper_pen(self) -> QPen:
+        if self._paper_border_color is None:
+            return QPen(Qt.PenStyle.NoPen)
+        pen = QPen(self._paper_border_color, 1.0)
+        # One screen pixel at any zoom.
+        pen.setCosmetic(True)
+        return pen
+
     def fit_to_canvas(self) -> None:
         """Scale the view so the whole canvas is visible."""
         self.fitInView(self.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
     @override
     def drawBackground(self, painter: QPainter, rect: QRectF | QRect) -> None:
-        # The area around the paper follows the current theme's palette.
-        painter.fillRect(rect, self.palette().color(QPalette.ColorRole.Window))
+        surround = self._surround_color or self.palette().color(QPalette.ColorRole.Window)
+        painter.fillRect(rect, surround)
