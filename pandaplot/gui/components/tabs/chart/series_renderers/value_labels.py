@@ -47,6 +47,26 @@ def _as_series(y_data: ArrayLike) -> pd.Series:
         y = pd.to_numeric(y, errors="coerce")
     return y
 
+def _local_extrema_positions(ranks: np.ndarray) -> np.ndarray:
+    """Find the interior local minima and maxima of a sequence.
+
+    Consecutive equal values count as one flat stretch, represented by its
+    first point. The first and last stretch are never extrema.
+
+    Args:
+        ranks: Order-preserving numbers for the candidate points, in data order.
+
+    Returns:
+        Positions (into `ranks`) of the first point of every local minimum or maximum.
+    """
+    starts = np.r_[0, np.flatnonzero(np.diff(ranks) != 0) + 1]
+    levels = ranks[starts]
+    if len(levels) < 3:
+        return np.array([], dtype=int)
+    before, here, after = levels[:-2], levels[1:-1], levels[2:]
+    is_extreme = ((here > before) & (here > after)) | ((here < before) & (here < after))
+    return starts[1:-1][is_extreme]
+
 
 def resolve_label_indices(x_data: ArrayLike, y_data: ArrayLike, *, subset_mode: str = ValueLabelSubset.ALL) -> set[int]:
     """Decide which points of a series should get a value label.
@@ -55,6 +75,10 @@ def resolve_label_indices(x_data: ArrayLike, y_data: ArrayLike, *, subset_mode: 
     that can actually be drawn are considered: a point whose x or y is
     missing (NaN/NaT), or whose y is infinite, is never chosen. If several
     points tie, the first one is used.
+        LOCAL_EXTREMES instead labels every interior local minimum and maximum:
+    a point lower or higher than its neighbours (in data order). A flat top
+    or bottom is labelled once, at its first point, and the first and last
+    point are never chosen.
 
     Args:
         x_data: X values of the series, one per point.
@@ -76,7 +100,10 @@ def resolve_label_indices(x_data: ArrayLike, y_data: ArrayLike, *, subset_mode: 
     candidates = y[drawable]
     if candidates.empty:
         return set()
-
+    if mode is ValueLabelSubset.LOCAL_EXTREMES:
+        # Dense ranks keep the order (and ties) of any dtype, dates included.
+        ranks = candidates.rank(method="dense").to_numpy(dtype=float)
+        return {int(candidates.index[position]) for position in _local_extrema_positions(ranks)}
     indices = set()
     if mode in (ValueLabelSubset.EXTREMES, ValueLabelSubset.MIN):
         indices.add(int(candidates.idxmin()))
