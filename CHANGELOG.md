@@ -14,6 +14,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 ## [Unreleased]
 
 ### Added
+- Value labels on Line and Scatter series can also be limited to local minima and maxima (the peaks and valleys of a curve) with the new "Local min and max" choice in the "Label points" option.
 - Value labels on Line and Scatter series can be limited to the minimum and maximum points, only the minimum, or only the maximum, using the new "Label points" option in the Style tab.
 - Fit panel input settings are remembered independently for each chart or dataset tab, including tabs in floating windows.
 - "Swap X/Y" chart toolbar action (#266): swaps a Line, Scatter or Vector chart's X and Y columns (and vector U/V), fits, error-bar columns, fill direction, and axis titles, scales, ranges and ticks in one undoable step.

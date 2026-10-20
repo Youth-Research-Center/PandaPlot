@@ -117,6 +117,7 @@ VALUE_LABEL_SUBSET_OPTIONS = [
     ("Min and max", ValueLabelSubset.EXTREMES),
     ("Only min", ValueLabelSubset.MIN),
     ("Only max", ValueLabelSubset.MAX),
+    ("Local min and max", ValueLabelSubset.LOCAL_EXTREMES),
 ]
 
 
@@ -770,6 +771,7 @@ class StyleTab(QWidget):
             "Min and max are by Y value; if several points tie, the first one is used. "
             "With X labels, 'Only max' shows the X of the highest-Y point."
         )
+        subset_tooltip += " 'Local min and max' labels every peak and valley, skipping the first and last point."
         self.value_labels_subset_label.setToolTip(subset_tooltip)
         self.value_labels_subset_control.setToolTip(subset_tooltip)
         layout.addWidget(value_labels_card)
