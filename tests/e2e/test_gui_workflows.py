@@ -4,13 +4,13 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QInputDialog, QLineEdit
 from pytestqt.qtbot import QtBot
 
-from pandaplot.commands.project.sketch import AddSketchElementCommand
 from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
 from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
+from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
 from pandaplot.gui.components.tabs.tab_container import TabContainer
 from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
 from pandaplot.gui.dialogs.import_wizard_dialog import ImportWizardDialog
@@ -187,7 +187,7 @@ def test_undo_redo_import_through_edit_menu(app_window: PandaMainWindow, qtbot: 
     assert not app_window.main_menu.redo_action.isEnabled()
 
 
-def test_create_open_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     new_project(qtbot, app_window)
     click_menu(qtbot, app_window, "Data", "New Sketch")
     project = app_window.app_context.app_state.current_project
@@ -212,12 +212,19 @@ def test_create_open_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
     tab = tabs.get_tab_widget(sketch.id)
     assert isinstance(tab, SketchTab)
 
-    # Drawing tools come later; draw through the same command they will use.
-    layer_id = sketch.active_layer_id
-    app_window.app_context.get_command_executor().execute_command(
-        AddSketchElementCommand(app_window.app_context, sketch, layer_id, RectangleElement(id="box", width=40.0, height=20.0)),
-    )
-    assert tab.canvas.element_item("box") is not None
+    rectangle_button = tab.toolbar.widgetForAction(tab.tool_actions[ToolMode.RECTANGLE])
+    qtbot.mouseClick(rectangle_button, Qt.MouseButton.LeftButton)
+    viewport = tab.canvas.viewport()
+    start = tab.canvas.mapFromScene(QPointF(100.0, 100.0))
+    end = tab.canvas.mapFromScene(QPointF(300.0, 200.0))
+    qtbot.mousePress(viewport, Qt.MouseButton.LeftButton, pos=start)
+    qtbot.mouseMove(viewport, pos=(start + end) / 2)
+    qtbot.mouseMove(viewport, pos=end)
+    qtbot.mouseRelease(viewport, Qt.MouseButton.LeftButton, pos=end)
+    [box] = sketch.active_layer.elements
+    assert isinstance(box, RectangleElement)
+    assert (box.width, box.height) == pytest.approx((200.0, 100.0), abs=1.0 / tab.canvas.zoom)
+    assert tab.canvas.element_item(box.id) is not None
 
     saved_path = tmp_path / "sketch.pplot"
     monkeypatch.setattr(

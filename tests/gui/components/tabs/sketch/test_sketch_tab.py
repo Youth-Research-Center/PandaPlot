@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QWidget
 from pandaplot.app import build_app_context, create_tab_factory
 from pandaplot.commands.project.sketch import AddSketchElementCommand
 from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
+from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
 from pandaplot.gui.core.widget_extension import unsubscribe_widget_tree
 from pandaplot.models.events import ProjectEvents, SketchEvents
 from pandaplot.models.events.event_data import SketchChangedData
@@ -135,3 +136,30 @@ def test_frame_colours_follow_the_theme(app_context, tab, monkeypatch):
 
     assert tab.canvas._surround_color == QColor("#3A3D40")
     assert tab.canvas._paper_border_color == QColor("#4A4D52")
+
+
+def test_toolbar_buttons_choose_the_tool_and_follow_changes(tab):
+    tab.tool_actions[ToolMode.RECTANGLE].trigger()
+    assert tab.canvas.tool_manager.mode is ToolMode.RECTANGLE
+
+    tab.canvas.tool_manager.set_tool(ToolMode.TEXT)
+    assert tab.tool_actions[ToolMode.TEXT].isChecked()
+    assert not tab.tool_actions[ToolMode.RECTANGLE].isChecked()
+
+
+def test_toolbar_buttons_have_names_and_shortcuts(tab):
+    for mode, action in tab.tool_actions.items():
+        assert action.text()
+        assert action.toolTip()
+        assert not action.shortcut().isEmpty(), mode
+
+
+def test_status_and_zoom_labels_show_canvas_feedback(tab):
+    tab.canvas.status_message.emit("Layer 'Ink' is locked.")
+    tab.canvas.zoom_by(2.0)
+
+    assert tab.status_label.text() == "Layer 'Ink' is locked."
+    assert tab.zoom_label.text() == "200%"
+
+    tab.canvas.tool_manager.set_tool(ToolMode.LINE)
+    assert tab.status_label.text() == ""

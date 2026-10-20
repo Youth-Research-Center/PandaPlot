@@ -29,6 +29,7 @@ from pandaplot.models.project.items.sketch import (
     TextAlignment,
     TextElement,
 )
+from pandaplot.models.project.items.sketch.curves import smooth_segments
 
 logger = logging.getLogger(__name__)
 
@@ -76,13 +77,18 @@ def _styled(item: QAbstractGraphicsShapeItem, element: SketchElement) -> QAbstra
     return item
 
 
-def _build_freehand(element: FreehandElement) -> QGraphicsItem:
+def smooth_path(points: list[tuple[float, float]]) -> QPainterPath:
+    """The smooth curve through `points` (see `curves.smooth_segments()`)."""
     path = QPainterPath()
-    if element.points:
-        path.moveTo(*element.points[0])
-        for point in element.points[1:]:
-            path.lineTo(*point)
-    return _styled(QGraphicsPathItem(path), element)
+    if points:
+        path.moveTo(*points[0])
+        for (c1x, c1y), (c2x, c2y), (x, y) in smooth_segments(points):
+            path.cubicTo(c1x, c1y, c2x, c2y, x, y)
+    return path
+
+
+def _build_freehand(element: FreehandElement) -> QGraphicsItem:
+    return _styled(QGraphicsPathItem(smooth_path(element.points)), element)
 
 
 def _build_line(element: LineElement) -> QGraphicsItem:

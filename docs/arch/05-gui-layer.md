@@ -98,19 +98,29 @@ TabContainer
 ### SketchTab
 
 - Hosts a `SketchCanvas` (below) for one `Sketch`, created from the tree's "Add Sketch" or the Data menu's "New Sketch" (`CreateSketchCommand`)
-- Subscribes to `sketch.changed` for its own sketch and calls `canvas.rebuild()`, so edits, undo and redo all redraw the same way
+- Toolbar: one checkable button per tool (exclusive `QActionGroup`, single-key shortcuts V/P/L/R/E/T limited to the tab with `WidgetWithChildrenShortcut`), "Fit", the zoom level, and a status label for messages from the canvas (e.g. why drawing is refused)
 - Fits the whole canvas into view the first time it is shown
-- Sets the canvas frame colours from the theme's design tokens (`border_panel` around the paper, `border_control` for its edge) in `_apply_theme()`, so it follows theme changes. The window background colour can't be used: in the light theme it is the same white as a default sketch, which hides where the canvas ends
 
 ### Sketch canvas (`gui/components/tabs/sketch/`)
 
 The only Qt Graphics View (`QGraphicsScene`/`QGraphicsView`) surface in the app; every other drawing surface is matplotlib. It is used because sketches need direct manipulation (hit-testing, dragging, resize handles, live strokes) that matplotlib does not provide.
 
-- `SketchCanvas` draws a `Sketch` and never changes it: `rebuild()` replaces the scene with a fresh drawing of the model, so the model stays the single source of truth.
+- `SketchCanvas` (a `PGraphicsView`, so it owns its event subscriptions) draws a `Sketch` and never changes it: `rebuild()` replaces the scene with a fresh drawing of the model, so the model stays the single source of truth. It rebuilds on `sketch.changed` for its own sketch, so drawing, undo and redo all redraw the same way.
+- It takes its frame colours from the theme's design tokens (`border_panel` around the paper, `border_control` for its edge) and re-applies them on theme change. The window background colour can't be used: in the light theme it is the same white as a default sketch, which hides where the canvas ends.
 - The scene holds a paper rectangle of the canvas size (z = -1) and one invisible parent item per layer. A layer's z-value is its index, and each element's z-value is its index within the layer. Children stack only among siblings, so this gives the model's order with no limit on elements per layer. Layer visibility and opacity are set on the parent and apply to every child.
 - `graphics_items.build_graphics_item()` turns an element into a `QGraphicsItem` through `GRAPHICS_ITEM_BUILDERS` (element class to builder). The item is placed at the element's anchor and rotated around it, so its local coordinates are the element's relative geometry. Text sizes are pixel sizes, so a sketch lays out the same on every platform.
 - Scroll bars are always off: scroll bars that appear and vanish as the zoom changes resize the viewport during `fit_to_canvas()` and push the canvas off-centre.
 - GUI tests that build text items need a `QApplication`; use pytest-qt's `qapp` fixture even when no widget is shown.
+
+#### Tools and interaction (`tools/`)
+
+- The canvas sends left-button press/move/release, in scene coordinates, to the active tool of its `ToolManager` (`ToolMode` -> tool class in `TOOL_CLASSES`). Pan (space+drag or middle-drag) and Ctrl+wheel zoom (10%-1000%, around the pointer) are handled by the canvas before any tool sees the event.
+- Tools never change the model while dragging. They show work in progress through canvas previews (`show_preview()` for a new element, `preview_elements()` for changed copies of existing ones, `show_rubber_band()`), then commit one command on release, so each gesture is one undo step. Escape cancels a gesture and `rebuild()` restores the model's drawing.
+- Drawing tools add to the active layer with `AddSketchElementCommand`, using `ToolManager.style` (`NewElementStyle`) for new elements. A locked or hidden active layer refuses drawing and the canvas emits `status_message`.
+- The pen simplifies the pointer path (Ramer-Douglas-Peucker, 1.5 screen pixels) and stores the remaining points; the curve through them is drawn smooth (see the model's `curves.py`).
+- `SelectTool`: click, Shift-click and rubber-band selection; drag to move and drag a handle to resize (Shift on a corner keeps proportions), both committed as one `TransformSketchElementsCommand`; Delete/Backspace runs `DeleteSketchElementsCommand`. Only elements on visible, unlocked layers can be picked (`is_interactive()`).
+- The selection is a list of element ids on the canvas, so it survives `rebuild()`; elements that were deleted or whose layer became hidden or locked are dropped from it.
+- `geometry.py` does the maths: hit-testing with a tolerance of a few screen pixels (an outline-only shape is hit on its edge, not inside, so it doesn't hide what lies within it), element bounds without the pen width, and how each element type scales when its box is resized. Resize handles are hidden while a selected element is rotated, because the box maths assumes unrotated elements.
 
 ## UIController (`gui/controllers/`)
 

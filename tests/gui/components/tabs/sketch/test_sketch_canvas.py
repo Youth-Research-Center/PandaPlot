@@ -4,10 +4,9 @@ from typing import ClassVar
 
 import pytest
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QPainterPath
 from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
-    QGraphicsItem,
     QGraphicsLineItem,
     QGraphicsPathItem,
     QGraphicsRectItem,
@@ -15,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 from pytestqt.qtbot import QtBot
 
+from pandaplot.app import build_app_context
 from pandaplot.gui.components.tabs.sketch.graphics_items import ELEMENT_ID_KEY, build_graphics_item
 from pandaplot.gui.components.tabs.sketch.sketch_canvas import SketchCanvas
 from pandaplot.models.project.items.sketch import (
@@ -34,8 +34,15 @@ from pandaplot.models.project.items.sketch import (
 pytestmark = pytest.mark.usefixtures("qapp")
 
 
+@pytest.fixture(autouse=True)
+def _isolated_home(monkeypatch, tmp_path):
+    # build_app_context() reads and writes config under the home directory.
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+
+
 def _canvas(qtbot: QtBot, sketch: Sketch) -> SketchCanvas:
-    canvas = SketchCanvas(sketch)
+    canvas = SketchCanvas(sketch, app_context=build_app_context())
     qtbot.addWidget(canvas)
     return canvas
 
@@ -50,12 +57,19 @@ def _square(element_id: str) -> RectangleElement:
 
 
 class TestGraphicsItems:
-    def test_freehand_draws_a_path_through_its_relative_points(self):
-        item = build_graphics_item(FreehandElement(id="f", x=10.0, y=20.0, points=[(0.0, 0.0), (5.0, 5.0), (10.0, 0.0)]))
+    def test_freehand_draws_a_smooth_curve_through_its_relative_points(self):
+        points = [(0.0, 0.0), (5.0, 5.0), (10.0, 0.0)]
+        item = build_graphics_item(FreehandElement(id="f", x=10.0, y=20.0, points=points))
 
         assert isinstance(item, QGraphicsPathItem)
         path = item.path()
-        assert [(path.elementAt(i).x, path.elementAt(i).y) for i in range(path.elementCount())] == [(0.0, 0.0), (5.0, 5.0), (10.0, 0.0)]
+        elements = [path.elementAt(i) for i in range(path.elementCount())]
+        # moveTo, then one cubic (two control points and an end) per segment.
+        assert elements[0].type == QPainterPath.ElementType.MoveToElement
+        assert [element.type for element in elements[1:]] == [
+            QPainterPath.ElementType.CurveToElement, QPainterPath.ElementType.CurveToDataElement, QPainterPath.ElementType.CurveToDataElement,
+        ] * 2
+        assert [(element.x, element.y) for element in elements[::3]] == points
         assert item.pos() == QPointF(10.0, 20.0)
 
     def test_line_ends_at_its_offset_from_the_anchor(self):
@@ -224,25 +238,6 @@ class TestSketchCanvas:
         assert visible.contains(canvas.sceneRect().adjusted(1.0, 1.0, -1.0, -1.0))
         assert visible.center().x() == pytest.approx(canvas.sceneRect().center().x(), abs=5.0)
         assert visible.center().y() == pytest.approx(canvas.sceneRect().center().y(), abs=5.0)
-
-    def test_mouse_drag_reaches_scene_items_headless(self, qtbot):
-        """Interaction spike: a real mouse drag on the viewport moves a
-        movable item under the offscreen platform the GUI suite runs on."""
-        canvas = _canvas(qtbot, Sketch(layers=[SketchLayer(elements=[RectangleElement(id="r", x=20.0, y=20.0, width=50.0, height=50.0)])]))
-        item = canvas.element_item("r")
-        assert item is not None
-        item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable)
-        canvas.resize(800, 600)
-        canvas.show()
-        qtbot.waitExposed(canvas)
-
-        start = canvas.mapFromScene(QPointF(45.0, 45.0))
-        qtbot.mousePress(canvas.viewport(), Qt.MouseButton.LeftButton, pos=start)
-        qtbot.mouseMove(canvas.viewport(), pos=start + QPoint(10, 5))
-        qtbot.mouseMove(canvas.viewport(), pos=start + QPoint(60, 30))
-        qtbot.mouseRelease(canvas.viewport(), Qt.MouseButton.LeftButton, pos=start + QPoint(60, 30))
-
-        assert item.pos() == QPointF(80.0, 50.0)
 
     def test_canvas_is_accessible(self, qtbot):
         canvas = _canvas(qtbot, Sketch(name="Diagram"))
