@@ -13,7 +13,7 @@ from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import EventBus
 from pandaplot.models.events.event_types import AppEvents, ConfigEvents
-from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
+from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note, Sketch
 from pandaplot.models.state import AppContext, AppState, UnsavedChangesRegistry
 from pandaplot.services.autosave import AutoSaveManager
 from pandaplot.services.config import ConfigManager
@@ -30,6 +30,7 @@ from pandaplot.storage.image_gallery_data_manager import ImageGalleryDataManager
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.storage.note_data_manager import NoteDataManager
 from pandaplot.storage.project_data_manager import ProjectDataManager
+from pandaplot.storage.sketch_data_manager import SketchDataManager
 from pandaplot.utils.log import setup_logging
 
 
@@ -42,6 +43,7 @@ def create_project_data_manager() -> ProjectDataManager:
     factory.register("dataset", Dataset, DatasetDataManager(), "dataset")
     factory.register("image", Image, ImageDataManager(), "image")
     factory.register("imagegallery", ImageGallery, ImageGalleryDataManager(), "imagegallery")
+    factory.register("sketch", Sketch, SketchDataManager(), "sketch")
     return ProjectDataManager(factory)
 
 
