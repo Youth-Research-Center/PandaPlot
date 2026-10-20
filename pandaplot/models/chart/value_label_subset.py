@@ -7,6 +7,7 @@ class ValueLabelSubset(StrEnum):
     EXTREMES = "extremes"
     MIN = "min"
     MAX = "max"
+    LOCAL_EXTREMES = "local_extremes"
 
     @classmethod
     def coerce(cls, value: object) -> "ValueLabelSubset":

@@ -117,3 +117,16 @@ def test_unknown_subset_mode_shows_all_points_not_the_previous_series_value():
     tab.load_series_style(second)
 
     assert tab.value_labels_subset_control.currentValue() == "all"
+
+
+def test_load_then_apply_round_trips_local_extremes_subset_mode():
+    tab = _tab()
+    series = _line_series(show_value_labels=True, value_label_subset_mode="local_extremes")
+
+    tab.load_series_style(series)
+
+    assert tab.value_labels_subset_control.currentValue() == "local_extremes"
+
+    tab.apply_series_style_to(series)
+
+    assert series.style.value_label_subset_mode == "local_extremes"
