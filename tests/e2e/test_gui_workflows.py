@@ -4,15 +4,19 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QPointF, Qt, QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QInputDialog, QLineEdit
 from pytestqt.qtbot import QtBot
 
+from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
+from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
+from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
 from pandaplot.gui.components.tabs.tab_container import TabContainer
 from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
 from pandaplot.gui.dialogs.import_wizard_dialog import ImportWizardDialog
 from pandaplot.gui.main_window import PandaMainWindow
-from pandaplot.models.project.items import Chart, Dataset
+from pandaplot.models.project.items import Chart, Dataset, Sketch
+from pandaplot.models.project.items.sketch import RectangleElement
 
 
 def click_menu(qtbot: QtBot, window: PandaMainWindow, menu_name: str, action_name: str) -> None:
@@ -181,3 +185,67 @@ def test_undo_redo_import_through_edit_menu(app_window: PandaMainWindow, qtbot: 
     restored = project.find_item(dataset.id)
     assert restored.data.to_dict("list") == {"x": [0, 1, 2], "y": [1, 3, 5]}
     assert not app_window.main_menu.redo_action.isEnabled()
+
+
+def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    new_project(qtbot, app_window)
+    click_menu(qtbot, app_window, "Data", "New Sketch")
+    project = app_window.app_context.app_state.current_project
+    assert project is not None
+    sketch = next(item for item in project.get_all_items() if isinstance(item, Sketch))
+    assert sketch.name == "New Sketch 1"
+
+    panel = app_window.findChild(ProjectViewPanel)
+    assert panel is not None
+    tree = panel.tree
+    row = next(
+        tree_item for tree_item in tree.findItems("New Sketch 1", Qt.MatchFlag.MatchContains | Qt.MatchFlag.MatchRecursive)
+        if tree_item.data(0, Qt.ItemDataRole.UserRole).get("id") == sketch.id
+    )
+    assert row.text(0) == "✏️ New Sketch 1"
+    tree.scrollToItem(row)
+    position = tree.visualItemRect(row).center()
+    qtbot.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=position)
+    qtbot.mouseDClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=position)
+    tabs = app_window.app_context.get_manager(TabContainer)
+    qtbot.waitUntil(lambda: tabs.get_tab_widget(sketch.id) is not None)
+    tab = tabs.get_tab_widget(sketch.id)
+    assert isinstance(tab, SketchTab)
+
+    rectangle_button = tab.toolbar.widgetForAction(tab.tool_actions[ToolMode.RECTANGLE])
+    qtbot.mouseClick(rectangle_button, Qt.MouseButton.LeftButton)
+    viewport = tab.canvas.viewport()
+    start = tab.canvas.mapFromScene(QPointF(100.0, 100.0))
+    end = tab.canvas.mapFromScene(QPointF(300.0, 200.0))
+    qtbot.mousePress(viewport, Qt.MouseButton.LeftButton, pos=start)
+    qtbot.mouseMove(viewport, pos=(start + end) / 2)
+    qtbot.mouseMove(viewport, pos=end)
+    qtbot.mouseRelease(viewport, Qt.MouseButton.LeftButton, pos=end)
+    [box] = sketch.active_layer.elements
+    assert isinstance(box, RectangleElement)
+    assert (box.width, box.height) == pytest.approx((200.0, 100.0), abs=1.0 / tab.canvas.zoom)
+    assert tab.canvas.element_item(box.id) is not None
+
+    saved_path = tmp_path / "sketch.pplot"
+    monkeypatch.setattr(
+        "pandaplot.gui.controllers.ui_controller.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: (str(saved_path), "Project files"),
+    )
+    click_menu(qtbot, app_window, "File", "Save As...")
+    # Wait on the file and the saved state, not the message box title: macOS
+    # message boxes have no title (#501).
+    qtbot.waitUntil(lambda: saved_path.exists() and not app_window.app_context.app_state.is_modified, timeout=10000)
+    click_menu(qtbot, app_window, "File", "Close")
+    assert tabs.get_tab_widget(sketch.id) is None
+    monkeypatch.setattr(
+        "pandaplot.gui.controllers.ui_controller.QFileDialog.getOpenFileName",
+        lambda *args, **kwargs: (str(saved_path), "Project files"),
+    )
+
+    click_menu(qtbot, app_window, "File", "Open")
+    qtbot.waitUntil(lambda: app_window.app_context.app_state.has_project, timeout=10000)
+    reopened = app_window.app_context.app_state.current_project
+    assert reopened is not None
+    restored = reopened.find_item(sketch.id)
+    assert isinstance(restored, Sketch)
+    assert restored.to_dict() == sketch.to_dict()
