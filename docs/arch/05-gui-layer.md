@@ -100,6 +100,14 @@ TabContainer
 - Hosts a `SketchCanvas` (below) for one `Sketch`, created from the tree's "Add Sketch" or the Data menu's "New Sketch" (`CreateSketchCommand`)
 - Toolbar: one checkable button per tool (exclusive `QActionGroup`, single-key shortcuts V/P/L/R/E/T limited to the tab with `WidgetWithChildrenShortcut`), "Fit", the zoom level, and a status label for messages from the canvas (e.g. why drawing is refused)
 - Fits the whole canvas into view the first time it is shown
+- A `LayerManagerPanel` sits beside the canvas in a `QSplitter`; the toolbar's checkable "Layers" button shows or hides it (the splitter can't collapse it, so the button's state stays right)
+
+### LayerManagerPanel (`gui/components/tabs/sketch/layer_manager_panel.py`)
+
+- Lists the layers top first. The current row is the active layer (`SetActiveSketchLayerCommand`); each row (`LayerRow`) has checkable visibility and lock buttons with painted eye and lock icons. Double-click, F2 or Enter renames the active layer through `UIController.get_text_input()`
+- Buttons add a layer above the active one, delete it (disabled for the last layer and for a locked one, with a tooltip saying why), and move it up or down. Every change goes through the layer commands above, so it is undoable
+- Opacity slider: dragging only previews (`opacity_previewed` -> `SketchCanvas.preview_layer_opacity()`), and releasing commits one `SetSketchLayerPropertiesCommand`; keyboard steps and clicks on the groove commit at once
+- Refreshes on `sketch.changed`. Rows are rebuilt only when layers are added, removed or reordered; otherwise each row is updated in place, so a toggle is never deleted while its own click is being handled
 
 ### Sketch canvas (`gui/components/tabs/sketch/`)
 

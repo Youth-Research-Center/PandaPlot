@@ -3,8 +3,9 @@ from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence, QShowEvent
-from PySide6.QtWidgets import QLabel, QSizePolicy, QToolBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QSizePolicy, QSplitter, QToolBar, QVBoxLayout, QWidget
 
+from pandaplot.gui.components.tabs.sketch.layer_manager_panel import LayerManagerPanel
 from pandaplot.gui.components.tabs.sketch.sketch_canvas import SketchCanvas
 from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
 from pandaplot.gui.core.widget_extension import PWidget
@@ -27,11 +28,15 @@ TOOL_BUTTONS: dict[ToolMode, tuple[str, str, str]] = {
 
 class SketchTab(PWidget):
     """Shows one Sketch on a SketchCanvas, with a toolbar to pick the tool,
-    fit the canvas and see the zoom level.
+    fit the canvas and see the zoom level, and a layer panel beside the
+    canvas that the toolbar's "Layers" button shows or hides.
 
     The canvas redraws itself whenever the sketch changes, so drawing,
     undo and redo all redraw the same way.
     """
+
+    LAYER_PANEL_WIDTH = 240
+    LAYER_PANEL_MIN_WIDTH = 180
 
     def __init__(self, app_context: AppContext, sketch: Sketch, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
@@ -46,9 +51,21 @@ class SketchTab(PWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         self.canvas = SketchCanvas(self.sketch, self, app_context=self.app_context)
+        self.layer_panel = LayerManagerPanel(self.app_context, self.sketch, self)
+        self.layer_panel.setMinimumWidth(self.LAYER_PANEL_MIN_WIDTH)
+        self.layer_panel.opacity_previewed.connect(self.canvas.preview_layer_opacity)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal, self)
+        self.splitter.addWidget(self.canvas)
+        self.splitter.addWidget(self.layer_panel)
+        self.splitter.setStretchFactor(0, 1)
+        self.splitter.setStretchFactor(1, 0)
+        # Hidden only with the "Layers" button, so its checked state stays right.
+        self.splitter.setCollapsible(0, False)  # noqa: FBT003 - Qt method rejects keyword args
+        self.splitter.setCollapsible(1, False)  # noqa: FBT003 - Qt method rejects keyword args
+        self.splitter.setSizes([10_000, self.LAYER_PANEL_WIDTH])
         self.toolbar = self._build_toolbar()
         layout.addWidget(self.toolbar)
-        layout.addWidget(self.canvas)
+        layout.addWidget(self.splitter)
         self.canvas.tool_manager.tool_changed.connect(self._on_tool_changed)
         self.canvas.zoom_changed.connect(self._show_zoom)
         self.canvas.status_message.connect(self.status_label.setText)
@@ -80,6 +97,13 @@ class SketchTab(PWidget):
         self.zoom_label = QLabel(toolbar)
         self.zoom_label.setAccessibleName("Zoom level")
         toolbar.addWidget(self.zoom_label)
+        toolbar.addSeparator()
+        self.layers_action = QAction("Layers", toolbar)
+        self.layers_action.setCheckable(True)
+        self.layers_action.setChecked(True)
+        self.layers_action.setToolTip("Show or hide the layer panel")
+        self.layers_action.toggled.connect(self.layer_panel.setVisible)
+        toolbar.addAction(self.layers_action)
         spacer = QWidget(toolbar)
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)

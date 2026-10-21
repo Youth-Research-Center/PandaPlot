@@ -246,6 +246,13 @@ class SketchCanvas(PGraphicsView):
             self._element_items[element_id] = item
         self._update_overlay()
 
+    def preview_layer_opacity(self, layer_id: str, opacity: float) -> None:
+        """Draw a layer at `opacity` without changing the model.
+        `rebuild()` restores the model's opacity."""
+        layer_item = self._layer_items.get(layer_id)
+        if layer_item is not None:
+            layer_item.setOpacity(opacity)
+
     def show_rubber_band(self, rect: QRectF | None) -> None:
         """Show the rubber-band selection rectangle, or hide it with None."""
         if rect is None:

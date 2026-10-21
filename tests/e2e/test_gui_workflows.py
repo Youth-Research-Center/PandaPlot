@@ -212,6 +212,10 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
     tab = tabs.get_tab_widget(sketch.id)
     assert isinstance(tab, SketchTab)
 
+    qtbot.mouseClick(tab.layer_panel.add_button, Qt.MouseButton.LeftButton)
+    assert [layer.name for layer in sketch.layers] == ["Layer 1", "Layer 2"]
+    assert sketch.active_layer_id == sketch.layers[1].id
+
     rectangle_button = tab.toolbar.widgetForAction(tab.tool_actions[ToolMode.RECTANGLE])
     qtbot.mouseClick(rectangle_button, Qt.MouseButton.LeftButton)
     viewport = tab.canvas.viewport()
@@ -225,6 +229,9 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
     assert isinstance(box, RectangleElement)
     assert (box.width, box.height) == pytest.approx((200.0, 100.0), abs=1.0 / tab.canvas.zoom)
     assert tab.canvas.element_item(box.id) is not None
+    assert sketch.layers[0].elements == []
+    qtbot.mouseClick(tab.layer_panel.rows[sketch.layers[1].id].lock_button, Qt.MouseButton.LeftButton)
+    assert sketch.layers[1].locked
 
     saved_path = tmp_path / "sketch.pplot"
     monkeypatch.setattr(
@@ -249,3 +256,4 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
     restored = reopened.find_item(sketch.id)
     assert isinstance(restored, Sketch)
     assert restored.to_dict() == sketch.to_dict()
+    assert [(layer.name, layer.locked) for layer in restored.layers] == [("Layer 1", False), ("Layer 2", True)]
