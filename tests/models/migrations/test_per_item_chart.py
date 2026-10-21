@@ -461,6 +461,8 @@ def test_style_field_names_match_the_real_style_dataclasses():
         "value_label_subset_mode",
         # #280/#433 -- partial-range fields and section-list replacement.
         "fill_range_enabled", "fill_range_start", "fill_range_end", "fill_sections",
+        # #402 -- line/scatter twin Y column.
+        "twin_y_column_id", "twin_y_column",
     }
     # Scatter gained the shared fill fields (FillStyleFields) after this
     # migration; Line already had the first six as legacy flat fields.

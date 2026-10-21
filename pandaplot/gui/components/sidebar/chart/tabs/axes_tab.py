@@ -23,7 +23,6 @@ from pandaplot.models.chart.chart_config import ChartConfig
 from pandaplot.models.chart.chart_configuration import ScaleType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
-from pandaplot.models.project.items.chart import YAxis
 
 # Every axis this tab can edit. Y2 and Z are mutually exclusive in
 # practice (a secondary Y axis is 2-D only, a Z axis 3-D only -- see
@@ -656,7 +655,7 @@ class AxesTab(QWidget):
         self.no_axes_label.setVisible(not has_axes)
         is_3d = bool(chart) and CHART_TYPE_SPECS[chart.chart_type].is_3d
         has_secondary = bool(chart) and not is_3d and any(
-            series.y_axis == YAxis.SECONDARY for series in chart.data_series
+            series.uses_secondary_y_axis for series in chart.data_series
         )
         # uses_color_scale, not needs_z_column: several 3-D types (Scatter3D,
         # Line3D, Bar3D, Wireframe) pick a Z column without taking their

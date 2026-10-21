@@ -1482,9 +1482,8 @@ class StyleTab(QWidget):
         currently uses the secondary Y axis (mirrors
         AxesTab.refresh_axis_chips). Safe to call whenever the chart or its
         series may have changed."""
-        from pandaplot.models.project.items.chart import YAxis
         has_secondary = bool(chart) and any(
-            series.y_axis == YAxis.SECONDARY for series in chart.data_series
+            series.uses_secondary_y_axis for series in chart.data_series
         )
         current = self.axes_style_selector.currentValue()
         self.axes_style_selector.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
