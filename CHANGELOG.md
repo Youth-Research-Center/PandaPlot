@@ -13,6 +13,9 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 
 ## [Unreleased]
 
+### Fixed
+- Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
+
 ### Added
 - Value labels on Line and Scatter series can also be limited to local minima and maxima (the peaks and valleys of a curve) with the new "Local min and max" choice in the "Label points" option.
 - Value labels on Line and Scatter series can be limited to the minimum and maximum points, only the minimum, or only the maximum, using the new "Label points" option in the Style tab.
