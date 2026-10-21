@@ -14,7 +14,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 ## [Unreleased]
 
 ### Added
-- Sketch items (#148, in progress): **Data → New Sketch**, or **Add Sketch** in the project tree, creates a sketch that opens in its own tab on a drawing canvas and is saved with the project. Drawing tools, layers and styling follow in later changes.
+- Sketch items (#148, in progress): **Data → New Sketch**, or **Add Sketch** in the project tree, creates a sketch that opens in its own tab and is saved with the project. Draw smooth freehand strokes, lines, rectangles, ellipses and text labels; select (click, Shift-click or drag a box), move, resize and delete elements, each as one undo step; pan with space+drag or the middle button and zoom with Ctrl+wheel. Layers and styling controls follow in later changes.
 - Fit panel input settings are remembered independently for each chart or dataset tab, including tabs in floating windows.
 - "Swap X/Y" chart toolbar action (#266): swaps a Line, Scatter or Vector chart's X and Y columns (and vector U/V), fits, error-bar columns, fill direction, and axis titles, scales, ranges and ticks in one undoable step.
 - Stacked Bar chart type: each series stacks on top of the earlier ones at the same X (negative values stack downward), with error bars, value labels, a wizard preview, and lossless switching to and from Bar. Fits are not available on stacked charts.
