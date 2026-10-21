@@ -69,6 +69,8 @@ class Project:
             parent = self.root
         if self.is_item_or_descendant(item, parent.id):
             raise ValueError("Cannot attach an item to itself or its descendants")
+        if not parent.accepts_item(item):
+            raise ValueError(f"Collection '{parent.name}' does not accept this type of item")
         previous_parent = self._find_parent_collection(item)
         if previous_parent is not None and previous_parent.get_item_by_id(item.id) is item:
             previous_parent.remove_item(item)
