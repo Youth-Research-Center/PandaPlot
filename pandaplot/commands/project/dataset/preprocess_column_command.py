@@ -12,6 +12,7 @@ from pandaplot.analysis.preprocessing_types import PREPROCESSING_METHODS
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
+from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -258,4 +259,7 @@ class PreprocessColumnCommand(Command):
                 self.ui_controller.show_error_message("Preprocessing Error", message)
                 return False
 
-        return True
+        return not refuse_live_formula_edit(
+            self.dataset, self.ui_controller, title="Preprocessing",
+            column_names=[self._target_name(column) for column in self.source_columns],
+        )

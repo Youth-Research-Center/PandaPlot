@@ -33,5 +33,6 @@ def render_scatter_series(axes, series_data: SeriesData, style: ScatterSeriesSty
             text_color=style.value_label_text_color or mfc,
             bg_color=style.value_label_bg_color,
             bg_alpha=style.value_label_bg_alpha,
+            subset_mode=style.value_label_subset_mode,
             alpha=alpha,
         )

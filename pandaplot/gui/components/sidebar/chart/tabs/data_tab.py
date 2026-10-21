@@ -24,6 +24,7 @@ from pandaplot.commands.project.chart import (
     ReorderSeriesCommand,
 )
 from pandaplot.gui.components.common.card import Card
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
@@ -149,12 +150,12 @@ class DataTab(QWidget):
         series_config_layout.setContentsMargins(0, 0, 0, 0)
 
         series_config_layout.addWidget(QLabel("Dataset:"), 0, 0)
-        self.dataset_combo = QComboBox()
+        self.dataset_combo = DropDownComboBox()
         series_config_layout.addWidget(self.dataset_combo, 0, 1)
 
         self.x_column_label = QLabel("X Column:")
         series_config_layout.addWidget(self.x_column_label, 1, 0)
-        self.x_column_combo = QComboBox()
+        self.x_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.x_column_combo, 1, 1)
 
         # Relabelled "Values Column:" for a series with no X (Hist/Pie --
@@ -162,14 +163,14 @@ class DataTab(QWidget):
         # for that same role.
         self.y_column_label = QLabel("Y Column:")
         series_config_layout.addWidget(self.y_column_label, 2, 0)
-        self.y_column_combo = QComboBox()
+        self.y_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.y_column_combo, 2, 1)
 
         # A pie's optional wedge labels -- see SeriesTypeSpec.
         # needs_label_column. Right after the values column it names.
         self.label_column_label = QLabel("Labels Column (optional):")
         series_config_layout.addWidget(self.label_column_label, 3, 0)
-        self.label_column_combo = QComboBox()
+        self.label_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.label_column_combo, 3, 1)
 
         # A line/scatter series' optional twin Y column (#402): a second value
@@ -177,7 +178,7 @@ class DataTab(QWidget):
         # Relabelled Y₂/Y₁ to name that axis (see _update_twin_y_column_field_visibility).
         self.twin_y_column_label = QLabel("Y₂ Column (optional):")
         series_config_layout.addWidget(self.twin_y_column_label, 4, 0)
-        self.twin_y_column_combo = QComboBox()
+        self.twin_y_column_combo = DropDownComboBox()
         self.twin_y_column_combo.setToolTip(
             "Optional second value column for the same X, plotted on the "
             "other Y axis with this series' style")
@@ -185,7 +186,7 @@ class DataTab(QWidget):
 
         self.z_column_label = QLabel("Z Column:")
         series_config_layout.addWidget(self.z_column_label, 5, 0)
-        self.z_column_combo = QComboBox()
+        self.z_column_combo = DropDownComboBox()
         self.z_column_combo.setToolTip(
             "Z column: mapped to color for a Colormap/Heatmap series, "
             "or the third axis for a 3D series")
@@ -193,19 +194,19 @@ class DataTab(QWidget):
 
         self.u_column_label = QLabel("U Column:")
         series_config_layout.addWidget(self.u_column_label, 6, 0)
-        self.u_column_combo = QComboBox()
+        self.u_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.u_column_combo, 6, 1)
 
         self.v_column_label = QLabel("V Column:")
         series_config_layout.addWidget(self.v_column_label, 7, 0)
-        self.v_column_combo = QComboBox()
+        self.v_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.v_column_combo, 7, 1)
 
         # A 3-D vector's arrow has a third (W) component, on top of the U/V
         # pair every Vector-like type has -- see SeriesTypeSpec.needs_w_column.
         self.w_column_label = QLabel("W Column:")
         series_config_layout.addWidget(self.w_column_label, 8, 0)
-        self.w_column_combo = QComboBox()
+        self.w_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.w_column_combo, 8, 1)
 
         self.series_y_axis_label = QLabel("Y Axis:")
@@ -234,33 +235,33 @@ class DataTab(QWidget):
         # the checkbox above; see _update_error_bar_mode_controls.
         self.x_error_column_label = QLabel("X Error Column:")
         series_config_layout.addWidget(self.x_error_column_label, 12, 0)
-        self.x_error_column_combo = QComboBox()
+        self.x_error_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.x_error_column_combo, 12, 1)
 
         self.x_error_minus_label = QLabel("X Error (-) Column:")
         series_config_layout.addWidget(self.x_error_minus_label, 13, 0)
-        self.x_error_minus_column_combo = QComboBox()
+        self.x_error_minus_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.x_error_minus_column_combo, 13, 1)
 
         self.y_error_column_label = QLabel("Y Error Column:")
         series_config_layout.addWidget(self.y_error_column_label, 14, 0)
-        self.y_error_column_combo = QComboBox()
+        self.y_error_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.y_error_column_combo, 14, 1)
 
         # Only shown when "Asymmetric Error Bars" is checked, to supply the
         # lower-side (-) magnitude.
         self.y_error_minus_label = QLabel("Y Error (-) Column:")
         series_config_layout.addWidget(self.y_error_minus_label, 15, 0)
-        self.y_error_minus_column_combo = QComboBox()
+        self.y_error_minus_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.y_error_minus_column_combo, 15, 1)
 
         self.magnitude_column_label = QLabel("Color-by Column (optional):")
         series_config_layout.addWidget(self.magnitude_column_label, 16, 0)
-        self.magnitude_column_combo = QComboBox()
+        self.magnitude_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.magnitude_column_combo, 16, 1)
 
         series_config_layout.addWidget(QLabel("Series Type:"), 17, 0)
-        self.series_type_combo = QComboBox()
+        self.series_type_combo = DropDownComboBox()
         series_config_layout.addWidget(self.series_type_combo, 17, 1)
 
         # Only meaningful right before converting a series to a fit (see
@@ -271,12 +272,12 @@ class DataTab(QWidget):
         # time _load_series_into_controls repopulates them.
         self.confidence_lower_column_label = QLabel("Confidence Lower Column (optional):")
         series_config_layout.addWidget(self.confidence_lower_column_label, 18, 0)
-        self.confidence_lower_column_combo = QComboBox()
+        self.confidence_lower_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.confidence_lower_column_combo, 18, 1)
 
         self.confidence_upper_column_label = QLabel("Confidence Upper Column (optional):")
         series_config_layout.addWidget(self.confidence_upper_column_label, 19, 0)
-        self.confidence_upper_column_combo = QComboBox()
+        self.confidence_upper_column_combo = DropDownComboBox()
         series_config_layout.addWidget(self.confidence_upper_column_combo, 19, 1)
 
         for widget in (

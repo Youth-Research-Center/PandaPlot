@@ -3,7 +3,6 @@ from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QScrollArea,
     QTabWidget,
     QVBoxLayout,
@@ -12,6 +11,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.commands.project.chart import ApplyChartPropertiesCommand
 from pandaplot.gui.components.common.dirty_footer import DirtyFooter
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.sidebar.chart.tabs.axes_tab import AxesTab
 from pandaplot.gui.components.sidebar.chart.tabs.chart_tab import ChartTab
 from pandaplot.gui.components.sidebar.chart.tabs.data_tab import DataTab
@@ -19,6 +19,7 @@ from pandaplot.gui.components.sidebar.chart.tabs.legend_tab import LegendTab
 from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
+from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.project.items.chart import restore_chart_state, snapshot_chart_state
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -55,7 +56,7 @@ class ChartPropertiesPanel(SidebarPanel):
         # `tab_selector_combo` (a dropdown driving the same pages) instead of
         # letting Qt shrink/elide/scroll the tab labels.
         self._tab_titles = ["Chart", "Data", "Style", "Axes", "Legend"]
-        self.tab_selector_combo = QComboBox(self)
+        self.tab_selector_combo = DropDownComboBox(self)
         self.tab_selector_combo.addItems(self._tab_titles)
         self.tab_selector_combo.setVisible(False)
         self.tab_selector_combo.currentIndexChanged.connect(self._on_tab_selector_combo_changed)
@@ -380,10 +381,10 @@ class ChartPropertiesPanel(SidebarPanel):
             return
         self._has_unsaved_changes = True
         self._update_status_indicator()
-        self.publish_event(ChartEvents.CHART_UPDATED, {
-            "chart_id": self.current_chart.id,
-            "update_type": "config_updated",
-        })
+        self.publish_event(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+            chart_id=self.current_chart.id,
+            update_type="config_updated",
+        ).to_dict())
 
     def _on_dirty_only(self):
         """Mark dirty and refresh the footer without publishing
@@ -442,10 +443,10 @@ class ChartPropertiesPanel(SidebarPanel):
             return
         restore_chart_state(self.current_chart, self._loaded_snapshot)
         self.load_chart_object(self.current_chart)
-        self.publish_event(ChartEvents.CHART_UPDATED, {
-            "chart_id": self.current_chart.id,
-            "update_type": "config_updated",
-        })
+        self.publish_event(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+            chart_id=self.current_chart.id,
+            update_type="config_updated",
+        ).to_dict())
     
     def load_chart_object(self, chart):
         """Load a Chart object into the panel for editing.

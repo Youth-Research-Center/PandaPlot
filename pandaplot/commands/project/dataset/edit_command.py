@@ -2,6 +2,7 @@ from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -77,7 +78,14 @@ class EditCommand(Command):
                 self.dataset = None
                 self.project = None
                 return CommandResult.FAILURE
-            
+
+            if refuse_live_formula_edit(
+                self.dataset, self.ui_controller, title="Edit Cell", column_positions=[self.index[1]],
+            ):
+                self.dataset = None
+                self.project = None
+                return CommandResult.FAILURE
+
             self.dataset.data.iloc[self.index[0], self.index[1]] = self.new_value
             self.dataset.set_data(self.dataset.data)
             self.app_context.event_bus.emit(DatasetEvents.DATASET_DATA_CHANGED, DatasetDataChangedData(

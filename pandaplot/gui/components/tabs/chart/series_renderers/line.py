@@ -33,6 +33,7 @@ def render_line_series(axes, series_data: SeriesData, style: LineSeriesStyle,
             text_color=style.value_label_text_color or style.color,
             bg_color=style.value_label_bg_color,
             bg_alpha=style.value_label_bg_alpha,
+            subset_mode=style.value_label_subset_mode,
             alpha=alpha,
         )
     if style.fill_enabled:

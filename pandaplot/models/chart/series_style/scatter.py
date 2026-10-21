@@ -8,6 +8,7 @@ from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style.base import SeriesStyleBase
 from pandaplot.models.chart.series_style.fill import FillStyleFields
+from pandaplot.models.chart.value_label_subset import ValueLabelSubset
 
 
 @dataclass
@@ -30,3 +31,9 @@ class ScatterSeriesStyle(FillStyleFields, SeriesStyleBase):
     value_label_text_color: str = ""
     value_label_bg_color: str = ""
     value_label_bg_alpha: float = 1.0
+    # Which points get a label (see series_renderers/value_labels.py).
+    value_label_subset_mode: ValueLabelSubset = ValueLabelSubset.ALL
+
+    def __post_init__(self) -> None:
+        """Normalize an unknown `value_label_subset_mode` (e.g. from a hand-edited project) to ALL."""
+        self.value_label_subset_mode = ValueLabelSubset.coerce(self.value_label_subset_mode)

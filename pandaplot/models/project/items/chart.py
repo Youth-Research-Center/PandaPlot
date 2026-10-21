@@ -23,6 +23,7 @@ from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import SeriesStyleBase
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.project.items.item import Item
 
@@ -31,6 +32,37 @@ class YAxis(StrEnum):
     """Y-axis selection for a data series."""
     PRIMARY = "primary"
     SECONDARY = "secondary"
+
+
+# Chart and series types that plot a 2-D curve or points from an X and a Y,
+# so swapping them is just exchanging the two references (#266). A vector
+# series also swaps its U and V components, a fit swaps its stored curve.
+_SWAPPABLE_CHART_TYPES = frozenset({ChartType.LINE, ChartType.SCATTER, ChartType.VECTOR})
+_SWAPPABLE_SERIES_TYPES = frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR, SeriesType.FIT})
+
+# AxisConfig fields that describe what is plotted on an axis (its title,
+# scale, range and tick placement) and so move with the data on a swap.
+# Fonts, colors, side and rotation describe the axis position and stay put.
+_SWAPPED_AXIS_FIELDS = (
+    "label", "scale", "log_base", "auto_limits", "min", "max",
+    "tick_mode", "tick_count", "tick_step", "tick_format", "tick_format_custom",
+    "show_grid", "minor_ticks", "show_minor_grid",
+)
+_SWAPPED_ERROR_BAR_FIELD_PAIRS = (
+    ("x_error_column_id", "y_error_column_id"),
+    ("x_error_minus_column_id", "y_error_minus_column_id"),
+    ("x_error_column", "y_error_column"),
+    ("x_error_minus_column", "y_error_minus_column"),
+)
+_FLIPPED_FILL_ORIENTATION = {"vertical": "horizontal", "horizontal": "vertical"}
+_FLIPPED_VALUE_LABEL_MODE = {"x": "y", "y": "x"}
+
+
+def _swap_attrs(first_obj: Any, first: str, second_obj: Any, second: str) -> None:
+    """Exchange ``first_obj.first`` with ``second_obj.second``."""
+    first_value = getattr(first_obj, first)
+    setattr(first_obj, first, getattr(second_obj, second))
+    setattr(second_obj, second, first_value)
 
 
 @dataclass
@@ -286,6 +318,7 @@ class Chart(Item):
             "show_value_labels", "value_label_mode", "value_label_show_arrow",
             "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
             "value_label_bg_color", "value_label_bg_alpha",
+            "value_label_subset_mode",
             # Area fill: Line/Scatter share the full FillStyleFields set.
             "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base",
             "fill_to_index", "fill_range_enabled", "fill_sections",
@@ -497,7 +530,7 @@ class Chart(Item):
     def dependency_update_event(self) -> tuple | None:
         """Event DeleteItemCommand should emit after this chart's series
         are stripped or restored."""
-        return ChartEvents.CHART_UPDATED, {"chart_id": self.id}
+        return ChartEvents.CHART_UPDATED, ChartUpdatedData(chart_id=self.id).to_dict()
 
     def add_fit_series(self, source_dataset_id: str, x_data: np.ndarray, y_data: np.ndarray,
                         label: str, style: FitStyle, *, source_x_column_id: str = "",
@@ -541,6 +574,81 @@ class Chart(Item):
         still *stay* on a chart type for which this is False (see
         set_chart_type's docstring) -- this only governs creation."""
         return CHART_TYPE_SPECS[self.chart_type].allows_fit
+
+    @property
+    def supports_swap_axes(self) -> bool:
+        """Whether this chart's type can ever be swapped (see
+        :meth:`swap_axes_blocker` for the per-chart reasons it may not be
+        right now). Used to hide the swap action on other chart types."""
+        return self.chart_type in _SWAPPABLE_CHART_TYPES
+
+    def swap_axes_blocker(self) -> str | None:
+        """Why :meth:`swap_axes` can't run on this chart, or None if it can.
+
+        Only Line/Scatter/Vector charts whose every series is a Line,
+        Scatter, Vector or Fit series on the primary Y axis qualify. Every
+        non-fit series also needs explicit X and Y columns.
+        """
+        if not self.supports_swap_axes:
+            display_name = CHART_TYPE_SPECS[self.chart_type].display_name
+            return f"X and Y can't be swapped on {display_name} charts."
+        if not self.data_series:
+            return "Add a data series before swapping X and Y."
+        for series in self.data_series:
+            if series.series_type not in _SWAPPABLE_SERIES_TYPES:
+                return "X and Y can only be swapped when every series is a Line, Scatter, Vector or Fit series."
+            if series.y_axis == YAxis.SECONDARY:
+                return "X and Y can't be swapped while a series uses the secondary Y axis."
+            if series.is_fit:
+                continue
+            if not (series.x_column_id or series.x_column):
+                return "X and Y can't be swapped while a series plots against the row index."
+            if not (series.y_column_id or series.y_column):
+                return "X and Y can't be swapped while a series has no Y column."
+        return None
+
+    def swap_axes(self) -> None:
+        """Swap the X and Y axes (#266): every series' X and Y columns,
+        their error-bar columns, fill orientation and value-label settings,
+        a vector series' U and V components, a fit's stored curve and
+        confidence band, plus each axis's title, scale, range and ticks.
+
+        A fit keeps its equation and parameters, which still describe the
+        original y = f(x); only the plotted curve is mirrored. Partial-fill
+        ranges (``fill_sections``) are data-point indices and are left as
+        they are, so they still cover the same points.
+
+        Applying it twice restores the original chart exactly.
+
+        Raises:
+            ValueError: if :meth:`swap_axes_blocker` reports a reason.
+        """
+        blocker = self.swap_axes_blocker()
+        if blocker is not None:
+            raise ValueError(blocker)
+        for series in self.data_series:
+            _swap_attrs(series, "x_column_id", series, "y_column_id")
+            _swap_attrs(series, "x_column", series, "y_column")
+            if series.is_fit:
+                _swap_attrs(series, "precomputed_x_data", series, "precomputed_y_data")
+            style = series.style
+            if hasattr(style, "value_label_offset_x"):
+                _swap_attrs(style, "value_label_offset_x", style, "value_label_offset_y")
+                style.value_label_mode = _FLIPPED_VALUE_LABEL_MODE.get(style.value_label_mode, style.value_label_mode)
+            if hasattr(style, "fill_orientation"):
+                style.fill_orientation = _FLIPPED_FILL_ORIENTATION.get(style.fill_orientation, style.fill_orientation)
+            if hasattr(style, "band_orientation"):
+                style.band_orientation = _FLIPPED_FILL_ORIENTATION.get(style.band_orientation, style.band_orientation)
+            if hasattr(style, "u_column_id"):
+                _swap_attrs(style, "u_column_id", style, "v_column_id")
+                _swap_attrs(style, "u_column", style, "v_column")
+            error_bars = getattr(style, "error_bars", None)
+            if error_bars is not None:
+                for first, second in _SWAPPED_ERROR_BAR_FIELD_PAIRS:
+                    _swap_attrs(error_bars, first, error_bars, second)
+        for field_name in _SWAPPED_AXIS_FIELDS:
+            _swap_attrs(self.config.x, field_name, self.config.y, field_name)
+        self.update_modified_time()
 
     def update_config(self, config_updates: dict[str, Any]) -> None:
         """Update chart configuration."""

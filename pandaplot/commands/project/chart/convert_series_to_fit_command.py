@@ -10,6 +10,7 @@ from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.events import ChartEvents
+from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import (
     DataSeries,
@@ -167,11 +168,11 @@ class ConvertSeriesToFitCommand(Command):
         chart.data_series[self.series_index] = self._fit
         chart.update_modified_time()
 
-        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-            "chart_id": self.chart_id,
-            "update_type": "series_converted_to_fit",
-            "chart": chart,
-        })
+        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+            chart_id=self.chart_id,
+            update_type="series_converted_to_fit",
+            chart=chart,
+        ).to_dict())
         return CommandResult.SUCCESS
 
     @override
@@ -188,11 +189,11 @@ class ConvertSeriesToFitCommand(Command):
         chart.data_series[self.series_index] = copy.deepcopy(self.removed_series)
         chart.update_modified_time()
 
-        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-            "chart_id": self.chart_id,
-            "update_type": "fit_converted_to_series",
-            "chart": chart,
-        })
+        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+            chart_id=self.chart_id,
+            update_type="fit_converted_to_series",
+            chart=chart,
+        ).to_dict())
         return CommandResult.SUCCESS
 
     @override
