@@ -6,6 +6,8 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate,
 )
 
+from pandaplot.utils.item_labels import item_label, strip_item_prefix
+
 
 class ItemNameDelegate(QStyledItemDelegate):
     """Custom delegate to handle editing only the name portion of tree items, not the icon."""
@@ -18,13 +20,7 @@ class ItemNameDelegate(QStyledItemDelegate):
         # Get the full text and extract just the name part
         full_text = index.data(Qt.ItemDataRole.DisplayRole)
         if isinstance(full_text, str):
-            # Remove emoji prefix
-            if full_text.startswith(("📁 ", "📝 ", "📊 ", "📈 ")):
-                name_only = full_text[2:].strip()
-            else:
-                name_only = full_text.strip()
-
-            editor.setText(name_only)
+            editor.setText(strip_item_prefix(full_text))
             editor.selectAll()
 
         return editor
@@ -39,20 +35,6 @@ class ItemNameDelegate(QStyledItemDelegate):
         """Set the model data with the icon prefix preserved."""
         new_name = editor.text().strip()
         if new_name:
-            # Get the current full text to determine the icon
-            full_text = index.data(Qt.ItemDataRole.DisplayRole)
-            if isinstance(full_text, str):
-                # Preserve the emoji prefix
-                if full_text.startswith("📁 "):
-                    new_full_text = f"📁 {new_name}"
-                elif full_text.startswith("📝 "):
-                    new_full_text = f"📝 {new_name}"
-                elif full_text.startswith("📊 "):
-                    new_full_text = f"📊 {new_name}"
-                elif full_text.startswith("📈 "):
-                    new_full_text = f"📈 {new_name}"
-                else:
-                    new_full_text = new_name
-
-                model.setData(index, new_full_text,
-                              Qt.ItemDataRole.DisplayRole)
+            item_data = index.data(Qt.ItemDataRole.UserRole)
+            item_type = item_data.get("type", "") if isinstance(item_data, dict) else ""
+            model.setData(index, item_label(item_type, new_name), Qt.ItemDataRole.DisplayRole)

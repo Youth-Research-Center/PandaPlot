@@ -101,11 +101,11 @@ Each element type keeps its geometry relative to its anchor, so moving an elemen
 
 | Type | Anchor | Geometry |
 |------|--------|----------|
-| `FreehandElement` | stroke origin | `points`: polyline vertices, offsets from the anchor |
+| `FreehandElement` | stroke origin | `points`: offsets from the anchor of the points a smooth curve passes through (centripetal Catmull-Rom, drawn as cubic Béziers; `curves.py`) |
 | `LineElement` | start point | `dx`, `dy`: end point offset |
 | `RectangleElement` | top-left corner | `width`, `height`, `corner_radius` |
 | `EllipseElement` | centre | `rx`, `ry`: radii |
-| `TextElement` | top-left corner | `text`, font fields, `alignment: TextAlignment` |
+| `TextElement` | top-left corner | `text`, font fields (`font_size` in canvas pixels; part of its geometry, so resizing a label changes it), `alignment: TextAlignment` |
 
 Layers and elements are value data of the sketch, not project-tree items, so `Sketch` is a plain `Item` rather than an `ItemCollection`. Element dicts carry a `type` string; `SketchElement.from_dict()` looks it up in the module-level `ELEMENT_TYPES` dict, so a new element type registers by adding to that dict. Elements of an unknown type are skipped on load.
 

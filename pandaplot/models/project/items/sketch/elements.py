@@ -17,9 +17,14 @@ DEFAULT_FONT_FAMILY = "Arial"
 
 @dataclass(kw_only=True)
 class FreehandElement(SketchElement):
-    """A pen stroke: a polyline through `points`, each relative to (`x`, `y`)."""
+    """A pen stroke: a smooth curve through `points`, each relative to (`x`, `y`).
+
+    The points are the ones the curve passes through, not the corners of a
+    polyline; see `curves.smooth_segments()` for how the curve is drawn.
+    """
 
     TYPE: ClassVar[str] = "freehand"
+    GEOMETRY_FIELDS: ClassVar[frozenset[str]] = SketchElement.GEOMETRY_FIELDS | {"points"}
 
     points: list[tuple[float, float]] = field(default_factory=list)
 
@@ -45,6 +50,7 @@ class LineElement(SketchElement):
     """A straight line from (`x`, `y`) to (`x + dx`, `y + dy`)."""
 
     TYPE: ClassVar[str] = "line"
+    GEOMETRY_FIELDS: ClassVar[frozenset[str]] = SketchElement.GEOMETRY_FIELDS | {"dx", "dy"}
 
     dx: float = 0.0
     dy: float = 0.0
@@ -64,6 +70,7 @@ class RectangleElement(SketchElement):
     """A rectangle with its top-left corner at (`x`, `y`)."""
 
     TYPE: ClassVar[str] = "rectangle"
+    GEOMETRY_FIELDS: ClassVar[frozenset[str]] = SketchElement.GEOMETRY_FIELDS | {"width", "height", "corner_radius"}
 
     width: float = 0.0
     height: float = 0.0
@@ -94,6 +101,7 @@ class EllipseElement(SketchElement):
     """An ellipse centred on (`x`, `y`) with radii `rx` and `ry`."""
 
     TYPE: ClassVar[str] = "ellipse"
+    GEOMETRY_FIELDS: ClassVar[frozenset[str]] = SketchElement.GEOMETRY_FIELDS | {"rx", "ry"}
 
     rx: float = 0.0
     ry: float = 0.0
@@ -119,6 +127,8 @@ class TextElement(SketchElement):
     """A text label with its top-left corner at (`x`, `y`)."""
 
     TYPE: ClassVar[str] = "text"
+    # Resizing a label changes its font size.
+    GEOMETRY_FIELDS: ClassVar[frozenset[str]] = SketchElement.GEOMETRY_FIELDS | {"font_size"}
 
     text: str = ""
     font_family: str = DEFAULT_FONT_FAMILY
