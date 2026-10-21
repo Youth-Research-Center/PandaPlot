@@ -249,3 +249,34 @@ class TestSketchCanvas:
 
         assert canvas.accessibleName() == "Sketch canvas"
         assert "Diagram" in canvas.accessibleDescription()
+
+
+class TestFrameColors:
+    def test_surround_and_paper_edge_use_the_given_colours(self, qtbot):
+        canvas = _canvas(qtbot, Sketch(canvas_width=1600.0, canvas_height=900.0, background_color="#FFFFFF"))
+        canvas.resize(400, 400)
+        canvas.show()
+        qtbot.waitExposed(canvas)
+        canvas.fit_to_canvas()
+
+        canvas.set_frame_colors(surround=QColor("#E5E6EA"), paper_border=QColor("#123456"))
+
+        image = canvas.viewport().grab().toImage()
+        above_paper = QPoint(canvas.viewport().width() // 2, 5)
+        assert image.pixelColor(above_paper) == QColor("#E5E6EA")
+        paper_centre = canvas.mapFromScene(QPointF(800.0, 450.0))
+        assert image.pixelColor(paper_centre) == QColor("#FFFFFF")
+        paper = canvas.scene().items(QPointF(800.0, 450.0))[-1]
+        assert isinstance(paper, QGraphicsRectItem)
+        assert paper.pen().color() == QColor("#123456")
+        assert paper.pen().isCosmetic()
+
+    def test_frame_colours_survive_a_rebuild(self, qtbot):
+        canvas = _canvas(qtbot, Sketch())
+        canvas.set_frame_colors(surround=QColor("#E5E6EA"), paper_border=QColor("#123456"))
+
+        canvas.rebuild()
+
+        paper = canvas.scene().items(QPointF(10.0, 10.0))[-1]
+        assert isinstance(paper, QGraphicsRectItem)
+        assert paper.pen().color() == QColor("#123456")
