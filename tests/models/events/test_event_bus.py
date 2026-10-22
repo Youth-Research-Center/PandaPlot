@@ -198,10 +198,10 @@ class TestEventBus:
         # Should not raise any error
         event_bus.emit("nonexistent_event", {"data": "test"})
 
-    def test_emit_without_debug_logging_does_not_read_data_keys(self):
+    def test_emit_without_debug_logging_does_not_read_data_keys(self, caplog):
         """Avoid building debug-only log arguments when DEBUG is disabled."""
         event_bus = EventBus()
-        event_bus.logger.setLevel("INFO")
+        caplog.set_level("INFO", logger="EventBus")
 
         class KeysTrackingDict(dict):
             def keys(self):
