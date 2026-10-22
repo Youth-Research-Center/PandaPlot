@@ -12,6 +12,7 @@ from pandaplot.commands.project.chart.fit_guard import reject_if_fit_disallowed
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.events import ChartEvents
+from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.events.event_types import DatasetEvents, ProjectEvents
 from pandaplot.models.project.items import Dataset, Note
 from pandaplot.models.project.items.chart import YAxis
@@ -314,11 +315,11 @@ class ApplyFitCommand(Command):
 
         self.app_context.event_bus.emit(
             ChartEvents.CHART_UPDATED,
-            {
-                "chart_id": self.chart_id,
-                "update_type": "fit_added",
-                "chart": chart,
-            },
+            ChartUpdatedData(
+            chart_id=self.chart_id,
+            update_type="fit_added",
+            chart=chart,
+        ).to_dict(),
         )
 
         app_state = self.app_context.get_app_state()
@@ -344,11 +345,11 @@ class ApplyFitCommand(Command):
 
         self.app_context.event_bus.emit(
             ChartEvents.CHART_UPDATED,
-            {
-                "chart_id": self.chart_id,
-                "update_type": "fit_removed",
-                "chart": chart,
-            },
+            ChartUpdatedData(
+            chart_id=self.chart_id,
+            update_type="fit_removed",
+            chart=chart,
+        ).to_dict(),
         )
 
         app_state = self.app_context.get_app_state()

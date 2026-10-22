@@ -37,33 +37,44 @@ class Project:
         # the user instead of the failure only showing up in the log.
         self.failed_item_ids: list[str] = []
 
-    def add_item(self, item: Item, parent_id: str | None = None, index: int | None = None):
+    def add_item(self, item: Item, parent_id: str | None = None, index: int | None = None) -> None:
         """Add an item to the project hierarchy.
 
         `index`, when given, inserts the item at that position among its new
         siblings instead of appending it (see ItemCollection.add_item()).
+        A non-collection parent resolves to its nearest ancestor collection;
+        missing or cyclic parent chains fall back to the root.
+        Re-adding an attached item moves it from its previous collection,
+        or reorders it within the same collection.
 
         Raises:
             ValueError: If the item's subtree reuses an id already in the
                 project (the root id included; held by a different item; the added item itself may still
                 overwrite one) or within the subtree, or
                 a descendant's parent_id does not match its container. The
-                project is left unchanged.
+                project is left unchanged. Also raised if the destination
+                would attach the item to itself or one of its descendants.
         """
         self._validate_subtree(item)
-        if parent_id is None:
-            # Add to root
-            self.root.add_item(item, index=index)
-        else:
-            # Find parent and add item there
-            parent = self.find_item(parent_id)
-            if parent is not None and isinstance(parent, ItemCollection):
-                parent.add_item(item, index=index)
-            else:
-                self.logger.warning(f"Parent {parent_id} not found or not a collection, item: {item.id} {item.name} ")
-                # If parent not found or not a collection, add to root
-                # TODO(#219): see if we need to handle this case differently, e.g. recursively search for a collection
-                self.root.add_item(item, index=index)
+        parent = self.root if parent_id is None else self.find_item(parent_id)
+        visited: set[str] = set()
+        while parent is not None and not isinstance(parent, ItemCollection):
+            if parent.id in visited:
+                parent = None
+                break
+            visited.add(parent.id)
+            parent = self.find_item(parent.parent_id) if parent.parent_id is not None else None
+        if parent is None:
+            self.logger.warning("No ancestor collection for parent %s; adding item %s to root", parent_id, item.id)
+            parent = self.root
+        if self.is_item_or_descendant(item, parent.id):
+            raise ValueError("Cannot attach an item to itself or its descendants")
+        if not parent.accepts_item(item):
+            raise ValueError(f"Collection '{parent.name}' does not accept this type of item")
+        previous_parent = self._find_parent_collection(item)
+        if previous_parent is not None and previous_parent.get_item_by_id(item.id) is item:
+            previous_parent.remove_item(item)
+        parent.add_item(item, index=index)
 
         # Index the full subtree when restoring or attaching a collection.
         self._index_item_subtree(item)

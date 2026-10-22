@@ -451,13 +451,14 @@ def test_style_field_names_match_the_real_style_dataclasses():
     error_bar_field_names = {f.name for f in dataclasses.fields(ErrorBarConfig)}
 
     # Fields added to a style dataclass after this migration's field lists
-    # were written (#125) -- no legacy schema_version-0 file can contain
+    # were written (#125, #337) -- no legacy schema_version-0 file can contain
     # them, so they're excluded from the equality check below rather than
     # weakening it to a subset check for every field.
     _POST_MIGRATION_FIELDS = {
         "show_value_labels", "value_label_mode", "value_label_show_arrow",
         "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
         "value_label_bg_color", "value_label_bg_alpha",
+        "value_label_subset_mode",
         # #280/#433 -- partial-range fields and section-list replacement.
         "fill_range_enabled", "fill_range_start", "fill_range_end", "fill_sections",
     }

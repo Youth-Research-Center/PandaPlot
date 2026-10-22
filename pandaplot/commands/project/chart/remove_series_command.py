@@ -7,6 +7,7 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import ChartEvents
+from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.project.items.chart import DataSeries
 from pandaplot.models.state import AppContext
 
@@ -57,11 +58,11 @@ class RemoveSeriesCommand(Command):
 
         chart.remove_data_series(self.series_index)
 
-        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-            "chart_id": self.chart_id,
-            "update_type": "series_removed",
-            "chart": chart,
-        })
+        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+            chart_id=self.chart_id,
+            update_type="series_removed",
+            chart=chart,
+        ).to_dict())
         return CommandResult.SUCCESS
 
     @override
@@ -81,11 +82,11 @@ class RemoveSeriesCommand(Command):
             chart.restore_fill_targets(self._fill_targets)
         chart.update_modified_time()
 
-        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-            "chart_id": self.chart_id,
-            "update_type": "series_added",
-            "chart": chart,
-        })
+        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+            chart_id=self.chart_id,
+            update_type="series_added",
+            chart=chart,
+        ).to_dict())
         return CommandResult.SUCCESS
 
     @override
