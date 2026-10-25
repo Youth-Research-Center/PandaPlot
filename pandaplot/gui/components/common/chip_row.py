@@ -16,7 +16,7 @@ class ChipRow(QWidget):
         self._buttons: list[QPushButton] = []
         self._current_index: int | None = None
 
-    def setItems(self, items: list[tuple[str, object]]):  # noqa: N802
+    def setItems(self, items: list[tuple[str, object]]):
         previous_value = self.currentValue()
 
         for button in self._buttons:
@@ -41,12 +41,12 @@ class ChipRow(QWidget):
             self._current_index = 0
         self._refresh_selected_properties()
 
-    def currentValue(self) -> object | None:  # noqa: N802
+    def currentValue(self) -> object | None:
         if self._current_index is None:
             return None
         return self._values[self._current_index]
 
-    def setCurrentValue(self, value: object):  # noqa: N802
+    def setCurrentValue(self, value: object):
         if value not in self._values:
             return
         self._current_index = self._values.index(value)

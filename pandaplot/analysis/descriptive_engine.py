@@ -8,7 +8,7 @@ consistently, add it to the project as data, and generate a written report.
 """
 
 import logging
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd

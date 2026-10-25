@@ -1,4 +1,4 @@
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -28,7 +28,7 @@ class ProjectViewPanel(SidebarPanel):
     This follows the MVC pattern by listening to events from the app state.
     """
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None=None):
         super().__init__(app_context=app_context, parent=parent)
         self.app_state = app_context.get_app_state()
 
@@ -184,13 +184,7 @@ class ProjectViewPanel(SidebarPanel):
 
         # Extract new name from the item text (remove emoji prefix)
         new_text = item.text(0)
-        if new_text.startswith("📁 "):
-            new_name = new_text[2:].strip()
-        elif new_text.startswith("📝 "):
-            new_name = new_text[2:].strip()
-        elif new_text.startswith("📊 "):
-            new_name = new_text[2:].strip()
-        elif new_text.startswith("📈 "):
+        if new_text.startswith(("📁 ", "📝 ", "📊 ", "📈 ")):
             new_name = new_text[2:].strip()
         else:
             new_name = new_text.strip()
@@ -225,7 +219,8 @@ class ProjectViewPanel(SidebarPanel):
 
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        
+        tokens = theme_manager.get_design_tokens()
+
         # Get theme-appropriate colors
         card_bg = palette.get("card_bg", "#ffffff")
         base_fg = palette.get("base_fg", "#000000")
@@ -242,7 +237,7 @@ class ProjectViewPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;
@@ -265,7 +260,7 @@ class ProjectViewPanel(SidebarPanel):
         self.project_title_label.setStyleSheet(f"""
             QLabel {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 background-color: transparent;

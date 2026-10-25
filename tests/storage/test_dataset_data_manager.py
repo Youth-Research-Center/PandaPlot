@@ -11,7 +11,9 @@ import zipfile
 
 import pandas as pd
 
+from pandaplot.models.project.items.column_role import ColumnRole
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
 
 
@@ -31,6 +33,35 @@ def test_round_trip_preserves_plain_numeric_and_string_columns(tmp_path):
     loaded = _round_trip(dataset, tmp_path)
 
     pd.testing.assert_frame_equal(loaded.data, df)
+
+
+def test_round_trip_preserves_column_roles_by_stable_id(tmp_path):
+    dataset = Dataset(id="ds", name="Data", data=pd.DataFrame({"x": [1], "y": [2]}))
+    x_id = dataset.column_id("x")
+    y_id = dataset.column_id("y")
+    dataset.set_column_role(x_id, ColumnRole.CONTROLLED)
+    dataset.set_column_role(y_id, ColumnRole.MEASURED)
+
+    loaded = _round_trip(dataset, tmp_path)
+
+    assert loaded.column_ids == dataset.column_ids
+    assert loaded.column_roles == {
+        x_id: ColumnRole.CONTROLLED,
+        y_id: ColumnRole.MEASURED,
+    }
+
+
+def test_round_trip_preserves_measured_variable_group_names(tmp_path):
+    dataset = Dataset(id="ds", name="Data", data=pd.DataFrame({"Trial1": [1], "Trial2": [2]}))
+    trial_ids = [dataset.column_id("Trial1"), dataset.column_id("Trial2")]
+    dataset.set_column_roles({column_id: ColumnRole.MEASURED for column_id in trial_ids})
+    dataset.set_column_measurement_groups({column_id: "Velocity" for column_id in trial_ids})
+
+    loaded = _round_trip(dataset, tmp_path)
+
+    assert loaded.column_measurement_groups == {
+        column_id: "Velocity" for column_id in trial_ids
+    }
 
 
 def test_round_trip_preserves_datetime_column_dtype(tmp_path):
@@ -112,3 +143,33 @@ def test_dataset_with_no_data_round_trips_without_error(tmp_path):
     # save/load round trip is expected to produce too.
     assert loaded.data is not None
     assert loaded.data.empty
+
+
+def test_round_trip_preserves_formula_columns(tmp_path):
+    """A formula column's expression and live flag are part of the dataset
+    (#154) -- without them a reopened project holds the computed values but
+    could never recompute them."""
+    df = pd.DataFrame({"a": [1.0, 2.0, 3.0], "a_x2": [2.0, 4.0, 6.0]})
+    dataset = Dataset(id="ds", name="Data", data=df)
+    a_id = dataset.column_id("a")
+    dataset.set_formula_column(dataset.column_id("a_x2"), FormulaColumnSpec(
+        expression="x * 2", transform_type="column", source_column_ids=[a_id], live=True,
+    ))
+
+    loaded = _round_trip(dataset, tmp_path)
+
+    spec = loaded.formula_column_by_name("a_x2")
+    assert spec is not None
+    assert spec.expression == "x * 2"
+    assert spec.live is True
+    # The source still resolves to the same column after the round trip.
+    assert loaded.column_name(spec.source_column_ids[0]) == "a"
+
+
+def test_round_trip_of_a_dataset_saved_before_formula_columns_existed(tmp_path):
+    df = pd.DataFrame({"a": [1.0, 2.0]})
+    dataset = Dataset(id="ds", name="Data", data=df)
+
+    loaded = _round_trip(dataset, tmp_path)
+
+    assert loaded.formula_columns == {}

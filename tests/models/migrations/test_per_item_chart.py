@@ -1,18 +1,21 @@
 """Tests for the per-item chart migration dispatcher.
 
-As of this refactor, PER_ITEM_CHART_MIGRATIONS has a single real entry
-(migrate_chart_legacy_to_v1, see TestMigrateChartLegacyToV1 below) --
-formerly two steps (migrate_chart_v1_to_v2 for series, migrate_chart_v2_to_v3
-for fits), collapsed into one since neither had ever shipped to a real user
-and there was no intermediate shape worth preserving. The dispatcher-loop
-tests below patch the registry to whatever shape each scenario needs --
-pinning down migrate_chart's loop behavior in isolation from the real
-migration content, the same way test_runner.py does for the cross-item
-runner.
+PER_ITEM_CHART_MIGRATIONS has two real entries: migrate_chart_legacy_to_v1
+(schema_version 0 -> 1, see TestMigrateChartLegacyToV1 below) and
+migrate_chart_v1_to_v2 (schema_version 1 -> 2, see TestMigrateChartV1ToV2
+-- nests axis-prefixed flat config keys like "x_min"/"show_grid_x" under
+config["x"]/["y"]/["y2"]/["z"], see #146 PR2). The dispatcher-loop tests
+below patch the registry to whatever shape each scenario needs -- pinning
+down migrate_chart's loop behavior in isolation from the real migration
+content, the same way test_runner.py does for the cross-item runner.
 """
 from unittest.mock import patch
 
-from pandaplot.models.migrations.per_item.chart import migrate_chart, migrate_chart_legacy_to_v1
+from pandaplot.models.migrations.per_item.chart import (
+    migrate_chart,
+    migrate_chart_legacy_to_v1,
+    migrate_chart_v1_to_v2,
+)
 
 
 def test_noop_when_registry_is_empty():
@@ -320,6 +323,68 @@ class TestMigrateChartLegacyToV1:
         assert raw["fit_data"][0]["color"] == "#112233"
 
 
+class TestMigrateChartV1ToV2:
+    """Nests every axis-prefixed flat config key ("x_min", "y2_tick_mode",
+    "show_grid_x") under config["x"]/["y"]/["y2"]/["z"] -- see #146 PR2,
+    ChartConfig.x/.y/.y2/.z are now typed AxisConfig instances instead of
+    flat dict keys."""
+
+    def test_nests_axis_prefixed_config_keys(self):
+        raw = {
+            "config": {
+                "title": "My Chart",
+                "show_legend": True,
+                "x_label": "Time",
+                "x_min": -5.0,
+                "x_max": 5.0,
+                "show_grid_x": False,
+                "y_scale": "log",
+                "y_log_base": 2.0,
+                "y2_side": "left",
+                "z_font_size": 14,
+            },
+            "style": {},
+            "data_series": [],
+            "fit_data": [],
+        }
+
+        migrated = migrate_chart_v1_to_v2(raw)
+
+        config = migrated["config"]
+        assert config["title"] == "My Chart"
+        assert config["show_legend"] is True
+        assert "x_label" not in config
+        assert "x_min" not in config
+        assert "show_grid_x" not in config
+        assert "y_scale" not in config
+        assert "y2_side" not in config
+        assert config["x"] == {"label": "Time", "min": -5.0, "max": 5.0, "show_grid": False}
+        assert config["y"] == {"scale": "log", "log_base": 2.0}
+        assert config["y2"] == {"side": "left"}
+        assert config["z"] == {"font_size": 14}
+
+    def test_handles_a_chart_with_no_axis_keys_at_all(self):
+        raw = {"config": {"title": "Empty"}, "style": {}, "data_series": [], "fit_data": []}
+
+        migrated = migrate_chart_v1_to_v2(raw)
+
+        assert migrated["config"] == {"title": "Empty", "x": {}, "y": {}, "y2": {}, "z": {}}
+
+    def test_leaves_a_chart_with_no_config_key_untouched(self):
+        raw = {"data_series": [], "fit_data": []}
+
+        migrated = migrate_chart_v1_to_v2(raw)
+
+        assert "config" not in migrated
+
+    def test_does_not_mutate_the_input_dict(self):
+        raw = {"config": {"x_min": -5.0}, "data_series": [], "fit_data": []}
+
+        migrate_chart_v1_to_v2(raw)
+
+        assert raw["config"] == {"x_min": -5.0}
+
+
 def test_style_field_names_match_the_real_style_dataclasses():
     """Guards against the migration's _DIRECT_STYLE_FIELDS_BY_CHART_TYPE/
     _MARKER_FIELDS_BY_CHART_TYPE/_ERROR_BAR_FIELDS drifting out of sync
@@ -386,19 +451,29 @@ def test_style_field_names_match_the_real_style_dataclasses():
     error_bar_field_names = {f.name for f in dataclasses.fields(ErrorBarConfig)}
 
     # Fields added to a style dataclass after this migration's field lists
-    # were written (#125) -- no legacy schema_version-0 file can contain
+    # were written (#125, #337) -- no legacy schema_version-0 file can contain
     # them, so they're excluded from the equality check below rather than
     # weakening it to a subset check for every field.
     _POST_MIGRATION_FIELDS = {
         "show_value_labels", "value_label_mode", "value_label_show_arrow",
         "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
         "value_label_bg_color", "value_label_bg_alpha",
+        "value_label_subset_mode",
+        # #280/#433 -- partial-range fields and section-list replacement.
+        "fill_range_enabled", "fill_range_start", "fill_range_end", "fill_sections",
+    }
+    # Scatter gained the shared fill fields (FillStyleFields) after this
+    # migration; Line already had the first six as legacy flat fields.
+    _SCATTER_POST_MIGRATION_FIELDS = {
+        "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base", "fill_to_index",
     }
 
     for series_type in _PRE_MIGRATION_SERIES_TYPES:
         spec = SERIES_TYPE_SPECS[series_type]
         top_level_field_names = {f.name for f in dataclasses.fields(spec.style_cls)}
         expected_direct = top_level_field_names - {"marker", "error_bars"} - _POST_MIGRATION_FIELDS
+        if series_type == SeriesType.SCATTER:
+            expected_direct -= _SCATTER_POST_MIGRATION_FIELDS
         actual_direct = set(_DIRECT_STYLE_FIELDS_BY_CHART_TYPE[series_type.value])
         assert actual_direct == expected_direct, f"{series_type.value}: {actual_direct} != {expected_direct}"
 
@@ -424,13 +499,209 @@ def test_fit_style_fields_are_a_subset_of_the_real_fit_style_dataclass():
     Subset (not equality) is correct: FitStyle also has
     band_fill_enabled/band_fill_alpha/band_color, deliberately absent
     from _FIT_STYLE_FIELDS since old data never had them and should fall
-    through to FitStyle's own defaults."""
+    through to FitStyle's own defaults.
+
+    "alpha" is excluded from the subset check: #304 moved fit opacity
+    off FitStyle onto the generic DataSeries.alpha field every other
+    series type already uses. migrate_chart_legacy_to_v1 (schema 0->1)
+    still nests legacy flat "alpha" into style["alpha"] here -- migrate_
+    chart_v2_to_v3 pulls it back out into the series' top-level "alpha"
+    before FitStyle(**style_dict) is ever constructed, so this is a
+    genuinely transient field, not a drift bug."""
     import dataclasses
 
     from pandaplot.models.chart.fit_style import FitStyle
     from pandaplot.models.migrations.per_item.chart import _FIT_STYLE_FIELDS
 
-    real_field_names = {f.name for f in dataclasses.fields(FitStyle)}
+    real_field_names = {f.name for f in dataclasses.fields(FitStyle)} | {"alpha"}
     assert set(_FIT_STYLE_FIELDS).issubset(real_field_names), (
         f"{set(_FIT_STYLE_FIELDS)} not a subset of {real_field_names}"
     )
+
+
+def test_migrate_chart_v2_to_v3_folds_fit_data_into_data_series():
+    from pandaplot.models.migrations.per_item.chart import migrate_chart_v2_to_v3
+
+    raw = {
+        "chart_type": "line",
+        "data_series": [{"dataset_id": "ds1", "series_type": "line", "style": {}}],
+        "fit_data": [{
+            "source_dataset_id": "ds1",
+            "source_x_column_id": "xid", "source_y_column_id": "yid",
+            "source_x_column": "X", "source_y_column": "Y",
+            "fit_type": "linear",
+            "x_data": [1.0, 2.0], "y_data": [3.0, 4.0],
+            "label": "My Fit", "visible": True,
+            "fit_params": {"a": 1.0}, "fit_stats": {"r_squared": 0.9},
+            "confidence_lower": [0.5, 1.5], "confidence_upper": [1.5, 2.5],
+            "confidence_lower_column_id": "", "confidence_upper_column_id": "",
+            "is_manual": False,
+            "style": {
+                "color": "#ff7f0e", "line_style": "dashed", "line_width": 2.0,
+                "alpha": 0.8,
+            },
+        }],
+    }
+
+    migrated = migrate_chart_v2_to_v3(raw)
+
+    assert "fit_data" not in migrated
+    assert len(migrated["data_series"]) == 2
+    fit_entry = migrated["data_series"][1]
+    assert fit_entry["series_type"] == "fit"
+    assert fit_entry["dataset_id"] == "ds1"
+    assert fit_entry["x_column_id"] == "xid"
+    assert fit_entry["y_column_id"] == "yid"
+    assert fit_entry["alpha"] == 0.8  # pulled up from style.alpha
+    assert "alpha" not in fit_entry["style"]
+    assert fit_entry["precomputed_x_data"] == [1.0, 2.0]
+    assert fit_entry["precomputed_y_data"] == [3.0, 4.0]
+    assert fit_entry["style"]["fit_type"] == "linear"
+    assert fit_entry["style"]["fit_params"] == {"a": 1.0}
+    assert fit_entry["style"]["confidence_lower"] == [0.5, 1.5]
+    assert fit_entry["y_axis"] == "primary"
+
+
+def test_migrate_chart_v2_to_v3_matches_a_fit_to_its_secondary_axis_source_series():
+    """A legacy fit had no y_axis of its own -- chart_editor.py's removed
+    render loop matched it to its source series (by dataset id + column
+    id/name) on every render to borrow that series' axis. The migration
+    must reproduce that match once, not default every fit to primary
+    (#304 final-review finding)."""
+    from pandaplot.models.migrations.per_item.chart import migrate_chart_v2_to_v3
+
+    raw = {
+        "chart_type": "line",
+        "data_series": [{
+            "dataset_id": "ds1", "series_type": "line", "style": {},
+            "x_column_id": "xid", "y_column_id": "yid",
+            "x_column": "X", "y_column": "Y", "y_axis": "secondary",
+        }],
+        "fit_data": [{
+            "source_dataset_id": "ds1",
+            "source_x_column_id": "xid", "source_y_column_id": "yid",
+            "source_x_column": "X", "source_y_column": "Y",
+            "fit_type": "linear",
+            "x_data": [1.0, 2.0], "y_data": [3.0, 4.0],
+            "label": "My Fit", "visible": True,
+            "style": {"color": "#ff7f0e", "line_style": "dashed", "line_width": 2.0, "alpha": 1.0},
+        }],
+    }
+
+    migrated = migrate_chart_v2_to_v3(raw)
+
+    assert migrated["data_series"][1]["y_axis"] == "secondary"
+
+
+def test_migrate_chart_dispatches_through_v2_to_v3(monkeypatch=None):
+    from pandaplot.models.migrations.per_item.chart import migrate_chart
+
+    raw = {
+        "chart_type": "line", "data_series": [],
+        "fit_data": [{
+            "source_dataset_id": "ds1", "fit_type": "linear",
+            "x_data": [1.0], "y_data": [2.0], "label": "Fit",
+            "style": {"color": "#000", "line_style": "solid", "line_width": 1.0, "alpha": 1.0},
+        }],
+    }
+    result = migrate_chart(raw, schema_version=2)
+    assert "fit_data" not in result
+    assert len(result["data_series"]) == 1
+
+
+def test_migrate_chart_runs_the_full_schema_0_to_v3_chain_for_a_populated_fit():
+    """Regression/coverage test for final-review Important finding #4: a
+    coverage gap, not a known defect -- the reviewer manually verified the
+    chain composes, but nothing pinned it down end to end. Runs a genuinely
+    legacy (schema_version=0) chart dict -- flat color/line_style/alpha
+    fields directly on the fit_data entry, pre-dating any nested "style"
+    dict -- through migrate_chart(raw, schema_version=0), exercising all
+    three migrations in sequence (legacy_to_v1 nests the flat fit style
+    fields; v1_to_v2 nests axis-prefixed config keys; v2_to_v3 folds
+    fit_data into data_series)."""
+    from pandaplot.models.migrations.per_item.chart import migrate_chart
+
+    raw = {
+        "chart_type": "line",
+        "data_series": [{"dataset_id": "ds1", "x_column": "x", "y_column": "y", "color": "#112233"}],
+        "fit_data": [{
+            "source_dataset_id": "ds1",
+            "source_x_column_id": "xid", "source_y_column_id": "yid",
+            "source_x_column": "X", "source_y_column": "Y",
+            "fit_type": "linear",
+            "x_data": [1.0, 2.0], "y_data": [3.0, 4.0],
+            "label": "My Fit", "visible": True,
+            # Flat, pre-nested-style fields -- the schema-0 shape.
+            "color": "#112233", "line_style": "dotted", "line_width": 3.0, "alpha": 0.5,
+            "confidence_lower": [0.5, 1.5], "confidence_upper": [1.5, 2.5],
+            "fit_params": {"a": 1.0}, "fit_stats": {"r_squared": 0.9},
+        }],
+        "config": {
+            "title": "Legacy Chart With A Fit",
+            "x_min": -5.0, "x_max": 5.0,
+        },
+        "style": {},
+    }
+
+    migrated = migrate_chart(raw, schema_version=0)
+
+    # v2_to_v3's effect: no more separate fit_data list.
+    assert "fit_data" not in migrated
+    assert len(migrated["data_series"]) == 2
+    fit_entry = migrated["data_series"][1]
+    assert fit_entry["series_type"] == "fit"
+    assert fit_entry["dataset_id"] == "ds1"
+    assert fit_entry["x_column_id"] == "xid"
+    assert fit_entry["y_column_id"] == "yid"
+    assert fit_entry["precomputed_x_data"] == [1.0, 2.0]
+    assert fit_entry["precomputed_y_data"] == [3.0, 4.0]
+    # alpha ended up at the series' top level, not nested in style.
+    assert fit_entry["alpha"] == 0.5
+    assert "alpha" not in fit_entry["style"]
+    # The rest of the flat fields correctly landed in style.
+    style = fit_entry["style"]
+    assert style["color"] == "#112233"
+    assert style["line_style"] == "dotted"
+    assert style["line_width"] == 3.0
+    assert style["fit_type"] == "linear"
+    assert style["fit_params"] == {"a": 1.0}
+    assert style["fit_stats"] == {"r_squared": 0.9}
+    assert style["confidence_lower"] == [0.5, 1.5]
+    assert style["confidence_upper"] == [1.5, 2.5]
+    # v1_to_v2's effect on the chart's own config (unrelated to the fit,
+    # but confirms the full chain -- not just v2_to_v3 -- actually ran).
+    assert migrated["config"]["x"] == {"min": -5.0, "max": 5.0}
+    assert "x_min" not in migrated["config"]
+    # v1_to_v1's effect on the plain data series.
+    assert migrated["data_series"][0]["style"]["color"] == "#112233"
+
+
+def test_migrate_chart_v3_to_v4_moves_single_fill_range_into_sections():
+    from pandaplot.models.migrations.per_item.chart import migrate_chart_v3_to_v4
+
+    raw = {"data_series": [
+        {"series_type": "line", "style": {"fill_range_enabled": True, "fill_range_start": 2, "fill_range_end": -1}},
+        {"series_type": "scatter", "style": {"fill_range_enabled": False, "fill_range_start": 0, "fill_range_end": 3}},
+        {"series_type": "line", "style": {"fill_enabled": True}},
+        {"series_type": "fit", "style": None},
+        {"series_type": "hist"},
+    ]}
+
+    migrated = migrate_chart_v3_to_v4(raw)
+
+    assert migrated["data_series"] == [
+        {"series_type": "line", "style": {"fill_range_enabled": True, "fill_sections": [(2, -1)]}},
+        {"series_type": "scatter", "style": {"fill_range_enabled": False, "fill_sections": [(0, 3)]}},
+        {"series_type": "line", "style": {"fill_enabled": True}},
+        {"series_type": "fit", "style": None},
+        {"series_type": "hist"},
+    ]
+    assert raw["data_series"][0]["style"]["fill_range_start"] == 2
+
+
+def test_migrate_chart_dispatches_through_v3_to_v4():
+    from pandaplot.models.migrations.per_item.chart import migrate_chart
+
+    result = migrate_chart({"data_series": [{"style": {"fill_range_start": 1, "fill_range_end": 4}}]}, schema_version=3)
+
+    assert result["data_series"][0]["style"] == {"fill_sections": [(1, 4)]}

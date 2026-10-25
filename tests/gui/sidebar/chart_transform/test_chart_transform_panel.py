@@ -46,6 +46,7 @@ def project():
 def app_context(project):
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
     app_state = Mock(spec=AppState)
     app_state.has_project = True
     app_state.current_project = project
@@ -208,7 +209,7 @@ class TestChartTransformPanelSeriesSelectedEvent:
             {"chart_id": "chart-1", "kind": "series", "index": 1}
         )
 
-        assert panel.source_combo.currentData() == ("series", 1)
+        assert panel.source_combo.currentData() == 1
 
     def test_ignores_event_for_a_different_chart(self, panel):
         panel.source_combo.setCurrentIndex(0)

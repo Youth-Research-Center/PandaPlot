@@ -47,7 +47,7 @@ def test_pivot_to_grid_regular_grid():
 
 def test_pivot_to_grid_missing_cell_is_nan():
     # (1, 1) is absent -> that cell stays NaN.
-    xs, ys, grid = pivot_to_grid([0, 1, 0], [0, 0, 1], [10, 20, 30])
+    _xs, _ys, grid = pivot_to_grid([0, 1, 0], [0, 0, 1], [10, 20, 30])
     assert np.isnan(grid[1, 1])
     assert grid[0, 0] == 10.0
     assert grid[0, 1] == 20.0
@@ -55,7 +55,7 @@ def test_pivot_to_grid_missing_cell_is_nan():
 
 
 def test_pivot_to_grid_duplicate_last_wins():
-    xs, ys, grid = pivot_to_grid([0, 0], [0, 0], [1, 99])
+    _xs, _ys, grid = pivot_to_grid([0, 0], [0, 0], [1, 99])
     assert grid.shape == (1, 1)
     assert grid[0, 0] == 99.0
 
@@ -85,7 +85,7 @@ def test_pivot_to_grid_keeps_non_finite_z_as_a_transparent_cell():
     valid (x, y) is meaningful data ("no value recorded here") and must
     stay in the grid as NaN -- not be dropped -- so it renders as a
     transparent cell rather than a hole with no rendered marker at all."""
-    xs, ys, grid = pivot_to_grid([0, 1], [0, 0], [10.0, np.nan])
+    _xs, _ys, grid = pivot_to_grid([0, 1], [0, 0], [10.0, np.nan])
     assert grid[0, 0] == 10.0
     assert np.isnan(grid[0, 1])
 
@@ -111,7 +111,7 @@ def test_bin_to_grid_shape_and_mean_aggregation():
 
 
 def test_bin_to_grid_empty_cells_are_nan():
-    xs, ys, grid = bin_to_grid([0.0, 1.0], [0.0, 1.0], [1.0, 2.0], bins=2)
+    _xs, _ys, grid = bin_to_grid([0.0, 1.0], [0.0, 1.0], [1.0, 2.0], bins=2)
     # Only the diagonal cells have points; off-diagonal cells are NaN.
     assert np.isnan(grid[0, 1])
     assert np.isnan(grid[1, 0])
@@ -131,7 +131,7 @@ def test_bin_to_grid_drops_non_finite_triples_without_raising():
     x = [0.1, np.nan, 0.2, 0.9]
     y = [0.1, 0.0, np.nan, 0.9]
     z = [10.0, 999.0, 999.0, 100.0]
-    xs, ys, grid = bin_to_grid(x, y, z, bins=2)
+    _xs, _ys, grid = bin_to_grid(x, y, z, bins=2)
     assert grid.shape == (2, 2)
     assert grid[0, 0] == 10.0
     assert grid[1, 1] == 100.0
@@ -144,7 +144,7 @@ def test_interpolate_to_grid_shape_and_fills_interior():
     x = rng.random(100)
     y = rng.random(100)
     z = x + y
-    xs, ys, grid = interpolate_to_grid(x, y, z, resolution=16)
+    _xs, _ys, grid = interpolate_to_grid(x, y, z, resolution=16)
     assert grid.shape == (16, 16)
     assert np.isfinite(grid).any()
 
@@ -152,7 +152,7 @@ def test_interpolate_to_grid_shape_and_fills_interior():
 def test_interpolate_to_grid_collinear_falls_back_to_nearest():
     # Collinear points can't be triangulated by linear griddata; the helper
     # must fall back to "nearest" and still produce a full field.
-    xs, ys, grid = interpolate_to_grid([0, 0, 0], [0, 1, 2], [1, 2, 3], resolution=5)
+    _xs, _ys, grid = interpolate_to_grid([0, 0, 0], [0, 1, 2], [1, 2, 3], resolution=5)
     assert grid.shape == (5, 5)
     assert np.all(np.isfinite(grid))
 
@@ -165,7 +165,7 @@ def test_interpolate_to_grid_drops_non_finite_triples_without_raising():
     x = np.concatenate([rng.random(50), [np.nan]])
     y = np.concatenate([rng.random(50), [0.0]])
     z = np.concatenate([x[:50] + y[:50], [999.0]])
-    xs, ys, grid = interpolate_to_grid(x, y, z, resolution=10)
+    _xs, _ys, grid = interpolate_to_grid(x, y, z, resolution=10)
     assert grid.shape == (10, 10)
     assert np.isfinite(grid).any()
 
@@ -217,7 +217,7 @@ def test_filter_finite_xyz_fewer_than_3_points_raises():
 
 
 def test_filter_finite_xyz_exactly_3_points_is_ok():
-    x, y, z = filter_finite_xyz([0, 1, 2], [0, 1, 0], [10.0, 20.0, 30.0])
+    x, _y, _z = filter_finite_xyz([0, 1, 2], [0, 1, 0], [10.0, 20.0, 30.0])
     assert len(x) == 3
 
 

@@ -399,7 +399,7 @@ def test_heatmap_chart_can_mix_in_a_scatter_series():
 
     assert editor._colorbar is not None
     assert len(editor.chart_canvas.axes.collections) >= 2  # QuadMesh + scatter PathCollection
-    handles, labels = editor.chart_canvas.axes.get_legend_handles_labels()
+    _handles, labels = editor.chart_canvas.axes.get_legend_handles_labels()
     assert labels == ["Points of interest"]
 
 
@@ -429,7 +429,7 @@ def test_colormap_chart_can_mix_in_a_line_series():
     assert editor._colorbar is not None
     assert len(editor.chart_canvas.axes.lines) == 1
     assert len(editor.chart_canvas.axes.collections) >= 1  # the colormap scatter
-    handles, labels = editor.chart_canvas.axes.get_legend_handles_labels()
+    _handles, labels = editor.chart_canvas.axes.get_legend_handles_labels()
     assert labels == ["Trend"]
 
 
@@ -439,7 +439,7 @@ def test_switching_a_scatter_chart_to_colormap_does_not_retype_its_series():
     SCATTER series, since SCATTER is in both types' allowed_series_types --
     proving Chart.set_chart_type genuinely does not force-retype existing
     Scatter series when switching into Colormap."""
-    project, dataset = _project_and_dataset()
+    _project, dataset = _project_and_dataset()
     chart = Chart(name="Scatter Chart", chart_type="scatter")
     chart.data_series.append(DataSeries(
         dataset_id=dataset.id, x_column_id=dataset.column_id("x"),

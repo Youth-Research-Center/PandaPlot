@@ -73,7 +73,7 @@ class EditNoteCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to edit note: {e}"
-            self.logger.error("EditNoteCommand Error: %s", error_msg, exc_info=True)
+            self.logger.exception("EditNoteCommand Error: %s", error_msg)
             self.ui_controller.show_error_message("Edit Note Error", error_msg)
             return CommandResult.FAILURE
 
@@ -128,7 +128,7 @@ class EditNoteCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to undo edit note: {e}"
-            self.logger.error("EditNoteCommand Undo Error: %s", error_msg, exc_info=True)
+            self.logger.exception("EditNoteCommand Undo Error: %s", error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 
@@ -171,7 +171,7 @@ class EditNoteCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to redo edit note: {e}"
-            self.logger.error("EditNoteCommand Redo Error: %s", error_msg, exc_info=True)
+            self.logger.exception("EditNoteCommand Redo Error: %s", error_msg)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return CommandResult.FAILURE
 

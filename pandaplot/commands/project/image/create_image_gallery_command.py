@@ -1,5 +1,5 @@
 import uuid
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -16,7 +16,7 @@ class CreateImageGalleryCommand(Command):
     existing gallery, a nested album) in the project structure.
     """
 
-    def __init__(self, app_context: AppContext, gallery_name: Optional[str] = None, parent_id: Optional[str] = None):
+    def __init__(self, app_context: AppContext, gallery_name: str | None = None, parent_id: str | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -90,8 +90,8 @@ class CreateImageGalleryCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to create image gallery: {str(e)}"
-            self.logger.error("CreateImageGalleryCommand Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to create image gallery: {e!s}"
+            self.logger.exception("CreateImageGalleryCommand Error: %s", error_msg)
             self.ui_controller.show_error_message("Create Image Gallery Error", error_msg)
             return CommandResult.FAILURE
 
@@ -134,8 +134,8 @@ class CreateImageGalleryCommand(Command):
                 return CommandResult.NOOP
 
         except Exception as e:
-            error_msg = f"Failed to undo create image gallery: {str(e)}"
-            self.logger.error("CreateImageGalleryCommand Undo Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to undo create image gallery: {e!s}"
+            self.logger.exception("CreateImageGalleryCommand Undo Error: %s", error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 
@@ -169,8 +169,8 @@ class CreateImageGalleryCommand(Command):
                 return CommandResult.FAILURE
 
         except Exception as e:
-            error_msg = f"Failed to redo create image gallery: {str(e)}"
-            self.logger.error("CreateImageGalleryCommand Redo Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to redo create image gallery: {e!s}"
+            self.logger.exception("CreateImageGalleryCommand Redo Error: %s", error_msg)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return CommandResult.FAILURE
 

@@ -1,4 +1,5 @@
 from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items.column_role import ColumnRole
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.items.image import Image, ImageGallery
@@ -6,12 +7,13 @@ from pandaplot.models.project.items.item import Item, ItemCollection
 from pandaplot.models.project.items.note import Note
 
 __all__ = [
-    "Item",
-    "ItemCollection",
-    "Note",
     "Chart",
+    "ColumnRole",
     "Dataset",
     "Folder",
     "Image",
     "ImageGallery",
+    "Item",
+    "ItemCollection",
+    "Note",
 ]

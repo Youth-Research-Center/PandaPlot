@@ -1,7 +1,6 @@
 """Shared chart lookup for chart commands."""
 
 import logging
-from typing import Optional
 
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.models.project.items.chart import Chart
@@ -23,7 +22,7 @@ class ChartFinder:
     def __init__(self, app_context: AppContext):
         self.app_context = app_context
 
-    def find(self, chart_id: str) -> Optional[Chart]:
+    def find(self, chart_id: str) -> Chart | None:
         project = get_current_project(self.app_context)
         if project is None:
             return None

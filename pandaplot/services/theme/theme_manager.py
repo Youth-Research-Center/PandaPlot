@@ -16,8 +16,8 @@ accessibility themes, dynamic chart color palettes.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
@@ -25,6 +25,9 @@ from PySide6.QtWidgets import QApplication
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ConfigEvents, ThemeEvents
 from pandaplot.models.state.config import ApplicationConfig, Theme
+from pandaplot.services.theme.caret_icon import caret_icon_path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -37,7 +40,7 @@ class ThemeContext:
 
 
 class ThemeManager:
-    def __init__(self, event_bus: EventBus, config_provider, qt_app: Optional[QApplication] = None):
+    def __init__(self, event_bus: EventBus, config_provider, qt_app: QApplication | None = None):
         """Create manager.
 
         Args:
@@ -47,8 +50,8 @@ class ThemeManager:
         """
         self._bus = event_bus
         self._provider = config_provider
-        self._app: Optional[QApplication] = qt_app
-        self._current: Optional[ThemeContext] = None
+        self._app: QApplication | None = qt_app
+        self._current: ThemeContext | None = None
         # Subscribe to configuration lifecycle events
         self._bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
 
@@ -78,19 +81,182 @@ class ThemeManager:
 
     @staticmethod
     def _relative_luminance(color: QColor) -> float:
-        return (0.2126 * color.red() + 0.7152 * color.green() + 0.0722 * color.blue()) / 255.0
+        """WCAG 2.x relative luminance (gamma-corrected per channel)."""
+        def channel(v: int) -> float:
+            c = v / 255.0
+            return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+        r, g, b = channel(color.red()), channel(color.green()), channel(color.blue())
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
     @classmethod
-    def _contrasting_text_color(cls, accent: QColor, theme: Theme) -> QColor:
-        """Pick black or white text so it stays legible against ``accent``."""
+    def _contrasting_text_color(cls, accent: QColor) -> QColor:
+        """Pick whichever of black/white has the higher WCAG contrast ratio
+        against `accent`, so it stays legible regardless of the app's
+        light/dark theme setting -- theme doesn't affect how legible text
+        is against a given background color.
+
+        Previously branched on theme too ("light theme prefers black text
+        down to luminance 0.25"), which picked black for the default accent
+        (#4A56C6) in light theme -- 3.44:1 contrast, below the WCAG 4.5:1
+        minimum for normal text -- even though white gives 6.11:1 there.
+        Reported live on the primary button; the same bug was independently
+        found and fixed for the context-menu selected-item text, but that
+        fix was scoped to a separate helper to avoid touching this method's
+        other call sites without evidence they were also affected. They
+        were -- so this replaces the heuristic here instead of duplicating
+        the correct logic a third time.
+        """
         lum = cls._relative_luminance(accent)
-        if lum > 0.6:
-            return QColor(0, 0, 0)
-        # Light theme favors dark text unless the accent is extremely dark
-        # (lum < 0.25), where white text is still needed for contrast.
-        if theme != Theme.DARK and lum >= 0.25:
-            return QColor(0, 0, 0)
-        return QColor(255, 255, 255)
+        white_contrast = (1.0 + 0.05) / (lum + 0.05)
+        black_contrast = (lum + 0.05) / (0.0 + 0.05)
+        return QColor(255, 255, 255) if white_contrast >= black_contrast else QColor(0, 0, 0)
+
+    @staticmethod
+    def _combo_box_rules(tokens: dict, *, accent: str, selected_text: str) -> str:
+        """QSS for the app-wide dropdown (QComboBox) style.
+
+        Every combo box -- sidebar panels, dialogs and wizards -- gets this one
+        look, so a dialog must not restyle ``QComboBox`` itself. Where the list
+        opens is not a stylesheet matter (macOS opens a native menu over the
+        field whatever the QSS says); ``DropDownComboBox`` takes care of that.
+        Styling ``::drop-down`` removes Qt's own arrow, so a caret in the
+        theme's muted text colour is supplied (a hint-coloured one while
+        disabled).
+
+        Args:
+            tokens: Design tokens from ``get_design_tokens()``.
+            accent: Accent colour used for the hover/focus border and selection.
+            selected_text: Legible text colour on top of ``accent``.
+
+        Returns:
+            The QSS block for ``QComboBox`` and its popup list.
+        """
+        caret = caret_icon_path(tokens["text_muted"])
+        caret_disabled = caret_icon_path(tokens["text_hint"])
+        return f"""
+            QComboBox {{
+                background-color: {tokens['surface_white']};
+                color: {tokens['text_primary']};
+                border: 1px solid {tokens['border_control']};
+                border-radius: {tokens['radius_control']}px;
+                padding: 4px 8px;
+                min-height: 18px;
+            }}
+            QComboBox:hover, QComboBox:focus, QComboBox:on {{
+                border-color: {accent};
+            }}
+            QComboBox:disabled {{
+                background-color: {tokens['surface_inset']};
+                color: {tokens['text_hint']};
+                border-color: {tokens['border_subtle']};
+            }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: center right;
+                width: 22px;
+                border: none;
+            }}
+            QComboBox::down-arrow {{
+                image: url("{caret}");
+                width: 12px;
+                height: 12px;
+            }}
+            QComboBox::down-arrow:disabled {{
+                image: url("{caret_disabled}");
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: {tokens['surface_white']};
+                color: {tokens['text_primary']};
+                border: 1px solid {tokens['border_control']};
+                outline: none;
+                padding: 2px;
+                selection-background-color: {accent};
+                selection-color: {selected_text};
+            }}
+            QComboBox QAbstractItemView::item {{
+                min-height: 22px;
+                padding: 2px 8px;
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: {accent};
+                color: {selected_text};
+            }}
+        """
+
+    @staticmethod
+    def _number_input_rules(tokens: dict, *, accent: str) -> str:
+        """QSS for ``DecimalInput`` / ``IntegerInput`` (``QFrame[numberInput]``).
+
+        The frame draws the field border so the ``-`` / ``+`` buttons, the
+        number and the unit read as one control; the inner line edit is
+        flat (``NumberInput`` sets that on the edit itself). The frame carries ``focused`` and ``invalid`` dynamic
+        properties because a stylesheet cannot style a parent by its child's
+        focus.
+
+        Args:
+            tokens: Design tokens from ``get_design_tokens()``.
+            accent: Accent colour for the hover and focus border.
+
+        Returns:
+            The QSS block for the number inputs and their parts.
+        """
+        return f"""
+            QFrame[numberInput="true"] {{
+                background-color: {tokens['surface_white']};
+                border: 1px solid {tokens['border_control']};
+                border-radius: {tokens['radius_control']}px;
+            }}
+            QFrame[numberInput="true"]:hover, QFrame[numberInput="true"][focused="true"] {{
+                border-color: {accent};
+            }}
+            QFrame[numberInput="true"][invalid="true"] {{
+                border-color: {tokens['status_danger']};
+            }}
+            QFrame[numberInput="true"]:disabled {{
+                background-color: {tokens['surface_inset']};
+                border-color: {tokens['border_subtle']};
+            }}
+            QFrame[numberInput="true"] QLineEdit {{
+                color: {tokens['text_primary']};
+            }}
+            QFrame[numberInput="true"] QLineEdit:disabled {{
+                color: {tokens['text_hint']};
+            }}
+            QFrame[numberInput="true"] QLabel#numberInputSuffix {{
+                background-color: transparent;
+                border: none;
+                color: {tokens['text_muted']};
+                padding-right: 6px;
+            }}
+            QFrame[numberInput="true"] QToolButton {{
+                background-color: transparent;
+                border: none;
+                color: {tokens['text_secondary']};
+                font-size: 15px;
+                font-weight: 600;
+            }}
+            QFrame[numberInput="true"] QToolButton:hover {{
+                background-color: {tokens['surface_inset']};
+                color: {tokens['text_primary']};
+            }}
+            QFrame[numberInput="true"] QToolButton:pressed {{
+                background-color: {tokens['surface_chrome']};
+            }}
+            QFrame[numberInput="true"] QToolButton:disabled {{
+                color: {tokens['text_hint']};
+            }}
+            QFrame[numberInput="true"] QToolButton#numberInputDecrease {{
+                border-right: 1px solid {tokens['border_subtle']};
+                border-top-left-radius: {tokens['radius_control'] - 1}px;
+                border-bottom-left-radius: {tokens['radius_control'] - 1}px;
+            }}
+            QFrame[numberInput="true"] QToolButton#numberInputIncrease {{
+                border-left: 1px solid {tokens['border_subtle']};
+                border-top-right-radius: {tokens['radius_control'] - 1}px;
+                border-bottom-right-radius: {tokens['radius_control'] - 1}px;
+            }}
+        """
 
     def build_stylesheet(self, ctx: ThemeContext) -> str:
         accent = ctx.accent
@@ -103,9 +269,9 @@ class ThemeManager:
                 # Derive hover / pressed variants
                 hover = c.lighter(110).name()
                 pressed = c.darker(115).name()
-                text_color = self._contrasting_text_color(c, ctx.theme).name()
-        except Exception:  # noqa: BLE001
-            pass
+                text_color = self._contrasting_text_color(c).name()
+        except Exception:
+            logger.debug("Could not derive hover/pressed/text colors from accent %r; using fallback", accent, exc_info=True)
 
         tokens = self.get_design_tokens()
         danger = tokens["status_danger"]
@@ -114,8 +280,15 @@ class ThemeManager:
             dc = QColor(danger)
             if dc.isValid():
                 danger_pressed = dc.darker(115).name()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception:
+            logger.debug("Could not derive danger_pressed color from %r; using fallback", danger, exc_info=True)
+
+        # accent_disabled is a lightened, still fairly saturated variant of
+        # accent (e.g. #7683FF for the default #4A56C6) -- text_hint (a
+        # muted gray meant for text on a plain surface) has only ~1.2:1
+        # contrast against it, effectively invisible. Same fix as the
+        # enabled button: pick whichever of black/white actually contrasts.
+        disabled_text_color = self._contrasting_text_color(QColor(tokens["accent_disabled"])).name()
 
         shared_widget_rules = f"""
             QFrame[card="true"] {{
@@ -175,12 +348,8 @@ class ThemeManager:
                 border: none;
                 color: {tokens['text_muted']};
             }}
-            QComboBox {{
-                padding: 4px 8px;
-            }}
-            QComboBox QAbstractItemView::item {{
-                padding: 4px 8px;
-            }}
+            {self._combo_box_rules(tokens, accent=accent, selected_text=text_color)}
+            {self._number_input_rules(tokens, accent=accent)}
             QMessageBox QPushButton, QDialogButtonBox QPushButton {{
                 color: {tokens['text_primary']};
                 background-color: {tokens['surface_white']};
@@ -263,7 +432,7 @@ class ThemeManager:
             QPushButton[primary="true"]:disabled {{
                 background-color: {tokens['accent_disabled']};
                 border-color: {tokens['accent_disabled']};
-                color: {tokens['text_hint']};
+                color: {disabled_text_color};
             }}
             QTabBar::tab:selected {{ color: {accent}; }}
         """ + shared_widget_rules
@@ -282,7 +451,7 @@ class ThemeManager:
         accent = QColor(ctx.accent)
         if not accent.isValid():
             accent = QColor(74, 86, 198)
-        highlighted_text = self._contrasting_text_color(accent, ctx.theme)
+        highlighted_text = self._contrasting_text_color(accent)
         # Muted variant of fg, halfway to bg, so placeholder text is visibly
         # distinct from real text but still legible against the background.
         placeholder = QColor(
@@ -310,43 +479,33 @@ class ThemeManager:
         self._app.setFont(f)
 
     def get_surface_palette(self) -> dict:
-        if not self._current:
-            return {
-                "card_bg": "#f8f9fa",
-                "card_hover": "#e9ecef",
-                "card_pressed": "#dee2e6",
-                "card_border": "#dee2e6",
-                "base_fg": "#000000",
-                "secondary_fg": "#555555",
-                "accent": "#4A90E2",
-            }
-        ctx = self._current
-        if ctx.theme == Theme.DARK:
-            return {
-                "card_bg": "#2a2c2e",
-                "card_hover": "#323437",
-                "card_pressed": "#3a3d40",
-                "card_border": "#404347",
-                "base_fg": "#e2e2e2",
-                "secondary_fg": "#a8adb2",
-                "accent": ctx.accent,
-            }
+        """Derived view over get_design_tokens() for callers that only need
+        the original small 7-key shape -- kept as a single source of truth
+        so the two can never drift out of sync (see get_design_tokens()).
+        card_hover/card_pressed are derived from surface_white via
+        QColor.darker() rather than reusing surface_inset/surface_chrome
+        directly, since those tokens serve a different purpose (chrome/inset
+        surfaces) and aren't guaranteed to sit in a monotonically-darkening
+        order relative to each other."""
+        tokens = self.get_design_tokens()
+        bg = QColor(tokens["surface_white"])
+        card_hover = bg.darker(110).name() if bg.isValid() else tokens["surface_inset"]
+        card_pressed = bg.darker(115).name() if bg.isValid() else tokens["surface_chrome"]
         return {
-            "card_bg": "#f8f9fa",
-            "card_hover": "#e9ecef",
-            "card_pressed": "#dee2e6",
-            "card_border": "#dee2e6",
-            "base_fg": "#000000",
-            "secondary_fg": "#555555",
-            "accent": ctx.accent,
+            "card_bg": tokens["surface_white"],
+            "card_hover": card_hover,
+            "card_pressed": card_pressed,
+            "card_border": tokens["border_control"],
+            "base_fg": tokens["text_primary"],
+            "secondary_fg": tokens["text_secondary"],
+            "accent": tokens["accent"],
         }
 
     def get_design_tokens(self) -> dict:
         """Full token set for the chart-properties redesign's shared widgets.
 
-        Superset of get_surface_palette(); both stay in sync with the
-        current ThemeContext (theme + accent) so callers always see the
-        user's live theme/accent choice.
+        get_surface_palette() is a derived view over this method's return
+        value, not a separate dict -- this is the single source of truth.
         """
         accent = self._current.accent if self._current else "#4A56C6"
         is_dark = self._current is not None and self._current.theme == Theme.DARK
@@ -370,6 +529,7 @@ class ThemeManager:
                 "y2_accent": "#B27FD1", "y2_accent_bg": "#3A2E45",
                 "series_palette": ["#C24141", "#6B77E8", "#3F9BB0", "#3FA46A", "#E09A1F"],
                 "radius_swatch": 4, "radius_control": 5, "radius_card": 6, "radius_chip": 12,
+                "font_size_group_title": 9,
             }
         return {
             "text_primary": "#1C1E26", "text_secondary": "#3F4350",
@@ -385,7 +545,28 @@ class ThemeManager:
             "y2_accent": "#8A4BB8", "y2_accent_bg": "#F5EEFB",
             "series_palette": ["#A01818", "#4A56C6", "#2B7A8C", "#3FA46A", "#E09A1F"],
             "radius_swatch": 4, "radius_control": 5, "radius_card": 6, "radius_chip": 12,
+            "font_size_group_title": 9,
         }
+
+    def build_context_menu_stylesheet(self) -> str:
+        """Shared QSS for right-click context menus (dataset cell/column/row
+        headers, project tree) -- kept separate from build_stylesheet()'s
+        app-wide QPushButton rules since QMenu instances are styled
+        per-instance rather than through the global QApplication stylesheet.
+        """
+        tokens = self.get_design_tokens()
+        selected_text_color = self._contrasting_text_color(QColor(tokens["accent"])).name()
+        return f"""
+            QMenu {{
+                background-color: {tokens['surface_white']};
+                color: {tokens['text_primary']};
+                border: 1px solid {tokens['border_control']};
+            }}
+            QMenu::item:selected {{
+                background-color: {tokens['accent']};
+                color: {selected_text_color};
+            }}
+        """
 
     def _on_config_event(self, data):  # signature per EventBus
         cfg = data.get("config")
@@ -394,4 +575,4 @@ class ThemeManager:
         self.apply_from_config(cfg)
 
 
-__all__ = ["ThemeManager", "ThemeContext"]
+__all__ = ["ThemeContext", "ThemeManager"]

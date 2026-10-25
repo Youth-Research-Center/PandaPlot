@@ -1,7 +1,7 @@
 """Step 2 of the chart creation wizard: one or more series, each configured
 by a collapsible SeriesConfigCard, plus a 'Create empty plot' escape hatch.
 """
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QScrollArea, QVBoxLayout, QWidget
@@ -20,12 +20,12 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class ChartDataPage(PWizardPage):
     emptyRequested = Signal()
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.cards: list[SeriesConfigCard] = []
         self._chart_type: str = "line"
         self._datasets: list[tuple[str, str]] = []
-        self._columns_provider: Optional[Callable[[str], list[tuple[str, str]]]] = None
+        self._columns_provider: Callable[[str], list[tuple[str, str]]] | None = None
         self._initialize()
 
     def _init_ui(self):

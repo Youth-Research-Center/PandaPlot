@@ -5,7 +5,7 @@ written report note), with undo/redo support.
 """
 
 import uuid
-from typing import List, Optional, override
+from typing import override
 
 from pandaplot.analysis import DescriptiveStatsEngine, DescriptiveStatsResult
 from pandaplot.commands.base_command import Command, CommandResult
@@ -27,12 +27,12 @@ class DescriptiveStatsCommand(Command):
         self,
         app_context: AppContext,
         source_dataset_id: str,
-        column_names: List[str],
+        column_names: list[str],
         digits: int = 6,
         *,
         include_report: bool = True,
-        result_name: Optional[str] = None,
-        folder_id: Optional[str] = None,
+        result_name: str | None = None,
+        folder_id: str | None = None,
     ):
         super().__init__()
         self.app_context = app_context
@@ -47,9 +47,9 @@ class DescriptiveStatsCommand(Command):
         self.folder_id = folder_id
 
         # State for undo/redo.
-        self.result_dataset_id: Optional[str] = None
-        self.report_note_id: Optional[str] = None
-        self.result: Optional[DescriptiveStatsResult] = None
+        self.result_dataset_id: str | None = None
+        self.report_note_id: str | None = None
+        self.result: DescriptiveStatsResult | None = None
 
     def compute(self) -> DescriptiveStatsResult:
         """Compute the statistics and return the result without touching the project.
@@ -126,7 +126,7 @@ class DescriptiveStatsCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            self.logger.error("Descriptive statistics failed: %s", e, exc_info=True)
+            self.logger.exception("Descriptive statistics failed")
             self.ui_controller.show_error_message("Descriptive Statistics Error", str(e))
             return CommandResult.FAILURE
 
@@ -163,8 +163,8 @@ class DescriptiveStatsCommand(Command):
 
             self.logger.info("Undone descriptive stats results '%s'", self.result_dataset_id)
             return CommandResult.SUCCESS
-        except Exception as e:
-            self.logger.error("Failed to undo descriptive statistics: %s", e, exc_info=True)
+        except Exception:
+            self.logger.exception("Failed to undo descriptive statistics")
             return CommandResult.FAILURE
 
     @override
@@ -180,7 +180,7 @@ class DescriptiveStatsCommand(Command):
         self.report_note_id = None
         self.result = None
 
-    def _get_source_dataset(self) -> Optional[Dataset]:
+    def _get_source_dataset(self) -> Dataset | None:
         project = get_current_project(self.app_context)
         if not project:
             return None

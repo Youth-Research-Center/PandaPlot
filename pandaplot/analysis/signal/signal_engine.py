@@ -8,7 +8,8 @@ methods and returning structured results for the guided UI.
 from __future__ import annotations
 
 import logging
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import pandas as pd
 

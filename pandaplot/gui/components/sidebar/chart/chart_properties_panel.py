@@ -1,9 +1,8 @@
 """Chart properties side panel for configuring chart appearance and data."""
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QScrollArea,
     QTabWidget,
     QVBoxLayout,
@@ -12,6 +11,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.commands.project.chart import ApplyChartPropertiesCommand
 from pandaplot.gui.components.common.dirty_footer import DirtyFooter
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.sidebar.chart.tabs.axes_tab import AxesTab
 from pandaplot.gui.components.sidebar.chart.tabs.chart_tab import ChartTab
 from pandaplot.gui.components.sidebar.chart.tabs.data_tab import DataTab
@@ -19,6 +19,7 @@ from pandaplot.gui.components.sidebar.chart.tabs.legend_tab import LegendTab
 from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
+from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.project.items.chart import restore_chart_state, snapshot_chart_state
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -28,7 +29,7 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class ChartPropertiesPanel(SidebarPanel):
     """Side panel for configuring chart properties."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.command_executor = app_context.command_executor
         self.current_project = None
@@ -38,7 +39,7 @@ class ChartPropertiesPanel(SidebarPanel):
         self._has_unsaved_changes: bool = False
         # Baseline for Cancel and for Apply's undo: the chart state as of the
         # last load into this panel or the last Apply.
-        self._loaded_snapshot: Optional[dict] = None
+        self._loaded_snapshot: dict | None = None
 
         self._initialize()
 
@@ -55,7 +56,7 @@ class ChartPropertiesPanel(SidebarPanel):
         # `tab_selector_combo` (a dropdown driving the same pages) instead of
         # letting Qt shrink/elide/scroll the tab labels.
         self._tab_titles = ["Chart", "Data", "Style", "Axes", "Legend"]
-        self.tab_selector_combo = QComboBox(self)
+        self.tab_selector_combo = DropDownComboBox(self)
         self.tab_selector_combo.addItems(self._tab_titles)
         self.tab_selector_combo.setVisible(False)
         self.tab_selector_combo.currentIndexChanged.connect(self._on_tab_selector_combo_changed)
@@ -97,7 +98,7 @@ class ChartPropertiesPanel(SidebarPanel):
         self.data_tab.chartDataChanged.connect(self._on_chart_data_changed)
         self.data_tab.seriesSelected.connect(lambda kind, obj: self.style_tab.set_selected(kind, obj))
         self.data_tab.seriesListChanged.connect(
-            lambda ds, fd: self.style_tab.set_series_list(ds, fd, self.data_tab.selected_index)
+            lambda ds: self.style_tab.set_series_list(ds, self.data_tab.selected_index)
         )
         self.data_tab.axesRefreshRequested.connect(self._on_axes_refresh_requested)
         self.style_tab.seriesChipSelected.connect(self.data_tab._expand_series)
@@ -177,7 +178,8 @@ class ChartPropertiesPanel(SidebarPanel):
         """Apply theme styling to all components."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        
+        tokens = theme_manager.get_design_tokens()
+
         # Get theme colors with fallbacks
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
@@ -192,7 +194,7 @@ class ChartPropertiesPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;
@@ -238,7 +240,6 @@ class ChartPropertiesPanel(SidebarPanel):
         """)
         
         # Footer (DirtyFooter) theme token propagation
-        tokens = theme_manager.get_design_tokens()
         self.footer.set_tokens(tokens)
         self.chart_tab.apply_theme(tokens)
 
@@ -337,7 +338,7 @@ class ChartPropertiesPanel(SidebarPanel):
         if not self.current_chart or chart_id != self.current_chart.id or series_index is None:
             return
 
-        total_items = len(self.current_chart.data_series) + len(self.current_chart.fit_data)
+        total_items = len(self.current_chart.data_series)
         if 0 <= series_index < total_items:
             self.data_tab._expand_series(series_index)
 
@@ -381,10 +382,10 @@ class ChartPropertiesPanel(SidebarPanel):
             return
         self._has_unsaved_changes = True
         self._update_status_indicator()
-        self.publish_event(ChartEvents.CHART_UPDATED, {
-            "chart_id": self.current_chart.id,
-            "update_type": "config_updated",
-        })
+        self.publish_event(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+            chart_id=self.current_chart.id,
+            update_type="config_updated",
+        ).to_dict())
 
     def _on_dirty_only(self):
         """Mark dirty and refresh the footer without publishing
@@ -467,10 +468,10 @@ class ChartPropertiesPanel(SidebarPanel):
             return
         restore_chart_state(self.current_chart, self._loaded_snapshot)
         self.load_chart_object(self.current_chart)
-        self.publish_event(ChartEvents.CHART_UPDATED, {
-            "chart_id": self.current_chart.id,
-            "update_type": "config_updated",
-        })
+        self.publish_event(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+            chart_id=self.current_chart.id,
+            update_type="config_updated",
+        ).to_dict())
     
     def load_chart_object(self, chart):
         """Load a Chart object into the panel for editing.
@@ -541,12 +542,16 @@ class ChartPropertiesPanel(SidebarPanel):
         # apply -- a freshly-bootstrapped series is never touched by
         # `apply_series_style_to` here.
         current_row = self.data_tab.selected_index
-        if current_row >= 0:
-            total_series = len(chart.data_series)
+        if 0 <= current_row < len(chart.data_series):
+            series = chart.data_series[current_row]
+            if series.is_fit:
+                self.style_tab.apply_fit_style_to(series)
 
-            if current_row < total_series:
-                # Update data series
-                series = chart.data_series[current_row]
+                self.logger.debug(
+                    "Applied style to fit data %d: %s (color=%s)",
+                    current_row, series.label, series.style.color
+                )
+            else:
                 self.style_tab.apply_series_style_to(series)
 
                 self.logger.debug(
@@ -555,17 +560,6 @@ class ChartPropertiesPanel(SidebarPanel):
                     getattr(series.style, "color", None),
                     getattr(getattr(series.style, "marker", None), "marker_color", None),
                 )
-            else:
-                # Update fit data
-                fit_index = current_row - total_series
-                if 0 <= fit_index < len(chart.fit_data):
-                    fit = chart.fit_data[fit_index]
-                    self.style_tab.apply_fit_style_to(fit)
-
-                    self.logger.debug(
-                        "Applied style to fit data %d: %s (color=%s)",
-                        fit_index, fit.label, fit.style.color
-                    )
 
         # Data-tab-owned fields: re-asserts the selected series' y_axis, and
         # creates a default series (dataset/x/y/label/y_axis) if none exist

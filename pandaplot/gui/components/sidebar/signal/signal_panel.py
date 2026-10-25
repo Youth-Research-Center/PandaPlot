@@ -1,7 +1,6 @@
-from typing import List, Optional, override
+from typing import override
 
 from PySide6.QtWidgets import (
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -18,6 +17,7 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
 )
 from pandaplot.commands.project.dataset.signal_analysis_command import SignalAnalysisCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
@@ -35,14 +35,14 @@ class SignalPanel(SidebarPanel):
     def __init__(
         self,
         app_context: AppContext,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(app_context=app_context, parent=parent)
 
-        self.current_dataset: Optional[Dataset] = None
-        self.current_dataset_id: Optional[str] = None
+        self.current_dataset: Dataset | None = None
+        self.current_dataset_id: str | None = None
 
-        self.last_result: Optional[SignalAnalysisResult] = None
+        self.last_result: SignalAnalysisResult | None = None
         self._last_run_params = None
         self._pending_command = None
 
@@ -63,7 +63,7 @@ class SignalPanel(SidebarPanel):
         group = QGroupBox("Analysis")
         form = QFormLayout()
 
-        self.analysis_combo = QComboBox()
+        self.analysis_combo = DropDownComboBox()
 
         for analysis_type, info in SIGNAL_ANALYSES.items():
             self.analysis_combo.addItem(
@@ -92,7 +92,7 @@ class SignalPanel(SidebarPanel):
 
         layout.addWidget(self.input_group)
 
-        self.column_combo = QComboBox()
+        self.column_combo = DropDownComboBox()
         self.input_layout.addRow(
             "Signal column:",
             self.column_combo
@@ -188,7 +188,7 @@ class SignalPanel(SidebarPanel):
         self.prominence_spin = widgets.get("prominence")
         self.threshold_spin = widgets.get("threshold")
 
-    def _numeric_columns(self) -> List[str]:
+    def _numeric_columns(self) -> list[str]:
         if not self.current_dataset or self.current_dataset.data is None:
             return []
 
@@ -360,7 +360,7 @@ class SignalPanel(SidebarPanel):
             try:
                 self.results_text.setText(self._format_result(result))
                 self.add_btn.setEnabled(True)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
@@ -493,6 +493,7 @@ class SignalPanel(SidebarPanel):
     def _apply_theme(self):
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
+        tokens = theme_manager.get_design_tokens()
 
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
@@ -501,7 +502,7 @@ class SignalPanel(SidebarPanel):
         self.setStyleSheet(f"""
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;

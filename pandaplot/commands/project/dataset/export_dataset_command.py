@@ -1,5 +1,6 @@
 import os
-from typing import Any, Callable, Tuple, override
+from collections.abc import Callable
+from typing import Any, ClassVar, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -15,7 +16,7 @@ class ExportDatasetCommand(Command):
     Command to export dataset to various file formats supported by pandas.
     """
 
-    SUPPORTED_FORMATS = {
+    SUPPORTED_FORMATS: ClassVar[dict[str, dict[str, Any]]] = {
         "CSV (Comma Separated Values)": {
             "extension": ".csv",
             "method": "to_csv",
@@ -168,8 +169,8 @@ class ExportDatasetCommand(Command):
             return CommandResult.SUCCESS  # Command initiated successfully
             
         except Exception as e:
-            error_msg = f"Failed to export dataset: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Failed to export dataset: {e!s}"
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Export Dataset Error", error_msg)
             return CommandResult.FAILURE
 
@@ -260,8 +261,8 @@ class ExportDatasetCommand(Command):
             return {"success": True, "error": None, "path": self.export_path}
             
         except Exception as e:
-            error_msg = f"Error during data export: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Error during data export: {e!s}"
+            self.logger.exception(error_msg)
             return {"success": False, "error": error_msg, "path": None}
 
     def _on_export_result(self, result: dict):
@@ -282,23 +283,23 @@ class ExportDatasetCommand(Command):
                 self.logger.error(f"Export failed: {error_msg}")
                 
         except Exception as e:
-            self.logger.error(f"Error handling export result: {e}", exc_info=True)
-            self.ui_controller.show_error_message("Export Error", f"Error processing export result: {str(e)}")
+            self.logger.exception("Error handling export result")
+            self.ui_controller.show_error_message("Export Error", f"Error processing export result: {e!s}")
 
-    def _on_export_error(self, error_info: Tuple[Any, Any, str]):
+    def _on_export_error(self, error_info: tuple[Any, Any, str]):
         """Handle error during export task."""
         try:
             self.is_exporting = False
             error_type, error_value, error_traceback = error_info
-            error_msg = f"Export failed with {error_type.__name__}: {str(error_value)}"
+            error_msg = f"Export failed with {error_type.__name__}: {error_value!s}"
             
             self.logger.error(f"Export task error: {error_msg}")
             self.logger.error(f"Traceback: {error_traceback}")
             
             self.ui_controller.show_error_message("Export Error", error_msg)
             
-        except Exception as e:
-            self.logger.error(f"Error handling export error: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error handling export error")
 
     def _on_export_finished(self):
         """Handle completion of export task (success or failure)."""
@@ -306,8 +307,8 @@ class ExportDatasetCommand(Command):
             self.is_exporting = False
             self.logger.info("Export task finished")
             
-        except Exception as e:
-            self.logger.error(f"Error in export finished handler: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error in export finished handler")
 
     def _on_export_progress(self, progress: float):
         """Handle progress updates from export task."""
@@ -318,8 +319,8 @@ class ExportDatasetCommand(Command):
                 percentage = int(progress * 100)
                 self.logger.debug(f"Export progress: {percentage}%")
                 
-        except Exception as e:
-            self.logger.error(f"Error handling export progress: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error handling export progress")
 
     @override
     def occupies_undo_slot(self) -> bool:

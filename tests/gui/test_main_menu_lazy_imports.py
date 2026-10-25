@@ -11,5 +11,5 @@ def test_main_menu_does_not_import_matplotlib_or_scipy_eagerly():
         "assert 'matplotlib' not in sys.modules, 'matplotlib was imported eagerly'; "
         "assert 'scipy' not in sys.modules, 'scipy was imported eagerly'"
     )
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr

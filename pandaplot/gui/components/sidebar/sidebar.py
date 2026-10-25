@@ -1,4 +1,4 @@
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import QHBoxLayout, QWidget
@@ -22,7 +22,7 @@ class CollapsibleSidebar(PWidget):
         self.default_width = width
         self.collapsed_width = collapsed_width
         self.is_collapsed: bool = False
-        self.active_panel: Optional[str] = None
+        self.active_panel: str | None = None
         self.last_width: int = width
         self.auto_collapse_threshold: int = 100
         self.auto_expand_threshold: int = 60
@@ -184,7 +184,7 @@ class CollapsibleSidebar(PWidget):
         """Handle theme changes by reapplying sidebar styling."""
         try:
             self._apply_theme()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.logger.warning("Failed applying theme change to sidebar: %s", e)
 
     @override
@@ -196,7 +196,14 @@ class CollapsibleSidebar(PWidget):
         # Get theme-appropriate colors
         panel_bg = palette.get("card_bg", "#ffffff")
         
-        # Apply theme to sidebar background
-        self.setStyleSheet(f"QWidget {{ background-color: {panel_bg}; }}")
+        # Apply theme to sidebar background. Scoped to CollapsibleSidebar's own
+        # type rather than the generic "QWidget" selector -- a widget-level
+        # style sheet overrides the QApplication-wide one for any property it
+        # sets, regardless of selector specificity, so a bare "QWidget" rule
+        # here was clobbering the background-color every descendant QPushButton
+        # (Apply, Add to Project, ...) gets from the global [primary="true"]
+        # etc. rules, leaving only their border/text colors -- drawn for a
+        # colored fill -- visible against a plain white background.
+        self.setStyleSheet(f"CollapsibleSidebar {{ background-color: {panel_bg}; }}")
         
             

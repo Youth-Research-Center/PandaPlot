@@ -15,6 +15,7 @@ from pandaplot.gui.components.sidebar.chart_analysis.chart_analysis_panel import
     ChartAnalysisPanel,
 )
 from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -49,6 +50,7 @@ def project():
 def app_context(project):
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
     app_state = Mock(spec=AppState)
     app_state.current_project = project
     ctx.get_app_state.return_value = app_state
@@ -119,9 +121,9 @@ class TestChartAnalysisPanelSeriesFiltering:
 
     def test_fit_curves_are_offered_even_when_every_series_is_excluded(self, panel):
         panel.current_chart.data_series[0].series_type = SeriesType.HEATMAP
-        panel.current_chart.add_fit_data(
-            source_dataset_id="ds-1", fit_type="linear",
-            x_data=[1.0, 2.0, 3.0], y_data=[1.0, 2.0, 3.0], label="Fit 1",
+        panel.current_chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0, 3.0]), y_data=np.array([1.0, 2.0, 3.0]),
+            label="Fit 1", style=FitStyle(fit_type="linear"),
         )
 
         panel._populate_sources()
@@ -165,21 +167,21 @@ class TestChartAnalysisPanelSeriesSelectedEvent:
             {"chart_id": "chart-1", "kind": "series", "index": 1}
         )
 
-        assert panel.source_combo.currentData() == ("series", 1)
+        assert panel.source_combo.currentData() == 1
 
     def test_fit_click_selects_matching_combo_row(self, panel):
-        panel.current_chart.add_fit_data(
-            source_dataset_id="ds-1", fit_type="linear",
-            x_data=[1.0, 2.0, 3.0], y_data=[1.0, 2.0, 3.0], label="Fit 1",
+        panel.current_chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0, 3.0]), y_data=np.array([1.0, 2.0, 3.0]),
+            label="Fit 1", style=FitStyle(fit_type="linear"),
         )
         panel._populate_sources()
         panel.source_combo.setCurrentIndex(0)
 
         panel._on_series_selected_event(
-            {"chart_id": "chart-1", "kind": "fit", "index": 0}
+            {"chart_id": "chart-1", "kind": "fit", "index": 1}
         )
 
-        assert panel.source_combo.currentData() == ("fit", 0)
+        assert panel.source_combo.currentData() == 1
 
     def test_ignores_event_for_a_different_chart(self, panel):
         panel.source_combo.setCurrentIndex(0)

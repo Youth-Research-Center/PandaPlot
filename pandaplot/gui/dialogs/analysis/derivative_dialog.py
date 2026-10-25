@@ -2,11 +2,12 @@
 Dialog for derivative analysis configuration.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any
 
-from PySide6.QtWidgets import QComboBox, QFormLayout, QGroupBox
+from PySide6.QtWidgets import QFormLayout, QGroupBox
 
 from pandaplot.analysis import AnalysisEngine, AnalysisType
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 
 from .base_analysis_dialog import BaseAnalysisDialog
 
@@ -16,7 +17,7 @@ class DerivativeDialog(BaseAnalysisDialog):
     Dialog for configuring derivative calculations.
     """
     
-    def __init__(self, parent, dataset, default_y_column: Optional[str] = None):
+    def __init__(self, parent, dataset, default_y_column: str | None = None):
         super().__init__(parent, dataset, default_y_column)
         self.setWindowTitle("Calculate Derivative")
         
@@ -32,7 +33,7 @@ class DerivativeDialog(BaseAnalysisDialog):
         layout = QFormLayout()
         
         # Method selection
-        self.method_combo = QComboBox()
+        self.method_combo = DropDownComboBox()
         self.method_combo.addItems([
             "Central Difference",
             "Forward Difference", 
@@ -91,10 +92,10 @@ class DerivativeDialog(BaseAnalysisDialog):
             
             self.preview_text.setText(preview_text)
             
-        except Exception as e:
-            self.preview_text.setText(f"Preview error: {str(e)}")
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            self.preview_text.setText(f"Preview error: {e!s}")
     
-    def get_analysis_config(self) -> Dict[str, Any]:
+    def get_analysis_config(self) -> dict[str, Any]:
         """Get derivative analysis configuration."""
         config = super().get_analysis_config()
         

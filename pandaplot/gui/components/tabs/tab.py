@@ -124,6 +124,7 @@ class CustomTabWidget(PTabWidget):
         """Apply theme-specific styling to the tab widget based on current theme."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
+        tokens = theme_manager.get_design_tokens()
 
         # Get theme-appropriate colors
         card_bg = palette.get("card_bg", "#f8f9fa")
@@ -151,6 +152,11 @@ class CustomTabWidget(PTabWidget):
         self._drop_overlay.setStyleSheet(
             f"background-color: rgba({overlay_r}, {overlay_g}, {overlay_b}, 90);"
         )
+
+        danger = tokens.get("status_danger", "#DC3545")
+        danger_color = QColor(danger)
+        danger_hover = danger_color.lighter(110).name() if danger_color.isValid() else danger
+        danger_pressed = danger_color.darker(115).name() if danger_color.isValid() else danger
 
         self.setStyleSheet(f"""
             QTabWidget::pane {{
@@ -193,12 +199,12 @@ class CustomTabWidget(PTabWidget):
                 margin: 2px;
             }}
             QTabBar::close-button:hover {{
-                background-color: #FF6B6B;
-                border-color: #FF5252;
+                background-color: {danger};
+                border-color: {danger_hover};
             }}
             QTabBar::close-button:pressed {{
-                background-color: #FF5252;
-                border-color: #E53935;
+                background-color: {danger_pressed};
+                border-color: {danger_pressed};
             }}
             QMenu {{
                 background-color: {card_bg};

@@ -38,9 +38,10 @@ class TestMixedSeriesTypesOnOneChart:
         """LINE/SCATTER/VECTOR now all mutually allow each other
         (CHART_TYPE_SPECS was broadened), so VECTOR's allowed set also
         includes SCATTER. This test still demonstrates the specific
-        vector+line coexistence the class is about; the full three-member
-        set is asserted exactly so the stale narrower matrix can't creep
-        back in unnoticed."""
+        vector+line coexistence the class is about; the full set is
+        asserted exactly so the stale narrower matrix can't creep
+        back in unnoticed. SeriesType.FIT is never a member -- see
+        ChartTypeSpec.allowed_series_types (PR #416 review)."""
         allowed = CHART_TYPE_SPECS[ChartType.VECTOR].allowed_series_types
 
         assert {SeriesType.VECTOR, SeriesType.LINE} <= allowed
@@ -58,7 +59,7 @@ class TestMixedSeriesTypesOnOneChart:
         assert line_series.style.color == "#00ff00"
 
     def test_each_series_dispatches_to_its_own_renderer(self):
-        chart, vector_series, line_series = _mixed_chart()
+        _chart, vector_series, line_series = _mixed_chart()
 
         assert SERIES_RENDERERS[vector_series.series_type] is render_vector_series
         assert SERIES_RENDERERS[line_series.series_type] is render_line_series
@@ -84,7 +85,7 @@ class TestMixedSeriesTypesOnOneChart:
         assert restored_line.style.line_width == 3.0
 
     def test_mutating_one_series_style_does_not_affect_the_other(self):
-        chart, vector_series, line_series = _mixed_chart()
+        _chart, vector_series, line_series = _mixed_chart()
 
         vector_series.style.vector_color = "#123456"
 

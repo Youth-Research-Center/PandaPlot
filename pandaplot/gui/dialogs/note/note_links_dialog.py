@@ -1,7 +1,7 @@
 """Dialog for viewing, inserting, and cleaning up a note's chart/image
 references, including orphaned chart-snapshot images."""
 
-from typing import List, Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QTextCursor
@@ -37,12 +37,12 @@ class NoteLinksDialog(PDialog):
         app_context: AppContext,
         note: Note,
         text_edit: QTextEdit,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(app_context=app_context, parent=parent)
         self.note = note
         self.text_edit = text_edit
-        self._rows: List[NoteLinkRow] = []
+        self._rows: list[NoteLinkRow] = []
         self._initialize()
         self.refresh_rows()
 

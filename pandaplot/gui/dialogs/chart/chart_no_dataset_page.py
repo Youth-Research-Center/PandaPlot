@@ -3,7 +3,6 @@ no datasets yet: import one (and continue into the normal Data step) or
 create an empty chart, since there is otherwise nothing for the wizard's
 Data step to let the user configure.
 """
-from typing import Optional
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
@@ -24,7 +23,7 @@ class ChartNoDatasetPage(PWizardPage):
     importRequested = Signal()
     emptyRequested = Signal()
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self._initialize()
 

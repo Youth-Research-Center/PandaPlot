@@ -1,6 +1,7 @@
 import sys
 import traceback
-from typing import Any, Callable, Optional, Protocol
+from collections.abc import Callable
+from typing import Any, Protocol
 
 from PySide6.QtCore import (
     QRunnable,
@@ -30,7 +31,7 @@ class Worker(QRunnable):
     :param kwargs: Keywords to pass to the callback function
     """
 
-    def __init__(self, fn: WorkerFuncType, *args, cancellation_token: Optional[CancellationToken] = None, **kwargs):
+    def __init__(self, fn: WorkerFuncType, *args, cancellation_token: CancellationToken | None = None, **kwargs):
         super().__init__()
         self.fn = fn
         self.cancellation_token = cancellation_token or CancellationToken()
@@ -60,7 +61,7 @@ class Worker(QRunnable):
                 raise TaskCancelledError("Task was cancelled.")
         except TaskCancelledError:
             self.signals.cancelled.emit()
-        except Exception:
+        except Exception:  # noqa: BLE001 -- Background task boundary -- any failure other than explicit cancellation must be reported as a task failure, not crash the worker thread
             # Any exception other than TaskCancelledError is a genuine task
             # failure, even if cancellation happens to have been requested
             # around the same time - do not misreport it as a cancellation.

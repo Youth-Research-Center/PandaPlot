@@ -1,7 +1,8 @@
 """Shared fixtures for command tests that dispatch work via TaskScheduler."""
 
 import traceback
-from typing import Any, Callable, Optional, Union
+from collections.abc import Callable
+from typing import Any
 
 import pytest
 
@@ -26,13 +27,13 @@ class SyncTaskScheduler:
     def run_task(
         self,
         task: Callable[..., Any],
-        task_arguments: Optional[dict] = None,
-        on_result: Optional[Callable[[Any], None]] = None,
-        on_error: Optional[Callable[[tuple], None]] = None,
-        on_finished: Optional[Callable[[], None]] = None,
-        on_progress: Optional[Callable[[float], None]] = None,
-        on_cancelled: Optional[Callable[[], None]] = None,
-        cancellation_token: Optional[CancellationToken] = None,
+        task_arguments: dict | None = None,
+        on_result: Callable[[Any], None] | None = None,
+        on_error: Callable[[tuple], None] | None = None,
+        on_finished: Callable[[], None] | None = None,
+        on_progress: Callable[[float], None] | None = None,
+        on_cancelled: Callable[[], None] | None = None,
+        cancellation_token: CancellationToken | None = None,
     ) -> CancellationToken:
         task_arguments = task_arguments if task_arguments is not None else {}
         conflicting_keys = _RESERVED_TASK_ARGUMENT_KEYS & task_arguments.keys()
@@ -74,7 +75,7 @@ class SyncTaskScheduler:
         except TaskCancelledError:
             if on_cancelled:
                 on_cancelled()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Test double for the background task boundary -- mirrors worker.py's any-failure-but-cancellation contract
             # Any exception other than TaskCancelledError is a genuine task
             # failure, even if cancellation happens to have been requested
             # around the same time - do not misreport it as a cancellation.
@@ -92,7 +93,7 @@ class SyncTaskScheduler:
 
         return token
 
-    def cancel_task(self, task_or_token: Union[Callable[..., Any], CancellationToken]) -> bool:
+    def cancel_task(self, task_or_token: Callable[..., Any] | CancellationToken) -> bool:
         cancelled_any = False
         for fn, token in list(self._active_tokens):
             if token == task_or_token or fn == task_or_token:

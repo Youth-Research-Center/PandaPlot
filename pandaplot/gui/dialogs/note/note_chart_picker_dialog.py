@@ -1,6 +1,6 @@
 """Dialog for selecting a Chart from the project to insert into a note."""
 
-from typing import Dict, Optional, override
+from typing import override
 
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import (
@@ -32,11 +32,11 @@ class NoteChartPickerDialog(PDialog):
         self,
         app_context: AppContext,
         project,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(app_context=app_context, parent=parent)
         self.project = project
-        self._selected_chart: Optional[Chart] = None
+        self._selected_chart: Chart | None = None
         self._initialize()
         self._populate_tree()
         self._refresh_ok_enabled()
@@ -99,8 +99,8 @@ class NoteChartPickerDialog(PDialog):
         self.tree.setVisible(True)
 
         folders = [item for item in all_items if isinstance(item, Folder)]
-        by_id: Dict[str, QTreeWidgetItem] = {}
-        items_by_id: Dict[str, Item] = {i.id: i for i in all_items}
+        by_id: dict[str, QTreeWidgetItem] = {}
+        items_by_id: dict[str, Item] = {i.id: i for i in all_items}
 
         # Build folder nodes
         for folder in folders:
@@ -131,7 +131,7 @@ class NoteChartPickerDialog(PDialog):
 
         self.tree.expandAll()
 
-    def _get_selected_item_object(self) -> Optional[object]:
+    def _get_selected_item_object(self) -> object | None:
         selected = self.tree.selectedItems()
         if not selected or self.project is None:
             return None
@@ -154,7 +154,7 @@ class NoteChartPickerDialog(PDialog):
             self._selected_chart = item
             self.accept()
 
-    def get_selected_chart(self) -> Optional[Chart]:
+    def get_selected_chart(self) -> Chart | None:
         """Return the selected Chart model, or None if dialog was cancelled/no selection."""
         return self._selected_chart
 

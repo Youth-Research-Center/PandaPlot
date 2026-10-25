@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, List, Optional
+from collections.abc import Callable
 
 from pandaplot.commands.base_command import Command, CommandResult
 
@@ -10,15 +10,16 @@ class CommandExecutor:
     This is the central point for executing commands.
     """
 
-    def __init__(self, on_history_changed: Optional[Callable[[], None]] = None,
-                 on_project_modified: Optional[Callable[[], None]] = None,
-                 on_undo_redo_error: Optional[Callable[[str, str], None]] = None):
+    def __init__(self, on_history_changed: Callable[[], None] | None = None,
+                 on_project_modified: Callable[[], None] | None = None,
+                 on_undo_redo_error: Callable[[str, str], None] | None = None,
+                 max_undo_levels: int = 10):
         self.logger = logging.getLogger(self.__class__.__name__)
 
         # Undo/Redo functionality
-        self.undo_stack: List[Command] = []
-        self.redo_stack: List[Command] = []
-        self.max_undo_levels = 10
+        self.undo_stack: list[Command] = []
+        self.redo_stack: list[Command] = []
+        self.max_undo_levels = max(1, max_undo_levels)
 
         # Called after a command that marks_project_modified() succeeds; wired
         # by app.py to AppState.mark_modified.
@@ -45,10 +46,8 @@ class CommandExecutor:
         falls back to the class name, same spirit as _safe_cleanup."""
         try:
             return command.display_name()
-        except Exception as e:
-            self.logger.error(
-                "Error getting display_name() for command '%s': %s",
-                command.__class__.__name__, str(e), exc_info=True)
+        except Exception:
+            self.logger.exception("Error getting display_name() for command '%s'", command.__class__.__name__)
             return command.__class__.__name__
 
     def _notify_undo_redo_error(self, command_description: str, operation: str) -> None:
@@ -56,11 +55,11 @@ class CommandExecutor:
             return
         try:
             self.on_undo_redo_error(command_description, operation)
-        except Exception as e:
+        except Exception:
             # This runs while undo()/redo() is already handling a command
             # failure -- a raising hook (e.g. a Qt dialog) must not prevent
             # the history-changed notification that follows it.
-            self.logger.error("Error in on_undo_redo_error hook: %s", str(e), exc_info=True)
+            self.logger.exception("Error in on_undo_redo_error hook")
 
     def _notify_project_modified(self, command: Command) -> None:
         if not self.on_project_modified:
@@ -68,16 +67,16 @@ class CommandExecutor:
         try:
             if command.marks_project_modified():
                 self.on_project_modified()
-        except Exception as e:
-            self.logger.error("Error in on_project_modified hook: %s", str(e), exc_info=True)
+        except Exception:
+            self.logger.exception("Error in on_project_modified hook")
 
     def _notify_history_changed(self) -> None:
         if not self.on_history_changed:
             return
         try:
             self.on_history_changed()
-        except Exception as e:
-            self.logger.error("Error in on_history_changed hook: %s", str(e), exc_info=True)
+        except Exception:
+            self.logger.exception("Error in on_history_changed hook")
 
     def _warn_if_not_command_result(self, result, command_name: str, method_name: str) -> None:
         """Surface a command whose `execute()`/`undo()`/`redo()` hasn't been
@@ -155,9 +154,8 @@ class CommandExecutor:
             self._notify_history_changed()
             return True
             
-        except Exception as e:
-            self.logger.error("Error executing command '%s': %s", 
-                            command.__class__.__name__, str(e), exc_info=True)
+        except Exception:
+            self.logger.exception("Error executing command '%s'", command.__class__.__name__)
             self.logger.debug("Command execution failed for: %s", repr(command))
             return False
     
@@ -178,12 +176,12 @@ class CommandExecutor:
 
         try:
             result = command.undo()
-        except Exception as e:
+        except Exception:
             # command.undo() may have raised after partially mutating shared
             # project state, so it isn't safe to assume a retry would
             # succeed (or even be a no-op), nor that any other stack entry
             # is still valid -- see _invalidate_history_after_failure.
-            self.logger.error("Error undoing command '%s': %s", command_name, str(e), exc_info=True)
+            self.logger.exception("Error undoing command '%s'", command_name)
             command_description = self._safe_display_name(command)
             self._notify_project_modified(command)
             self._invalidate_history_after_failure(command)
@@ -229,8 +227,8 @@ class CommandExecutor:
 
         try:
             result = command.redo()
-        except Exception as e:
-            self.logger.error("Error redoing command '%s': %s", command_name, str(e), exc_info=True)
+        except Exception:
+            self.logger.exception("Error redoing command '%s'", command_name)
             command_description = self._safe_display_name(command)
             self._notify_project_modified(command)
             self._invalidate_history_after_failure(command)
@@ -249,6 +247,8 @@ class CommandExecutor:
             return False
 
         self.undo_stack.append(command)
+        while len(self.undo_stack) > self.max_undo_levels:
+            self._safe_cleanup(self.undo_stack.pop(0))
         if result is CommandResult.FAILURE:
             self.logger.warning("Command redo reported failure: %s", command_name)
         elif result is CommandResult.NOOP:
@@ -259,6 +259,18 @@ class CommandExecutor:
         self._notify_history_changed()
         return True
     
+    def set_max_undo_levels(self, max_undo_levels: int) -> None:
+        """Set the undo limit and clean up evicted commands."""
+        max_undo_levels = max(1, max_undo_levels)
+        if max_undo_levels == self.max_undo_levels:
+            return
+        self.max_undo_levels = max_undo_levels
+        trimmed = len(self.undo_stack) > max_undo_levels
+        while len(self.undo_stack) > max_undo_levels:
+            self._safe_cleanup(self.undo_stack.pop(0))
+        if trimmed:
+            self._notify_history_changed()
+
     def can_undo(self) -> bool:
         """Check if undo is available."""
         return len(self.undo_stack) > 0
@@ -267,16 +279,16 @@ class CommandExecutor:
         """Check if redo is available."""
         return len(self.redo_stack) > 0
     
-    def get_undo_description(self) -> Optional[str]:
+    def get_undo_description(self) -> str | None:
         """Get description of the command that would be undone."""
         if self.undo_stack:
-            return str(self.undo_stack[-1])
+            return self._safe_display_name(self.undo_stack[-1])
         return None
     
-    def get_redo_description(self) -> Optional[str]:
+    def get_redo_description(self) -> str | None:
         """Get description of the command that would be redone."""
         if self.redo_stack:
-            return str(self.redo_stack[-1])
+            return self._safe_display_name(self.redo_stack[-1])
         return None
     
     def clear_history(self):
@@ -312,7 +324,5 @@ class CommandExecutor:
         aborting a stack-clearing loop partway through)."""
         try:
             command.cleanup()
-        except Exception as e:
-            self.logger.error(
-                "Error cleaning up command '%s': %s",
-                command.__class__.__name__, str(e), exc_info=True)
+        except Exception:
+            self.logger.exception("Error cleaning up command '%s'", command.__class__.__name__)

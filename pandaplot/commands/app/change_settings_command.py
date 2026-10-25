@@ -1,7 +1,8 @@
 # change_settings_command.py
 # Command wrapping an application settings change so it can be undone.
 
-from typing import Any, Mapping, Optional, override
+from collections.abc import Mapping
+from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.models.state.app_context import AppContext
@@ -21,7 +22,7 @@ class ChangeSettingsCommand(Command):
         app_context: AppContext,
         mapping: Mapping[str, Any],
         *,
-        config_manager: Optional[ConfigManager] = None,
+        config_manager: ConfigManager | None = None,
     ):
         super().__init__()
         # Accept an explicit ConfigManager (e.g. SettingsDialog's own
@@ -29,7 +30,7 @@ class ChangeSettingsCommand(Command):
         # always resolving it fresh from app_context -- the two can diverge.
         self.config_manager = config_manager or app_context.get_manager(ConfigManager)
         self.new_mapping = mapping
-        self.old_mapping: Optional[dict[str, Any]] = None
+        self.old_mapping: dict[str, Any] | None = None
 
     @override
     def marks_project_modified(self) -> bool:
@@ -48,19 +49,39 @@ class ChangeSettingsCommand(Command):
             # warning about.
             self.logger.debug("ChangeSettingsCommand: no changes to apply, skipping")
             return CommandResult.NOOP
-        self.config_manager.update(self.new_mapping, save=True)
-        return CommandResult.SUCCESS
+        return self._apply_and_save(self.new_mapping)
 
     @override
     def undo(self) -> CommandResult:
         if self.old_mapping is None:
             return CommandResult.FAILURE
-        self.config_manager.update(self.old_mapping, save=True)
-        return CommandResult.SUCCESS
+        return self._apply_and_save(self.old_mapping)
 
     @override
     def redo(self) -> CommandResult:
-        self.config_manager.update(self.new_mapping, save=True)
+        return self._apply_and_save(self.new_mapping)
+
+    def _apply_and_save(self, mapping: Mapping[str, Any]) -> CommandResult:
+        """Apply `mapping` in memory and persist it, reporting FAILURE if
+        the disk write didn't actually succeed -- ConfigManager.save()
+        catches every write exception internally (its own documented
+        "defensive" design), so update(..., save=True) alone can't tell a
+        real disk failure from a successful write. Saving explicitly here,
+        instead, surfaces save()'s own boolean result.
+
+        On failure, rolls the in-memory config back to its pre-attempt
+        value (re-applying it through update() so CONFIG_UPDATED-subscribed
+        components, e.g. ThemeManager, resync too) -- otherwise a failed
+        save still left the unsaved value live in memory, so a retry of the
+        identical edit would see "no change" and skip straight to NOOP
+        instead of attempting another save, and Cancel had no way back to
+        a state that actually matches disk.
+        """
+        before = self._extract_matching(self.config_manager.as_dict(), mapping)
+        self.config_manager.update(mapping, save=False)
+        if not self.config_manager.save():
+            self.config_manager.update(before, save=False)
+            return CommandResult.FAILURE
         return CommandResult.SUCCESS
 
     @staticmethod

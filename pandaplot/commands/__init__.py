@@ -6,8 +6,8 @@ from pandaplot.commands.composite_command import CompositeCommand, MacroCommand
 __all__ = [
     "BackgroundTaskCommand",
     "Command",
+    "CommandExecutor",
     "CommandResult",
     "CompositeCommand",
     "MacroCommand",
-    "CommandExecutor",
 ]

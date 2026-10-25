@@ -66,7 +66,6 @@ class TestAddAnalysisSeriesCommand:
         analyze_cmd = AnalyzeChartSeriesCommand(
             app_context,
             chart_id="chart-1",
-            source_kind="series",
             source_index=0,
             analysis_type=AnalysisType.DERIVATIVE,
             folder_id=chart.parent_id,
@@ -107,14 +106,13 @@ class TestAddAnalysisSeriesCommand:
         must actually be a SCATTER, not silently fall through to the
         chart's default_series_type (BAR), which would render each
         analysis result point as its own bar."""
-        app_context, project, chart = ctx
+        app_context, _project, chart = ctx
         chart.chart_type = ChartType.BAR
         executor = CommandExecutor(app_context)
 
         analyze_cmd = AnalyzeChartSeriesCommand(
             app_context,
             chart_id="chart-1",
-            source_kind="series",
             source_index=0,
             analysis_type=AnalysisType.DERIVATIVE,
             folder_id=chart.parent_id,
@@ -145,7 +143,6 @@ class TestAddAnalysisSeriesCommand:
         analyze_cmd = AnalyzeChartSeriesCommand(
             app_context,
             chart_id="chart-1",
-            source_kind="series",
             source_index=0,
             analysis_type=AnalysisType.DERIVATIVE,
             folder_id=chart.parent_id,
@@ -216,7 +213,7 @@ class TestAddAnalysisSeriesCommand:
         close the STFT gap) would wrongly roll back every such commit even
         though PEAKS remains a perfectly plottable (x, y) result -- only
         STFT's genuinely 3-dimensional shape should be rejected."""
-        app_context, project, chart = ctx
+        app_context, _project, chart = ctx
         executor = CommandExecutor(app_context)
 
         result_df = pd.DataFrame({

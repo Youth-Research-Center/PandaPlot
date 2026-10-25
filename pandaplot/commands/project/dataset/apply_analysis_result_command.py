@@ -10,7 +10,7 @@ actually pushes onto the undo stack. See docs/arch/09-architectural-issues.md,
 "Analysis operations block the Qt main thread".
 """
 
-from typing import Optional, Union, override
+from typing import override
 
 import numpy as np
 import pandas as pd
@@ -18,6 +18,7 @@ import pandas as pd
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset.column_change_events import emit_columns_changed
+from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -31,10 +32,10 @@ class ApplyAnalysisResultCommand(Command):
         app_context: AppContext,
         dataset_id: str,
         new_column_name: str,
-        result_series: Union[pd.Series, np.ndarray],
+        result_series: pd.Series | np.ndarray,
         *,
         column_existed_before: bool,
-        original_data: Optional[pd.Series],
+        original_data: pd.Series | None,
     ):
         super().__init__()
         self.app_context = app_context
@@ -45,9 +46,9 @@ class ApplyAnalysisResultCommand(Command):
         self.column_existed_before = column_existed_before
         self.original_data = original_data
 
-        self.dataset: Optional[Dataset] = None
+        self.dataset: Dataset | None = None
 
-    def _get_dataset(self) -> Optional[Dataset]:
+    def _get_dataset(self) -> Dataset | None:
         project = get_current_project(self.app_context)
         if project is not None:
             dataset_item = project.find_item(self.dataset_id)
@@ -63,6 +64,11 @@ class ApplyAnalysisResultCommand(Command):
                 message = f"Dataset {self.dataset_id} is no longer available"
                 self.logger.warning("ApplyAnalysisResultCommand.execute: %s", message)
                 self.ui_controller.show_error_message("Analysis Error", message)
+                return CommandResult.FAILURE
+
+            if refuse_live_formula_edit(
+                self.dataset, self.ui_controller, title="Analysis Error", column_names=[self.new_column_name],
+            ):
                 return CommandResult.FAILURE
 
             df = self.dataset.data
@@ -96,7 +102,7 @@ class ApplyAnalysisResultCommand(Command):
             )
             return CommandResult.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"ApplyAnalysisResultCommand execution failed: {e}")
             self.ui_controller.show_error_message("Analysis Error", str(e))
             return CommandResult.FAILURE
@@ -152,7 +158,7 @@ class ApplyAnalysisResultCommand(Command):
             self.logger.info("Analysis undone successfully: %s", self.new_column_name)
             return CommandResult.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"ApplyAnalysisResultCommand undo failed: {e}")
             return CommandResult.FAILURE
 

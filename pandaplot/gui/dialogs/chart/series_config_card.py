@@ -3,7 +3,6 @@ dataset picker, per-role column pickers, an optional error-bars toggle, and
 a remove button. Collapsible to a one-line summary via `set_collapsed`,
 mirroring the accordion pattern used by the Chart Properties panel's Data tab.
 """
-from typing import Optional
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
@@ -18,21 +17,26 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.common.card import Card
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.models.chart.chart_type_spec import ChartTypeSpec
 
 _ROLE_LABELS = {
     "x": "X column", "y": "Y column", "values": "Values column",
-    "u": "U column", "v": "V column", "magnitude": "Color-by column (optional)",
+    "u": "U column", "v": "V column", "w": "W column",
+    "magnitude": "Color-by column (optional)",
     # Plain "Z column" rather than "Z (color) column": Z drives point color
     # on a Colormap/Heatmap chart but is the third spatial axis on every
     # 3-D one, and one label has to be true of both.
     "z": "Z column",
+    "labels": "Labels column (optional)",
 }
 _ROLE_TO_FIELD = {
     "x": "x_column_id", "y": "y_column_id", "values": "y_column_id",
-    "u": "u_column_id", "v": "v_column_id", "magnitude": "magnitude_column_id",
+    "u": "u_column_id", "v": "v_column_id", "w": "w_column_id",
+    "magnitude": "magnitude_column_id",
     "z": "z_column_id",
+    "labels": "label_column_id",
 }
 
 
@@ -41,16 +45,16 @@ class SeriesConfigCard(Card):
     configChanged = Signal()
     datasetChanged = Signal(str)
 
-    def __init__(self, role_spec: ChartTypeSpec, parent: Optional[QWidget] = None, index: int = 0):
+    def __init__(self, role_spec: ChartTypeSpec, parent: QWidget | None = None, index: int = 0):
         super().__init__(parent)
         self._role_spec = role_spec
         self._role_combos: dict[str, QComboBox] = {}
-        self.error_bars_check: Optional[QCheckBox] = None
-        self.error_asymmetric_check: Optional[QCheckBox] = None
-        self.x_error_column_combo: Optional[QComboBox] = None
-        self.y_error_column_combo: Optional[QComboBox] = None
-        self.x_error_minus_column_combo: Optional[QComboBox] = None
-        self.y_error_minus_column_combo: Optional[QComboBox] = None
+        self.error_bars_check: QCheckBox | None = None
+        self.error_asymmetric_check: QCheckBox | None = None
+        self.x_error_column_combo: QComboBox | None = None
+        self.y_error_column_combo: QComboBox | None = None
+        self.x_error_minus_column_combo: QComboBox | None = None
+        self.y_error_minus_column_combo: QComboBox | None = None
         self._collapsed = False
         self._tokens: dict = {}
         self._index = index
@@ -96,14 +100,14 @@ class SeriesConfigCard(Card):
         row += 1
 
         grid.addWidget(QLabel("Dataset:"), row, 0)
-        self.dataset_combo = QComboBox()
+        self.dataset_combo = DropDownComboBox()
         self.dataset_combo.currentIndexChanged.connect(self._on_dataset_changed)
         grid.addWidget(self.dataset_combo, row, 1)
         row += 1
 
         for role in self._role_spec.roles:
             grid.addWidget(QLabel(f"{_ROLE_LABELS[role]}:"), row, 0)
-            combo = QComboBox()
+            combo = DropDownComboBox()
             combo.currentIndexChanged.connect(lambda _index=None: self.configChanged.emit())
             self._role_combos[role] = combo
             setattr(self, f"{role}_column_combo", combo)
@@ -126,7 +130,7 @@ class SeriesConfigCard(Card):
                 ("y_error", "Y error (+) column"), ("y_error_minus", "Y error (-) column"),
             ):
                 error_label = QLabel(f"{label}:")
-                combo = QComboBox()
+                combo = DropDownComboBox()
                 combo.currentIndexChanged.connect(lambda _index=None: self.configChanged.emit())
                 self._role_combos[error_role] = combo
                 setattr(self, f"{error_role}_column_combo", combo)

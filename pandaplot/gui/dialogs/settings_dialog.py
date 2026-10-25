@@ -3,7 +3,7 @@ Modern Settings dialog for the pandaplot application.
 Provides a user interface for changing application preferences with modern PySide6 styling.
 """
 
-from typing import Any, Dict, Optional, override
+from typing import Any, override
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor
@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
-    QDoubleSpinBox,
     QFrame,
     QGroupBox,
     QHBoxLayout,
@@ -19,13 +18,14 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
-    QSpinBox,
     QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from pandaplot.commands.app.change_settings_command import ChangeSettingsCommand
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.config import (
@@ -70,8 +70,8 @@ class SettingsDialog(PDialog):
     
     def __init__(self, app_context, parent=None):
         super().__init__(app_context=app_context, parent=parent)
-        self.original_settings: Dict[str, Any] = {}
-        self.current_settings: Dict[str, Any] = {}
+        self.original_settings: dict[str, Any] = {}
+        self.current_settings: dict[str, Any] = {}
         self._config_manager = self.app_context.get_manager(ConfigManager)
         self._applying = False  # guard to prevent feedback loops
         self._chart_size_unit = LengthUnit.CM
@@ -126,7 +126,6 @@ class SettingsDialog(PDialog):
         card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#000000")
         secondary_fg = palette.get("secondary_fg", "#555555")
-        accent = palette.get("accent", "#4A90E2")
         
         # Apply main dialog styling
         self.setStyleSheet(f"""
@@ -176,16 +175,6 @@ class SettingsDialog(PDialog):
             QLabel {{
                 color: {base_fg};
             }}
-            QSpinBox, QComboBox {{
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 3px;
-                padding: 2px 5px;
-                color: {base_fg};
-            }}
-            QSpinBox:focus, QComboBox:focus {{
-                border-color: {accent};
-            }}
             QCheckBox {{
                 color: {base_fg};
             }}
@@ -234,7 +223,7 @@ class SettingsDialog(PDialog):
         ag_layout.addWidget(self.auto_save_check)
         interval_layout = QHBoxLayout()
         interval_layout.addWidget(QLabel("Interval:"))
-        self.auto_save_interval = QSpinBox()
+        self.auto_save_interval = IntegerInput()
         self.auto_save_interval.setRange(10, 3600)
         self.auto_save_interval.setSuffix(" s")
         self.auto_save_interval.setSingleStep(10)
@@ -249,10 +238,9 @@ class SettingsDialog(PDialog):
         
         # DPI setting
         dpi_layout = QHBoxLayout()
-        dpi_label = QLabel("Preview DPI:")
-        dpi_label.setStyleSheet("color: #495057;")
-        dpi_layout.addWidget(dpi_label)
-        self.chart_dpi_spin = QSpinBox()
+        self._dpi_label = QLabel("Preview DPI:")
+        dpi_layout.addWidget(self._dpi_label)
+        self.chart_dpi_spin = IntegerInput()
         self.chart_dpi_spin.setRange(50, 600)
         self.chart_dpi_spin.setSingleStep(10)
         self.chart_dpi_spin.setSuffix(" dpi")
@@ -264,10 +252,9 @@ class SettingsDialog(PDialog):
         
         # Measurement unit
         unit_layout = QHBoxLayout()
-        unit_label = QLabel("Measurement unit:")
-        unit_label.setStyleSheet("color: #495057;")
-        unit_layout.addWidget(unit_label)
-        self.chart_unit_combo = QComboBox()
+        self._unit_label = QLabel("Measurement unit:")
+        unit_layout.addWidget(self._unit_label)
+        self.chart_unit_combo = DropDownComboBox()
         self.chart_unit_combo.addItems(list(UNIT_DISPLAY.values()))
         self.chart_unit_combo.setToolTip("Unit used to display chart width/height")
         self.chart_unit_combo.currentTextChanged.connect(self._on_chart_unit_combo_changed)
@@ -277,10 +264,9 @@ class SettingsDialog(PDialog):
 
         # Default chart size
         size_layout = QHBoxLayout()
-        size_label = QLabel("Default size:")
-        size_label.setStyleSheet("color: #495057;")
-        size_layout.addWidget(size_label)
-        self.chart_width_spin = QDoubleSpinBox()
+        self._size_label = QLabel("Default size:")
+        size_layout.addWidget(self._size_label)
+        self.chart_width_spin = DecimalInput()
         self.chart_width_spin.setRange(MIN_CHART_WIDTH_CM, MAX_CHART_WIDTH_CM)
         self.chart_width_spin.setDecimals(1)
         self.chart_width_spin.setValue(20)
@@ -288,11 +274,10 @@ class SettingsDialog(PDialog):
         self.chart_width_spin.setToolTip("Default chart width")
         size_layout.addWidget(self.chart_width_spin)
 
-        multiply_label = QLabel("×")
-        multiply_label.setStyleSheet("color: #495057;")
-        size_layout.addWidget(multiply_label)
+        self._multiply_label = QLabel("×")
+        size_layout.addWidget(self._multiply_label)
 
-        self.chart_height_spin = QDoubleSpinBox()
+        self.chart_height_spin = DecimalInput()
         self.chart_height_spin.setRange(MIN_CHART_HEIGHT_CM, MAX_CHART_HEIGHT_CM)
         self.chart_height_spin.setDecimals(1)
         self.chart_height_spin.setValue(15)
@@ -355,7 +340,7 @@ class SettingsDialog(PDialog):
         theme_layout = QVBoxLayout(theme_group)
         theme_selection_layout = QHBoxLayout()
         theme_selection_layout.addWidget(QLabel("Application theme:"))
-        self.theme_combo = QComboBox()
+        self.theme_combo = DropDownComboBox()
         self.theme_combo.addItems(["Light", "Dark", "Auto (System)"])
         self.theme_combo.setCurrentText("Auto (System)")
         self.theme_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
@@ -387,7 +372,7 @@ class SettingsDialog(PDialog):
         font_layout = QVBoxLayout(font_group)
         interface_font_layout = QHBoxLayout()
         interface_font_layout.addWidget(QLabel("Interface font size:"))
-        self.interface_font_size = QSpinBox()
+        self.interface_font_size = IntegerInput()
         self.interface_font_size.setRange(8, 36)
         self.interface_font_size.setValue(12)
         self.interface_font_size.setSuffix(" pt")
@@ -396,7 +381,7 @@ class SettingsDialog(PDialog):
         font_layout.addLayout(interface_font_layout)
         editor_font_layout = QHBoxLayout()
         editor_font_layout.addWidget(QLabel("Editor font size:"))
-        self.editor_font_size = QSpinBox()
+        self.editor_font_size = IntegerInput()
         self.editor_font_size.setRange(8, 48)
         self.editor_font_size.setValue(12)
         self.editor_font_size.setSuffix(" pt")
@@ -433,7 +418,7 @@ class SettingsDialog(PDialog):
         # Tab size
         tab_size_layout = QHBoxLayout()
         tab_size_layout.addWidget(QLabel("Tab size:"))
-        self.tab_size_spin = QSpinBox()
+        self.tab_size_spin = IntegerInput()
         self.tab_size_spin.setRange(2, 8)
         self.tab_size_spin.setValue(4)
         self.tab_size_spin.setSuffix(" spaces")
@@ -480,9 +465,26 @@ class SettingsDialog(PDialog):
         
         layout.addWidget(self.button_frame)
     
-    def load_current_settings(self):
-        """Load current settings from the configuration manager (or defaults)."""
-        cfg: Optional[ApplicationConfig] = None
+    def load_current_settings(self, *, force: bool = False):
+        """Load current settings from the configuration manager (or defaults).
+
+        `force=True` (used by reset_to_defaults()) always rebuilds
+        original_settings/current_settings and resyncs the UI, even if the
+        freshly-loaded config equals what was already loaded -- Reset must
+        resync visible widgets regardless of whether the persisted config
+        actually changed (e.g. it was already at defaults, so the
+        underlying command was a no-op).
+
+        Without `force`, an unchanged reload (e.g. triggered by an
+        unrelated CONFIG_UPDATED event while the dialog is open) returns
+        immediately without touching either settings dict -- current_settings
+        can hold state that lives nowhere else (accent_color, set directly by
+        choose_accent_color() with no backing widget for
+        get_current_settings_from_ui() to read back from), so overwriting it
+        on a no-op reload would silently discard a pending, not-yet-applied
+        pick.
+        """
+        cfg: ApplicationConfig | None = None
         if self._config_manager is not None:
             cfg = self._config_manager.config
         if cfg is None:
@@ -494,10 +496,8 @@ class SettingsDialog(PDialog):
             unit = LengthUnit.CM
         raw_width = getattr(display_cfg, "default_width_cm", 20)
         raw_height = getattr(display_cfg, "default_height_cm", 15)
-        self._chart_width_raw_cm = raw_width
-        self._chart_height_raw_cm = raw_height
 
-        self.original_settings = {
+        new_settings = {
             "auto_save": cfg.auto_save.enabled,
             "auto_save_interval": cfg.auto_save.interval_seconds,
             "theme": THEME_DISPLAY.get(cfg.appearance.theme.value, "Auto (System)"),
@@ -512,9 +512,13 @@ class SettingsDialog(PDialog):
             "chart_height": quantize_cm(raw_height, unit),
             "measurement_unit": unit.value,
         }
-        self.current_settings = self.original_settings.copy()
+        if not force and getattr(self, "original_settings", None) == new_settings:
+            return
 
-        # TODO(#214): call apply only if the settings changed
+        self._chart_width_raw_cm = raw_width
+        self._chart_height_raw_cm = raw_height
+        self.original_settings = new_settings
+        self.current_settings = self.original_settings.copy()
         self.apply_settings_to_ui()
 
     def setup_event_subscriptions(self):
@@ -522,7 +526,7 @@ class SettingsDialog(PDialog):
         # Subscribe to both updated and reset events
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
     
-    def _on_config_event(self, data: Dict[str, Any]):
+    def _on_config_event(self, data: dict[str, Any]):
         if self._applying:
             return
         config = data.get("config")
@@ -558,7 +562,7 @@ class SettingsDialog(PDialog):
         color = self.current_settings["accent_color"]
         self.accent_color_btn.setStyleSheet(f"background-color: {color}; border-radius: 4px;")
     
-    def get_current_settings_from_ui(self) -> Dict[str, Any]:
+    def get_current_settings_from_ui(self) -> dict[str, Any]:
         """Get current settings from UI controls."""
         return {
             "auto_save": self.auto_save_check.isChecked(),
@@ -609,16 +613,44 @@ class SettingsDialog(PDialog):
                     section: defaults[section]
                     for section in ("auto_save", "appearance", "editor", "chart_display")
                 }
-                self.app_context.get_command_executor().execute_command(
-                    ChangeSettingsCommand(
-                        self.app_context, mapping, config_manager=self._config_manager
-                    )
+                # execute_command()'s bool return can't distinguish "already
+                # at defaults" (NOOP) from a real save failure -- check
+                # against the current config first, the same way
+                # ChangeSettingsCommand itself would, so a genuine failure
+                # gets the same warning Apply shows instead of silently
+                # reloading the (unreset) old values.
+                current = ChangeSettingsCommand._extract_matching(
+                    self._config_manager.as_dict(), mapping
                 )
-            self.load_current_settings()
+                if current != mapping:
+                    success = self.app_context.get_command_executor().execute_command(
+                        ChangeSettingsCommand(
+                            self.app_context, mapping, config_manager=self._config_manager
+                        )
+                    )
+                    if not success:
+                        QMessageBox.warning(
+                            self,
+                            "Settings Not Saved",
+                            "Your settings could not be reset. Please try again.",
+                        )
+                        return
+            self.load_current_settings(force=True)
     
-    def apply_settings(self):
-        """Apply settings without closing the dialog."""
-        self.current_settings = self.get_current_settings_from_ui()
+    def apply_settings(self) -> bool:
+        """Apply settings without closing the dialog.
+
+        Returns True when it's safe for a caller to close the dialog
+        afterwards -- either nothing needed applying, or the apply
+        succeeded. Returns False only when the underlying command actually
+        failed, so accept_settings() (the OK button) can keep the dialog
+        open instead of silently discarding the failed edit.
+        """
+        new_ui_settings = self.get_current_settings_from_ui()
+        if new_ui_settings == self.original_settings:
+            return True
+
+        self.current_settings = new_ui_settings
         self._applying = True
         try:
             if self._config_manager:
@@ -663,21 +695,37 @@ class SettingsDialog(PDialog):
                         "measurement_unit": self.current_settings.get("measurement_unit", "cm"),
                     }
                 }
-                self.app_context.get_command_executor().execute_command(
+                success = self.app_context.get_command_executor().execute_command(
                     ChangeSettingsCommand(
                         self.app_context, mapping, config_manager=self._config_manager
                     )
                 )
+                if not success:
+                    # A failed/no-op config write must not be reported as an
+                    # applied change -- otherwise original_settings advances
+                    # to values that were never actually persisted, and a
+                    # later Apply with the same values is wrongly skipped by
+                    # the guard above.
+                    QMessageBox.warning(
+                        self,
+                        "Settings Not Saved",
+                        "Your settings could not be saved. Please try again.",
+                    )
+                    return False
                 self._chart_width_raw_cm = width_cm
                 self._chart_height_raw_cm = height_cm
+            self.original_settings = self.current_settings.copy()
             self.settings_changed.emit(self.current_settings)
+            return True
         finally:
             self._applying = False
-    
+
     def accept_settings(self):
-        """Apply settings and close the dialog."""
-        self.apply_settings()
-        self.accept()
+        """Apply settings and close the dialog, unless applying failed --
+        a failed apply must not silently close the dialog and discard the
+        edit with no indication anything went wrong."""
+        if self.apply_settings():
+            self.accept()
     
     def reject(self):
         """Cancel and close the dialog without applying changes."""

@@ -136,7 +136,7 @@ class TestItemManagement:
     
     def test_remove_item(self, populated_project):
         """Test removing an item from the project."""
-        project, item1, item2, collection1, item3 = populated_project
+        project, item1, item2, collection1, _item3 = populated_project
         
         # Remove item from root
         project.remove_item(item1)
@@ -152,7 +152,7 @@ class TestItemManagement:
     
     def test_remove_item_by_id(self, populated_project):
         """Test removing an item by ID."""
-        project, item1, item2, collection1, item3 = populated_project
+        project, item1, _item2, _collection1, _item3 = populated_project
         
         item1_id = item1.id
         project.remove_item_by_id(item1_id)
@@ -168,7 +168,7 @@ class TestItemManagement:
     
     def test_find_item(self, populated_project):
         """Test finding items by ID."""
-        project, item1, item2, collection1, item3 = populated_project
+        project, item1, item2, collection1, _item3 = populated_project
         
         found_item = project.find_item(item1.id)
         assert found_item == item1
@@ -270,7 +270,7 @@ class TestSerialization:
     
     def test_to_dict_populated_project(self, populated_project):
         """Test serializing a populated project to dictionary."""
-        project, item1, item2, collection1, item3 = populated_project
+        project, _item1, _item2, _collection1, _item3 = populated_project
         
         data = project.to_dict()
         

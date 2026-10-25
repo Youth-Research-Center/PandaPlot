@@ -15,18 +15,16 @@ Modeled on two sibling panels:
   when nothing has changed since the last successful Run.
 """
 
-from typing import Optional, override
+from typing import override
 
 import numpy as np
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -45,6 +43,8 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
     ApplySignalAnalysisResultCommand,
 )
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
@@ -75,13 +75,13 @@ _CHART_REFRESH_DEBOUNCE_MS = 400
 class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for signal analysis operations on chart data/fit series."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
 
-        self.current_chart: Optional[Chart] = None
-        self.current_chart_id: Optional[str] = None
+        self.current_chart: Chart | None = None
+        self.current_chart_id: str | None = None
 
-        self.last_result: Optional[SignalAnalysisResult] = None
+        self.last_result: SignalAnalysisResult | None = None
         self._last_run_params = None
         self._pending_command = None
 
@@ -115,7 +115,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         # and replayed once add_results_to_project()'s _on_complete has made
         # its display decision against the untouched dispatch-time context
         # -- see both sites below.
-        self._deferred_tab_change: Optional[dict] = None
+        self._deferred_tab_change: dict | None = None
 
         # Cache for _range_command(): a fresh ChartSignalAnalysisCommand
         # per call would re-run NaN-drop/to_numeric series resolution on
@@ -124,7 +124,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         # _resolved_xy_cache actually pay off across the segment-label and
         # sampling-rate-default refreshes that both run on every spinbox tick.
         self._range_command_key = None
-        self._range_command_cache: Optional[ChartSignalAnalysisCommand] = None
+        self._range_command_cache: ChartSignalAnalysisCommand | None = None
 
         # Bumped by _populate_sources() (tab change, chart update, or a
         # backing-dataset edit) -- an in-flight preview/commit captures the
@@ -164,7 +164,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     def _create_source_section(self, layout):
         group = QGroupBox("Series")
         form = QFormLayout(group)
-        self.source_combo = QComboBox()
+        self.source_combo = DropDownComboBox()
         form.addRow("Analyze:", self.source_combo)
         self.source_hint = QLabel("Data series and fitted curves of this chart.")
         self.source_hint.setWordWrap(True)
@@ -175,7 +175,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         group = QGroupBox("Method")
         form = QFormLayout(group)
 
-        self.analysis_combo = QComboBox()
+        self.analysis_combo = DropDownComboBox()
         for analysis_type, info in SIGNAL_ANALYSES.items():
             self.analysis_combo.addItem(info.label, analysis_type)
         form.addRow("Method:", self.analysis_combo)
@@ -195,7 +195,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         group = QGroupBox("Segment (index range)")
         form = QFormLayout(group)
 
-        self.start_index = QSpinBox()
+        self.start_index = IntegerInput()
         self.start_index.setMinimum(0)
         self.start_index.setMaximum(0)
         self.start_value_label = QLabel("–")
@@ -204,7 +204,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         start_row.addWidget(self.start_value_label)
         form.addRow("Start index:", start_row)
 
-        self.end_index = QSpinBox()
+        self.end_index = IntegerInput()
         self.end_index.setMinimum(0)
         self.end_index.setMaximum(0)
         self.end_value_label = QLabel("–")
@@ -241,7 +241,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         target_row_layout = QHBoxLayout(self.plot_target_row)
         target_row_layout.setContentsMargins(0, 0, 0, 0)
         target_row_layout.addWidget(QLabel("Plot on:"))
-        self.plot_target_combo = QComboBox()
+        self.plot_target_combo = DropDownComboBox()
         target_row_layout.addWidget(self.plot_target_combo)
         layout.addWidget(self.plot_target_row)
 
@@ -323,7 +323,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         source = self._selected_source()
         if source is None:
             return
-        command = self._range_command(*source)
+        command = self._range_command(source)
         if command is None:
             return
 
@@ -354,11 +354,11 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- config ---------------------------------------------------------------
 
-    def _selected_source(self):
-        """Return (kind, index) for the selected series, or None."""
+    def _selected_source(self) -> int | None:
+        """Return the selected series/fit's chart.data_series index, or None."""
         return self.source_combo.currentData()
 
-    def _current_analysis_type(self) -> Optional[SignalAnalysisType]:
+    def _current_analysis_type(self) -> SignalAnalysisType | None:
         return self.analysis_combo.currentData()
 
     def _build_parameters(self) -> dict:
@@ -389,32 +389,29 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         return params
 
     def _get_dispatch_params(self):
-        source = self._selected_source()
-        if source is None or self.current_chart_id is None:
+        index = self._selected_source()
+        if index is None or self.current_chart_id is None:
             return None
-        kind, index = source
 
         return (
             self.current_chart_id,
-            kind,
             index,
             self._current_analysis_type(),
             self.sampling_rate.value() if self.sampling_rate else None,
             self._build_parameters(),
         )
 
-    def _build_command(self) -> Optional[ChartSignalAnalysisCommand]:
+    def _build_command(self) -> ChartSignalAnalysisCommand | None:
         params = self._get_dispatch_params()
         if params is None:
             return None
 
-        chart_id, kind, index, analysis_type, sampling_rate, parameters = params
+        chart_id, index, analysis_type, sampling_rate, parameters = params
         folder_id = self.current_chart.parent_id if self.current_chart else None
         plot_result = self.plot_result_cb.isChecked() and self.plot_result_cb.isEnabled()
         return ChartSignalAnalysisCommand(
             self.app_context,
             chart_id=chart_id,
-            source_kind=kind,
             source_index=index,
             analysis_type=analysis_type,
             sampling_rate=sampling_rate,
@@ -479,7 +476,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             try:
                 self.results_text.setText(SignalPanel._format_result(result))
                 self.add_btn.setEnabled(True)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
@@ -517,7 +514,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                     target_chart_id=self.plot_target_combo.currentData(),
                     folder_id=folder_id,
                 )
-                success = executor.execute_command(CompositeCommand([apply_command, plot_command]))
+                success = executor.execute_command(CompositeCommand([apply_command, plot_command], display_name="Analyze chart signal"))
             else:
                 success = executor.execute_command(apply_command)
 
@@ -635,7 +632,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- chart context --------------------------------------------------------
 
-    def _range_command(self, kind: str, index: int) -> Optional[ChartSignalAnalysisCommand]:
+    def _range_command(self, index: int) -> ChartSignalAnalysisCommand | None:
         """Return a command to resolve the selected series, reused across
         calls for the same (chart, source) so its _resolved_xy_cache
         actually amortizes the NaN-drop/to_numeric resolution work.
@@ -649,21 +646,20 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         """
         if self.current_chart is None or self.current_chart_id is None:
             return None
-        key = (self.current_chart_id, kind, index)
+        key = (self.current_chart_id, index)
         if self._range_command_key != key:
             self._range_command_cache = ChartSignalAnalysisCommand(
                 self.app_context,
                 chart_id=self.current_chart_id,
-                source_kind=kind,
                 source_index=index,
                 analysis_type=SignalAnalysisType.FFT,
             )
             self._range_command_key = key
         return self._range_command_cache
 
-    def _series_length(self, kind: str, index: int) -> int:
+    def _series_length(self, index: int) -> int:
         """Best-effort length of a source series, for the segment bounds."""
-        command = self._range_command(kind, index)
+        command = self._range_command(index)
         return command.source_length() if command else 0
 
     def _on_source_changed(self):
@@ -671,7 +667,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         if source is None:
             last = 0
         else:
-            last = max(self._series_length(*source) - 1, 0)
+            last = max(self._series_length(source) - 1, 0)
         self.start_index.setMaximum(last)
         self.end_index.setMaximum(last)
         # Default to the whole series -- start at the first point, end at
@@ -692,7 +688,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self._update_range_labels()
         self._refresh_sampling_rate_default()
 
-    def _format_point(self, point: Optional[tuple[float, float]]) -> str:
+    def _format_point(self, point: tuple[float, float] | None) -> str:
         if point is None:
             return "–"
         x, y = point
@@ -700,7 +696,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _update_range_labels(self):
         source = self._selected_source()
-        command = self._range_command(*source) if source else None
+        command = self._range_command(source) if source is not None else None
         if command is None:
             self.start_value_label.setText("–")
             self.end_value_label.setText("–")
@@ -862,6 +858,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     def _apply_theme(self):
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
+        tokens = theme_manager.get_design_tokens()
 
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
@@ -875,7 +872,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;

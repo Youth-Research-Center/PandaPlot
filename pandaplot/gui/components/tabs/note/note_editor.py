@@ -1,10 +1,12 @@
 """
 Note tab widget for displaying and editing notes in the main tab container.
 """
+import logging
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Set, override
+from typing import override
 from urllib.parse import unquote
 
 from PySide6.QtCore import QBuffer, QIODevice, Qt, QTimer, QUrl, Signal
@@ -80,6 +82,8 @@ _LINK_DEFINITION_RE = re.compile(r"^[ \t]{0,3}\[([^\]]+)\]:\s*(?:<([^>]*)>|(\S+)
 # edit/remove the `=WxH` modifier by hand.
 _DEFAULT_INSERT_MAX_WIDTH = 500
 
+logger = logging.getLogger(__name__)
+
 # How long to wait, after the last chart/dataset change event, before
 # actually re-rendering the preview -- coalesces rapid-fire edits (typing
 # into a linked dataset cell fires one of these per keystroke/commit) into a
@@ -95,14 +99,14 @@ def get_project_base_dir(app_context: AppContext) -> str:
         if project and project.project_file_path:
             return os.path.dirname(os.path.abspath(project.project_file_path))
     except Exception:
-        pass
+        logger.debug("Could not resolve project base dir; falling back to cwd", exc_info=True)
     return os.getcwd()
 
 
 _CHART_SNAPSHOT_GALLERY_NAME = "Chart Snapshots"
 
 
-def find_or_create_chart_snapshot_gallery(app_context: AppContext, folder_id: Optional[str]) -> Optional[str]:
+def find_or_create_chart_snapshot_gallery(app_context: AppContext, folder_id: str | None) -> str | None:
     """Return the id of the "Chart Snapshots" gallery inside `folder_id`
     (the note's own parent folder, or None for project root), creating one
     if it doesn't already exist there. Returns None if there's no current
@@ -145,9 +149,9 @@ def get_chart_gallery_path(project, chart_item: Chart) -> str:
 
 
 def get_cached_qimage_for_chart(
-    app_context: AppContext, chart_item: Chart, cache: Dict[str, Optional[QImage]],
-    *, note_editor: Optional["NoteEditorWidget"] = None,
-) -> Optional[QImage]:
+    app_context: AppContext, chart_item: Chart, cache: dict[str, QImage | None],
+    *, note_editor: "NoteEditorWidget | None" = None,
+) -> QImage | None:
     """Return a Chart item's cached QImage, or None on a cache miss --
     dispatching a background render for next time.
 
@@ -199,7 +203,7 @@ def _resolve_chart_render_inputs(app_context: AppContext, chart_item: Chart):
 
 def dispatch_headless_chart_render(
     app_context: AppContext, chart_item: Chart,
-    *, on_result: Callable[[Optional[QImage]], None], on_error: Optional[Callable] = None,
+    *, on_result: Callable[[QImage | None], None], on_error: Callable | None = None,
 ) -> None:
     """Snapshot `chart_item`'s series data on the GUI thread, then render
     it to a QImage on a TaskScheduler worker thread, delivering the result
@@ -229,8 +233,8 @@ def dispatch_headless_chart_render(
 
 
 def _dispatch_chart_render(
-    app_context: AppContext, chart_item: Chart, cache: Dict[str, Optional[QImage]],
-    *, note_editor: Optional["NoteEditorWidget"],
+    app_context: AppContext, chart_item: Chart, cache: dict[str, QImage | None],
+    *, note_editor: "NoteEditorWidget | None",
 ) -> None:
     """Populate `cache[chart_item.id]` once a background render completes.
     No-op if a render for this exact chart id is already in flight
@@ -260,7 +264,7 @@ def _dispatch_chart_render(
         generation = note_editor._chart_generations.get(chart_item.id, 0)
         note_editor._rendering_chart_ids.add(chart_item.id)
 
-    def _on_result(qimg: Optional[QImage]) -> None:
+    def _on_result(qimg: QImage | None) -> None:
         if note_editor is not None:
             if not isValid(note_editor):
                 return
@@ -286,7 +290,7 @@ def _dispatch_chart_render(
     dispatch_headless_chart_render(app_context, chart_item, on_result=_on_result, on_error=_on_error)
 
 
-def load_qimage_for_item(image_item: Image) -> Optional[QImage]:
+def load_qimage_for_item(image_item: Image) -> QImage | None:
     """Load QImage from Image item bytes or source file.
 
     Hits the network/disk for "external" images, so callers on a hot path
@@ -296,7 +300,7 @@ def load_qimage_for_item(image_item: Image) -> Optional[QImage]:
         data = image_item.get_bytes()
         if data is None and image_item.source_file:
             source = image_item.source_file
-            if source.startswith("http://") or source.startswith("https://"):
+            if source.startswith(("http://", "https://")):
                 import requests
                 resp = requests.get(source, timeout=5)
                 resp.raise_for_status()
@@ -309,11 +313,11 @@ def load_qimage_for_item(image_item: Image) -> Optional[QImage]:
             if qimg.loadFromData(data):
                 return qimg
     except Exception:
-        pass
+        logger.debug("Could not load image bytes for note preview", exc_info=True)
     return None
 
 
-def get_cached_qimage(image_item: Image, cache: Dict[str, Optional[QImage]]) -> Optional[QImage]:
+def get_cached_qimage(image_item: Image, cache: dict[str, QImage | None]) -> QImage | None:
     """Load an Image item's QImage, memoised by id in `cache`.
 
     Avoids re-decoding bytes (and re-fetching external URLs/files) on every
@@ -329,7 +333,7 @@ def get_cached_qimage(image_item: Image, cache: Dict[str, Optional[QImage]]) -> 
     return qimg
 
 
-def _add_key_and_decoded(keys: Set[str], target: Optional[str]) -> None:
+def _add_key_and_decoded(keys: set[str], target: str | None) -> None:
     if not target:
         return
     keys.add(target)
@@ -338,7 +342,7 @@ def _add_key_and_decoded(keys: Set[str], target: Optional[str]) -> None:
         keys.add(decoded)
 
 
-def extract_referenced_image_keys(source: str) -> Set[str]:
+def extract_referenced_image_keys(source: str) -> set[str]:
     """Return the set of image link targets referenced in note `source`.
 
     Used to skip loading/registering gallery images that the note doesn't
@@ -359,7 +363,7 @@ def extract_referenced_image_keys(source: str) -> Set[str]:
     a same-named external gallery image.
     """
     protected_source, _, _ = protect_code_regions(source)
-    keys: Set[str] = set()
+    keys: set[str] = set()
 
     for match in _IMAGE_REF_RE.finditer(protected_source):
         if is_escaped_at(protected_source, match.start()):
@@ -367,7 +371,7 @@ def extract_referenced_image_keys(source: str) -> Set[str]:
         target = match.group(1) if match.group(1) is not None else match.group(2)
         _add_key_and_decoded(keys, target)
 
-    definitions: Dict[str, str] = {}
+    definitions: dict[str, str] = {}
     for def_match in _LINK_DEFINITION_RE.finditer(protected_source):
         target = def_match.group(2) if def_match.group(2) is not None else def_match.group(3)
         if target:
@@ -392,9 +396,9 @@ class NoteLinkRow:
     kind: str  # "chart", "image", "file" (a real on-disk file), or "unknown" (couldn't resolve the target)
     status: str  # "ok", "unused", or "broken"
     is_snapshot: bool  # True only for an Image with note_id == this note's id
-    match_start: Optional[int]  # start offset of the full markdown reference in `source`, or None (unused row)
-    match_end: Optional[int]  # end offset, or None (unused row)
-    item_id: Optional[str]  # resolved Chart/Image id, or None (broken row)
+    match_start: int | None  # start offset of the full markdown reference in `source`, or None (unused row)
+    match_end: int | None  # end offset, or None (unused row)
+    item_id: str | None  # resolved Chart/Image id, or None (broken row)
 
 
 def _resolve_note_reference_target(app_context: AppContext, project, target: str):
@@ -424,7 +428,7 @@ def _resolve_note_reference_target(app_context: AppContext, project, target: str
     return "unknown", None
 
 
-def compute_note_link_rows(app_context: AppContext, note: Note, source: str) -> List[NoteLinkRow]:
+def compute_note_link_rows(app_context: AppContext, note: Note, source: str) -> list[NoteLinkRow]:
     """Build every row for the Links dialog / toolbar badge: one row per
     chart/image reference found in `source` (status "ok" if it resolves,
     "broken" if it doesn't), plus one row per snapshot Image this note
@@ -437,11 +441,11 @@ def compute_note_link_rows(app_context: AppContext, note: Note, source: str) -> 
     """
     app_state = app_context.get_app_state() if app_context else None
     project = app_state.current_project if app_state else None
-    rows: List[NoteLinkRow] = []
+    rows: list[NoteLinkRow] = []
     if project is None:
         return rows
 
-    referenced_item_ids: Set[str] = set()
+    referenced_item_ids: set[str] = set()
     code_spans = code_region_spans(source)
     for match in _IMAGE_MARKDOWN_RE.finditer(source):
         if is_escaped_at(source, match.start()):
@@ -495,10 +499,10 @@ def compute_note_link_rows(app_context: AppContext, note: Note, source: str) -> 
 def register_project_image_resources(
     document: QTextDocument,
     app_context: AppContext,
-    cache: Optional[Dict[str, Optional[QImage]]] = None,
-    referenced_keys: Optional[Set[str]] = None,
+    cache: dict[str, QImage | None] | None = None,
+    referenced_keys: set[str] | None = None,
     *,
-    note_editor: Optional["NoteEditorWidget"] = None,
+    note_editor: "NoteEditorWidget | None" = None,
 ) -> str:
     """Configure document base URL and register referenced gallery images as resources.
 
@@ -596,7 +600,7 @@ def register_project_image_resources(
                         continue
                     document.addResource(QTextDocument.ResourceType.ImageResource, url, qimg)
     except Exception:
-        pass
+        logger.debug("Could not register gallery images as note document resources", exc_info=True)
 
     return base_dir
 
@@ -608,8 +612,8 @@ class NotePreviewBrowser(QTextBrowser):
     """
 
     def __init__(
-        self, app_context: AppContext, parent: Optional[QWidget] = None,
-        note_editor: Optional["NoteEditorWidget"] = None,
+        self, app_context: AppContext, parent: QWidget | None = None,
+        note_editor: "NoteEditorWidget | None" = None,
     ):
         super().__init__(parent)
         self.app_context = app_context
@@ -621,7 +625,7 @@ class NotePreviewBrowser(QTextBrowser):
         self.setOpenExternalLinks(True)
         # Memoises decoded gallery images by id; cleared by the owning editor
         # when project images actually change (see NoteEditorWidget).
-        self.image_cache: Dict[str, Optional[QImage]] = {}
+        self.image_cache: dict[str, QImage | None] = {}
 
     @override
     def loadResource(self, type_: int, name: QUrl):
@@ -639,7 +643,7 @@ class NotePreviewBrowser(QTextBrowser):
 
         return super().loadResource(type_, name)
 
-    def _resolve_gallery_image(self, name: QUrl) -> Optional[QImage]:
+    def _resolve_gallery_image(self, name: QUrl) -> QImage | None:
         """Resolve `name` to a gallery image by exact id or exact gallery path only.
 
         No fuzzy filename/stem matching, and no match against source_file:
@@ -679,7 +683,7 @@ class NotePreviewBrowser(QTextBrowser):
                     if qimg is not None and not qimg.isNull():
                         return qimg
         except Exception:
-            pass
+            logger.debug("Could not resolve note image resource %r", name.toString(), exc_info=True)
         return None
 
 
@@ -732,7 +736,7 @@ class NoteEditorWidget(PWidget):
         # _chart_generations below) is tracked separately, since it's keyed
         # by the chart the request was made *for*, not by "is a render
         # currently running".
-        self._rendering_chart_ids: Set[str] = set()
+        self._rendering_chart_ids: set[str] = set()
 
         # Per-chart generation counters, bumped whenever a chart's cached
         # entry is invalidated (see _invalidate_chart_generation /
@@ -742,7 +746,7 @@ class NoteEditorWidget(PWidget):
         # dispatch time against the current one when the result arrives
         # lets _dispatch_chart_render discard it instead of silently
         # overwriting the fresher cache miss the invalidation left behind.
-        self._chart_generations: Dict[str, int] = {}
+        self._chart_generations: dict[str, int] = {}
 
         # Re-entrancy guard so proportional scroll syncing between the source
         # and preview panes doesn't ping-pong into an infinite loop.
@@ -1017,14 +1021,14 @@ class NoteEditorWidget(PWidget):
             document.print_(writer)
 
             self.update_status("PDF exported ✓")
-            QTimer.singleShot(2000, lambda: self.update_status("Ready"))
+            QTimer.singleShot(2000, self._reset_status)
         except Exception as e:
-            self.logger.error("Failed to export note to PDF: %s", e, exc_info=True)
-            self.update_status(f"Error: {str(e)}")
+            self.logger.exception("Failed to export note to PDF")
+            self.update_status(f"Error: {e!s}")
 
     def _render_charts_synchronously_for_export(
-        self, referenced_keys: Optional[Set[str]]
-    ) -> Dict[str, Optional[QImage]]:
+        self, referenced_keys: set[str] | None
+    ) -> dict[str, QImage | None]:
         """Render every chart the note references directly on the GUI
         thread, returning a cache dict ready to hand to
         register_project_image_resources().
@@ -1044,7 +1048,7 @@ class NoteEditorWidget(PWidget):
         """
         from pandaplot.gui.components.tabs.chart.chart_editor import render_chart_to_qimage
 
-        cache: Dict[str, Optional[QImage]] = {}
+        cache: dict[str, QImage | None] = {}
         app_state = self.app_context.get_app_state() if self.app_context else None
         project = app_state.current_project if app_state else None
         if project is None:
@@ -1060,10 +1064,8 @@ class NoteEditorWidget(PWidget):
             try:
                 resolved_series_data, size_defaults = _resolve_chart_render_inputs(self.app_context, item)
                 cache[item.id] = render_chart_to_qimage(item, resolved_series_data, size_defaults)
-            except Exception as e:
-                self.logger.error(
-                    "Failed to render chart %s for PDF export: %s", item.id, e, exc_info=True
-                )
+            except Exception:
+                self.logger.exception("Failed to render chart %s for PDF export", item.id)
                 cache[item.id] = None
         return cache
 
@@ -1196,7 +1198,7 @@ class NoteEditorWidget(PWidget):
         cursor = self.text_edit.textCursor()
         alt_text = chart.name.replace("[", "(").replace("]", ")")
 
-        def _on_result(qimg: Optional[QImage]) -> None:
+        def _on_result(qimg: QImage | None) -> None:
             if qimg is None:
                 return
             # The note tab (and this widget) may have been closed while the
@@ -1218,7 +1220,7 @@ class NoteEditorWidget(PWidget):
 
         dispatch_headless_chart_render(self.app_context, chart, on_result=_on_result)
 
-    def _save_chart_snapshot_image(self, chart: Chart, qimg: QImage) -> Optional[str]:
+    def _save_chart_snapshot_image(self, chart: Chart, qimg: QImage) -> str | None:
         """Add `qimg` to the project as a plain gallery Image (in the
         note's "Chart Snapshots" gallery), returning its new id, or None
         on failure."""
@@ -1537,7 +1539,7 @@ class NoteEditorWidget(PWidget):
         return False
 
     @staticmethod
-    def _snapshot_has_rendered_preview_descendant(item_data: Optional[dict]) -> bool:
+    def _snapshot_has_rendered_preview_descendant(item_data: dict | None) -> bool:
         """Best-effort check of a deleted item's serialized snapshot
         (Item.to_dict()) for an embedded Image or Chart.
 
@@ -1555,7 +1557,7 @@ class NoteEditorWidget(PWidget):
             for child in item_data.get("items", [])
         )
 
-    def _event_dataset_ids(self, event_data: dict) -> Set[str]:
+    def _event_dataset_ids(self, event_data: dict) -> set[str]:
         """Ids of any Dataset(s) a PROJECT_ITEM_* event concerns.
 
         DATASET_DELETED doesn't bubble to DATASET_CHANGED, and the generic
@@ -1592,10 +1594,10 @@ class NoteEditorWidget(PWidget):
         return self._snapshot_dataset_descendant_ids(event_data.get("item_data"))
 
     @staticmethod
-    def _collection_dataset_descendant_ids(project, collection: ItemCollection) -> Set[str]:
+    def _collection_dataset_descendant_ids(project, collection: ItemCollection) -> set[str]:
         """Ids of every Dataset in `collection`'s (still-in-project) subtree."""
         collection_ids = {collection.id}
-        dataset_ids: Set[str] = set()
+        dataset_ids: set[str] = set()
         changed = True
         while changed:
             changed = False
@@ -1609,7 +1611,7 @@ class NoteEditorWidget(PWidget):
         return dataset_ids
 
     @staticmethod
-    def _snapshot_dataset_descendant_ids(item_data: Optional[dict]) -> Set[str]:
+    def _snapshot_dataset_descendant_ids(item_data: dict | None) -> set[str]:
         """Ids of every Dataset in a deleted item's serialized snapshot.
 
         There's no explicit "type" field in the serialized form, so this
@@ -1617,7 +1619,7 @@ class NoteEditorWidget(PWidget):
         """
         if not isinstance(item_data, dict):
             return set()
-        dataset_ids: Set[str] = set()
+        dataset_ids: set[str] = set()
         if "has_data" in item_data and "column_ids" in item_data:
             item_id = item_data.get("id")
             if item_id:
@@ -1749,6 +1751,17 @@ class NoteEditorWidget(PWidget):
         self.status_label.setText(status)
         self._update_status_label_style()
 
+    def _reset_status(self) -> None:
+        """Reset the status label to "Ready" once a transient message has been shown.
+
+        Runs from a timer, so the editor may have been closed (and its Qt widgets
+        deleted) in the meantime.
+        """
+        try:
+            self.update_status("Ready")
+        except RuntimeError:
+            self.logger.debug("Note editor closed before the status reset timer fired")
+
     def save_content(self, *, track_undo: bool = True) -> bool:
         """Save the note content. Returns whether the save actually
         committed -- callers (e.g. flush_pending_edits) must not treat
@@ -1783,11 +1796,11 @@ class NoteEditorWidget(PWidget):
             self.update_status("Saved ✓")
 
             # Reset status after 2 seconds
-            QTimer.singleShot(2000, lambda: self.update_status("Ready"))
+            QTimer.singleShot(2000, self._reset_status)
             return True
 
-        except Exception as e:
-            self.update_status(f"Error: {str(e)}")
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            self.update_status(f"Error: {e!s}")
             return False
 
     def auto_save(self):

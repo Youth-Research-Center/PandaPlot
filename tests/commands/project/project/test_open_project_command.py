@@ -25,9 +25,8 @@ def test_invalid_project_file_logs_a_warning(caplog):
     app_context.ui_controller.show_open_project_dialog.return_value = "bad_path.pplot"
 
     command = OpenProjectCommand(app_context)
-    with patch.object(command.project_manager, "validate_project_file", return_value=False):
-        with caplog.at_level(logging.WARNING):
-            result = command.execute()
+    with patch.object(command.project_manager, "validate_project_file", return_value=False), caplog.at_level(logging.WARNING):
+        result = command.execute()
 
     assert command.was_executed is False
     assert "bad_path.pplot" in caplog.text
@@ -54,12 +53,11 @@ def test_execute_returns_noop_when_user_cancels_replacing_current_project():
     app_context.ui_controller.show_open_project_dialog.return_value = "path.pplot"
 
     command = OpenProjectCommand(app_context)
-    with patch.object(command.project_manager, "validate_project_file", return_value=True):
-        with patch(
-            "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
-        ) as load_cls:
-            load_cls.return_value.execute.return_value = CommandResult.NOOP
-            result = command.execute()
+    with patch.object(command.project_manager, "validate_project_file", return_value=True), patch(
+        "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
+    ) as load_cls:
+        load_cls.return_value.execute.return_value = CommandResult.NOOP
+        result = command.execute()
 
     assert command.was_executed is False
     assert result is CommandResult.NOOP
@@ -70,12 +68,11 @@ def test_execute_returns_success_when_project_opens():
     app_context.ui_controller.show_open_project_dialog.return_value = "path.pplot"
 
     command = OpenProjectCommand(app_context)
-    with patch.object(command.project_manager, "validate_project_file", return_value=True):
-        with patch(
-            "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
-        ) as load_cls:
-            load_cls.return_value.execute.return_value = CommandResult.SUCCESS
-            result = command.execute()
+    with patch.object(command.project_manager, "validate_project_file", return_value=True), patch(
+        "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
+    ) as load_cls:
+        load_cls.return_value.execute.return_value = CommandResult.SUCCESS
+        result = command.execute()
 
     assert command.was_executed is True
     assert result is CommandResult.SUCCESS
@@ -91,12 +88,11 @@ def test_execute_returns_failure_when_load_command_fails():
     app_context.app_state.has_project = False
 
     command = OpenProjectCommand(app_context)
-    with patch.object(command.project_manager, "validate_project_file", return_value=True):
-        with patch(
-            "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
-        ) as mock_load_cls:
-            mock_load_cls.return_value.execute.return_value = CommandResult.FAILURE
-            result = command.execute()
+    with patch.object(command.project_manager, "validate_project_file", return_value=True), patch(
+        "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
+    ) as mock_load_cls:
+        mock_load_cls.return_value.execute.return_value = CommandResult.FAILURE
+        result = command.execute()
 
     assert command.was_executed is False
     assert result is CommandResult.FAILURE
@@ -157,12 +153,11 @@ def test_execute_delegates_to_load_project_command():
     app_context.ui_controller.show_open_project_dialog.return_value = "/p/other.pplot"
 
     command = OpenProjectCommand(app_context)
-    with patch.object(command.project_manager, "validate_project_file", return_value=True):
-        with patch(
-            "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
-        ) as load_cls:
-            load_cls.return_value.execute.return_value = CommandResult.SUCCESS
-            result = command.execute()
+    with patch.object(command.project_manager, "validate_project_file", return_value=True), patch(
+        "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
+    ) as load_cls:
+        load_cls.return_value.execute.return_value = CommandResult.SUCCESS
+        result = command.execute()
 
     load_cls.assert_called_once_with(app_context, "/p/other.pplot")
     load_cls.return_value.execute.assert_called_once()
@@ -179,12 +174,11 @@ def test_execute_propagates_a_declined_or_skipped_load():
     app_context.ui_controller.show_open_project_dialog.return_value = "/p/other.pplot"
 
     command = OpenProjectCommand(app_context)
-    with patch.object(command.project_manager, "validate_project_file", return_value=True):
-        with patch(
-            "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
-        ) as load_cls:
-            load_cls.return_value.execute.return_value = CommandResult.NOOP
-            result = command.execute()
+    with patch.object(command.project_manager, "validate_project_file", return_value=True), patch(
+        "pandaplot.commands.project.project.open_project_command.LoadProjectCommand"
+    ) as load_cls:
+        load_cls.return_value.execute.return_value = CommandResult.NOOP
+        result = command.execute()
 
     assert result is CommandResult.NOOP
     assert command.was_executed is False
@@ -199,9 +193,11 @@ def test_execute_does_not_show_a_success_dialog():
     app_context.ui_controller.show_open_project_dialog.return_value = "/p/new.pplot"
 
     command = OpenProjectCommand(app_context)
-    with patch.object(command.project_manager, "validate_project_file", return_value=True):
-        with patch("pandaplot.commands.project.project.open_project_command.LoadProjectCommand"):
-            command.execute()
+    with (
+        patch.object(command.project_manager, "validate_project_file", return_value=True),
+        patch("pandaplot.commands.project.project.open_project_command.LoadProjectCommand"),
+    ):
+        command.execute()
 
     app_context.ui_controller.show_info_message.assert_not_called()
 

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import TypeVar
 from zipfile import ZipFile
 
 from pandaplot.models.project.items.item import Item
@@ -7,7 +7,7 @@ from pandaplot.models.project.items.item import Item
 TItem = TypeVar("TItem", bound=Item)
 
 
-class ItemDataManager(ABC, Generic[TItem]):
+class ItemDataManager[TItem: Item](ABC):
     """Base class for (de)serializing one Item subtype to/from a project zip.
 
     Generic over the concrete Item subtype so each manager (e.g.

@@ -1,8 +1,39 @@
 """Pandas custom header view that supports dtypes."""
 
 from PySide6.QtCore import QRect, Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QPalette
 from PySide6.QtWidgets import QHeaderView
+
+
+def formula_marker(dataset, column_name: str) -> str:
+    """Short header marker for a formula column (#154), or "" for a plain one.
+
+    Borrowed from spreadsheets: "fx" says the displayed values came from an
+    expression rather than being typed in; "fx live" says the expression is
+    re-evaluated on its own when a source column changes (and so can't be
+    edited by hand).
+    """
+    if dataset is None:
+        return ""
+    spec = dataset.formula_column_by_name(column_name)
+    if spec is None:
+        return ""
+    return "fx live" if spec.live else "fx"
+
+
+def formula_tooltip(dataset, column_name: str) -> str | None:
+    """Full explanation of a formula column for a header tooltip, or None."""
+    if dataset is None:
+        return None
+    spec = dataset.formula_column_by_name(column_name)
+    if spec is None:
+        return None
+    kind = (
+        "Live formula column (read-only, recomputes automatically)"
+        if spec.live
+        else "Formula column (static until recomputed -- right-click the header)"
+    )
+    return f"{kind}\n{spec.expression}"
 
 
 class PHeaderView(QHeaderView):
@@ -36,6 +67,12 @@ class PHeaderView(QHeaderView):
         column_name = str(self.dataset.data.columns[logical_index])
         column_dtype = str(self.dataset.data.dtypes.iloc[logical_index])
         column_number = logical_index + 1
+
+        # Mark formula columns (#154) on the dtype line rather than the name
+        # line, so the column's actual name stays readable in a narrow column.
+        marker = formula_marker(self.dataset, column_name)
+        if marker:
+            column_dtype = f"{column_dtype}  {marker}"
         
         # Prepare fonts
         bold_font = QFont(painter.font())
@@ -55,9 +92,15 @@ class PHeaderView(QHeaderView):
         first_line = f"{column_number} - {column_name}"
         painter.drawText(top_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, first_line)
         
-        # Draw second line: data type
+        # Draw second line: data type. QPalette.Mid is derived automatically
+        # from the Button color assuming a light theme, so in dark theme
+        # (dark Button color) it comes out darker still -- nearly invisible
+        # against the dark background. PlaceholderText is explicitly set
+        # per-theme (theme_manager._apply_to_qapp) to a color halfway between
+        # the theme's text and background, so it stays legible-but-muted in
+        # both themes.
         painter.setFont(italic_font)
-        painter.setPen(self.palette().mid().color())  # Lighter color for dtype
+        painter.setPen(self.palette().color(QPalette.ColorRole.PlaceholderText))
         painter.drawText(bottom_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, column_dtype)
         
         painter.restore()

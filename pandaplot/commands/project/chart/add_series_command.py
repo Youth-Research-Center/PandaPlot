@@ -1,11 +1,12 @@
 """Command for adding a data series to a chart."""
 
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events import ChartEvents
+from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.project.items.chart import DataSeries
 from pandaplot.models.state import AppContext
 
@@ -19,7 +20,7 @@ class AddSeriesCommand(Command):
         self.ui_controller: UIController = app_context.get_ui_controller()
         self.chart_id = chart_id
         self.series = series
-        self.added_index: Optional[int] = None
+        self.added_index: int | None = None
         self._chart_finder = ChartFinder(app_context)
 
     @override
@@ -39,11 +40,11 @@ class AddSeriesCommand(Command):
         chart.update_modified_time()
         self.added_index = len(chart.data_series) - 1
 
-        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-            "chart_id": self.chart_id,
-            "update_type": "series_added",
-            "chart": chart,
-        })
+        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+            chart_id=self.chart_id,
+            update_type="series_added",
+            chart=chart,
+        ).to_dict())
         return CommandResult.SUCCESS
 
     @override
@@ -53,11 +54,11 @@ class AddSeriesCommand(Command):
             return CommandResult.FAILURE
 
         chart.remove_data_series(self.added_index)
-        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-            "chart_id": self.chart_id,
-            "update_type": "series_removed",
-            "chart": chart,
-        })
+        self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+            chart_id=self.chart_id,
+            update_type="series_removed",
+            chart=chart,
+        ).to_dict())
         return CommandResult.SUCCESS
 
     @override

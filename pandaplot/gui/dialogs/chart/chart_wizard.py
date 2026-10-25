@@ -1,5 +1,6 @@
 """Top-level chart creation wizard: Type step, then Data step."""
-from typing import Callable, Optional, override
+from collections.abc import Callable
+from typing import override
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QPixmap
@@ -21,11 +22,11 @@ class ChartWizard(PWizard):
         self,
         app_context: AppContext,
         parent=None,
-        initial_dataset_id: Optional[str] = None,
-        initial_column_ids: Optional[list[str]] = None,
-        initial_title: Optional[str] = None,
-        datasets: Optional[list[tuple[str, str]]] = None,
-        columns_provider: Optional[Callable[[str], list[tuple[str, str]]]] = None,
+        initial_dataset_id: str | None = None,
+        initial_column_ids: list[str] | None = None,
+        initial_title: str | None = None,
+        datasets: list[tuple[str, str]] | None = None,
+        columns_provider: Callable[[str], list[tuple[str, str]]] | None = None,
         project=None,
     ):
         self._initial_dataset_id = initial_dataset_id
@@ -129,7 +130,7 @@ class ChartWizard(PWizard):
                 background-color: {accent};
                 border-color: {accent};
             }}
-            QLineEdit, QSpinBox, QComboBox {{
+            QLineEdit {{
                 background-color: {input_bg};
                 border: 1px solid {card_border};
                 border-radius: 4px;
@@ -137,26 +138,16 @@ class ChartWizard(PWizard):
                 min-height: 22px;
                 color: {base_fg};
             }}
-            QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
+            QLineEdit:focus {{
                 border-color: {accent};
             }}
-            QLineEdit:hover, QSpinBox:hover, QComboBox:hover {{
+            QLineEdit:hover {{
                 border-color: {accent};
             }}
-            QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled {{
+            QLineEdit:disabled {{
                 color: {secondary_fg};
                 background-color: {card_bg};
                 border-color: {card_border};
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {input_bg};
-                color: {base_fg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-                outline: none;
-                padding: 2px;
-                selection-background-color: {accent};
-                selection-color: white;
             }}
             QListWidget {{
                 background-color: {input_bg};
@@ -218,10 +209,19 @@ class ChartWizard(PWizard):
         y_label = ""
         if self.data_page.cards:
             names = self.data_page.cards[0].get_display_names()
-            if self.get_chart_type() == "hist":
-                # A histogram plots the binned "Values" column along X; Y is
-                # frequency/count, which nothing here can suggest a name for.
+            chart_type = self.get_chart_type()
+            if chart_type in ("hist", "density"):
+                # A histogram/density chart plots the "Values" column along
+                # X. A histogram's Y is a frequency/count nothing here can
+                # suggest a name for; a density chart's Y is always the
+                # estimated probability density.
                 x_label = names.get("values", "")
+                if chart_type == "density":
+                    y_label = "Density"
+            elif chart_type == "box":
+                # A box plot measures its "Values" column up the Y axis; X
+                # just names each box (one tick per series), so no label.
+                y_label = names.get("values", "")
             else:
                 x_label = names.get("x", "")
                 y_label = names.get("y", "")

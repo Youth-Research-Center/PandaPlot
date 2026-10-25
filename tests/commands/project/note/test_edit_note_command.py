@@ -75,7 +75,7 @@ class TestEditNoteCommand:
 
     def test_execute_no_current_project(self, mock_app_context):
         """Test execute when current project is None."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
         
@@ -124,7 +124,7 @@ class TestEditNoteCommand:
 
     def test_execute_logs_warning_when_no_project_loaded(self, mock_app_context, caplog):
         """Test execute logs a warning when no project is loaded."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
 
         command = EditNoteCommand(app_context, "note-123", "New content")
@@ -136,7 +136,7 @@ class TestEditNoteCommand:
 
     def test_execute_logs_warning_when_current_project_none(self, mock_app_context, caplog):
         """Test execute logs a warning when current_project is None despite has_project."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -149,7 +149,7 @@ class TestEditNoteCommand:
 
     def test_execute_logs_warning_when_note_not_found(self, mock_app_context, sample_project, caplog):
         """Test execute logs a warning when note is not found."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         sample_project.find_item.return_value = None
@@ -163,7 +163,7 @@ class TestEditNoteCommand:
 
     def test_execute_successful(self, mock_app_context, sample_project, sample_note):
         """Test successful execute operation."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -201,7 +201,7 @@ class TestEditNoteCommand:
 
     def test_undo_successful(self, mock_app_context, sample_project, sample_note):
         """Test successful undo operation."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -224,7 +224,7 @@ class TestEditNoteCommand:
 
     def test_undo_no_old_content(self, mock_app_context):
         """Test undo when no old content is stored."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         
         command = EditNoteCommand(app_context, "note-123", "New content")
         # old_content is None
@@ -235,7 +235,7 @@ class TestEditNoteCommand:
 
     def test_undo_no_project(self, mock_app_context):
         """Test undo when no project is loaded."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
         
         command = EditNoteCommand(app_context, "note-123", "New content")
@@ -322,7 +322,7 @@ class TestEditNoteCommand:
 
     def test_undo_logs_warning_when_current_project_none(self, mock_app_context, caplog):
         """Test undo logs a warning when current_project is None despite has_project."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -337,7 +337,7 @@ class TestEditNoteCommand:
 
     def test_undo_logs_warning_when_note_not_found(self, mock_app_context, sample_project, caplog):
         """Test undo logs a warning when note is not found."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         sample_project.find_item.return_value = None
@@ -353,7 +353,7 @@ class TestEditNoteCommand:
 
     def test_redo_successful(self, mock_app_context, sample_project, sample_note):
         """Test successful redo operation."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -376,7 +376,7 @@ class TestEditNoteCommand:
 
     def test_redo_no_old_content(self, mock_app_context):
         """Test redo when no old content is stored."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         
         command = EditNoteCommand(app_context, "note-123", "New content")
         # old_content is None
@@ -386,7 +386,7 @@ class TestEditNoteCommand:
 
     def test_redo_no_project(self, mock_app_context):
         """Test redo when no project is loaded."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
         
         command = EditNoteCommand(app_context, "note-123", "New content")
@@ -398,7 +398,7 @@ class TestEditNoteCommand:
 
     def test_redo_no_current_project(self, mock_app_context):
         """Test redo when current project is None."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
         
@@ -411,7 +411,7 @@ class TestEditNoteCommand:
 
     def test_redo_note_not_found(self, mock_app_context, sample_project):
         """Test redo when note is not found."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -426,7 +426,7 @@ class TestEditNoteCommand:
 
     def test_redo_item_not_note(self, mock_app_context, sample_project):
         """Test redo when found item is not a Note."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -460,7 +460,7 @@ class TestEditNoteCommand:
 
     def test_redo_logs_warning_when_current_project_none(self, mock_app_context, caplog):
         """Test redo logs a warning when current_project is None despite has_project."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -475,7 +475,7 @@ class TestEditNoteCommand:
 
     def test_redo_logs_warning_when_note_not_found(self, mock_app_context, sample_project, caplog):
         """Test redo logs a warning when note is not found."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         sample_project.find_item.return_value = None
@@ -491,7 +491,7 @@ class TestEditNoteCommand:
 
     def test_content_storage_during_execute(self, mock_app_context, sample_project, sample_note):
         """Test that old content is properly stored during execute."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -511,7 +511,7 @@ class TestEditNoteCommand:
 
     def test_multiple_executions_preserve_original_content(self, mock_app_context, sample_project, sample_note):
         """Test that multiple executions don't overwrite the original content."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -536,7 +536,7 @@ class TestEditNoteCommand:
 
     def test_event_data_structure(self, mock_app_context, sample_project, sample_note):
         """Test that emitted events have correct data structure."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -562,7 +562,7 @@ class TestEditNoteCommand:
     def test_cleanup_releases_old_content_only(self, mock_app_context):
         """Test cleanup releases the pre-edit content snapshot but preserves
         new_content needed by redo()."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
 
         command = EditNoteCommand(app_context, "note-123", "New content")
         command.old_content = "Original content"
@@ -574,7 +574,7 @@ class TestEditNoteCommand:
 
     def test_command_state_isolation(self, mock_app_context, sample_project):
         """Test that multiple command instances don't interfere with each other."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         

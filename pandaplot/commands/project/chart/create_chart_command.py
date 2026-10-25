@@ -8,7 +8,7 @@ lands on the undo stack -- it owns the add/remove of a fully-configured
 Chart, independent of how that Chart was built.
 """
 
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -21,7 +21,7 @@ from pandaplot.models.state import AppContext, AppState
 class CreateChartCommand(Command):
     """Adds `chart` to the project under `parent_id`; undoable/redoable."""
 
-    def __init__(self, app_context: AppContext, chart: Chart, parent_id: Optional[str] = None):
+    def __init__(self, app_context: AppContext, chart: Chart, parent_id: str | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -42,7 +42,7 @@ class CreateChartCommand(Command):
             ).to_dict())
             self.logger.info("CreateChartCommand: created chart '%s'", self.chart_id)
             return CommandResult.SUCCESS
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error("CreateChartCommand Execute Error: %s", str(e))
             return CommandResult.FAILURE
 
@@ -60,7 +60,7 @@ class CreateChartCommand(Command):
             })
             self.logger.info("CreateChartCommand: undid creation of chart '%s'", self.chart_id)
             return CommandResult.SUCCESS
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error("CreateChartCommand Undo Error: %s", str(e))
             return CommandResult.FAILURE
 

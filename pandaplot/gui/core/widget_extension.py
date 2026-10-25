@@ -3,7 +3,7 @@
 import logging
 from abc import abstractmethod
 from collections.abc import Callable
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from PySide6.QtCore import QObject
 from PySide6.QtWidgets import QDialog, QMainWindow, QMenuBar, QTabWidget, QWidget, QWizard, QWizardPage
@@ -17,13 +17,12 @@ class WidgetExtension:
     def __init__(self, app_context: AppContext):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.app_context = app_context
-        self._subscriptions : List[Tuple[str, Callable]] = []
-        self._unsaved_changes_registry: Optional[UnsavedChangesRegistry] = None
+        self._subscriptions : list[tuple[str, Callable]] = []
+        self._unsaved_changes_registry: UnsavedChangesRegistry | None = None
     
     @abstractmethod
     def _init_ui(self):
         """Set up the user interface components."""
-        pass
 
     @abstractmethod
     def _apply_theme(self):
@@ -40,23 +39,22 @@ class WidgetExtension:
         """Handle theme changes by applying appropriate background and font settings."""
         try:
             self._apply_theme()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.logger.warning("Failed applying theme to main window: %s", e)
     
     def setup_event_subscriptions(self):    
         """Set up event subscriptions for the main window."""
-        pass
 
     def _setup_base_event_subscriptions(self):
         self.subscribe_to_event(ThemeEvents.THEME_CHANGED, self._on_theme_changed)
 
-    def publish_event(self, event_type: str, data: Dict[str, Any] | None = None) -> None:
+    def publish_event(self, event_type: str, data: dict[str, Any] | None = None) -> None:
         """Publish an event through the event bus."""
         event_data = data or {}
         event_data["source_component"] = self.__class__.__name__
         self.app_context.event_bus.emit(event_type, event_data)
 
-    def subscribe_to_event(self, event_type: str, handler: Callable[[Dict[str, Any]], None]) -> None:
+    def subscribe_to_event(self, event_type: str, handler: Callable[[dict[str, Any]], None]) -> None:
         """Subscribe to an event type.
         
         Args:
@@ -73,7 +71,7 @@ class WidgetExtension:
         self.app_context.event_bus.subscribe(event_type, handler)
         self._subscriptions.append((event_type, handler))
     
-    def subscribe_to_multiple_events(self, event_subscriptions: List[Tuple[str, Callable]]) -> None:
+    def subscribe_to_multiple_events(self, event_subscriptions: list[tuple[str, Callable]]) -> None:
         """Subscribe to multiple events at once.
 
         Args:
@@ -122,8 +120,8 @@ class WidgetExtension:
             # we are unsubscribing from all events ideally when destroyed is called
             # leaving this in case we don't use QWidget/QObject
             self.unsubscribe_all()
-        except Exception:
-            pass  # Ignore errors during cleanup
+        except Exception:  # noqa: S110, BLE001 -- __del__ runs during GC/interpreter teardown, when logging (or anything else) may itself be unsafe; best-effort cleanup only
+            pass
 
 
 def unsubscribe_widget_tree(widget: Any) -> None:
@@ -183,39 +181,39 @@ class PMainWindow(WidgetExtension, QMainWindow):
         self.destroyed.connect(self.unsubscribe_all)
 
 class PWidget(WidgetExtension, QWidget):
-    def __init__(self, app_context:AppContext, parent: Optional[QWidget] = None, **kwargs):
+    def __init__(self, app_context:AppContext, parent: QWidget | None = None, **kwargs):
         QWidget.__init__(self, parent, **kwargs)
         WidgetExtension.__init__(self, app_context=app_context)
         self.destroyed.connect(self.unsubscribe_all)
 
 class PMenuBar(WidgetExtension, QMenuBar):
-    def __init__(self, app_context:AppContext, parent: Optional[QWidget] = None, **kwargs):
+    def __init__(self, app_context:AppContext, parent: QWidget | None = None, **kwargs):
         QMenuBar.__init__(self, parent, **kwargs)
         WidgetExtension.__init__(self, app_context=app_context)
         self.destroyed.connect(self.unsubscribe_all)
 
 class PTabWidget(WidgetExtension, QTabWidget):
-    def __init__(self, app_context:AppContext, parent: Optional[QWidget] = None, **kwargs):
+    def __init__(self, app_context:AppContext, parent: QWidget | None = None, **kwargs):
         QTabWidget.__init__(self, parent, **kwargs)
         WidgetExtension.__init__(self, app_context=app_context)
         self.destroyed.connect(self.unsubscribe_all)
 
 class PDialog(WidgetExtension, QDialog):
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None, **kwargs):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None, **kwargs):
         QDialog.__init__(self, parent, **kwargs)
         WidgetExtension.__init__(self, app_context=app_context)
         self.destroyed.connect(self.unsubscribe_all)
 
 
 class PWizard(WidgetExtension, QWizard):
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None, **kwargs):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None, **kwargs):
         QWizard.__init__(self, parent, **kwargs)
         WidgetExtension.__init__(self, app_context=app_context)
         self.destroyed.connect(self.unsubscribe_all)
 
 
 class PWizardPage(WidgetExtension, QWizardPage):
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None, **kwargs):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None, **kwargs):
         QWizardPage.__init__(self, parent, **kwargs)
         WidgetExtension.__init__(self, app_context=app_context)
         self.destroyed.connect(self.unsubscribe_all)

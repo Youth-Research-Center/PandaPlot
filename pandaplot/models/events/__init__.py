@@ -19,15 +19,15 @@ from .event_types import (
 )
 
 __all__ = [
-    "AppEvents",
-    "EventBus",
-    "DatasetEvents",
-    "DatasetOperationEvents", 
     "AnalysisEvents",
+    "AppEvents",
     "ChartEvents",
-    "UIEvents",
-    "ProjectEvents",
-    "NoteEvents",
+    "DatasetEvents",
+    "DatasetOperationEvents",
+    "EventBus",
     "EventHierarchy",
-    "FitEvents"
+    "FitEvents",
+    "NoteEvents",
+    "ProjectEvents",
+    "UIEvents"
 ]

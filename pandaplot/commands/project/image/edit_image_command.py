@@ -3,7 +3,7 @@ Command to apply image edits (crop, rotate, resize) to an existing Image item.
 """
 
 import datetime
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -20,7 +20,7 @@ class EditImageCommand(Command):
 
     def __init__(self, app_context: AppContext, image_id: str,
                  new_bytes: bytes, new_width: int, new_height: int,
-                 new_ext: Optional[str] = None):
+                 new_ext: str | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -33,10 +33,10 @@ class EditImageCommand(Command):
         self.new_ext = new_ext
 
         # Undo state
-        self.old_bytes: Optional[bytes] = None
+        self.old_bytes: bytes | None = None
         self.old_width: int = 0
         self.old_height: int = 0
-        self.old_size_bytes: Optional[int] = None
+        self.old_size_bytes: int | None = None
         self.old_storage_mode: str = "copied"
         self.old_image_ext: str = ""
         self.old_modified_at: str = ""
@@ -91,7 +91,7 @@ class EditImageCommand(Command):
             item.storage_mode = "copied"
             if self.new_ext:
                 item.image_ext = self.new_ext
-            item.modified_at = datetime.datetime.now().isoformat()
+            item.modified_at = datetime.datetime.now().isoformat()  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones
 
             self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED, {
                 "project": project,
@@ -103,8 +103,8 @@ class EditImageCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to edit image: {str(e)}"
-            self.logger.error("EditImageCommand Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to edit image: {e!s}"
+            self.logger.exception("EditImageCommand Error: %s", error_msg)
             self.ui_controller.show_error_message("Edit Image Error", error_msg)
             return CommandResult.FAILURE
 
@@ -140,8 +140,8 @@ class EditImageCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to undo image edit: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Failed to undo image edit: {e!s}"
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 

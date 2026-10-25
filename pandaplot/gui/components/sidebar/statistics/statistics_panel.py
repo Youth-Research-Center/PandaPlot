@@ -3,13 +3,12 @@ Statistics panel: a guided side panel for running the most common statistical
 hypothesis tests on dataset columns and adding the results to the project as data.
 """
 
-from typing import List, Optional, override
+from typing import override
 
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QComboBox,
-    QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -22,6 +21,8 @@ from PySide6.QtWidgets import (
 
 from pandaplot.analysis import STAT_TESTS, InputMode, StatTestResult, StatTestType
 from pandaplot.commands.project.dataset.statistical_test_command import StatisticalTestCommand
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import DecimalInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.statistics.test_info_dialog import InfoDialogHelper
@@ -34,11 +35,11 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class StatisticsPanel(SidebarPanel):
     """Side panel for guided statistical testing on dataset columns."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self.current_dataset: Optional[Dataset] = None
-        self.current_dataset_id: Optional[str] = None
-        self.last_result: Optional[StatTestResult] = None
+        self.current_dataset: Dataset | None = None
+        self.current_dataset_id: str | None = None
+        self.last_result: StatTestResult | None = None
 
         self._initialize()
 
@@ -74,7 +75,7 @@ class StatisticsPanel(SidebarPanel):
         group_layout = QVBoxLayout()
 
         form = QFormLayout()
-        self.test_type_combo = QComboBox()
+        self.test_type_combo = DropDownComboBox()
         for test_type, info in STAT_TESTS.items():
             self.test_type_combo.addItem(info.label, test_type)
         self.test_type_combo.currentIndexChanged.connect(self._on_test_type_changed)
@@ -177,20 +178,20 @@ class StatisticsPanel(SidebarPanel):
 
     def _build_input_widgets(self, input_mode: InputMode):
         self._clear_layout(self.input_layout)
-        self.column_combos: List[QComboBox] = []
-        self.group_list: Optional[QListWidget] = None
+        self.column_combos: list[QComboBox] = []
+        self.group_list: QListWidget | None = None
 
         columns = self._numeric_columns()
 
         if input_mode == InputMode.ONE:
-            combo = QComboBox()
+            combo = DropDownComboBox()
             combo.addItems(columns)
             self.column_combos.append(combo)
             self.input_layout.addRow("Sample column:", combo)
 
         elif input_mode == InputMode.TWO:
-            combo_a = QComboBox()
-            combo_b = QComboBox()
+            combo_a = DropDownComboBox()
+            combo_b = DropDownComboBox()
             combo_a.addItems(columns)
             combo_b.addItems(columns)
             if len(columns) >= 2:
@@ -216,7 +217,7 @@ class StatisticsPanel(SidebarPanel):
         self._clear_layout(self.parameters_layout)
 
         # Significance level is common to every test.
-        self.alpha_spin = QDoubleSpinBox()
+        self.alpha_spin = DecimalInput()
         self.alpha_spin.setDecimals(4)
         self.alpha_spin.setRange(0.0001, 0.5)
         self.alpha_spin.setSingleStep(0.01)
@@ -225,7 +226,7 @@ class StatisticsPanel(SidebarPanel):
 
         self.popmean_spin = None
         if info.uses_popmean:
-            self.popmean_spin = QDoubleSpinBox()
+            self.popmean_spin = DecimalInput()
             self.popmean_spin.setDecimals(6)
             self.popmean_spin.setRange(-1e12, 1e12)
             self.popmean_spin.setValue(0.0)
@@ -233,7 +234,7 @@ class StatisticsPanel(SidebarPanel):
 
         self.alternative_combo = None
         if info.uses_alternative:
-            self.alternative_combo = QComboBox()
+            self.alternative_combo = DropDownComboBox()
             self.alternative_combo.addItems(["two-sided", "less", "greater"])
             self.parameters_layout.addRow("Alternative:", self.alternative_combo)
 
@@ -247,7 +248,7 @@ class StatisticsPanel(SidebarPanel):
     # Actions
     # ------------------------------------------------------------------
 
-    def _selected_columns(self) -> List[str]:
+    def _selected_columns(self) -> list[str]:
         info = STAT_TESTS[self._current_test_type()]
         if info.input_mode == InputMode.MANY:
             if self.group_list is None:
@@ -255,7 +256,7 @@ class StatisticsPanel(SidebarPanel):
             return [item.text() for item in self.group_list.selectedItems()]
         return [combo.currentText() for combo in self.column_combos if combo.currentText()]
 
-    def _build_command(self) -> Optional[StatisticalTestCommand]:
+    def _build_command(self) -> StatisticalTestCommand | None:
         if not self.current_dataset_id:
             self.results_text.setText("❌ No dataset selected.")
             return None
@@ -292,7 +293,7 @@ class StatisticsPanel(SidebarPanel):
             return
         try:
             result = command.run_test()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.last_result = None
             self.add_btn.setEnabled(False)
             self.results_text.setText(f"❌ Test failed: {e}")
@@ -343,7 +344,7 @@ class StatisticsPanel(SidebarPanel):
     # Dataset context handling
     # ------------------------------------------------------------------
 
-    def _numeric_columns(self) -> List[str]:
+    def _numeric_columns(self) -> list[str]:
         if not self.current_dataset or self.current_dataset.data is None:
             return []
         import pandas as pd
@@ -419,6 +420,7 @@ class StatisticsPanel(SidebarPanel):
     def _apply_theme(self):
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
+        tokens = theme_manager.get_design_tokens()
 
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
@@ -431,7 +433,7 @@ class StatisticsPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;

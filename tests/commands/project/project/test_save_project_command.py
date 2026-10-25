@@ -25,7 +25,7 @@ def _make_app_context(*, has_project=True, current_project=None, project_file_pa
 
 
 def test_execute_logs_a_warning_when_save_already_in_progress(caplog):
-    app_context, app_state = _make_app_context()
+    app_context, _app_state = _make_app_context()
     command = SaveProjectCommand(app_context)
     command.is_saving = True
 
@@ -35,7 +35,7 @@ def test_execute_logs_a_warning_when_save_already_in_progress(caplog):
 
 
 def test_execute_logs_a_warning_when_no_project_loaded(caplog):
-    app_context, app_state = _make_app_context(has_project=False)
+    app_context, _app_state = _make_app_context(has_project=False)
     command = SaveProjectCommand(app_context)
 
     with caplog.at_level(logging.WARNING):
@@ -44,7 +44,7 @@ def test_execute_logs_a_warning_when_no_project_loaded(caplog):
 
 
 def test_execute_logs_a_warning_when_current_project_none(caplog):
-    app_context, app_state = _make_app_context(has_project=True, current_project=None)
+    app_context, _app_state = _make_app_context(has_project=True, current_project=None)
     command = SaveProjectCommand(app_context)
 
     with caplog.at_level(logging.WARNING):
@@ -53,7 +53,7 @@ def test_execute_logs_a_warning_when_current_project_none(caplog):
 
 
 def test_save_as_execute_logs_a_warning_when_no_project_loaded(caplog):
-    app_context, app_state = _make_app_context(has_project=False)
+    app_context, _app_state = _make_app_context(has_project=False)
     command = SaveProjectAsCommand(app_context)
 
     with caplog.at_level(logging.WARNING):
@@ -62,7 +62,7 @@ def test_save_as_execute_logs_a_warning_when_no_project_loaded(caplog):
 
 
 def test_save_as_execute_logs_a_warning_when_current_project_none(caplog):
-    app_context, app_state = _make_app_context(has_project=True, current_project=None)
+    app_context, _app_state = _make_app_context(has_project=True, current_project=None)
     command = SaveProjectAsCommand(app_context)
 
     with caplog.at_level(logging.WARNING):
@@ -215,7 +215,7 @@ def test_save_project_task_uses_the_captured_project_and_path_not_app_state():
     AppState.current_project/project_file_path itself, racing the main
     thread. It must instead only ever touch the project/save_path passed
     into it."""
-    app_context, app_state = _make_app_context(has_project=True, current_project=Mock(), project_file_path="/other.pplot")
+    app_context, _app_state = _make_app_context(has_project=True, current_project=Mock(), project_file_path="/other.pplot")
     project_manager = Mock()
     app_context.get_manager.return_value = project_manager
 

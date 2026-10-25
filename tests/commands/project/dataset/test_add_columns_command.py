@@ -39,7 +39,7 @@ class TestAddColumnsCommandDefaultDtype:
         """Before this change, a dataset with only string columns made new
         columns default to '' (object dtype). They must now default to
         float64 filled with 0.0 regardless of existing column types."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -61,7 +61,7 @@ class TestAddColumnsCommandDefaultDtype:
         """Before this change, a dataset with an existing numeric column made
         new columns default to int-ish 0. They must now be float64 with 0.0,
         same as the string case -- the heuristic branch is gone entirely."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -80,7 +80,7 @@ class TestAddColumnsCommandDefaultDtype:
     def test_explicit_default_value_still_honored(self, mock_app_context, sample_project):
         """Passing an explicit default_values entry must still bypass the
         float64/0.0 default and keep today's type-preserving behavior."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -120,7 +120,7 @@ class TestAddColumnsCommandLogging:
         return project
 
     def test_execute_logs_warning_when_no_column_names(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         command = AddColumnsCommand(app_context, "ds-1", column_names=[], reference_positions=[])
 
         with caplog.at_level(logging.WARNING):
@@ -128,7 +128,7 @@ class TestAddColumnsCommandLogging:
         assert "no column names" in caplog.text.lower()
 
     def test_execute_logs_warning_when_lengths_mismatch(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         command = AddColumnsCommand(app_context, "ds-1", column_names=["a", "b"], reference_positions=[0])
 
         with caplog.at_level(logging.WARNING):
@@ -136,7 +136,7 @@ class TestAddColumnsCommandLogging:
         assert "2" in caplog.text and "1" in caplog.text
 
     def test_execute_logs_warning_when_no_project(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
         command = AddColumnsCommand(app_context, "ds-1", column_names=["b"], reference_positions=[0])
 
@@ -145,7 +145,7 @@ class TestAddColumnsCommandLogging:
         assert "no project" in caplog.text.lower()
 
     def test_execute_logs_warning_when_current_project_none(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
         command = AddColumnsCommand(app_context, "ds-1", column_names=["b"], reference_positions=[0])
@@ -155,7 +155,7 @@ class TestAddColumnsCommandLogging:
         assert "current_project is None" in caplog.text
 
     def test_execute_logs_warning_when_dataset_not_found(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         sample_project.find_item.return_value = None
@@ -166,7 +166,7 @@ class TestAddColumnsCommandLogging:
         assert "missing-ds" in caplog.text
 
     def test_execute_logs_warning_when_item_not_a_dataset(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         sample_project.find_item.return_value = object()
@@ -177,7 +177,7 @@ class TestAddColumnsCommandLogging:
         assert "ds-1" in caplog.text and "not a Dataset" in caplog.text
 
     def test_execute_logs_warning_when_dataset_empty(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame())
@@ -189,7 +189,7 @@ class TestAddColumnsCommandLogging:
         assert "ds-1" in caplog.text and "no data" in caplog.text.lower()
 
     def test_execute_logs_warning_when_reference_position_out_of_bounds(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2]}))
@@ -201,7 +201,7 @@ class TestAddColumnsCommandLogging:
         assert "5" in caplog.text
 
     def test_execute_logs_warning_when_columns_already_exist(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2]}))
@@ -213,7 +213,7 @@ class TestAddColumnsCommandLogging:
         assert "already exist" in caplog.text.lower()
 
     def test_execute_logs_warning_when_duplicate_names_in_input(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2]}))
@@ -225,7 +225,7 @@ class TestAddColumnsCommandLogging:
         assert "duplicate column names" in caplog.text.lower()
 
     def test_undo_logs_warning_when_nothing_to_undo(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         command = AddColumnsCommand(app_context, "ds-1", column_names=["b"], reference_positions=[0])
 
         with caplog.at_level(logging.WARNING):

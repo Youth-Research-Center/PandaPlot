@@ -12,12 +12,14 @@ from pandaplot.gui.components.sidebar.project.project_command_manager import (
     ProjectPanelCommandManager,
 )
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class ProjectViewPanelContextManager(QMenu):
     def __init__(self, parent: QWidget, app_context: AppContext, command_manager: ProjectPanelCommandManager, getItemAt, getGlobalPosition):
         super().__init__(parent)
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.app_context = app_context
         self.app_state = app_context.get_app_state()
         self.command_manager = command_manager
         self.getItemAt = getItemAt
@@ -26,21 +28,6 @@ class ProjectViewPanelContextManager(QMenu):
         self._setup_ui()
 
     def _setup_ui(self):
-        self.setStyleSheet("""
-            QMenu {
-                background-color: #ffffff;
-                color: black;
-                border: 1px solid #cccccc;
-            }
-            QMenu::item:selected {
-                background-color: #0078d4;
-                color: white;
-            }
-            QMenu::item:hover {
-                background-color: #e5f3ff;
-                color: black;
-            }
-        """)
         # Open action
         self.open_action = QAction("Open", self)
         self.open_action.triggered.connect(
@@ -89,6 +76,10 @@ class ProjectViewPanelContextManager(QMenu):
             self.command_manager.create_chart_from_dataset)
         self.addAction(self.create_chart_action)
 
+        self.analyze_measurements_action = QAction("Analyze Measurements...", self)
+        self.analyze_measurements_action.triggered.connect(self.command_manager.analyze_measurements)
+        self.addAction(self.analyze_measurements_action)
+
         self.import_images_action = QAction("Import Images...", self)
         self.import_images_action.triggered.connect(
             self.command_manager.import_images)
@@ -104,6 +95,9 @@ class ProjectViewPanelContextManager(QMenu):
 
     def show_context_menu(self, position):
         """Show context menu at the given position."""
+        theme_manager = self.app_context.get_manager(ThemeManager)
+        self.setStyleSheet(theme_manager.build_context_menu_stylesheet())
+
         if not self.app_state.has_project:
             return
 
@@ -116,6 +110,9 @@ class ProjectViewPanelContextManager(QMenu):
         item_data = item.data(0, Qt.ItemDataRole.UserRole)
         if not item_data:
             self.logger.debug("Item has no associated data")
+            self.create_chart_action.setVisible(False)
+            self.analyze_measurements_action.setVisible(False)
+            self.import_images_action.setVisible(False)
             self.exec(self.getGlobalPosition(position))
             return
 
@@ -126,6 +123,7 @@ class ProjectViewPanelContextManager(QMenu):
 
         # Show chart creation only for datasets
         self.create_chart_action.setVisible(item_type == "dataset")
+        self.analyze_measurements_action.setVisible(item_type == "dataset")
 
         # Show image import only for image galleries (or a container it could be created under)
         self.import_images_action.setVisible(item_type == "imagegallery")

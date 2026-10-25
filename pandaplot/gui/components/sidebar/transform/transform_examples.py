@@ -3,7 +3,6 @@ Transform examples and help text for the transform panel.
 Extracted from transform_tab.py for reuse in the sidebar interface.
 """
 
-from typing import Dict, List
 
 # Column Operation Examples
 COLUMN_OPERATION_EXAMPLES = """Column Operation Examples:
@@ -149,7 +148,7 @@ def get_help_text_for_transform_type(transform_type: str) -> str:
     return HELP_TEXT.get(transform_type, HELP_TEXT["Custom Function"])
 
 
-def get_quick_functions_for_type(transform_type: str) -> List[Dict[str, str]]:
+def get_quick_functions_for_type(transform_type: str) -> list[dict[str, str]]:
     """Get quick function templates for specific transform type."""
     if transform_type in QUICK_FUNCTIONS:
         return QUICK_FUNCTIONS[transform_type]
@@ -158,12 +157,12 @@ def get_quick_functions_for_type(transform_type: str) -> List[Dict[str, str]]:
         return QUICK_FUNCTIONS["Math Operations"]
 
 
-def get_all_transform_types() -> List[str]:
+def get_all_transform_types() -> list[str]:
     """Get list of all available transform types."""
     return list(QUICK_FUNCTIONS.keys())
 
 
-def search_functions(query: str) -> List[Dict[str, str]]:
+def search_functions(query: str) -> list[dict[str, str]]:
     """Search for functions matching the query."""
     results = []
     query_lower = query.lower()
@@ -221,5 +220,5 @@ def validate_expression_safety(expression: str) -> tuple[bool, str]:
         return True, ""
     except SyntaxError as e:
         return False, f"Syntax error: {e}"
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
         return False, f"Invalid expression: {e}"

@@ -11,7 +11,8 @@ by CreateChartFromWizardCommand for #185/#186 -- there is no "analysis started
 but nothing happened yet" state sitting on the undo stack.
 """
 
-from typing import Any, Callable, Dict, Optional, override
+from collections.abc import Callable
+from typing import Any, override
 
 import pandas as pd
 
@@ -36,8 +37,8 @@ class AnalysisCommand(BackgroundTaskCommand):
         self,
         app_context: AppContext,
         dataset_id: str,
-        analysis_config: Dict[str, Any],
-        on_complete: Optional[Callable[[CommandResult], None]] = None,
+        analysis_config: dict[str, Any],
+        on_complete: Callable[[CommandResult], None] | None = None,
     ):
         """
         Initialize analysis command.
@@ -66,7 +67,7 @@ class AnalysisCommand(BackgroundTaskCommand):
         self.analysis_config = analysis_config
 
         # State captured at dispatch time, needed once the result is back.
-        self.dataset: Optional[Dataset] = None
+        self.dataset: Dataset | None = None
         self.column_existed_before = False
         self.original_data = None
 
@@ -131,7 +132,7 @@ class AnalysisCommand(BackgroundTaskCommand):
             )
             return CommandResult.SUCCESS
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"Analysis execution failed: {e}")
             self.ui_controller.show_error_message("Analysis Error", str(e))
             self._is_running = False
@@ -190,7 +191,7 @@ class AnalysisCommand(BackgroundTaskCommand):
             else:
                 self._notify_complete(CommandResult.FAILURE)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"Error applying analysis result: {e}")
             self.ui_controller.show_error_message("Analysis Error", str(e))
             self._notify_complete(CommandResult.FAILURE)
@@ -215,7 +216,7 @@ class AnalysisCommand(BackgroundTaskCommand):
                 if dataset_item and hasattr(dataset_item, "data") and isinstance(dataset_item, Dataset):
                     return dataset_item
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
             self.logger.error(f"Error getting dataset: {e}")
             return None
 

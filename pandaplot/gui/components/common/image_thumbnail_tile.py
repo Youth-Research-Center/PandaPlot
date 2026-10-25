@@ -10,7 +10,7 @@ drift and the storybook can preview every combination without needing real
 project data.
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 from PySide6.QtCore import QRectF, QSize, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPen, QPixmap
@@ -23,7 +23,7 @@ _BADGE_MARGIN = 6
 
 
 def build_gallery_tile_icon(
-    pixmap: Optional[QPixmap],
+    pixmap: QPixmap | None,
     tile_type: TileType,
     *,
     selected: bool,

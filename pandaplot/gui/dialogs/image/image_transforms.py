@@ -22,7 +22,6 @@ long session could in principle grow this further, but that trade-off is
 accepted rather than mitigated here.
 """
 from dataclasses import dataclass
-from typing import Union
 
 from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QImage, QTransform
@@ -44,7 +43,7 @@ class CropOp:
     rect: QRect
 
 
-Transform = Union[RotateOp, ResizeOp, CropOp]
+Transform = RotateOp | ResizeOp | CropOp
 
 
 def collapse_transforms(transforms: list[Transform]) -> list[Transform]:

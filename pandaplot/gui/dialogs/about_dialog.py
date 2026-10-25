@@ -37,6 +37,9 @@ class AboutDialog(PDialog):
 
         self.icon_label = QLabel("🐼")
         icon_font = self.icon_label.font()
+        # Fixed icon/heading sizes -- deliberately independent of
+        # interface_font_size (a body-text preference), same as
+        # test_info_dialog.py's monospace formula font.
         icon_font.setPointSize(40)
         self.icon_label.setFont(icon_font)
         self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -68,11 +71,11 @@ class AboutDialog(PDialog):
 
         import matplotlib
         import pandas
-        import PySide6
+        from PySide6 import __version__ as pyside6_version
 
         environment_rows = [
             ("Python", platform.python_version()),
-            ("PySide6 (Qt)", PySide6.__version__),
+            ("PySide6 (Qt)", pyside6_version),
             ("pandas", pandas.__version__),
             ("Matplotlib", matplotlib.__version__),
             ("Platform", f"{platform.system()} {platform.release()}"),

@@ -69,8 +69,7 @@ class Command(ABC):
         derives one from the class name (e.g. CreateNoteCommand -> "Create
         note"); override for a custom label."""
         name = self.__class__.__name__
-        if name.endswith("Command"):
-            name = name[: -len("Command")]
+        name = name.removesuffix("Command")
         words = re.findall(r"[A-Z][a-z0-9]*|[a-z0-9]+", name)
         if not words:
             return self.__class__.__name__

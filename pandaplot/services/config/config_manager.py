@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import logging
 import shutil
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any
 
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ConfigEvents
@@ -23,7 +24,7 @@ from pandaplot.services.config.config_validation import validate_config
 class ConfigManager:
     """Manage application configuration persistence & lifecycle."""
 
-    def __init__(self, event_bus: EventBus, config_path: Optional[Path] = None, *, auto_save: bool = True, backup: bool = True) -> None:
+    def __init__(self, event_bus: EventBus, config_path: Path | None = None, *, auto_save: bool = True, backup: bool = True) -> None:
         self._log = logging.getLogger(self.__class__.__name__)
         self._event_bus = event_bus
         self._auto_save = auto_save
@@ -81,8 +82,16 @@ class ConfigManager:
         )
         return self._config
 
-    def save(self) -> None:
-        """Persist current configuration to disk (JSON)."""
+    def save(self) -> bool:
+        """Persist current configuration to disk (JSON).
+
+        Returns True on success, False if the write failed. Still catches
+        and logs every exception rather than raising (same "defensive"
+        philosophy as the rest of this class), but now lets callers that
+        need to know -- e.g. ChangeSettingsCommand, which SettingsDialog's
+        apply-if-changed guard relies on -- distinguish a real disk failure
+        from a successful save.
+        """
         try:
             if self._backup_enabled and self._config_path.exists():
                 backup_path = self._config_path.with_suffix(self._config_path.suffix + ".bak")
@@ -94,10 +103,12 @@ class ConfigManager:
             data = self._config.to_json(indent=2)
             self._config_path.write_text(data, encoding="utf-8")
             self._event_bus.emit(ConfigEvents.CONFIG_SAVED, {"config": self._config, "path": str(self._config_path)})
+            return True
         except Exception as exc:  # noqa: BLE001
             self._log.error("Failed to save configuration: %s", exc)
+            return False
 
-    def update(self, mapping: Mapping[str, Any], *, save: Optional[bool] = None) -> ApplicationConfig:
+    def update(self, mapping: Mapping[str, Any], *, save: bool | None = None) -> ApplicationConfig:
         """Merge mapping into config and emit update.
 
         Args:

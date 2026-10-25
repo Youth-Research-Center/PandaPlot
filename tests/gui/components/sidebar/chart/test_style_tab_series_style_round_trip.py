@@ -7,8 +7,9 @@ convention that must survive the .style migration unchanged.
 import dataclasses
 import sys
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
+from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
@@ -127,6 +128,74 @@ def test_load_then_apply_round_trips_fill_fields_for_line_series():
     assert series.style.fill_orientation == "horizontal"
 
 
+def test_load_then_apply_round_trips_fill_range_fields_for_line_series():
+    """#280: a partial-range fill's enabled flag and start/end points must
+    survive a load-then-apply cycle unchanged (spin boxes are 1-based rows;
+    without a project the point count is 1, so a range is clamped -- see the
+    project-backed tests below for real bounds)."""
+    _qapp()
+    tab = StyleTab(app_context=None)
+    tab.set_chart_type(ChartType.LINE)
+    series = _line_series(color="#112233", fill_enabled=True,
+                           fill_range_enabled=True, fill_sections=[(0, -1)])
+
+    tab.load_series_style(series)
+
+    assert tab.fill_range_enabled_toggle.isChecked() is True
+
+    tab.apply_series_style_to(series)
+
+    assert series.style.fill_range_enabled is True
+    assert series.style.fill_sections == [(0, -1)]
+
+
+def test_fill_range_defaults_to_disabled_and_whole_series():
+    _qapp()
+    tab = StyleTab(app_context=None)
+    tab.set_chart_type(ChartType.LINE)
+    series = _line_series(color="#112233", fill_enabled=True)
+
+    tab.load_series_style(series)
+    tab.apply_series_style_to(series)
+
+    assert series.style.fill_range_enabled is False
+    assert series.style.fill_sections == []
+    assert tab.fill_section_rows == []
+
+
+def test_disabling_range_preserves_configured_sections():
+    tab, series = _tab_with_project_series(rows=7, fill_range_enabled=True, fill_sections=[(1, 3), (5, -1)])
+    tab.load_series_style(series)
+
+    tab.fill_range_enabled_toggle.setChecked(checked=False)
+    tab.apply_series_style_to(series)
+
+    assert series.style.fill_range_enabled is False
+    assert series.style.fill_sections == [(1, 3), (5, -1)]
+
+
+def test_add_and_remove_fill_section_controls_update_rows_and_style():
+    tab, series = _tab_with_project_series(rows=7, fill_range_enabled=True, fill_sections=[(1, 3)])
+    tab.set_selected("series", series)
+
+    changes = []
+    tab.configChanged.connect(lambda: changes.append(True))
+    tab.fill_add_section_button.click()
+    assert len(tab.fill_section_rows) == 2
+    _, start_spin, _, end_spin, _ = tab.fill_section_rows[1]
+    assert (start_spin.value(), end_spin.value()) == (1, 7)
+    assert series.style.fill_sections == [(1, 3), (0, -1)]
+    assert changes
+    tab.fill_section_rows[1][0].findChild(PButton).click()
+    assert len(tab.fill_section_rows) == 1
+    assert tab.fill_section_rows[0][0].findChild(QLabel).text() == "Section 1"
+
+    tab.fill_section_rows[0][0].findChild(PButton).click()
+    assert series.style.fill_sections == []
+    tab.set_selected("series", series)
+    assert tab.fill_section_rows == []
+
+
 def test_load_then_apply_round_trips_vector_series():
     _qapp()
     tab = StyleTab(app_context=None)
@@ -189,9 +258,9 @@ def test_error_bar_fields_live_on_style_error_bars_not_dataseries():
 
 
 def test_card_visibility_uses_the_selected_series_own_type_not_the_chart_type():
-    """A Line-typed chart with a Scatter-typed series selected must show
-    Scatter's spec (marker required, no fill card) for that series --
-    not Line's (marker optional, fill card visible)."""
+    """A Line-typed chart with a Bar-typed series selected must show Bar's
+    spec (no fill card, no marker card) for that series -- not Line's
+    (fill card and optional marker visible)."""
     _qapp()
     tab = StyleTab(app_context=None)
     # Qt only reports isVisible() truthfully for a widget whose top-level
@@ -200,12 +269,20 @@ def test_card_visibility_uses_the_selected_series_own_type_not_the_chart_type():
     # always False regardless of setVisible() calls.
     tab.show()
     tab.set_chart_type(ChartType.LINE)
-    series = _line_series(series_type=SeriesType.SCATTER, color="#112233")
+    series = _line_series(series_type=SeriesType.BAR, color="#112233")
     tab._current_target = ("series", series)
 
     tab._update_target_cards_visibility()
 
-    assert tab.fill_card.isVisible() is False  # Scatter has no fill support
+    assert tab.fill_card.isVisible() is False  # Bar has no fill support
+    assert tab.marker_card.isVisible() is False  # Bar has no marker concept
+
+    scatter = _line_series(series_type=SeriesType.SCATTER, color="#112233")
+    tab._current_target = ("series", scatter)
+
+    tab._update_target_cards_visibility()
+
+    assert tab.fill_card.isVisible() is True  # Scatter supports the shared fill (#280)
     assert tab.marker_card.isVisible() is True  # Scatter's marker is required, not optional
 
 
@@ -490,3 +567,114 @@ def test_is_scatter_series_target_uses_the_selected_series_own_type():
     tab._current_target = ("series", line_series)
 
     assert tab._is_scatter_series_target() is False
+
+
+def test_scatter_series_supports_the_fill_card_and_round_trips_fill_fields():
+    _qapp()
+    tab = StyleTab(app_context=None)
+    tab.set_chart_type(ChartType.SCATTER)
+    series = _line_series(series_type=SeriesType.SCATTER, color="#112233", fill_enabled=True,
+                           fill_color="#778899", fill_alpha=0.5, fill_orientation="horizontal")
+
+    tab.set_selected("series", series)
+    tab.load_series_style(series)
+    tab.apply_series_style_to(series)
+
+    assert tab.fill_card.isHidden() is False
+    assert series.style.fill_enabled is True
+    assert series.style.fill_color == "#778899"
+    assert series.style.fill_alpha == 0.5
+    assert series.style.fill_orientation == "horizontal"
+
+
+def _tab_with_project_series(rows: int, **style_overrides):
+    """A StyleTab wired to a real project holding one line series over `rows` points
+    (x = 10, 20, ..., y = 100, 200, ...)."""
+    import pandas as pd
+
+    from pandaplot.app import build_app_context
+    from pandaplot.models.project.items import Dataset
+    from pandaplot.models.project.items.chart import Chart
+    from pandaplot.models.project.project import Project
+
+    _qapp()
+    project = Project(name="p")
+    dataset = Dataset(name="ds1", data=pd.DataFrame({
+        "x": [10.0 * (i + 1) for i in range(rows)], "y": [100.0 * (i + 1) for i in range(rows)],
+    }))
+    project.add_item(dataset)
+    chart = Chart(name="c", chart_type="line")
+    series = chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"),
+        style=_line_series(fill_enabled=True, **style_overrides).style,
+    )
+    project.add_item(chart)
+    app_context = build_app_context()
+    app_context.app_state.load_project(project)
+    tab = StyleTab(app_context=app_context)
+    tab.set_chart_type(ChartType.LINE)
+    return tab, series
+
+
+def test_fill_range_defaults_to_empty_then_added_section_uses_full_data_range():
+    tab, series = _tab_with_project_series(rows=7)
+
+    tab.set_selected("series", series)
+
+    assert tab.fill_section_rows == []
+    tab.fill_range_enabled_toggle.setChecked(checked=True)
+    tab.fill_add_section_button.click()
+
+    assert len(tab.fill_section_rows) == 1
+    _, start_spin, start_label, end_spin, end_label = tab.fill_section_rows[0]
+    assert start_spin.value() == 1
+    assert end_spin.value() == 7
+    assert start_spin.maximum() == 7
+    assert start_label.text() == "x=10, y=100"
+    assert end_label.text() == "x=70, y=700"
+
+
+def test_fill_range_selected_points_round_trip_and_show_their_values():
+    tab, series = _tab_with_project_series(rows=7, fill_range_enabled=True, fill_sections=[(2, 4)])
+
+    tab.load_series_style(series)
+
+    _, start_spin, start_label, end_spin, end_label = tab.fill_section_rows[0]
+    assert start_spin.value() == 3
+    assert end_spin.value() == 5
+    assert start_label.text() == "x=30, y=300"
+    assert end_label.text() == "x=50, y=500"
+
+    end_spin.setValue(6)
+    assert end_label.text() == "x=60, y=600"
+    tab._add_fill_section(2, 4)
+    tab.apply_series_style_to(series)
+
+    assert series.style.fill_sections == [(2, 5), (1, 3)]
+
+
+def test_fill_range_end_at_the_last_point_is_stored_as_minus_one():
+    """So the range keeps tracking the end of the series if rows are appended."""
+    tab, series = _tab_with_project_series(rows=7, fill_range_enabled=True, fill_sections=[(1, 3)])
+
+    tab.load_series_style(series)
+    tab.fill_section_rows[0][3].setValue(7)
+    tab.apply_series_style_to(series)
+
+    assert series.style.fill_sections == [(1, -1)]
+
+
+def test_fill_match_label_says_marker_for_scatter_and_line_otherwise():
+    _qapp()
+    tab = StyleTab(app_context=None)
+    tab.set_chart_type(ChartType.LINE)
+    scatter = _line_series(series_type=SeriesType.SCATTER, color="#112233")
+    line = _line_series(color="#112233")
+
+    tab.set_selected("series", scatter)
+    tab.load_series_style(scatter)
+    assert tab.fill_match_line_label.text() == "Match marker:"
+
+    tab.set_selected("series", line)
+    tab.load_series_style(line)
+    assert tab.fill_match_line_label.text() == "Match line:"

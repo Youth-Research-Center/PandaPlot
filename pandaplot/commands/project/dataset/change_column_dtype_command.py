@@ -1,10 +1,11 @@
-from typing import Any, Dict, Union, override
+from typing import Any, override
 
 import numpy as np
 import pandas as pd
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.dataset.formula_guard import refuse_live_formula_edit
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_data import DatasetDataChangedData
 from pandaplot.models.events.event_types import DatasetEvents
@@ -105,6 +106,11 @@ class ChangeColumnDtypeCommand(Command):
                 )
                 return CommandResult.FAILURE
 
+            if refuse_live_formula_edit(
+                self.dataset, self.ui_controller, title="Change Column Type", column_positions=[self.column_index],
+            ):
+                return CommandResult.FAILURE
+
             # Get column information
             self.column_name = self.dataset.data.columns[self.column_index]
             self.original_data = self.dataset.data[self.column_name].copy()
@@ -161,12 +167,12 @@ class ChangeColumnDtypeCommand(Command):
             return CommandResult.SUCCESS
             
         except Exception as e:
-            error_msg = f"Failed to change column type for column {self.column_index}: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Failed to change column type for column {self.column_index}: {e!s}"
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Change Column Type Error", error_msg)
             return CommandResult.FAILURE
 
-    def _convert_column_dtype(self) -> Union[Dict[str, Any], None]:
+    def _convert_column_dtype(self) -> dict[str, Any] | None:
         """
         Convert column data to target dtype with error handling.
         Returns dict with converted_data and conversion stats, or None if failed.
@@ -237,8 +243,8 @@ class ChangeColumnDtypeCommand(Command):
                 "target_dtype": self.target_dtype
             }
             
-        except Exception as e:
-            self.logger.error(f"Error converting column data: {e}", exc_info=True)
+        except Exception:
+            self.logger.exception("Error converting column data")
             return None
 
     def undo(self) -> CommandResult:

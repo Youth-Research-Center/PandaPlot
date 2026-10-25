@@ -1,12 +1,11 @@
 """Command for renaming a dataset column, cascading to chart/fit references."""
 
-from typing import List, Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
-from pandaplot.models.events.event_data import DatasetColumnRenamedData
+from pandaplot.models.events.event_data import ChartUpdatedData, DatasetColumnRenamedData
 from pandaplot.models.events.event_types import ChartEvents, DatasetOperationEvents
 from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -30,8 +29,8 @@ class RenameColumnCommand(Command):
         self.dataset_id = dataset_id
         self.column_index = column_index
         self.new_name = new_name.strip()
-        self.old_name: Optional[str] = None
-        self.dataset: Optional[Dataset] = None
+        self.old_name: str | None = None
+        self.dataset: Dataset | None = None
         self._applied: bool = False
 
     @override
@@ -96,7 +95,7 @@ class RenameColumnCommand(Command):
 
         except Exception as e:
             error_msg = f"Failed to rename column: {e}"
-            self.logger.error(error_msg, exc_info=True)
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Rename Column Error", error_msg)
             return CommandResult.FAILURE
 
@@ -129,12 +128,12 @@ class RenameColumnCommand(Command):
             ).to_dict())
         for chart in affected_charts:
             chart.update_modified_time()
-            self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, {
-                "chart_id": chart.id,
-                "chart": chart,
-            })
+            self.app_context.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+                chart_id=chart.id,
+                chart=chart,
+            ).to_dict())
 
-    def _charts_referencing_column(self, current_name: str) -> List[Chart]:
+    def _charts_referencing_column(self, current_name: str) -> list[Chart]:
         """Return charts whose series/fits reference the renamed column.
 
         Matched by column id (via the dataset registry) with a name fallback
@@ -161,34 +160,21 @@ class RenameColumnCommand(Command):
                     error_bars.x_error_minus_column, error_bars.y_error_minus_column,
                 ])
 
-            if isinstance(series.style, VectorSeriesStyle):
-                id_fields.extend([
-                    series.style.u_column_id, series.style.v_column_id,
-                    series.style.magnitude_column_id,
-                ])
-                name_fields.extend([
-                    series.style.u_column, series.style.v_column,
-                    series.style.magnitude_column,
-                ])
+            for role in ("z", "u", "v", "w", "magnitude", "label"):
+                if hasattr(series.style, f"{role}_column_id"):
+                    id_fields.append(getattr(series.style, f"{role}_column_id"))
+                    name_fields.append(getattr(series.style, f"{role}_column", ""))
 
             if column_id and column_id in id_fields:
                 return True
             return current_name in name_fields or self.old_name in name_fields
 
-        def fit_refs(fit) -> bool:
-            if column_id and column_id in (fit.source_x_column_id, fit.source_y_column_id):
-                return True
-            names = (fit.source_x_column, fit.source_y_column)
-            return current_name in names or self.old_name in names
-
-        affected: List[Chart] = []
+        affected: list[Chart] = []
         for item in project.get_all_items():
             if not isinstance(item, Chart):
                 continue
             uses = any(s.dataset_id == self.dataset_id and series_refs(s)
                        for s in item.data_series)
-            uses = uses or any(f.source_dataset_id == self.dataset_id and fit_refs(f)
-                               for f in item.fit_data)
             if uses:
                 affected.append(item)
         return affected

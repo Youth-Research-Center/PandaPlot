@@ -6,7 +6,7 @@ and transformation logic for the transform panel.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
@@ -27,7 +27,7 @@ class TransformController(QObject):
     transform_failed = Signal(str, str)  # dataset_id, error_message
     preview_ready = Signal(str, object)  # dataset_id, preview_data
 
-    def __init__(self, app_context: AppContext, parent: Optional[QObject] = None):
+    def __init__(self, app_context: AppContext, parent: QObject | None = None):
         super().__init__(parent)
         self.app_context = app_context
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -46,7 +46,7 @@ class TransformController(QObject):
         return expression_engine.validate_expression(function_code)
     
     def create_preview(self, dataset_id: str, source_column: str, 
-                      function_code: str, preview_rows: int = 5) -> Optional[Dict[str, Any]]:
+                      function_code: str, preview_rows: int = 5) -> dict[str, Any] | None:
         """
         Create a preview of the transformation without modifying the dataset.
         
@@ -96,23 +96,28 @@ class TransformController(QObject):
             self.preview_ready.emit(dataset_id, preview_result)
             return preview_result
             
-        except Exception as e:
-            error_msg = f"Preview generation failed: {str(e)}"
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            error_msg = f"Preview generation failed: {e!s}"
             return {"error": error_msg}
     
     def apply_transformation(self, dataset_id: str, source_column: str,
                            new_column_name: str, function_code: str,
-                           *, replace_existing: bool = False) -> bool:
+                           *, replace_existing: bool = False,
+                           as_formula: bool = False, live: bool = False) -> bool:
         """
         Apply the transformation to the dataset.
-        
+
         Args:
             dataset_id: ID of the dataset
             source_column: Name of the source column
             new_column_name: Name for the new column
             function_code: Transformation function code
             replace_existing: Whether to replace existing column
-            
+            as_formula: Remember the expression on the column so it can be
+                recomputed later (#154) rather than writing static values
+            live: Recompute the formula column automatically whenever a source
+                column changes (implies as_formula)
+
         Returns:
             True if successful, False otherwise
         """
@@ -153,7 +158,9 @@ class TransformController(QObject):
                 "transform_type": "column",  # Default to column operation for now
                 "source_columns": [source_column],
                 "expression": function_code,
-                "replace_existing": replace_existing
+                "replace_existing": replace_existing,
+                "as_formula": as_formula,
+                "live": live,
             }
             
             # Create and execute command through the executor so the transform
@@ -169,8 +176,8 @@ class TransformController(QObject):
                 )
                 return False
                 
-        except Exception as e:
-            error_msg = f"Transformation failed: {str(e)}"
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            error_msg = f"Transformation failed: {e!s}"
             self.transform_failed.emit(dataset_id, error_msg)
             return False
     
@@ -209,7 +216,7 @@ class TransformController(QObject):
         else:
             return f"{source_column}_transformed"
     
-    def get_transformation_templates(self) -> Dict[str, List[Dict[str, str]]]:
+    def get_transformation_templates(self) -> dict[str, list[dict[str, str]]]:
         """
         Get predefined transformation templates by category.
 
@@ -227,7 +234,7 @@ class TransformController(QObject):
                 if app_state.current_project:
                     return app_state.current_project.find_item(dataset_id)
             return None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.logger.error(f"Error getting dataset {dataset_id}: {e}")
             return None
     

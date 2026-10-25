@@ -18,6 +18,7 @@ from pandaplot.commands.project.chart.chart_signal_analysis_command import (
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
 )
+from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -41,8 +42,9 @@ def ctx():
     y_id = dataset.column_id("signal")
     chart.add_data_series(dataset_id="ds-1", x_column_id=x_id, y_column_id=y_id,
                           x_column="t", y_column="signal", label="Signal")
-    chart.add_fit_data(source_dataset_id="ds-1", fit_type="custom",
-                       x_data=t, y_data=signal, label="Signal Fit", source_x_column="t")
+    chart.add_fit_series(source_dataset_id="ds-1", x_data=t, y_data=signal,
+                         label="Signal Fit", source_x_column="t",
+                         style=FitStyle(fit_type="custom"))
     project.add_item(chart)
 
     app_context = Mock(spec=AppContext)
@@ -61,7 +63,6 @@ def ctx():
 
 def _cmd(ctx, **kw):
     app_context, _ = ctx
-    kw.setdefault("source_kind", "series")
     kw.setdefault("source_index", 0)
     kw.setdefault("analysis_type", SignalAnalysisType.FFT)
     kw.setdefault("sampling_rate", 1000)
@@ -71,7 +72,7 @@ def _cmd(ctx, **kw):
 class TestChartSignalAnalysisCommandCommitPath:
     def test_execute_adds_fft_results_dataset_for_data_series(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="series", analysis_type=SignalAnalysisType.FFT, sampling_rate=1000)
+        command = _cmd(ctx, analysis_type=SignalAnalysisType.FFT, sampling_rate=1000)
         assert command.execute() is CommandResult.SUCCESS
 
         results = project.find_item(command.result_dataset_id)
@@ -81,7 +82,7 @@ class TestChartSignalAnalysisCommandCommitPath:
 
     def test_execute_adds_fft_results_dataset_for_fit_series(self, ctx):
         _, project = ctx
-        command = _cmd(ctx, source_kind="fit", analysis_type=SignalAnalysisType.FFT, sampling_rate=1000)
+        command = _cmd(ctx, source_index=1, analysis_type=SignalAnalysisType.FFT, sampling_rate=1000)
         assert command.execute() is CommandResult.SUCCESS
 
         results = project.find_item(command.result_dataset_id)
@@ -148,7 +149,7 @@ class TestChartSignalAnalysisCommandCommitPath:
 
     def test_missing_source_index_fails_gracefully(self, ctx):
         app_context, _ = ctx
-        command = _cmd(ctx, source_kind="fit", source_index=9)
+        command = _cmd(ctx, source_index=9)
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
@@ -156,7 +157,7 @@ class TestChartSignalAnalysisCommandCommitPath:
         app_context, project = ctx
         chart = project.find_item("chart-1")
         chart.data_series[0].series_type = SeriesType.BAR
-        command = _cmd(ctx, source_kind="series", source_index=0)
+        command = _cmd(ctx, source_index=0)
 
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
@@ -170,7 +171,7 @@ class TestChartSignalAnalysisCommandCommitPath:
         app_context.get_task_scheduler.return_value = SyncTaskScheduler()
 
         command = ChartSignalAnalysisCommand(
-            app_context, "chart-1", "series", 0, SignalAnalysisType.FFT, sampling_rate=1000,
+            app_context, "chart-1", 0, SignalAnalysisType.FFT, sampling_rate=1000,
         )
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
@@ -253,7 +254,7 @@ class TestChartSignalAnalysisCommandPreviewPath:
         assert "Frequency (Hz)" in results[0].data.columns
 
     def test_run_analysis_async_reports_missing_source(self, ctx):
-        command = _cmd(ctx, source_kind="fit", source_index=9)
+        command = _cmd(ctx, source_index=9)
 
         results = []
         errors = []
@@ -281,29 +282,29 @@ class TestChartSignalAnalysisCommandSourceResolution:
         _, project = ctx
         dataset = project.find_item("ds-1")
         dataset.data.loc[3, "signal"] = np.nan
-        command = _cmd(ctx, source_kind="series")
+        command = _cmd(ctx)
         assert command.source_length() == len(dataset.data) - 1
 
     def test_resolve_point_returns_xy_at_index(self, ctx):
         _, project = ctx
         dataset = project.find_item("ds-1")
-        command = _cmd(ctx, source_kind="series")
+        command = _cmd(ctx)
         point = command.resolve_point(10)
         assert point == pytest.approx((dataset.data["t"].iloc[10], dataset.data["signal"].iloc[10]))
 
     def test_resolve_point_out_of_range_returns_none(self, ctx):
         _, project = ctx
         dataset = project.find_item("ds-1")
-        command = _cmd(ctx, source_kind="series")
+        command = _cmd(ctx)
         assert command.resolve_point(len(dataset.data)) is None
         assert command.resolve_point(-1) is None
 
     def test_resolve_point_invalid_source_returns_none(self, ctx):
-        command = _cmd(ctx, source_kind="fit", source_index=9)
+        command = _cmd(ctx, source_index=9)
         assert command.resolve_point(0) is None
 
     def test_cleanup_clears_the_resolved_xy_cache(self, ctx):
-        command = _cmd(ctx, source_kind="series")
+        command = _cmd(ctx)
         command.source_length()  # populates _resolved_xy_cache
         assert command._resolved_xy_cache is not None
 
@@ -321,14 +322,14 @@ class TestResolveSegmentX:
     def test_returns_full_x_by_default(self, ctx):
         _, project = ctx
         dataset = project.find_item("ds-1")
-        command = _cmd(ctx, source_kind="series")
+        command = _cmd(ctx)
         x_segment = command.resolve_segment_x()
         assert list(x_segment) == pytest.approx(list(dataset.data["t"]))
 
     def test_slices_to_the_requested_start_end(self, ctx):
         _, project = ctx
         dataset = project.find_item("ds-1")
-        command = _cmd(ctx, source_kind="series")
+        command = _cmd(ctx)
         x_segment = command.resolve_segment_x(10, 20)
         assert list(x_segment) == pytest.approx(list(dataset.data["t"].iloc[10:20]))
 
@@ -337,7 +338,7 @@ class TestResolveSegmentX:
         calls resolve_segment_x() repeatedly (once per segment-bound tick)
         -- it must hit the memoized cache, not re-resolve the series (NaN
         drop/to_numeric) every time."""
-        command = _cmd(ctx, source_kind="series")
+        command = _cmd(ctx)
         command.resolve_segment_x(0, 5)
         cache_after_first_call = command._resolved_xy_cache
         assert cache_after_first_call is not None
@@ -347,11 +348,11 @@ class TestResolveSegmentX:
         assert command._resolved_xy_cache is cache_after_first_call
 
     def test_invalid_source_returns_none(self, ctx):
-        command = _cmd(ctx, source_kind="fit", source_index=9)
+        command = _cmd(ctx, source_index=9)
         assert command.resolve_segment_x() is None
 
     def test_no_chart_returns_none(self, ctx):
-        command = _cmd(ctx, source_kind="series")
+        command = _cmd(ctx)
         command.chart_id = "not-a-real-chart"
         assert command.resolve_segment_x() is None
 
@@ -364,7 +365,7 @@ class TestChartSignalAnalysisCommandPlotResult:
         assert command.execute() is CommandResult.SUCCESS
 
         original_chart = project.find_item("chart-1")
-        assert len(original_chart.data_series) == 1  # untouched
+        assert len(original_chart.data_series) == 2  # untouched (data series + fit series)
 
         new_charts = [
             item for item in project.get_all_items()

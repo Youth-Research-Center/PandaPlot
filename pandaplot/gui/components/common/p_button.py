@@ -11,7 +11,8 @@ step; `on_click` accepts a plain callable, a bound Qt Signal, or a
 """
 from __future__ import annotations
 
-from typing import Callable, Literal, Optional
+from collections.abc import Callable
+from typing import Literal
 
 from PySide6.QtWidgets import QPushButton, QWidget
 
@@ -22,8 +23,8 @@ _ROLES: tuple[ButtonRole, ...] = ("primary", "secondary", "destructive")
 
 class PButton(QPushButton):
     def __init__(self, text: str = "", role: ButtonRole = "secondary", *,
-                 icon: bool = False, on_click: Optional[Callable[..., object]] = None,
-                 enabled: bool = True, parent: Optional[QWidget] = None):
+                 icon: bool = False, on_click: Callable[..., object] | None = None,
+                 enabled: bool = True, parent: QWidget | None = None):
         super().__init__(text, parent)
         self.setProperty("iconButton", icon)
         self.set_role(role)

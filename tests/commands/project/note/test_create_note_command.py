@@ -58,7 +58,7 @@ class TestCreateNoteCommand:
 
     def test_init_with_parameters(self, mock_app_context):
         """Test command initialization with parameters."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         
         command = CreateNoteCommand(app_context, "Test Note", "Test content", "folder-123")
         
@@ -103,7 +103,7 @@ class TestCreateNoteCommand:
 
     def test_execute_no_current_project(self, mock_app_context):
         """Test execute when current project is None."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
         
@@ -114,7 +114,7 @@ class TestCreateNoteCommand:
 
     def test_execute_logs_warning_when_no_project_loaded(self, mock_app_context, caplog):
         """Test execute logs a warning when no project is loaded."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
 
         command = CreateNoteCommand(app_context, "Test Note")
@@ -126,7 +126,7 @@ class TestCreateNoteCommand:
 
     def test_execute_logs_warning_when_current_project_none(self, mock_app_context, caplog):
         """Test execute logs a warning when current_project is None despite has_project."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -139,7 +139,7 @@ class TestCreateNoteCommand:
 
     def test_redo_logs_warning_when_current_project_none(self, mock_app_context, caplog):
         """Test redo logs a warning when current_project is None despite has_project."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -155,7 +155,7 @@ class TestCreateNoteCommand:
 
     def test_execute_with_default_name(self, mock_app_context, sample_project):
         """Test execute with default note name."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -183,7 +183,7 @@ class TestCreateNoteCommand:
 
     def test_execute_with_specified_name_and_content(self, mock_app_context, sample_project):
         """Test execute with specified note name and content."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -203,7 +203,7 @@ class TestCreateNoteCommand:
 
     def test_execute_with_folder_id(self, mock_app_context, sample_project):
         """Test execute with folder ID."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -241,7 +241,7 @@ class TestCreateNoteCommand:
 
     def test_undo_successful(self, mock_app_context, sample_project):
         """Test successful undo operation."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -265,7 +265,7 @@ class TestCreateNoteCommand:
 
     def test_undo_no_note_id(self, mock_app_context):
         """Test undo when no note ID is set."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
         
         command = CreateNoteCommand(app_context)
         command.undo()  # Should not crash
@@ -274,7 +274,7 @@ class TestCreateNoteCommand:
 
     def test_undo_no_project(self, mock_app_context):
         """Test undo when no project is loaded."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
         
         command = CreateNoteCommand(app_context)
@@ -283,7 +283,7 @@ class TestCreateNoteCommand:
 
     def test_undo_note_not_found(self, mock_app_context, sample_project):
         """Test undo when note is not found in project."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -318,7 +318,7 @@ class TestCreateNoteCommand:
 
     def test_redo_successful(self, mock_app_context, sample_project):
         """Test successful redo operation."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -345,7 +345,7 @@ class TestCreateNoteCommand:
 
     def test_redo_no_note(self, mock_app_context, sample_project):
         """Test redo when no note is available."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -357,7 +357,7 @@ class TestCreateNoteCommand:
 
     def test_redo_no_project(self, mock_app_context):
         """Test redo when no project is loaded."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
         command = CreateNoteCommand(app_context, "Test Note")
         command.created_note_id = "test-id"
@@ -389,7 +389,7 @@ class TestCreateNoteCommand:
 
     def test_note_properties(self, mock_app_context, sample_project):
         """Test that created note has correct properties."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -408,7 +408,7 @@ class TestCreateNoteCommand:
 
     def test_note_id_generation(self, mock_app_context, sample_project):
         """Test that note ID is properly generated."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -427,7 +427,7 @@ class TestCreateNoteCommand:
     def test_cleanup_releases_project_reference_only(self, mock_app_context, sample_project):
         """Test cleanup releases the cached project reference but preserves
         the created-note state needed by redo()."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
 
         mock_note = Mock(spec=Note)
 
@@ -444,7 +444,7 @@ class TestCreateNoteCommand:
 
     def test_command_state_isolation(self, mock_app_context, sample_project):
         """Test that multiple command instances don't interfere with each other."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         
@@ -470,7 +470,7 @@ class TestCreateNoteCommand:
 
     def test_event_data_structure(self, mock_app_context, sample_project):
         """Test that emitted events have correct data structure."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         

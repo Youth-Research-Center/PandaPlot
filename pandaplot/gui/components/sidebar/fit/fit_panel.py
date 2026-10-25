@@ -1,21 +1,19 @@
 """Curve fitting panel for performing regression analysis on chart data."""
 import logging
-from typing import Optional, override
+from typing import override
 
 import pandas as pd
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
-    QDoubleSpinBox,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMenu,
-    QSpinBox,
-    QTextEdit,
+    QPlainTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -24,13 +22,16 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
-from pandaplot.models.events import ChartEvents, UIEvents
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, get_chart_type_spec
+from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items import Dataset
-from pandaplot.models.project.items.chart import DataSeries, resolve_series_column
+from pandaplot.models.project.items.chart import Chart, DataSeries, resolve_series_column
 from pandaplot.models.state import AppContext
-from pandaplot.services.fit.fit_service import MIN_FIT_POINTS, FitService
+from pandaplot.services.fit.fit_service import FIT_CATEGORIES, FIT_DEFINITIONS, MIN_FIT_POINTS, FitService
 from pandaplot.services.theme import ThemeManager
 from pandaplot.utils.item_display_options import dataset_display_options
 
@@ -45,7 +46,7 @@ class FitPanel(SidebarPanel):
     fit_completed = Signal(dict)  # Emitted when fit is completed with results
     fit_applied = Signal(dict)   # Emitted when fit should be applied to chart
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None=None):
         super().__init__(app_context=app_context, parent=parent)
         self.fit_service = FitService()
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -53,17 +54,20 @@ class FitPanel(SidebarPanel):
         self.app_context = app_context
         self.current_chart = None
         self.fit_results = None
-        self.fit_fixed_parameters: Optional[str] = None
+        self.fit_fixed_parameters: str | None = None
         self._pending_fit_command = None
         self.datasets = []
-        self._pending_tab_event_data: Optional[dict] = None
+        self._pending_tab_event_data: dict | None = None
         self._needs_chart_refresh: bool = False
+        self._tab_inputs: dict[tuple[str, str], dict] = {}
+        self._active_tab_key: tuple[str, str] | None = None
 
         # Check scipy availability lazily (only when FitPanel is instantiated)
         self.scipy_available = self._check_scipy_available()
 
         self._initialize()
         self._connect_signals()
+        self._default_inputs = self._capture_inputs()
 
         if not self.scipy_available:
             self._show_scipy_warning()
@@ -105,6 +109,7 @@ class FitPanel(SidebarPanel):
         """Apply theme styling to all components."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
+        tokens = theme_manager.get_design_tokens()
 
         # Get theme colors with fallbacks
         card_bg = palette.get("card_bg", "#ffffff")
@@ -119,7 +124,7 @@ class FitPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;
@@ -137,6 +142,15 @@ class FitPanel(SidebarPanel):
 
         # Title label with shared styling
         self._apply_title_theme(base_fg, card_border)
+
+        self.equation_label.setStyleSheet(
+            f"font-family: monospace; background-color: {card_bg}; "
+            f"color: {base_fg}; padding: 5px; border: 1px solid {card_border};"
+        )
+        self._set_results_text_style(base_fg)
+
+        warning_fg = tokens.get("status_modified_text", "#B06A00")
+        self.fit_availability_label.setStyleSheet(f"color: {warning_fg};")
 
         self.update_data_points_display()
 
@@ -177,12 +191,13 @@ class FitPanel(SidebarPanel):
     def _create_data_source_section(self, layout):
         """Create the data source selection section."""
         data_group = QGroupBox("Data Source")
-        data_layout = QGridLayout(data_group)
+        self.data_source_layout = QGridLayout(data_group)
 
-        data_layout.addWidget(QLabel("Chart Series:"), 0, 0)
+        self.data_source_layout.addWidget(QLabel("Chart Series:"), 0, 0)
 
-        self.series_combo = QComboBox()
-        data_layout.addWidget(self.series_combo, 0, 1)
+        self.series_combo = DropDownComboBox()
+        self.data_source_layout.addWidget(self.series_combo, 0, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.data_source_layout.setColumnStretch(2, 1)
 
         # Dataset/X/Y column pickers for the "Custom..." data source, only
         # shown when that sentinel entry is selected in series_combo (see
@@ -193,21 +208,21 @@ class FitPanel(SidebarPanel):
         custom_source_layout.setContentsMargins(0, 0, 0, 0)
 
         custom_source_layout.addWidget(QLabel("Dataset:"), 0, 0)
-        self.custom_dataset_combo = QComboBox()
+        self.custom_dataset_combo = DropDownComboBox()
         custom_source_layout.addWidget(self.custom_dataset_combo, 0, 1)
 
         custom_source_layout.addWidget(QLabel("X Column:"), 1, 0)
-        self.custom_x_column_combo = QComboBox()
+        self.custom_x_column_combo = DropDownComboBox()
         custom_source_layout.addWidget(self.custom_x_column_combo, 1, 1)
 
         custom_source_layout.addWidget(QLabel("Y Column:"), 2, 0)
-        self.custom_y_column_combo = QComboBox()
+        self.custom_y_column_combo = DropDownComboBox()
         custom_source_layout.addWidget(self.custom_y_column_combo, 2, 1)
 
         self.custom_source_widget.setVisible(False)
-        data_layout.addWidget(self.custom_source_widget, 1, 0, 1, 2)
+        self.data_source_layout.addWidget(self.custom_source_widget, 1, 0, 1, 3)
 
-        data_layout.addWidget(QLabel("Data Points:"), 2, 0)
+        self.data_source_layout.addWidget(QLabel("Data Points:"), 2, 0)
 
         points_layout = QHBoxLayout()
         self.data_points_label = QLabel("No data selected")
@@ -219,30 +234,38 @@ class FitPanel(SidebarPanel):
         points_layout.addWidget(self.data_points_warning_icon)
         points_layout.addStretch()
 
-        data_layout.addLayout(points_layout, 2, 1)
+        self.data_source_layout.addLayout(points_layout, 2, 1)
+        self.fit_availability_label = QLabel()
+        self.fit_availability_label.setWordWrap(True)
+        self.fit_availability_label.setVisible(False)
+        self.data_source_layout.addWidget(self.fit_availability_label, 3, 0, 1, 3)
 
         layout.addWidget(data_group)
 
     def _create_fit_config_section(self, layout):
         """Create the fit configuration section."""
-        fit_group = QGroupBox("Fit Configuration")
-        fit_layout = QVBoxLayout(fit_group)
+        self.fit_configuration_group = QGroupBox("Fit Configuration")
+        fit_layout = QVBoxLayout(self.fit_configuration_group)
 
         # Fit type selection
-        type_layout = QHBoxLayout()
-        type_layout.addWidget(QLabel("Fit Type:"))
-        self.fit_type_combo = QComboBox()
-        self.fit_type_combo.addItems([
-            "Linear (y = ax + b)",
-            "Quadratic (y = ax² + bx + c)", 
-            "Exponential (y = ae^(bx) + c)",
-            "Power (y = ax^b + c)",
-            "Logarithmic (y = a*ln(x) + b)",
-            "Custom Function"
-        ])
-        type_layout.addWidget(self.fit_type_combo)
-        type_layout.addStretch()
-        fit_layout.addLayout(type_layout)
+        self.fit_type_layout = QGridLayout()
+        self.fit_type_layout.addWidget(QLabel("Category:"), 0, 0)
+        self.fit_category_combo = DropDownComboBox()
+        self.fit_category_combo.addItems(FIT_CATEGORIES)
+        self.fit_type_layout.addWidget(self.fit_category_combo, 0, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+
+        self.fit_type_layout.addWidget(QLabel("Model:"), 1, 0)
+        self.fit_type_combo = DropDownComboBox()
+        self._populate_fit_type_combo()
+        self.fit_type_layout.addWidget(self.fit_type_combo, 1, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.fit_type_layout.setColumnStretch(2, 1)
+        fit_layout.addLayout(self.fit_type_layout)
+        combo_min_width = max(
+            combo.sizeHint().width()
+            for combo in (self.series_combo, self.fit_category_combo, self.fit_type_combo)
+        )
+        for combo in (self.series_combo, self.fit_category_combo, self.fit_type_combo):
+            combo.setMinimumWidth(combo_min_width)
 
         # Custom function input (initially hidden)
         self.custom_group = QGroupBox("Custom Function")
@@ -281,26 +304,27 @@ class FitPanel(SidebarPanel):
         fit_layout.addWidget(self.custom_group)
         
         # Fit options
-        options_layout = QGridLayout()
+        self.fit_options_layout = QGridLayout()
         
         # Number of fit points
-        options_layout.addWidget(QLabel("Fit Points:"), 0, 0)
-        self.fit_points_spin = QSpinBox()
+        self.fit_options_layout.addWidget(QLabel("Fit Points:"), 0, 0)
+        self.fit_points_spin = IntegerInput()
         self.fit_points_spin.setRange(50, 5000)
         self.fit_points_spin.setValue(500)
-        options_layout.addWidget(self.fit_points_spin, 0, 1)
+        self.fit_options_layout.addWidget(self.fit_points_spin, 0, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        self.fit_options_layout.setColumnStretch(2, 1)
         
         # Show confidence bands
         self.confidence_check = QCheckBox("Show Confidence Bands")
         self.confidence_check.setChecked(False)
-        options_layout.addWidget(self.confidence_check, 1, 0, 1, 2)
+        self.fit_options_layout.addWidget(self.confidence_check, 1, 0, 1, 2)
         
         # R-squared calculation
         self.r_squared_check = QCheckBox("Calculate R²")
         self.r_squared_check.setChecked(True)
-        options_layout.addWidget(self.r_squared_check, 2, 0, 1, 2)
+        self.fit_options_layout.addWidget(self.r_squared_check, 2, 0, 1, 2)
         
-        fit_layout.addLayout(options_layout)
+        fit_layout.addLayout(self.fit_options_layout)
 
         # Fit range (plot the fitted curve outside the source data's own range)
         range_layout = QGridLayout()
@@ -313,7 +337,7 @@ class FitPanel(SidebarPanel):
         # live via update_data_points_display()) rather than disabled
         # spinboxes, so switching series/tabs or applying a fit never leaves
         # a stale manually-typed number on screen.
-        self.range_min_spin = QDoubleSpinBox()
+        self.range_min_spin = DecimalInput()
         self.range_min_spin.setRange(-1e9, 1e9)
         self.range_min_spin.setDecimals(6)
         self.range_min_spin.setVisible(False)
@@ -322,7 +346,7 @@ class FitPanel(SidebarPanel):
         range_layout.addWidget(self.range_min_spin, 1, 1)
         range_layout.addWidget(self.range_min_value_label, 1, 1)
 
-        self.range_max_spin = QDoubleSpinBox()
+        self.range_max_spin = DecimalInput()
         self.range_max_spin.setRange(-1e9, 1e9)
         self.range_max_spin.setDecimals(6)
         self.range_max_spin.setValue(1.0)
@@ -338,7 +362,7 @@ class FitPanel(SidebarPanel):
         range_layout.addWidget(self.range_warning_label, 3, 0, 1, 2)
 
         fit_layout.addLayout(range_layout)
-        layout.addWidget(fit_group)
+        layout.addWidget(self.fit_configuration_group)
 
     def _create_results_section(self, layout):
         """Create the results display section."""
@@ -346,9 +370,10 @@ class FitPanel(SidebarPanel):
         results_layout = QVBoxLayout(results_group)
 
         # Results text area
-        self.results_text = QTextEdit()
+        self.results_text = QPlainTextEdit()
         self.results_text.setReadOnly(True)
         self.results_text.setPlaceholderText("Fit results will appear here...")
+        self.results_text.setFrameShape(QFrame.Shape.NoFrame)
         results_layout.addWidget(self.results_text, stretch=1)
 
         # Equation display
@@ -356,7 +381,6 @@ class FitPanel(SidebarPanel):
         equation_layout.addWidget(QLabel("Equation:"))
         self.equation_label = QLabel("No fit performed")
         self.equation_label.setMaximumHeight(60)
-        self.equation_label.setStyleSheet("font-family: monospace; background-color: #f5f5f5; color: #333333; padding: 5px; border: 1px solid #ddd;")
         equation_layout.addWidget(self.equation_label)
         results_layout.addLayout(equation_layout)
 
@@ -384,6 +408,7 @@ class FitPanel(SidebarPanel):
     
     def _connect_signals(self):
         """Connect widget signals."""
+        self.fit_category_combo.currentTextChanged.connect(self._populate_fit_type_combo)
         self.fit_type_combo.currentTextChanged.connect(self._on_fit_type_changed)
         self.series_combo.currentIndexChanged.connect(self._on_series_changed)
         self.custom_dataset_combo.currentIndexChanged.connect(self._on_custom_dataset_changed)
@@ -393,9 +418,41 @@ class FitPanel(SidebarPanel):
         self.range_min_spin.valueChanged.connect(self.update_data_points_display)
         self.range_max_spin.valueChanged.connect(self.update_data_points_display)
 
+    def _populate_fit_type_combo(self):
+        """Show only the models belonging to the selected fit category."""
+        category = self.fit_category_combo.currentText()
+        previous_fit = self.fit_type_combo.currentData() if self.fit_type_combo.count() else None
+
+        self.fit_type_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+        self.fit_type_combo.clear()
+        for fit_name in FIT_CATEGORIES.get(category, ()):
+            if fit_name == "Custom Function":
+                self.fit_type_combo.addItem(fit_name, fit_name)
+            else:
+                description = FIT_DEFINITIONS[fit_name]["description"]
+                self.fit_type_combo.addItem(f"{fit_name} ({description})", fit_name)
+        restored_index = self.fit_type_combo.findData(previous_fit)
+        self.fit_type_combo.setCurrentIndex(max(restored_index, 0))
+        self.fit_type_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+        if hasattr(self, "custom_group"):
+            self._on_fit_type_changed()
+
+    def _set_results_text_style(self, color: str | None = None):
+        if color is None:
+            palette = self.app_context.get_manager(ThemeManager).get_surface_palette()
+            text_color = palette.get("base_fg", "#333333") if isinstance(palette, dict) else "#333333"
+        else:
+            text_color = color
+        self.results_text.setStyleSheet(
+            f"QPlainTextEdit {{ color: {text_color}; background-color: transparent; border: none; }}"
+        )
+
     def setup_event_subscriptions(self):
         """Set up event subscriptions for tab changes."""
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
+        self.subscribe_to_event(UIEvents.TAB_CLOSED, self._on_tab_closed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, self._on_project_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, self._on_project_changed)
         self.subscribe_to_event(ChartEvents.CHART_UPDATED, self._on_chart_updated)
         self.subscribe_to_event(ChartEvents.SERIES_SELECTED, self._on_series_selected_event)
 
@@ -410,12 +467,23 @@ class FitPanel(SidebarPanel):
         if chart_id != self.current_chart.id or event_data.get("kind") != "series":
             return
         index = event_data.get("index")
-        # series_combo mirrors chart.data_series 1:1, in order, followed by
-        # a trailing "Custom..." entry -- so the series' own index in the
-        # chart is also its row here.
         if index is None or not (0 <= index < len(self.current_chart.data_series)):
             return
-        self.series_combo.setCurrentIndex(index)
+        series = self.current_chart.data_series[index]
+        # series_combo excludes FIT-type entries (see load_chart_object),
+        # so it no longer mirrors chart.data_series 1:1 by index -- find
+        # the clicked series' own row by identity instead of the chart
+        # index directly. Not `findData()`/`==`: DataSeries is a plain
+        # dataclass whose precomputed_x_data/precomputed_y_data compare
+        # as equal-when-both-None, so two distinct series can be
+        # `==`-equal (see chart.py's `compare=False` fields) -- `is`
+        # avoids matching the wrong row. A fit click can't reach here at
+        # all (kind == "fit" for those, filtered above), so this is
+        # always a plain series and always present in the combo.
+        for row in range(self.series_combo.count()):
+            if self.series_combo.itemData(row) is series:
+                self.series_combo.setCurrentIndex(row)
+                break
 
     def _show_scipy_warning(self):
         """Show warning if scipy is not available."""
@@ -424,7 +492,7 @@ class FitPanel(SidebarPanel):
             "Please install SciPy to enable curve fitting: pip install scipy"
         )
         self.results_text.setPlainText(warning_text)
-        self.results_text.setStyleSheet("color: red;")
+        self._set_results_text_style("red")
     
     @property
     def current_project(self):
@@ -440,7 +508,7 @@ class FitPanel(SidebarPanel):
             return None
         return app_state.current_project
 
-    def _resolve_selected_series(self) -> Optional[DataSeries]:
+    def _resolve_selected_series(self) -> DataSeries | None:
         """Resolve series_combo's current selection to a DataSeries.
 
         A real chart series is returned unchanged. The "Custom..." sentinel
@@ -470,6 +538,22 @@ class FitPanel(SidebarPanel):
             dataset_id=dataset_id,
             x_column_id=x_column_id,
             y_column_id=y_column_id,
+        )
+
+    def _series_combo_is_stale(self) -> bool:
+        """Whether series_combo no longer holds the current chart's own
+        (non-FIT) DataSeries objects -- e.g. after restore_chart_state (the
+        properties panel's Reset, or undo of a dataset delete) swapped
+        deep copies into chart.data_series."""
+        if self.current_chart is None:
+            return False
+        combo_series = [
+            self.series_combo.itemData(row) for row in range(self.series_combo.count())
+            if isinstance(self.series_combo.itemData(row), DataSeries)
+        ]
+        chart_series = [s for s in self.current_chart.data_series if not s.is_fit]
+        return len(combo_series) != len(chart_series) or any(
+            combo is not current for combo, current in zip(combo_series, chart_series, strict=True)
         )
 
     def get_current_data(self):
@@ -545,39 +629,174 @@ class FitPanel(SidebarPanel):
         self._apply_tab_change(event_data)
 
     def _apply_tab_change(self, event_data):
+        target_key = self._tab_key(event_data)
+        if target_key == self._active_tab_key:
+            return
+        if self._active_tab_key is not None:
+            self._tab_inputs[self._active_tab_key] = self._capture_inputs()
+        self._active_tab_key = target_key
+
         current_tab_type = event_data.get("tab_type")
         tab_id = event_data.get("tab_id")
         chart_id = tab_id if current_tab_type == "chart" else None
         dataset_id = tab_id if current_tab_type == "dataset" else None
 
-        # Check if current tab is a chart tab
+        # Resolve the target from the live project, so a removed item cannot
+        # revive an old selection from the in-memory cache.
+        chart = None
+        project = self.current_project
         if current_tab_type == "chart" and chart_id:
-            # Get the chart from the project using chart_id
-            project = self.app_context.app_state.current_project
-            if project is not None:
-                chart = project.find_item(chart_id)
-                if chart:
-                    # Load the chart into the fit panel for data analysis
-                    self.load_chart_object(chart)
-                    self.logger.info("Fit panel context set to chart %s", chart.name)
-                else:
-                    self.logger.warning("Fit panel: chart id %s not found in project", chart_id)
+            candidate = project.find_item(chart_id) if project else None
+            if isinstance(candidate, Chart):
+                chart = candidate
             else:
-                self.logger.warning("No current project available while switching tab")
-
+                self._tab_inputs.pop(target_key, None)
         elif current_tab_type == "dataset" and dataset_id:
-            # For dataset tabs, provide context for data fitting
-            project = self.app_context.app_state.current_project
-            if project is not None:
-                dataset = project.find_item(dataset_id)
-                if dataset:
-                    # Set project context for dataset access
-                    self.load_chart_object(None)  # Clear chart context
-                    self.logger.debug("Fit panel dataset context set for dataset %s", dataset.name)
+            candidate = project.find_item(dataset_id) if project else None
+            if not isinstance(candidate, Dataset):
+                self._tab_inputs.pop(target_key, None)
+
+        for combo in (self.custom_dataset_combo, self.custom_x_column_combo, self.custom_y_column_combo):
+            combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            combo.clear()
+            combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+        self.load_chart_object(chart)
+        saved = self._tab_inputs.get(target_key)
+        self._restore_inputs(saved if saved is not None else self._default_inputs, restore_series=saved is not None)
+
+    @staticmethod
+    def _tab_key(event_data):
+        tab_type = event_data.get("tab_type")
+        tab_id = event_data.get("tab_id")
+        return (tab_type, tab_id) if tab_type in ("chart", "dataset") and tab_id else None
+
+    @staticmethod
+    def _series_key(series):
+        return (series.dataset_id, series.x_column_id or series.x_column,
+                series.y_column_id or series.y_column)
+
+    def _capture_inputs(self):
+        selected = self.series_combo.currentData()
+        return {
+            "series_index": self.series_combo.currentIndex(),
+            "series_object": selected if isinstance(selected, DataSeries) else None,
+            "series_key": self._series_key(selected) if isinstance(selected, DataSeries) else None,
+            "custom_series": selected == CUSTOM_SERIES_SENTINEL if isinstance(selected, str) else False,
+            "dataset_id": self.custom_dataset_combo.currentData(),
+            "x_column_id": self.custom_x_column_combo.currentData(),
+            "y_column_id": self.custom_y_column_combo.currentData(),
+            "fit_type": self.fit_type_combo.currentText(),
+            "fit_category": self.fit_category_combo.currentText(),
+            "function": self.custom_function_edit.text(),
+            "parameters": self.custom_params_edit.text(),
+            "initial_guess": self.initial_guess_edit.text(),
+            "fit_points": self.fit_points_spin.value(),
+            "confidence": self.confidence_check.isChecked(),
+            "r_squared": self.r_squared_check.isChecked(),
+            "range_auto": self.range_auto_check.isChecked(),
+            "range_min": self.range_min_spin.value(),
+            "range_max": self.range_max_spin.value(),
+        }
+
+    def _restore_inputs(self, state: dict, *, restore_series: bool = True) -> None:
+        if state["custom_series"] and self.series_combo.count():
+            series_index = self.series_combo.findData(CUSTOM_SERIES_SENTINEL)
+        elif state["series_key"] is not None:
+            series_index = next((index for index in range(self.series_combo.count())
+                                 if self.series_combo.itemData(index) is state["series_object"]), -1)
+            matches = [index for index in range(self.series_combo.count())
+                       if isinstance(self.series_combo.itemData(index), DataSeries)
+                       and self._series_key(self.series_combo.itemData(index)) == state["series_key"]]
+            if series_index < 0:
+                series_index = state["series_index"] if state["series_index"] in matches else (matches[0] if matches else 0)
         else:
-            # Clear fit panel context when no relevant tab is active
+            series_index = -1
+        if restore_series and series_index != self.series_combo.currentIndex():
+            self.series_combo.setCurrentIndex(series_index)
+
+        if self.series_combo.currentData() == CUSTOM_SERIES_SENTINEL:
+            dataset_index = self.custom_dataset_combo.findData(state["dataset_id"])
+            if dataset_index >= 0:
+                self.custom_dataset_combo.setCurrentIndex(dataset_index)
+            self._populate_custom_column_combos(self.custom_dataset_combo.currentData())
+            for combo, column_id in ((self.custom_x_column_combo, state["x_column_id"]),
+                                     (self.custom_y_column_combo, state["y_column_id"])):
+                index = combo.findData(column_id)
+                if index >= 0:
+                    combo.setCurrentIndex(index)
+
+        self.fit_category_combo.setCurrentText(state["fit_category"])
+        fit_index = self.fit_type_combo.findText(state["fit_type"])
+        if fit_index >= 0:
+            self.fit_type_combo.setCurrentIndex(fit_index)
+        self.custom_function_edit.setText(state["function"])
+        self.custom_params_edit.setText(state["parameters"])
+        self.initial_guess_edit.setText(state["initial_guess"])
+        self.fit_points_spin.setValue(state["fit_points"])
+        self.confidence_check.setChecked(state["confidence"])
+        self.r_squared_check.setChecked(state["r_squared"])
+        self.range_auto_check.setChecked(state["range_auto"])
+        self.range_min_spin.setValue(state["range_min"])
+        self.range_max_spin.setValue(state["range_max"])
+        self._on_fit_type_changed()
+        self.update_data_points_display()
+
+    def _on_tab_closed(self, event_data):
+        tab_id = event_data.get("tab_id")
+        if not tab_id:
+            return
+        for key in list(self._tab_inputs):
+            if key[1] == tab_id:
+                del self._tab_inputs[key]
+        if (self._pending_tab_event_data or {}).get("tab_id") == tab_id:
+            self._pending_tab_event_data = None
+        if self._active_tab_key is not None and self._active_tab_key[1] == tab_id:
+            self._active_tab_key = None
             self.load_chart_object(None)
-            self.logger.debug("Fit panel context cleared")
+
+    def _on_project_changed(self, _event_data):
+        self._tab_inputs.clear()
+        self._active_tab_key = None
+        self._pending_tab_event_data = None
+        self.load_chart_object(None)
+        self._restore_inputs(self._default_inputs)
+
+    def _chart_disallows_fit(self) -> bool:
+        """Whether the active chart type has no meaningful 2-D curve to fit."""
+        return self.current_chart is not None and not get_chart_type_spec(self.current_chart.chart_type).allows_fit
+
+    def _fit_unavailable_reason(self) -> str | None:
+        """Explain chart- or series-level reasons a curve fit cannot run."""
+        if self.current_chart is None:
+            return None
+        chart_spec = get_chart_type_spec(self.current_chart.chart_type)
+        if not chart_spec.allows_fit:
+            return f"Curve fits aren't available for {chart_spec.display_name} charts. Use an XY chart instead."
+
+        series = self._resolve_selected_series()
+        if series is None:
+            # Custom... with incomplete picks is a user-in-progress state, not a series without X.
+            if self.series_combo.currentData() == CUSTOM_SERIES_SENTINEL:
+                return None
+            # A fit isn't a valid source (see load_chart_object), so only
+            # look at the series that are actually offered.
+            fittable = [s for s in self.current_chart.data_series if not s.is_fit]
+            if fittable and not fittable[0].x_column_id and not fittable[0].x_column:
+                return "This series has no X column for curve fitting. Select an XY series or choose Custom... with X and Y columns."
+            return None
+        dataset = self.current_project.find_item(series.dataset_id) if self.current_project else None
+        if not isinstance(dataset, Dataset) or dataset.data is None:
+            return None
+        x_column = resolve_series_column(dataset, series.x_column_id, series.x_column)
+        if not x_column or x_column not in dataset.data.columns:
+            return "This series has no X column for curve fitting. Select an XY series or choose Custom... with X and Y columns."
+        return None
+
+    def _minimum_fit_points(self) -> int:
+        fit_definition = FIT_DEFINITIONS.get(self.fit_type_combo.currentData())
+        if fit_definition is None:
+            return MIN_FIT_POINTS
+        return max(MIN_FIT_POINTS, len(fit_definition["parameters"]))
 
     def update_data_points_display(self):
         """Update the data points display and enable/disable the Fit button accordingly."""
@@ -586,6 +805,25 @@ class FitPanel(SidebarPanel):
         base_fg = palette.get("base_fg", "#333333")
         secondary_fg = palette.get("secondary_fg", "#555555")
 
+        unavailable_reason = self._fit_unavailable_reason()
+        self.fit_availability_label.setText(unavailable_reason or "")
+        self.fit_availability_label.setVisible(bool(unavailable_reason))
+        self.fit_configuration_group.setEnabled(not self._chart_disallows_fit())
+        self.series_combo.setEnabled(self.current_chart is not None and not self._chart_disallows_fit())
+        self.custom_source_widget.setEnabled(not self._chart_disallows_fit())
+        if unavailable_reason and self._chart_disallows_fit():
+            self.fit_button.setEnabled(False)
+            self.fit_button.setToolTip(unavailable_reason)
+            # Clear data readouts left over from the previously loaded chart.
+            self.range_warning_label.setVisible(False)
+            self.range_min_value_label.setText("—")
+            self.range_max_value_label.setText("—")
+            self.data_points_label.setText("No data selected")
+            self.data_points_label.setStyleSheet(f"color: {secondary_fg}; font-style: italic;")
+            self.data_points_label.setToolTip("")
+            self.data_points_warning_icon.setVisible(False)
+            return
+
         range_valid = self._is_range_valid()
         self.range_warning_label.setVisible(not range_valid)
         if not range_valid:
@@ -593,7 +831,7 @@ class FitPanel(SidebarPanel):
 
         current_data = self.get_current_data()
         if current_data is not None:
-            df, mask, x_data, y_data, series = current_data
+            _df, _mask, x_data, _y_data, _series = current_data
             if len(x_data) > 0:
                 self.range_min_value_label.setText(f"{x_data.min():.6g}")
                 self.range_max_value_label.setText(f"{x_data.max():.6g}")
@@ -602,8 +840,9 @@ class FitPanel(SidebarPanel):
                 self.range_max_value_label.setText("—")
             self.data_points_label.setText(f"{len(x_data)} points")
 
-            if len(x_data) < MIN_FIT_POINTS:
-                tooltip = f"At least {MIN_FIT_POINTS} valid (x, y) data points are required to perform a fit."
+            minimum_points = self._minimum_fit_points()
+            if len(x_data) < minimum_points:
+                tooltip = f"At least {minimum_points} valid (x, y) data points are required for this fit."
                 self.data_points_label.setStyleSheet("color: red;")
                 self.data_points_label.setToolTip(tooltip)
                 self.data_points_warning_icon.setToolTip(tooltip)
@@ -636,6 +875,12 @@ class FitPanel(SidebarPanel):
             self.data_points_warning_icon.setVisible(True)
             self.fit_button.setEnabled(False)
             self.fit_button.setToolTip(tooltip)
+
+        if unavailable_reason:
+            # Series-level reason (e.g. no X column): data readouts above may
+            # still be valid for Y alone, but a fit cannot run.
+            self.fit_button.setEnabled(False)
+            self.fit_button.setToolTip(unavailable_reason)
 
     def _on_fit_type_changed(self):
         """Handle fit type selection change."""
@@ -674,7 +919,7 @@ class FitPanel(SidebarPanel):
         results_text += f"\nData points: {len(results.x_data)}\n"
         results_text += f"Fit points: {len(results.x_fit)}"
 
-        self.results_text.setStyleSheet("")
+        self._set_results_text_style()
         self.results_text.setPlainText(results_text)
 
     def _apply_fit(self):
@@ -715,6 +960,7 @@ class FitPanel(SidebarPanel):
                 series.y_column_id,
                 series.y_column) or "",
             fixed_parameters=self.fit_fixed_parameters,
+            y_axis=series.y_axis,
         )
 
         executor = self.app_context.get_command_executor()
@@ -730,16 +976,40 @@ class FitPanel(SidebarPanel):
         self.fit_results = None
         self.fit_fixed_parameters = None
         self.results_text.clear()
-        self.results_text.setStyleSheet("")
+        self._set_results_text_style()
         self.equation_label.setText("No fit performed")
         self.apply_button.setEnabled(False)
         if hasattr(self, "busy_spinner"):
             self.busy_spinner.stop()
 
+    def _chart_allows_fit(self) -> bool:
+        """Whether the current chart's type lets a fit be applied to it
+        (ChartTypeSpec.allows_fit -- False for 3-D, Colormap and Heatmap)."""
+        return self.current_chart is not None and self.current_chart.allows_fit
+
+    def _update_apply_enabled(self) -> None:
+        """Enable Apply only when there's a fit result to apply, the current
+        chart's type allows fits, and no fit is currently computing; keeps
+        the tooltip in sync with the same conditions so the two never
+        disagree (PR #416 round-2 review: a live chart-type switch used to
+        leave this stale, since it only recomputed from load_chart_object
+        and _on_complete, not from a chart_id-only CHART_UPDATED)."""
+        allowed = self._chart_allows_fit()
+        spec = CHART_TYPE_SPECS[self.current_chart.chart_type] if self.current_chart is not None else None
+        self.apply_button.setToolTip("" if spec is None or allowed else f"Fits aren't available on {spec.display_name} charts.")
+        self.apply_button.setEnabled(self.fit_results is not None and allowed and self._pending_fit_command is None)
+
     def load_chart_object(self, chart):
-        """Load a Chart object for fitting analysis."""
+        """Load a Chart object for fitting analysis.
+
+        A chart whose type has ``allows_fit=False`` (Stacked Bar, Density, ...)
+        stays the panel's current chart, so deferred refreshes and event
+        filtering keep working when its type changes back, but none of its
+        series are offered to fit.
+        """
         self._clear_results()
         self.current_chart = chart
+        self._update_apply_enabled()
 
         # Clearing/populating a combo box fires currentIndexChanged as items
         # come and go, which would call _on_series_changed() (and thus
@@ -748,13 +1018,22 @@ class FitPanel(SidebarPanel):
         self.series_combo.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         self.series_combo.clear()
 
-        if chart is None:
+        if chart is None or not get_chart_type_spec(chart.chart_type).allows_fit:
             self.series_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.custom_source_widget.setVisible(False)
             self.update_data_points_display()
             return
 
         for series in chart.data_series:
+            if series.is_fit:
+                # A fit isn't a valid source for a new fit (#304): its
+                # dataset_id/x_column/y_column mean "source columns the
+                # fit was computed from", not a live column to re-read --
+                # get_current_data() would silently re-fit the ORIGINAL
+                # source data instead of the fit's own curve, and fail
+                # outright once that source dataset is gone (which a fit
+                # is specifically designed to survive).
+                continue
             if series.label:
                 label = series.label
             else:
@@ -864,10 +1143,8 @@ class FitPanel(SidebarPanel):
             return True
         if self.range_max_spin.value() <= self.range_min_spin.value():
             return False
-        fit_name = self.fit_type_combo.currentText().split(" (")[0]
-        if fit_name in ("Logarithmic", "Power") and self.range_min_spin.value() <= 0:
-            return False
-        return True
+        fit_name = self.fit_type_combo.currentData()
+        return not (fit_name in ("Logarithmic", "Power") and self.range_min_spin.value() <= 0)
 
     def _range_invalid_reason(self) -> str:
         if self.range_max_spin.value() <= self.range_min_spin.value():
@@ -877,10 +1154,30 @@ class FitPanel(SidebarPanel):
     def _on_chart_updated(self, event_data):
         chart = event_data.get("chart")
 
-        if not chart:
+        if self.current_chart is None:
             return
 
-        if self.current_chart and chart.id != self.current_chart.id:
+        if not chart:
+            # Some emitters send only chart_id: the properties panel's live
+            # edits and Reset, and a dataset delete's undo (via
+            # Chart.dependency_update_event). Reset/undo go through
+            # restore_chart_state, which swaps deep-copied DataSeries into
+            # the same Chart object -- reload for those so series_combo
+            # doesn't keep the old objects, but not for a plain style edit,
+            # which replaced nothing (reloading clears the fit results).
+            if self.current_chart is None or event_data.get("chart_id") != self.current_chart.id:
+                return
+            if not self._series_combo_is_stale():
+                # Nothing to reload, but the chart type may have changed
+                # live (e.g. the Chart tab's type combo) without replacing
+                # any series objects -- refresh Apply's enabled/tooltip
+                # state and the Fit button/availability state for that case.
+                # No reload here, so fit_results must not be cleared.
+                self._update_apply_enabled()
+                self.update_data_points_display()
+                return
+            chart = self.current_chart
+        elif chart.id != self.current_chart.id:
             return
 
         # Skip doing the reload now while the panel isn't visible, but
@@ -894,7 +1191,9 @@ class FitPanel(SidebarPanel):
             self._needs_chart_refresh = True
             return
 
+        saved = self._capture_inputs()
         self.load_chart_object(chart)
+        self._restore_inputs(saved)
 
     @override
     def showEvent(self, event):
@@ -913,7 +1212,9 @@ class FitPanel(SidebarPanel):
         elif needs_chart_refresh and self.current_chart is not None:
             project = self.app_context.app_state.current_project
             chart = project.find_item(self.current_chart.id) if project else None
+            saved = self._capture_inputs()
             self.load_chart_object(chart)
+            self._restore_inputs(saved)
 
     def _insert_function(self, function_str):
         cursor_pos = self.custom_function_edit.cursorPosition()
@@ -930,6 +1231,8 @@ class FitPanel(SidebarPanel):
 
     def _perform_fit(self):
         """Create and execute a curve fitting command."""
+        if self._fit_unavailable_reason():
+            return
         # update_data_points_display() (fired by unrelated range/series
         # changes while a fit is in flight) re-enables fit_button based only
         # on data validity, not on whether a fit is already running -- so a
@@ -946,26 +1249,42 @@ class FitPanel(SidebarPanel):
 
         df, mask, x_data, y_data, series = current_data
 
-        fit_type = self.fit_type_combo.currentText()
-        is_custom = fit_type.split(" (")[0] == "Custom Function"
+        fit_type = self.fit_type_combo.currentData()
+        is_custom = fit_type == "Custom Function"
 
         # Chart/series navigation stays enabled while a fit computes in the
         # background, so capture what the fit was actually requested for and
         # compare against the panel's context once the result is back --
         # applying a stale fit to whatever chart/series happens to be
         # selected when the background thread finishes would silently
-        # attach the wrong data. Content-based (not object identity): a
-        # "Custom..." selection builds a fresh transient DataSeries on every
-        # _resolve_selected_series() call, so identity would always differ.
+        # attach the wrong data. Real series also need an identity check:
+        # duplicates can share columns but use different error bars.
+        # Custom sources use column identity because their DataSeries is transient.
         dispatch_context = (
             self.current_chart.id if self.current_chart else None,
             series.dataset_id, series.x_column_id, series.y_column_id,
         )
+        dispatch_tab_key = self._active_tab_key
+        dispatch_revision = self.app_context.app_state.modification_revision
+        dispatch_selection = self.series_combo.currentData()
 
         def _on_complete(result):
             self.busy_spinner.stop()
-            self.fit_button.setEnabled(self.scipy_available)
             self._pending_fit_command = None
+            # Recompute from the current chart/selection: the chart may have
+            # switched to an unsupported one while the fit was in flight.
+            self.update_data_points_display()
+
+            # Drop the result if the user is on a different tab, or the project was
+            # edited, since the fit started. Returning to the same tab keeps it,
+            # because that tab's inputs were restored. A tab closed and reopened
+            # mid-fit is not tracked: the worst case is a fit the user can clear.
+            if self._active_tab_key != dispatch_tab_key:
+                self.logger.info("Discarding stale fit result: active tab changed while fitting.")
+                return
+            if self.app_context.app_state.modification_revision != dispatch_revision:
+                self.logger.info("Discarding stale fit result: project was modified while fitting.")
+                return
 
             current_series = self._resolve_selected_series()
             current_context = (
@@ -974,7 +1293,9 @@ class FitPanel(SidebarPanel):
                 current_series.x_column_id if current_series else None,
                 current_series.y_column_id if current_series else None,
             )
-            if current_context != dispatch_context:
+            if current_context != dispatch_context or (
+                isinstance(dispatch_selection, DataSeries) and self.series_combo.currentData() is not dispatch_selection
+            ):
                 self.logger.info(
                     "Discarding stale fit result: chart/series changed while fitting."
                 )
@@ -984,13 +1305,13 @@ class FitPanel(SidebarPanel):
                 self.logger.error("PerformFitCommand failed: %s", command.error_message)
                 self._clear_results()
                 self.results_text.setPlainText(command.error_message or "Fit failed.")
-                self.results_text.setStyleSheet("color: red;")
+                self._set_results_text_style("red")
                 return
 
             self.fit_results = command.result
             self.fit_fixed_parameters = command.fixed_parameters
             self.display_results()
-            self.apply_button.setEnabled(self.fit_results is not None)
+            self._update_apply_enabled()
 
         command = PerformFitCommand(
             fit_service=self.fit_service,
@@ -1029,7 +1350,6 @@ class FitPanel(SidebarPanel):
             # on_complete never fires, so the previous result is still valid
             # and Apply's enabled state must be restored, not left disabled.
             self.busy_spinner.stop()
-            self.fit_button.setEnabled(self.scipy_available)
             self.apply_button.setEnabled(apply_was_enabled)
             self._pending_fit_command = None
-
+            self.update_data_points_display()

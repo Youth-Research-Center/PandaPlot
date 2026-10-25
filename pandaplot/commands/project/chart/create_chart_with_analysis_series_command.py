@@ -1,7 +1,7 @@
 """Command that creates a new chart for an analysis result and plots the
 result on it -- the "Plot result" destination picker's "New chart" option."""
 
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.composite_command import CompositeCommand
@@ -31,13 +31,13 @@ class CreateChartWithAnalysisSeriesCommand(Command):
     rather than at construction.
     """
 
-    def __init__(self, app_context: AppContext, folder_id: Optional[str], dataset_command: Command):
+    def __init__(self, app_context: AppContext, folder_id: str | None, dataset_command: Command):
         super().__init__()
         self.app_context = app_context
         self.folder_id = folder_id
         self.dataset_command = dataset_command
-        self._composite: Optional[CompositeCommand] = None
-        self.created_chart_id: Optional[str] = None
+        self._composite: CompositeCommand | None = None
+        self.created_chart_id: str | None = None
 
     @override
     def execute(self) -> CommandResult:
@@ -97,8 +97,8 @@ def build_quick_plot_command(
     app_context: AppContext,
     dataset_command: Command,
     *,
-    target_chart_id: Optional[str],
-    folder_id: Optional[str],
+    target_chart_id: str | None,
+    folder_id: str | None,
 ) -> Command:
     """Return the command to compose alongside `dataset_command` for the
     "Plot result" destination picker: `target_chart_id` is the destination

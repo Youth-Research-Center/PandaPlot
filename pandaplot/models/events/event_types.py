@@ -10,7 +10,7 @@ Usage patterns:
 - Multi-level publishing: publish both specific and generic events
 """
 
-from typing import Dict, List
+from typing import ClassVar
 
 # TODO(#219): make event data classes
 
@@ -168,7 +168,7 @@ class EventHierarchy:
     """Defines automatic event hierarchy mappings."""
     
     # Simple mapping from specific events to their parent chain
-    HIERARCHY_MAP: Dict[str, List[str]] = {
+    HIERARCHY_MAP: ClassVar[dict[str, list[str]]] = {
         "app.closing": ["app.closing"],
 
         # Note events
@@ -245,7 +245,7 @@ class EventHierarchy:
     }
     
     @classmethod
-    def get_hierarchy(cls, event_type: str) -> List[str]:
+    def get_hierarchy(cls, event_type: str) -> list[str]:
         """Get the event hierarchy for a given event type.
         
         Args:
@@ -257,7 +257,7 @@ class EventHierarchy:
         return cls.HIERARCHY_MAP.get(event_type, [event_type])
     
     @classmethod
-    def add_mapping(cls, event_type: str, hierarchy: List[str]) -> None:
+    def add_mapping(cls, event_type: str, hierarchy: list[str]) -> None:
         """Add a new event hierarchy mapping (for extensions).
         
         Args:

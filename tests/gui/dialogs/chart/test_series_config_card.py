@@ -104,6 +104,23 @@ def test_histogram_values_role_maps_to_y_column_id():
     assert "values_column_id" not in config
 
 
+def test_box_card_asks_only_for_a_required_values_column_mapped_to_y():
+    """Box reuses Histogram's ("values",) role shape, so the card needs no
+    Box-specific wiring: one Values combo, no X, no error bars (#399)."""
+    card = SeriesConfigCard(role_spec=get_chart_type_spec("box"))
+    card.set_datasets([("ds-1", "Sales")])
+    card.set_dataset_columns("ds-1", [("col-date", "Date"), ("col-rev", "Revenue")])
+    assert card.error_bars_check is None
+    assert not card.is_complete()
+
+    card.values_column_combo.setCurrentIndex(card.values_column_combo.findData("col-rev"))
+
+    assert card.is_complete()
+    config = card.get_series_config()
+    assert config["y_column_id"] == "col-rev"
+    assert config.get("x_column_id", "") == ""
+
+
 def test_switching_dataset_resets_column_selections():
     card = _line_card()
     card.y_column_combo.setCurrentIndex(card.y_column_combo.findData("col-rev"))

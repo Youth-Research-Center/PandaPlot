@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication, QHeaderView, QTableView
 from pandaplot.commands.project.dataset.edit_batch_command import EditBatchCommand
 from pandaplot.gui.components.tabs.dataset.cell_context_menu import CellContextMenu
 from pandaplot.gui.components.tabs.dataset.column_context_menu import ColumnHeaderContextMenu
+from pandaplot.gui.components.tabs.dataset.date_cell_delegate import DateCellDelegate
 from pandaplot.gui.components.tabs.dataset.pandas_table_model import PandasTableModel
 from pandaplot.gui.components.tabs.dataset.pheader_view import PHeaderView
 from pandaplot.gui.components.tabs.dataset.row_context_menu import RowHeaderContextMenu
@@ -36,6 +37,7 @@ class DatasetTableView(QTableView):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.app_context = app_context
         self.setModel(model)
+        self.setItemDelegate(DateCellDelegate(self))
         self._model = model
         
         # Set up custom horizontal header

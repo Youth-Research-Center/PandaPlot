@@ -1,4 +1,3 @@
-from typing import Optional
 
 from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QWidget
 
@@ -13,10 +12,10 @@ class UIController:
     This separates UI logic from business logic in the MVC pattern.
     """
     
-    def __init__(self, parent_widget: Optional[QWidget] = None):
+    def __init__(self, parent_widget: QWidget | None = None):
         self.parent_widget = parent_widget
     
-    def show_open_project_dialog(self) -> Optional[str]:
+    def show_open_project_dialog(self) -> str | None:
         """
         Show file dialog to open a project file.
         
@@ -32,7 +31,7 @@ class UIController:
         
         return file_path if file_path else None
     
-    def show_save_project_dialog(self, default_name: str = "untitled.pplot") -> Optional[str]:
+    def show_save_project_dialog(self, default_name: str = "untitled.pplot") -> str | None:
         """
         Show file dialog to save a project file.
         
@@ -51,7 +50,7 @@ class UIController:
         
         return file_path if file_path else None
     
-    def show_new_project_dialog(self, default_name: str = "New Project") -> Optional[str]:
+    def show_new_project_dialog(self, default_name: str = "New Project") -> str | None:
         """
         Prompt for a name for a brand-new project.
 
@@ -71,7 +70,7 @@ class UIController:
         name = name.strip() if name else ""
         return name if ok and name else None
 
-    def show_import_data_dialog(self) -> Optional[str]:
+    def show_import_data_dialog(self) -> str | None:
         """
         Show file dialog to import a data file (CSV/TSV or single-sheet Excel workbook).
 
@@ -185,7 +184,33 @@ class UIController:
         box.exec()
         return box.clickedButton() is action_button
 
-    def get_text_input(self, title: str, message: str, default_text: str = "") -> Optional[str]:
+    def show_save_discard_cancel(self, title: str, message: str) -> str:
+        """
+        Show a three-way dialog offering to save, discard, or cancel.
+
+        Args:
+            title (str): Dialog title
+            message (str): Message explaining what is at stake
+
+        Returns:
+            str: "save", "discard", or "cancel" (also returned if the
+                dialog is dismissed via Esc/titlebar).
+        """
+        box = QMessageBox(QMessageBox.Icon.Warning, title, message, parent=self.parent_widget)
+        save_button = box.addButton("Save and Close", QMessageBox.ButtonRole.AcceptRole)
+        discard_button = box.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked is save_button:
+            return "save"
+        if clicked is discard_button:
+            return "discard"
+        return "cancel"
+
+    def get_text_input(self, title: str, message: str, default_text: str = "") -> str | None:
         """
         Show a text input dialog.
         
@@ -201,7 +226,7 @@ class UIController:
         return text if ok else None
     
 
-    def show_export_dataset_dialog(self, dataset_name: str) -> Optional[tuple[str, str]]:
+    def show_export_dataset_dialog(self, dataset_name: str) -> tuple[str, str] | None:
         """
         Show file dialog to export dataset with format selection.
         

@@ -28,10 +28,10 @@ class SegmentedControl(QWidget):
         self._current_index = 0
         self._refresh_selected_properties()
 
-    def currentValue(self) -> object:  # noqa: N802
+    def currentValue(self) -> object:
         return self._values[self._current_index]
 
-    def setCurrentValue(self, value: object):  # noqa: N802
+    def setCurrentValue(self, value: object):
         if value not in self._values:
             return
         self._current_index = self._values.index(value)

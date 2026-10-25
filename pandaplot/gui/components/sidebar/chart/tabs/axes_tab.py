@@ -3,23 +3,23 @@ import math
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QComboBox,
-    QDoubleSpinBox,
     QGridLayout,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.chip_row import ChipRow
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.gui.components.common.toggle_switch import ToggleSwitch
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
+from pandaplot.models.chart.chart_config import ChartConfig
 from pandaplot.models.chart.chart_configuration import ScaleType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
@@ -92,6 +92,17 @@ class AxesTab(QWidget):
         self._axis_form_container_layout = QVBoxLayout(self._axis_form_container)
         self._axis_form_container_layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._axis_form_container)
+
+        # Shown instead of everything above for a chart type with no axes
+        # at all (ChartTypeSpec.has_axes -- Pie). Says why the tab is empty
+        # and where the settings that still apply live, rather than leaving
+        # a form whose every control the renderer would ignore.
+        self.no_axes_label = QLabel(
+            "This chart type has no axes to configure. Its title, subtitle "
+            "and legend are set on the Chart and Legend tabs.")
+        self.no_axes_label.setWordWrap(True)
+        self.no_axes_label.setVisible(False)
+        layout.addWidget(self.no_axes_label)
         layout.addStretch()
 
         self.axes_forms = {}
@@ -116,7 +127,7 @@ class AxesTab(QWidget):
         layout = QGridLayout(card)
         layout.addWidget(SectionHeader("3D View"), 0, 0, 1, 2)
         layout.addWidget(QLabel("Elevation:"), 1, 0)
-        self.view_elev_spin = QDoubleSpinBox()
+        self.view_elev_spin = DecimalInput()
         self.view_elev_spin.setRange(-90.0, 90.0)
         self.view_elev_spin.setDecimals(1)
         self.view_elev_spin.setValue(30.0)
@@ -124,7 +135,7 @@ class AxesTab(QWidget):
         self.view_elev_spin.setToolTip("Camera height above the X/Y plane, in degrees")
         layout.addWidget(self.view_elev_spin, 1, 1)
         layout.addWidget(QLabel("Azimuth:"), 2, 0)
-        self.view_azim_spin = QDoubleSpinBox()
+        self.view_azim_spin = DecimalInput()
         self.view_azim_spin.setRange(-180.0, 180.0)
         self.view_azim_spin.setDecimals(1)
         self.view_azim_spin.setValue(-60.0)
@@ -156,11 +167,11 @@ class AxesTab(QWidget):
         log_base_layout.setContentsMargins(0, 0, 0, 0)
         log_base_label = QLabel("Base:")
         log_base_layout.addWidget(log_base_label, 0, 0)
-        log_base_combo = QComboBox()
+        log_base_combo = DropDownComboBox()
         for text, value in [("10", 10.0), ("2", 2.0), ("e (natural log)", math.e), ("Custom...", "custom")]:
             log_base_combo.addItem(text, value)
         log_base_layout.addWidget(log_base_combo, 0, 1)
-        log_base_custom_spin = QDoubleSpinBox()
+        log_base_custom_spin = DecimalInput()
         log_base_custom_spin.setRange(0.001, 1000.0)
         log_base_custom_spin.setSingleStep(0.1)
         log_base_custom_spin.setValue(10.0)
@@ -180,7 +191,7 @@ class AxesTab(QWidget):
         range_layout.addWidget(QLabel("Auto"), 0, 1)
         auto_toggle = ToggleSwitch(checked=True)
         range_layout.addWidget(auto_toggle, 0, 2)
-        min_spin = QDoubleSpinBox()
+        min_spin = DecimalInput()
         min_spin.setRange(-1e9, 1e9)
         # Task 4 made these boxes display machine-computed data ranges (not
         # just user-typed values); Qt's default of 2 decimal places silently
@@ -189,7 +200,7 @@ class AxesTab(QWidget):
         # Auto->Manual toggle.
         min_spin.setDecimals(6)
         min_spin.setEnabled(False)
-        max_spin = QDoubleSpinBox()
+        max_spin = DecimalInput()
         max_spin.setRange(-1e9, 1e9)
         max_spin.setDecimals(6)
         max_spin.setValue(1.0)
@@ -205,10 +216,10 @@ class AxesTab(QWidget):
         ticks_layout.addWidget(SectionHeader("Ticks"), 0, 0, 1, 2)
         mode_control = SegmentedControl([("Auto", "auto"), ("Count", "count"), ("Step", "step")])
         ticks_layout.addWidget(mode_control, 1, 0, 1, 2)
-        count_spin = QSpinBox()
+        count_spin = IntegerInput()
         count_spin.setRange(2, 50)
         count_spin.setValue(5)
-        step_spin = QDoubleSpinBox()
+        step_spin = DecimalInput()
         step_spin.setRange(0.001, 1e9)
         step_spin.setValue(1.0)
         count_label = QLabel("Count:")
@@ -221,7 +232,7 @@ class AxesTab(QWidget):
         count_spin.setVisible(False)
         step_label.setVisible(False)
         step_spin.setVisible(False)
-        format_combo = QComboBox()
+        format_combo = DropDownComboBox()
         for text, value in [("Auto", "auto"), ("Integer", "integer"), ("1 Decimal", "1decimal"),
                             ("2 Decimals", "2decimal"), ("Scientific", "scientific"), ("Custom...", "custom")]:
             format_combo.addItem(text, value)
@@ -362,14 +373,14 @@ class AxesTab(QWidget):
 
         color_vmin_label = QLabel("Min:")
         colormap_layout.addWidget(color_vmin_label, 5, 0)
-        color_vmin_spin = QDoubleSpinBox()
+        color_vmin_spin = DecimalInput()
         color_vmin_spin.setRange(-1e9, 1e9)
         color_vmin_spin.setDecimals(3)
         colormap_layout.addWidget(color_vmin_spin, 5, 1)
 
         color_vmax_label = QLabel("Max:")
         colormap_layout.addWidget(color_vmax_label, 6, 0)
-        color_vmax_spin = QDoubleSpinBox()
+        color_vmax_spin = DecimalInput()
         color_vmax_spin.setRange(-1e9, 1e9)
         color_vmax_spin.setDecimals(3)
         color_vmax_spin.setValue(1.0)
@@ -428,10 +439,10 @@ class AxesTab(QWidget):
         form["color_vmax_label"].setVisible(show_manual)
         form["color_vmax_spin"].setVisible(show_manual)
 
-    def _write_color_axis_config(self, config: dict):
+    def _write_color_axis_config(self, config: ChartConfig):
         form = self.axes_forms["color"]
-        config["colormap"] = form["colormap_control"].currentValue()
-        config["colorbar_show"] = form["colorbar_show_toggle"].isChecked()
+        config.colormap = form["colormap_control"].currentValue()
+        config.colorbar_show = form["colorbar_show_toggle"].isChecked()
         # Only ever written once the user has actually typed into the field
         # (see _on_colorbar_label_edited) -- this method runs on every field
         # change on the whole tab, not just this one, so unconditionally
@@ -439,27 +450,27 @@ class AxesTab(QWidget):
         # make "never customized" indistinguishable from "customized to
         # empty" the moment any other field changed.
         if self._colorbar_label_customized:
-            config["colorbar_label"] = form["colorbar_label_edit"].text()
-        config["color_scale_auto"] = form["color_scale_auto_toggle"].isChecked()
-        config["color_vmin"] = form["color_vmin_spin"].value()
-        config["color_vmax"] = form["color_vmax_spin"].value()
+            config.colorbar_label = form["colorbar_label_edit"].text()
+        config.color_scale_auto = form["color_scale_auto_toggle"].isChecked()
+        config.color_vmin = form["color_vmin_spin"].value()
+        config.color_vmax = form["color_vmax_spin"].value()
 
-    def _read_color_axis_config(self, config: dict):
+    def _read_color_axis_config(self, config: ChartConfig):
         form = self.axes_forms["color"]
-        form["colormap_control"].setCurrentValue(config.get("colormap", "viridis"))
+        form["colormap_control"].setCurrentValue(config.colormap)
         form["colorbar_show_toggle"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-        form["colorbar_show_toggle"].setChecked(checked=config.get("colorbar_show", True))
+        form["colorbar_show_toggle"].setChecked(checked=config.colorbar_show)
         form["colorbar_show_toggle"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
-        stored_label = config.get("colorbar_label")
+        stored_label = config.colorbar_label
         self._colorbar_label_customized = stored_label is not None
         form["colorbar_label_edit"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
         form["colorbar_label_edit"].setText(stored_label or "")
         form["colorbar_label_edit"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
         form["color_scale_auto_toggle"].blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-        form["color_scale_auto_toggle"].setChecked(checked=config.get("color_scale_auto", True))
+        form["color_scale_auto_toggle"].setChecked(checked=config.color_scale_auto)
         form["color_scale_auto_toggle"].blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
-        form["color_vmin_spin"].setValue(config.get("color_vmin", 0.0))
-        form["color_vmax_spin"].setValue(config.get("color_vmax", 1.0))
+        form["color_vmin_spin"].setValue(config.color_vmin)
+        form["color_vmax_spin"].setValue(config.color_vmax)
         self._update_color_scale_controls()
 
     def _show_axis_form(self, prefix: str):
@@ -488,8 +499,10 @@ class AxesTab(QWidget):
             # matplotlib's own autoscale would -- otherwise a computed min <= 0
             # gets shown here and later rejected/ignored by set_xlim/set_ylim.
             is_log = form["scale_control"].currentValue() == ScaleType.LOG
+            chart_spec = CHART_TYPE_SPECS[self._chart.chart_type]
             computed = compute_axis_data_range(
-                project, self._chart.data_series, prefix, positive_only=is_log
+                project, self._chart.data_series, prefix, positive_only=is_log,
+                hist_density_bins=self._chart.config.hist_bins if chart_spec.hist_density else None,
             )
         else:
             computed = None
@@ -555,7 +568,7 @@ class AxesTab(QWidget):
         """Resolve the effective log base from the Base combo, reading the
         custom spin box when "Custom..." is selected. Rejects exactly 1.0
         (matplotlib's LogScale forbids it) by falling back to 10.0 --
-        QDoubleSpinBox can't exclude a single interior value via setRange,
+        DecimalInput can't exclude a single interior value via setRange,
         so this is enforced here instead."""
         form = self.axes_forms[prefix]
         data = form["log_base_combo"].currentData()
@@ -627,11 +640,20 @@ class AxesTab(QWidget):
         whole chart, not to one axis, so it lives outside the per-axis forms
         and stays visible whichever axis chip is selected.
 
+        A chart type with no axes at all (ChartTypeSpec.has_axes is False --
+        Pie) hides the chips and every form, showing `no_axes_label`
+        instead. Gated on the chart's type, not its series, like is_3d:
+        whether axes exist is decided by what the chart draws on.
+
         Public (and takes `chart` explicitly) because the not-yet-migrated
         Data tab (still on `ChartPropertiesPanel`) calls this whenever a
         series' `y_axis` or type changes.
         """
         self._chart = chart
+        has_axes = not chart or CHART_TYPE_SPECS[chart.chart_type].has_axes
+        self.axis_chips.setVisible(has_axes)
+        self._axis_form_container.setVisible(has_axes)
+        self.no_axes_label.setVisible(not has_axes)
         is_3d = bool(chart) and CHART_TYPE_SPECS[chart.chart_type].is_3d
         has_secondary = bool(chart) and not is_3d and any(
             series.y_axis == YAxis.SECONDARY for series in chart.data_series
@@ -661,43 +683,45 @@ class AxesTab(QWidget):
             self.axis_chips.setCurrentValue("x")
             self._show_axis_form("x")
 
-    def _write_axis_config(self, prefix: str, config: dict):
-        """Write one axis form's widget values into `config` (the mutable chart.config dict)."""
+    def _write_axis_config(self, prefix: str, config: ChartConfig):
+        """Write one axis form's widget values into `config`'s AxisConfig
+        for `prefix` (the mutable chart.config -- a ChartConfig)."""
         form = self.axes_forms[prefix]
-        config[f"{prefix}_label"] = form["label_edit"].text()
+        axis = getattr(config, prefix)
+        axis.label = form["label_edit"].text()
         if form["scale_control"].currentValue():
-            config[f"{prefix}_scale"] = form["scale_control"].currentValue().value
-        config[f"{prefix}_log_base"] = self._resolve_log_base(prefix)
+            axis.scale = form["scale_control"].currentValue().value
+        axis.log_base = self._resolve_log_base(prefix)
         if form["side_control"] is not None:
-            config[f"{prefix}_side"] = form["side_control"].currentValue()
-        config[f"{prefix}_auto_limits"] = form["auto_toggle"].isChecked()
-        config[f"{prefix}_min"] = form["min_spin"].value()
-        config[f"{prefix}_max"] = form["max_spin"].value()
-        config[f"{prefix}_tick_mode"] = form["mode_control"].currentValue()
-        config[f"{prefix}_tick_count"] = form["count_spin"].value()
-        config[f"{prefix}_tick_step"] = form["step_spin"].value()
-        config[f"{prefix}_tick_format"] = form["format_combo"].currentData()
-        config[f"{prefix}_tick_format_custom"] = form["format_custom_edit"].text()
-        config[f"show_grid_{prefix}"] = form["grid_toggle"].isChecked()
-        config[f"{prefix}_tick_direction"] = form["tick_direction_control"].currentValue()
-        config[f"{prefix}_minor_ticks"] = form["minor_ticks_toggle"].isChecked()
-        config[f"{prefix}_minor_tick_direction"] = form["minor_tick_direction_control"].currentValue()
-        config[f"{prefix}_show_minor_grid"] = form["minor_grid_toggle"].isChecked()
+            axis.side = form["side_control"].currentValue()
+        axis.auto_limits = form["auto_toggle"].isChecked()
+        axis.min = form["min_spin"].value()
+        axis.max = form["max_spin"].value()
+        axis.tick_mode = form["mode_control"].currentValue()
+        axis.tick_count = form["count_spin"].value()
+        axis.tick_step = form["step_spin"].value()
+        axis.tick_format = form["format_combo"].currentData()
+        axis.tick_format_custom = form["format_custom_edit"].text()
+        axis.show_grid = form["grid_toggle"].isChecked()
+        axis.tick_direction = form["tick_direction_control"].currentValue()
+        axis.minor_ticks = form["minor_ticks_toggle"].isChecked()
+        axis.minor_tick_direction = form["minor_tick_direction_control"].currentValue()
+        axis.show_minor_grid = form["minor_grid_toggle"].isChecked()
 
-    def _read_axis_config(self, prefix: str, config: dict):
-        """Populate one axis form's widgets from `config`. Assumes the caller
-        already has `self._updating_controls` set so change signals don't
-        write half-loaded values back out."""
+    def _read_axis_config(self, prefix: str, config: ChartConfig):
+        """Populate one axis form's widgets from `config`'s AxisConfig for
+        `prefix`. Assumes the caller already has `self._updating_controls`
+        set so change signals don't write half-loaded values back out."""
         form = self.axes_forms[prefix]
-        form["label_edit"].setText(config.get(f"{prefix}_label", ""))
+        axis = getattr(config, prefix)
+        form["label_edit"].setText(axis.label)
 
-        scale_value = config.get(f"{prefix}_scale", "linear")
         try:
-            form["scale_control"].setCurrentValue(ScaleType(scale_value))
+            form["scale_control"].setCurrentValue(ScaleType(axis.scale))
         except ValueError:
             form["scale_control"].setCurrentValue(ScaleType.LINEAR)
 
-        log_base = config.get(f"{prefix}_log_base", 10.0)
+        log_base = axis.log_base
         preset_index = form["log_base_combo"].findData(log_base)
         if preset_index >= 0:
             form["log_base_combo"].setCurrentIndex(preset_index)
@@ -710,10 +734,9 @@ class AxesTab(QWidget):
         form["log_base_row"].setVisible(is_log)
 
         if form["side_control"] is not None:
-            default_side = "left" if prefix == "y" else "right"
-            form["side_control"].setCurrentValue(config.get(f"{prefix}_side", default_side))
+            form["side_control"].setCurrentValue(axis.side)
 
-        auto_limits = config.get(f"{prefix}_auto_limits", True)
+        auto_limits = axis.auto_limits
         form["auto_toggle"].setChecked(checked=auto_limits)
         # Auto mode's displayed min/max is owned by `_refresh_range_display`
         # (recomputed from live data whenever it's called). Manual mode has
@@ -721,37 +744,35 @@ class AxesTab(QWidget):
         # ever changes via an explicit Auto->Manual toggle or the user
         # typing, never merely by loading/reopening a chart -- so it must be
         # restored here from the actual saved config.
-        form["min_spin"].setValue(config.get(f"{prefix}_min", 0.0))
-        form["max_spin"].setValue(config.get(f"{prefix}_max", 1.0))
+        form["min_spin"].setValue(axis.min)
+        form["max_spin"].setValue(axis.max)
         form["min_spin"].setEnabled(not auto_limits)
         form["max_spin"].setEnabled(not auto_limits)
 
-        tick_mode = config.get(f"{prefix}_tick_mode", "auto")
+        tick_mode = axis.tick_mode
         form["mode_control"].setCurrentValue(tick_mode)
-        form["count_spin"].setValue(config.get(f"{prefix}_tick_count", 5))
-        form["step_spin"].setValue(config.get(f"{prefix}_tick_step", 1.0))
+        form["count_spin"].setValue(axis.tick_count)
+        form["step_spin"].setValue(axis.tick_step)
         form["count_label"].setVisible(tick_mode == "count")
         form["count_spin"].setVisible(tick_mode == "count")
         form["step_label"].setVisible(tick_mode == "step")
         form["step_spin"].setVisible(tick_mode == "step")
 
-        tick_format = config.get(f"{prefix}_tick_format", "auto")
+        tick_format = axis.tick_format
         format_index = form["format_combo"].findData(tick_format)
-        form["format_combo"].setCurrentIndex(format_index if format_index >= 0 else 0)
-        form["format_custom_edit"].setText(config.get(f"{prefix}_tick_format_custom", ""))
+        form["format_combo"].setCurrentIndex(max(format_index, 0))
+        form["format_custom_edit"].setText(axis.tick_format_custom)
         form["format_custom_edit"].setEnabled(tick_format == "custom")
 
-        form["grid_toggle"].setChecked(checked=config.get(f"show_grid_{prefix}", True))
+        form["grid_toggle"].setChecked(checked=axis.show_grid)
 
-        form["tick_direction_control"].setCurrentValue(config.get(f"{prefix}_tick_direction", "out"))
-        minor_ticks_enabled = config.get(f"{prefix}_minor_ticks", False)
+        form["tick_direction_control"].setCurrentValue(axis.tick_direction)
+        minor_ticks_enabled = axis.minor_ticks
         form["minor_ticks_toggle"].setChecked(checked=minor_ticks_enabled)
-        form["minor_tick_direction_control"].setCurrentValue(
-            config.get(f"{prefix}_minor_tick_direction", "out")
-        )
+        form["minor_tick_direction_control"].setCurrentValue(axis.minor_tick_direction)
         form["minor_tick_direction_label"].setVisible(minor_ticks_enabled)
         form["minor_tick_direction_control"].setVisible(minor_ticks_enabled)
-        form["minor_grid_toggle"].setChecked(checked=config.get(f"{prefix}_show_minor_grid", False))
+        form["minor_grid_toggle"].setChecked(checked=axis.show_minor_grid)
         form["minor_grid_label"].setVisible(minor_ticks_enabled)
         form["minor_grid_toggle"].setVisible(minor_ticks_enabled)
 
@@ -761,8 +782,8 @@ class AxesTab(QWidget):
         config = self._chart.config
         for prefix in _AXIS_PREFIXES:
             self._write_axis_config(prefix, config)
-        config["view_elev"] = self.view_elev_spin.value()
-        config["view_azim"] = self.view_azim_spin.value()
+        config.view_elev = self.view_elev_spin.value()
+        config.view_azim = self.view_azim_spin.value()
         self._write_color_axis_config(config)
         self.configChanged.emit()
 
@@ -771,8 +792,8 @@ class AxesTab(QWidget):
         self._updating_controls = True
         self._chart = chart
         try:
-            self.view_elev_spin.setValue(chart.config.get("view_elev", 30.0))
-            self.view_azim_spin.setValue(chart.config.get("view_azim", -60.0))
+            self.view_elev_spin.setValue(chart.config.view_elev)
+            self.view_azim_spin.setValue(chart.config.view_azim)
             for prefix in _AXIS_PREFIXES:
                 self._read_axis_config(prefix, chart.config)
                 # Only Auto axes get their range recomputed from live data on
@@ -793,8 +814,8 @@ class AxesTab(QWidget):
     def apply_to(self, chart):
         for prefix in _AXIS_PREFIXES:
             self._write_axis_config(prefix, chart.config)
-        chart.config["view_elev"] = self.view_elev_spin.value()
-        chart.config["view_azim"] = self.view_azim_spin.value()
+        chart.config.view_elev = self.view_elev_spin.value()
+        chart.config.view_azim = self.view_azim_spin.value()
         self._write_color_axis_config(chart.config)
 
     def clear(self):
@@ -802,11 +823,12 @@ class AxesTab(QWidget):
         previous_guard = self._updating_controls
         self._updating_controls = True
         try:
+            default_config = ChartConfig()
             for prefix in _AXIS_PREFIXES:
-                self._read_axis_config(prefix, {})
+                self._read_axis_config(prefix, default_config)
             self.view_elev_spin.setValue(30.0)
             self.view_azim_spin.setValue(-60.0)
-            self._read_color_axis_config({})
+            self._read_color_axis_config(default_config)
             self.refresh_axis_chips(None)
         finally:
             self._updating_controls = previous_guard

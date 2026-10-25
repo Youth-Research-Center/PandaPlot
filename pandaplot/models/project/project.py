@@ -1,6 +1,6 @@
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pandaplot.models.migrations.schema_version import CURRENT_SCHEMA_VERSION
 from pandaplot.models.project.items import Item, ItemCollection
@@ -23,44 +23,94 @@ class Project:
         self.root: ItemCollection = ItemCollection(name=f"{name} Root")
         
         # Flat lookup for quick item access by ID
-        self.items_index: Dict[str, Item] = {}
+        self.items_index: dict[str, Item] = {}
         
         # Project metadata
-        self.metadata: Dict[str, Any] = {}
+        self.metadata: dict[str, Any] = {}
         self.version = "1.0"
         self.schema_version: int = CURRENT_SCHEMA_VERSION
-        self.project_file_path: Optional[str] = None
+        self.project_file_path: str | None = None
 
         # IDs of items that ProjectDataManager.load() failed to deserialize
         # and silently dropped from the hierarchy. Not persisted (see
         # to_dict/from_dict) -- runtime-only so callers of load() can warn
         # the user instead of the failure only showing up in the log.
-        self.failed_item_ids: List[str] = []
+        self.failed_item_ids: list[str] = []
 
-    def add_item(self, item: Item, parent_id: Optional[str] = None, index: Optional[int] = None):
+    def add_item(self, item: Item, parent_id: str | None = None, index: int | None = None) -> None:
         """Add an item to the project hierarchy.
 
         `index`, when given, inserts the item at that position among its new
         siblings instead of appending it (see ItemCollection.add_item()).
+        A non-collection parent resolves to its nearest ancestor collection;
+        missing or cyclic parent chains fall back to the root.
+        Re-adding an attached item moves it from its previous collection,
+        or reorders it within the same collection.
+
+        Raises:
+            ValueError: If the item's subtree reuses an id already in the
+                project (the root id included; held by a different item; the added item itself may still
+                overwrite one) or within the subtree, or
+                a descendant's parent_id does not match its container. The
+                project is left unchanged. Also raised if the destination
+                would attach the item to itself or one of its descendants.
         """
-        if parent_id is None:
-            # Add to root
-            self.root.add_item(item, index=index)
-        else:
-            # Find parent and add item there
-            parent = self.find_item(parent_id)
-            if parent is not None and isinstance(parent, ItemCollection):
-                parent.add_item(item, index=index)
-            else:
-                self.logger.warning(f"Parent {parent_id} not found or not a collection, item: {item.id} {item.name} ")
-                # If parent not found or not a collection, add to root
-                # TODO(#219): see if we need to handle this case differently, e.g. recursively search for a collection
-                self.root.add_item(item, index=index)
+        self._validate_subtree(item)
+        parent = self.root if parent_id is None else self.find_item(parent_id)
+        visited: set[str] = set()
+        while parent is not None and not isinstance(parent, ItemCollection):
+            if parent.id in visited:
+                parent = None
+                break
+            visited.add(parent.id)
+            parent = self.find_item(parent.parent_id) if parent.parent_id is not None else None
+        if parent is None:
+            self.logger.warning("No ancestor collection for parent %s; adding item %s to root", parent_id, item.id)
+            parent = self.root
+        if self.is_item_or_descendant(item, parent.id):
+            raise ValueError("Cannot attach an item to itself or its descendants")
+        if not parent.accepts_item(item):
+            raise ValueError(f"Collection '{parent.name}' does not accept this type of item")
+        previous_parent = self._find_parent_collection(item)
+        if previous_parent is not None and previous_parent.get_item_by_id(item.id) is item:
+            previous_parent.remove_item(item)
+        parent.add_item(item, index=index)
 
-        # Update index
+        # Index the full subtree when restoring or attaching a collection.
+        self._index_item_subtree(item)
+
+    def _validate_subtree(self, item: Item) -> None:
+        """Check that indexing `item`'s subtree cannot clobber other items or
+        record inconsistent parent references."""
+        seen: set[str] = set()
+        stack: list[Item] = [item]
+        while stack:
+            current = stack.pop()
+            if current.id in seen:
+                raise ValueError(f"Duplicate item id '{current.id}' within the added subtree")
+            seen.add(current.id)
+            # The root is not in items_index, but find_item() always resolves its
+            # id to the root, so a subtree item reusing it would be unreachable.
+            if current.id == self.root.id:
+                raise ValueError(f"Item id '{current.id}' is the project root id")
+            existing = self.items_index.get(current.id)
+            # The added item itself keeps the long-standing overwrite behaviour
+            # for a duplicate id; only descendants must not clobber other items.
+            if current is not item and existing is not None and existing is not current:
+                raise ValueError(f"Item id '{current.id}' is already used by another item in the project")
+            if isinstance(current, ItemCollection):
+                for child in current.get_items():
+                    if child.parent_id != current.id:
+                        raise ValueError(f"Item '{child.id}' has parent_id '{child.parent_id}', expected '{current.id}'")
+                    stack.append(child)
+
+    def _index_item_subtree(self, item: Item) -> None:
         self.items_index[item.id] = item
+        if isinstance(item, ItemCollection):
+            for child in item.get_items():
+                self._index_item_subtree(child)
 
-    def _find_parent_collection(self, item: Item) -> Optional[ItemCollection]:
+    def _find_parent_collection(self, item: Item) -> ItemCollection | None:
         """Return the ItemCollection currently holding `item` (its parent, or
         root when parent_id is unset or is the root), or None if its
         recorded parent_id doesn't resolve to a real collection."""
@@ -94,7 +144,7 @@ class Project:
         if item.id in self.items_index:
             del self.items_index[item.id]
 
-    def is_item_or_descendant(self, item: Item, candidate_id: Optional[str]) -> bool:
+    def is_item_or_descendant(self, item: Item, candidate_id: str | None) -> bool:
         """True if `candidate_id` refers to `item` itself, or to a descendant
         of `item` nested anywhere inside its subtree. Used to reject a move
         that would attach `item` to itself or to one of its own children --
@@ -102,7 +152,7 @@ class Project:
         otherwise create a cyclic parent/child graph (#374 review)."""
         if candidate_id is None:
             return False
-        cursor_id: Optional[str] = candidate_id
+        cursor_id: str | None = candidate_id
         visited: set[str] = set()
         while cursor_id is not None and cursor_id != self.root.id:
             if cursor_id == item.id:
@@ -117,7 +167,7 @@ class Project:
             cursor_id = cursor.parent_id
         return False
 
-    def detach_item(self, item: Item) -> Optional[int]:
+    def detach_item(self, item: Item) -> int | None:
         """Detach `item` from its current parent so it can be reparented
         elsewhere with add_item(), e.g. by MoveItemCommand.
 
@@ -150,21 +200,21 @@ class Project:
         if item:
             self.remove_item(item)
     
-    def find_item(self, item_id: str) -> Optional[Item]:
+    def find_item(self, item_id: str) -> Item | None:
         """Find an item by ID in the project."""
         if item_id == self.root.id:
             return self.root
         return self.items_index.get(item_id)
     
-    def get_all_items(self) -> List[Item]:
+    def get_all_items(self) -> list[Item]:
         """Get all items in the project (flat list)."""
         return list(self.items_index.values())
     
-    def get_root_items(self) -> List[Item]:
+    def get_root_items(self) -> list[Item]:
         """Get items at the root level."""
         return self.root.get_items()
 
-    def get_folder_path(self, item_id: str) -> List[str]:
+    def get_folder_path(self, item_id: str) -> list[str]:
         """Names of the folders containing `item_id`, top-level first.
 
         Empty if the item is unknown or sits directly under the project root.
@@ -172,7 +222,7 @@ class Project:
         item = self.find_item(item_id)
         if item is None:
             return []
-        path: List[str] = []
+        path: list[str] = []
         cursor_parent_id = item.parent_id
         while cursor_parent_id and cursor_parent_id != self.root.id:
             parent = self.find_item(cursor_parent_id)
@@ -196,7 +246,7 @@ class Project:
         """
         return visitor.build_tree(self.root, parent_context)
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert project to dictionary for serialization."""
         return {
             "name": self.name,
@@ -209,7 +259,7 @@ class Project:
         }
         
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Project":
+    def from_dict(cls, data: dict[str, Any]) -> "Project":
         """Create project from dictionary."""
         project = cls(
             name=data.get("name", "Untitled Project"),

@@ -22,5 +22,5 @@ def test_create_tab_factory_does_not_import_tab_modules_eagerly():
         "assert 'matplotlib' not in sys.modules, 'matplotlib was imported eagerly'; "
         "assert 'markdown' not in sys.modules, 'markdown was imported eagerly'"
     )
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr

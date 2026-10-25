@@ -2,6 +2,9 @@
 applyTo: '**'
 ---
 
+## Source of truth
+Read `AGENTS.md` at the repository root first: it holds the conventions, commands, and the "Recurring Review Pitfalls" checklist. When reviewing a PR, check the change against that checklist (command results and redo semantics, async/stale callbacks, event payloads and refresh coverage, serialization round-trips, accessibility, test fidelity, PR description accuracy). The summary below may lag behind it.
+
 ## Context
 Project Type: GUI application for scientific data visualization and analysis inspired by SigmaPlot, OriginPro, and LabPlot.
 Language: Python (>= 3.12)
@@ -39,6 +42,7 @@ QT_QPA_PLATFORM=offscreen uv run pytest
 ```bash
 uv run ruff check .
 ```
+The repo has no `ruff format` step.
 
 ## Project Structure
 

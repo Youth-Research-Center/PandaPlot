@@ -4,7 +4,7 @@ Analysis types and data structures for mathematical analysis operations.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -43,22 +43,22 @@ class AnalysisParameters:
     method: str = "central"
     start_index: int = 0
     end_index: int = -1
-    window_length: Optional[int] = None
-    polynomial_order: Optional[int] = None
-    num_points: Optional[int] = None
-    additional_params: Dict[str, Any] = field(default_factory=dict)
+    window_length: int | None = None
+    polynomial_order: int | None = None
+    num_points: int | None = None
+    additional_params: dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class AnalysisResult:
     """Result of an analysis operation."""
     analysis_type: AnalysisType
-    source_columns: List[str]
+    source_columns: list[str]
     x_data: pd.Series
     y_data: pd.Series
-    result_data: Union[pd.Series, np.ndarray]
+    result_data: pd.Series | np.ndarray
     parameters: AnalysisParameters
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    statistics: Dict[str, float] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    statistics: dict[str, float] = field(default_factory=dict)
     
     def to_dataframe(self) -> pd.DataFrame:
         """Convert result to DataFrame for easy integration."""

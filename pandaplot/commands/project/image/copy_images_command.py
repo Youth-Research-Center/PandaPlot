@@ -1,7 +1,7 @@
 """Command to duplicate one or more Image items into a target gallery."""
 
 import uuid
-from typing import List, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -19,7 +19,7 @@ class CopyImagesCommand(Command):
     reference (no bytes to duplicate).
     """
 
-    def __init__(self, app_context: AppContext, image_ids: List[str], target_gallery_id: str):
+    def __init__(self, app_context: AppContext, image_ids: list[str], target_gallery_id: str):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -29,7 +29,7 @@ class CopyImagesCommand(Command):
         self.target_gallery_id = target_gallery_id
 
         # Store state for undo
-        self.created_image_ids: List[str] = []
+        self.created_image_ids: list[str] = []
         self.project = None
 
     @override
@@ -94,8 +94,8 @@ class CopyImagesCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to copy images: {str(e)}"
-            self.logger.error("CopyImagesCommand Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to copy images: {e!s}"
+            self.logger.exception("CopyImagesCommand Error: %s", error_msg)
             self.ui_controller.show_error_message("Copy Images Error", error_msg)
             return CommandResult.FAILURE
 
@@ -139,8 +139,8 @@ class CopyImagesCommand(Command):
                 return CommandResult.NOOP
 
         except Exception as e:
-            error_msg = f"Failed to undo image copy: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Failed to undo image copy: {e!s}"
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Undo Error", error_msg)
             return CommandResult.FAILURE
 
@@ -152,8 +152,8 @@ class CopyImagesCommand(Command):
                 return self.execute()
             return CommandResult.FAILURE
         except Exception as e:
-            error_msg = f"Failed to redo image copy: {str(e)}"
-            self.logger.error(error_msg, exc_info=True)
+            error_msg = f"Failed to redo image copy: {e!s}"
+            self.logger.exception(error_msg)
             self.ui_controller.show_error_message("Redo Error", error_msg)
             return CommandResult.FAILURE
 

@@ -5,14 +5,15 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, compatible_chart_types_for_series
+from pandaplot.models.chart.series_type import SeriesType
 
 
 class ChartTab(QWidget):
@@ -61,10 +62,10 @@ class ChartTab(QWidget):
 
         self.hist_bins_label = QLabel("Bins:")
         info_layout.addWidget(self.hist_bins_label, 3, 0)
-        self.hist_bins_spin = QSpinBox()
+        self.hist_bins_spin = IntegerInput()
         self.hist_bins_spin.setRange(2, 200)
         self.hist_bins_spin.setValue(20)
-        self.hist_bins_spin.setToolTip("Number of bins used when chart type is Histogram")
+        self.hist_bins_spin.setToolTip("Number of bins used by histogram series")
         info_layout.addWidget(self.hist_bins_spin, 3, 1)
         self._update_hist_bins_visibility()
 
@@ -115,12 +116,16 @@ class ChartTab(QWidget):
         series_types = {s.series_type for s in self._chart.data_series} if self._chart else set()
         if not series_types:
             series_types = {CHART_TYPE_SPECS[current_type].default_series_type}
-        compatible = compatible_chart_types_for_series(series_types)
+        # FIT series are handled inside compatible_chart_types_for_series
+        # (they never block a 2-D switch, but rule out 3-D targets).
+        compatible = compatible_chart_types_for_series(frozenset(series_types))
         model = self.chart_type_control.model()
         for index in range(self.chart_type_control.count()):
             target_type = self.chart_type_control.itemData(index)
             item = model.item(index)
-            enabled = target_type in compatible
+            # The chart's own type is never a "switch", so it stays selectable
+            # even when has_fits rules it out (a loaded chart that already holds fits).
+            enabled = target_type in compatible or target_type == current_type
             item.setEnabled(enabled)
             if enabled:
                 item.setToolTip("")
@@ -131,18 +136,21 @@ class ChartTab(QWidget):
                 )
 
     def _update_hist_bins_visibility(self):
-        """Show the Histogram Bins control only when the chart type is Histogram."""
-        is_histogram = self.chart_type_control.currentValue() == ChartType.HIST
-        self.hist_bins_label.setVisible(is_histogram)
-        self.hist_bins_spin.setVisible(is_histogram)
+        """Show the Histogram Bins control only for chart types that can hold
+        a Hist series -- Histogram itself, and Density (a KDE overlaid on a
+        histogram is the reason Density allows HIST at all)."""
+        chart_type = self.chart_type_control.currentValue()
+        has_bins = bool(chart_type) and SeriesType.HIST in CHART_TYPE_SPECS[ChartType(chart_type)].allowed_series_types
+        self.hist_bins_label.setVisible(has_bins)
+        self.hist_bins_spin.setVisible(has_bins)
 
     def _on_field_changed(self):
         if self._chart is None or self._updating_controls:
             return
         config = self._chart.config
-        config["title"] = self.title_edit.text()
-        config["subtitle"] = self.subtitle_edit.text()
-        config["hist_bins"] = self.hist_bins_spin.value()
+        config.title = self.title_edit.text()
+        config.subtitle = self.subtitle_edit.text()
+        config.hist_bins = self.hist_bins_spin.value()
         chart_type = self.chart_type_control.currentValue()
         if chart_type:
             self._chart.set_chart_type(chart_type)
@@ -157,8 +165,15 @@ class ChartTab(QWidget):
             # renders on the chart) -- it must NOT rename the chart item in
             # the project tree, which is a separate concept controlled by
             # its own rename action.
-            self.title_edit.setText(chart.config.get("title", chart.name))
-            self.subtitle_edit.setText(chart.config.get("subtitle", ""))
+            # Chart.__init__ seeds config.title with the chart's name, and
+            # from_dict's ChartConfig.update() only overwrites it when the
+            # saved dict actually had a "title" key -- so config.title is
+            # already correctly "the chart's name" for a title never set,
+            # and correctly "" for one explicitly cleared, with no further
+            # fallback needed here (unlike the old dict .get("title", ...)
+            # default, this doesn't need to distinguish those cases itself).
+            self.title_edit.setText(chart.config.title)
+            self.subtitle_edit.setText(chart.config.subtitle)
 
             # chart.chart_type is already a ChartType instance -- Chart's
             # constructor coerces via ChartType(...) and raises ValueError
@@ -169,14 +184,14 @@ class ChartTab(QWidget):
             self._update_chart_type_compatibility()
             self._update_hist_bins_visibility()
 
-            self.hist_bins_spin.setValue(chart.config.get("hist_bins", 20))
+            self.hist_bins_spin.setValue(chart.config.hist_bins)
         finally:
             self._updating_controls = previous_guard
 
     def apply_to(self, chart):
-        chart.config["title"] = self.title_edit.text()
-        chart.config["subtitle"] = self.subtitle_edit.text()
-        chart.config["hist_bins"] = self.hist_bins_spin.value()
+        chart.config.title = self.title_edit.text()
+        chart.config.subtitle = self.subtitle_edit.text()
+        chart.config.hist_bins = self.hist_bins_spin.value()
 
         chart_type = self.chart_type_control.currentValue()
         if chart_type:

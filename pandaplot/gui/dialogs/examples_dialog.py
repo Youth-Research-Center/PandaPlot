@@ -1,6 +1,6 @@
 """Dialog for browsing and opening bundled example projects."""
 
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -26,7 +26,7 @@ class ExamplesDialog(PDialog):
 
     def __init__(self, app_context, parent=None):
         super().__init__(app_context=app_context, parent=parent)
-        self.selected_path: Optional[str] = None
+        self.selected_path: str | None = None
         self._initialize()
 
     @override

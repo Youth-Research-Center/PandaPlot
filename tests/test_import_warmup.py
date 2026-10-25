@@ -24,7 +24,7 @@ def test_background_import_warmup_loads_heavy_deps_off_the_main_thread():
     )
     env = os.environ.copy()
     env["QT_QPA_PLATFORM"] = "offscreen"
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=15)
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, timeout=15, check=False)
     assert result.returncode == 0, result.stderr
 
 
@@ -58,7 +58,7 @@ def test_create_qt_application_schedules_warmup_without_signal_errors():
     )
     env = os.environ.copy()
     env["QT_QPA_PLATFORM"] = "offscreen"
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, check=False)
     assert result.returncode == 0, result.stderr
     assert "Signal source has been deleted" not in result.stderr, result.stderr
 

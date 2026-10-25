@@ -5,11 +5,12 @@ from PySide6.QtGui import QScreen
 from PySide6.QtWidgets import QSplitter, QVBoxLayout, QWidget
 
 from pandaplot.commands.project.project.unsaved_changes import confirm_discard_unsaved_changes
-from pandaplot.gui.components import CollapsibleSidebar, TabContainer
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
 from pandaplot.gui.components.sidebar.panels.sidebar_panel_coordinator import (
     SidebarPanelCoordinator,
 )
+from pandaplot.gui.components.sidebar.sidebar import CollapsibleSidebar
+from pandaplot.gui.components.tabs.tab_container import TabContainer
 from pandaplot.gui.core.widget_extension import PMainWindow
 from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import AppEvents
@@ -43,6 +44,7 @@ class PandaMainWindow(PMainWindow):
 
         # Create central widget
         central_widget = QWidget()
+        central_widget.setObjectName("mainCentralWidget")
         self.setCentralWidget(central_widget)
 
         # Main layout
@@ -63,9 +65,16 @@ class PandaMainWindow(PMainWindow):
         # Get theme-appropriate background color
         background_color = palette.get("card_bg", "#F5F5F5")
         
-        # Apply background to central widget
+        # Apply background to central widget. Scoped to its object name
+        # rather than the bare "QWidget" type selector -- a widget-level
+        # style sheet overrides the QApplication-wide one for any property it
+        # sets, regardless of selector specificity, so an unscoped "QWidget"
+        # rule here would clobber background-color on every descendant
+        # QPushButton (Apply, Add to Project, ...) styled by the global
+        # [primary="true"] etc. rules, leaving only their border/text colors
+        # -- drawn for a colored fill -- visible against a plain background.
         central_widget = self.centralWidget()
-        central_widget.setStyleSheet(f"QWidget {{ background-color: {background_color}; }}")
+        central_widget.setStyleSheet(f"QWidget#mainCentralWidget {{ background-color: {background_color}; }}")
             
         self.logger.debug("Applied theme")
             
@@ -211,9 +220,8 @@ class PandaMainWindow(PMainWindow):
 
             # Log cleanup completion
             self.logger.info("Application cleanup completed successfully")
-        except Exception as e:
-            self.logger.error("Error during cleanup: %s",
-                              str(e), exc_info=True)
+        except Exception:
+            self.logger.exception("Error during cleanup")
             # Force exit even if cleanup fails
             self.logger.warning(
                 "Forcing application exit despite cleanup errors")

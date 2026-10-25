@@ -2,17 +2,15 @@
 Analysis panel for mathematical operations on dataset columns.
 """
 
-from typing import Any, Dict, Optional, override
+from typing import Any, override
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -22,6 +20,8 @@ from pandaplot.analysis import AnalysisEngine
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import AnalysisEvents, DatasetEvents, DatasetOperationEvents, UIEvents
@@ -35,7 +35,7 @@ class AnalysisPanel(SidebarPanel):
     Side panel for mathematical analysis operations on dataset columns.
     """
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.current_dataset = None
         self.current_dataset_id = None
@@ -91,7 +91,8 @@ class AnalysisPanel(SidebarPanel):
         # Get theme colors
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        
+        tokens = theme_manager.get_design_tokens()
+
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#333333")
@@ -104,7 +105,7 @@ class AnalysisPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;
@@ -145,7 +146,7 @@ class AnalysisPanel(SidebarPanel):
         group = QGroupBox("Analysis Type")
         group_layout = QFormLayout()
         
-        self.analysis_type_combo = QComboBox()
+        self.analysis_type_combo = DropDownComboBox()
         self.analysis_type_combo.addItems([
             "Derivative",
             "Integral", 
@@ -164,8 +165,8 @@ class AnalysisPanel(SidebarPanel):
         group = QGroupBox("Column Selection")
         group_layout = QFormLayout()
         
-        self.x_column_combo = QComboBox()
-        self.y_column_combo = QComboBox()
+        self.x_column_combo = DropDownComboBox()
+        self.y_column_combo = DropDownComboBox()
         
         group_layout.addRow("X Column:", self.x_column_combo)
         group_layout.addRow("Y Column:", self.y_column_combo)
@@ -190,7 +191,7 @@ class AnalysisPanel(SidebarPanel):
 
         # Both spinboxes show 1-based row numbers, matching the row numbers
         # in the dataset table (pandas_table_model.py shows "row + 1").
-        self.start_index = QSpinBox()
+        self.start_index = IntegerInput()
         self.start_index.setMinimum(0)
         self.start_index.setValue(0)
         self.start_value_label = QLabel("–")
@@ -199,7 +200,7 @@ class AnalysisPanel(SidebarPanel):
         start_row.addWidget(self.start_value_label)
         group_layout.addRow("Start Row:", start_row)
 
-        self.end_index = QSpinBox()
+        self.end_index = IntegerInput()
         self.end_index.setMinimum(0)
         self.end_index.setValue(0)
         self.end_value_label = QLabel("–")
@@ -216,10 +217,9 @@ class AnalysisPanel(SidebarPanel):
         group.setLayout(group_layout)
         layout.addWidget(group)
 
-    def _resolve_point(self, row_number: int) -> Optional[tuple]:
+    def _resolve_point(self, row_number: int) -> tuple | None:
         """Return the resolved (x, y) at a 1-based row number, or None."""
-        if self.current_dataset is None or not hasattr(self.current_dataset, "data") \
-                or self.current_dataset.data is None:
+        if self.current_dataset is None or self.current_dataset.data is None:
             return None
         x_col = self.x_column_combo.currentText()
         y_col = self.y_column_combo.currentText()
@@ -234,7 +234,7 @@ class AnalysisPanel(SidebarPanel):
         except (TypeError, ValueError):
             return None
 
-    def _format_point(self, point: Optional[tuple]) -> str:
+    def _format_point(self, point: tuple | None) -> str:
         if point is None:
             return "–"
         x, y = point
@@ -321,7 +321,7 @@ class AnalysisPanel(SidebarPanel):
     
     def update_column_choices(self):
         """Update column choices based on current dataset."""
-        if not self.current_dataset or not hasattr(self.current_dataset, "data"):
+        if self.current_dataset is None:
             return
         
         df = self.current_dataset.data
@@ -365,15 +365,13 @@ class AnalysisPanel(SidebarPanel):
     def update_parameters_ui(self):
         """Update parameters UI based on selected analysis type."""
         # Clear existing parameters
-        while self.parameters_layout.count():
-            child = self.parameters_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+        while self.parameters_layout.rowCount():
+            self.parameters_layout.removeRow(0)
         
         analysis_type = self.analysis_type_combo.currentText()
         
         if analysis_type == "Derivative":
-            self.method_combo = QComboBox()
+            self.method_combo = DropDownComboBox()
             self.method_combo.addItems(["Central Difference", "Forward Difference", "Backward Difference"])
             self.parameters_layout.addRow("Method:", self.method_combo)
             
@@ -388,7 +386,7 @@ class AnalysisPanel(SidebarPanel):
             self.parameters_layout.addRow("", info_label)
             
         elif analysis_type == "Smoothing":
-            self.smooth_method_combo = QComboBox()
+            self.smooth_method_combo = DropDownComboBox()
             self.smooth_method_combo.addItems(["Savitzky-Golay", "Rolling Mean", "LOWESS"])
             self.smooth_method_combo.currentTextChanged.connect(self.update_smoothing_params)
             self.parameters_layout.addRow("Method:", self.smooth_method_combo)
@@ -397,20 +395,17 @@ class AnalysisPanel(SidebarPanel):
             self.update_smoothing_params()
             
         elif analysis_type == "Interpolation":
-            self.interp_method_combo = QComboBox()
+            self.interp_method_combo = DropDownComboBox()
             self.interp_method_combo.addItems(["Linear", "Cubic", "Quadratic", "Nearest"])
             self.parameters_layout.addRow("Method:", self.interp_method_combo)
             
-            self.num_points_spin = QSpinBox()
+            self.num_points_spin = IntegerInput()
             self.num_points_spin.setRange(10, 10000)
             self.num_points_spin.setValue(100)
             self.parameters_layout.addRow("Points:", self.num_points_spin)
     
     def update_smoothing_params(self):
         """Update smoothing parameters based on method."""
-        if not hasattr(self, "smooth_method_combo"):
-            return
-        
         method = self.smooth_method_combo.currentText()
         
         # Remove existing additional parameters
@@ -418,18 +413,18 @@ class AnalysisPanel(SidebarPanel):
             self.parameters_layout.removeRow(1)
         
         if method == "Savitzky-Golay":
-            self.window_length_spin = QSpinBox()
+            self.window_length_spin = IntegerInput()
             self.window_length_spin.setRange(3, 101)
             self.window_length_spin.setValue(11)
             self.parameters_layout.addRow("Window Length:", self.window_length_spin)
             
-            self.poly_order_spin = QSpinBox()
+            self.poly_order_spin = IntegerInput()
             self.poly_order_spin.setRange(1, 10)
             self.poly_order_spin.setValue(3)
             self.parameters_layout.addRow("Polynomial Order:", self.poly_order_spin)
             
         elif method == "Rolling Mean":
-            self.window_spin = QSpinBox()
+            self.window_spin = IntegerInput()
             self.window_spin.setRange(2, 50)
             self.window_spin.setValue(5)
             self.parameters_layout.addRow("Window Size:", self.window_spin)
@@ -481,8 +476,8 @@ class AnalysisPanel(SidebarPanel):
             else:
                 self.preview_text.setText("Preview failed. Please check your parameters.")
                 
-        except Exception as e:
-            self.preview_text.setText(f"Preview error: {str(e)}")
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            self.preview_text.setText(f"Preview error: {e!s}")
     
     def execute_analysis_preview(self, x_data, y_data, config):
         """Execute analysis for preview purposes."""
@@ -553,8 +548,8 @@ class AnalysisPanel(SidebarPanel):
                     else:
                         self.logger.error("Command execution failed for dataset %s", dataset_id)
                         self.preview_text.setText("❌ Command execution failed. Please check your inputs.")
-                except Exception as e:
-                    self.preview_text.setText(f"❌ Error applying analysis: {str(e)}")
+                except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+                    self.preview_text.setText(f"❌ Error applying analysis: {e!s}")
 
             command = AnalysisCommand(self.app_context, dataset_id, config, on_complete=_on_complete)
             # Keep a strong reference so the command (and its on_complete
@@ -573,11 +568,11 @@ class AnalysisPanel(SidebarPanel):
                 self._pending_analysis_command = None
                 self.preview_text.setText("❌ Command execution failed. Please check your inputs.")
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.busy_spinner.stop()
             self.apply_btn.setEnabled(True)
             self._pending_analysis_command = None
-            self.preview_text.setText(f"❌ Error applying analysis: {str(e)}")
+            self.preview_text.setText(f"❌ Error applying analysis: {e!s}")
     
     def validate_inputs(self) -> bool:
         """Validate all inputs."""
@@ -585,7 +580,7 @@ class AnalysisPanel(SidebarPanel):
             self.preview_text.setText("❌ No dataset selected.")
             return False
 
-        if not hasattr(self.current_dataset, "data") or self.current_dataset.data is None:
+        if self.current_dataset.data is None:
             self.preview_text.setText("❌ Dataset data is not available.")
             return False
         
@@ -599,7 +594,7 @@ class AnalysisPanel(SidebarPanel):
         
         return True
     
-    def get_analysis_config(self) -> Dict[str, Any]:
+    def get_analysis_config(self) -> dict[str, Any]:
         """Get current analysis configuration."""
         analysis_type_map = {
             "Derivative": "derivative",
@@ -628,7 +623,7 @@ class AnalysisPanel(SidebarPanel):
         # Add analysis-specific parameters
         analysis_type = self.analysis_type_combo.currentText()
         
-        if analysis_type == "Derivative" and hasattr(self, "method_combo"):
+        if analysis_type == "Derivative":
             method_map = {
                 "Central Difference": "central",
                 "Forward Difference": "forward",
@@ -636,7 +631,7 @@ class AnalysisPanel(SidebarPanel):
             }
             config["parameters"]["method"] = method_map[self.method_combo.currentText()]
             
-        elif analysis_type == "Smoothing" and hasattr(self, "smooth_method_combo"):
+        elif analysis_type == "Smoothing":
             method_map = {
                 "Savitzky-Golay": "savgol",
                 "Rolling Mean": "rolling_mean",
@@ -644,14 +639,13 @@ class AnalysisPanel(SidebarPanel):
             }
             config["parameters"]["method"] = method_map[self.smooth_method_combo.currentText()]
             
-            if hasattr(self, "window_length_spin"):
+            if self.smooth_method_combo.currentText() == "Savitzky-Golay":
                 config["parameters"]["window_length"] = self.window_length_spin.value()
-            if hasattr(self, "poly_order_spin"):
                 config["parameters"]["polynomial_order"] = self.poly_order_spin.value()
-            if hasattr(self, "window_spin"):
+            elif self.smooth_method_combo.currentText() == "Rolling Mean":
                 config["parameters"]["window"] = self.window_spin.value()
                 
-        elif analysis_type == "Interpolation" and hasattr(self, "interp_method_combo"):
+        elif analysis_type == "Interpolation":
             method_map = {
                 "Linear": "linear",
                 "Cubic": "cubic", 
@@ -659,8 +653,7 @@ class AnalysisPanel(SidebarPanel):
                 "Nearest": "nearest"
             }
             config["parameters"]["method"] = method_map[self.interp_method_combo.currentText()]
-            if hasattr(self, "num_points_spin"):
-                config["parameters"]["num_points"] = self.num_points_spin.value()
+            config["parameters"]["num_points"] = self.num_points_spin.value()
         
         return config
     

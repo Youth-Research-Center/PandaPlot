@@ -74,7 +74,7 @@ class TestBuildGalleryTileIconCheckmarkPosition:
         # Top-left corner should differ (badge is there when selected)
         top_left_differs = any(
             unselected_image.pixelColor(x, y) != selected_image.pixelColor(x, y)
-            for x in range(0, 30) for y in range(0, 30)
+            for x in range(30) for y in range(30)
         )
         assert top_left_differs, "expected the checkmark badge to appear in the top-left region"
 

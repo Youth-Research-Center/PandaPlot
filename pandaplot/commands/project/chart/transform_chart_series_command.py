@@ -22,14 +22,13 @@ chart type allows neither (e.g. a pure histogram chart).
 """
 
 import copy
-from typing import Literal, Optional, override
+from typing import Literal, override
 
 import pandas as pd
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.commands.project.chart.series_xy import (
-    SourceKind,
     create_result_dataset,
     remove_result_dataset,
     resolve_series_xy,
@@ -40,6 +39,7 @@ from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events import ChartEvents
+from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.transform import expression_engine
@@ -54,12 +54,11 @@ class TransformChartSeriesCommand(Command):
         self,
         app_context: AppContext,
         chart_id: str,
-        source_kind: SourceKind,
         source_index: int,
         target: Target,
         expression: str,
-        result_name: Optional[str] = None,
-        folder_id: Optional[str] = None,
+        result_name: str | None = None,
+        folder_id: str | None = None,
     ):
         super().__init__()
         self.app_context = app_context
@@ -67,7 +66,6 @@ class TransformChartSeriesCommand(Command):
         self.ui_controller: UIController = app_context.get_ui_controller()
 
         self.chart_id = chart_id
-        self.source_kind = source_kind
         self.source_index = source_index
         self.target = target
         self.expression = expression
@@ -75,11 +73,11 @@ class TransformChartSeriesCommand(Command):
         self.folder_id = folder_id
 
         # State for undo/redo.
-        self.result_dataset_id: Optional[str] = None
-        self.added_series_index: Optional[int] = None
+        self.result_dataset_id: str | None = None
+        self.added_series_index: int | None = None
         self._chart_finder = ChartFinder(app_context)
 
-    def _get_chart(self) -> Optional[Chart]:
+    def _get_chart(self) -> Chart | None:
         return self._chart_finder.find(self.chart_id)
 
     def run_transform(self) -> tuple[pd.DataFrame, str]:
@@ -94,7 +92,7 @@ class TransformChartSeriesCommand(Command):
             raise ValueError("Chart is not available.")
 
         x, y, x_label, y_label = resolve_series_xy(
-            self.app_state, chart, self.source_kind, self.source_index, coerce_numeric=False,
+            self.app_state, chart, self.source_index, coerce_numeric=False,
         )
         if len(x) < 1:
             raise ValueError("Series has no points to transform.")
@@ -189,9 +187,9 @@ class TransformChartSeriesCommand(Command):
         resolve_series_xy consults) this chart type actually allows, and
         raise if none is allowed (e.g. a pure histogram chart).
         """
-        if self.source_kind == "series":
-            if not (0 <= self.source_index < len(chart.data_series)):
-                raise ValueError("Selected series no longer exists.")
+        if not (0 <= self.source_index < len(chart.data_series)):
+            raise ValueError("Selected series no longer exists.")
+        if not chart.data_series[self.source_index].is_fit:
             return chart.data_series[self.source_index].series_type
         allowed = CHART_TYPE_SPECS[chart.chart_type].allowed_series_types
         for candidate in SeriesType:
@@ -235,7 +233,7 @@ class TransformChartSeriesCommand(Command):
             # -- see run_transform()'s two branches.
             x_column, y_column = results_df.columns[0], results_df.columns[1]
             style_kwargs: dict = {"series_type": result_series_type}
-            if self.source_kind == "series":
+            if not chart.data_series[self.source_index].is_fit:
                 # Copy the source series' look (style, opacity, y-axis) so
                 # the transformed series doesn't revert to the chart's
                 # default styling or silently jump back to the primary axis.
@@ -265,11 +263,11 @@ class TransformChartSeriesCommand(Command):
             # would make index() return the earlier, wrong one.
             self.added_series_index = len(chart.data_series) - 1
 
-            self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, {
-                "chart_id": self.chart_id,
-                "update_type": "series_added",
-                "chart": chart,
-            })
+            self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+                chart_id=self.chart_id,
+                update_type="series_added",
+                chart=chart,
+            ).to_dict())
 
             self.logger.info(
                 "Created chart-transform dataset '%s' (%s) and added it as a series to chart '%s'",
@@ -282,7 +280,7 @@ class TransformChartSeriesCommand(Command):
             self.ui_controller.show_error_message("Chart Transform Error", str(e))
             return CommandResult.FAILURE
         except Exception as e:
-            self.logger.error("Transform-chart-series failed: %s", e, exc_info=True)
+            self.logger.exception("Transform-chart-series failed")
             self.ui_controller.show_error_message("Chart Transform Error", str(e))
             return CommandResult.FAILURE
 
@@ -295,16 +293,16 @@ class TransformChartSeriesCommand(Command):
             chart = self._get_chart()
             if chart is not None and self.added_series_index is not None:
                 chart.remove_data_series(self.added_series_index)
-                self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, {
-                    "chart_id": self.chart_id,
-                    "update_type": "series_removed",
-                    "chart": chart,
-                })
+                self.app_state.event_bus.emit(ChartEvents.CHART_UPDATED, ChartUpdatedData(
+                    chart_id=self.chart_id,
+                    update_type="series_removed",
+                    chart=chart,
+                ).to_dict())
 
             remove_result_dataset(self.app_state, self.result_dataset_id)
             return CommandResult.SUCCESS
-        except Exception as e:
-            self.logger.error("Failed to undo transform-chart-series: %s", e, exc_info=True)
+        except Exception:
+            self.logger.exception("Failed to undo transform-chart-series")
             return CommandResult.FAILURE
 
     @override

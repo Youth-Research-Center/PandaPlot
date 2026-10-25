@@ -2,22 +2,22 @@
 Dialog for basic image operations: crop, rotate, and resize.
 """
 
-from typing import Optional, override
+from typing import ClassVar, override
 
 from PySide6.QtCore import QBuffer, QIODevice, QRect, Qt
 from PySide6.QtGui import QImage, QImageReader, QImageWriter, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.gui.dialogs.image.crop_canvas import CropCanvas, clamp_rect_to_bounds
@@ -63,7 +63,7 @@ class ImageEditorDialog(PDialog):
     """
 
     def __init__(self, app_context: AppContext, image: Image,
-                 image_bytes: bytes, parent: Optional[QWidget] = None):
+                 image_bytes: bytes, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.image_model = image
         self.original_bytes = image_bytes
@@ -80,7 +80,7 @@ class ImageEditorDialog(PDialog):
         )
         self._updating_resize_spinboxes = False
         self._updating_crop_spinboxes = False
-        self._resolved_format: Optional[tuple[str, str]] = None
+        self._resolved_format: tuple[str, str] | None = None
         self._transforms: list[Transform] = []
         self._undo_stack: list[list[Transform]] = []
         self._redo_stack: list[list[Transform]] = []
@@ -129,12 +129,12 @@ class ImageEditorDialog(PDialog):
 
         size_inputs_layout = QHBoxLayout()
         size_inputs_layout.addWidget(QLabel("Width:"))
-        self.spin_width = QSpinBox()
+        self.spin_width = IntegerInput()
         self.spin_width.setRange(1, 20000)
         size_inputs_layout.addWidget(self.spin_width)
 
         size_inputs_layout.addWidget(QLabel("Height:"))
-        self.spin_height = QSpinBox()
+        self.spin_height = IntegerInput()
         self.spin_height.setRange(1, 20000)
         size_inputs_layout.addWidget(self.spin_height)
 
@@ -155,12 +155,12 @@ class ImageEditorDialog(PDialog):
 
         crop_grid = QHBoxLayout()
         crop_grid.addWidget(QLabel("X:"))
-        self.spin_crop_x = QSpinBox()
+        self.spin_crop_x = IntegerInput()
         self.spin_crop_x.setRange(0, 20000)
         crop_grid.addWidget(self.spin_crop_x)
 
         crop_grid.addWidget(QLabel("Y:"))
-        self.spin_crop_y = QSpinBox()
+        self.spin_crop_y = IntegerInput()
         self.spin_crop_y.setRange(0, 20000)
         crop_grid.addWidget(self.spin_crop_y)
 
@@ -168,12 +168,12 @@ class ImageEditorDialog(PDialog):
 
         crop_dim_grid = QHBoxLayout()
         crop_dim_grid.addWidget(QLabel("W:"))
-        self.spin_crop_w = QSpinBox()
+        self.spin_crop_w = IntegerInput()
         self.spin_crop_w.setRange(1, 20000)
         crop_dim_grid.addWidget(self.spin_crop_w)
 
         crop_dim_grid.addWidget(QLabel("H:"))
-        self.spin_crop_h = QSpinBox()
+        self.spin_crop_h = IntegerInput()
         self.spin_crop_h.setRange(1, 20000)
         crop_dim_grid.addWidget(self.spin_crop_h)
 
@@ -181,7 +181,7 @@ class ImageEditorDialog(PDialog):
 
         aspect_row = QHBoxLayout()
         aspect_row.addWidget(QLabel("Aspect:"))
-        self.aspect_combo = QComboBox()
+        self.aspect_combo = DropDownComboBox()
         self.aspect_combo.addItems(["Free", "1:1", "Original", "16:9", "4:3"])
         aspect_row.addWidget(self.aspect_combo)
         crop_layout.addLayout(aspect_row)
@@ -429,9 +429,9 @@ class ImageEditorDialog(PDialog):
     def _on_canvas_crop_rect_changed(self, rect: QRect) -> None:
         self._write_crop_spinboxes(rect)
 
-    _ASPECT_RATIOS = {"1:1": 1.0, "16:9": 16 / 9, "4:3": 4 / 3}
+    _ASPECT_RATIOS: ClassVar[dict[str, float]] = {"1:1": 1.0, "16:9": 16 / 9, "4:3": 4 / 3}
 
-    def _resolve_aspect_ratio_for_label(self, label: str) -> Optional[float]:
+    def _resolve_aspect_ratio_for_label(self, label: str) -> float | None:
         """Resolves an aspect-combo label to a lock ratio (or None for
         "Free"). "Original" is resolved against self.aspect_ratio at call
         time (not memoized), so it always reflects the working image's
@@ -502,7 +502,7 @@ class ImageEditorDialog(PDialog):
         self._sync_control_values()
         self._update_info_label()
 
-    def _detect_actual_format(self) -> Optional[str]:
+    def _detect_actual_format(self) -> str | None:
         """The Qt format name (e.g. "PNG", "JPEG") QImageReader detects
         from original_bytes' own header/magic, independent of whatever
         self.image_ext claims. Needed because image_ext can be wrong: a

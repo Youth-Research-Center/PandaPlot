@@ -12,12 +12,11 @@ an :class:`ImportOptions` plus the chosen file path and dataset name, which the
 import command uses to read the full file.
 """
 
+import math
 import os
-import tempfile
-from typing import Optional, override
+from typing import override
 
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QColor, QPainter, QPixmap, QPolygonF
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -31,15 +30,14 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QProxyStyle,
-    QSpinBox,
-    QStyle,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.state.app_context import AppContext
@@ -80,61 +78,18 @@ _FILE_FILTER = (
 )
 
 
-def _caret_icon_path(color_hex: str) -> str:
-    """
-    Return a filesystem path to a small downward-caret PNG in ``color_hex``,
-    generating and caching it on first use. Qt stylesheets can only point
-    ``::down-arrow`` at an image URL, so we render one on demand rather than
-    ship a per-theme asset. The path uses forward slashes for QSS on all
-    platforms.
-    """
-    key = color_hex.lstrip("#")
-    path = os.path.join(tempfile.gettempdir(), f"pandaplot_caret_{key}.png")
-    if not os.path.exists(path):
-        size = 12
-        pixmap = QPixmap(size, size)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(color_hex))
-        painter.drawPolygon(QPolygonF([QPointF(2.5, 4.5), QPointF(9.5, 4.5), QPointF(6.0, 8.5)]))
-        painter.end()
-        pixmap.save(path)
-    return path.replace(os.sep, "/")
-
-
-class _DropDownComboStyle(QProxyStyle):
-    """
-    Forces combo boxes to open as a dropdown list attached below the field,
-    instead of macOS's native combo-box style, which pops the menu up
-    centered over the current item (like an NSPopUpButton). That default
-    reads as broken here since the wizard's combos are plain lists, not
-    "current selection" menus.
-    """
-
-    def styleHint(self, hint, option=None, widget=None, returnData=None):
-        if hint == QStyle.StyleHint.SH_ComboBox_Popup:
-            return 0
-        return super().styleHint(hint, option, widget, returnData)
-
-
 class ImportWizardDialog(PDialog):
     """Interactive wizard for importing a structured data file as a dataset."""
 
-    def __init__(self, app_context: AppContext, parent=None, initial_file_path: Optional[str] = None):
+    def __init__(self, app_context: AppContext, parent=None, initial_file_path: str | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self.file_path: Optional[str] = None
+        self.file_path: str | None = None
         # Guard against option-change handlers firing while we programmatically
         # repopulate widgets after loading a file.
         self._loading = False
         # Reverse map (separator char -> wizard label) for reflecting a detected
         # delimiter back onto the combo box.
         self._delimiter_by_value = {value: label for label, value in NAMED_DELIMITERS.items()}
-        # Shared style forcing combos to drop down below the field rather than
-        # macOS's centered popup-menu behaviour; kept as an attribute since
-        # QWidget.setStyle() does not take ownership of the QStyle instance.
-        self._combo_style = _DropDownComboStyle()
 
         self._initialize()
 
@@ -187,16 +142,14 @@ class ImportWizardDialog(PDialog):
         form.setSpacing(10)
 
         # Format
-        self.format_combo = QComboBox()
-        self.format_combo.setStyle(self._combo_style)
+        self.format_combo = DropDownComboBox()
         for fmt, label in _FORMAT_LABELS.items():
             self.format_combo.addItem(label, fmt)
         self.format_combo.currentIndexChanged.connect(self._on_option_changed)
         form.addRow("Format:", self.format_combo)
 
         # Delimiter (CSV only)
-        self.delimiter_combo = QComboBox()
-        self.delimiter_combo.setStyle(self._combo_style)
+        self.delimiter_combo = DropDownComboBox()
         self.delimiter_combo.addItem(_AUTO_DETECT)
         for label in NAMED_DELIMITERS:
             self.delimiter_combo.addItem(label)
@@ -217,14 +170,13 @@ class ImportWizardDialog(PDialog):
         form.addRow("Header:", self.header_checkbox)
 
         # Skip rows
-        self.skip_rows_spin = QSpinBox()
+        self.skip_rows_spin = IntegerInput()
         self.skip_rows_spin.setRange(0, 100000)
         self.skip_rows_spin.valueChanged.connect(self._on_option_changed)
         form.addRow("Skip top rows:", self.skip_rows_spin)
 
         # Encoding (CSV / JSON)
-        self.encoding_combo = QComboBox()
-        self.encoding_combo.setStyle(self._combo_style)
+        self.encoding_combo = DropDownComboBox()
         for encoding in ENCODING_FALLBACKS:
             self.encoding_combo.addItem(encoding)
         self.encoding_combo.currentIndexChanged.connect(self._on_option_changed)
@@ -474,7 +426,7 @@ class ImportWizardDialog(PDialog):
         for row in range(df.shape[0]):
             for col in range(df.shape[1]):
                 value = df.iat[row, col]
-                text = "" if value is None or (isinstance(value, float) and value != value) else str(value)
+                text = "" if value is None or (isinstance(value, float) and math.isnan(value)) else str(value)
                 self.preview_table.setItem(row, col, QTableWidgetItem(text))
 
     def _set_status(self, message: str, *, error: bool):
@@ -488,7 +440,7 @@ class ImportWizardDialog(PDialog):
 
     # ---------------------------------------------------------------- public API
 
-    def get_file_path(self) -> Optional[str]:
+    def get_file_path(self) -> str | None:
         return self.file_path
 
     def get_import_options(self) -> ImportOptions:
@@ -524,9 +476,6 @@ class ImportWizardDialog(PDialog):
         # Inputs sit one shade off the card so fields read as distinct wells.
         input_bg = palette.get("card_hover", "#e9ecef")
         self._secondary_fg = secondary_fg
-        # Styling ::drop-down suppresses Qt's native arrow, so supply our own
-        # caret drawn in the theme's foreground colour.
-        arrow = _caret_icon_path(base_fg)
 
         self.setStyleSheet(f"""
             QDialog {{
@@ -551,7 +500,7 @@ class ImportWizardDialog(PDialog):
             QLabel, QCheckBox {{
                 color: {base_fg};
             }}
-            QLineEdit, QSpinBox, QComboBox {{
+            QLineEdit {{
                 background-color: {input_bg};
                 border: 1px solid {card_border};
                 border-radius: 4px;
@@ -559,50 +508,16 @@ class ImportWizardDialog(PDialog):
                 min-height: 22px;
                 color: {base_fg};
             }}
-            QLineEdit:focus, QSpinBox:focus, QComboBox:focus {{
+            QLineEdit:focus {{
                 border-color: {accent};
             }}
-            QLineEdit:hover, QSpinBox:hover, QComboBox:hover {{
+            QLineEdit:hover {{
                 border-color: {accent};
             }}
-            QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled {{
+            QLineEdit:disabled {{
                 color: {secondary_fg};
                 background-color: {card_bg};
                 border-color: {card_border};
-            }}
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: 22px;
-                border: none;
-                border-left: 1px solid {card_border};
-                border-top-right-radius: 4px;
-                border-bottom-right-radius: 4px;
-            }}
-            QComboBox::down-arrow {{
-                image: url({arrow});
-                width: 12px;
-                height: 12px;
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {input_bg};
-                color: {base_fg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-                outline: none;
-                padding: 2px;
-                selection-background-color: {accent};
-                selection-color: white;
-            }}
-            QComboBox QAbstractItemView::item {{
-                min-height: 22px;
-                padding: 2px 6px;
-                border-radius: 3px;
-            }}
-            QComboBox QAbstractItemView::item:hover,
-            QComboBox QAbstractItemView::item:selected {{
-                background-color: {accent};
-                color: white;
             }}
             QTableWidget {{
                 background-color: {card_bg};

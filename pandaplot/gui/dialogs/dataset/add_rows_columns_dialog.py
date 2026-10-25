@@ -1,6 +1,6 @@
 """Dialog for growing an existing dataset to a desired table size."""
 
-from typing import List, NamedTuple, Optional
+from typing import NamedTuple
 
 from PySide6.QtWidgets import (
     QComboBox,
@@ -8,12 +8,12 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QLabel,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 
 _MAX_SPINBOX_VALUE = 2_147_483_647
 # Dataset combo sizing: characters of width it always reserves, and the width
@@ -40,9 +40,9 @@ class AddRowsColumnsDialog(QDialog):
     never ask for data to be dropped.
     """
 
-    def __init__(self, datasets: List[DatasetSize],
-                 initial_dataset_id: Optional[str] = None,
-                 parent: Optional[QWidget] = None):
+    def __init__(self, datasets: list[DatasetSize],
+                 initial_dataset_id: str | None = None,
+                 parent: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Add Rows / Columns")
         self.setModal(True)
@@ -51,7 +51,7 @@ class AddRowsColumnsDialog(QDialog):
         self._setup_ui()
 
         index = self.dataset_combo.findData(initial_dataset_id)
-        self.dataset_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.dataset_combo.setCurrentIndex(max(index, 0))
         # setCurrentIndex only fires when the index actually changes, so seed
         # the size widgets from the selection explicitly.
         self._on_dataset_changed()
@@ -77,12 +77,12 @@ class AddRowsColumnsDialog(QDialog):
         self.current_size_label = QLabel()
         form.addRow("Current size:", self.current_size_label)
 
-        self.rows_spinbox = QSpinBox()
+        self.rows_spinbox = IntegerInput()
         self.rows_spinbox.setMaximum(_MAX_SPINBOX_VALUE)
         self.rows_spinbox.valueChanged.connect(self._update_ok_enabled)
         form.addRow("Total rows:", self.rows_spinbox)
 
-        self.columns_spinbox = QSpinBox()
+        self.columns_spinbox = IntegerInput()
         self.columns_spinbox.setMaximum(_MAX_SPINBOX_VALUE)
         self.columns_spinbox.valueChanged.connect(self._update_ok_enabled)
         form.addRow("Total columns:", self.columns_spinbox)
@@ -100,7 +100,7 @@ class AddRowsColumnsDialog(QDialog):
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
 
-    def _selected_dataset(self) -> Optional[DatasetSize]:
+    def _selected_dataset(self) -> DatasetSize | None:
         dataset_id = self.dataset_combo.currentData()
         for dataset in self._datasets:
             if dataset.id == dataset_id:
@@ -141,7 +141,7 @@ class AddRowsColumnsDialog(QDialog):
                  or self.columns_spinbox.value() > dataset.columns)
         ok_button.setEnabled(grows)
 
-    def get_dataset_id(self) -> Optional[str]:
+    def get_dataset_id(self) -> str | None:
         return self.dataset_combo.currentData()
 
     def get_target_rows(self) -> int:

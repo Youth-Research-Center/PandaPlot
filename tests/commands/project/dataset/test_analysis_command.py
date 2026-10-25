@@ -13,6 +13,7 @@ from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
 from pandaplot.commands.project.dataset.apply_analysis_result_command import ApplyAnalysisResultCommand
 from pandaplot.models.events.event_types import DatasetEvents, DatasetOperationEvents
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
 from tests.commands.project.conftest import SyncTaskScheduler
@@ -134,7 +135,7 @@ class TestAnalysisCommand:
         assert command.execute() is CommandResult.SUCCESS  # dispatched
         assert outcomes == [CommandResult.FAILURE]
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
-        title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
+        _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
         assert "boom" in message
 
     def test_on_complete_reports_success_once_applied(self, ctx):
@@ -367,6 +368,21 @@ class TestApplyAnalysisResultCommand:
 
         col = dataset.data["resampled"]
         assert list(col.iloc[:3]) == [100.0, 200.0, 300.0]
+
+    def test_writing_over_a_live_formula_column_is_refused(self, ctx):
+        app_context, _, dataset, _ = ctx
+        dataset.set_formula_column(dataset.column_id("y"), FormulaColumnSpec(
+            expression="x ** 2", source_column_ids=[dataset.column_id("x")], live=True,
+        ))
+        before = dataset.data["y"].copy()
+        command = ApplyAnalysisResultCommand(
+            app_context, "ds-1", "y", np.zeros(11),
+            column_existed_before=True, original_data=before,
+        )
+
+        assert command.execute() is CommandResult.FAILURE
+
+        pd.testing.assert_series_equal(dataset.data["y"], before)
 
     def test_execute_fails_when_dataset_missing(self):
         app_context = Mock(spec=AppContext)

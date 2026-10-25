@@ -1,0 +1,157 @@
+name: Build Release Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Perform a dry run build without full compilation'
+        required: false
+        type: boolean
+        default: false
+      version:
+        description: 'Release tag to publish the installers under (e.g. v1.0.0). Ignored for dry runs.'
+        required: false
+        type: string
+
+jobs:
+  build:
+    name: Build Installer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Validate inputs
+        if: inputs.dry_run == false && inputs.version == ''
+        run: |
+          echo "::error::'version' is required when dry_run is false (it's the tag the release will be published under)."
+          exit 1
+        shell: bash
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Install C++ compiler tools (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build Installer Executable
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            uv run python scripts/build_installer.py --dry-run
+          else
+            uv run python scripts/build_installer.py
+          fi
+        shell: bash
+
+      - name: Archive build output (preserves executable permissions)
+        # actions/upload-artifact normalizes uploaded file modes to 0644,
+        # which would silently strip the executable bit off the Linux
+        # binary and the one inside the macOS .app bundle. Tar it up on
+        # this runner first so the permissions survive inside the archive.
+        if: inputs.dry_run == false && runner.os != 'Windows'
+        run: tar -czf deployment.tar.gz -C deployment .
+        shell: bash
+
+      - name: Upload Build Artifacts (Windows)
+        if: inputs.dry_run == false && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pandaplot-installer-${{ runner.os }}
+          path: deployment/
+
+      - name: Upload Build Artifacts (Linux/macOS)
+        if: inputs.dry_run == false && runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pandaplot-installer-${{ runner.os }}
+          path: deployment.tar.gz
+
+  release:
+    name: Publish Release
+    needs: build
+    if: inputs.dry_run == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets and checksums
+        run: |
+          mkdir -p release_assets
+          for dir in artifacts/*/; do
+            os_name="$(basename "$dir")"
+            for f in "$dir"*; do
+              name="$(basename "$f")"
+              if [ -d "$f" ]; then
+                # The build job archives Linux/macOS output into a .tar.gz
+                # before upload (to preserve executable permissions) and
+                # Windows uploads a single .exe, so a directory here means
+                # that changed without updating this step to match.
+                echo "::error::Unexpected directory artifact '$f' -- build job should upload a single archived/executable file per platform." >&2
+                exit 1
+              fi
+              cp "$f" "release_assets/${os_name}-${name}"
+            done
+          done
+
+          cd release_assets
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Extract CHANGELOG section for this version
+        run: |
+          awk -v ver="$RELEASE_VERSION" '
+            index($0, "## [" ver "]") == 1 { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > changelog_section.md
+
+          if [ ! -s changelog_section.md ]; then
+            echo "_No CHANGELOG.md entry found for \`$RELEASE_VERSION\` — remember to rename \`[Unreleased]\` to \`[$RELEASE_VERSION]\` before releasing._" > changelog_section.md
+          fi
+
+      - name: Build release notes
+        run: |
+          {
+            cat changelog_section.md
+            echo
+            echo "## SHA256 Checksums"
+            echo '```'
+            cat release_assets/SHA256SUMS.txt
+            echo '```'
+          } > release_notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$RELEASE_VERSION" \
+            release_assets/* \
+            --title "PandaPlot $RELEASE_VERSION" \
+            --notes-file release_notes.md

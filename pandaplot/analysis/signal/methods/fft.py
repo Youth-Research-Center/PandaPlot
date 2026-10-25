@@ -58,7 +58,7 @@ def run(
 
     valid_amplitude = amplitude[valid_indices]
 
-    peaks, properties = find_peaks(
+    peaks, _properties = find_peaks(
         valid_amplitude,
         prominence=np.max(valid_amplitude) * 0.05,
     )

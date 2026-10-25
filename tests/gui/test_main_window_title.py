@@ -20,7 +20,7 @@ class _FakeMainWindow:
         self.title = None
         self._is_closing = False
 
-    def setWindowTitle(self, title):  # noqa: N802 - matches Qt's method name
+    def setWindowTitle(self, title):
         self.title = title
 
 
@@ -76,7 +76,7 @@ def test_close_event_accepts_when_no_unsaved_changes():
 
 
 def test_close_event_asks_and_accepts_when_confirmed():
-    window = _make_window(has_project=True, is_modified=True)
+    window = _make_window(has_project=True, is_modified=True, project_file_path=None)
     window.app_context.get_ui_controller.return_value.show_question.return_value = True
     event = _FakeCloseEvent()
 
@@ -90,29 +90,13 @@ def test_close_event_ignores_the_close_when_declined():
     """Regression (PR #235 review): previously there was no closeEvent
     override at all, so Qt's default always accepted -- the OS window-close
     button/Cmd+Q could silently discard unsaved changes."""
-    window = _make_window(has_project=True, is_modified=True)
+    window = _make_window(has_project=True, is_modified=True, project_file_path=None)
     window.app_context.get_ui_controller.return_value.show_question.return_value = False
     event = _FakeCloseEvent()
 
     PandaMainWindow.closeEvent(window, event)
 
     assert event.accepted is False
-
-
-def test_close_event_prompt_says_autosave_not_discard_for_an_already_saved_project():
-    """Regression (PR #235 review): app.launch()'s aboutToQuit handler
-    unconditionally flushes a save for an existing saved project before the
-    process exits, so this prompt must not claim continuing will discard
-    those edits."""
-    window = _make_window(has_project=True, is_modified=True, project_file_path="/p.pplot")
-    window.app_context.get_ui_controller.return_value.show_question.return_value = True
-    event = _FakeCloseEvent()
-
-    PandaMainWindow.closeEvent(window, event)
-
-    _, message = window.app_context.get_ui_controller.return_value.show_question.call_args[0]
-    assert "saved automatically" in message
-    assert "discard" not in message
 
 
 def test_close_event_prompt_says_discard_for_a_never_saved_project():
@@ -128,21 +112,23 @@ def test_close_event_prompt_says_discard_for_a_never_saved_project():
     assert "discard" in message
 
 
-def test_close_event_confirming_an_autosave_actually_saves_before_closing():
-    """Regression (PR #235 review): the prompt promises an automatic save,
-    but the actual save previously only happened later, in
-    app._flush_save_on_quit -- after the point of no return, with every
-    exception swallowed into a log line. Make sure the save genuinely runs
-    (and clears is_modified) as part of confirming, not just the promise of
-    one."""
+def test_close_event_saves_and_accepts_without_asking_for_an_already_saved_project():
+    """Regression (#410): there's nothing to confirm for an autosaving
+    close -- proceeding always saves and staying leaves the user exactly
+    where they were -- so this must save and close straight away, with no
+    question dialog at all. It also guards against the old bug where the
+    actual save only happened later, in app._flush_save_on_quit -- after
+    the point of no return, with every exception swallowed into a log line:
+    make sure the save genuinely runs (and clears is_modified) as part of
+    closing, not just a promised one."""
     window = _make_window(has_project=True, is_modified=True, project_file_path="/p.pplot")
-    window.app_context.get_ui_controller.return_value.show_question.return_value = True
     project_manager = Mock()
     window.app_context.get_manager.return_value = project_manager
     event = _FakeCloseEvent()
 
     PandaMainWindow.closeEvent(window, event)
 
+    window.app_context.get_ui_controller.return_value.show_question.assert_not_called()
     project = window.app_context.get_app_state.return_value.current_project
     project_manager.save_project.assert_called_once_with(project, "/p.pplot")
     window.app_context.get_app_state.return_value.mark_saved.assert_called_once()
@@ -156,7 +142,6 @@ def test_close_event_a_failed_autosave_cancels_the_close_instead_of_losing_edits
     edits it just promised to keep. The save must instead be checked here,
     before the close is accepted."""
     window = _make_window(has_project=True, is_modified=True, project_file_path="/p.pplot")
-    window.app_context.get_ui_controller.return_value.show_question.return_value = True
     project_manager = Mock()
     project_manager.save_project.side_effect = OSError("disk full")
     window.app_context.get_manager.return_value = project_manager
@@ -177,7 +162,6 @@ def test_close_event_refuses_to_close_while_another_save_is_already_writing_the_
     proceed instead (the user can just try closing again once the in-flight
     save finishes)."""
     window = _make_window(has_project=True, is_modified=True, project_file_path="/p.pplot")
-    window.app_context.get_ui_controller.return_value.show_question.return_value = True
     window.app_context.get_app_state.return_value.is_saving = True
     project_manager = Mock()
     window.app_context.get_manager.return_value = project_manager

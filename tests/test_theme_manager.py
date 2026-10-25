@@ -20,19 +20,19 @@ class DummyApp:
         self._palette = QPalette()
         self._font = DummyFont()
 
-    def palette(self):  # noqa: N802
+    def palette(self):
         return self._palette
 
-    def font(self):  # noqa: N802
+    def font(self):
         return self._font
 
-    def setFont(self, f):  # noqa: N802
+    def setFont(self, f):
         self._font = f
 
-    def setPalette(self, palette):  # noqa: N802
+    def setPalette(self, palette):
         self._palette = palette
 
-    def setStyleSheet(self, qss):  # noqa: N802
+    def setStyleSheet(self, qss):
         self._stylesheet = qss
 
     def styleSheet(self):

@@ -8,11 +8,10 @@ analysis engine (#268).
 """
 
 import re
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -28,6 +27,7 @@ from PySide6.QtWidgets import (
 from pandaplot.commands.project.chart.transform_chart_series_command import (
     TransformChartSeriesCommand,
 )
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
@@ -62,10 +62,10 @@ _EXPRESSION_REFERENCE_HTML = (
 class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for expression transforms on chart data/fit series."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self.current_chart: Optional[Chart] = None
-        self.current_chart_id: Optional[str] = None
+        self.current_chart: Chart | None = None
+        self.current_chart_id: str | None = None
 
         self._initialize()
         self._connect_signals()
@@ -94,7 +94,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     def _create_source_section(self, layout):
         group = QGroupBox("Series")
         form = QFormLayout(group)
-        self.source_combo = QComboBox()
+        self.source_combo = DropDownComboBox()
         form.addRow("Transform:", self.source_combo)
         self.source_hint = QLabel("Data series and fitted curves of this chart.")
         self.source_hint.setWordWrap(True)
@@ -104,7 +104,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     def _create_target_section(self, layout):
         group = QGroupBox("Target")
         form = QFormLayout(group)
-        self.target_combo = QComboBox()
+        self.target_combo = DropDownComboBox()
         self.target_combo.addItem("Y", "y")
         self.target_combo.addItem("X", "x")
         form.addRow("Replace:", self.target_combo)
@@ -222,14 +222,13 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- config -------------------------------------------------------
 
-    def _selected_source(self):
+    def _selected_source(self) -> int | None:
         return self.source_combo.currentData()
 
-    def _make_command(self) -> Optional[TransformChartSeriesCommand]:
-        source = self._selected_source()
-        if source is None or self.current_chart_id is None:
+    def _make_command(self) -> TransformChartSeriesCommand | None:
+        index = self._selected_source()
+        if index is None or self.current_chart_id is None:
             return None
-        kind, index = source
         expression = self.expression_text.toPlainText().strip()
         if not expression:
             return None
@@ -238,7 +237,6 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
         return TransformChartSeriesCommand(
             self.app_context,
             chart_id=self.current_chart_id,
-            source_kind=kind,
             source_index=index,
             target=self.target_combo.currentData(),
             expression=expression,
@@ -261,7 +259,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
                 f"Result: {len(df)} points → dataset '{self.result_name.text().strip() or default_name}'",
             ]
             self.preview_text.setText(format_series_result_preview(header_lines, df))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.preview_text.setText(format_preview_error(e))
 
     def apply(self):
@@ -307,6 +305,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     def _apply_theme(self):
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
+        tokens = theme_manager.get_design_tokens()
 
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
@@ -320,7 +319,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;

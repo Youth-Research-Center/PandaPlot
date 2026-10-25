@@ -5,7 +5,7 @@ object -- unlike cross-item migrations (see migrations/cross_item/),
 these cannot look up another item's data (e.g. a dataset), only reshape
 the chart's own dict.
 """
-from typing import Callable
+from collections.abc import Callable
 
 from pandaplot.models.migrations.schema_version import CURRENT_SCHEMA_VERSION
 
@@ -108,8 +108,185 @@ def migrate_chart_legacy_to_v1(raw: dict) -> dict:
     return new_raw
 
 
+# Every AxisConfig field name, used by migrate_chart_v1_to_v2 to recognize
+# a flat key like "y2_tick_mode" as belonging under the nested "y2" dict.
+# Kept independent of chart_config.py's own _resolve_axis_key (that one
+# runs against live ChartConfig/AxisConfig objects at read/write time;
+# this one runs against a raw, pre-object dict, same separation this
+# module already keeps between migrate_chart_legacy_to_v1 and the live
+# DataSeries/style classes).
+_AXIS_CONFIG_FIELDS = (
+    "label", "scale", "auto_limits", "min", "max", "tick_mode", "tick_count",
+    "tick_step", "tick_format", "tick_format_custom", "font_size", "side",
+    "log_base", "tick_direction", "minor_ticks", "minor_tick_direction",
+    "show_minor_grid", "font_family", "title_bold", "title_italic",
+    "label_color", "match_x_label_color", "label_rotation",
+    "tick_label_font_size", "tick_label_font_family", "tick_label_bold",
+    "tick_label_italic", "tick_label_color", "tick_label_rotation",
+    "match_x_colors", "spine_color", "major_tick_color", "minor_tick_color",
+)
+_AXIS_CONFIG_PREFIXES = ("x", "y", "y2", "z")
+
+
+def migrate_chart_v1_to_v2(raw: dict) -> dict:
+    """Nest every axis-prefixed flat config key ("x_min", "y2_tick_mode",
+    "show_grid_x") under config["x"]/["y"]/["y2"]/["z"] (see #146, PR2 --
+    ChartConfig.x/.y/.y2/.z are now typed AxisConfig instances instead of
+    flat dict keys). A chart with no "config" key at all (shouldn't happen
+    post-migrate_chart_legacy_to_v1, but defensive) is left untouched --
+    Chart.__init__ seeds fresh AxisConfig defaults either way.
+    """
+    if "config" not in raw:
+        return raw
+
+    old_config = raw["config"]
+    new_config = {}
+    nested: dict[str, dict] = {p: {} for p in _AXIS_CONFIG_PREFIXES}
+
+    for key, value in old_config.items():
+        if key.startswith("show_grid_"):
+            prefix = key[len("show_grid_"):]
+            if prefix in _AXIS_CONFIG_PREFIXES:
+                nested[prefix]["show_grid"] = value
+                continue
+        matched = False
+        for prefix in _AXIS_CONFIG_PREFIXES:
+            candidate = prefix + "_"
+            if key.startswith(candidate) and key[len(candidate):] in _AXIS_CONFIG_FIELDS:
+                nested[prefix][key[len(candidate):]] = value
+                matched = True
+                break
+        if not matched:
+            new_config[key] = value
+
+    for prefix in _AXIS_CONFIG_PREFIXES:
+        new_config[prefix] = nested[prefix]
+
+    new_raw = dict(raw)
+    new_raw["config"] = new_config
+    return new_raw
+
+
+def _legacy_col_match(series_id: str, series_name: str, fit_id: str, fit_name: str) -> bool:
+    if series_id and fit_id:
+        return series_id == fit_id
+    return series_name == fit_name
+
+
+def _resolve_legacy_fit_y_axis(fit: dict, original_series: list) -> str:
+    """Reproduce chart_editor.py's removed per-render fit/series axis
+    match, once, against the chart's pre-migration series list -- see
+    migrate_chart_v2_to_v3's docstring.
+
+    The old per-render match only ever moved a fit to secondary -- it
+    looked for a matching series that was ALSO on the secondary axis and
+    used primary otherwise, never "whichever matching series comes
+    first". So a primary-axis match earlier in the list must not shadow
+    a secondary-axis match later in it (e.g. the same columns plotted on
+    both axes): only a secondary match is searched for here, primary is
+    purely the fallback.
+    """
+    source_dataset_id = fit.get("source_dataset_id", "")
+    source_x_column_id = fit.get("source_x_column_id", "")
+    source_x_column = fit.get("source_x_column", "")
+    source_y_column_id = fit.get("source_y_column_id", "")
+    source_y_column = fit.get("source_y_column", "")
+    for series in original_series:
+        if (series.get("series_type") != "fit"
+                and series.get("y_axis") == "secondary"
+                and series.get("dataset_id", "") == source_dataset_id
+                and _legacy_col_match(
+                    series.get("x_column_id", ""), series.get("x_column", ""),
+                    source_x_column_id, source_x_column)
+                and _legacy_col_match(
+                    series.get("y_column_id", ""), series.get("y_column", ""),
+                    source_y_column_id, source_y_column)):
+            return "secondary"
+    return "primary"
+
+
+def migrate_chart_v2_to_v3(raw: dict) -> dict:
+    """Fold each of raw["fit_data"]'s legacy entries into raw["data_series"]
+    as a "series_type": "fit" entry (#304), then drop "fit_data" entirely.
+
+    A fit's opacity lived at style["alpha"] since migrate_chart_legacy_to_v1
+    nested it there -- every other series type reads opacity from its own
+    top-level "alpha" instead, so this pulls it back out to the series
+    dict's "alpha" and drops it from style (FitStyle no longer has an
+    alpha field). Old fits had no y_axis of their own -- chart_editor.py's
+    removed fit-rendering loop matched a fit to its source series on every
+    render purely to borrow that series' axis, so this reproduces that
+    match once here (against the chart's *original* data_series, matching
+    dataset id plus stable-id/name-fallback column pairs, same as the
+    removed render-time match did) and falls back to "primary" only when
+    no source series matches -- doing it unconditionally would silently
+    lose a secondary-axis fit's placement on every legacy project load.
+    """
+    fit_entries = raw.get("fit_data")
+    if not fit_entries:
+        new_raw = dict(raw)
+        new_raw.pop("fit_data", None)
+        return new_raw
+
+    original_series = raw.get("data_series", [])
+    data_series = list(original_series)
+    for fit in fit_entries:
+        y_axis = _resolve_legacy_fit_y_axis(fit, original_series)
+        style = dict(fit.get("style") or {})
+        alpha = style.pop("alpha", 1.0)
+        style["fit_type"] = fit.get("fit_type", "")
+        style["fit_params"] = fit.get("fit_params", {})
+        style["fit_stats"] = fit.get("fit_stats", {})
+        style["confidence_lower"] = fit.get("confidence_lower")
+        style["confidence_upper"] = fit.get("confidence_upper")
+        style["confidence_lower_column_id"] = fit.get("confidence_lower_column_id", "")
+        style["confidence_upper_column_id"] = fit.get("confidence_upper_column_id", "")
+        style["is_manual"] = fit.get("is_manual", False)
+        data_series.append({
+            "dataset_id": fit.get("source_dataset_id", ""),
+            "x_column": fit.get("source_x_column", ""),
+            "y_column": fit.get("source_y_column", ""),
+            "x_column_id": fit.get("source_x_column_id", ""),
+            "y_column_id": fit.get("source_y_column_id", ""),
+            "label": fit.get("label", ""),
+            "visible": fit.get("visible", True),
+            "y_axis": y_axis,
+            "alpha": alpha,
+            "series_type": "fit",
+            "style": style,
+            "precomputed_x_data": fit.get("x_data"),
+            "precomputed_y_data": fit.get("y_data"),
+        })
+
+    new_raw = dict(raw)
+    new_raw["data_series"] = data_series
+    new_raw.pop("fit_data", None)
+    return new_raw
+
+
+def migrate_chart_v3_to_v4(raw: dict) -> dict:
+    """Store the former single fill range as a one-section list (#433)."""
+    new_raw = dict(raw)
+    migrated_series = []
+    for series in raw.get("data_series", []):
+        new_series = dict(series)
+        style = new_series.get("style")
+        if isinstance(style, dict) and ("fill_range_start" in style or "fill_range_end" in style):
+            style = dict(style)
+            start = style.pop("fill_range_start", 0)
+            end = style.pop("fill_range_end", -1)
+            style["fill_sections"] = [(start, end)]
+            new_series["style"] = style
+        migrated_series.append(new_series)
+    new_raw["data_series"] = migrated_series
+    return new_raw
+
+
 PER_ITEM_CHART_MIGRATIONS: dict[int, Callable[[dict], dict]] = {
     0: migrate_chart_legacy_to_v1,
+    1: migrate_chart_v1_to_v2,
+    2: migrate_chart_v2_to_v3,
+    3: migrate_chart_v3_to_v4,
 }
 
 

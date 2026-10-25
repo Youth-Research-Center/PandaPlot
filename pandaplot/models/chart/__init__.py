@@ -7,15 +7,15 @@ from .series_type import SeriesType
 from .series_type_spec import SERIES_TYPE_SPECS, SeriesTypeSpec
 
 __all__ = [
+    "CHART_TYPE_SPECS",
+    "SERIES_TYPE_SPECS",
+    "ChartType",
+    "ChartTypeSpec",
+    "LegendPosition",
     "LineStyleType",
     "MarkerType",
     "ScaleType",
-    "LegendPosition",
-    "ChartType",
-    "ChartTypeSpec",
-    "CHART_TYPE_SPECS",
-    "get_chart_type_spec",
     "SeriesType",
     "SeriesTypeSpec",
-    "SERIES_TYPE_SPECS",
+    "get_chart_type_spec",
 ]

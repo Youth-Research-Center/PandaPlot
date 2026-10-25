@@ -211,6 +211,24 @@ def test_histogram_seeds_x_label_only_never_y():
     assert wizard.get_y_label() == ""
 
 
+def test_box_plot_seeds_y_label_only_never_x():
+    """The mirror of Histogram: a box plot measures its Values column up the
+    Y axis, and its X axis just names each box."""
+    wizard = _make_wizard(initial_title="Chart from Sales", initial_dataset_id="ds-1",
+                           initial_column_ids=["col-rev"])
+    box_row = next(
+        row for row in range(wizard.type_page.type_list.count())
+        if wizard.type_page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "box"
+    )
+    wizard.type_page.type_list.setCurrentRow(box_row)
+    wizard.next()  # Type -> Data: pre-selection fills the Values column
+    wizard.next()  # Data -> Labels
+
+    assert wizard.get_series_configs()[0]["y_column_id"] == "col-rev"
+    assert wizard.get_x_label() == ""
+    assert wizard.get_y_label() == "Revenue"
+
+
 def test_editing_labels_then_revisiting_without_a_rebuild_keeps_the_edit():
     wizard = _make_wizard(initial_title="Chart from Sales", initial_dataset_id="ds-1",
                            initial_column_ids=["col-date", "col-rev"])

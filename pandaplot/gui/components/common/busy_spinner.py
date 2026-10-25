@@ -71,7 +71,7 @@ class BusySpinner(QWidget):
         self._angle = (self._angle + _DEGREES_PER_TICK) % 360
         self.update()
 
-    def paintEvent(self, event) -> None:  # noqa: ARG002 (Qt override signature)
+    def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 

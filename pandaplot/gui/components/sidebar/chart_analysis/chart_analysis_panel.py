@@ -6,17 +6,15 @@ smoothing, interpolation) on any series of the active chart — a plotted data
 series or a fitted curve — and stores the result as a new dataset.
 """
 
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QSpinBox,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -30,6 +28,8 @@ from pandaplot.commands.project.chart.analyze_chart_series_command import (
 from pandaplot.commands.project.chart.create_chart_with_analysis_series_command import (
     build_quick_plot_command,
 )
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
@@ -54,10 +54,10 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for analysis operations on chart data/fit series."""
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self.current_chart: Optional[Chart] = None
-        self.current_chart_id: Optional[str] = None
+        self.current_chart: Chart | None = None
+        self.current_chart_id: str | None = None
 
         self._initialize()
         self._connect_signals()
@@ -89,7 +89,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     def _create_source_section(self, layout):
         group = QGroupBox("Series")
         form = QFormLayout(group)
-        self.source_combo = QComboBox()
+        self.source_combo = DropDownComboBox()
         form.addRow("Analyze:", self.source_combo)
         self.source_hint = QLabel("Data series and fitted curves of this chart.")
         self.source_hint.setWordWrap(True)
@@ -99,7 +99,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     def _create_operation_section(self, layout):
         group = QGroupBox("Operation")
         form = QFormLayout(group)
-        self.operation_combo = QComboBox()
+        self.operation_combo = DropDownComboBox()
         self.operation_combo.addItem("Derivative", AnalysisType.DERIVATIVE)
         self.operation_combo.addItem("Integral", AnalysisType.INTEGRAL)
         self.operation_combo.addItem("Arc length (line length)", AnalysisType.ARC_LENGTH)
@@ -117,7 +117,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         group = QGroupBox("Segment (index range)")
         form = QFormLayout(group)
 
-        self.start_index = QSpinBox()
+        self.start_index = IntegerInput()
         self.start_index.setMinimum(0)
         self.start_index.setMaximum(0)
         self.start_value_label = QLabel("–")
@@ -126,7 +126,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         start_row.addWidget(self.start_value_label)
         form.addRow("Start index:", start_row)
 
-        self.end_index = QSpinBox()
+        self.end_index = IntegerInput()
         self.end_index.setMinimum(0)
         self.end_index.setMaximum(0)
         self.end_value_label = QLabel("–")
@@ -150,7 +150,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         target_row_layout = QHBoxLayout(self.plot_target_row)
         target_row_layout.setContentsMargins(0, 0, 0, 0)
         target_row_layout.addWidget(QLabel("Plot on:"))
-        self.plot_target_combo = QComboBox()
+        self.plot_target_combo = DropDownComboBox()
         target_row_layout.addWidget(self.plot_target_combo)
         form.addRow("", self.plot_target_row)
         layout.addWidget(group)
@@ -203,7 +203,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         op = self.operation_combo.currentData()
 
         if op == AnalysisType.DERIVATIVE:
-            self.method_combo = QComboBox()
+            self.method_combo = DropDownComboBox()
             self.method_combo.addItem("Central difference", "central")
             self.method_combo.addItem("Forward difference", "forward")
             self.method_combo.addItem("Backward difference", "backward")
@@ -214,7 +214,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self.parameters_layout.addRow(QLabel(f"Method: {label}"))
 
         elif op == AnalysisType.SMOOTHING:
-            self.smooth_method_combo = QComboBox()
+            self.smooth_method_combo = DropDownComboBox()
             self.smooth_method_combo.addItem("Savitzky-Golay", "savgol")
             self.smooth_method_combo.addItem("Rolling mean", "rolling_mean")
             self.smooth_method_combo.addItem("LOWESS", "lowess")
@@ -223,12 +223,12 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self._update_smoothing_params()
 
         elif op == AnalysisType.INTERPOLATION:
-            self.interp_method_combo = QComboBox()
+            self.interp_method_combo = DropDownComboBox()
             for name, value in (("Linear", "linear"), ("Cubic", "cubic"),
                                 ("Quadratic", "quadratic"), ("Nearest", "nearest")):
                 self.interp_method_combo.addItem(name, value)
             self.parameters_layout.addRow("Method:", self.interp_method_combo)
-            self.num_points_spin = QSpinBox()
+            self.num_points_spin = IntegerInput()
             self.num_points_spin.setRange(10, 100000)
             self.num_points_spin.setValue(200)
             self.parameters_layout.addRow("Points:", self.num_points_spin)
@@ -243,24 +243,24 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
         method = self.smooth_method_combo.currentData()
         if method == "savgol":
-            self.window_length_spin = QSpinBox()
+            self.window_length_spin = IntegerInput()
             self.window_length_spin.setRange(3, 101)
             self.window_length_spin.setValue(11)
             self.parameters_layout.addRow("Window length:", self.window_length_spin)
-            self.poly_order_spin = QSpinBox()
+            self.poly_order_spin = IntegerInput()
             self.poly_order_spin.setRange(1, 10)
             self.poly_order_spin.setValue(3)
             self.parameters_layout.addRow("Polynomial order:", self.poly_order_spin)
         elif method == "rolling_mean":
-            self.window_spin = QSpinBox()
+            self.window_spin = IntegerInput()
             self.window_spin.setRange(2, 100)
             self.window_spin.setValue(5)
             self.parameters_layout.addRow("Window size:", self.window_spin)
 
     # -- config -----------------------------------------------------------
 
-    def _selected_source(self):
-        """Return (kind, index) for the selected series, or None."""
+    def _selected_source(self) -> int | None:
+        """Return the selected series/fit's chart.data_series index, or None."""
         return self.source_combo.currentData()
 
     def _build_parameters(self) -> dict:
@@ -286,17 +286,15 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             params["num_points"] = self.num_points_spin.value()
         return params
 
-    def _make_command(self) -> Optional[AnalyzeChartSeriesCommand]:
-        source = self._selected_source()
-        if source is None or self.current_chart_id is None:
+    def _make_command(self) -> AnalyzeChartSeriesCommand | None:
+        index = self._selected_source()
+        if index is None or self.current_chart_id is None:
             return None
-        kind, index = source
         name = self.result_name.text().strip() or None
         folder_id = self.current_chart.parent_id if self.current_chart else None
         return AnalyzeChartSeriesCommand(
             self.app_context,
             chart_id=self.current_chart_id,
-            source_kind=kind,
             source_index=index,
             analysis_type=self.operation_combo.currentData(),
             parameters=self._build_parameters(),
@@ -319,7 +317,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 f"Result: {len(df)} points → dataset '{self.result_name.text().strip() or default_name}'",
             ]
             self.preview_text.setText(format_series_result_preview(header_lines, df))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.preview_text.setText(format_preview_error(e))
 
     def apply(self):
@@ -339,7 +337,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 target_chart_id=target_chart_id,
                 folder_id=command.folder_id,
             )
-            success = executor.execute_command(CompositeCommand([command, plot_command]))
+            success = executor.execute_command(CompositeCommand([command, plot_command], display_name="Analyze chart series"))
         else:
             success = executor.execute_command(command)
 
@@ -364,7 +362,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- chart context ----------------------------------------------------
 
-    def _range_command(self, kind: str, index: int) -> Optional[AnalyzeChartSeriesCommand]:
+    def _range_command(self, index: int) -> AnalyzeChartSeriesCommand | None:
         """Build a throwaway command to resolve the selected series.
 
         Used for the segment bounds and index → (x, y) previews, so both
@@ -376,14 +374,13 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         return AnalyzeChartSeriesCommand(
             self.app_context,
             chart_id=self.current_chart_id,
-            source_kind=kind,
             source_index=index,
             analysis_type=AnalysisType.DERIVATIVE,
         )
 
-    def _series_length(self, kind: str, index: int) -> int:
+    def _series_length(self, index: int) -> int:
         """Best-effort length of a source series, for the segment bounds."""
-        command = self._range_command(kind, index)
+        command = self._range_command(index)
         return command.source_length() if command else 0
 
     def _on_source_changed(self):
@@ -391,7 +388,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         if source is None:
             last = 0
         else:
-            last = max(self._series_length(*source) - 1, 0)
+            last = max(self._series_length(source) - 1, 0)
         self.start_index.setMaximum(last)
         self.end_index.setMaximum(last)
         # Default to the whole series — the last included point — whenever
@@ -401,7 +398,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self._auto_name()
         self._update_range_labels()
 
-    def _format_point(self, point: Optional[tuple[float, float]]) -> str:
+    def _format_point(self, point: tuple[float, float] | None) -> str:
         if point is None:
             return "–"
         x, y = point
@@ -409,7 +406,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _update_range_labels(self):
         source = self._selected_source()
-        command = self._range_command(*source) if source else None
+        command = self._range_command(source) if source is not None else None
         if command is None:
             self.start_value_label.setText("–")
             self.end_value_label.setText("–")
@@ -456,6 +453,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     def _apply_theme(self):
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
+        tokens = theme_manager.get_design_tokens()
 
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
@@ -469,7 +467,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;

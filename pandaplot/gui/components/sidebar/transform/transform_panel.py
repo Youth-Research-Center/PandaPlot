@@ -5,13 +5,12 @@ Adapted from transform_tab.py to provide a compact sidebar interface
 for applying transformations to dataset tabs.
 """
 
-from typing import Optional, override
+from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -26,6 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
@@ -42,20 +42,24 @@ class TransformPanel(SidebarPanel):
     Designed for sidebar integration with conditional visibility.
     """
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget]=None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None=None):
+        # Set before self._initialize() below -- that call runs _init_ui()
+        # then _apply_theme(), and _apply_theme() needs this to style
+        # preview_text correctly on the very first render.
+        self._preview_has_error = False
         super().__init__(app_context=app_context, parent=parent)
         self.current_dataset_tab = None
         self.current_dataset = None
-        self._last_transform_error: Optional[str] = None
+        self._last_transform_error: str | None = None
 
         # Initialize transform controller
         self.transform_controller = TransformController(app_context)
-        
+
         # Transform state
         self.available_columns = []
         self.transform_types = [
             "Custom Function",
-            "Math Operations", 
+            "Math Operations",
             "String Operations",
             "Date/Time Operations",
             "Statistical Operations"
@@ -63,6 +67,7 @@ class TransformPanel(SidebarPanel):
 
         self._initialize()
         self.setup_connections()
+        self._update_apply_enabled()
 
     @override
     def _init_ui(self):
@@ -109,7 +114,8 @@ class TransformPanel(SidebarPanel):
         # Get theme colors
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
-        
+        tokens = theme_manager.get_design_tokens()
+
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#333333")
@@ -123,7 +129,7 @@ class TransformPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;
@@ -159,18 +165,11 @@ class TransformPanel(SidebarPanel):
             }}
         """)
         
-        # Style preview text area
-        self.preview_text.setStyleSheet(f"""
-            QTextEdit {{
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-                font-family: monospace;
-                color: {base_fg};
-                padding: 4px;
-            }}
-        """)
-        
+        # Style preview text area, preserving whatever error state it's
+        # currently in (see _style_preview_text) so a theme switch doesn't
+        # wipe a validation error's color along with the rest of the QSS.
+        self._style_preview_text(is_error=self._preview_has_error)
+
     def create_header_section(self, layout):
         """Create header section showing current dataset info."""
         header_group = QGroupBox("Active Dataset")
@@ -193,7 +192,7 @@ class TransformPanel(SidebarPanel):
         type_group = QGroupBox("Transform Type")
         type_layout = QFormLayout(type_group)
         
-        self.transform_type_combo = QComboBox()
+        self.transform_type_combo = DropDownComboBox()
         self.transform_type_combo.addItems(self.transform_types)
         self.transform_type_combo.setCurrentText("Custom Function")
         
@@ -221,11 +220,35 @@ class TransformPanel(SidebarPanel):
         
         # Option to replace existing column
         self.replace_column_check = QCheckBox("Replace existing column")
-        
+
+        # Formula column (#154): remember the expression on the column so it
+        # can be recomputed, optionally automatically.
+        self.formula_column_check = QCheckBox("Save as formula column")
+        self.formula_column_check.setToolTip(
+            "Remember this expression on the new column so it can be recomputed later."
+        )
+        self.live_recompute_check = QCheckBox("Live (recompute when sources change)")
+        self.live_recompute_check.setToolTip(
+            "Recompute this column automatically whenever one of its source columns changes. "
+            "A live column is read-only: edit its source columns to change it."
+        )
+        # Only meaningful for a formula column, so it's hidden until one is
+        # requested rather than shown permanently disabled.
+        self.live_recompute_check.setVisible(False)
+        self.formula_column_check.toggled.connect(self._on_formula_column_toggled)
+
         column_layout.addLayout(form_layout)
         column_layout.addWidget(self.replace_column_check)
-        
+        column_layout.addWidget(self.formula_column_check)
+        column_layout.addWidget(self.live_recompute_check)
+
         layout.addWidget(column_group)
+
+    def _on_formula_column_toggled(self, checked: bool) -> None:  # noqa: FBT001 - Qt-invoked callback (signal.connect)
+        """Show the live-recompute option only while a formula column is requested."""
+        self.live_recompute_check.setVisible(checked)
+        if not checked:
+            self.live_recompute_check.setChecked(False)
     
     def create_function_section(self, layout):
         """Create function definition section."""
@@ -314,7 +337,7 @@ class TransformPanel(SidebarPanel):
         self.preview_btn = PButton("Preview", role="secondary", on_click=self.update_preview)
         self.preview_btn.setMaximumWidth(70)
         
-        self.preview_rows_combo = QComboBox()
+        self.preview_rows_combo = DropDownComboBox()
         self.preview_rows_combo.addItems(["5", "10", "20"])
         self.preview_rows_combo.setCurrentText("5")
         self.preview_rows_combo.setMaximumWidth(50)
@@ -338,16 +361,22 @@ class TransformPanel(SidebarPanel):
 
         self.clear_btn = PButton("Clear", role="secondary", on_click=self.clear_panel)
         # Remove hardcoded styling - will be applied in _apply_theme
-        
+
         button_layout.addWidget(self.apply_btn)
         button_layout.addWidget(self.clear_btn)
-        
+
         layout.addLayout(button_layout)
     
     def setup_connections(self):
         """Set up signal connections."""
         self.transform_type_combo.currentTextChanged.connect(self.on_transform_type_changed)
         self.source_column_list.itemSelectionChanged.connect(self.on_source_column_changed)
+        self.new_column_name.textChanged.connect(self._update_apply_enabled)
+        self.function_text.textChanged.connect(self._update_apply_enabled)
+        # Doesn't affect Apply's ready-state, but a duplicate-column failure
+        # tells the user to enable Replace, so toggling it needs to clear
+        # that error message too (see _update_apply_enabled).
+        self.replace_column_check.toggled.connect(self._update_apply_enabled)
         # Connect transform controller signals
         self.transform_controller.transform_completed.connect(self.on_controller_transform_completed)
         self.transform_controller.transform_failed.connect(self.on_controller_transform_failed)
@@ -366,7 +395,7 @@ class TransformPanel(SidebarPanel):
             "TransformPanel controller error for dataset %s: %s", dataset_id, error_message
         )
         self._last_transform_error = error_message
-        self.preview_text.setPlainText(f"Transform failed: {error_message}")
+        self._set_preview_message(f"Transform failed: {error_message}", is_error=True)
     
     def on_controller_preview_ready(self, dataset_id: str, preview_data):
         """Handle preview data from controller."""
@@ -397,7 +426,7 @@ class TransformPanel(SidebarPanel):
                     row_count = len(df)
                     col_count = len(df.columns)
                     self.row_count_label.setText(f"{row_count} rows, {col_count} columns")
-                except Exception:
+                except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
                     self.row_count_label.setText("Data info unavailable")
             else:
                 self.row_count_label.setText("")
@@ -437,8 +466,8 @@ class TransformPanel(SidebarPanel):
             try:
                 df = self.current_dataset.data
                 self.available_columns = list(df.columns)
-            except Exception as e:
-                self.logger.error("TransformPanel: error getting columns: %s", e, exc_info=True)
+            except Exception:
+                self.logger.exception("TransformPanel: error getting columns")
         self._populate_column_list(self.available_columns)
 
     def enable_controls(self, *, enabled: bool):
@@ -449,12 +478,89 @@ class TransformPanel(SidebarPanel):
         self.replace_column_check.setEnabled(enabled)
         self.function_text.setEnabled(enabled)
         self.preview_btn.setEnabled(enabled)
-        self.apply_btn.setEnabled(enabled)
 
         # Enable function toolbar
         self.insert_function_btn.setEnabled(enabled)
         self.reference_btn.setEnabled(enabled)
-    
+
+        # Apply has its own, stricter condition (see _update_apply_enabled) --
+        # a dataset being active doesn't by itself mean Apply has anything
+        # valid to do yet.
+        self._update_apply_enabled()
+
+    def _update_apply_enabled(self):
+        """Keep Apply clickable only once every field apply_transform()
+        requires is actually filled in (#227): a source column, a new
+        column name, and a function. Previously it stayed enabled
+        regardless, and clicking it with something missing failed
+        silently (a logger.warning() with no visible feedback) -- this
+        lets the user see at a glance that they're not done yet, instead
+        of only finding out after the click does nothing.
+
+        Reads source_column_list's own enabled state (set by enable_controls)
+        rather than tracking a separate "dataset available" flag, so there's
+        only one piece of state to keep in sync instead of two. Also checks
+        current_dataset's id directly -- a dataset can be active (controls
+        enabled) with an id that's still unavailable, which apply_transform()
+        would otherwise reject after the fact."""
+        ready = (
+            self.source_column_list.isEnabled()
+            and bool(getattr(self.current_dataset, "id", None))
+            and bool(self.get_selected_columns())
+            and bool(self.new_column_name.text().strip())
+            and bool(self.function_text.toPlainText().strip())
+        )
+        self.apply_btn.setEnabled(ready)
+        # A prior validation/transform error should not linger, un-styled but
+        # still displayed and now potentially inaccurate (e.g. "select a
+        # source column" after one has just been selected), once the user
+        # has actually changed one of the fields it complained about. Guard
+        # on _preview_has_error so an unrelated keystroke doesn't re-style
+        # and clear a message that was never an error to begin with.
+        if self._preview_has_error:
+            self.preview_text.clear()
+            self._style_preview_text(is_error=False)
+
+    def _style_preview_text(self, *, is_error: bool):
+        """(Re)apply preview_text's themed QSS -- background, border, font,
+        padding -- swapping only the foreground color for the danger token
+        when `is_error`. A bare setStyleSheet("") or a color-only rule would
+        instead replace the whole stylesheet _apply_theme() installs,
+        dropping the border/background/padding along with it."""
+        self._preview_has_error = is_error
+        theme_manager = self.app_context.get_manager(ThemeManager)
+        palette = theme_manager.get_surface_palette()
+        card_bg = palette.get("card_bg", "#ffffff")
+        card_border = palette.get("card_border", "#dee2e6")
+        base_fg = palette.get("base_fg", "#333333")
+        if is_error:
+            tokens = theme_manager.get_design_tokens()
+            color = tokens.get("status_danger", "#DC3545")
+        else:
+            color = base_fg
+        self.preview_text.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {card_bg};
+                border: 1px solid {card_border};
+                border-radius: 4px;
+                font-family: monospace;
+                color: {color};
+                padding: 4px;
+            }}
+        """)
+
+    def _set_preview_message(self, message: str, *, is_error: bool = False):
+        """Write a message to preview_text, visually marking error states
+        (#227) so a validation failure or transform error is obvious at a
+        glance rather than looking like any other preview text -- errors get
+        a leading warning icon and the theme's danger color, mirroring the
+        red-text treatment fit_panel.py already uses for its own validation
+        errors."""
+        self._style_preview_text(is_error=is_error)
+        if is_error:
+            message = f"⚠ {message}"
+        self.preview_text.setPlainText(message)
+
     def on_transform_type_changed(self, transform_type: str):
         """Handle transform type selection change."""
         # Update function placeholder based on type
@@ -506,6 +612,7 @@ class TransformPanel(SidebarPanel):
                 item.setText(name)
                 font.setBold(False)
             item.setFont(font)
+        self._update_apply_enabled()
 
     def insert_function_code(self, function_text: str):
         """Insert a ready-made function at the cursor, replacing any selection."""
@@ -525,14 +632,14 @@ class TransformPanel(SidebarPanel):
         """Update the preview with sample transformation results."""
         selected_columns = self.get_selected_columns()
         if not self.current_dataset or not selected_columns:
-            self.preview_text.setPlainText("No data available for preview")
+            self._set_preview_message("No data available for preview")
             return
         
         source_column = selected_columns[0]  # Use first selected column for preview
         function_code = self.function_text.toPlainText().strip()
         
         if not function_code:
-            self.preview_text.setPlainText("Enter a function to preview")
+            self._set_preview_message("Enter a function to preview")
             return
         
         try:
@@ -560,10 +667,10 @@ class TransformPanel(SidebarPanel):
                     for i, value in enumerate(preview_result["transformed_values"]):
                         preview_text += f"  {i+1}: {value}\n"
                     
-                    self.preview_text.setPlainText(preview_text)
+                    self._set_preview_message(preview_text)
                 else:
                     error_msg = preview_result.get("error", "Preview generation failed") if preview_result else "Preview unavailable"
-                    self.preview_text.setPlainText(f"Preview error: {error_msg}")
+                    self._set_preview_message(f"Preview error: {error_msg}", is_error=True)
             else:
                 # Fallback to simple preview without controller
                 df = self.current_dataset.get_dataframe()
@@ -577,39 +684,59 @@ class TransformPanel(SidebarPanel):
                 preview_text += "Transformed:\n"
                 preview_text += "  (Preview will be calculated on apply)\n"
                 
-                self.preview_text.setPlainText(preview_text)
-            
+                self._set_preview_message(preview_text)
+
             # Preview updated - could publish preview event if needed
-            pass
-            
-        except Exception as e:
-            self.preview_text.setPlainText(f"Preview error: {str(e)}")
+
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            self._set_preview_message(f"Preview error: {e!s}", is_error=True)
     
     def apply_transform(self):
-        """Apply the transformation to the dataset."""
-        selected_columns = self.get_selected_columns()
-        if not self.current_dataset or not selected_columns:
-            self.logger.warning("TransformPanel: no dataset or source column selected for transform")
+        """Apply the transformation to the dataset.
+
+        Each early-return validation branch also writes a clear message to
+        preview_text (#227), mirroring update_preview()'s existing pattern --
+        previously these only logged a warning, so clicking Apply without
+        first clicking Preview (e.g. an empty function box) silently did
+        nothing visible at all. With the Apply button now disabled until
+        these fields are filled in (see _update_apply_enabled), the
+        dataset-id branch is the only one still normally reachable through
+        the UI, but all are covered in case apply_transform() is invoked
+        directly (e.g. a keyboard shortcut, or a test)."""
+        if not self.current_dataset:
+            self.logger.warning("TransformPanel: no dataset selected for transform")
+            self._set_preview_message("No dataset selected.", is_error=True)
             return
-        
+
+        selected_columns = self.get_selected_columns()
+        if not selected_columns:
+            self.logger.warning("TransformPanel: no source column selected for transform")
+            self._set_preview_message("Select a source column before applying.", is_error=True)
+            return
+
         source_column = selected_columns[0]  # Use first selected column for transformation
         new_column_name = self.new_column_name.text().strip()
         function_code = self.function_text.toPlainText().strip()
         replace_existing = self.replace_column_check.isChecked()
-        
+        as_formula = self.formula_column_check.isChecked()
+        live = as_formula and self.live_recompute_check.isChecked()
+
         if not new_column_name:
             self.logger.warning("TransformPanel: no new column name provided")
+            self._set_preview_message("Enter a name for the new column before applying.", is_error=True)
             return
-        
+
         if not function_code:
             self.logger.warning("TransformPanel: no transformation function provided")
+            self._set_preview_message("Enter a function before applying.", is_error=True)
             return
-        
+
         try:
             # Get dataset ID
             dataset_id = getattr(self.current_dataset, "id", None)
             if not dataset_id:
                 self.logger.warning("TransformPanel: dataset id not available; aborting transform")
+                self._set_preview_message("Selected dataset is unavailable. Try reselecting it.", is_error=True)
                 return
 
             # Apply transformation through controller
@@ -619,7 +746,9 @@ class TransformPanel(SidebarPanel):
                 source_column=source_column,
                 new_column_name=new_column_name,
                 function_code=function_code,
-                replace_existing=replace_existing
+                replace_existing=replace_existing,
+                as_formula=as_formula,
+                live=live,
             )
 
             if success:
@@ -634,11 +763,11 @@ class TransformPanel(SidebarPanel):
                 # already wrote the specific message to preview_text; fall back to a
                 # generic one only if that signal wasn't the source of the failure.
                 if not self._last_transform_error:
-                    self.preview_text.setPlainText("Transform failed - see logs for details")
+                    self._set_preview_message("Transform failed - see logs for details", is_error=True)
 
         except Exception as e:
-            self.logger.error("TransformPanel: transform failed: %s", e, exc_info=True)
-            self.preview_text.setPlainText(f"Transform failed: {e}")
+            self.logger.exception("TransformPanel: transform failed")
+            self._set_preview_message(f"Transform failed: {e}", is_error=True)
     
     def clear_panel(self):
         """Reset panel to initial state."""
@@ -646,7 +775,9 @@ class TransformPanel(SidebarPanel):
         self.new_column_name.clear()
         self.preview_text.clear()
         self.replace_column_check.setChecked(False)
-        
+        self.formula_column_check.setChecked(False)
+        self.live_recompute_check.setChecked(False)
+
         # Reset to first column if available
         if self.source_column_list.count() > 0:
             self.source_column_list.setCurrentRow(0)

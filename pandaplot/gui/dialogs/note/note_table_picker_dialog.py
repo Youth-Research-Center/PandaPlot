@@ -1,21 +1,21 @@
 """Dialog for selecting/configuring a table to insert into a note."""
 
-from typing import List, Optional, override
+from typing import override
 
 import pandas as pd
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
-    QSpinBox,
     QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.project.items import Dataset
@@ -43,7 +43,7 @@ def _escape_markdown_table_cell(val: object) -> str:
     return text
 
 
-def dataset_to_markdown_table(dataset: Dataset, max_rows: Optional[int] = None) -> str:
+def dataset_to_markdown_table(dataset: Dataset, max_rows: int | None = None) -> str:
     """Convert a Dataset item's DataFrame into a Markdown table string."""
     df = dataset.data
     if df is None or df.empty:
@@ -90,12 +90,12 @@ class NoteTablePickerDialog(PDialog):
         self,
         app_context: AppContext,
         project,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ):
         super().__init__(app_context=app_context, parent=parent)
         self.project = project
         self._markdown_result: str = ""
-        self._datasets: List[Dataset] = []
+        self._datasets: list[Dataset] = []
         if self.project is not None:
             self._datasets = [item for item in self.project.get_all_items() if isinstance(item, Dataset)]
 
@@ -115,7 +115,7 @@ class NoteTablePickerDialog(PDialog):
         dataset_layout = QVBoxLayout(self.dataset_tab)
 
         dataset_form = QFormLayout()
-        self.dataset_combo = QComboBox()
+        self.dataset_combo = DropDownComboBox()
         for ds in self._datasets:
             self.dataset_combo.addItem(f"📊 {ds.name}", ds.id)
         self.dataset_combo.currentIndexChanged.connect(self._update_preview)
@@ -126,7 +126,7 @@ class NoteTablePickerDialog(PDialog):
         self.limit_rows_cb.setChecked(True)
         self.limit_rows_cb.toggled.connect(self._update_preview)
 
-        self.max_rows_spin = QSpinBox()
+        self.max_rows_spin = IntegerInput()
         self.max_rows_spin.setRange(1, 1000)
         self.max_rows_spin.setValue(20)
         self.max_rows_spin.valueChanged.connect(self._update_preview)
@@ -135,7 +135,7 @@ class NoteTablePickerDialog(PDialog):
         dataset_form.addRow(row_limit_box)
 
         dataset_layout.addLayout(dataset_form)
-        self.no_datasets_label: Optional[QLabel] = None
+        self.no_datasets_label: QLabel | None = None
         if not self._datasets:
             palette = self.app_context.get_manager(ThemeManager).get_surface_palette()
             secondary_fg = palette.get("secondary_fg", "#555555")
@@ -147,13 +147,13 @@ class NoteTablePickerDialog(PDialog):
         self.custom_tab = QWidget()
         custom_layout = QFormLayout(self.custom_tab)
 
-        self.rows_spin = QSpinBox()
+        self.rows_spin = IntegerInput()
         self.rows_spin.setRange(1, 50)
         self.rows_spin.setValue(3)
         self.rows_spin.valueChanged.connect(self._update_preview)
         custom_layout.addRow("Rows:", self.rows_spin)
 
-        self.cols_spin = QSpinBox()
+        self.cols_spin = IntegerInput()
         self.cols_spin.setRange(1, 20)
         self.cols_spin.setValue(3)
         self.cols_spin.valueChanged.connect(self._update_preview)

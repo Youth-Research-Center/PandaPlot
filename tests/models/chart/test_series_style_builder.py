@@ -28,7 +28,7 @@ def test_passing_every_argument_is_safe_for_every_series_type(series_type):
     raise."""
     style = build_series_style(
         series_type, color="#abcdef", error_bars=ErrorBarConfig(y_error_column_id="e"),
-        u_column_id="u", v_column_id="v", magnitude_column_id="m", z_column_id="z",
+        u_column_id="u", v_column_id="v", w_column_id="w", magnitude_column_id="m", z_column_id="z",
     )
 
     assert type(style) is SERIES_TYPE_SPECS[series_type].style_cls
@@ -36,20 +36,33 @@ def test_passing_every_argument_is_safe_for_every_series_type(series_type):
 
 @pytest.mark.parametrize("series_type", list(SeriesType))
 def test_the_column_ids_a_type_needs_always_land_on_its_style(series_type):
+    """magnitude_column_id is only asserted for types that actually declare
+    the field: build_series_style drops it via hasattr rather than crashing
+    or silently stashing an unserialized stray attribute."""
     spec = SERIES_TYPE_SPECS[series_type]
     style = build_series_style(
-        series_type, u_column_id="u", v_column_id="v", magnitude_column_id="m", z_column_id="z")
+        series_type, u_column_id="u", v_column_id="v", w_column_id="w", magnitude_column_id="m", z_column_id="z")
 
     if spec.needs_z_column:
         assert style.z_column_id == "z"
     if spec.needs_secondary_columns:
-        assert (style.u_column_id, style.v_column_id, style.magnitude_column_id) == ("u", "v", "m")
+        assert (style.u_column_id, style.v_column_id) == ("u", "v")
+        if hasattr(style, "magnitude_column_id"):
+            assert style.magnitude_column_id == "m"
+        if spec.needs_w_column:
+            assert style.w_column_id == "w"
 
 
 def test_color_lands_on_vector_color_for_a_vector_series():
     """VectorSeriesStyle has no flat `color` -- its equivalent field is
     named vector_color, and a caller shouldn't have to know that."""
     style = build_series_style(SeriesType.VECTOR, color="#ff0000")
+
+    assert style.vector_color == "#ff0000"
+
+
+def test_color_lands_on_vector_color_for_a_vector3d_series():
+    style = build_series_style(SeriesType.VECTOR3D, color="#ff0000")
 
     assert style.vector_color == "#ff0000"
 
@@ -88,3 +101,26 @@ def test_error_bars_are_kept_for_a_type_that_supports_them():
         SeriesType.SCATTER, error_bars=ErrorBarConfig(y_error_column_id="e"))
 
     assert style.error_bars.y_error_column_id == "e"
+
+
+def test_label_column_lands_on_a_pie_style():
+    style = build_series_style(SeriesType.PIE, label_column_id="cat")
+
+    assert style.label_column_id == "cat"
+
+
+@pytest.mark.parametrize("series_type", [t for t in SeriesType if not SERIES_TYPE_SPECS[t].needs_label_column])
+def test_label_column_is_dropped_for_every_type_without_one(series_type):
+    """A stale label combo value (the Data tab keeps it populated while a
+    non-pie series is selected) must never leak onto another style class
+    as an unserialized stray attribute."""
+    style = build_series_style(series_type, label_column_id="cat")
+
+    assert not hasattr(style, "label_column_id")
+
+
+def test_color_is_dropped_for_a_pie_series():
+    """PieSeriesStyle has no flat color -- wedges cycle the default palette."""
+    style = build_series_style(SeriesType.PIE, color="#ff0000")
+
+    assert not hasattr(style, "color")

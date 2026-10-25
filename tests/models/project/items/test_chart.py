@@ -17,44 +17,15 @@ from pandaplot.models.chart.series_style import (
     VectorSeriesStyle,
 )
 from pandaplot.models.chart.series_type import SeriesType
+from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.project.items.chart import (
     Chart,
     DataSeries,
-    FitData,
     assign_series_column_ids,
     resolve_manual_fit_source_data,
     restore_chart_state,
     snapshot_chart_state,
 )
-
-
-class TestFitDataStyle:
-    """FitData.style is authoritative, auto-derived like DataSeries.style."""
-
-    def test_style_auto_derives_to_a_default_fitstyle(self):
-        fit = FitData(source_dataset_id="ds1", fit_type="linear",
-                       x_data=np.array([1.0]), y_data=np.array([2.0]), label="Fit")
-
-        assert isinstance(fit.style, FitStyle)
-        assert fit.style.color == "#ff7f0e"
-        assert fit.style.band_fill_enabled is True
-
-    def test_style_is_respected_when_passed_explicitly(self):
-        fit = FitData(source_dataset_id="ds1", fit_type="linear",
-                       x_data=np.array([1.0]), y_data=np.array([2.0]), label="Fit",
-                       style=FitStyle(color="#112233", band_fill_enabled=False))
-
-        assert fit.style.color == "#112233"
-        assert fit.style.band_fill_enabled is False
-
-    def test_flat_style_fields_no_longer_exist(self):
-        fit = FitData(source_dataset_id="ds1", fit_type="linear",
-                       x_data=np.array([1.0]), y_data=np.array([2.0]), label="Fit")
-
-        assert not hasattr(fit, "color")
-        assert not hasattr(fit, "line_style")
-        assert not hasattr(fit, "line_width")
-        assert not hasattr(fit, "alpha")
 
 
 class TestFitDataConfidenceBandRoundTrip:
@@ -66,39 +37,43 @@ class TestFitDataConfidenceBandRoundTrip:
 
     def test_confidence_bands_survive_to_dict_from_dict(self):
         chart = Chart(name="C", chart_type="line")
-        chart.add_fit_data(
-            source_dataset_id="ds1", fit_type="linear",
+        chart.add_fit_series(
+            source_dataset_id="ds1",
             x_data=np.array([1.0, 2.0, 3.0]), y_data=np.array([1.0, 2.0, 3.0]),
             label="Fit",
-            confidence_lower=np.array([0.5, 1.5, 2.5]),
-            confidence_upper=np.array([1.5, 2.5, 3.5]),
+            style=FitStyle(
+                fit_type="linear",
+                confidence_lower=np.array([0.5, 1.5, 2.5]),
+                confidence_upper=np.array([1.5, 2.5, 3.5]),
+            ),
         )
 
         restored = Chart.from_dict(chart.to_dict())
 
-        fit = restored.fit_data[0]
-        assert fit.confidence_lower is not None
-        assert fit.confidence_upper is not None
-        assert list(fit.confidence_lower) == [0.5, 1.5, 2.5]
-        assert list(fit.confidence_upper) == [1.5, 2.5, 3.5]
-        assert isinstance(fit.confidence_lower, np.ndarray)
-        assert isinstance(fit.confidence_upper, np.ndarray)
+        fit = next(s for s in restored.data_series if s.is_fit)
+        assert fit.style.confidence_lower is not None
+        assert fit.style.confidence_upper is not None
+        assert list(fit.style.confidence_lower) == [0.5, 1.5, 2.5]
+        assert list(fit.style.confidence_upper) == [1.5, 2.5, 3.5]
+        assert isinstance(fit.style.confidence_lower, np.ndarray)
+        assert isinstance(fit.style.confidence_upper, np.ndarray)
 
     def test_absent_confidence_bands_round_trip_as_none(self):
         """A fit with no computed confidence band (the common case) must
         round-trip to None, not to a stray empty array or a crash."""
         chart = Chart(name="C", chart_type="line")
-        chart.add_fit_data(
-            source_dataset_id="ds1", fit_type="linear",
+        chart.add_fit_series(
+            source_dataset_id="ds1",
             x_data=np.array([1.0, 2.0]), y_data=np.array([1.0, 2.0]),
             label="Fit",
+            style=FitStyle(fit_type="linear"),
         )
 
         restored = Chart.from_dict(chart.to_dict())
 
-        fit = restored.fit_data[0]
-        assert fit.confidence_lower is None
-        assert fit.confidence_upper is None
+        fit = next(s for s in restored.data_series if s.is_fit)
+        assert fit.style.confidence_lower is None
+        assert fit.style.confidence_upper is None
 
 
 class TestChartTypeIsChartTypeEnum:
@@ -513,6 +488,37 @@ class TestSetChartTypeRetypesSeries:
         assert isinstance(retyped.style, VectorSeriesStyle)
         assert retyped.style.vector_color == "#222222"
 
+    def test_a_fit_series_survives_a_chart_type_change_to_one_that_disallows_fit(self):
+        """Regression test for final-review Important finding #3: switching
+        to a chart type whose allowed_series_types has no SeriesType.FIT
+        (e.g. colormap) must NOT force-retype an existing fit -- a fit's
+        precomputed_x_data/precomputed_y_data snapshot has no equivalent in
+        any other series type, so retyping it would silently destroy
+        fit_type/fit_params/fit_stats/confidence bands. This matches the
+        pre-#304 behavior where [s for s in chart.data_series if s.is_fit] was a separate list
+        set_chart_type never touched -- a chart can legitimately end up
+        carrying a FIT series its own chart type doesn't formally allow."""
+        chart = Chart(name="C", chart_type="line")
+        chart.add_data_series(dataset_id="ds1", x_column_id="x", y_column_id="y")
+        fit_style = FitStyle(fit_type="linear", confidence_lower=np.array([0.5, 1.5]),
+                              confidence_upper=np.array([1.5, 2.5]))
+        chart.add_fit_series(
+            source_dataset_id="ds1",
+            x_data=np.array([1.0, 2.0]), y_data=np.array([2.0, 4.0]),
+            label="My Fit", style=fit_style,
+        )
+
+        chart.set_chart_type("colormap")
+
+        fit = chart.data_series[1]
+        assert fit.series_type == SeriesType.FIT
+        assert fit.style is fit_style
+        np.testing.assert_array_equal(fit.precomputed_x_data, [1.0, 2.0])
+        np.testing.assert_array_equal(fit.precomputed_y_data, [2.0, 4.0])
+        assert fit.style.fit_type == "linear"
+        np.testing.assert_array_equal(fit.style.confidence_lower, [0.5, 1.5])
+        np.testing.assert_array_equal(fit.style.confidence_upper, [1.5, 2.5])
+
 
 class TestRetypeSeries:
     """Chart.retype_series retypes a single series explicitly -- the same
@@ -543,6 +549,42 @@ class TestRetypeSeries:
         assert series.series_type == SeriesType.VECTOR
         assert isinstance(series.style, VectorSeriesStyle)
         assert series.style.vector_color == "#445566"
+
+    def test_retyping_a_fit_series_is_a_no_op(self):
+        """A FIT series' precomputed_x_data/precomputed_y_data has no
+        equivalent in any other series type -- retyping it away would
+        silently orphan that data (resolve_series_data keeps rendering
+        the frozen fit curve since it checks precomputed data before
+        series_type). Explicitly out of scope (#304's non-goals); this
+        must fail safe as a no-op, not corrupt the series, even when a
+        caller (e.g. a stale/mis-populated UI control) doesn't itself
+        exclude FIT before calling retype_series."""
+        import numpy as np
+
+        from pandaplot.models.chart.fit_style import FitStyle
+
+        chart = Chart(name="C", chart_type="line")
+        fit = chart.add_fit_series(
+            source_dataset_id="ds1", x_data=np.array([1.0]), y_data=np.array([2.0]),
+            label="Fit", style=FitStyle(),
+        )
+
+        chart.retype_series(0, "line")
+
+        assert chart.data_series[0] is fit
+        assert fit.series_type == SeriesType.FIT
+        assert fit.precomputed_x_data is not None
+
+    def test_retyping_to_fit_is_a_no_op(self):
+        chart = Chart(name="C", chart_type="line")
+        chart.add_data_series(dataset_id="ds1", x_column_id="x", y_column_id="y",
+                               style=LineSeriesStyle(color="#112233"))
+        original_style = chart.data_series[0].style
+
+        chart.retype_series(0, "fit")
+
+        assert chart.data_series[0].series_type == SeriesType.LINE
+        assert chart.data_series[0].style is original_style
 
     def test_retyping_to_the_same_type_is_a_no_op(self):
         chart = Chart(name="C", chart_type="line")
@@ -595,6 +637,23 @@ class TestRetypeSeries:
         assert series.style.marker.marker_size == 5.0
         assert series.style.error_bars.y_error_column_id == "err-col"
         assert series.style.error_bars.error_cap_size == 7.0
+
+    def test_retyping_line_to_scatter_copies_fill_sections_without_aliasing(self):
+        chart = Chart(name="C", chart_type="line")
+        chart.add_data_series(
+            dataset_id="ds1", x_column_id="x", y_column_id="y",
+            style=LineSeriesStyle(fill_range_enabled=True, fill_sections=[(1, 3), (6, -1)]),
+        )
+        old_style = chart.data_series[0].style
+        old_sections = old_style.fill_sections
+
+        chart.retype_series(0, "scatter")
+
+        new_sections = chart.data_series[0].style.fill_sections
+        assert new_sections == [(1, 3), (6, -1)]
+        assert new_sections is not old_sections
+        new_sections.append((8, 9))
+        assert old_sections == [(1, 3), (6, -1)]
 
     def test_retyping_line_to_scatter_carries_over_value_label_settings(self):
         """Regression test: a Line series' value-label configuration (#125)
@@ -872,6 +931,39 @@ class TestChartConfigHasColorMapDefaults:
         assert restored.config["color_vmax"] == 42.0
 
 
+class TestChartConfigAxisFieldsRoundTripThroughToDictFromDict:
+    """Chart.config.x/.y/.y2/.z (AxisConfig, #146 PR2) must survive a
+    to_dict()/from_dict() round trip via Chart.from_dict()'s
+    `chart.config.update(data.get("config", {}))` call -- a regression
+    test for a real bug caught during implementation: the top-level "x"/
+    "y"/"y2"/"z" keys in the serialized dict are themselves ChartConfig
+    field names, so update()/__setitem__ must reconstruct them into
+    AxisConfig instances rather than blindly overwriting the field with
+    the raw nested dict."""
+
+    def test_a_modified_axis_field_survives_the_round_trip(self):
+        chart = Chart(name="C", chart_type="line")
+        chart.config.x.min = -5.0
+        chart.config.x.label = "Time (s)"
+        chart.config.y2.tick_mode = "count"
+
+        restored = Chart.from_dict(chart.to_dict())
+
+        assert restored.config.x.min == -5.0
+        assert restored.config.x.label == "Time (s)"
+        assert restored.config.y2.tick_mode == "count"
+        # An axis never touched keeps its own correct per-axis default.
+        assert restored.config.y.side == "left"
+        assert restored.config.y2.side == "right"
+
+    def test_serialized_config_has_no_leftover_flat_axis_keys(self):
+        chart = Chart(name="C", chart_type="line")
+        data = chart.to_dict()["config"]
+        assert "x_label" not in data
+        assert "show_grid_x" not in data
+        assert data["x"]["label"] == ""
+
+
 class TestRetypeSeriesToColormapCarriesOverMarker:
     """ColormapSeriesStyle.marker is a MarkerStyle field like Line/Scatter's
     -- retype_series' existing generic
@@ -1026,3 +1118,243 @@ class TestResolveManualFitSourceData:
         assert resolve_manual_fit_source_data(
             dataset, x_id, y_id, confidence_upper_column_id=text_id
         ) is None
+
+
+class TestChartDependencyHook:
+    def test_referenced_item_ids_is_none_when_no_series_or_fits(self):
+        chart = Chart(id="chart-1", name="Empty")
+
+        assert chart.referenced_item_ids() is None
+
+    def test_referenced_item_ids_includes_series_and_fit_dataset_ids(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+        chart.add_fit_series(source_dataset_id="ds-2", label="f1",
+                              x_data=np.array([1.0]), y_data=np.array([2.0]),
+                              style=FitStyle(fit_type="linear"))
+
+        assert chart.referenced_item_ids() == {"ds-1", "ds-2"}
+
+    def test_on_items_removed_returns_none_without_overlap(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+
+        assert chart.on_items_removed({"ds-unrelated"}) is None
+        assert [s.dataset_id for s in chart.data_series] == ["ds-1"]
+
+    def test_on_items_removed_strips_matching_series(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+        chart.add_data_series("ds-2", label="s2")
+
+        snapshot = chart.on_items_removed({"ds-1"})
+
+        assert snapshot is not None
+        assert [s.dataset_id for s in chart.data_series] == ["ds-2"]
+
+    def test_restore_removed_items_snapshot_round_trips(self):
+        chart = Chart(id="chart-1", name="Chart")
+        chart.add_data_series("ds-1", label="s1")
+        chart.add_data_series("ds-2", label="s2")
+        snapshot = chart.on_items_removed({"ds-1"})
+
+        chart.restore_removed_items_snapshot(snapshot)
+
+        assert [s.dataset_id for s in chart.data_series] == ["ds-1", "ds-2"]
+
+    def test_dependency_update_event_returns_chart_updated(self):
+        chart = Chart(id="chart-1", name="Chart")
+
+        assert chart.dependency_update_event() == (ChartEvents.CHART_UPDATED, {"chart_id": "chart-1"})
+
+    def test_on_items_removed_is_a_no_op_when_only_a_fit_overlaps(self):
+        """A chart whose only reference to a removed dataset is via a
+        FIT-type series (never a plain, non-fit data series) must not be
+        treated as changed -- FIT-type series are deliberately excluded
+        from stripping in _strip_references (a fit renders from its own
+        stored curve data, not a live dataset lookup, so it stays valid
+        after its source dataset is gone), so removing nothing should
+        report nothing changed rather than a spurious snapshot/event."""
+        chart = Chart(id="chart-1", name="Fit-only chart")
+        chart.add_data_series("ds-unrelated", label="s1")
+        chart.add_fit_series(source_dataset_id="ds-1", label="f1",
+                              x_data=np.array([1.0]), y_data=np.array([2.0]),
+                              style=FitStyle(fit_type="linear"))
+
+        assert chart.on_items_removed({"ds-1"}) is None
+        assert [s.dataset_id for s in chart.data_series] == ["ds-unrelated", "ds-1"]
+        assert [f.dataset_id for f in [s for s in chart.data_series if s.is_fit]] == ["ds-1"]
+
+
+def test_dataseries_precomputed_fields_default_to_none():
+    from pandaplot.models.project.items.chart import DataSeries
+    series = DataSeries(dataset_id="ds1")
+    assert series.precomputed_x_data is None
+    assert series.precomputed_y_data is None
+
+
+def test_dataseries_with_precomputed_data_is_comparable():
+    """Regression guard: a DataSeries carrying numpy arrays must not raise
+    ValueError from == (list.index()/`in`/assert-equality all use it)."""
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import DataSeries
+
+    a = DataSeries(
+        dataset_id="ds1", series_type=SeriesType.FIT, style=FitStyle(),
+        precomputed_x_data=np.array([1.0, 2.0]), precomputed_y_data=np.array([3.0, 4.0]),
+    )
+    b = DataSeries(
+        dataset_id="ds1", series_type=SeriesType.FIT, style=FitStyle(),
+        precomputed_x_data=np.array([9.0]), precomputed_y_data=np.array([9.0]),
+    )
+    assert a == b  # compare=False on the array fields means only non-array fields matter
+    assert [a].index(b) == 0
+
+
+def test_add_fit_series_creates_fit_type_data_series():
+    import numpy as np
+
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="c", chart_type="line")
+    series = chart.add_fit_series(
+        source_dataset_id="ds1",
+        x_data=np.array([1.0, 2.0]), y_data=np.array([3.0, 4.0]),
+        label="My Fit", style=FitStyle(fit_type="linear"),
+    )
+    assert series.series_type == SeriesType.FIT
+    assert series.dataset_id == "ds1"
+    assert series in chart.data_series
+    assert [s for s in chart.data_series if s.is_fit] == [series]
+
+
+def test_fit_data_property_filters_by_series_type():
+    import numpy as np
+
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="c", chart_type="line")
+    chart.add_data_series(dataset_id="ds1", y_column_id="y")
+    fit = chart.add_fit_series(
+        source_dataset_id="ds1", x_data=np.array([1.0]), y_data=np.array([2.0]),
+        label="Fit", style=FitStyle(),
+    )
+    assert [s for s in chart.data_series if s.is_fit] == [fit]
+    assert len(chart.data_series) == 2
+
+def test_fit_series_round_trips_through_to_dict_from_dict():
+    import numpy as np
+
+    from pandaplot.models.chart.fit_style import FitStyle
+    from pandaplot.models.chart.series_type import SeriesType
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="c", chart_type="line")
+    chart.add_fit_series(
+        source_dataset_id="ds1", source_x_column_id="xid", source_y_column_id="yid",
+        x_data=np.array([1.0, 2.0]), y_data=np.array([3.0, 4.0]),
+        label="Fit", style=FitStyle(fit_type="linear", fit_params={"a": 1.0}),
+    )
+
+    data = chart.to_dict()
+    assert "fit_data" not in data
+    assert len(data["data_series"]) == 1
+    assert data["data_series"][0]["series_type"] == "fit"
+    assert data["data_series"][0]["precomputed_x_data"] == [1.0, 2.0]
+
+    restored = Chart.from_dict(data)
+    assert len(restored.data_series) == 1
+    fit = next(s for s in restored.data_series if s.is_fit)
+    assert fit.series_type == SeriesType.FIT
+    assert fit.dataset_id == "ds1"
+    np.testing.assert_array_equal(fit.precomputed_x_data, [1.0, 2.0])
+    assert fit.style.fit_type == "linear"
+    assert fit.style.fit_params == {"a": 1.0}
+
+
+def _fill_chart():
+    """Four line series; A (index 0) fills to D (index 3)."""
+    from pandaplot.models.project.items.chart import Chart
+
+    chart = Chart(name="c", chart_type="line")
+    for label in ("A", "B", "C", "D"):
+        chart.add_data_series("ds", x_column="x", y_column="y", label=label)
+    chart.data_series[0].style.fill_to_index = 3
+    return chart
+
+
+def test_removing_a_series_before_a_fill_target_shifts_the_target_down():
+    chart = _fill_chart()
+    chart.remove_data_series(1)  # drop B; D moves from 3 to 2
+    assert chart.data_series[0].style.fill_to_index == 2
+    assert chart.data_series[2].label == "D"
+
+
+def test_removing_the_fill_target_itself_falls_back_to_the_baseline():
+    chart = _fill_chart()
+    chart.remove_data_series(3)
+    assert chart.data_series[0].style.fill_to_index == -1
+
+
+def test_moving_series_keeps_fill_targets_on_the_same_series():
+    chart = _fill_chart()
+    chart.move_data_series(3, 1)  # order: A, D, B, C
+    assert chart.data_series[chart.data_series[0].style.fill_to_index].label == "D"
+    chart.move_data_series(0, 2)  # order: D, B, A, C -- the filling series itself moves
+    filler = next(s for s in chart.data_series if s.label == "A")
+    assert chart.data_series[filler.style.fill_to_index].label == "D"
+
+
+def test_stripping_a_removed_datasets_series_remaps_fill_targets():
+    chart = _fill_chart()
+    chart.data_series[1].dataset_id = "gone"  # B is stripped
+    chart._strip_references({"gone"})
+    assert [s.label for s in chart.data_series] == ["A", "C", "D"]
+    assert chart.data_series[0].style.fill_to_index == 2
+
+
+def test_fill_targets_round_trip():
+    chart = _fill_chart()
+    snapshot = chart.fill_targets()
+    assert snapshot == [3, -1, -1, -1]
+    chart.data_series[0].style.fill_to_index = -1
+    chart.restore_fill_targets(snapshot)
+    assert chart.data_series[0].style.fill_to_index == 3
+
+
+def test_fill_targets_skip_styles_without_a_fill_target():
+    import numpy as np
+
+    from pandaplot.models.chart.fit_style import FitStyle
+
+    chart = _fill_chart()
+    chart.add_fit_series("ds", x_data=np.array([1.0]), y_data=np.array([1.0]), label="F", style=FitStyle())
+    assert chart.fill_targets()[-1] is None
+
+
+@pytest.mark.parametrize("chart_type", ["colormap", "heatmap", "scatter3d"])
+def test_add_fit_series_refuses_chart_types_that_dont_allow_fits(chart_type):
+    """PR #416 review: allows_fit was only enforced by the Data/Chart tabs,
+    so the Fit panel could put a fit on a 3-D chart, whose renderer then
+    crashed on the confidence band. The model refuses it itself."""
+    chart = Chart(name="c", chart_type=chart_type)
+    with pytest.raises(ValueError, match="Fits aren't available"):
+        chart.add_fit_series("ds", x_data=np.array([1.0]), y_data=np.array([1.0]), label="F", style=FitStyle())
+    assert chart.data_series == []
+
+
+def test_fill_sections_round_trip_through_chart_serialization():
+    from pandaplot.models.chart.series_style import LineSeriesStyle
+
+    chart = Chart(name="fill sections", chart_type="line")
+    chart.add_data_series("dataset", x_column="x", y_column="y", style=LineSeriesStyle(
+        fill_enabled=True, fill_range_enabled=True, fill_sections=[(1, 3), (6, -1)],
+    ))
+
+    restored = Chart.from_dict(chart.to_dict())
+
+    assert restored.data_series[0].style.fill_sections == [(1, 3), (6, -1)]

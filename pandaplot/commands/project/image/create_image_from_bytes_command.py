@@ -3,7 +3,7 @@ a rendered chart snapshot) -- unlike ImportImagesCommand, which only
 imports from a local file path or URL."""
 
 import uuid
-from typing import Optional, override
+from typing import override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
@@ -18,7 +18,7 @@ class CreateImageFromBytesCommand(Command):
     `gallery_id`; undoable/redoable."""
 
     def __init__(self, app_context: AppContext, gallery_id: str, name: str,
-                 png_bytes: bytes, width: int, height: int, note_id: Optional[str] = None):
+                 png_bytes: bytes, width: int, height: int, note_id: str | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -31,8 +31,8 @@ class CreateImageFromBytesCommand(Command):
         self.height = height
         self.note_id = note_id
 
-        self.created_image_id: Optional[str] = None
-        self.created_image: Optional[Image] = None
+        self.created_image_id: str | None = None
+        self.created_image: Image | None = None
         self.project = None
 
     @override
@@ -82,8 +82,8 @@ class CreateImageFromBytesCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to create image: {str(e)}"
-            self.logger.error("CreateImageFromBytesCommand Error: %s", error_msg, exc_info=True)
+            error_msg = f"Failed to create image: {e!s}"
+            self.logger.exception("CreateImageFromBytesCommand Error: %s", error_msg)
             self.ui_controller.show_error_message("Insert Chart Error", error_msg)
             return CommandResult.FAILURE
 
@@ -104,8 +104,8 @@ class CreateImageFromBytesCommand(Command):
             })
             return CommandResult.SUCCESS
         except Exception as e:
-            self.logger.error("CreateImageFromBytesCommand Undo Error: %s", e, exc_info=True)
-            self.ui_controller.show_error_message("Undo Error", f"Failed to undo: {str(e)}")
+            self.logger.exception("CreateImageFromBytesCommand Undo Error")
+            self.ui_controller.show_error_message("Undo Error", f"Failed to undo: {e!s}")
             return CommandResult.FAILURE
 
     @override
@@ -123,8 +123,8 @@ class CreateImageFromBytesCommand(Command):
             })
             return CommandResult.SUCCESS
         except Exception as e:
-            self.logger.error("CreateImageFromBytesCommand Redo Error: %s", e, exc_info=True)
-            self.ui_controller.show_error_message("Redo Error", f"Failed to redo: {str(e)}")
+            self.logger.exception("CreateImageFromBytesCommand Redo Error")
+            self.ui_controller.show_error_message("Redo Error", f"Failed to redo: {e!s}")
             return CommandResult.FAILURE
 
     @override

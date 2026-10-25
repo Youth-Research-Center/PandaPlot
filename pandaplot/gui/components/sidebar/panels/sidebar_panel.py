@@ -1,7 +1,6 @@
 """Shared base class for sidebar panels: a pinned title followed by a
 content area that is either scrollable or added directly.
 """
-from typing import Optional
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QScrollArea, QVBoxLayout, QWidget
@@ -20,10 +19,10 @@ class SidebarPanel(PWidget):
     4. `self._set_content(content_widget, scrollable=...)`
     """
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None, **kwargs):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None, **kwargs):
         super().__init__(app_context=app_context, parent=parent, **kwargs)
-        self.main_layout: Optional[QVBoxLayout] = None
-        self.title_label: Optional[QLabel] = None
+        self.main_layout: QVBoxLayout | None = None
+        self.title_label: QLabel | None = None
 
     def _init_panel_layout(self) -> QVBoxLayout:
         """Create `self.main_layout` with the shared panel margins/spacing."""

@@ -46,18 +46,20 @@ def get_recent_projects(app_context: AppContext) -> list[dict]:
                 name = path_obj.stem
                 # Use file modified time as last_opened fallback
                 ts = os.path.getmtime(p)
-                last_opened = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+                # Local-time display string shown to the user, never compared across timezones.
+                last_opened = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")  # noqa: DTZ006
                 results.append({
                     "name": name,
                     "path": str(path_obj),
                     "last_opened": last_opened
                 })
             except Exception:
+                logger.debug("Skipping unreadable recent-project entry %r", p, exc_info=True)
                 continue
         # Sort newest first by last_opened timestamp string descending
         results.sort(key=lambda x: x["last_opened"], reverse=True)
         return results
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 -- best-effort recent-projects listing; any failure just means an empty list instead of crashing the welcome screen
         logger.warning("Failed to load recent projects: %s", e)
         return []
 

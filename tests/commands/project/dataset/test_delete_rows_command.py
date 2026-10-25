@@ -39,7 +39,7 @@ def sample_project():
 
 
 def test_execute_logs_warning_when_no_row_positions(mock_app_context, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, _app_state, _ui_controller = mock_app_context
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[])
 
     with caplog.at_level(logging.WARNING):
@@ -48,7 +48,7 @@ def test_execute_logs_warning_when_no_row_positions(mock_app_context, caplog):
 
 
 def test_execute_logs_warning_when_no_project(mock_app_context, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = False
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[0])
 
@@ -58,7 +58,7 @@ def test_execute_logs_warning_when_no_project(mock_app_context, caplog):
 
 
 def test_execute_logs_warning_when_current_project_none(mock_app_context, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = True
     app_state.current_project = None
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[0])
@@ -69,7 +69,7 @@ def test_execute_logs_warning_when_current_project_none(mock_app_context, caplog
 
 
 def test_execute_logs_warning_when_dataset_not_found(mock_app_context, sample_project, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = True
     app_state.current_project = sample_project
     sample_project.find_item.return_value = None
@@ -81,7 +81,7 @@ def test_execute_logs_warning_when_dataset_not_found(mock_app_context, sample_pr
 
 
 def test_execute_logs_warning_when_item_not_a_dataset(mock_app_context, sample_project, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = True
     app_state.current_project = sample_project
     sample_project.find_item.return_value = object()
@@ -93,7 +93,7 @@ def test_execute_logs_warning_when_item_not_a_dataset(mock_app_context, sample_p
 
 
 def test_execute_logs_warning_when_dataset_empty(mock_app_context, sample_project, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = True
     app_state.current_project = sample_project
     dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame())
@@ -106,7 +106,7 @@ def test_execute_logs_warning_when_dataset_empty(mock_app_context, sample_projec
 
 
 def test_execute_logs_warning_when_row_positions_invalid(mock_app_context, sample_project, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = True
     app_state.current_project = sample_project
     dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2]}))
@@ -119,7 +119,7 @@ def test_execute_logs_warning_when_row_positions_invalid(mock_app_context, sampl
 
 
 def test_execute_logs_warning_when_duplicate_positions(mock_app_context, sample_project, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, app_state, _ui_controller = mock_app_context
     app_state.has_project = True
     app_state.current_project = sample_project
     dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2, 3]}))
@@ -132,7 +132,7 @@ def test_execute_logs_warning_when_duplicate_positions(mock_app_context, sample_
 
 
 def test_undo_logs_warning_when_nothing_to_undo(mock_app_context, caplog):
-    app_context, app_state, ui_controller = mock_app_context
+    app_context, _app_state, _ui_controller = mock_app_context
     command = DeleteRowsCommand(app_context, "ds-1", row_positions=[0])
 
     with caplog.at_level(logging.WARNING):

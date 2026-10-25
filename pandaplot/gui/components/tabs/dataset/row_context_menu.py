@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QMenu
 
 from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
 from pandaplot.commands.project.dataset.delete_rows_command import DeleteRowsCommand
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 class RowHeaderContextMenu(QMenu):
@@ -18,22 +19,9 @@ class RowHeaderContextMenu(QMenu):
         self._init_ui()
     
     def _init_ui(self):
-        self.setStyleSheet("""
-            QMenu {
-                background-color: #ffffff;
-                color: black;
-                border: 1px solid #cccccc;
-            }
-            QMenu::item:selected {
-                background-color: #0078d4;
-                color: white;
-            }
-            QMenu::item:hover {
-                background-color: #e5f3ff;
-                color: black;
-            }
-        """)
-        
+        theme_manager = self.app_context.get_manager(ThemeManager)
+        self.setStyleSheet(theme_manager.build_context_menu_stylesheet())
+
         # Add row actions
         add_row_above_action = QAction("Add row(s) above", self)
         add_row_above_action.triggered.connect(

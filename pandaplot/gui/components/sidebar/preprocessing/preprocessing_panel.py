@@ -3,13 +3,11 @@ Preprocessing panel for common data transformations (centering, standardizing,
 scaling) applied to dataset columns before plotting or analysis.
 """
 
-from typing import Any, Dict, Optional, override
+from typing import Any, override
 
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QComboBox,
-    QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -25,6 +23,8 @@ from pandaplot.analysis.preprocessing_types import PREPROCESSING_METHODS, list_m
 from pandaplot.commands.project.dataset.preprocess_column_command import (
     PreprocessColumnCommand,
 )
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.number_input import DecimalInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
@@ -38,10 +38,10 @@ class PreprocessingPanel(SidebarPanel):
     Side panel for applying preprocessing transformations to dataset columns.
     """
 
-    def __init__(self, app_context: AppContext, parent: Optional[QWidget] = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
-        self.current_dataset: Optional[Dataset] = None
-        self.current_dataset_id: Optional[str] = None
+        self.current_dataset: Dataset | None = None
+        self.current_dataset_id: str | None = None
 
         self._initialize()
         self.setup_connections()
@@ -76,7 +76,7 @@ class PreprocessingPanel(SidebarPanel):
         group_layout = QVBoxLayout()
 
         form = QFormLayout()
-        self.method_combo = QComboBox()
+        self.method_combo = DropDownComboBox()
         for info in list_methods():
             self.method_combo.addItem(info.label, info.method.value)
         form.addRow("Method:", self.method_combo)
@@ -114,12 +114,12 @@ class PreprocessingPanel(SidebarPanel):
         self.parameters_group = QGroupBox("Parameters")
         self.parameters_layout = QFormLayout()
 
-        self.range_min_spin = QDoubleSpinBox()
+        self.range_min_spin = DecimalInput()
         self.range_min_spin.setRange(-1_000_000.0, 1_000_000.0)
         self.range_min_spin.setDecimals(3)
         self.range_min_spin.setValue(0.0)
 
-        self.range_max_spin = QDoubleSpinBox()
+        self.range_max_spin = DecimalInput()
         self.range_max_spin.setRange(-1_000_000.0, 1_000_000.0)
         self.range_max_spin.setDecimals(3)
         self.range_max_spin.setValue(1.0)
@@ -224,16 +224,16 @@ class PreprocessingPanel(SidebarPanel):
             more = "" if len(columns) <= 3 else ", ..."
             self.naming_hint.setText(f"New columns: {examples}{more}")
 
-    def _get_params(self) -> Dict[str, Any]:
+    def _get_params(self) -> dict[str, Any]:
         """Collect method-specific parameters from the UI."""
         info = PREPROCESSING_METHODS[self.selected_method()]
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if info.uses_feature_range:
             params["range_min"] = self.range_min_spin.value()
             params["range_max"] = self.range_max_spin.value()
         return params
 
-    def _get_config(self) -> Dict[str, Any]:
+    def _get_config(self) -> dict[str, Any]:
         """Build the command configuration from the current UI state."""
         return {
             "method": self.selected_method().value,
@@ -297,7 +297,7 @@ class PreprocessingPanel(SidebarPanel):
                 )
 
             self.preview_text.setText("\n".join(lines))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.preview_text.setText(f"❌ Preview error: {e}")
 
     def apply(self):
@@ -326,7 +326,7 @@ class PreprocessingPanel(SidebarPanel):
                 self.preview_text.setText(
                     "❌ Failed to apply. Check that the columns are numeric."
                 )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.preview_text.setText(f"❌ Error applying preprocessing: {e}")
 
     def clear_inputs(self):
@@ -385,6 +385,7 @@ class PreprocessingPanel(SidebarPanel):
         """Apply the current theme to the panel."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
+        tokens = theme_manager.get_design_tokens()
 
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
@@ -398,7 +399,7 @@ class PreprocessingPanel(SidebarPanel):
             }}
             QGroupBox {{
                 font-weight: bold;
-                font-size: 9pt;
+                font-size: {tokens['font_size_group_title']}pt;
                 color: {base_fg};
                 margin-top: 5px;
                 padding-top: 10px;

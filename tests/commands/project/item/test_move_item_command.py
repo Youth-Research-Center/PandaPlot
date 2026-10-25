@@ -14,7 +14,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.item.move_item_command import MoveItemCommand
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
-from pandaplot.models.project.items import Item, ItemCollection
+from pandaplot.models.project.items import Dataset, Folder, Image, ImageGallery, Item, ItemCollection, Note
 from pandaplot.models.state import AppContext, AppState
 
 
@@ -49,7 +49,7 @@ class TestMoveItemCommandLogging:
         return project
 
     def test_execute_logs_a_warning_when_no_project_loaded(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
 
         command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
@@ -61,7 +61,7 @@ class TestMoveItemCommandLogging:
         assert result is CommandResult.FAILURE
 
     def test_execute_logs_a_warning_when_current_project_is_none(self, mock_app_context, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = None
 
@@ -74,7 +74,7 @@ class TestMoveItemCommandLogging:
         assert result is CommandResult.FAILURE
 
     def test_execute_logs_a_warning_when_no_item_id_specified(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -87,7 +87,7 @@ class TestMoveItemCommandLogging:
         assert result is CommandResult.FAILURE
 
     def test_execute_logs_a_warning_when_item_not_found(self, mock_app_context, sample_project, caplog):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
         sample_project.find_item.return_value = None
@@ -101,7 +101,7 @@ class TestMoveItemCommandLogging:
         assert result is CommandResult.FAILURE
 
     def test_execute_returns_failure_when_target_folder_does_not_exist(self, mock_app_context, sample_project):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -130,7 +130,7 @@ class TestMoveItemCommandLogging:
         """With subtree-preserving detach_item(), allowing this would attach
         the item under its own descendant, creating a cyclic parent/child
         graph (see #374 review). Must fail before anything is mutated."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -159,7 +159,7 @@ class TestMoveItemCommandLogging:
         sample_project.add_item.assert_not_called()
 
     def test_execute_returns_success_when_move_succeeds(self, mock_app_context, sample_project):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -184,7 +184,7 @@ class TestMoveItemCommandLogging:
         original sibling position) rather than left orphaned, and
         move_performed must stay False so undo() correctly no-ops instead of
         silently doing nothing about a lost item."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -219,7 +219,7 @@ class TestMoveItemCommandLogging:
         assert source_folder.modified_at == "source-modified-at-before"
 
     def test_undo_returns_noop_when_move_was_never_performed(self, mock_app_context):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
 
         command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
@@ -228,7 +228,7 @@ class TestMoveItemCommandLogging:
         assert command.undo() is CommandResult.NOOP
 
     def test_undo_returns_success_after_a_successful_move(self, mock_app_context, sample_project):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -252,7 +252,7 @@ class TestMoveItemCommandLogging:
         FAILURE -- FAILURE would make CommandExecutor.undo() move this
         command to the redo stack as if it had actually been undone, even
         though the item never left the target folder (see PR #373 review)."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -288,7 +288,7 @@ class TestMoveItemCommandLogging:
         triggers the history invalidation this uncertain state actually
         needs -- so undo() must re-raise here, matching what redo() already
         does for the equivalent double-failure (see PR #373 review)."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -314,7 +314,7 @@ class TestMoveItemCommandLogging:
         otherwise CommandExecutor.redo() would invalidate the entire
         undo/redo history for what was actually a no-op (see PR #373
         review)."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -335,7 +335,7 @@ class TestMoveItemCommandLogging:
         genuinely uncertain, so redo() must let the exception propagate
         (letting CommandExecutor invalidate history) rather than report
         ABORTED."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = True
         app_state.current_project = sample_project
 
@@ -359,7 +359,7 @@ class TestMoveItemCommandLogging:
         the redo stack, instead of forwarding a bare FAILURE that
         CommandExecutor would move to the undo stack as if it had actually
         been redone (see PR #373 review)."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
 
         command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
@@ -367,7 +367,7 @@ class TestMoveItemCommandLogging:
         assert command.redo() is CommandResult.ABORTED
 
     def test_cleanup_does_not_raise(self, mock_app_context):
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, _app_state, _ui_controller = mock_app_context
 
         command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
         command.move_performed = True
@@ -512,7 +512,7 @@ class TestMoveItemCommandSubtreePreservation:
         to_dict()) would loop over forever (#374 review). Must be rejected
         before anything is mutated."""
         app_context, _, _ = mock_app_context
-        project, old_folder, new_folder, folder, child_note, child_folder, grandchild = project_with_nested_folder
+        _project, old_folder, _new_folder, folder, child_note, child_folder, grandchild = project_with_nested_folder
 
         command = MoveItemCommand(
             app_context, item_id=folder.id, source_folder_id=old_folder.id, target_folder_id=child_folder.id
@@ -529,7 +529,7 @@ class TestMoveItemCommandSubtreePreservation:
 
     def test_execute_rejects_moving_a_folder_into_itself(self, mock_app_context, project_with_nested_folder):
         app_context, _, _ = mock_app_context
-        project, old_folder, new_folder, folder, child_note, child_folder, grandchild = project_with_nested_folder
+        _project, old_folder, _new_folder, folder, _child_note, _child_folder, _grandchild = project_with_nested_folder
 
         command = MoveItemCommand(
             app_context, item_id=folder.id, source_folder_id=old_folder.id, target_folder_id=folder.id
@@ -549,7 +549,7 @@ class TestMoveItemCommandSubtreePreservation:
         first of [folder, sibling] and undoing must reproduce
         [folder, sibling], not [sibling, folder] (#374 review)."""
         app_context, _, _ = mock_app_context
-        project, old_folder, new_folder, folder, child_note, child_folder, grandchild = project_with_nested_folder
+        project, old_folder, new_folder, folder, _child_note, _child_folder, _grandchild = project_with_nested_folder
 
         sibling = Item(name="sibling")
         project.add_item(sibling, old_folder.id)
@@ -563,3 +563,54 @@ class TestMoveItemCommandSubtreePreservation:
         assert command.undo() is CommandResult.SUCCESS
 
         assert list(old_folder.get_items()) == [folder, sibling]
+
+
+class TestMoveItemCommandGalleryTarget:
+    """An image gallery only holds images and other galleries."""
+
+    @pytest.fixture
+    def context(self):
+        app_context = Mock(spec=AppContext)
+        app_state = Mock(spec=AppState)
+        ui_controller = Mock(spec=UIController)
+        app_context.get_app_state.return_value = app_state
+        app_context.get_ui_controller.return_value = ui_controller
+        app_state.event_bus = Mock()
+        app_state.has_project = True
+        return app_context, app_state, ui_controller
+
+    @pytest.mark.parametrize("make_item", [lambda: Note(name="n"), lambda: Folder(name="f"), lambda: Dataset(name="d")])
+    def test_execute_rejects_non_image_items_without_mutating(self, context, make_item):
+        app_context, app_state, ui_controller = context
+        project = Project(name="P")
+        app_state.current_project = project
+        gallery = ImageGallery(name="G")
+        item = make_item()
+        project.add_item(gallery)
+        project.add_item(item)
+
+        result = MoveItemCommand(app_context, item_id=item.id, source_folder_id="root", target_folder_id=gallery.id).execute()
+
+        assert result is CommandResult.FAILURE
+        assert item.parent_id == project.root.id
+        assert item.id not in gallery.items
+        ui_controller.show_error_message.assert_called_once()
+
+    @pytest.mark.parametrize("make_item", [lambda: Image(name="i"), lambda: ImageGallery(name="album")])
+    def test_execute_accepts_images_and_albums(self, context, make_item):
+        app_context, app_state, _ui_controller = context
+        project = Project(name="P")
+        app_state.current_project = project
+        gallery = ImageGallery(name="G")
+        item = make_item()
+        project.add_item(gallery)
+        project.add_item(item)
+
+        command = MoveItemCommand(app_context, item_id=item.id, source_folder_id="root", target_folder_id=gallery.id)
+
+        assert command.execute() is CommandResult.SUCCESS
+        assert item.parent_id == gallery.id
+        assert command.undo() is CommandResult.SUCCESS
+        assert item.parent_id == project.root.id
+        assert command.redo() is CommandResult.SUCCESS
+        assert item.parent_id == gallery.id

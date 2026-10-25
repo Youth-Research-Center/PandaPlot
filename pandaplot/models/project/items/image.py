@@ -1,14 +1,15 @@
 """
 Image and ImageGallery models for the image-gallery feature.
 
-An ImageGallery is a thin ItemCollection, structurally identical to Folder.
+An ImageGallery is a thin ItemCollection that, unlike Folder, only accepts
+images and other galleries.
 It is reused both for top-level "Image Gallery" tree nodes and for nested
 "albums" -- an album is simply an ImageGallery nested inside another
 ImageGallery. There is no separate Album class.
 """
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, override
 
 from pandaplot.models.project.items.item import Item, ItemCollection
 
@@ -26,10 +27,10 @@ class Image(Item):
     Dataset.data is excluded from its to_dict.
     """
 
-    def __init__(self, id: Optional[str] = None, name: str = "",
+    def __init__(self, id: str | None = None, name: str = "",
                  source_file: str = "", storage_mode: str = "copied",
                  image_ext: str = "", width: int = 0, height: int = 0,
-                 size_bytes: Optional[int] = None, note_id: Optional[str] = None):
+                 size_bytes: int | None = None, note_id: str | None = None):
         super().__init__(id, name)
         self.source_file = source_file
         self.storage_mode = storage_mode
@@ -44,17 +45,17 @@ class Image(Item):
         # created it, even though the "Chart Snapshots" gallery itself is
         # shared per-folder, not per-note.
         self.note_id = note_id
-        self._bytes: Optional[bytes] = None
+        self._bytes: bytes | None = None
 
-    def set_bytes(self, data: Optional[bytes]) -> None:
+    def set_bytes(self, data: bytes | None) -> None:
         """Set the in-memory raw image bytes (only meaningful when storage_mode == 'copied')."""
         self._bytes = data
 
-    def get_bytes(self) -> Optional[bytes]:
+    def get_bytes(self) -> bytes | None:
         """Return the in-memory raw image bytes, or None if not loaded/copied."""
         return self._bytes
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert image to dictionary for serialization."""
         data = super().to_dict()
         data.update({
@@ -69,7 +70,7 @@ class Image(Item):
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Image":
+    def from_dict(cls, data: dict[str, Any]) -> "Image":
         """Create image from dictionary."""
         image = cls(
             id=data.get("id"),
@@ -83,7 +84,7 @@ class Image(Item):
             note_id=data.get("note_id"),
         )
         image.parent_id = data.get("parent_id")
-        image.created_at = data.get("created_at", datetime.now().isoformat())
+        image.created_at = data.get("created_at", datetime.now().isoformat())  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones
         image.modified_at = data.get("modified_at", image.created_at)
         image.metadata = data.get("metadata", {})
         return image
@@ -96,5 +97,9 @@ class ImageGallery(ItemCollection):
     ImageGallery items (albums) via the inherited ItemCollection behavior.
     """
 
-    def __init__(self, id: Optional[str] = None, name: str = "New Image Gallery"):
+    def __init__(self, id: str | None = None, name: str = "New Image Gallery"):
         super().__init__(id, name)
+
+    @override
+    def accepts_item(self, item: Item) -> bool:
+        return isinstance(item, Image | ImageGallery)

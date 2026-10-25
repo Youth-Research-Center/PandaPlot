@@ -66,18 +66,11 @@ def undo(self):
 
 ---
 
-## MEDIUM: `PerformFitCommand` is not a Command and has no logic
+## RESOLVED: `PerformFitCommand` was not a Command and had no logic
 
 **File:** [commands/project/fit/perform_fit_command.py](../../pandaplot/commands/project/fit/perform_fit_command.py)
 
-```python
-class PerformFitCommand:          # Does NOT extend Command
-    def __init__(self, fit_panel):
-        self.fit_panel = fit_panel
-    #TODO: add undo and redo logic
-```
-
-The class is 9 lines, has no `execute()`, `undo()`, or `redo()`, and stores a reference to a GUI panel (`fit_panel`) — a GUI object inside a command. It is not wired into `CommandExecutor` anywhere in the codebase. Fit operations therefore have no undo support at all, despite the `ApplyFitCommand` / `RemoveFitCommand` being documented in the architecture.
+`PerformFitCommand` used to be a 9-line stub that didn't extend `Command`, had no `execute()`/`undo()`/`redo()`, held a reference to a GUI panel, and wasn't wired into `CommandExecutor`. It is now a `BackgroundTaskCommand` that `FitPanel` runs through `CommandExecutor` (see the #283 section below). It computes a preview only, so it deliberately takes no undo slot; applying a fit to a chart goes through the undoable `ApplyFitCommand`.
 
 ---
 

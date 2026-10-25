@@ -11,7 +11,7 @@ UI selector needs a unique label, so that's a presentation concern, not a
 model one.
 """
 from collections import Counter
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING
 
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from pandaplot.models.project.project import Project
 
 
-def disambiguated_display_options(items: List[Item], project: "Project") -> List[Tuple[str, str]]:
+def disambiguated_display_options(items: list[Item], project: "Project") -> list[tuple[str, str]]:
     """(id, display_name) for each of `items`, in the given order.
 
     When a name collides, the display name is suffixed with the item's
@@ -29,7 +29,7 @@ def disambiguated_display_options(items: List[Item], project: "Project") -> List
     untouched.
     """
     name_counts = Counter(item.name for item in items)
-    options: List[Tuple[str, str]] = []
+    options: list[tuple[str, str]] = []
     for item in items:
         if name_counts[item.name] <= 1:
             options.append((item.id, item.name))
@@ -40,7 +40,7 @@ def disambiguated_display_options(items: List[Item], project: "Project") -> List
     return options
 
 
-def dataset_display_options(project: "Project") -> List[Tuple[str, str]]:
+def dataset_display_options(project: "Project") -> list[tuple[str, str]]:
     """(id, display_name) for every dataset in `project`, in `get_all_items()`
     order. See `disambiguated_display_options` for how collisions are resolved.
     """
@@ -48,7 +48,7 @@ def dataset_display_options(project: "Project") -> List[Tuple[str, str]]:
     return disambiguated_display_options(datasets, project)
 
 
-def chart_display_options(project: "Project") -> List[Tuple[str, str]]:
+def chart_display_options(project: "Project") -> list[tuple[str, str]]:
     """(id, display_name) for every chart in `project`, in `get_all_items()`
     order. See `disambiguated_display_options` for how collisions are resolved.
     """

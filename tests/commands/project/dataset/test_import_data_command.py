@@ -176,7 +176,7 @@ class TestImportDataCommandLogging:
     def test_undo_is_a_success_noop(self, mock_app_context):
         """Unreachable via CommandExecutor (occupies_undo_slot() is False),
         so undo() is just a documented no-op -- see #301."""
-        app_context, app_state, ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         app_state.has_project = False
         command = ImportDataCommand(app_context)
 
@@ -206,7 +206,7 @@ class TestOnImportResult:
         return Dataset(name=name, data=pd.DataFrame({"a": [1, 2]}))
 
     def test_success_constructs_and_executes_add_imported_datasets_command(self, mock_app_context):
-        app_context, app_state, ui_controller, project = mock_app_context
+        app_context, _app_state, ui_controller, project = mock_app_context
         command = ImportDataCommand(app_context, folder_id="folder-1")
         command.project = project
         executor = app_context.get_command_executor.return_value
@@ -228,7 +228,7 @@ class TestOnImportResult:
         """If AddImportedDatasetsCommand itself fails to execute (e.g. the
         project rejects a duplicate id), the failure must be surfaced to the
         user instead of silently reporting success."""
-        app_context, app_state, ui_controller, project = mock_app_context
+        app_context, _app_state, ui_controller, project = mock_app_context
         command = ImportDataCommand(app_context)
         command.project = project
         executor = app_context.get_command_executor.return_value
@@ -237,7 +237,7 @@ class TestOnImportResult:
         command._on_import_result({"success": True, "datasets": [self._dataset()], "file_path": "/tmp/ds.csv"})
 
         ui_controller.show_error_message.assert_called_once()
-        title, message = ui_controller.show_error_message.call_args[0]
+        title, _message = ui_controller.show_error_message.call_args[0]
         assert title == "Import Failed"
         ui_controller.show_info_message.assert_not_called()
 
@@ -292,7 +292,7 @@ class TestImportDataCommandUndoStackIntegrity:
     def test_undo_mid_import_leaves_stacks_consistent(self, mock_dialog_cls, wired_app_context):
         from PySide6.QtWidgets import QDialog
 
-        app_context, ui_controller, task_scheduler, project, executor, csv_path = wired_app_context
+        app_context, _ui_controller, task_scheduler, project, executor, csv_path = wired_app_context
 
         dialog = mock_dialog_cls.return_value
         dialog.exec.return_value = QDialog.DialogCode.Accepted

@@ -139,3 +139,34 @@ def test_legend_shows_a_readable_name_not_the_raw_dataset_id():
     label = canvas.axes.get_lines()[0].get_label()
     assert label == "Sales:Revenue"
     assert "ds-1" not in label
+
+
+def test_box_preview_places_each_series_box_side_by_side():
+    """The preview shares one `extra` dict across all its series, which is
+    what lets several Box series find their own X slots (#399)."""
+    canvas = _canvas()
+    project = _project_with_dataset(dataset_name="Sales")
+    series_configs = [
+        {"dataset_id": "ds-1", "y_column_id": "col-rev"},
+        {"dataset_id": "ds-1", "y_column_id": "col-date"},
+    ]
+
+    render_wizard_preview(
+        canvas, project=project, chart_type="box", series_configs=series_configs,
+        title="", subtitle="", x_label="", y_label="", show_legend=True, show_grid=True,
+    )
+
+    assert len(canvas.axes.patches) == 2
+    assert list(canvas.axes.get_xticks()) == [1, 2]
+    assert [t.get_text() for t in canvas.axes.get_xticklabels()] == ["Sales:Revenue", "Sales:Date"]
+
+
+def test_box_preview_falls_back_to_the_sample_box_with_no_series():
+    canvas = _canvas()
+
+    render_wizard_preview(
+        canvas, project=None, chart_type="box", series_configs=[],
+        title="", subtitle="", x_label="", y_label="", show_legend=True, show_grid=True,
+    )
+
+    assert len(canvas.axes.patches) == 1

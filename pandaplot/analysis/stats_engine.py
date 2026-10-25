@@ -8,7 +8,7 @@ data.
 """
 
 import logging
-from typing import List, Sequence
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -490,7 +490,7 @@ class StatsEngine:
     def _build(
         test_type: StatTestType,
         test_name: str,
-        source_columns: List[str],
+        source_columns: list[str],
         statistic: float,
         p_value: float,
         alpha: float,

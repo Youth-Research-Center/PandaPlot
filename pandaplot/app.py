@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
@@ -11,7 +12,7 @@ from pandaplot.gui.controllers import UIController
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.gui.resources.app_icon import create_app_icon
 from pandaplot.models.events import EventBus
-from pandaplot.models.events.event_types import AppEvents
+from pandaplot.models.events.event_types import AppEvents, ConfigEvents
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.state import AppContext, AppState, UnsavedChangesRegistry
 from pandaplot.services.autosave import AutoSaveManager
@@ -20,6 +21,7 @@ from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.session import SessionPersistenceManager
 from pandaplot.services.theme import ThemeManager
+from pandaplot.services.transform.formula_recompute_manager import FormulaRecomputeManager
 from pandaplot.storage.chart_data_manager import ChartDataManager
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
 from pandaplot.storage.folder_data_manager import FolderDataManager
@@ -84,6 +86,10 @@ def build_app_context() -> AppContext:
     theme_manager = ThemeManager(event_bus, config_manager)
     auto_save_manager = AutoSaveManager(event_bus, config_manager, app_state)
     session_manager = SessionPersistenceManager(config_manager)
+    # Subscribes itself to the dataset events every data-mutating command
+    # already emits, so live formula columns (#154) recompute uniformly --
+    # including on undo/redo, which re-emits the same events.
+    formula_recompute_manager = FormulaRecomputeManager(event_bus, app_state)
     ui_controller = UIController()
     # Every command passes through CommandExecutor, so it's the single choke
     # point to flag the project as having unsaved changes -- see
@@ -99,14 +105,22 @@ def build_app_context() -> AppContext:
         on_history_changed=lambda: event_bus.emit(AppEvents.HISTORY_CHANGED),
         on_project_modified=app_state.mark_modified,
         on_undo_redo_error=_warn_undo_redo_error,
+        max_undo_levels=config_manager.config.max_undo_levels,
     )
+
+    def _update_undo_limit(event_data: dict) -> None:
+        config = event_data.get("config")
+        if config is not None:
+            command_executor.set_max_undo_levels(config.max_undo_levels)
+
+    event_bus.subscribe(ConfigEvents.CONFIG_UPDATED, _update_undo_limit)
     task_scheduler = TaskScheduler()
 
     # Create list of managers to pass to AppContext. ProjectDataManager is
     # intentionally not registered here -- it's an implementation detail
     # owned by ProjectManager, not something commands should fetch directly.
     unsaved_changes_registry = UnsavedChangesRegistry()
-    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_manager, tab_factory, unsaved_changes_registry]
+    managers = [command_executor, ui_controller, config_manager, theme_manager, session_manager, auto_save_manager, task_scheduler, project_manager, tab_factory, unsaved_changes_registry, formula_recompute_manager]
 
     app_context = AppContext(app_state=app_state, event_bus=event_bus, managers=managers)
     # AutoSaveManager needs the AppContext itself (to construct SaveProjectCommand),
@@ -226,7 +240,7 @@ def restore_last_session(app_context: AppContext, main_window: PandaMainWindow) 
     active_tab_id = session_manager.last_active_tab_id
     splitter_sizes = session_manager.last_splitter_sizes
 
-    def _on_loaded(project) -> None:  # noqa: ANN001 - Project, avoiding import cycle concerns
+    def _on_loaded(project) -> None:
         main_window.tab_container.restore_tab_session(panes_data, active_tab_id, splitter_sizes)
 
     command = LoadProjectCommand(app_context, last_path, on_loaded=_on_loaded)
@@ -268,7 +282,8 @@ def launch(app_context: AppContext) -> int:
 def main() -> None:
     """CLI entry point for `python -m pandaplot.app`."""
     debug = os.environ.get("PANDAPLOT_DEBUG", "").lower() in ("1", "true", "yes")
-    logger = setup_logging(level=logging.DEBUG if debug else logging.INFO)
+    log_file = Path.home() / ".pandaplot" / "application.log"
+    logger = setup_logging(log_file=log_file, level=logging.DEBUG if debug else logging.INFO)
     logger.info("--------------Starting PandaPlot application--------------")
     app_context = build_app_context()
     sys.exit(launch(app_context))
@@ -283,9 +298,7 @@ if __name__ == "__main__":
     # TODO(#211): multi-threaded processing; improve initial app load time
     # TODO(#212): use mm instead of cm, or make units configurable
     # TODO(#213): copy/paste support
-    # TODO(#214): styles/themes: font size, dark theme colors
     # TODO(#215): chart creation/properties panel fixes; scrollable chart area
     # TODO(#216): improve project info display in sidebar
     # TODO(#217): dataset tab: lazy disk loading, sorting/filtering, export
-    # TODO(#154): support formulas in dataset tab
     # TODO(#218): encapsulate project data manager inside project manager

@@ -1,20 +1,19 @@
 """Legend tab: chart legend visibility, position, columns, frame, background."""
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QComboBox,
-    QDoubleSpinBox,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.color_swatch_row import ColorSwatchRow
+from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.font_family_options import list_available_font_families
+from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.gui.components.common.slider_with_spinbox import SliderWithSpinbox
@@ -46,7 +45,7 @@ class LegendTab(QWidget):
         legend_layout = QGridLayout(self.legend_group)
 
         legend_layout.addWidget(QLabel("Position:"), 0, 0)
-        self.legend_position_combo = QComboBox()
+        self.legend_position_combo = DropDownComboBox()
         for position in LegendPosition:
             self.legend_position_combo.addItem(position.value.title(), position.value)
         for label, value in [
@@ -62,19 +61,19 @@ class LegendTab(QWidget):
         custom_layout = QGridLayout(self.legend_custom_row)
         custom_layout.setContentsMargins(0, 0, 0, 0)
         custom_layout.addWidget(QLabel("X:"), 0, 0)
-        self.legend_custom_x_spin = QDoubleSpinBox()
+        self.legend_custom_x_spin = DecimalInput()
         self.legend_custom_x_spin.setRange(0.0, 1.0)
         self.legend_custom_x_spin.setSingleStep(0.05)
         self.legend_custom_x_spin.setValue(1.02)
         custom_layout.addWidget(self.legend_custom_x_spin, 0, 1)
         custom_layout.addWidget(QLabel("Y:"), 1, 0)
-        self.legend_custom_y_spin = QDoubleSpinBox()
+        self.legend_custom_y_spin = DecimalInput()
         self.legend_custom_y_spin.setRange(0.0, 1.0)
         self.legend_custom_y_spin.setSingleStep(0.05)
         self.legend_custom_y_spin.setValue(0.5)
         custom_layout.addWidget(self.legend_custom_y_spin, 1, 1)
         custom_layout.addWidget(QLabel("Anchor:"), 2, 0)
-        self.legend_custom_anchor_combo = QComboBox()
+        self.legend_custom_anchor_combo = DropDownComboBox()
         for anchor in ("upper left", "upper right", "lower left", "lower right", "center",
                        "center left", "center right", "upper center", "lower center"):
             self.legend_custom_anchor_combo.addItem(anchor.title(), anchor)
@@ -83,7 +82,7 @@ class LegendTab(QWidget):
         self.legend_custom_row.setVisible(False)
 
         legend_layout.addWidget(QLabel("Font Size:"), 2, 0)
-        self.legend_font_size_spin = QSpinBox()
+        self.legend_font_size_spin = IntegerInput()
         self.legend_font_size_spin.setRange(6, 18)
         self.legend_font_size_spin.setValue(10)
         legend_layout.addWidget(self.legend_font_size_spin, 2, 1)
@@ -173,18 +172,18 @@ class LegendTab(QWidget):
         if self._chart is None or self._updating_controls:
             return
         config = self._chart.config
-        config["show_legend"] = self.show_legend_toggle.isChecked()
+        config.show_legend = self.show_legend_toggle.isChecked()
         if self.legend_position_combo.currentData():
-            config["legend_position"] = self.legend_position_combo.currentData()
-        config["legend_font_size"] = self.legend_font_size_spin.value()
-        config["legend_columns"] = self.legend_columns_control.currentValue()
-        config["legend_font_family"] = self.legend_font_family_combo.currentValue()
-        config["legend_show_frame"] = self.legend_show_frame_toggle.isChecked()
-        config["legend_bg_color"] = self.legend_bg_color_row.currentColor()
-        config["legend_bg_alpha"] = self.legend_bg_opacity_slider.value()
-        config["legend_custom_x"] = self.legend_custom_x_spin.value()
-        config["legend_custom_y"] = self.legend_custom_y_spin.value()
-        config["legend_custom_anchor"] = self.legend_custom_anchor_combo.currentData()
+            config.legend_position = self.legend_position_combo.currentData()
+        config.legend_font_size = self.legend_font_size_spin.value()
+        config.legend_columns = self.legend_columns_control.currentValue()
+        config.legend_font_family = self.legend_font_family_combo.currentValue()
+        config.legend_show_frame = self.legend_show_frame_toggle.isChecked()
+        config.legend_bg_color = self.legend_bg_color_row.currentColor()
+        config.legend_bg_alpha = self.legend_bg_opacity_slider.value()
+        config.legend_custom_x = self.legend_custom_x_spin.value()
+        config.legend_custom_y = self.legend_custom_y_spin.value()
+        config.legend_custom_anchor = self.legend_custom_anchor_combo.currentData()
         self.configChanged.emit()
 
     def load(self, chart):
@@ -193,38 +192,38 @@ class LegendTab(QWidget):
         self._chart = chart
         try:
             config = chart.config
-            self.show_legend_toggle.setChecked(checked=config.get("show_legend", True))
-            legend_position_value = config.get("legend_position", "upper right")
+            self.show_legend_toggle.setChecked(checked=config.show_legend)
+            legend_position_value = config.legend_position
             position_index = self.legend_position_combo.findData(legend_position_value)
-            self.legend_position_combo.setCurrentIndex(position_index if position_index >= 0 else 0)
-            self.legend_custom_x_spin.setValue(config.get("legend_custom_x", 1.02))
-            self.legend_custom_y_spin.setValue(config.get("legend_custom_y", 0.5))
-            anchor_index = self.legend_custom_anchor_combo.findData(config.get("legend_custom_anchor", "center left"))
-            self.legend_custom_anchor_combo.setCurrentIndex(anchor_index if anchor_index >= 0 else 0)
+            self.legend_position_combo.setCurrentIndex(max(position_index, 0))
+            self.legend_custom_x_spin.setValue(config.legend_custom_x)
+            self.legend_custom_y_spin.setValue(config.legend_custom_y)
+            anchor_index = self.legend_custom_anchor_combo.findData(config.legend_custom_anchor)
+            self.legend_custom_anchor_combo.setCurrentIndex(max(anchor_index, 0))
             self.legend_custom_row.setVisible(legend_position_value == "custom")
-            self.legend_font_size_spin.setValue(config.get("legend_font_size", 10))
-            self.legend_columns_control.setCurrentValue(config.get("legend_columns", 1))
-            self.legend_font_family_combo.setCurrentValue(config.get("legend_font_family", "DejaVu Sans"))
-            self.legend_show_frame_toggle.setChecked(checked=config.get("legend_show_frame", True))
-            self.legend_bg_color_row.setCurrentColor(config.get("legend_bg_color", "#ffffff"))
-            self.legend_bg_opacity_slider.setValue(config.get("legend_bg_alpha", 1.0))
+            self.legend_font_size_spin.setValue(config.legend_font_size)
+            self.legend_columns_control.setCurrentValue(config.legend_columns)
+            self.legend_font_family_combo.setCurrentValue(config.legend_font_family)
+            self.legend_show_frame_toggle.setChecked(checked=config.legend_show_frame)
+            self.legend_bg_color_row.setCurrentColor(config.legend_bg_color)
+            self.legend_bg_opacity_slider.setValue(config.legend_bg_alpha)
             self._update_legend_controls_visibility()
         finally:
             self._updating_controls = previous_guard
 
     def apply_to(self, chart):
-        chart.config["show_legend"] = self.show_legend_toggle.isChecked()
+        chart.config.show_legend = self.show_legend_toggle.isChecked()
         if self.legend_position_combo.currentData():
-            chart.config["legend_position"] = self.legend_position_combo.currentData()
-        chart.config["legend_font_size"] = self.legend_font_size_spin.value()
-        chart.config["legend_columns"] = self.legend_columns_control.currentValue()
-        chart.config["legend_font_family"] = self.legend_font_family_combo.currentValue()
-        chart.config["legend_show_frame"] = self.legend_show_frame_toggle.isChecked()
-        chart.config["legend_bg_color"] = self.legend_bg_color_row.currentColor()
-        chart.config["legend_bg_alpha"] = self.legend_bg_opacity_slider.value()
-        chart.config["legend_custom_x"] = self.legend_custom_x_spin.value()
-        chart.config["legend_custom_y"] = self.legend_custom_y_spin.value()
-        chart.config["legend_custom_anchor"] = self.legend_custom_anchor_combo.currentData()
+            chart.config.legend_position = self.legend_position_combo.currentData()
+        chart.config.legend_font_size = self.legend_font_size_spin.value()
+        chart.config.legend_columns = self.legend_columns_control.currentValue()
+        chart.config.legend_font_family = self.legend_font_family_combo.currentValue()
+        chart.config.legend_show_frame = self.legend_show_frame_toggle.isChecked()
+        chart.config.legend_bg_color = self.legend_bg_color_row.currentColor()
+        chart.config.legend_bg_alpha = self.legend_bg_opacity_slider.value()
+        chart.config.legend_custom_x = self.legend_custom_x_spin.value()
+        chart.config.legend_custom_y = self.legend_custom_y_spin.value()
+        chart.config.legend_custom_anchor = self.legend_custom_anchor_combo.currentData()
 
     def clear(self):
         self._chart = None

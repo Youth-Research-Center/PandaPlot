@@ -204,7 +204,11 @@ def test_default_config_has_y2_tick_keys():
 def test_default_config_has_y2_grid_key():
     chart = Chart(name="Test Chart")
     assert chart.config["show_grid_y2"] is True
-    assert "y2_show_grid" not in chart.config
+    # AxisConfig's field is itself named "show_grid" (prefix stripped), so
+    # both the historical "show_grid_y2" spelling and the alternate
+    # "y2_show_grid" one correctly resolve to the same real field via
+    # ChartConfig's dict-style shim -- not two different keys.
+    assert chart.config["y2_show_grid"] is True
 
 
 def test_y2_and_side_keys_round_trip_through_serialization():
@@ -311,18 +315,19 @@ def test_chart_style_background_colors_round_trip_through_serialization():
 
 def test_axis_spine_and_tick_colors_default_to_black():
     # The sidebar's color swatch widget for spine/tick colors must itself
-    # default to black, since that's what a fresh chart (with no
-    # x/y/y2_*_color keys in its config) will render with.
+    # default to black, since that's what a fresh chart's AxisConfig
+    # (spine_color/major_tick_color/minor_tick_color all "#000000" by
+    # default) will render with.
     assert ColorSwatchRow(AXES_SWATCH_PALETTE).currentColor() == "#000000"
 
     chart = Chart(name="Test Chart")
     for p in ("x", "y", "y2"):
-        assert f"{p}_spine_color" not in chart.config
-        assert f"{p}_major_tick_color" not in chart.config
-        assert f"{p}_minor_tick_color" not in chart.config
+        assert chart.config[f"{p}_spine_color"] == "#000000"
+        assert chart.config[f"{p}_major_tick_color"] == "#000000"
+        assert chart.config[f"{p}_minor_tick_color"] == "#000000"
 
-    # And the rendering code must actually apply black when these keys are
-    # absent from a chart's config, mirroring how chart_editor.py calls
+    # And the rendering code must actually apply black for a fresh chart,
+    # mirroring how chart_editor.py calls
     # apply_spine_colors/apply_axis_ticks with a "#000000" fallback.
     fig = Figure()
     axes = fig.add_subplot(111)
@@ -428,13 +433,13 @@ def test_title_and_subtitle_color_default_when_missing_from_saved_data():
 
 
 def test_axis_label_and_tick_label_colors_default_to_black():
-    # Same "absent from default config" convention as the spine/tick-mark
-    # colors above, but verified against the real code that applies the
-    # default rather than against dict.get() alone.
+    # Same "defaults to black" convention as the spine/tick-mark colors
+    # above, but verified against the real code that applies the default
+    # rather than against dict.get() alone.
     chart = Chart(name="Test Chart")
     for p in ("x", "y", "y2"):
-        assert f"{p}_label_color" not in chart.config
-        assert f"{p}_tick_label_color" not in chart.config
+        assert chart.config[f"{p}_label_color"] == "#000000"
+        assert chart.config[f"{p}_tick_label_color"] == "#000000"
 
     # Tick-value color: apply_axis_ticks's own `labelcolor` parameter
     # default is what actually renders tick values black when the config
@@ -458,8 +463,8 @@ def test_axis_label_and_tick_label_colors_default_to_black():
 def test_axis_match_x_flags_default_to_true_for_y_and_y2():
     chart = Chart(name="Test Chart")
     for p in ("y", "y2"):
-        assert f"{p}_match_x_label_color" not in chart.config
-        assert f"{p}_match_x_colors" not in chart.config
+        assert chart.config[f"{p}_match_x_label_color"] is True
+        assert chart.config[f"{p}_match_x_colors"] is True
         match_label = chart.config.get(f"{p}_match_x_label_color", True)
         match_colors = chart.config.get(f"{p}_match_x_colors", True)
         # Real production code: with the match flag defaulting to True,
@@ -535,7 +540,7 @@ def _apply_axis_minor_grid(axes, config, prefix, grid_alpha=0.15):
 def test_show_minor_grid_defaults_to_false_for_all_axes():
     chart = Chart(name="Test Chart")
     for p in ("x", "y", "y2"):
-        assert f"{p}_show_minor_grid" not in chart.config
+        assert chart.config[f"{p}_show_minor_grid"] is False
 
         fig = Figure()
         axes = fig.add_subplot(111)
@@ -622,8 +627,16 @@ def test_tick_label_style_fields_default_when_missing():
 
 def test_axis_and_tick_label_rotation_default_to_zero_when_missing():
     chart = Chart(name="Test Chart")
+    # label_rotation (the axis TITLE's rotation) genuinely differs by axis:
+    # 0 for a horizontal X title, 90 for a vertical Y/Y2 title -- matching
+    # style_tab.py's own default_rotation convention, now baked into
+    # AxisConfig's per-axis construction instead of computed ad hoc at
+    # every read site.
+    assert chart.config.get("x_label_rotation", 0) == 0
+    assert chart.config.get("y_label_rotation", 0) == 90
+    assert chart.config.get("y2_label_rotation", 0) == 90
+    # tick_label_rotation (the tick VALUES' rotation) is 0 for every axis.
     for prefix in ("x", "y", "y2"):
-        assert chart.config.get(f"{prefix}_label_rotation", 0) == 0
         assert chart.config.get(f"{prefix}_tick_label_rotation", 0) == 0
 
 

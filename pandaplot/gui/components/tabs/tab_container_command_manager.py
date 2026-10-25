@@ -7,11 +7,14 @@ commands. Mirrors the existing ProjectPanelCommandManager pattern
 (pandaplot/gui/components/sidebar/project/project_command_manager.py).
 """
 import logging
-from typing import Optional
+
+from PySide6.QtWidgets import QWidget
 
 from pandaplot.commands.project.chart import CreateChartFromWizardCommand
+from pandaplot.commands.project.dataset import AnalyzeMeasurementsCommand
 from pandaplot.commands.project.dataset.create_empty_dataset_command import CreateEmptyDatasetCommand
 from pandaplot.commands.project.project import LoadProjectCommand, NewProjectCommand, OpenProjectCommand
+from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -75,7 +78,7 @@ class TabContainerCommandManager:
         command = CreateChartFromWizardCommand(self.app_context)
         self.app_context.get_command_executor().execute_command(command)
 
-    def create_chart_from_dataset(self, dataset_id: str, preselected_column_ids: Optional[list[str]] = None):
+    def create_chart_from_dataset(self, dataset_id: str, preselected_column_ids: list[str] | None = None):
         """Open the chart creation wizard for a dataset.
 
         The wizard is non-blocking, so no chart exists when this returns. The
@@ -102,3 +105,38 @@ class TabContainerCommandManager:
             preselected_column_ids=preselected_column_ids or [],
         )
         self.app_context.get_command_executor().execute_command(command)
+
+    def analyze_measurements_for_dataset(
+        self,
+        dataset_id: str,
+        *,
+        parent_widget: QWidget | None = None,
+    ) -> None:
+        """Open measurement analysis and execute it if the wizard is accepted."""
+        app_state = self.app_context.get_app_state()
+        project = app_state.current_project
+        dataset = project.find_item(dataset_id) if project is not None else None
+        if not isinstance(dataset, Dataset):
+            self.logger.warning("Cannot analyze measurements: Dataset %s not found", dataset_id)
+            return
+
+        from PySide6.QtWidgets import QDialog
+
+        from pandaplot.gui.dialogs.measurement_analysis_wizard import MeasurementAnalysisWizard
+
+        self.app_context.get_ui_controller().set_parent_widget(parent_widget)
+        wizard = MeasurementAnalysisWizard(self.app_context, dataset, parent=parent_widget)
+        if wizard.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        command = AnalyzeMeasurementsCommand(
+            self.app_context,
+            dataset.id,
+            wizard.selected_roles(),
+            measurement_groups=wizard.selected_measurement_groups(),
+            result_name=wizard.result_name(),
+        )
+        executor = self.app_context.get_command_executor()
+        executor.execute_command(command)
+        if wizard.plot_requested() and command.result_dataset_id is not None:
+            self.create_chart_from_dataset(command.result_dataset_id)

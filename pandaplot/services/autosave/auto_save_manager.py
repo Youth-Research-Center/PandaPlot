@@ -12,7 +12,6 @@ never-saved project has nowhere to write to, and prompting a blocking
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from PySide6.QtCore import QTimer
 
@@ -34,7 +33,7 @@ class AutoSaveManager:
         # that owns this manager finishes building (see set_app_context()).
         self._app_context = None
 
-        self._timer: Optional[QTimer] = None
+        self._timer: QTimer | None = None
         self._current_save = None  # in-flight SaveProjectCommand, if any
 
         event_bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)

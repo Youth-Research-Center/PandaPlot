@@ -1,6 +1,6 @@
 from typing import override
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import QWidget
 
 from pandaplot.gui.core.widget_extension import PMainWindow
@@ -18,6 +18,7 @@ class FloatingTabWindow(PMainWindow):
     """
 
     redock_requested = Signal(str)  # item_id
+    activated = Signal(str)  # item_id
 
     def __init__(self, app_context: AppContext, item_id: str, content: QWidget, title: str):
         super().__init__(app_context=app_context)
@@ -38,6 +39,12 @@ class FloatingTabWindow(PMainWindow):
         # now that it lives in this window, otherwise the window looks blank.
         content.setVisible(True)
         self.resize(900, 650)
+
+    @override
+    def event(self, event: QEvent) -> bool:
+        if event.type() == QEvent.Type.WindowActivate and self._content is not None:
+            self.activated.emit(self.item_id)
+        return super().event(event)
 
     @override
     def _init_ui(self):
@@ -73,5 +80,6 @@ class FloatingTabWindow(PMainWindow):
     @override
     def closeEvent(self, event):
         if self._redock_on_close and self._content is not None:
+            self._redock_on_close = False
             self.redock_requested.emit(self.item_id)
         super().closeEvent(event)

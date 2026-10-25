@@ -9,8 +9,6 @@ and calling ``ConfigManager.update()`` directly.
 """
 from __future__ import annotations
 
-from typing import Optional
-
 from pandaplot.services.config.config_manager import ConfigManager
 
 
@@ -22,7 +20,7 @@ class SessionPersistenceManager:
 
     # ----- reading back the remembered session ------------------------------
     @property
-    def last_project_path(self) -> Optional[str]:
+    def last_project_path(self) -> str | None:
         return self._config_manager.config.last_project_path
 
     @property
@@ -31,7 +29,7 @@ class SessionPersistenceManager:
         return [list(pane) for pane in self._config_manager.config.last_tab_panes]
 
     @property
-    def last_active_tab_id(self) -> Optional[str]:
+    def last_active_tab_id(self) -> str | None:
         return self._config_manager.config.last_active_tab_id
 
     @property
@@ -39,15 +37,15 @@ class SessionPersistenceManager:
         return list(self._config_manager.config.last_splitter_sizes)
 
     # ----- recording session changes -----------------------------------------
-    def update_project(self, file_path: Optional[str]) -> None:
+    def update_project(self, file_path: str | None) -> None:
         """Remember which project to reopen on next launch (None to forget)."""
         self._config_manager.update({"last_project_path": file_path}, save=True)
 
     def update_tabs(
         self,
         panes: list[list[str]],
-        active_tab_id: Optional[str],
-        splitter_sizes: Optional[list[int]] = None,
+        active_tab_id: str | None,
+        splitter_sizes: list[int] | None = None,
     ) -> None:
         """Remember which tabs were open in which pane, which was active, and
         (best-effort) the pane sizes, for next launch."""

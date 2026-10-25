@@ -83,7 +83,7 @@ TabContainer
 - `ChartRenderEngine` converts the `Chart` model into a `matplotlib.Figure`:
   1. Create figure and axes
   2. For each `DataSeries`: fetch columns from Dataset, call `ax.plot()` / `ax.scatter()` / etc.
-  3. For each `FitData`: evaluate fit function over x range, overlay curve
+  3. For each `SeriesType.FIT` DataSeries: plot its precomputed x/y curve data, overlay
   4. Apply `ChartConfiguration` (title, labels, legend, grid)
 - Subscribes to `ChartEvents` to re-render on any chart change
 
@@ -122,6 +122,8 @@ The `UIController` stores the `parent_widget` reference so all dialogs are prope
 2. All `WidgetExtension` subclasses receive the event and call `_apply_theme()`
 3. `_apply_theme()` reads the current theme from `ThemeManager` and updates Qt stylesheets
 
+Shared controls are styled once, in `ThemeManager.build_stylesheet()`, from the design tokens rather than per dialog or panel. Dropdowns are the example: create them with `DropDownComboBox` (or `ValueComboBox`, which extends it) and do not write a `QComboBox` rule in a widget or dialog stylesheet. The app-wide rule gives the field, caret, hover/focus and disabled states and the popup list, and `DropDownComboBox` makes the list open below the field (macOS otherwise opens a native menu over it).
+
 ## Background Tasks & Busy Operations (`services/qtasks/` & `gui/components/common/`)
 
 Long-running operations (large CSV imports, analysis, signal processing, fitting on big datasets) run via `TaskScheduler`:
@@ -136,3 +138,15 @@ TaskScheduler
 ```
 
 During asynchronous tasks, panels display a `BusySpinner` widget to give visual progress feedback without blocking the UI or Qt event loop.
+
+## Numeric Inputs (`gui/components/common/number_input.py`)
+
+Number fields are `DecimalInput` (float) or `IntegerInput` (int), never `QDoubleSpinBox` / `QSpinBox`. They keep the spin-box API (`setRange`, `setDecimals`, `setSingleStep`, `setSuffix`, `setSpecialValueText`, `setValue`, `value`, `valueChanged`), including its keyboard tracking: `value()` follows what is typed as soon as it is a complete number in range, which matters on macOS where clicking a push button does not move focus out of the field.
+
+What differs from a spin box:
+
+- `-` / `+` step buttons (omit with `steppers=False` where a slider already moves the value); only the text field takes Tab focus, and Up/Down, Page Up/Down and Shift step from the keyboard.
+- The wheel only edits the value while the field has focus; otherwise the event is ignored so the enclosing scroll area scrolls.
+- `.` and `,` are both decimal separators, at most `decimals` digits can be typed, and the unit is a separate label instead of text in the field.
+
+The frame draws the border and is styled by `ThemeManager` (`QFrame[numberInput="true"]`, driven by `focused` / `invalid` dynamic properties); the inner line edit sets its own flat stylesheet so a dialog-level `QLineEdit` rule cannot draw a second box inside it.

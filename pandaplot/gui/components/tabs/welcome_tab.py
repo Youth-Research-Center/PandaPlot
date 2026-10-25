@@ -369,8 +369,8 @@ class WelcomeTab(PWidget):
                     "Customize and Export",
                     "Polish a chart once it's created, then share it.",
                     [
-                        "Use the chart's style panel to adjust colors, axes, "
-                        "labels, and legends.",
+                        ("Use the chart's style panel to adjust colors, axes, "
+                        "labels, and legends."),
                         "Add a fit or trendline to highlight patterns in the data.",
                         "Export the chart as an image for reports or presentations.",
                     ],

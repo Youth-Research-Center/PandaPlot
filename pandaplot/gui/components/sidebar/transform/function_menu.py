@@ -2,7 +2,7 @@
 ChartTransformPanel -- both offer a categorized menu of ready-made
 transformation expressions with the same shape (see #284)."""
 
-from typing import Callable
+from collections.abc import Callable
 
 from PySide6.QtWidgets import QMenu, QWidget
 

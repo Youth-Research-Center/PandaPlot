@@ -12,7 +12,12 @@ picker, an optional leader line, an offset, and text/background styling) --
 Bar does not, since bar_label() has only a single scalar height per bar and
 already positions the label without any offset/arrow concept.
 """
+import numpy as np
 import pandas as pd
+from numpy.typing import ArrayLike
+from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
+
+from pandaplot.models.chart.value_label_subset import ValueLabelSubset
 
 
 def _format_number(value) -> str:
@@ -30,6 +35,83 @@ def _format_label(x: float, y: float, mode: str) -> str:
     return _format_number(y)
 
 
+def _drawable_mask(x_data: ArrayLike, y: pd.Series) -> np.ndarray:
+    """Which points can be drawn: neither x nor y is missing (NaN/NaT)."""
+    return pd.notna(np.asarray(x_data)) & y.notna().to_numpy()
+
+
+def _as_series(y_data: ArrayLike) -> pd.Series:
+    """Y data as a Series, keeping datetime dtypes (tz-aware included) intact; anything else non-numeric is coerced."""
+    y = pd.Series(y_data).reset_index(drop=True)
+    if not (is_numeric_dtype(y) or is_datetime64_any_dtype(y)):
+        y = pd.to_numeric(y, errors="coerce")
+    return y
+
+def _local_extrema_positions(ranks: np.ndarray) -> np.ndarray:
+    """Find the interior local minima and maxima of a sequence.
+
+    Consecutive equal values count as one flat stretch, represented by its
+    first point. The first and last stretch are never extrema.
+
+    Args:
+        ranks: Order-preserving numbers for the candidate points, in data order.
+
+    Returns:
+        Positions (into `ranks`) of the first point of every local minimum or maximum.
+    """
+    starts = np.r_[0, np.flatnonzero(np.diff(ranks) != 0) + 1]
+    levels = ranks[starts]
+    if len(levels) < 3:
+        return np.array([], dtype=int)
+    before, here, after = levels[:-2], levels[1:-1], levels[2:]
+    is_extreme = ((here > before) & (here > after)) | ((here < before) & (here < after))
+    return starts[1:-1][is_extreme]
+
+
+def resolve_label_indices(x_data: ArrayLike, y_data: ArrayLike, *, subset_mode: str = ValueLabelSubset.ALL) -> set[int]:
+    """Decide which points of a series should get a value label.
+
+    Minimum and maximum are by Y value, over the whole series. Only points
+    that can actually be drawn are considered: a point whose x or y is
+    missing (NaN/NaT), or whose y is infinite, is never chosen. If several
+    points tie, the first one is used.
+        LOCAL_EXTREMES instead labels every interior local minimum and maximum:
+    a point lower or higher than its neighbours (in data order). A flat top
+    or bottom is labelled once, at its first point, and the first and last
+    point are never chosen.
+
+    Args:
+        x_data: X values of the series, one per point.
+        y_data: Y values of the series, one per point.
+        subset_mode: A ValueLabelSubset or its string value. An unknown
+            value is treated as ALL.
+
+    Returns:
+        The set of 0-based point positions that should be labeled.
+    """
+    mode = ValueLabelSubset.coerce(subset_mode)
+    y = _as_series(y_data)
+    if mode is ValueLabelSubset.ALL:
+        return set(np.flatnonzero(_drawable_mask(x_data, y)).tolist())
+
+    drawable = _drawable_mask(x_data, y)
+    if is_numeric_dtype(y):
+        drawable &= np.isfinite(y.to_numpy(dtype=float, na_value=np.nan))
+    candidates = y[drawable]
+    if candidates.empty:
+        return set()
+    if mode is ValueLabelSubset.LOCAL_EXTREMES:
+        # Dense ranks keep the order (and ties) of any dtype, dates included.
+        ranks = candidates.rank(method="dense").to_numpy(dtype=float)
+        return {int(candidates.index[position]) for position in _local_extrema_positions(ranks)}
+    indices = set()
+    if mode in (ValueLabelSubset.EXTREMES, ValueLabelSubset.MIN):
+        indices.add(int(candidates.idxmin()))
+    if mode in (ValueLabelSubset.EXTREMES, ValueLabelSubset.MAX):
+        indices.add(int(candidates.idxmax()))
+    return indices
+
+
 def annotate_point_labels(
     axes, x_data, y_data, *,
     fontsize: float = 8.0,
@@ -41,6 +123,7 @@ def annotate_point_labels(
     bg_color: str = "",
     bg_alpha: float = 1.0,
     alpha: float = 1.0,
+    subset_mode: str = ValueLabelSubset.ALL,
 ) -> None:
     """Label each (x, y) point per `mode` ("x", "y", or "xy"), offset from
     the point by (offset_x, offset_y) points.
@@ -50,6 +133,9 @@ def annotate_point_labels(
     `alpha = series.alpha if series.visible else 0.3`), applied to the label
     text/arrow/background so a faded-out or hidden series' labels fade with
     it instead of staying fully opaque.
+
+    `subset_mode` chooses which points are labeled; see
+    resolve_label_indices(). The default labels every drawable point.
 
     Intended for the small datasets the issue this implements (#125) calls
     out (lab reports, a handful of points) -- no cap on point count, since a
@@ -61,8 +147,9 @@ def annotate_point_labels(
         {"boxstyle": "round,pad=0.2", "facecolor": bg_color, "edgecolor": "none", "alpha": bg_alpha * alpha}
         if bg_color else None
     )
-    for x, y in zip(x_data, y_data, strict=True):
-        if pd.isna(x) or pd.isna(y):
+    label_indices = resolve_label_indices(x_data, y_data, subset_mode=subset_mode)
+    for index, (x, y) in enumerate(zip(x_data, y_data, strict=True)):
+        if index not in label_indices:
             continue
         axes.annotate(
             _format_label(x, y, mode),

@@ -27,7 +27,7 @@ class _FakeLabel:
     def __init__(self):
         self.stylesheet = None
 
-    def setStyleSheet(self, value):  # noqa: N802 - matches Qt's method name
+    def setStyleSheet(self, value):
         self.stylesheet = value
 
 

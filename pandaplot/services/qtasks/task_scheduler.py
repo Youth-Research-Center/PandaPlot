@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Callable, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any
 
 from PySide6.QtCore import QMutex, QMutexLocker, QThreadPool
 
@@ -20,13 +21,13 @@ class TaskScheduler:
 
     def run_task(self, 
                  task: WorkerFuncType, 
-                 task_arguments: Optional[dict] = None,
-                 on_result: Optional[Callable[[Any], None]] = None,
-                 on_error: Optional[Callable[[Tuple], None]] = None,
-                 on_finished: Optional[Callable[[], None]] = None,
-                 on_progress: Optional[Callable[[float], None]] = None,
-                 on_cancelled: Optional[Callable[[], None]] = None,
-                 cancellation_token: Optional[CancellationToken] = None) -> CancellationToken:
+                 task_arguments: dict | None = None,
+                 on_result: Callable[[Any], None] | None = None,
+                 on_error: Callable[[tuple], None] | None = None,
+                 on_finished: Callable[[], None] | None = None,
+                 on_progress: Callable[[float], None] | None = None,
+                 on_cancelled: Callable[[], None] | None = None,
+                 cancellation_token: CancellationToken | None = None) -> CancellationToken:
         task_arguments = task_arguments if task_arguments is not None else {}
         conflicting_keys = _RESERVED_TASK_ARGUMENT_KEYS & task_arguments.keys()
         if conflicting_keys:
@@ -89,7 +90,7 @@ class TaskScheduler:
         self.threadpool.start(worker)
         return token
 
-    def cancel_task(self, task_or_token: Union[WorkerFuncType, CancellationToken]) -> bool:
+    def cancel_task(self, task_or_token: WorkerFuncType | CancellationToken) -> bool:
         """Cancel task(s) by task function reference or cancellation token.
 
         Returns True if at least one matching worker token was cancelled.

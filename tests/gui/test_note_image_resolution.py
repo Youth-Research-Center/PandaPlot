@@ -71,13 +71,13 @@ def _make_app_context_with_synchronous_task_scheduler(project):
         task_arguments = task_arguments or {}
         try:
             result = task(None, **task_arguments)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 -- mirrors TaskScheduler, which routes any task failure to on_error
             if on_error:
                 on_error((type(e), e, ""))
-            return None
+            return
         if on_result:
             on_result(result)
-        return None
+        return
 
     fake_task_scheduler = MagicMock()
     fake_task_scheduler.run_task.side_effect = _run_task_synchronously
@@ -1040,10 +1040,12 @@ def test_note_editor_insert_image_refreshes_preview_only_mode(qapp):
     mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
     mock_dialog.get_selected_image.return_value = image
 
-    with patch("pandaplot.gui.components.tabs.note.note_editor.NoteImagePickerDialog", return_value=mock_dialog):
-        with patch.object(editor, "update_preview") as mock_update:
-            editor.insert_image_from_picker()
-            mock_update.assert_called_once()
+    with (
+        patch("pandaplot.gui.components.tabs.note.note_editor.NoteImagePickerDialog", return_value=mock_dialog),
+        patch.object(editor, "update_preview") as mock_update,
+    ):
+        editor.insert_image_from_picker()
+        mock_update.assert_called_once()
 
 
 def test_note_editor_insert_chart_action(qapp):
@@ -1262,7 +1264,6 @@ def test_chart_render_result_populates_cache_and_refreshes_preview(qapp):
 
     def fake_run_task(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
         captured["on_result"] = on_result
-        return None
 
     fake_task_scheduler = MagicMock()
     fake_task_scheduler.run_task.side_effect = fake_run_task
@@ -1332,11 +1333,10 @@ def test_note_editor_insert_chart_uses_shared_width_constant(qapp):
     mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
     mock_dialog.get_selected_chart.return_value = chart
 
-    with patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog):
-        with patch(
-            "pandaplot.gui.components.tabs.note.note_editor._DEFAULT_INSERT_MAX_WIDTH", 777
-        ):
-            editor.insert_chart_from_picker()
+    with patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog), patch(
+        "pandaplot.gui.components.tabs.note.note_editor._DEFAULT_INSERT_MAX_WIDTH", 777
+    ):
+        editor.insert_chart_from_picker()
 
     content = editor.text_edit.toPlainText()
     assert content == f"![Sample Plot]({chart.id} =777x)"
@@ -1599,9 +1599,11 @@ def test_note_editor_export_pdf_renders_chart_synchronously(qapp, tmp_path):
         captured["cache"] = cache
         return original(document, app_context_arg, cache, referenced_keys, **kwargs)
 
-    with patch.object(note_editor_module, "register_project_image_resources", side_effect=_spy):
-        with patch("PySide6.QtWidgets.QFileDialog.getSaveFileName", return_value=(pdf_file, "PDF Files (*.pdf)")):
-            editor.export_pdf()
+    with (
+        patch.object(note_editor_module, "register_project_image_resources", side_effect=_spy),
+        patch("PySide6.QtWidgets.QFileDialog.getSaveFileName", return_value=(pdf_file, "PDF Files (*.pdf)")),
+    ):
+        editor.export_pdf()
 
     assert os.path.exists(pdf_file)
     cache = captured.get("cache")
@@ -1662,7 +1664,6 @@ def test_stale_chart_render_result_is_discarded_after_invalidation(qapp):
 
     def fake_run_task(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
         captured["on_result"] = on_result
-        return None
 
     fake_task_scheduler = MagicMock()
     fake_task_scheduler.run_task.side_effect = fake_run_task
@@ -1714,7 +1715,6 @@ def test_stale_chart_render_discard_schedules_preview_refresh(qapp):
 
     def fake_run_task(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
         captured["on_result"] = on_result
-        return None
 
     fake_task_scheduler = MagicMock()
     fake_task_scheduler.run_task.side_effect = fake_run_task
@@ -1765,7 +1765,6 @@ def test_chart_render_callback_noops_if_note_editor_deleted(qapp):
 
     def fake_run_task(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
         captured["on_result"] = on_result
-        return None
 
     fake_task_scheduler = MagicMock()
     fake_task_scheduler.run_task.side_effect = fake_run_task
@@ -1804,7 +1803,6 @@ def test_insert_chart_snapshot_noops_if_note_editor_deleted_before_render_comple
 
     def fake_run_task(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
         captured["on_result"] = on_result
-        return None
 
     fake_task_scheduler = MagicMock()
     fake_task_scheduler.run_task.side_effect = fake_run_task
