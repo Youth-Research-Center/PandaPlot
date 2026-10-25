@@ -12,8 +12,8 @@ from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageG
 from pandaplot.models.state import AppContext, AppState
 
 
-@pytest.mark.parametrize("collection_type", [Folder, ImageGallery])
-def test_collection_undo_restores_nested_payloads_and_index(collection_type):
+def test_collection_undo_restores_nested_payloads_and_index():
+    collection_type = Folder
     ctx = Mock(spec=AppContext)
     state = Mock(spec=AppState)
     ctx.get_app_state.return_value = state
@@ -62,6 +62,36 @@ def test_collection_undo_restores_nested_payloads_and_index(collection_type):
         assert command.redo() is CommandResult.SUCCESS
         assert all(project.find_item(i) is None for i in ["collection", "note", "nested", "data", "image"])
         assert not chart.data_series
+
+
+def test_gallery_undo_restores_nested_album_images_and_index():
+    ctx, _, project = _make_delete_setup()
+    parent = Folder(id="parent")
+    gallery = ImageGallery(id="gallery")
+    album = ImageGallery(id="album")
+    first = Image(id="first")
+    first.set_bytes(b"first payload")
+    second = Image(id="second")
+    second.set_bytes(b"second payload")
+    project.add_item(parent)
+    project.add_item(gallery, parent.id)
+    project.add_item(first, gallery.id)
+    project.add_item(album, gallery.id)
+    project.add_item(second, album.id)
+    command = DeleteItemCommand(ctx, gallery.id, confirm=False)
+    assert command.execute() is CommandResult.SUCCESS
+    for _ in range(2):
+        assert command.undo() is CommandResult.SUCCESS
+        restored = project.find_item("gallery")
+        assert isinstance(restored, ImageGallery)
+        assert restored.parent_id == parent.id
+        assert [i.id for i in restored.get_items()] == ["first", "album"]
+        assert isinstance(project.find_item("album"), ImageGallery)
+        assert project.find_item("second").parent_id == "album"
+        assert project.find_item("first").get_bytes() == b"first payload"
+        assert project.find_item("second").get_bytes() == b"second payload"
+        assert command.redo() is CommandResult.SUCCESS
+        assert all(project.find_item(i) is None for i in ["gallery", "first", "album", "second"])
 
 
 def test_adding_populated_collection_indexes_descendants():
