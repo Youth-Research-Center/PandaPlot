@@ -2,6 +2,7 @@
 the series' own Y axis and y2 on the opposite one."""
 import sys
 
+import matplotlib.colors
 import numpy as np
 import pandas as pd
 from matplotlib.collections import PathCollection, PolyCollection
@@ -13,6 +14,7 @@ from pandaplot.gui.components.tabs.chart.chart_editor import (
     compute_axis_data_range,
     resolve_series_data,
 )
+from pandaplot.models.chart.marker_style import MarkerStyle
 from pandaplot.models.chart.series_style import LineSeriesStyle, ScatterSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Dataset
@@ -36,7 +38,7 @@ def _twin_chart(dataset, *, y_axis=YAxis.PRIMARY, series_type=SeriesType.LINE, s
     chart = Chart(name="Twin", chart_type="line")
     if style is None:
         style_cls = LineSeriesStyle if series_type == SeriesType.LINE else ScatterSeriesStyle
-        style = style_cls(color="#ff0000", twin_y_column_id=dataset.column_id("pressure"))
+        style = style_cls(color="#ff0000", twin_y_color="#00aa00", twin_y_column_id=dataset.column_id("pressure"))
     chart.add_data_series(
         dataset.id, x_column_id=dataset.column_id("t"), y_column_id=dataset.column_id("temp"),
         label="Weather", y_axis=y_axis, series_type=series_type, style=style,
@@ -89,9 +91,52 @@ def test_line_series_draws_y_on_primary_and_twin_on_secondary_axis():
     np.testing.assert_array_equal(primary.get_ydata(), [20.0, 22.0, 21.0])
     np.testing.assert_array_equal(twin.get_ydata(), [1000.0, 1010.0, 990.0])
     np.testing.assert_array_equal(twin.get_xdata(), primary.get_xdata())
-    assert twin.get_color() == "#ff0000"
+    assert primary.get_color() == "#ff0000"
+    assert twin.get_color() == "#00aa00"
     assert primary.get_label() == "Weather"
     assert twin.get_label() == "Weather (Y₂)"
+
+
+def test_twin_trace_defaults_to_a_color_distinct_from_the_series():
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = _twin_chart(dataset, style=LineSeriesStyle(twin_y_column_id=dataset.column_id("pressure")))
+
+    editor = _editor_for(project, chart)
+
+    canvas = editor.chart_canvas
+    assert canvas.axes.lines[0].get_color() == "#1f77b4"
+    assert canvas.axes2.lines[0].get_color() == "#ff7f0e"
+
+
+def test_twin_marker_colors_follow_the_twin_color_only_when_explicit():
+    _qapp()
+    project, dataset = _project_and_dataset()
+    style = LineSeriesStyle(
+        color="#ff0000", twin_y_color="#00aa00", twin_y_column_id=dataset.column_id("pressure"),
+        marker=MarkerStyle(marker_color="#111111", marker_edge_color=""),
+    )
+    chart = _twin_chart(dataset, style=style)
+
+    editor = _editor_for(project, chart)
+
+    primary, twin = editor.chart_canvas.axes.lines[0], editor.chart_canvas.axes2.lines[0]
+    assert primary.get_markerfacecolor() == "#111111"
+    assert twin.get_markerfacecolor() == "#00aa00"
+    assert twin.get_markeredgecolor() == "#00aa00"
+    assert chart.data_series[0].style.marker.marker_color == "#111111"
+    assert chart.data_series[0].style.color == "#ff0000"
+
+
+def test_scatter_twin_points_use_the_twin_color():
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = _twin_chart(dataset, series_type=SeriesType.SCATTER)
+
+    editor = _editor_for(project, chart)
+
+    twin_points = next(c for c in editor.chart_canvas.axes2.collections if isinstance(c, PathCollection))
+    np.testing.assert_allclose(twin_points.get_facecolor()[0], matplotlib.colors.to_rgba("#00aa00"))
 
 
 def test_series_on_secondary_axis_draws_its_twin_on_the_primary_axis():

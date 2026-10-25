@@ -706,6 +706,8 @@ def test_undo_and_redo_of_a_cleared_twin_y_reference(env):
 
     assert command.redo() is CommandResult.SUCCESS
     assert untouched_chart.data_series[1].style.twin_y_column_id == ""
+
+
 def _make_c_a_live_formula(dataset):
     """Turn column "c" into a live formula over "a"; returns (column id, spec)."""
     c_id = dataset.column_id("c")

@@ -90,6 +90,7 @@ def test_line_series_style_fields_and_defaults():
     assert style.value_label_bg_alpha == 1.0
     assert style.twin_y_column_id == ""
     assert style.twin_y_column == ""
+    assert style.twin_y_color == "#ff7f0e"
     assert style.value_label_subset_mode == "all"
     assert isinstance(style.marker, MarkerStyle)
     assert isinstance(style.error_bars, ErrorBarConfig)
@@ -101,7 +102,7 @@ def test_line_series_style_fields_and_defaults():
         "value_label_mode", "value_label_show_arrow",
         "value_label_offset_x", "value_label_offset_y",
         "value_label_text_color", "value_label_bg_color", "value_label_bg_alpha",
-        "twin_y_column_id", "twin_y_column",
+        "twin_y_column_id", "twin_y_column", "twin_y_color",
         "value_label_subset_mode",
     }
 
@@ -136,6 +137,7 @@ def test_scatter_series_style_fields_and_defaults():
     assert style.fill_sections == []
     assert style.twin_y_column_id == ""
     assert style.twin_y_column == ""
+    assert style.twin_y_color == "#ff7f0e"
     assert {f.name for f in dataclasses.fields(style)} == {
         "color", "marker", "error_bars", "show_value_labels",
         "value_label_mode", "value_label_show_arrow",
@@ -144,7 +146,7 @@ def test_scatter_series_style_fields_and_defaults():
         "value_label_subset_mode",
         "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base",
         "fill_to_index", "fill_range_enabled", "fill_sections",
-        "twin_y_column_id", "twin_y_column",
+        "twin_y_column_id", "twin_y_column", "twin_y_color",
     }
 
 

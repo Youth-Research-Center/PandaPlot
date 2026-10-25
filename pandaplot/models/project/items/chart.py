@@ -324,6 +324,8 @@ class Chart(Item):
             "fill_to_index", "fill_range_enabled", "fill_sections",
             # Density <-> Line share the curve's line style and width.
             "line_style", "line_width",
+            # Line <-> Scatter share the twin Y trace's color (#402).
+            "twin_y_color",
         ):
             if hasattr(old_style, field_name) and hasattr(new_style, field_name):
                 value = getattr(old_style, field_name)
@@ -586,7 +588,8 @@ class Chart(Item):
         """Why :meth:`swap_axes` can't run on this chart, or None if it can.
 
         Only Line/Scatter/Vector charts whose every series is a Line,
-        Scatter, Vector or Fit series on the primary Y axis qualify. Every
+        Scatter, Vector or Fit series on the primary Y axis (and without a twin
+        Y column, which plots on the secondary one) qualify. Every
         non-fit series also needs explicit X and Y columns.
         """
         if not self.supports_swap_axes:
@@ -597,7 +600,7 @@ class Chart(Item):
         for series in self.data_series:
             if series.series_type not in _SWAPPABLE_SERIES_TYPES:
                 return "X and Y can only be swapped when every series is a Line, Scatter, Vector or Fit series."
-            if series.y_axis == YAxis.SECONDARY:
+            if series.uses_secondary_y_axis:
                 return "X and Y can't be swapped while a series uses the secondary Y axis."
             if series.is_fit:
                 continue

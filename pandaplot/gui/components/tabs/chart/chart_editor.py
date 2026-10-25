@@ -494,18 +494,19 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
                       label_data=label_data, twin_y_data=twin_y_data)
 
 
-def series_needs_secondary_axis(project, series) -> bool:
+def series_needs_secondary_axis(series, series_data: SeriesData) -> bool:
     """Whether `series` actually draws something on the secondary Y axis.
 
     Like `DataSeries.uses_secondary_y_axis`, except a twin Y column that
     sits on Y2 only counts when it still resolves: a stale binding draws
     nothing, so it must not leave an empty secondary axis behind.
+    `series_data` is the series' already-resolved data.
     """
     from pandaplot.models.project.items.chart import YAxis
 
     if series.y_axis == YAxis.SECONDARY:
         return True
-    return series.twin_y_axis == YAxis.SECONDARY and resolve_series_data(project, series).twin_y_data is not None
+    return series.twin_y_axis == YAxis.SECONDARY and series_data.twin_y_data is not None
 
 
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False,
@@ -1041,9 +1042,13 @@ class ChartEditorWidget(PWidget):
             # twinx() has no mplot3d equivalent, and a series' y_axis
             # setting simply doesn't apply there (set_projection already
             # tore down any axes2 left over from a 2-D type).
-            current_project = self.app_context.get_app_state().current_project
+            project = self.app_context.get_app_state().current_project
+            # Resolve every series' data once, up front: the secondary-axis
+            # decision, the shared color scale and the render loop all use it.
+            resolved_data = [resolve_series_data(project, series) for series in self.chart.data_series]
             needs_secondary = not is_3d and has_axes and any(
-                series_needs_secondary_axis(current_project, series) for series in self.chart.data_series)
+                series_needs_secondary_axis(series, data)
+                for series, data in zip(self.chart.data_series, resolved_data, strict=True))
             if needs_secondary:
                 if self.chart_canvas.axes2 is None:
                     self.chart_canvas.axes2 = self.chart_canvas.axes.twinx()
@@ -1065,14 +1070,10 @@ class ChartEditorWidget(PWidget):
             if not self.chart.data_series:
                 self.dataset_label.setText("No Data Loaded")
             else:
-                project = self.app_context.get_app_state().current_project
-
-                # Resolve every series' data once, up front: a shared color
-                # scale for Colormap/Heatmap series must be computed from
-                # ALL of their z-data before any of them render, not just
-                # whichever one happens to render first (see
+                # A shared color scale for Colormap/Heatmap series must be
+                # computed from ALL of their z-data before any of them render,
+                # not just whichever one happens to render first (see
                 # docs/superpowers/specs/2026-08-21-shared-chart-level-color-map-design.md).
-                resolved_data = [resolve_series_data(project, series) for series in self.chart.data_series]
                 color_scale_auto = self.chart.config.color_scale_auto
                 # Only gather z-data when the scale is auto-computed: a
                 # manual scale never reads it (see resolve_color_limits),
@@ -1645,13 +1646,25 @@ class ChartEditorWidget(PWidget):
             return
         axis_tag = "Y₂" if twin_axes is axes2 else "Y₁"
         twin_label = f"{series.label} ({axis_tag})" if series.label else ""
-        twin_style = series.style
-        if getattr(twin_style, "fill_enabled", False):
-            twin_style = dataclasses.replace(twin_style, fill_enabled=False)
+        twin_style = self._twin_y_style(series.style)
         twin_data = SeriesData(series_data.x_data, series_data.twin_y_data, None, None, None, None, None)
         before = self._axes_children()
         renderer(twin_axes, twin_data, twin_style, twin_label, alpha, visible=series.visible, extra=extra)
         self._twin_y_artists.update(self._axes_children() - before)
+
+    @staticmethod
+    def _twin_y_style(style):
+        """The series' style recolored for its twin Y trace: `twin_y_color`
+        replaces the line color and any explicit marker colors (blank marker
+        colors keep inheriting), and the area fill is dropped."""
+        color = style.twin_y_color
+        marker = style.marker
+        twin_marker = dataclasses.replace(
+            marker,
+            marker_color=color if marker.marker_color else "",
+            marker_edge_color=color if marker.marker_edge_color else "",
+        )
+        return dataclasses.replace(style, color=color, marker=twin_marker, fill_enabled=False)
 
     def _axes_children(self) -> set:
         """All child artists across the primary and (if present) secondary axes."""

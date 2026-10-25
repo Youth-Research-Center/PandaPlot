@@ -46,7 +46,8 @@ def test_twin_y_column_round_trips_through_json():
     chart = Chart(name="C")
     chart.add_data_series("ds", x_column_id="x", y_column_id="y", y_axis=YAxis.SECONDARY,
                           series_type=SeriesType.SCATTER,
-                          style=ScatterSeriesStyle(twin_y_column_id="twin", twin_y_column="pressure"))
+                          style=ScatterSeriesStyle(twin_y_column_id="twin", twin_y_column="pressure",
+                                                   twin_y_color="#00aa00"))
 
     restored = Chart.from_dict(json.loads(json.dumps(chart.to_dict())))
 
@@ -54,6 +55,7 @@ def test_twin_y_column_round_trips_through_json():
     assert series.style == chart.data_series[0].style
     assert series.style.twin_y_column_id == "twin"
     assert series.style.twin_y_column == "pressure"
+    assert series.style.twin_y_color == "#00aa00"
     assert series.twin_y_axis == YAxis.PRIMARY
 
 
@@ -63,22 +65,26 @@ def test_a_saved_style_without_the_twin_keys_loads_with_no_twin_column():
     raw = chart.to_dict()
     del raw["data_series"][0]["style"]["twin_y_column_id"]
     del raw["data_series"][0]["style"]["twin_y_column"]
+    del raw["data_series"][0]["style"]["twin_y_color"]
 
     restored = Chart.from_dict(raw)
 
     assert restored.data_series[0].has_twin_y_column is False
+    assert restored.data_series[0].style.twin_y_color == LineSeriesStyle().twin_y_color
 
 
 def test_retype_line_to_scatter_carries_the_twin_y_column():
     chart = Chart(name="C")
     chart.add_data_series("ds", x_column_id="x", y_column_id="y",
-                          style=LineSeriesStyle(twin_y_column_id="twin", twin_y_column="pressure"))
+                          style=LineSeriesStyle(twin_y_column_id="twin", twin_y_column="pressure",
+                                                twin_y_color="#00aa00"))
 
     chart.retype_series(0, SeriesType.SCATTER)
 
     style = chart.data_series[0].style
     assert isinstance(style, ScatterSeriesStyle)
     assert (style.twin_y_column_id, style.twin_y_column) == ("twin", "pressure")
+    assert style.twin_y_color == "#00aa00"
 
 
 def test_retype_to_bar_drops_the_twin_y_column():
