@@ -30,3 +30,8 @@ class SeriesData:
     # names -- see SeriesTypeSpec.needs_label_column). None when the type
     # has no label column or the series leaves it blank.
     label_data: Any | None = None
+    # Values from an optional twin Y column (#402), drawn against the same
+    # x_data on the Y axis opposite the series' own -- see
+    # SeriesTypeSpec.supports_twin_y_column. None when the type has none or
+    # the series leaves it blank.
+    twin_y_data: Any | None = None

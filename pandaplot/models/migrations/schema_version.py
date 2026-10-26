@@ -15,4 +15,4 @@ re-saving such a project. That needs no migration function: files at the
 previous version load as they are.
 """
 
-CURRENT_SCHEMA_VERSION = 4
+CURRENT_SCHEMA_VERSION = 5
