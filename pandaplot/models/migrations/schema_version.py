@@ -13,6 +13,9 @@ columns). `ProjectDataManager.load()` rejects files newer than the running
 build, so the bump is what keeps an older build from opening, stripping and
 re-saving such a project. That needs no migration function: files at the
 previous version load as they are.
+
+Version 5: twin Y columns on line/scatter series (#491).
+Version 6: sketch items, which an older build cannot load at all.
 """
 
-CURRENT_SCHEMA_VERSION = 5
+CURRENT_SCHEMA_VERSION = 6
