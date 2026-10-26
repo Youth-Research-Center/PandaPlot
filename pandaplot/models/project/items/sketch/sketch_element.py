@@ -118,7 +118,8 @@ class SketchElement:
         Returns:
             The concrete element, or None if `data` has an unknown `type`.
         """
-        element_class = ELEMENT_TYPES.get(data.get("type"))
+        element_type = data.get("type")
+        element_class = ELEMENT_TYPES.get(element_type) if isinstance(element_type, str) else None
         if element_class is None:
             logger.warning("Skipping sketch element with unknown type %r", data.get("type"))
             return None
