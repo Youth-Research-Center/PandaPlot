@@ -1,7 +1,7 @@
 """Per-item migrations for sketch raw dicts.
 
 Pure dict -> dict transforms, run before Sketch.from_dict() constructs the
-object. Sketches first appear at schema_version 5, so there is nothing to
+object. Sketches first appear at schema_version 6, so there is nothing to
 migrate yet; add an entry here, keyed by the version it upgrades *from*,
 when the persisted sketch shape changes.
 """

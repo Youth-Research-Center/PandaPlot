@@ -58,7 +58,7 @@ Selects the correct per-type manager based on `item.item_type`:
 **SketchDataManager**
 - `save(sketch, zip_file, path_in_zip)` → writes the whole sketch (layers and elements) as one `{path_in_zip}.json`
 - `load(...)` → runs `migrate_sketch()` (`models/migrations/per_item/sketch.py`) on the raw dict, then `Sketch.from_dict()`
-- Sketches were added at `schema_version` 5, which also keeps older builds from opening projects that contain them
+- Sketches were added at `schema_version` 6, which also keeps older builds from opening projects that contain them
 
 **NoteDataManager / FolderDataManager**
 - Simple JSON serialization of their respective fields
