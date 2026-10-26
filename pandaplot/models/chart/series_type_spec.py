@@ -119,6 +119,11 @@ class SeriesTypeSpec:
     # combo. Optional by definition: a blank label column never fails the
     # series, it just renders unlabeled. Only True for PIE.
     needs_label_column: bool = False
+    # Whether this type takes an optional twin Y column (#402): a second value
+    # column sharing the series' X, drawn with the series' own style on the Y
+    # axis opposite its y_axis. Optional like the label column -- a blank or
+    # stale twin column never fails the series. Only True for LINE/SCATTER.
+    supports_twin_y_column: bool = field(default=False, kw_only=True)
 
 
 SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
@@ -130,6 +135,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_curve_analysis=True,
         supports_value_labels=True,
         style_cls=LineSeriesStyle,
+        supports_twin_y_column=True,
     ),
     SeriesType.SCATTER: SeriesTypeSpec(
         marker_mode="required", supports_line_style=False, supports_color=False, supports_fill=True,
@@ -139,6 +145,7 @@ SERIES_TYPE_SPECS: dict[SeriesType, SeriesTypeSpec] = {
         supports_curve_analysis=True,
         supports_value_labels=True,
         style_cls=ScatterSeriesStyle,
+        supports_twin_y_column=True,
     ),
     SeriesType.BAR: SeriesTypeSpec(
         marker_mode="unsupported", supports_line_style=False, supports_color=True, supports_fill=False,
