@@ -65,6 +65,10 @@ class CreateSketchCommand(Command):
 
         sketch = Sketch(name=name)
         try:
+            parent = project.find_item(self.folder_id) if self.folder_id is not None else project.root
+            if isinstance(parent, ItemCollection) and not parent.accepts_item(sketch):
+                self.logger.warning("Cannot create sketch: parent '%s' does not accept sketches", parent.id)
+                return CommandResult.FAILURE
             project.add_item(sketch, parent_id=self.folder_id)
         except ValueError:
             self.logger.exception("Cannot create sketch '%s'", name)
