@@ -226,6 +226,26 @@ class UIController:
         return text if ok else None
     
 
+    def get_save_file_path(self, title: str, default_name: str, name_filter: str, extension: str) -> str | None:
+        """
+        Show a save-file dialog for one file type.
+
+        Args:
+            title (str): Dialog title
+            default_name (str): File name suggested in the dialog
+            name_filter (str): File type filter, e.g. "PNG image (*.png)"
+            extension (str): Extension added when the chosen name lacks it, e.g. ".png"
+
+        Returns:
+            str: The chosen path, ending in `extension`; None if cancelled
+        """
+        file_path, _selected_filter = QFileDialog.getSaveFileName(self.parent_widget, title, default_name, name_filter)
+        if not file_path:
+            return None
+        if not file_path.lower().endswith(extension.lower()):
+            file_path += extension
+        return file_path
+
     def show_export_dataset_dialog(self, dataset_name: str) -> tuple[str, str] | None:
         """
         Show file dialog to export dataset with format selection.

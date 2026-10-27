@@ -17,6 +17,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
 
 ### Added
+- Sketch export (#364): **Export…** in a sketch's toolbar writes PNG (optionally transparent), JPEG, SVG or PDF, for the whole canvas or just the drawn elements with padding, at a chosen scale for images, and with the layers you pick.
 - Value labels on Line and Scatter series can also be limited to local minima and maxima (the peaks and valleys of a curve) with the new "Local min and max" choice in the "Label points" option.
 - Value labels on Line and Scatter series can be limited to the minimum and maximum points, only the minimum, or only the maximum, using the new "Label points" option in the Style tab.
 - Sketch items (#148, in progress): **Data → New Sketch**, or **Add Sketch** in the project tree, creates a sketch that opens in its own tab and is saved with the project. Draw smooth freehand strokes, lines, rectangles, ellipses and text labels; select (click, Shift-click or drag a box), move, resize and delete elements, each as one undo step; pan with space+drag or the middle button and zoom with Ctrl+wheel. A layer panel beside the canvas adds, deletes, renames and reorders layers, shows or hides and locks them, and sets their opacity, all undoable. Styling controls follow in a later change.

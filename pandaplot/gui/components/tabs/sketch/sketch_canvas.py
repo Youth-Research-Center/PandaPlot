@@ -8,12 +8,11 @@ from PySide6.QtWidgets import (
     QGraphicsItem,
     QGraphicsRectItem,
     QGraphicsScene,
-    QStyleOptionGraphicsItem,
     QWidget,
 )
 
 from pandaplot.gui.components.tabs.sketch.geometry import Handle, hits, shape_rect
-from pandaplot.gui.components.tabs.sketch.graphics_items import build_graphics_item
+from pandaplot.gui.components.tabs.sketch.graphics_items import LayerItem, add_layer_items, build_graphics_item
 from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolManager
 from pandaplot.gui.core.widget_extension import PGraphicsView
 from pandaplot.models.events import SketchEvents
@@ -22,28 +21,6 @@ from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 DEFAULT_ACCENT = "#4A56C6"
-
-
-class _LayerItem(QGraphicsItem):
-    """Invisible parent of one layer's element items.
-
-    Children stack by z-value among their siblings only, so the layer's own
-    z-value orders whole layers while each element's z-value orders it
-    within its layer. Visibility and opacity set here apply to every child.
-    """
-
-    def __init__(self, layer_id: str):
-        super().__init__()
-        self.layer_id = layer_id
-        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemHasNoContents)
-
-    @override
-    def boundingRect(self) -> QRectF:
-        return QRectF()
-
-    @override
-    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
-        pass
 
 
 def is_interactive(layer: SketchLayer) -> bool:
@@ -82,7 +59,7 @@ class SketchCanvas(PGraphicsView):
     def __init__(self, sketch: Sketch, parent: QWidget | None = None, *, app_context: AppContext):
         super().__init__(app_context=app_context, parent=parent)
         self._sketch = sketch
-        self._layer_items: dict[str, _LayerItem] = {}
+        self._layer_items: dict[str, LayerItem] = {}
         self._element_items: dict[str, QGraphicsItem] = {}
         self._selected_ids: list[str] = []
         self._paper: QGraphicsRectItem | None = None
@@ -161,20 +138,9 @@ class SketchCanvas(PGraphicsView):
         scene.setSceneRect(canvas_rect)
         self._paper = paper
 
-        for layer_index, layer in enumerate(self._sketch.layers):
-            layer_item = _LayerItem(layer.id)
-            layer_item.setZValue(layer_index)
-            layer_item.setVisible(layer.visible)
-            layer_item.setOpacity(layer.opacity)
-            scene.addItem(layer_item)
-            self._layer_items[layer.id] = layer_item
-            for element_index, element in enumerate(layer.elements):
-                item = build_graphics_item(element)
-                if item is None:
-                    continue
-                item.setParentItem(layer_item)
-                item.setZValue(element_index)
-                self._element_items[element.id] = item
+        layer_items, element_items = add_layer_items(scene, self._sketch.layers)
+        self._layer_items.update(layer_items)
+        self._element_items.update(element_items)
 
         self._build_overlay()
         selectable = [element_id for element_id in self._selected_ids if self._is_selectable(element_id)]
