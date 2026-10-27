@@ -107,7 +107,7 @@ Each element type keeps its geometry relative to its anchor, so moving an elemen
 | `EllipseElement` | centre | `rx`, `ry`: radii |
 | `TextElement` | top-left corner | `text`, font fields (`font_size` in canvas pixels; part of its geometry, so resizing a label changes it), `alignment: TextAlignment` |
 
-Layers and elements are value data of the sketch, not project-tree items, so `Sketch` is a plain `Item` rather than an `ItemCollection`. Element dicts carry a `type` string; `SketchElement.from_dict()` looks it up in the module-level `ELEMENT_TYPES` dict, so a new element type registers by adding to that dict. Elements of an unknown type are skipped on load.
+Layers and elements are value data of the sketch, not project-tree items, so `Sketch` is a plain `Item` rather than an `ItemCollection`. Element dicts carry a `type` string; `SketchElement.from_dict()` looks it up in the module-level `ELEMENT_TYPES` dict, so a new element type registers by adding to that dict, and it is drawn once a builder is added to `GRAPHICS_ITEM_BUILDERS` (`gui/components/tabs/sketch/graphics_items.py`). These two dicts are the whole extension seam for future element types (e.g. circuit components); there is deliberately no plugin registry yet. Elements of an unknown type are skipped on load.
 
 ### Folder (`models/project/items/folder.py`)
 

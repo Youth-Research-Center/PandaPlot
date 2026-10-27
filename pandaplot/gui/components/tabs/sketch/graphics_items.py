@@ -5,18 +5,21 @@ around it, so the item's local coordinates are the element's relative
 geometry. Items carry their element id under `ELEMENT_ID_KEY`.
 """
 import logging
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Callable, Sequence
+from typing import Any, override
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QPainterPath, QPen, QTextOption
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPainterPath, QPen, QTextOption
 from PySide6.QtWidgets import (
     QAbstractGraphicsShapeItem,
     QGraphicsEllipseItem,
     QGraphicsItem,
     QGraphicsLineItem,
     QGraphicsPathItem,
+    QGraphicsScene,
     QGraphicsTextItem,
+    QStyleOptionGraphicsItem,
+    QWidget,
 )
 
 from pandaplot.models.project.items.sketch import (
@@ -25,6 +28,7 @@ from pandaplot.models.project.items.sketch import (
     LineElement,
     RectangleElement,
     SketchElement,
+    SketchLayer,
     StrokeStyle,
     TextAlignment,
     TextElement,
@@ -155,3 +159,51 @@ def build_graphics_item(element: SketchElement) -> QGraphicsItem | None:
     item.setRotation(element.rotation)
     item.setData(ELEMENT_ID_KEY, element.id)
     return item
+
+
+class LayerItem(QGraphicsItem):
+    """Invisible parent of one layer's element items.
+
+    Children stack by z-value among their siblings only, so the layer's own
+    z-value orders whole layers while each element's z-value orders it
+    within its layer. Visibility and opacity set here apply to every child.
+    """
+
+    def __init__(self, layer_id: str):
+        super().__init__()
+        self.layer_id = layer_id
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemHasNoContents)
+
+    @override
+    def boundingRect(self) -> QRectF:
+        return QRectF()
+
+    @override
+    def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget: QWidget | None = None) -> None:
+        pass
+
+
+def add_layer_items(scene: QGraphicsScene, layers: Sequence[SketchLayer]) -> tuple[dict[str, LayerItem], dict[str, QGraphicsItem]]:
+    """Draw `layers` (bottom first) into `scene`, each under its own
+    LayerItem with the layer's visibility and opacity.
+
+    Returns:
+        The layer items by layer id and the element items by element id.
+    """
+    layer_items: dict[str, LayerItem] = {}
+    element_items: dict[str, QGraphicsItem] = {}
+    for layer_index, layer in enumerate(layers):
+        layer_item = LayerItem(layer.id)
+        layer_item.setZValue(layer_index)
+        layer_item.setVisible(layer.visible)
+        layer_item.setOpacity(layer.opacity)
+        scene.addItem(layer_item)
+        layer_items[layer.id] = layer_item
+        for element_index, element in enumerate(layer.elements):
+            item = build_graphics_item(element)
+            if item is None:
+                continue
+            item.setParentItem(layer_item)
+            item.setZValue(element_index)
+            element_items[element.id] = item
+    return layer_items, element_items

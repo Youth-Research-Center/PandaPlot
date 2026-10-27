@@ -116,9 +116,18 @@ The only Qt Graphics View (`QGraphicsScene`/`QGraphicsView`) surface in the app;
 - `SketchCanvas` (a `PGraphicsView`, so it owns its event subscriptions) draws a `Sketch` and never changes it: `rebuild()` replaces the scene with a fresh drawing of the model, so the model stays the single source of truth. It rebuilds on `sketch.changed` for its own sketch, so drawing, undo and redo all redraw the same way.
 - It takes its frame colours from the theme's design tokens (`border_panel` around the paper, `border_control` for its edge) and re-applies them on theme change. The window background colour can't be used: in the light theme it is the same white as a default sketch, which hides where the canvas ends.
 - The scene holds a paper rectangle of the canvas size (z = -1) and one invisible parent item per layer. A layer's z-value is its index, and each element's z-value is its index within the layer. Children stack only among siblings, so this gives the model's order with no limit on elements per layer. Layer visibility and opacity are set on the parent and apply to every child.
+- `graphics_items.add_layer_items()` builds the layer parents and their element items; the canvas and export both use it, so they draw layers the same way.
 - `graphics_items.build_graphics_item()` turns an element into a `QGraphicsItem` through `GRAPHICS_ITEM_BUILDERS` (element class to builder). The item is placed at the element's anchor and rotated around it, so its local coordinates are the element's relative geometry. Text sizes are pixel sizes, so a sketch lays out the same on every platform.
 - Scroll bars are always off: scroll bars that appear and vanish as the zoom changes resize the viewport during `fit_to_canvas()` and push the canvas off-centre.
 - GUI tests that build text items need a `QApplication`; use pytest-qt's `qapp` fixture even when no widget is shown.
+
+#### Export (`sketch_export.py`, `gui/dialogs/sketch/export_sketch_dialog.py`)
+
+- `export_sketch(sketch, path, SketchExportOptions)` writes PNG, JPEG (`QImageWriter`), SVG (`QSvgGenerator`) or PDF (`QPdfWriter`). It draws the model into its own offscreen scene, never the canvas's, so selection boxes, handles and previews can't reach the file.
+- Options: region (`CANVAS`, or `ELEMENTS` = their bounds plus padding), transparent background (PNG and SVG only), scale (raster only; the image is tagged with 96 × scale dpi so it prints at the same size), and layers (default: the visible ones; a chosen hidden layer is drawn).
+- Vector output keeps canvas units: one canvas unit is one CSS pixel in SVG and one point in PDF, on a page exactly the region's size.
+- Problems the user can fix (empty region, a raster image over `MAX_RASTER_PIXELS`, an unwritable file) raise `SketchExportError` with a message for the user.
+- The tab's "Export…" action runs `ExportSketchDialog.ask()` (which shows the output size and disables Export when there is nothing to export or the image would be too large), then `UIController.get_save_file_path()`, and offers the last options again next time.
 
 #### Tools and interaction (`tools/`)
 

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QPointF, Qt, QTimer
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QInputDialog, QLineEdit
 from pytestqt.qtbot import QtBot
 
@@ -14,6 +15,7 @@ from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
 from pandaplot.gui.components.tabs.tab_container import TabContainer
 from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
 from pandaplot.gui.dialogs.import_wizard_dialog import ImportWizardDialog
+from pandaplot.gui.dialogs.sketch.export_sketch_dialog import ExportSketchDialog
 from pandaplot.gui.main_window import PandaMainWindow
 from pandaplot.models.project.items import Chart, Dataset, Sketch
 from pandaplot.models.project.items.sketch import RectangleElement
@@ -232,6 +234,26 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
     assert sketch.layers[0].elements == []
     qtbot.mouseClick(tab.layer_panel.rows[sketch.layers[1].id].lock_button, Qt.MouseButton.LeftButton)
     assert sketch.layers[1].locked
+
+    exported_path = tmp_path / "sketch.png"
+    monkeypatch.setattr(
+        "pandaplot.gui.controllers.ui_controller.QFileDialog.getSaveFileName",
+        lambda *args, **kwargs: (str(exported_path.with_suffix("")), "PNG image (*.png)"),
+    )
+
+    def export_half_size_transparent(dialog: ExportSketchDialog) -> None:
+        qtbot.mouseClick(dialog.transparent_radio, Qt.MouseButton.LeftButton)
+        dialog.scale_input.setValue(0.5)
+        qtbot.mouseClick(dialog.export_button, Qt.MouseButton.LeftButton)
+
+    timer, errors = drive_modal(qtbot, ExportSketchDialog, export_half_size_transparent)
+    qtbot.mouseClick(tab.toolbar.widgetForAction(tab.export_action), Qt.MouseButton.LeftButton)
+    timer.stop()
+    assert not errors
+    exported = QImage(str(exported_path))
+    assert (exported.width(), exported.height()) == (round(sketch.canvas_width / 2), round(sketch.canvas_height / 2))
+    assert exported.pixelColor(0, 0).alpha() == 0
+    assert tab.status_label.text() == "Exported to sketch.png"
 
     saved_path = tmp_path / "sketch.pplot"
     monkeypatch.setattr(
