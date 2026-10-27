@@ -6,7 +6,9 @@ so moving an element only ever changes `x`/`y`.
 """
 import logging
 import math
+import re
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, ClassVar
@@ -25,6 +27,33 @@ class TextAlignment(StrEnum):
     LEFT = "left"
     CENTER = "center"
     RIGHT = "right"
+
+
+_HEX_COLOR = re.compile(r"#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})")
+
+
+def is_hex_color(value: Any) -> bool:
+    """Whether `value` is a `#RGB`, `#RRGGBB` or `#AARRGGBB` colour string."""
+    return isinstance(value, str) and _HEX_COLOR.fullmatch(value) is not None
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
+
+
+# Style field -> test of a value for it. Fields of every element type are
+# listed, whichever types have them (see each class's STYLE_FIELDS).
+STYLE_VALUE_CHECKS: dict[str, Callable[[Any], bool]] = {
+    "stroke_color": is_hex_color,
+    "stroke_width": lambda value: _is_number(value) and value >= 0,
+    "stroke_style": lambda value: isinstance(value, StrokeStyle),
+    "fill_color": lambda value: value is None or is_hex_color(value),
+    "font_family": lambda value: isinstance(value, str) and bool(value.strip()),
+    "font_size": lambda value: isinstance(value, int) and not isinstance(value, bool) and value > 0,
+    "is_bold": lambda value: isinstance(value, bool),
+    "is_italic": lambda value: isinstance(value, bool),
+    "alignment": lambda value: isinstance(value, TextAlignment),
+}
 
 
 def finite_float(value: Any) -> float | None:
@@ -72,6 +101,9 @@ class SketchElement:
     # Fields that place and size the element (changed by move, resize and
     # rotate), as opposed to its style.
     GEOMETRY_FIELDS: ClassVar[frozenset[str]] = frozenset({"x", "y", "rotation"})
+    # Fields that set how the element looks and that it actually draws with
+    # (a line has no fill), changed by the style controls.
+    STYLE_FIELDS: ClassVar[frozenset[str]] = frozenset({"stroke_color", "stroke_width", "stroke_style", "fill_color"})
 
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     x: float = 0.0

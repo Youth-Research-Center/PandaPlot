@@ -107,6 +107,7 @@ class NumberInput(QFrame):
         self._single_step = 1.0
         self._suffix = ""
         self._special_text = ""
+        self._mixed_text = ""
         self._value = 0.0
         self._locale = QLocale()
         self._locale.setNumberOptions(self._locale.numberOptions() | QLocale.NumberOption.OmitGroupSeparator)
@@ -183,11 +184,28 @@ class NumberInput(QFrame):
 
         Setting the value the field already holds leaves its text alone, so a
         listener that echoes the value back while the user types does not
-        rewrite (and move the cursor in) what they are typing.
+        rewrite (and move the cursor in) what they are typing. Ends a
+        ``setMixed()`` display.
         """
+        self._mixed_text = ""
         if math.isfinite(float(value)) and self._normalise(float(value)) == self._value and self._parse(self._edit.text()) == self._value:
             return
         self._apply_value(value)
+
+    def setMixed(self, text: str = "Mixed") -> None:
+        """Show ``text`` instead of a number, for a field that stands for
+        several differing values (e.g. a multi-selection).
+
+        It stays until a value is set, typed or stepped; leaving the field
+        keeps it. A value typed or stepped from it always emits
+        ``valueChanged``, even if it equals the stored value, because every
+        value the field stood for now takes it.
+        """
+        self._mixed_text = text
+        self._refresh_display()
+
+    def isMixed(self) -> bool:
+        return bool(self._mixed_text)
 
     def minimum(self) -> float:
         return self._minimum
@@ -278,11 +296,20 @@ class NumberInput(QFrame):
         if changed:
             self._emit_value_changed(new_value)
 
+    def _apply_user_value(self, value: float, *, rewrite_text: bool = True) -> None:
+        """Apply a typed or stepped value, ending a ``setMixed()`` display."""
+        was_mixed = bool(self._mixed_text)
+        self._mixed_text = ""
+        before = self._value
+        self._apply_value(value, rewrite_text=rewrite_text)
+        if was_mixed and self._value == before:
+            self._emit_value_changed(self._value)
+
     def _step(self, direction: int, factor: int = 1) -> None:
         """Move one (or ``factor``) steps up or down from what is currently shown."""
         parsed = self._parse(self._edit.text())
         base = self._value if parsed is None else parsed
-        self._apply_value(base + direction * self._single_step * factor)
+        self._apply_user_value(base + direction * self._single_step * factor)
 
     # -- text <-> value -----------------------------------------------------------
 
@@ -413,6 +440,11 @@ class NumberInput(QFrame):
         return "".join(groups)
 
     def _refresh_display(self) -> None:
+        if self._mixed_text:
+            self._edit.setText(self._mixed_text)
+            self._suffix_label.setVisible(False)
+            self._set_invalid(invalid=False)
+            return
         text = self._format(self._value)
         if self._edit.text() != text:
             self._edit.setText(text)
@@ -433,7 +465,7 @@ class NumberInput(QFrame):
         if parsed is None:
             self._refresh_display()
             return
-        self._apply_value(parsed)
+        self._apply_user_value(parsed)
 
     def _on_text_edited(self, text: str) -> None:
         """Follow typing: a complete number in range becomes the value at once.
@@ -445,7 +477,7 @@ class NumberInput(QFrame):
         out_of_range = parsed is not None and not self._minimum <= parsed <= self._maximum
         self._set_invalid(invalid=out_of_range)
         if parsed is not None and not out_of_range:
-            self._apply_value(parsed, rewrite_text=False)
+            self._apply_user_value(parsed, rewrite_text=False)
 
     def _set_invalid(self, *, invalid: bool) -> None:
         self._set_state_property("invalid", state=invalid)

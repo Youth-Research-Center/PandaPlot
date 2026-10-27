@@ -51,6 +51,7 @@ class LineElement(SketchElement):
 
     TYPE: ClassVar[str] = "line"
     GEOMETRY_FIELDS: ClassVar[frozenset[str]] = SketchElement.GEOMETRY_FIELDS | {"dx", "dy"}
+    STYLE_FIELDS: ClassVar[frozenset[str]] = SketchElement.STYLE_FIELDS - {"fill_color"}
 
     dx: float = 0.0
     dy: float = 0.0
@@ -129,6 +130,10 @@ class TextElement(SketchElement):
     TYPE: ClassVar[str] = "text"
     # Resizing a label changes its font size.
     GEOMETRY_FIELDS: ClassVar[frozenset[str]] = SketchElement.GEOMETRY_FIELDS | {"font_size"}
+    # The stroke colour is the text colour; a label has no outline or fill.
+    STYLE_FIELDS: ClassVar[frozenset[str]] = frozenset({
+        "stroke_color", "font_family", "font_size", "is_bold", "is_italic", "alignment",
+    })
 
     text: str = ""
     font_family: str = DEFAULT_FONT_FAMILY

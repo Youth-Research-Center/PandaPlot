@@ -997,3 +997,67 @@ def test_reversing_the_wheel_discards_the_pending_remainder(shown):
     _wheel(widget._edit, -60)
 
     assert widget.value() == 4.0
+
+
+class TestMixed:
+    """setMixed(): a field standing for several differing values."""
+
+    def test_shows_the_text_without_changing_the_value(self):
+        widget = DecimalInput()
+        widget.setSuffix(" px")
+        widget.setValue(3.0)
+        seen = _recorder(widget)
+
+        widget.setMixed("Mixed")
+
+        assert widget.isMixed()
+        assert widget.text() == "Mixed"
+        assert widget.value() == 3.0
+        assert seen == []
+
+    def test_set_value_ends_it_and_emits_only_on_a_change(self):
+        widget = DecimalInput()
+        widget.setValue(3.0)
+        widget.setMixed()
+        seen = _recorder(widget)
+
+        widget.setValue(3.0)
+
+        assert not widget.isMixed()
+        assert widget.cleanText() == QLocale().toString(3.0, "f", 2)
+        assert seen == []
+
+    def test_stepping_from_mixed_emits_even_when_it_lands_on_the_stored_value(self, shown):
+        widget = shown(IntegerInput())
+        widget.setRange(0, 10)
+        widget.setValue(10)
+        widget.setMixed()
+        seen = _recorder(widget)
+
+        # Up is clamped at the maximum, so the value stays 10: it must still
+        # be reported, since the field now stands for one value.
+        QTest.keyClick(widget._edit, Qt.Key.Key_Up)
+
+        assert seen == [10]
+        assert not widget.isMixed()
+
+    def test_typing_a_number_replaces_it(self, shown):
+        widget = shown(DecimalInput())
+        widget.setValue(3.0)
+        widget.setMixed()
+        seen = _recorder(widget)
+
+        _type(widget, "3")
+
+        assert seen == [3.0]
+        assert not widget.isMixed()
+
+    def test_leaving_the_field_untouched_keeps_it(self, shown):
+        widget = shown(DecimalInput())
+        widget.setMixed()
+        widget._edit.setFocus()
+
+        widget._commit_text()
+
+        assert widget.isMixed()
+        assert widget.text() == "Mixed"
