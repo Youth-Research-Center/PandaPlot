@@ -67,6 +67,8 @@ class SketchCanvas(PGraphicsView):
     """
 
     selection_changed = Signal()
+    # After every rebuild(), i.e. whenever the model may have changed.
+    rebuilt = Signal()
     zoom_changed = Signal(float)
     status_message = Signal(str)
 
@@ -182,6 +184,7 @@ class SketchCanvas(PGraphicsView):
             self._selected_ids = selectable
             self.selection_changed.emit()
         self._update_overlay()
+        self.rebuilt.emit()
 
     def layer_item(self, layer_id: str) -> QGraphicsItem | None:
         """The parent item drawing the layer with `layer_id`, or None."""

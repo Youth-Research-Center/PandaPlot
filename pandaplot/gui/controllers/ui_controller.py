@@ -1,5 +1,6 @@
 
-from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QWidget
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QColorDialog, QFileDialog, QInputDialog, QMessageBox, QWidget
 
 # TODO(#220): ui controller should be a facade for all UI-related interactions
 # This allows us to keep UI logic separate from business logic in the MVC pattern.
@@ -224,6 +225,25 @@ class UIController:
         """
         text, ok = QInputDialog.getText(self.parent_widget, title, message, text=default_text)
         return text if ok else None
+
+    def get_color(self, title: str, initial: str, *, with_alpha: bool = False) -> str | None:
+        """
+        Show a colour picker.
+
+        Args:
+            title (str): Dialog title
+            initial (str): Colour selected when the dialog opens (`#RRGGBB` or `#AARRGGBB`)
+            with_alpha (bool): Also let the user pick the colour's opacity
+
+        Returns:
+            str: The chosen colour as `#RRGGBB`, or `#AARRGGBB` when it is not
+            fully opaque; None if cancelled
+        """
+        options = QColorDialog.ColorDialogOption.ShowAlphaChannel if with_alpha else QColorDialog.ColorDialogOption(0)
+        color = QColorDialog.getColor(QColor(initial), self.parent_widget, title, options)
+        if not color.isValid():
+            return None
+        return color.name(QColor.NameFormat.HexArgb if color.alpha() < 255 else QColor.NameFormat.HexRgb)
     
 
     def show_export_dataset_dialog(self, dataset_name: str) -> tuple[str, str] | None:

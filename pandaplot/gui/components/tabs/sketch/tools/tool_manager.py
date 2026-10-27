@@ -12,7 +12,16 @@ from pandaplot.gui.components.tabs.sketch.tools.freehand_tool import FreehandToo
 from pandaplot.gui.components.tabs.sketch.tools.select_tool import SelectTool
 from pandaplot.gui.components.tabs.sketch.tools.shape_tools import EllipseTool, LineTool, RectangleTool
 from pandaplot.gui.components.tabs.sketch.tools.text_tool import TextTool
-from pandaplot.models.project.items.sketch import SketchElement, StrokeStyle
+from pandaplot.models.project.items.sketch import (
+    EllipseElement,
+    FreehandElement,
+    LineElement,
+    RectangleElement,
+    SketchElement,
+    StrokeStyle,
+    TextAlignment,
+    TextElement,
+)
 from pandaplot.models.project.items.sketch.elements import DEFAULT_FONT_FAMILY
 from pandaplot.models.state.app_context import AppContext
 
@@ -39,9 +48,21 @@ TOOL_CLASSES: dict[ToolMode, type[BaseTool]] = {
 }
 
 
+# The element type each drawing tool creates; the select tool creates none.
+TOOL_ELEMENT_TYPES: dict[ToolMode, type[SketchElement]] = {
+    ToolMode.FREEHAND: FreehandElement,
+    ToolMode.LINE: LineElement,
+    ToolMode.RECTANGLE: RectangleElement,
+    ToolMode.ELLIPSE: EllipseElement,
+    ToolMode.TEXT: TextElement,
+}
+
+
 @dataclass
 class NewElementStyle:
-    """Style given to newly drawn elements."""
+    """Style given to newly drawn elements. Field names match the elements'
+    style fields (`STYLE_FIELDS`), so the property bar reads and sets both
+    the same way."""
 
     stroke_color: str = "#000000"
     stroke_width: float = 2.0
@@ -49,6 +70,9 @@ class NewElementStyle:
     fill_color: str | None = None
     font_family: str = DEFAULT_FONT_FAMILY
     font_size: int = 18
+    is_bold: bool = False
+    is_italic: bool = False
+    alignment: TextAlignment = TextAlignment.LEFT
 
     def shape_kwargs(self) -> dict[str, Any]:
         """Constructor arguments for a drawn shape or stroke."""
@@ -59,7 +83,10 @@ class NewElementStyle:
 
     def text_kwargs(self) -> dict[str, Any]:
         """Constructor arguments for a text label, coloured by the stroke colour."""
-        return {"stroke_color": self.stroke_color, "font_family": self.font_family, "font_size": self.font_size}
+        return {
+            "stroke_color": self.stroke_color, "font_family": self.font_family, "font_size": self.font_size,
+            "is_bold": self.is_bold, "is_italic": self.is_italic, "alignment": self.alignment,
+        }
 
 
 class ToolManager(QObject):

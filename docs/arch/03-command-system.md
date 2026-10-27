@@ -92,6 +92,7 @@ Every `execute()`, `undo()`, and `redo()` is expected to emit the appropriate `E
 | `AddSketchElementCommand` | Adds a drawn element to a layer (on top, or at an index); fails on a missing or locked layer |
 | `DeleteSketchElementsCommand` | Deletes elements across layers in one step; undo restores each at its original index |
 | `TransformSketchElementsCommand` | Moves, resizes or rotates elements by setting geometry fields (`GEOMETRY_FIELDS` of each element type); `NOOP` if nothing changes |
+| `UpdateSketchElementStyleCommand` | Sets style fields on several elements in one step; each field goes only to the elements whose type has it in `STYLE_FIELDS`. Values are checked with `STYLE_VALUE_CHECKS`; refuses unknown fields, bad values, a field none of the elements has, and locked layers; `NOOP` if nothing changes |
 | `AddSketchLayerCommand` | Adds an empty layer (default: above the active layer, named "Layer N") and makes it active; undo re-activates the previous layer |
 | `DeleteSketchLayerCommand` | Deletes a layer with its elements; refuses the last layer and locked layers; undo restores the same layer object at its index and the previous active layer |
 | `ReorderSketchLayerCommand` | Moves a layer to another stacking index (clamped); `NOOP` if it stays put |
