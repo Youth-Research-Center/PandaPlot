@@ -13,7 +13,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.gui.components.tabs.note.note_editor import (
     NoteEditorWidget,
     NotePreviewBrowser,
-    compute_note_link_rows,
+    compute_note_artefact_rows,
     extract_referenced_image_keys,
     find_or_create_chart_snapshot_gallery,
     get_cached_qimage_for_chart,
@@ -1821,7 +1821,7 @@ def test_insert_chart_snapshot_noops_if_note_editor_deleted_before_render_comple
         mock_save.assert_not_called()
 
 
-def test_compute_note_link_rows_classifies_live_chart_reference(qapp):
+def test_compute_note_artefact_rows_classifies_live_chart_reference(qapp):
     chart = Chart(name="Line Plot")
     project = Project(name="Test Project")
     project.add_item(chart)
@@ -1832,7 +1832,7 @@ def test_compute_note_link_rows_classifies_live_chart_reference(qapp):
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
 
-    rows = compute_note_link_rows(app_context, note, note.content)
+    rows = compute_note_artefact_rows(app_context, note, note.content)
 
     assert len(rows) == 1
     row = rows[0]
@@ -1843,7 +1843,7 @@ def test_compute_note_link_rows_classifies_live_chart_reference(qapp):
     assert note.content[row.match_start:row.match_end] == f"![Line Plot]({chart.id} =500x)"
 
 
-def test_compute_note_link_rows_classifies_snapshot_image_reference(qapp):
+def test_compute_note_artefact_rows_classifies_snapshot_image_reference(qapp):
     project = Project(name="Test Project")
     gallery = ImageGallery(name="Chart Snapshots")
     project.add_item(gallery)
@@ -1856,7 +1856,7 @@ def test_compute_note_link_rows_classifies_snapshot_image_reference(qapp):
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
 
-    rows = compute_note_link_rows(app_context, note, note.content)
+    rows = compute_note_artefact_rows(app_context, note, note.content)
 
     assert len(rows) == 1
     row = rows[0]
@@ -1866,7 +1866,7 @@ def test_compute_note_link_rows_classifies_snapshot_image_reference(qapp):
     assert row.item_id == image.id
 
 
-def test_compute_note_link_rows_flags_broken_reference(qapp):
+def test_compute_note_artefact_rows_flags_broken_reference(qapp):
     project = Project(name="Test Project")
     note = Note(name="Note 1", content="![Gone](missing-id =500x)")
 
@@ -1875,7 +1875,7 @@ def test_compute_note_link_rows_flags_broken_reference(qapp):
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
 
-    rows = compute_note_link_rows(app_context, note, note.content)
+    rows = compute_note_artefact_rows(app_context, note, note.content)
 
     assert len(rows) == 1
     row = rows[0]
@@ -1885,7 +1885,7 @@ def test_compute_note_link_rows_flags_broken_reference(qapp):
     assert row.is_snapshot is False
 
 
-def test_compute_note_link_rows_flags_unused_snapshot_not_in_text(qapp):
+def test_compute_note_artefact_rows_flags_unused_snapshot_not_in_text(qapp):
     project = Project(name="Test Project")
     gallery = ImageGallery(name="Chart Snapshots")
     project.add_item(gallery)
@@ -1898,7 +1898,7 @@ def test_compute_note_link_rows_flags_unused_snapshot_not_in_text(qapp):
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
 
-    rows = compute_note_link_rows(app_context, note, note.content)
+    rows = compute_note_artefact_rows(app_context, note, note.content)
 
     assert len(rows) == 1
     row = rows[0]
@@ -1910,7 +1910,7 @@ def test_compute_note_link_rows_flags_unused_snapshot_not_in_text(qapp):
     assert row.match_end is None
 
 
-def test_compute_note_link_rows_excludes_snapshot_owned_by_a_different_note(qapp):
+def test_compute_note_artefact_rows_excludes_snapshot_owned_by_a_different_note(qapp):
     project = Project(name="Test Project")
     gallery = ImageGallery(name="Chart Snapshots")
     project.add_item(gallery)
@@ -1923,12 +1923,12 @@ def test_compute_note_link_rows_excludes_snapshot_owned_by_a_different_note(qapp
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
 
-    rows = compute_note_link_rows(app_context, note, note.content)
+    rows = compute_note_artefact_rows(app_context, note, note.content)
 
     assert rows == []
 
 
-def test_compute_note_link_rows_marks_referenced_plain_gallery_image_as_not_a_snapshot(qapp):
+def test_compute_note_artefact_rows_marks_referenced_plain_gallery_image_as_not_a_snapshot(qapp):
     project = Project(name="Test Project")
     gallery = ImageGallery(name="My Photos")
     project.add_item(gallery)
@@ -1941,13 +1941,13 @@ def test_compute_note_link_rows_marks_referenced_plain_gallery_image_as_not_a_sn
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
 
-    rows = compute_note_link_rows(app_context, note, note.content)
+    rows = compute_note_artefact_rows(app_context, note, note.content)
 
     assert len(rows) == 1
     assert rows[0].is_snapshot is False
 
 
-def test_compute_note_link_rows_match_offsets_survive_a_preceding_code_span(qapp):
+def test_compute_note_artefact_rows_match_offsets_survive_a_preceding_code_span(qapp):
     chart = Chart(name="Line Plot")
     project = Project(name="Test Project")
     project.add_item(chart)
@@ -1959,14 +1959,14 @@ def test_compute_note_link_rows_match_offsets_survive_a_preceding_code_span(qapp
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
 
-    rows = compute_note_link_rows(app_context, note, content)
+    rows = compute_note_artefact_rows(app_context, note, content)
 
     assert len(rows) == 1
     row = rows[0]
     assert content[row.match_start:row.match_end] == f"![Line Plot]({chart.id} =500x)"
 
 
-def test_compute_note_link_rows_resolves_real_on_disk_file_as_ok(qapp, tmp_path):
+def test_compute_note_artefact_rows_resolves_real_on_disk_file_as_ok(qapp, tmp_path):
     project = Project(name="Test Project")
     project.project_file_path = str(tmp_path / "project.ppf")
     image_path = tmp_path / "local.png"
@@ -1978,7 +1978,7 @@ def test_compute_note_link_rows_resolves_real_on_disk_file_as_ok(qapp, tmp_path)
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
 
-    rows = compute_note_link_rows(app_context, note, note.content)
+    rows = compute_note_artefact_rows(app_context, note, note.content)
 
     assert len(rows) == 1
     row = rows[0]
@@ -1988,7 +1988,7 @@ def test_compute_note_link_rows_resolves_real_on_disk_file_as_ok(qapp, tmp_path)
     assert row.item_id is None
 
 
-def test_compute_note_link_rows_does_not_flag_reference_style_snapshot_as_unused(qapp):
+def test_compute_note_artefact_rows_does_not_flag_reference_style_snapshot_as_unused(qapp):
     project = Project(name="Test Project")
     gallery = ImageGallery(name="Chart Snapshots")
     project.add_item(gallery)
@@ -2002,12 +2002,12 @@ def test_compute_note_link_rows_does_not_flag_reference_style_snapshot_as_unused
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
 
-    rows = compute_note_link_rows(app_context, note, content)
+    rows = compute_note_artefact_rows(app_context, note, content)
 
     assert rows == []
 
 
-def test_toolbar_has_links_action_instead_of_separate_insert_actions(qapp):
+def test_toolbar_has_artefacts_action_instead_of_separate_insert_actions(qapp):
     project = Project(name="Test Project")
     app_context = MagicMock()
     app_state = MagicMock()
@@ -2021,10 +2021,10 @@ def test_toolbar_has_links_action_instead_of_separate_insert_actions(qapp):
     action_texts = [action.text() for action in editor.toolbar.actions()]
     assert not any("Insert Chart" in text for text in action_texts)
     assert not any("Insert Table" in text for text in action_texts)
-    assert any("Links" in text for text in action_texts)
+    assert any("Artefacts" in text for text in action_texts)
 
 
-def test_links_badge_shows_no_marker_when_no_issues(qapp, qtbot):
+def test_artefacts_badge_shows_no_marker_when_no_issues(qapp, qtbot):
     chart = Chart(name="Line Plot")
     project = Project(name="Test Project")
     project.add_item(chart)
@@ -2038,10 +2038,10 @@ def test_links_badge_shows_no_marker_when_no_issues(qapp, qtbot):
     editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
     qtbot.wait(600)  # past the debounce delay
 
-    assert "•" not in editor.links_action.text()
+    assert "•" not in editor.artefacts_action.text()
 
 
-def test_links_badge_shows_marker_when_reference_is_broken(qapp, qtbot):
+def test_artefacts_badge_shows_marker_when_reference_is_broken(qapp, qtbot):
     project = Project(name="Test Project")
     app_context = MagicMock()
     app_state = MagicMock()
@@ -2053,10 +2053,10 @@ def test_links_badge_shows_marker_when_reference_is_broken(qapp, qtbot):
     editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
     qtbot.wait(600)  # past the debounce delay
 
-    assert "•" in editor.links_action.text()
+    assert "•" in editor.artefacts_action.text()
 
 
-def test_links_badge_updates_as_content_changes(qapp, qtbot):
+def test_artefacts_badge_updates_as_content_changes(qapp, qtbot):
     project = Project(name="Test Project")
     app_context = MagicMock()
     app_state = MagicMock()
@@ -2067,17 +2067,17 @@ def test_links_badge_updates_as_content_changes(qapp, qtbot):
     note = Note(name="Note 1", content="")
     editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
     qtbot.wait(600)  # past the debounce delay
-    assert "•" not in editor.links_action.text()
+    assert "•" not in editor.artefacts_action.text()
 
     editor.text_edit.setPlainText("![Gone](missing-id =500x)")
     qtbot.wait(600)  # past the debounce delay
 
-    assert "•" in editor.links_action.text()
+    assert "•" in editor.artefacts_action.text()
 
 
-def test_content_changed_debounces_links_badge_refresh(qapp, qtbot):
+def test_content_changed_debounces_artefacts_badge_refresh(qapp, qtbot):
     """on_content_changed fires on every keystroke via textChanged;
-    _refresh_links_badge does real filesystem checks and an
+    _refresh_artefacts_badge does real filesystem checks and an
     O(references x project items) scan, so it must be debounced rather
     than run synchronously on every edit (mirrors
     test_chart_or_dataset_change_debounces_preview_refresh above)."""
@@ -2092,7 +2092,7 @@ def test_content_changed_debounces_links_badge_refresh(qapp, qtbot):
     editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
     qtbot.wait(600)  # let the initial-load debounce settle before measuring
 
-    with patch.object(editor, "_refresh_links_badge") as mock_refresh:
+    with patch.object(editor, "_refresh_artefacts_badge") as mock_refresh:
         for _ in range(5):
             editor.text_edit.insertPlainText("x")
         mock_refresh.assert_not_called()  # debounced, not synchronous
@@ -2166,3 +2166,49 @@ def test_chart_snapshot_image_name_disambiguates_same_named_charts(qapp):
         editor._save_chart_snapshot_image(chart_b, QImage(2, 2, QImage.Format.Format_RGB32))
 
     assert captured[0].name != captured[1].name
+
+
+def _app_context_with_executing_command_executor(project):
+    app_context = _make_app_context_with_synchronous_task_scheduler(project)
+    app_context.get_ui_controller.return_value = MagicMock()
+    fake_executor = MagicMock()
+    fake_executor.execute_command.side_effect = lambda command, **kwargs: command.execute() is CommandResult.SUCCESS
+    app_context.get_command_executor.return_value = fake_executor
+    return app_context
+
+
+def test_refresh_chart_snapshot_replaces_the_image_contents_from_the_source_chart(qapp):
+    chart = Chart(name="Sample Plot")
+    gallery = ImageGallery(name="Chart Snapshots")
+    image = Image(name="Sample Plot", note_id="note-1", source_chart_id=chart.id, width=1, height=1)
+    image.set_bytes(b"stale")
+    project = Project(name="Test Project")
+    for item in (chart, gallery):
+        project.add_item(item)
+    project.add_item(image, parent_id=gallery.id)
+    app_context = _app_context_with_executing_command_executor(project)
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+
+    rendered = QImage(30, 20, QImage.Format.Format_RGB32)
+    rendered.fill(0xFF0000)
+    with patch("pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_qimage", return_value=rendered):
+        editor.refresh_chart_snapshot(image.id)
+
+    assert image.get_bytes() != b"stale"
+    assert (image.width, image.height) == (30, 20)
+
+
+def test_refresh_chart_snapshot_warns_when_the_source_chart_is_gone(qapp):
+    gallery = ImageGallery(name="Chart Snapshots")
+    image = Image(name="Orphan", note_id="note-1", source_chart_id="deleted-chart")
+    image.set_bytes(b"stale")
+    project = Project(name="Test Project")
+    project.add_item(gallery)
+    project.add_item(image, parent_id=gallery.id)
+    app_context = _app_context_with_executing_command_executor(project)
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+
+    editor.refresh_chart_snapshot(image.id)
+
+    app_context.get_ui_controller().show_warning_message.assert_called_once()
+    assert image.get_bytes() == b"stale"

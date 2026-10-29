@@ -30,7 +30,8 @@ class Image(Item):
     def __init__(self, id: str | None = None, name: str = "",
                  source_file: str = "", storage_mode: str = "copied",
                  image_ext: str = "", width: int = 0, height: int = 0,
-                 size_bytes: int | None = None, note_id: str | None = None):
+                 size_bytes: int | None = None, note_id: str | None = None,
+                 source_chart_id: str | None = None):
         super().__init__(id, name)
         self.source_file = source_file
         self.storage_mode = storage_mode
@@ -45,6 +46,10 @@ class Image(Item):
         # created it, even though the "Chart Snapshots" gallery itself is
         # shared per-folder, not per-note.
         self.note_id = note_id
+        # The Chart a snapshot was rendered from, so it can be re-rendered on
+        # demand (see NoteEditorWidget.refresh_chart_snapshot); None for every
+        # other Image.
+        self.source_chart_id = source_chart_id
         self._bytes: bytes | None = None
 
     def set_bytes(self, data: bytes | None) -> None:
@@ -66,6 +71,7 @@ class Image(Item):
             "height": self.height,
             "size_bytes": self.size_bytes,
             "note_id": self.note_id,
+            "source_chart_id": self.source_chart_id,
         })
         return data
 
@@ -82,6 +88,7 @@ class Image(Item):
             height=data.get("height", 0),
             size_bytes=data.get("size_bytes"),
             note_id=data.get("note_id"),
+            source_chart_id=data.get("source_chart_id"),
         )
         image.parent_id = data.get("parent_id")
         image.created_at = data.get("created_at", datetime.now().isoformat())  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones

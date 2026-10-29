@@ -6,8 +6,8 @@ import pandas as pd
 from PySide6.QtWidgets import QTextEdit
 
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.gui.dialogs.note.note_artefacts_dialog import NoteArtefactsDialog
 from pandaplot.gui.dialogs.note.note_chart_picker_dialog import NoteChartPickerDialog
-from pandaplot.gui.dialogs.note.note_links_dialog import NoteLinksDialog
 from pandaplot.gui.dialogs.note.note_table_picker_dialog import (
     NoteTablePickerDialog,
     custom_to_markdown_table,
@@ -226,7 +226,7 @@ def test_note_chart_picker_sync_toggle_defaults_to_true_and_is_readable(qapp):
     assert dialog.get_sync_mode() is False
 
 
-def test_note_links_dialog_lists_rows_for_current_text(qapp):
+def test_note_artefacts_dialog_lists_rows_for_current_text(qapp):
     chart = Chart(name="Line Plot")
     project = Project(name="Test Project")
     project.add_item(chart)
@@ -236,13 +236,13 @@ def test_note_links_dialog_lists_rows_for_current_text(qapp):
     text_edit = QTextEdit()
     text_edit.setPlainText(f"![Line Plot]({chart.id} =500x)")
 
-    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
 
     assert dialog.table.rowCount() == 1
     assert dialog.table.item(0, 0).text() == "Line Plot"
 
 
-def test_note_links_dialog_delete_live_chart_row_removes_only_markdown_text(qapp):
+def test_note_artefacts_dialog_delete_live_chart_row_removes_only_markdown_text(qapp):
     chart = Chart(name="Line Plot")
     project = Project(name="Test Project")
     project.add_item(chart)
@@ -252,14 +252,14 @@ def test_note_links_dialog_delete_live_chart_row_removes_only_markdown_text(qapp
     text_edit = QTextEdit()
     text_edit.setPlainText(f"Before ![Line Plot]({chart.id} =500x) after")
 
-    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
     dialog._on_delete_row(dialog._rows[0])
 
     assert text_edit.toPlainText() == "Before  after"
     assert project.find_item(chart.id) is chart  # the Chart itself is untouched
 
 
-def test_note_links_dialog_delete_snapshot_row_removes_text_and_deletes_image(qapp):
+def test_note_artefacts_dialog_delete_snapshot_row_removes_text_and_deletes_image(qapp):
     project = Project(name="Test Project")
     gallery = ImageGallery(name="Chart Snapshots")
     project.add_item(gallery)
@@ -271,14 +271,14 @@ def test_note_links_dialog_delete_snapshot_row_removes_text_and_deletes_image(qa
     text_edit = QTextEdit()
     text_edit.setPlainText(f"![Snapshot]({image.id} =500x)")
 
-    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
     dialog._on_delete_row(dialog._rows[0])
 
     assert text_edit.toPlainText() == ""
     assert project.find_item(image.id) is None
 
 
-def test_note_links_dialog_delete_unused_row_deletes_image_only(qapp):
+def test_note_artefacts_dialog_delete_unused_row_deletes_image_only(qapp):
     project = Project(name="Test Project")
     gallery = ImageGallery(name="Chart Snapshots")
     project.add_item(gallery)
@@ -290,14 +290,14 @@ def test_note_links_dialog_delete_unused_row_deletes_image_only(qapp):
     text_edit = QTextEdit()
     text_edit.setPlainText("No references here.")
 
-    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
     dialog._on_delete_row(dialog._rows[0])
 
     assert text_edit.toPlainText() == "No references here."
     assert project.find_item(image.id) is None
 
 
-def test_note_links_dialog_delete_broken_row_removes_dangling_text(qapp):
+def test_note_artefacts_dialog_delete_broken_row_removes_dangling_text(qapp):
     project = Project(name="Test Project")
     note = Note(name="Note 1")
     app_context = _create_mock_app_context_with_executor(project)
@@ -305,20 +305,20 @@ def test_note_links_dialog_delete_broken_row_removes_dangling_text(qapp):
     text_edit = QTextEdit()
     text_edit.setPlainText("Before ![Gone](missing-id =500x) after")
 
-    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
     dialog._on_delete_row(dialog._rows[0])
 
     assert text_edit.toPlainText() == "Before  after"
 
 
-def test_note_links_dialog_refresh_rows_reflects_current_text(qapp):
+def test_note_artefacts_dialog_refresh_rows_reflects_current_text(qapp):
     project = Project(name="Test Project")
     note = Note(name="Note 1")
     app_context = _create_mock_app_context_with_executor(project)
 
     text_edit = QTextEdit()
     text_edit.setPlainText("")
-    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
     assert dialog.table.rowCount() == 0
 
     chart = Chart(name="Line Plot")
@@ -339,7 +339,7 @@ def test_dataset_to_markdown_table_keeps_integer_columns_integral_next_to_floats
     assert "| 2 | 1.5 |" in md
 
 
-def test_note_links_dialog_delete_snapshot_row_keeps_image_while_still_referenced(qapp):
+def test_note_artefacts_dialog_delete_snapshot_row_keeps_image_while_still_referenced(qapp):
     project = Project(name="Test Project")
     gallery = ImageGallery(name="Chart Snapshots")
     project.add_item(gallery)
@@ -351,7 +351,7 @@ def test_note_links_dialog_delete_snapshot_row_keeps_image_while_still_reference
     text_edit = QTextEdit()
     text_edit.setPlainText(f"![A]({image.id} =500x)\n![B]({image.id} =500x)")
 
-    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
     dialog._on_delete_row(dialog._rows[0])
 
     assert project.find_item(image.id) is image  # one reference remains
@@ -359,14 +359,14 @@ def test_note_links_dialog_delete_snapshot_row_keeps_image_while_still_reference
     assert project.find_item(image.id) is None  # last reference gone
 
 
-def test_note_links_dialog_rebuilds_rows_when_note_text_changes_while_open(qapp):
+def test_note_artefacts_dialog_rebuilds_rows_when_note_text_changes_while_open(qapp):
     chart = Chart(name="Line Plot")
     project = Project(name="Test Project")
     project.add_item(chart)
     app_context = _create_mock_app_context_with_executor(project)
 
     text_edit = QTextEdit()
-    dialog = NoteLinksDialog(app_context, Note(name="Note 1"), text_edit)
+    dialog = NoteArtefactsDialog(app_context, Note(name="Note 1"), text_edit)
     assert dialog.table.rowCount() == 0
 
     text_edit.setPlainText(f"![Line Plot]({chart.id} =500x)")
@@ -391,3 +391,43 @@ def test_note_table_picker_dataset_combo_disambiguates_same_named_datasets(qapp)
 
     labels = [dialog.dataset_combo.itemText(i) for i in range(dialog.dataset_combo.count())]
     assert len(set(labels)) == 2
+
+
+def test_note_artefacts_dialog_empty_state_replaces_table_and_promotes_insert_chart(qapp):
+    project = Project(name="Test Project")
+    chart = Chart(name="Line Plot")
+    project.add_item(chart)
+    text_edit = QTextEdit()
+
+    dialog = NoteArtefactsDialog(_create_mock_app_context_with_executor(project), Note(name="Note 1"), text_edit)
+    dialog.show()
+
+    assert dialog.empty_widget.isVisible()
+    assert not dialog.table.isVisible()
+    assert dialog.insert_chart_button.property("primary") is True
+
+    text_edit.setPlainText(f"![Line Plot]({chart.id} =500x)")
+
+    assert not dialog.empty_widget.isVisible()
+    assert dialog.table.isVisible()
+    assert dialog.insert_chart_button.property("primary") is False
+
+
+def test_note_artefacts_dialog_offers_refresh_only_for_snapshots_with_a_source_chart(qapp):
+    project = Project(name="Test Project")
+    chart = Chart(name="Line Plot")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(chart)
+    project.add_item(gallery)
+    note = Note(id="note-1", name="Note 1")
+    live = Image(name="Live", note_id=note.id, source_chart_id=chart.id)
+    orphan_source = Image(name="Gone", note_id=note.id, source_chart_id="deleted-chart")
+    project.add_item(live, parent_id=gallery.id)
+    project.add_item(orphan_source, parent_id=gallery.id)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText(f"![Live]({live.id} =500x)\n![Gone]({orphan_source.id} =500x)")
+    dialog = NoteArtefactsDialog(_create_mock_app_context_with_executor(project), note, text_edit)
+
+    refreshable = {row.name: row.refreshable for row in dialog._rows}
+    assert refreshable == {"Live": True, "Gone": False}

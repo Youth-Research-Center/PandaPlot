@@ -62,11 +62,11 @@ _IMAGE_REF_RE = re.compile(r"!\[[^\]]*\]\(\s*(?:<([^>]*)>|([^\s)]+))")
 # Same inline-image-link shape as _IMAGE_REF_RE, but the match is the
 # *entire* "![alt](target)" (optionally "![alt](target =WxH)") construct,
 # not just the target -- so the match span can be used to delete the whole
-# reference from note text (see compute_note_link_rows / NoteLinksDialog).
+# reference from note text (see compute_note_artefact_rows / NoteArtefactsDialog).
 # Reference-style links (![alt][label] + a separate [label]: target
 # definition) aren't matched here: every insertion this app performs uses
 # the inline form, so a reference-style link is only ever hand-written --
-# out of scope for the links-management delete action.
+# out of scope for the artefacts-management delete action.
 _IMAGE_MARKDOWN_RE = re.compile(
     r"!\[[^\]]*\]\(\s*(?:<([^>]*)>|([^\s)]+))(?:\s+=\d*x\d*)?\s*\)"
 )
@@ -128,6 +128,13 @@ def find_or_create_chart_snapshot_gallery(app_context: AppContext, folder_id: st
     command = CreateImageGalleryCommand(app_context, gallery_name=_CHART_SNAPSHOT_GALLERY_NAME, parent_id=folder_id)
     succeeded = app_context.get_command_executor().execute_command(command, track_undo=True)
     return command.created_gallery_id if succeeded else None
+
+
+def _qimage_to_png_bytes(qimg: QImage) -> bytes:
+    buf = QBuffer()
+    buf.open(QIODevice.OpenModeFlag.WriteOnly)
+    qimg.save(buf, "PNG")
+    return bytes(buf.data())
 
 
 def get_image_gallery_path(project, image_item: Image) -> str:
@@ -396,8 +403,8 @@ def extract_referenced_image_keys(source: str) -> set[str]:
 
 
 @dataclass
-class NoteLinkRow:
-    """One row for NoteLinksDialog / the toolbar badge: either a chart/image
+class NoteArtefactRow:
+    """One row for NoteArtefactsDialog / the toolbar badge: either a chart/image
     reference found in the note's current markdown text, or an orphaned
     snapshot Image this note created that's no longer referenced there."""
     name: str
@@ -407,6 +414,16 @@ class NoteLinkRow:
     match_start: int | None  # start offset of the full markdown reference in `source`, or None (unused row)
     match_end: int | None  # end offset, or None (unused row)
     item_id: str | None  # resolved Chart/Image id, or None (broken row)
+    refreshable: bool = False  # True for a chart snapshot whose source chart still exists
+
+
+def _snapshot_source_chart(project, image: Image) -> Chart | None:
+    """The Chart `image` (a chart snapshot) was rendered from, or None if it
+    isn't a snapshot or the chart is gone."""
+    if not image.source_chart_id:
+        return None
+    chart = project.find_item(image.source_chart_id)
+    return chart if isinstance(chart, Chart) else None
 
 
 def _resolve_note_reference_target(app_context: AppContext, project, target: str):
@@ -436,8 +453,8 @@ def _resolve_note_reference_target(app_context: AppContext, project, target: str
     return "unknown", None
 
 
-def compute_note_link_rows(app_context: AppContext, note: Note, source: str) -> list[NoteLinkRow]:
-    """Build every row for the Links dialog / toolbar badge: one row per
+def compute_note_artefact_rows(app_context: AppContext, note: Note, source: str) -> list[NoteArtefactRow]:
+    """Build every row for the Artefacts dialog / toolbar badge: one row per
     chart/image reference found in `source` (status "ok" if it resolves,
     "broken" if it doesn't), plus one row per snapshot Image this note
     created (note_id == note.id) that ISN'T covered by one of those
@@ -449,7 +466,7 @@ def compute_note_link_rows(app_context: AppContext, note: Note, source: str) -> 
     """
     app_state = app_context.get_app_state() if app_context else None
     project = app_state.current_project if app_state else None
-    rows: list[NoteLinkRow] = []
+    rows: list[NoteArtefactRow] = []
     if project is None:
         return rows
 
@@ -465,19 +482,20 @@ def compute_note_link_rows(app_context: AppContext, note: Note, source: str) -> 
             continue
         kind, resolved = _resolve_note_reference_target(app_context, project, target)
         if kind == "file":
-            rows.append(NoteLinkRow(
+            rows.append(NoteArtefactRow(
                 name=target, kind="file", status="ok", is_snapshot=False,
                 match_start=match.start(), match_end=match.end(), item_id=None,
             ))
         elif resolved is not None:
             referenced_item_ids.add(resolved.id)
             is_snapshot = isinstance(resolved, Image) and resolved.note_id == note.id
-            rows.append(NoteLinkRow(
+            rows.append(NoteArtefactRow(
                 name=resolved.name, kind=kind, status="ok", is_snapshot=is_snapshot,
                 match_start=match.start(), match_end=match.end(), item_id=resolved.id,
+                refreshable=is_snapshot and _snapshot_source_chart(project, resolved) is not None,
             ))
         else:
-            rows.append(NoteLinkRow(
+            rows.append(NoteArtefactRow(
                 name=target, kind="unknown", status="broken", is_snapshot=False,
                 match_start=match.start(), match_end=match.end(), item_id=None,
             ))
@@ -496,9 +514,10 @@ def compute_note_link_rows(app_context: AppContext, note: Note, source: str) -> 
 
     for item in project.get_all_items():
         if isinstance(item, Image) and item.note_id == note.id and item.id not in referenced_item_ids:
-            rows.append(NoteLinkRow(
+            rows.append(NoteArtefactRow(
                 name=item.name, kind="image", status="unused", is_snapshot=True,
                 match_start=None, match_end=None, item_id=item.id,
+                refreshable=_snapshot_source_chart(project, item) is not None,
             ))
 
     return rows
@@ -725,14 +744,14 @@ class NoteEditorWidget(PWidget):
         self._chart_preview_refresh_timer.timeout.connect(self.update_preview)
         self._chart_preview_refresh_timer.setSingleShot(True)
 
-        # Debounces _refresh_links_badge() the same way, since
-        # compute_note_link_rows does real filesystem checks and an
+        # Debounces _refresh_artefacts_badge() the same way, since
+        # compute_note_artefact_rows does real filesystem checks and an
         # O(references x project items) scan -- too expensive to run
         # synchronously on every keystroke/content-changed event (see
         # final-branch-review finding on Task 7).
-        self._links_badge_refresh_timer = QTimer()
-        self._links_badge_refresh_timer.setSingleShot(True)
-        self._links_badge_refresh_timer.timeout.connect(self._refresh_links_badge)
+        self._artefacts_badge_refresh_timer = QTimer()
+        self._artefacts_badge_refresh_timer.setSingleShot(True)
+        self._artefacts_badge_refresh_timer.timeout.connect(self._refresh_artefacts_badge)
 
         # Since we can't check if the preview is connected, track it with a flag
         self.preview_connected = False
@@ -1102,14 +1121,14 @@ class NoteEditorWidget(PWidget):
         insert_image_action.triggered.connect(self.insert_image_from_picker)
         toolbar.addAction(insert_image_action)
 
-        # Links action -- replaces the separate Insert Chart / Insert Table
+        # Artefacts action -- replaces the separate Insert Chart / Insert Table
         # actions with one dialog that lists, inserts, and cleans up a
-        # note's chart/image references (see NoteLinksDialog). Badge text
-        # (a trailing " •") is applied by _refresh_links_badge().
-        self.links_action = QAction("🔗 Links", self)
-        self.links_action.setToolTip("Manage chart/image references in this note")
-        self.links_action.triggered.connect(self.open_links_dialog)
-        toolbar.addAction(self.links_action)
+        # note's chart/image references (see NoteArtefactsDialog). Badge text
+        # (a trailing " •") is applied by _refresh_artefacts_badge().
+        self.artefacts_action = QAction("📎 Artefacts", self)
+        self.artefacts_action.setToolTip("Manage the charts and images in this note")
+        self.artefacts_action.triggered.connect(self.open_artefacts_dialog)
+        toolbar.addAction(self.artefacts_action)
 
         toolbar.addSeparator()
         self.edit_mode_action = QAction("✍ Edit", self)
@@ -1135,35 +1154,35 @@ class NoteEditorWidget(PWidget):
         self.scroll_sync_action.toggled.connect(self._on_scroll_sync_toggled)
         toolbar.addAction(self.scroll_sync_action)
 
-    def open_links_dialog(self):
-        """Open the Links dialog for managing this note's chart/image references."""
-        from pandaplot.gui.dialogs.note import NoteLinksDialog
-        dialog = NoteLinksDialog(self.app_context, self.note, self.text_edit, parent=self)
+    def open_artefacts_dialog(self):
+        """Open the Artefacts dialog for managing this note's charts, tables and images."""
+        from pandaplot.gui.dialogs.note import NoteArtefactsDialog
+        dialog = NoteArtefactsDialog(self.app_context, self.note, self.text_edit, parent=self)
         dialog.exec()
-        self._refresh_links_badge()
+        self._refresh_artefacts_badge()
         if self.stack.currentIndex() == 1:
             self.update_preview()
 
-    def _refresh_links_badge(self) -> None:
-        """Update the Links toolbar action's text/tooltip to flag unused or
-        broken references, computed the same way NoteLinksDialog itself
-        does (see compute_note_link_rows)."""
-        if not hasattr(self, "links_action"):
+    def _refresh_artefacts_badge(self) -> None:
+        """Update the Artefacts toolbar action's text/tooltip to flag unused or
+        broken references, computed the same way NoteArtefactsDialog itself
+        does (see compute_note_artefact_rows)."""
+        if not hasattr(self, "artefacts_action"):
             return
-        rows = compute_note_link_rows(self.app_context, self.note, self.text_edit.toPlainText())
+        rows = compute_note_artefact_rows(self.app_context, self.note, self.text_edit.toPlainText())
         has_issues = any(row.status in ("unused", "broken") for row in rows)
-        self.links_action.setText("🔗 Links" + (" •" if has_issues else ""))
-        tooltip = "Manage chart/image references in this note"
+        self.artefacts_action.setText("📎 Artefacts" + (" •" if has_issues else ""))
+        tooltip = "Manage the charts and images in this note"
         if has_issues:
             tooltip += " -- some references are unused or broken"
-        self.links_action.setToolTip(tooltip)
+        self.artefacts_action.setToolTip(tooltip)
 
-    def _schedule_links_badge_refresh(self) -> None:
-        """Debounced _refresh_links_badge(), restarting the wait on every
-        call -- compute_note_link_rows does real filesystem checks and an
+    def _schedule_artefacts_badge_refresh(self) -> None:
+        """Debounced _refresh_artefacts_badge(), restarting the wait on every
+        call -- compute_note_artefact_rows does real filesystem checks and an
         O(references x project items) scan, so it must not run on every
         keystroke (see final-branch-review finding on Task 7)."""
-        self._links_badge_refresh_timer.start(_CHART_PREVIEW_REFRESH_DEBOUNCE_MS)
+        self._artefacts_badge_refresh_timer.start(_CHART_PREVIEW_REFRESH_DEBOUNCE_MS)
 
     def insert_chart_from_picker(self):
         """Open the chart picker dialog and insert markdown for the selected chart."""
@@ -1248,10 +1267,7 @@ class NoteEditorWidget(PWidget):
         on failure."""
         from pandaplot.commands.project.image.create_image_from_bytes_command import CreateImageFromBytesCommand
 
-        buf = QBuffer()
-        buf.open(QIODevice.OpenModeFlag.WriteOnly)
-        qimg.save(buf, "PNG")
-        png_bytes = bytes(buf.data())
+        png_bytes = _qimage_to_png_bytes(qimg)
 
         gallery_id = find_or_create_chart_snapshot_gallery(self.app_context, self.note.parent_id)
         if gallery_id is None:
@@ -1264,10 +1280,43 @@ class NoteEditorWidget(PWidget):
         command = CreateImageFromBytesCommand(
             self.app_context, gallery_id=gallery_id, name=image_name,
             png_bytes=png_bytes, width=qimg.width(), height=qimg.height(),
-            note_id=self.note.id,
+            note_id=self.note.id, source_chart_id=chart.id,
         )
         succeeded = self.app_context.get_command_executor().execute_command(command, track_undo=True)
         return command.created_image_id if succeeded else None
+
+    def refresh_chart_snapshot(self, image_id: str) -> None:
+        """Re-render the chart a snapshot image came from and replace the
+        image's contents in place (undoable), so every reference to it shows
+        the chart's current data and style."""
+        from pandaplot.commands.project.image.edit_image_command import EditImageCommand
+
+        app_state = self.app_context.get_app_state()
+        project = app_state.current_project if app_state else None
+        image = project.find_item(image_id) if project else None
+        chart = _snapshot_source_chart(project, image) if isinstance(image, Image) else None
+        if chart is None:
+            self.app_context.get_ui_controller().show_warning_message(
+                "Refresh Chart Snapshot", "The chart this snapshot was made from no longer exists.")
+            return
+
+        def _on_result(qimg: QImage | None) -> None:
+            if not isValid(self):
+                return
+            if qimg is None:
+                self._warn_chart_snapshot_failed(chart)
+                return
+            png_bytes = _qimage_to_png_bytes(qimg)
+            command = EditImageCommand(
+                self.app_context, image_id, png_bytes, qimg.width(), qimg.height(), new_ext="png")
+            if self.app_context.get_command_executor().execute_command(command, track_undo=True):
+                self.update_status(f"Refreshed snapshot of '{chart.name}'")
+
+        def _on_error(_err) -> None:
+            if isValid(self):
+                self._warn_chart_snapshot_failed(chart)
+
+        dispatch_headless_chart_render(self.app_context, chart, on_result=_on_result, on_error=_on_error)
 
     def insert_table_from_picker(self):
         """Open the table picker dialog and insert markdown for the table."""
@@ -1486,7 +1535,7 @@ class NoteEditorWidget(PWidget):
             self._invalidate_all_in_flight_chart_generations()
             if self.stack.currentIndex() != 0:  # preview or split mode visible
                 self.update_preview()
-            self._schedule_links_badge_refresh()
+            self._schedule_artefacts_badge_refresh()
             return
 
         dataset_ids = self._event_dataset_ids(event_data)
@@ -1495,7 +1544,7 @@ class NoteEditorWidget(PWidget):
                 self._invalidate_chart_cache_for_dataset(dataset_id)
             if self.stack.currentIndex() != 0:
                 self.update_preview()
-        self._schedule_links_badge_refresh()
+        self._schedule_artefacts_badge_refresh()
 
     def _event_affects_rendered_previews(self, event_data: dict) -> bool:
         """Whether a PROJECT_ITEM_* event concerns an Image/ImageGallery/Chart.
@@ -1742,7 +1791,7 @@ class NoteEditorWidget(PWidget):
         content = self.text_edit.toPlainText()
         self.content_changed.emit(content)
 
-        self._schedule_links_badge_refresh()
+        self._schedule_artefacts_badge_refresh()
 
     def update_statistics(self):
         """Update word and character count."""

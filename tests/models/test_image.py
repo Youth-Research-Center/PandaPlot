@@ -84,6 +84,13 @@ class TestImage:
 
         assert restored.note_id == "note-42"
 
+    def test_source_chart_id_defaults_to_none_and_round_trips(self):
+        assert Image(name="Photo").source_chart_id is None
+
+        restored = Image.from_dict(Image(id="img-7", name="Snap", source_chart_id="chart-1").to_dict())
+
+        assert restored.source_chart_id == "chart-1"
+
 
 class TestImageGallery:
     def test_is_item_collection(self):

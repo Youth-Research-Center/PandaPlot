@@ -86,3 +86,17 @@ def test_execute_leaves_note_id_none_by_default(app_context_with_project):
 
     image = project.find_item(command.created_image_id)
     assert image.note_id is None
+
+
+def test_execute_records_the_source_chart_id(app_context_with_project):
+    project = app_context_with_project.get_app_state().current_project
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+
+    command = CreateImageFromBytesCommand(
+        app_context_with_project, gallery_id=gallery.id, name="My Chart",
+        png_bytes=b"fake-png-bytes", width=100, height=80, source_chart_id="chart-1",
+    )
+    assert command.execute() is CommandResult.SUCCESS
+
+    assert project.find_item(command.created_image_id).source_chart_id == "chart-1"
