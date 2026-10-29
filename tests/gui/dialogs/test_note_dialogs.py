@@ -213,22 +213,50 @@ def test_note_table_picker_dialog_from_dataset(qapp):
     assert "| 100 | 300 |" in md
 
 
-def test_note_artefacts_dialog_lists_rows_for_current_text(qapp):
-    gallery = ImageGallery(name="Gallery")
-    image = Image(name="Line Plot")
+def test_note_chart_picker_sync_toggle_defaults_to_true_and_is_readable(qapp):
     project = Project(name="Test Project")
-    project.add_item(gallery)
-    project.add_item(image, parent_id=gallery.id)
+    chart = Chart(name="Line Plot")
+    project.add_item(chart)
+    app_context = _create_mock_app_context(project)
+
+    dialog = NoteChartPickerDialog(app_context, project)
+    assert dialog.get_sync_mode() is True
+
+    dialog.sync_checkbox.setChecked(False)
+    assert dialog.get_sync_mode() is False
+
+
+def test_note_artefacts_dialog_lists_rows_for_current_text(qapp):
+    chart = Chart(name="Line Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
     note = Note(name="Note 1")
     app_context = _create_mock_app_context_with_executor(project)
 
     text_edit = QTextEdit()
-    text_edit.setPlainText(f"![Line Plot]({image.id} =500x)")
+    text_edit.setPlainText(f"![Line Plot]({chart.id} =500x)")
 
     dialog = NoteArtefactsDialog(app_context, note, text_edit)
 
     assert dialog.table.rowCount() == 1
     assert dialog.table.item(0, 0).text() == "Line Plot"
+
+
+def test_note_artefacts_dialog_delete_live_chart_row_removes_only_markdown_text(qapp):
+    chart = Chart(name="Line Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText(f"Before ![Line Plot]({chart.id} =500x) after")
+
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert text_edit.toPlainText() == "Before  after"
+    assert project.find_item(chart.id) is chart  # the Chart itself is untouched
 
 
 def test_note_artefacts_dialog_delete_snapshot_row_removes_text_and_deletes_image(qapp):
@@ -341,7 +369,7 @@ def test_note_artefacts_dialog_rebuilds_rows_when_note_text_changes_while_open(q
     dialog = NoteArtefactsDialog(app_context, Note(name="Note 1"), text_edit)
     assert dialog.table.rowCount() == 0
 
-    text_edit.setPlainText("![Gone](missing-id =500x)")
+    text_edit.setPlainText(f"![Line Plot]({chart.id} =500x)")
     assert dialog.table.rowCount() == 1
 
     dialog.accept()
@@ -378,7 +406,7 @@ def test_note_artefacts_dialog_empty_state_replaces_table_and_promotes_insert_ch
     assert not dialog.table.isVisible()
     assert dialog.insert_chart_button.property("primary") is True
 
-    text_edit.setPlainText("![Gone](missing-id =500x)")
+    text_edit.setPlainText(f"![Line Plot]({chart.id} =500x)")
 
     assert not dialog.empty_widget.isVisible()
     assert dialog.table.isVisible()
