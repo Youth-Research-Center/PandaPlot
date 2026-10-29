@@ -1,6 +1,6 @@
 """Unit tests for note dialogs (NoteChartPickerDialog and NoteTablePickerDialog)."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 from PySide6.QtWidgets import QTextEdit, QWidget
@@ -443,3 +443,36 @@ def test_note_table_picker_preview_is_capped_but_the_inserted_table_is_not(qapp)
 
     assert preview_rows == 50
     assert inserted_rows == 500
+
+
+def test_note_artefacts_dialog_delete_removes_exactly_the_reference_after_emoji(qapp):
+    """Row offsets index the text by code point while QTextCursor counts
+    UTF-16 units; a non-BMP character (an emoji) before the reference must
+    not shift the deleted span."""
+    project = Project(name="Test Project")
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText("🎉 Results 🚀\n![Gone](missing-id =500x)\nNext line")
+
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert text_edit.toPlainText() == "🎉 Results 🚀\n\nNext line"
+
+
+def test_note_artefacts_dialog_deleting_a_reference_rebuilds_rows_once(qapp):
+    project = Project(name="Test Project")
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+    text_edit = QTextEdit()
+    text_edit.setPlainText("![Gone](missing-id =500x)")
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+
+    with patch(
+        "pandaplot.gui.dialogs.note.note_artefacts_dialog.compute_note_artefact_rows", return_value=[],
+    ) as compute_rows:
+        dialog._on_delete_row(dialog._rows[0])
+
+    assert compute_rows.call_count == 1

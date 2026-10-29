@@ -3,7 +3,15 @@ already-in-memory bytes (e.g. a rendered chart snapshot), unlike
 ImportImagesCommand which only imports from a file path or URL."""
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.image.create_image_from_bytes_command import CreateImageFromBytesCommand
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Image, ImageGallery
+
+
+def _removed_item_ids(app_context) -> list[str | None]:
+    """item_id of every PROJECT_ITEM_REMOVED event emitted so far (TabContainer closes tabs by it)."""
+    emit = app_context.get_app_state().event_bus.emit
+    return [payload.get("item_id") for event, payload in (c.args for c in emit.call_args_list)
+            if event == ProjectEvents.PROJECT_ITEM_REMOVED]
 
 
 def test_execute_creates_a_copied_image_in_the_gallery(app_context_with_project):
@@ -51,6 +59,7 @@ def test_undo_then_redo_restores_the_image(app_context_with_project):
 
     assert command.undo() is CommandResult.SUCCESS
     assert project.find_item(image_id) is None
+    assert _removed_item_ids(app_context_with_project) == [image_id]
 
     assert command.redo() is CommandResult.SUCCESS
     restored = project.find_item(image_id)

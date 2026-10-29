@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import override
 from urllib.parse import unquote
 
-from PySide6.QtCore import QBuffer, QIODevice, Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QFont, QImage, QKeySequence, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QDialog,
@@ -119,11 +119,17 @@ def find_chart_snapshot_gallery_id(project, folder_id: str | None) -> str | None
     return None
 
 
-def _qimage_to_png_bytes(qimg: QImage) -> bytes:
-    buf = QBuffer()
-    buf.open(QIODevice.OpenModeFlag.WriteOnly)
-    qimg.save(buf, "PNG")
-    return bytes(buf.data())
+@dataclass(frozen=True)
+class RenderedChartSnapshot:
+    """A headless chart render: PNG bytes plus their pixel size."""
+    png_bytes: bytes
+    width: int
+    height: int
+
+
+def _png_size(png_bytes: bytes) -> tuple[int, int]:
+    """(width, height) read from a PNG's IHDR header, without decoding the image."""
+    return int.from_bytes(png_bytes[16:20], "big"), int.from_bytes(png_bytes[20:24], "big")
 
 
 def get_image_gallery_path(project, image_item: Image) -> str:
@@ -138,13 +144,10 @@ def get_image_gallery_path(project, image_item: Image) -> str:
 
 def _resolve_chart_render_inputs(app_context: AppContext, chart_item: Chart):
     """Snapshot `chart_item`'s series data (on the GUI thread) and resolve
-    its chart-size defaults, ready to hand to `render_chart_to_qimage`.
+    its chart-size defaults, ready to hand to `render_chart_to_png`.
 
-    Shared by `dispatch_headless_chart_render` (async, off the GUI thread)
-    and `_render_charts_synchronously_for_export` (sync, for PDF export) so
-    this resolve+copy sequence exists exactly once. Note this only resolves
-    inputs -- it doesn't render, so callers decide whether that happens on
-    a worker thread or inline.
+    Only resolves inputs -- `dispatch_headless_chart_render` does the
+    rendering, on a worker thread.
     """
     from pandaplot.gui.components.tabs.chart.chart_editor import (
         resolve_chart_series_data,
@@ -162,19 +165,19 @@ def _resolve_chart_render_inputs(app_context: AppContext, chart_item: Chart):
 
 def dispatch_headless_chart_render(
     app_context: AppContext, chart_item: Chart,
-    *, on_result: Callable[[QImage | None], None], on_error: Callable | None = None,
+    *, on_result: Callable[[RenderedChartSnapshot | None], None], on_error: Callable | None = None,
 ) -> None:
     """Snapshot `chart_item`'s series data on the GUI thread, then render
-    it to a QImage on a TaskScheduler worker thread, delivering the result
+    it to PNG on a TaskScheduler worker thread, delivering the result
     (or a failure) back via `on_result`/`on_error` on the GUI thread.
 
     Shared by every headless-chart-render call site (snapshot insertion and
     snapshot refresh) so the resolve/copy/dispatch boilerplate exists
     exactly once. Callers own whatever they do with the result (create or
-    update an Image) -- this function only handles getting a QImage off the
-    GUI thread and back.
+    update an Image) -- this function only handles getting the render off
+    the GUI thread and back.
     """
-    from pandaplot.gui.components.tabs.chart.chart_editor import render_chart_to_qimage
+    from pandaplot.gui.components.tabs.chart.chart_editor import render_chart_to_png
 
     resolved_series_data, size_defaults = _resolve_chart_render_inputs(app_context, chart_item)
     # The worker reads the chart's config/style/series while the GUI thread
@@ -186,7 +189,11 @@ def dispatch_headless_chart_render(
 
     def _render_task(progress_callback, chart, resolved_data, size_defs):
         del progress_callback  # unused; required by the Worker call signature
-        return render_chart_to_qimage(chart, resolved_data, size_defs)
+        png_bytes = render_chart_to_png(chart, resolved_data, size_defs)
+        if png_bytes is None:
+            return None
+        width, height = _png_size(png_bytes)
+        return RenderedChartSnapshot(png_bytes=png_bytes, width=width, height=height)
 
     app_context.get_task_scheduler().run_task(
         task=_render_task,
@@ -317,44 +324,76 @@ def _snapshot_source_chart(project, image: Image) -> Chart | None:
     return chart if isinstance(chart, Chart) else None
 
 
-def _resolve_note_reference_target(app_context: AppContext, project, target: str):
+def _resolve_note_reference_target(
+    base_dir: str, images_by_key: dict[str, Image], target: str,
+) -> tuple[str, Image | None]:
     """Return (kind, resolved_item) for a raw markdown reference target:
-    ("file", None) if it resolves to a real file on disk (mirrors
-    NotePreviewBrowser's own local-file-wins-over-gallery precedent);
-    ("image", Image) if it matches an Image's id or exact gallery path (checking both the raw and
-    percent-decoded form, mirroring register_project_image_resources);
-    otherwise ("unknown", None)."""
-    base_dir = get_project_base_dir(app_context)
-    local_path = os.path.join(base_dir, target) if base_dir else target
-    if os.path.isfile(local_path):
+    ("file", None) if it resolves to a real file on disk the way the preview
+    resolves it (relative to the project directory, percent-decoded,
+    file:// aware; mirrors NotePreviewBrowser's local-file-wins-over-gallery
+    precedent); ("image", Image) if it matches an Image's id or exact
+    gallery path (checking both the raw and percent-decoded form, mirroring
+    register_project_image_resources); otherwise ("unknown", None).
+
+    `images_by_key` maps each Image's id and gallery path to it (see
+    _project_images_by_key)."""
+    base_url = QUrl.fromLocalFile(os.path.join(base_dir, ""))
+    candidate_paths = (os.path.join(base_dir, target), base_url.resolved(QUrl(target)).toLocalFile())
+    if any(path and os.path.isfile(path) for path in candidate_paths):
         return "file", None
-    if project is None:
-        return "unknown", None
-    decoded = unquote(target)
+    image = images_by_key.get(target) or images_by_key.get(unquote(target))
+    if image is not None:
+        return "image", image
+    return "unknown", None
+
+
+def _project_images_by_key(project) -> dict[str, Image]:
+    """Every Image in `project`, keyed by its id and by its gallery path.
+    The first Image wins when two share a gallery path."""
+    images_by_key: dict[str, Image] = {}
     for item in project.get_all_items():
         if isinstance(item, Image):
-            gallery_path = get_image_gallery_path(project, item)
-            if target in (item.id, gallery_path) or decoded in (item.id, gallery_path):
-                return "image", item
-    return "unknown", None
+            images_by_key.setdefault(item.id, item)
+            images_by_key.setdefault(get_image_gallery_path(project, item), item)
+    return images_by_key
+
+
+def _image_keys_referenced_by_other_notes(project, note: Note) -> set[str]:
+    """Image link targets referenced by every note in `project` except `note`."""
+    keys: set[str] = set()
+    for item in project.get_all_items():
+        if isinstance(item, Note) and item.id != note.id and item.content:
+            keys |= extract_referenced_image_keys(item.content)
+    return keys
 
 
 def compute_note_artefact_rows(app_context: AppContext, note: Note, source: str) -> list[NoteArtefactRow]:
     """Build every row for the Artefacts dialog / toolbar badge: one row per
     chart/image reference found in `source` (status "ok" if it resolves,
     "broken" if it doesn't), plus one row per snapshot Image this note
-    created (note_id == note.id) that ISN'T covered by one of those
-    references anymore (status "unused").
+    created (note_id == note.id) that no note references anymore (status
+    "unused"). A snapshot that only another note still references gets no
+    row, since deleting it would break that note.
 
     `source` is the note's *current* text (e.g. text_edit.toPlainText()),
     not necessarily note.content -- callers must pass the live editor text
-    so unsaved edits are reflected.
+    so unsaved edits are reflected. Match offsets index `source` by code
+    point, as Python strings do.
     """
     app_state = app_context.get_app_state() if app_context else None
     project = app_state.current_project if app_state else None
     rows: list[NoteArtefactRow] = []
     if project is None:
         return rows
+
+    base_dir = get_project_base_dir(app_context)
+    images_by_key = _project_images_by_key(project)
+    resolved_targets: dict[str, tuple[str, Image | None]] = {}
+
+    def _resolve(target: str) -> tuple[str, Image | None]:
+        if target not in resolved_targets:
+            resolved_targets[target] = _resolve_note_reference_target(base_dir, images_by_key, target)
+        return resolved_targets[target]
 
     referenced_item_ids: set[str] = set()
     code_spans = code_region_spans(source)
@@ -366,7 +405,7 @@ def compute_note_artefact_rows(app_context: AppContext, note: Note, source: str)
         target = match.group(1) if match.group(1) is not None else match.group(2)
         if not target:
             continue
-        kind, resolved = _resolve_note_reference_target(app_context, project, target)
+        kind, resolved = _resolve(target)
         if kind == "file":
             rows.append(NoteArtefactRow(
                 name=target, kind="file", status="ok", is_snapshot=False,
@@ -374,7 +413,7 @@ def compute_note_artefact_rows(app_context: AppContext, note: Note, source: str)
             ))
         elif resolved is not None:
             referenced_item_ids.add(resolved.id)
-            is_snapshot = isinstance(resolved, Image) and resolved.note_id == note.id
+            is_snapshot = resolved.note_id == note.id
             rows.append(NoteArtefactRow(
                 name=resolved.name, kind=kind, status="ok", is_snapshot=is_snapshot,
                 match_start=match.start(), match_end=match.end(), item_id=resolved.id,
@@ -392,14 +431,20 @@ def compute_note_artefact_rows(app_context: AppContext, note: Note, source: str)
     # don't get their own row -- but they DO count as "this item is
     # referenced": without this, a snapshot Image referenced only that way
     # would wrongly show up as "unused" below.
-    all_referenced_keys = extract_referenced_image_keys(source)
-    for key in all_referenced_keys:
-        _, resolved = _resolve_note_reference_target(app_context, project, key)
+    for key in extract_referenced_image_keys(source):
+        _, resolved = _resolve(key)
         if resolved is not None:
             referenced_item_ids.add(resolved.id)
 
-    for item in project.get_all_items():
-        if isinstance(item, Image) and item.note_id == note.id and item.id not in referenced_item_ids:
+    unreferenced_snapshots = [
+        item for item in project.get_all_items()
+        if isinstance(item, Image) and item.note_id == note.id and item.id not in referenced_item_ids
+    ]
+    if unreferenced_snapshots:
+        other_notes_keys = _image_keys_referenced_by_other_notes(project, note)
+        for item in unreferenced_snapshots:
+            if {item.id, get_image_gallery_path(project, item)} & other_notes_keys:
+                continue
             rows.append(NoteArtefactRow(
                 name=item.name, kind="image", status="unused", is_snapshot=True,
                 match_start=None, match_end=None, item_id=item.id,
@@ -948,17 +993,22 @@ class NoteEditorWidget(PWidget):
         """
         cursor = self.text_edit.textCursor()
         alt_text = chart.name.replace("[", "(").replace("]", ")")
+        app_state = self.app_context.get_app_state()
+        project = app_state.current_project if app_state else None
 
-        def _on_result(qimg: QImage | None) -> None:
+        def _on_result(rendered: RenderedChartSnapshot | None) -> None:
             # The note tab may have been closed while the render was in
             # flight; check before saving, which would otherwise leave an
             # image behind with nothing to reference it.
             if not isValid(self):
                 return
-            if qimg is None:
+            # Likewise if the project changed: the snapshot would be saved
+            # into a project this note isn't part of.
+            current_app_state = self.app_context.get_app_state()
+            if rendered is None or current_app_state is None or current_app_state.current_project is not project:
                 self._warn_chart_snapshot_failed(chart)
                 return
-            image_id = self._save_chart_snapshot_image(chart, qimg)
+            image_id = self._save_chart_snapshot_image(chart, rendered)
             if image_id is None:
                 self._warn_chart_snapshot_failed(chart)
                 return
@@ -980,14 +1030,12 @@ class NoteEditorWidget(PWidget):
         self.app_context.get_ui_controller().show_warning_message(
             "Insert Chart", f"Could not insert a snapshot of chart '{chart.name}'.")
 
-    def _save_chart_snapshot_image(self, chart: Chart, qimg: QImage) -> str | None:
-        """Add `qimg` to the project as a plain gallery Image (in the
+    def _save_chart_snapshot_image(self, chart: Chart, rendered: RenderedChartSnapshot) -> str | None:
+        """Add `rendered` to the project as a plain gallery Image (in the
         note's "Chart Snapshots" gallery), returning its new id, or None
         on failure."""
         from pandaplot.commands.project.image.create_image_from_bytes_command import CreateImageFromBytesCommand
         from pandaplot.commands.project.image.create_image_gallery_command import CreateImageGalleryCommand
-
-        png_bytes = _qimage_to_png_bytes(qimg)
 
         app_state = self.app_context.get_app_state()
         project = app_state.current_project if app_state else None
@@ -1005,7 +1053,7 @@ class NoteEditorWidget(PWidget):
         image_name = dict(chart_display_options(project)).get(chart.id, chart.name)
         command = CreateImageFromBytesCommand(
             self.app_context, gallery_id=gallery_id, name=image_name,
-            png_bytes=png_bytes, width=qimg.width(), height=qimg.height(),
+            png_bytes=rendered.png_bytes, width=rendered.width, height=rendered.height,
             note_id=self.note.id, source_chart_id=chart.id,
         )
         commands.append(command)
@@ -1042,10 +1090,12 @@ class NoteEditorWidget(PWidget):
                 on_done()
             return
         if image_id in self._refreshing_snapshot_ids:
+            if on_done is not None:
+                on_done()
             return
         self._refreshing_snapshot_ids.add(image_id)
 
-        def _on_result(qimg: QImage | None) -> None:
+        def _on_result(rendered: RenderedChartSnapshot | None) -> None:
             if not isValid(self):
                 return
             try:
@@ -1053,11 +1103,11 @@ class NoteEditorWidget(PWidget):
                 if current_project is not project or not isinstance(current_project.find_item(image_id), Image):
                     self._warn_snapshot_refresh_failed(chart)
                     return
-                if qimg is None:
-                    self._warn_chart_snapshot_failed(chart)
+                if rendered is None:
+                    self._warn_snapshot_refresh_failed(chart)
                     return
                 command = EditImageCommand(
-                    self.app_context, image_id, _qimage_to_png_bytes(qimg), qimg.width(), qimg.height(), new_ext="png")
+                    self.app_context, image_id, rendered.png_bytes, rendered.width, rendered.height, new_ext="png")
                 if self.app_context.get_command_executor().execute_command(command, track_undo=True):
                     self.update_status(f"Refreshed snapshot of '{chart.name}'")
                 else:
@@ -1069,7 +1119,7 @@ class NoteEditorWidget(PWidget):
             if not isValid(self):
                 return
             try:
-                self._warn_chart_snapshot_failed(chart)
+                self._warn_snapshot_refresh_failed(chart)
             finally:
                 _finish()
 
@@ -1483,6 +1533,9 @@ class NoteEditorWidget(PWidget):
             self.update_preview()
             self.text_edit.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
             self.update_statistics()
+            # on_content_changed (which normally reschedules this) didn't run
+            # while signals were blocked.
+            self._schedule_artefacts_badge_refresh()
             self.is_modified = False
             self.update_status("Synced ✓")
 

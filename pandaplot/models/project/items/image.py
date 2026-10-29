@@ -30,7 +30,7 @@ class Image(Item):
     def __init__(self, id: str | None = None, name: str = "",
                  source_file: str = "", storage_mode: str = "copied",
                  image_ext: str = "", width: int = 0, height: int = 0,
-                 size_bytes: int | None = None, note_id: str | None = None,
+                 size_bytes: int | None = None, *, note_id: str | None = None,
                  source_chart_id: str | None = None):
         super().__init__(id, name)
         self.source_file = source_file

@@ -1418,8 +1418,8 @@ def render_chart(
     return ChartRenderResult(series_errors=series_errors, colorbar=colorbar)
 
 
-def render_chart_to_qimage(chart, resolved_series_data, size_defaults) -> QImage | None:
-    """Render `chart` to a QImage using a headless canvas -- no Qt widget
+def render_chart_to_png(chart, resolved_series_data, size_defaults) -> bytes | None:
+    """Render `chart` to PNG bytes using a headless canvas -- no Qt widget
     involved, safe to call from any thread (see HeadlessChartCanvas).
 
     Returns None on any render failure (logged at debug level) rather than
@@ -1443,12 +1443,19 @@ def render_chart_to_qimage(chart, resolved_series_data, size_defaults) -> QImage
         # would stay transparent and dark text would vanish on a dark preview.
         facecolor = chart.style.figure_background_color or "white"
         canvas.fig.savefig(buf, format="png", dpi=canvas.fig.dpi, bbox_inches="tight", facecolor=facecolor)
-        qimg = QImage()
-        if qimg.loadFromData(buf.getvalue()):
-            return qimg
+        return buf.getvalue()
     except Exception as e:  # noqa: BLE001 -- background-render boundary -- any failure must become a cache miss, not crash the task
         logger.debug("Failed to render chart %s headlessly: %s", chart.id, e)
     return None
+
+
+def render_chart_to_qimage(chart, resolved_series_data, size_defaults) -> QImage | None:
+    """render_chart_to_png(), decoded into a QImage; None on any render failure."""
+    png_bytes = render_chart_to_png(chart, resolved_series_data, size_defaults)
+    if png_bytes is None:
+        return None
+    qimg = QImage()
+    return qimg if qimg.loadFromData(png_bytes) else None
 
 
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False,

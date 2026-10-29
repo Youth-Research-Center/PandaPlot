@@ -29,6 +29,13 @@ _KIND_LABELS = {"image": "Gallery image", "file": "Local file", "unknown": "Unkn
 _STATUS_LABELS = {"ok": "OK", "unused": "Unused", "broken": "Broken"}
 
 
+def _text_cursor_position(text: str, index: int) -> int:
+    """The QTextCursor position of Python string index `index` in `text`.
+    Qt counts UTF-16 code units, so each character outside the Basic
+    Multilingual Plane (e.g. most emoji) before `index` shifts it by one."""
+    return len(text[:index].encode("utf-16-le")) // 2
+
+
 class NoteArtefactsDialog(PDialog):
     """Lists every chart/image reference in `text_edit`'s current text
     (plus orphaned chart-snapshot images), letting the user refresh a chart
@@ -167,18 +174,20 @@ class NoteArtefactsDialog(PDialog):
         removes just that text (undoable from the editor), so a snapshot it
         pointed at becomes an "Unused" row; an unused snapshot's row deletes
         the image (undoable from the project). Each action therefore has a
-        single, independent undo. Always refreshes afterward so remaining
-        rows' offsets stay valid.
+        single, independent undo. The rows are rebuilt afterward so remaining
+        rows' offsets stay valid: by the textChanged connection for a text
+        edit, explicitly for an image delete.
         """
         if row.match_start is not None and row.match_end is not None:
+            text = self.text_edit.toPlainText()
             cursor = self.text_edit.textCursor()
-            cursor.setPosition(row.match_start)
-            cursor.setPosition(row.match_end, QTextCursor.MoveMode.KeepAnchor)
+            cursor.setPosition(_text_cursor_position(text, row.match_start))
+            cursor.setPosition(_text_cursor_position(text, row.match_end), QTextCursor.MoveMode.KeepAnchor)
             cursor.removeSelectedText()
         elif row.is_snapshot and row.item_id is not None:
             command = DeleteItemCommand(self.app_context, item_id=row.item_id, confirm=False)
             self.app_context.get_command_executor().execute_command(command, track_undo=True)
-        self.refresh_rows()
+            self.refresh_rows()
 
     def _on_refresh_snapshot(self, image_id: str, button: PButton) -> None:
         note_editor = self.parent()

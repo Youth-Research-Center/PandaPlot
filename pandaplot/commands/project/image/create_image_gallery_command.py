@@ -123,6 +123,7 @@ class CreateImageGalleryCommand(Command):
 
                 self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
                     "project": project,
+                    "item_id": self.created_gallery_id,
                     "gallery_id": self.created_gallery_id,
                     "gallery": self.created_gallery
                 })

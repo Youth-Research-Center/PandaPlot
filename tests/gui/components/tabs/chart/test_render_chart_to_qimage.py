@@ -11,6 +11,7 @@ from PySide6.QtGui import QImage
 from pandaplot.gui.components.tabs.chart.chart_editor import (
     ChartSizeDefaults,
     render_chart,
+    render_chart_to_png,
     render_chart_to_qimage,
     resolve_chart_series_data,
 )
@@ -35,6 +36,17 @@ def test_renders_a_real_chart_to_a_non_null_qimage(qapp):
     assert isinstance(qimg, QImage)
     assert not qimg.isNull()
     assert qimg.width() > 0 and qimg.height() > 0
+
+
+def test_render_chart_to_png_returns_png_bytes_matching_the_decoded_image(qapp):
+    chart = Chart(name="Chart", chart_type="line")
+    size_defaults = ChartSizeDefaults(default_width_cm=10.0, default_height_cm=8.0, dpi=100)
+
+    png_bytes = render_chart_to_png(chart, [], size_defaults)
+
+    assert png_bytes is not None and png_bytes.startswith(b"\x89PNG")
+    expected = render_chart_to_qimage(chart, [], size_defaults)
+    assert QImage.fromData(png_bytes).size() == expected.size()
 
 
 def test_returns_none_on_render_failure(qapp, monkeypatch):

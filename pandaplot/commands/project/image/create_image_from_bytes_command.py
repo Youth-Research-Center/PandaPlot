@@ -102,7 +102,8 @@ class CreateImageFromBytesCommand(Command):
                 return CommandResult.FAILURE
             project.remove_item(image)
             self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
-                "project": project, "image_id": self.created_image_id, "image": self.created_image,
+                "project": project, "item_id": self.created_image_id, "image_id": self.created_image_id,
+                "image": self.created_image,
             })
             return CommandResult.SUCCESS
         except Exception as e:
