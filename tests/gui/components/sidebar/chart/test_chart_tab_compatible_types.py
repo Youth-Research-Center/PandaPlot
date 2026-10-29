@@ -161,3 +161,31 @@ def test_a_fit_only_chart_does_not_allow_switching_to_3d_types():
     assert _is_option_enabled(tab, ChartType.SURFACE) is False
     # Still allows every 2-D target that can host a fit.
     assert _is_option_enabled(tab, ChartType.SCATTER) is True
+
+
+def test_type_combo_is_grouped_by_category():
+    from pandaplot.models.chart.chart_category import ChartCategory
+
+    tab = ChartTab()
+    combo = tab.chart_type_control
+    headers = [combo.itemText(i) for i in range(combo.count()) if combo.is_header(i)]
+
+    assert headers == [category.value for category in ChartCategory]
+    # Scatter ends the first group; the "Bar & Pie" header sits between it and Bar.
+    assert combo.itemText(combo.findData(ChartType.SCATTER) + 1) == ChartCategory.BAR_PIE.value
+    assert combo.findData(ChartType.BAR) == combo.findData(ChartType.SCATTER) + 2
+
+
+def test_compatibility_update_skips_category_headers():
+    """Regression: the compatibility pass ran over every row, so a header
+    (which carries no chart type) reached the disabled-tooltip branch and
+    raised KeyError on CHART_TYPE_SPECS[None]. Headers must also stay
+    disabled even when every type in their group is compatible."""
+    tab = ChartTab()
+    tab.load(Chart(name="Vector Chart", chart_type="vector"))
+
+    combo = tab.chart_type_control
+    for index in range(combo.count()):
+        if combo.is_header(index):
+            assert combo.model().item(index).isEnabled() is False
+            assert combo.model().item(index).toolTip() == ""

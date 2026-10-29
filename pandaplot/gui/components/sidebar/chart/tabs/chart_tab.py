@@ -9,10 +9,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.gui.components.common.grouped_value_combo_box import GroupedValueComboBox
 from pandaplot.gui.components.common.number_input import IntegerInput
-from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 from pandaplot.models.chart.chart_type import ChartType
-from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, compatible_chart_types_for_series
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS, compatible_chart_types_for_series
 from pandaplot.models.chart.series_type import SeriesType
 
 
@@ -55,9 +55,10 @@ class ChartTab(QWidget):
         info_layout.addWidget(self.subtitle_edit, 1, 1, 1, 2)
 
         info_layout.addWidget(QLabel("Type:"), 2, 0)
-        self.chart_type_control = ValueComboBox(
-            [(spec.display_name, chart_type) for chart_type, spec in CHART_TYPE_SPECS.items()]
-        )
+        self.chart_type_control = GroupedValueComboBox([
+            (category.value, [(CHART_TYPE_SPECS[chart_type].display_name, chart_type) for chart_type in chart_types])
+            for category, chart_types in CHART_TYPE_CATEGORIES.items()
+        ])
         info_layout.addWidget(self.chart_type_control, 2, 1, 1, 2)
 
         self.hist_bins_label = QLabel("Bins:")
@@ -121,6 +122,9 @@ class ChartTab(QWidget):
         compatible = compatible_chart_types_for_series(frozenset(series_types))
         model = self.chart_type_control.model()
         for index in range(self.chart_type_control.count()):
+            # Category headers stay disabled and carry no chart type.
+            if self.chart_type_control.is_header(index):
+                continue
             target_type = self.chart_type_control.itemData(index)
             item = model.item(index)
             # The chart's own type is never a "switch", so it stays selectable
