@@ -24,7 +24,7 @@ from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.project.items import Note
 from pandaplot.models.state.app_context import AppContext
 
-_KIND_LABELS = {"chart": "Live chart", "image": "Gallery image", "file": "Local file", "unknown": "Unknown"}
+_KIND_LABELS = {"image": "Gallery image", "file": "Local file", "unknown": "Unknown"}
 _STATUS_LABELS = {"ok": "OK", "unused": "Unused", "broken": "Broken"}
 
 
