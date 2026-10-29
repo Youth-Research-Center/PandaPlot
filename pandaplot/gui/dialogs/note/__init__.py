@@ -4,4 +4,4 @@ from pandaplot.gui.dialogs.note.note_artefacts_dialog import NoteArtefactsDialog
 from pandaplot.gui.dialogs.note.note_chart_picker_dialog import NoteChartPickerDialog
 from pandaplot.gui.dialogs.note.note_table_picker_dialog import NoteTablePickerDialog
 
-__all__ = ["NoteChartPickerDialog", "NoteArtefactsDialog", "NoteTablePickerDialog"]
+__all__ = ["NoteArtefactsDialog", "NoteChartPickerDialog", "NoteTablePickerDialog"]
