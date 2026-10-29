@@ -343,3 +343,34 @@ def test_charts_with_fits_cannot_switch_to_a_type_that_disallows_fits():
     assert ChartType.DENSITY not in with_fits
     assert ChartType.HIST in with_fits
     assert all(CHART_TYPE_SPECS[chart_type].allows_fit for chart_type in with_fits)
+
+
+def test_every_chart_type_is_in_exactly_one_category():
+    """CHART_TYPE_CATEGORIES is derived from ChartTypeSpec.category, so this
+    guards the derivation: every registered type is listed, once, and no
+    category is an empty group header."""
+    from pandaplot.models.chart.chart_category import ChartCategory
+    from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES
+
+    listed = [chart_type for chart_types in CHART_TYPE_CATEGORIES.values() for chart_type in chart_types]
+    assert sorted(listed) == sorted(ChartType)
+    assert list(CHART_TYPE_CATEGORIES) == list(ChartCategory)
+    for category, chart_types in CHART_TYPE_CATEGORIES.items():
+        assert chart_types, category
+        assert all(CHART_TYPE_SPECS[chart_type].category is category for chart_type in chart_types)
+
+
+def test_chart_types_within_a_category_keep_registry_order():
+    from pandaplot.models.chart.chart_category import ChartCategory
+    from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES
+
+    assert CHART_TYPE_CATEGORIES[ChartCategory.LINE_SCATTER] == (ChartType.LINE, ChartType.SCATTER)
+    assert CHART_TYPE_CATEGORIES[ChartCategory.BAR_PIE] == (ChartType.BAR, ChartType.STACKED_BAR, ChartType.PIE)
+    assert CHART_TYPE_CATEGORIES[ChartCategory.DISTRIBUTION] == (ChartType.HIST, ChartType.DENSITY, ChartType.BOX)
+
+
+def test_3d_category_holds_exactly_the_3d_chart_types():
+    from pandaplot.models.chart.chart_category import ChartCategory
+
+    for chart_type, spec in CHART_TYPE_SPECS.items():
+        assert spec.is_3d == (spec.category is ChartCategory.THREE_D), chart_type
