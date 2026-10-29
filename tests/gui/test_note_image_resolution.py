@@ -2123,3 +2123,46 @@ def test_dispatch_headless_chart_render_hands_worker_a_snapshot_not_the_live_cha
     assert captured["chart"] is not chart
     assert captured["chart"].id == chart.id
     assert captured["chart"].config.title == "Before"
+
+
+def test_insert_chart_snapshot_warns_when_render_fails(qapp):
+    chart = Chart(name="Sample Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = _make_app_context_with_synchronous_task_scheduler(project)
+    ui_controller = MagicMock()
+    app_context.get_ui_controller.return_value = ui_controller
+
+    editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
+
+    with patch("pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_qimage", return_value=None):
+        editor._insert_chart_snapshot(chart)
+
+    ui_controller.show_warning_message.assert_called_once()
+    assert editor.text_edit.toPlainText() == ""
+
+
+def test_chart_snapshot_image_name_disambiguates_same_named_charts(qapp):
+    folder_a = Folder(name="A")
+    folder_b = Folder(name="B")
+    chart_a = Chart(name="Plot")
+    chart_b = Chart(name="Plot")
+    project = Project(name="Test Project")
+    project.add_item(folder_a)
+    project.add_item(folder_b)
+    project.add_item(chart_a, parent_id=folder_a.id)
+    project.add_item(chart_b, parent_id=folder_b.id)
+
+    app_context = _make_app_context_with_synchronous_task_scheduler(project)
+    captured = []
+    fake_executor = MagicMock()
+    fake_executor.execute_command.side_effect = lambda command, **kwargs: captured.append(command) or True
+    app_context.get_command_executor.return_value = fake_executor
+    editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
+
+    with patch("pandaplot.gui.components.tabs.note.note_editor.find_or_create_chart_snapshot_gallery", return_value="gallery-id"):
+        editor._save_chart_snapshot_image(chart_a, QImage(2, 2, QImage.Format.Format_RGB32))
+        editor._save_chart_snapshot_image(chart_b, QImage(2, 2, QImage.Format.Format_RGB32))
+
+    assert captured[0].name != captured[1].name

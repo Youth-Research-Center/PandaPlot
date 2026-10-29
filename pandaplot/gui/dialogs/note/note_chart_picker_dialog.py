@@ -18,6 +18,7 @@ from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.project.items import Chart, Folder, Item
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.item_display_options import chart_display_options
 
 _ICON_SIZE = QSize(24, 24)
 
@@ -118,8 +119,9 @@ class NoteChartPickerDialog(PDialog):
                 self.tree.addTopLevelItem(tree_item)
 
         # Attach chart nodes
+        display_names = dict(chart_display_options(self.project))
         for chart in all_charts:
-            tree_item = QTreeWidgetItem([f"📈 {chart.name}"])
+            tree_item = QTreeWidgetItem([f"📈 {display_names.get(chart.id, chart.name)}"])
             tree_item.setData(0, Qt.ItemDataRole.UserRole, chart.id)
             by_id[chart.id] = tree_item
 

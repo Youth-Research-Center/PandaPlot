@@ -44,6 +44,7 @@ from pandaplot.services.note_render.latex_markdown_renderer import (
     wrap_document,
 )
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.item_display_options import chart_display_options
 
 # Point size used both for the editor font and for rasterising equations so
 # the math visually matches the surrounding text.
@@ -1206,7 +1207,10 @@ class NoteEditorWidget(PWidget):
         alt_text = chart.name.replace("[", "(").replace("]", ")")
 
         def _on_result(qimg: QImage | None) -> None:
+            if not isValid(self):
+                return
             if qimg is None:
+                self._warn_chart_snapshot_failed(chart)
                 return
             # The note tab (and this widget) may have been closed while the
             # render was in flight. Checked BEFORE _save_chart_snapshot_image
@@ -1218,6 +1222,7 @@ class NoteEditorWidget(PWidget):
                 return
             image_id = self._save_chart_snapshot_image(chart, qimg)
             if image_id is None:
+                self._warn_chart_snapshot_failed(chart)
                 return
             markdown_ref = f"![{alt_text}]({image_id} ={_DEFAULT_INSERT_MAX_WIDTH}x)"
             cursor.insertText(markdown_ref)
@@ -1225,7 +1230,17 @@ class NoteEditorWidget(PWidget):
             if self.stack.currentIndex() == 1:
                 self.update_preview()
 
-        dispatch_headless_chart_render(self.app_context, chart, on_result=_on_result)
+        def _on_error(_err) -> None:
+            if isValid(self):
+                self._warn_chart_snapshot_failed(chart)
+
+        dispatch_headless_chart_render(self.app_context, chart, on_result=_on_result, on_error=_on_error)
+
+    def _warn_chart_snapshot_failed(self, chart: Chart) -> None:
+        """Tell the user a static chart insertion produced nothing, rather
+        than leaving them wondering why no reference appeared."""
+        self.app_context.get_ui_controller().show_warning_message(
+            "Insert Chart", f"Could not insert a snapshot of chart '{chart.name}'.")
 
     def _save_chart_snapshot_image(self, chart: Chart, qimg: QImage) -> str | None:
         """Add `qimg` to the project as a plain gallery Image (in the
@@ -1241,8 +1256,13 @@ class NoteEditorWidget(PWidget):
         gallery_id = find_or_create_chart_snapshot_gallery(self.app_context, self.note.parent_id)
         if gallery_id is None:
             return None
+        app_state = self.app_context.get_app_state()
+        project = app_state.current_project if app_state else None
+        # Names aren't unique, so two same-named charts must not produce
+        # indistinguishable snapshots in the shared gallery.
+        image_name = dict(chart_display_options(project)).get(chart.id, chart.name) if project else chart.name
         command = CreateImageFromBytesCommand(
-            self.app_context, gallery_id=gallery_id, name=chart.name,
+            self.app_context, gallery_id=gallery_id, name=image_name,
             png_bytes=png_bytes, width=qimg.width(), height=qimg.height(),
             note_id=self.note.id,
         )
