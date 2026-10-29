@@ -16,7 +16,8 @@ class CreateImageGalleryCommand(Command):
     existing gallery, a nested album) in the project structure.
     """
 
-    def __init__(self, app_context: AppContext, gallery_name: str | None = None, parent_id: str | None = None):
+    def __init__(self, app_context: AppContext, gallery_name: str | None = None, parent_id: str | None = None,
+                 *, gallery_id: str | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -24,6 +25,9 @@ class CreateImageGalleryCommand(Command):
 
         self.gallery_name = gallery_name
         self.parent_id = parent_id
+        # Lets a caller (e.g. a CompositeCommand also creating an image inside
+        # this gallery) know the new gallery's id before the command runs.
+        self._requested_gallery_id = gallery_id
 
         # Store state for undo
         self.created_gallery_id = None
@@ -68,7 +72,7 @@ class CreateImageGalleryCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            self.created_gallery_id = str(uuid.uuid4())
+            self.created_gallery_id = self._requested_gallery_id or str(uuid.uuid4())
             self.created_gallery = ImageGallery(
                 id=self.created_gallery_id,
                 name=gallery_name

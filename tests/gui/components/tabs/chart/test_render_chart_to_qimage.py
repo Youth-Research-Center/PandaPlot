@@ -122,3 +122,35 @@ def test_per_chart_dpi_override_sets_the_rendered_pixel_size(qapp):
     overridden_width = render_chart_to_qimage(chart, resolved_series_data, size_defaults).width()
 
     assert overridden_width == pytest.approx(default_width * 2, rel=0.05)
+
+
+def test_snapshot_has_an_opaque_background_unless_the_chart_sets_a_color(qapp):
+    chart = Chart(name="Chart", chart_type="line")
+    size_defaults = ChartSizeDefaults(default_width_cm=10.0, default_height_cm=8.0, dpi=100)
+
+    qimg = render_chart_to_qimage(chart, [], size_defaults)
+
+    assert qimg.pixelColor(0, 0).alpha() == 255
+    assert qimg.pixelColor(0, 0).red() == 255  # white, readable behind dark text
+
+
+def test_failed_rerender_leaves_no_stale_colorbar_reference(qapp, monkeypatch):
+    from pandaplot.app import build_app_context
+    from pandaplot.gui.components.tabs.chart import chart_editor
+    from pandaplot.gui.components.tabs.chart.chart_editor import ChartEditorWidget
+
+    project = Project(name="Test Project")
+    chart = Chart(name="Chart", chart_type="line")
+    project.add_item(chart)
+    app_context = build_app_context()
+    app_context.app_state.load_project(project)
+    widget = ChartEditorWidget(app_context=app_context, chart=chart, parent=None)
+    widget._colorbar = MagicMock()
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(chart_editor, "render_chart", _boom)
+    widget.update_chart()
+
+    assert widget._colorbar is None

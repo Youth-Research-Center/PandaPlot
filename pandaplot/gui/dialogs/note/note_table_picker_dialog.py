@@ -27,15 +27,15 @@ from pandaplot.utils.item_display_options import dataset_display_options
 def _escape_markdown_table_cell(val: object) -> str:
     """Escape a value for safe embedding in a single Markdown table cell."""
     # pd.isna, not a string comparison: a literal string "nan" is a real
-    # cell value, not a missing one (see PandasTableModel.data / PR #383
-    # review, and tests/gui/test_pandas_table_model.py's
-    # test_literal_nan_string_displays_as_nan for the same distinction).
+    # cell value, not a missing one (see PandasTableModel.data and
+    # tests/gui/test_pandas_table_model.py's test_literal_nan_string_displays_as_nan
+    # for the same distinction).
     # Gated on pd.api.types.is_scalar first: pd.isna(val) itself raises
     # "truth value of an array is ambiguous" for a non-scalar cell (a
     # NumPy array; a tuple happens not to trigger it, but object-dtype
     # DataFrame columns can hold arbitrary values) -- is_scalar is the
     # general predicate for what pd.isna can safely evaluate, rather than
-    # hand-picking the non-scalar types to exclude (see PR #383 review).
+    # hand-picking the non-scalar types to exclude.
     if pd.api.types.is_scalar(val) and pd.isna(val):
         return ""
     text = str(val)
@@ -82,6 +82,10 @@ def custom_to_markdown_table(rows: int, cols: int, *, include_header: bool = Tru
     return "\n".join(lines)
 
 
+# Most rows of a dataset table shown in the live preview.
+_PREVIEW_MAX_ROWS = 50
+
+
 class NoteTablePickerDialog(PDialog):
     """
     Dialog allowing the user to insert a table into a Markdown note, either
@@ -96,7 +100,6 @@ class NoteTablePickerDialog(PDialog):
     ):
         super().__init__(app_context=app_context, parent=parent)
         self.project = project
-        self._markdown_result: str = ""
         self._datasets: list[Dataset] = []
         if self.project is not None:
             self._datasets = [item for item in self.project.get_all_items() if isinstance(item, Dataset)]
@@ -193,31 +196,33 @@ class NoteTablePickerDialog(PDialog):
     def _apply_theme(self):
         pass
 
-    def _update_preview(self) -> None:
+    def _build_markdown(self, *, preview: bool) -> str:
+        """The table for the current controls. A preview of a dataset table is
+        capped at `_PREVIEW_MAX_ROWS` rows, so a huge dataset doesn't rebuild
+        and re-lay-out its whole table on every control change; the inserted
+        table is never capped beyond the user's own row limit."""
         if self.tab_widget.currentIndex() == 0:  # From Dataset
             dataset_id = self.dataset_combo.currentData()
             dataset = self.project.find_item(dataset_id) if (self.project and dataset_id) else None
-            if dataset and isinstance(dataset, Dataset):
-                max_rows = self.max_rows_spin.value() if self.limit_rows_cb.isChecked() else None
-                table_md = dataset_to_markdown_table(dataset, max_rows=max_rows)
-            else:
-                table_md = ""
-            self.ok_button.setEnabled(bool(table_md))
-        else:  # Custom Table
-            rows = self.rows_spin.value()
-            cols = self.cols_spin.value()
-            include_header = self.header_cb.isChecked()
-            table_md = custom_to_markdown_table(rows, cols, include_header=include_header)
-            self.ok_button.setEnabled(True)
+            if not isinstance(dataset, Dataset):
+                return ""
+            max_rows = self.max_rows_spin.value() if self.limit_rows_cb.isChecked() else None
+            if preview and (max_rows is None or max_rows > _PREVIEW_MAX_ROWS):
+                return dataset_to_markdown_table(dataset, max_rows=_PREVIEW_MAX_ROWS)
+            return dataset_to_markdown_table(dataset, max_rows=max_rows)
+        return custom_to_markdown_table(
+            self.rows_spin.value(), self.cols_spin.value(), include_header=self.header_cb.isChecked())
 
-        self._markdown_result = table_md
+    def _update_preview(self) -> None:
+        table_md = self._build_markdown(preview=True)
+        self.ok_button.setEnabled(bool(table_md) or self.tab_widget.currentIndex() != 0)
         self.preview_edit.setPlainText(table_md)
 
     def _on_ok_clicked(self) -> None:
-        self._update_preview()
-        if self._markdown_result:
+        if self.get_markdown_table():
             self.accept()
 
     def get_markdown_table(self) -> str:
-        """Return the generated Markdown table string."""
-        return self._markdown_result
+        """Return the generated Markdown table string (the full table, not the
+        capped preview)."""
+        return self._build_markdown(preview=False)

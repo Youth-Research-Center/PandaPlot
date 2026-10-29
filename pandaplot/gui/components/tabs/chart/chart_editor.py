@@ -1439,7 +1439,10 @@ def render_chart_to_qimage(chart, resolved_series_data, size_defaults) -> QImage
         render_chart(chart, canvas, resolved_series_data, size_defaults, interactive=False)
         buf = io.BytesIO()
         # render_chart() has applied the chart's own DPI (or the default) to the figure.
-        canvas.fig.savefig(buf, format="png", dpi=canvas.fig.dpi, bbox_inches="tight")
+        # A snapshot is a static image: without an explicit figure background it
+        # would stay transparent and dark text would vanish on a dark preview.
+        facecolor = chart.style.figure_background_color or "white"
+        canvas.fig.savefig(buf, format="png", dpi=canvas.fig.dpi, bbox_inches="tight", facecolor=facecolor)
         qimg = QImage()
         if qimg.loadFromData(buf.getvalue()):
             return qimg
@@ -1880,9 +1883,12 @@ class ChartEditorWidget(PWidget):
             project = self.app_context.get_app_state().current_project
             resolved_series_data = resolve_chart_series_data(project, self.chart)
             size_defaults = resolve_chart_size_defaults(self.app_context)
+            # render_chart removes the previous colorbar; drop the reference
+            # first so a render that then fails can't leave it dangling.
+            previous_colorbar, self._colorbar = self._colorbar, None
             result = render_chart(
                 self.chart, self.chart_canvas, resolved_series_data, size_defaults,
-                existing_colorbar=self._colorbar, interactive=True,
+                existing_colorbar=previous_colorbar, interactive=True,
                 artist_series_map=self._artist_series_map,
                 twin_y_artists=self._twin_y_artists,
             )

@@ -42,7 +42,7 @@ class Image(Item):
         # Set only when this Image was created as a chart snapshot (see
         # NoteEditorWidget._save_chart_snapshot_image / CreateImageFromBytesCommand);
         # None for every other Image (imported/pasted gallery images). Lets
-        # the note-links feature attribute a snapshot to the note that
+        # the Artefacts dialog attribute a snapshot to the note that
         # created it, even though the "Chart Snapshots" gallery itself is
         # shared per-folder, not per-note.
         self.note_id = note_id
