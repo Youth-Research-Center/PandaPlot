@@ -1,20 +1,22 @@
 from collections.abc import Sequence
 from typing import cast
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QStandardItemModel
 from PySide6.QtWidgets import QWidget
 
+from pandaplot.gui.components.common.grouped_list import GroupedListView, configure_group_header
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 
 
 class GroupedValueComboBox(ValueComboBox):
     """ValueComboBox whose items are listed under group headers.
 
-    Each header is a disabled item with no value: QComboBox skips disabled
-    items when navigating with the arrow keys or the wheel, and findData()
-    never matches one, so a header can't become the current item. Anything
-    iterating the items by index must skip rows whose itemData() is None.
+    Each header is a disabled item with no value (see grouped_list.py):
+    QComboBox skips disabled items when navigating with the arrow keys or the
+    wheel, the popup's GroupedListView keeps Home/End/PageUp/PageDown off
+    them, and findData() never matches one, so a header can't become the
+    current item. A group with no items gets no header. Anything iterating
+    the items by index must skip rows where is_header() is True.
     """
 
     def __init__(
@@ -23,8 +25,11 @@ class GroupedValueComboBox(ValueComboBox):
         parent: QWidget | None = None,
     ):
         super().__init__([item for _header, items in groups for item in items], parent=parent)
+        # Replaces DropDownComboBox's plain QListView; still an explicit view,
+        # so the popup keeps opening below the field.
+        self.setView(GroupedListView())
 
-        # QComboBox's default model; disabling an item needs its flags.
+        # QComboBox's default model; making an item a header needs its flags.
         model = cast(QStandardItemModel, self.model())
         # Inserted after the values so ValueComboBox's construction is
         # unchanged; signals are blocked because inserting above the current
@@ -35,12 +40,7 @@ class GroupedValueComboBox(ValueComboBox):
             if not items:
                 continue
             self.insertItem(row, header)
-            header_item = model.item(row)
-            header_item.setEnabled(False)
-            header_item.setData(f"{header} group", Qt.ItemDataRole.AccessibleDescriptionRole)
-            font = header_item.font()
-            font.setBold(True)
-            header_item.setFont(font)
+            configure_group_header(model.item(row), header)
             row += len(items) + 1
         self.blockSignals(False)  # noqa: FBT003 -- Qt bound method, positional-only
 

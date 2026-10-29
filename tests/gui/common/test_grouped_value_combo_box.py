@@ -74,3 +74,29 @@ def test_empty_group_gets_no_header():
 
     assert combo.itemText(0) == "Lines"
     assert combo.count() == 5
+
+
+def _popup_row_after(combo: GroupedValueComboBox, start_value: str, key: Qt.Key) -> int:
+    combo.setCurrentValue(start_value)
+    combo.show()
+    combo.showPopup()
+    view = combo.view()
+    view.setCurrentIndex(combo.model().index(combo.findData(start_value), 0))
+    QTest.keyClick(view, key)
+    row = view.currentIndex().row()
+    combo.hidePopup()
+    return row
+
+
+def test_popup_home_skips_leading_header():
+    """Regression: in the open popup, Home targets row 0 -- a header -- and
+    Qt refused the move, leaving the highlight where it was."""
+    combo = GroupedValueComboBox(_GROUPS)
+
+    assert _popup_row_after(combo, "bar", Qt.Key.Key_Home) == combo.findData("line")
+
+
+def test_popup_page_up_does_not_stick_below_a_header():
+    combo = GroupedValueComboBox(_GROUPS)
+
+    assert _popup_row_after(combo, "bar", Qt.Key.Key_PageUp) == combo.findData("line")

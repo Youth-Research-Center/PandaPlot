@@ -5,10 +5,10 @@ chart_type_spec.py) is derived from the specs rather than kept as a second
 list. The values are the display labels, and the member order is the order
 the groups are shown in.
 """
-from enum import Enum
+from enum import StrEnum
 
 
-class ChartCategory(str, Enum):
+class ChartCategory(StrEnum):
     LINE_SCATTER = "Line & Scatter"
     BAR_PIE = "Bar & Pie"
     DISTRIBUTION = "Distribution"

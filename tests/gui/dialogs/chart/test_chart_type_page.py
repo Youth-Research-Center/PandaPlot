@@ -221,3 +221,47 @@ def test_selecting_a_different_type_keeps_next_enabled_in_sync():
 
     assert page.isComplete() is True
     assert page.footer.next_button.isEnabled() is True
+
+
+def test_a_header_becoming_current_keeps_the_last_chart_type_previewed():
+    """Regression: _on_type_changed only checked for None, so a header made
+    current (setCurrentRow on a header row) was passed to the preview as
+    chart type None. The page must ignore it rather than redraw a preview
+    for no chart type."""
+    page = ChartTypePage(app_context=_fake_app_context())
+    rendered = []
+    page._render_preview = rendered.append
+
+    page.type_list.setCurrentRow(0)  # the "Line & Scatter" header
+
+    assert rendered == []
+    assert page.selected_chart_type() == "line"
+    assert page.isComplete() is True
+
+
+def test_empty_category_gets_no_header(monkeypatch):
+    """Matches GroupedValueComboBox: a category with no chart types is left
+    out rather than shown as a bare, unselectable heading."""
+    from pandaplot.gui.dialogs.chart import chart_type_page
+    from pandaplot.models.chart.chart_category import ChartCategory
+    from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES
+
+    categories = dict(CHART_TYPE_CATEGORIES)
+    categories[ChartCategory.BAR_PIE] = ()
+    monkeypatch.setattr(chart_type_page, "CHART_TYPE_CATEGORIES", categories)
+
+    page = ChartTypePage(app_context=_fake_app_context())
+
+    assert ChartCategory.BAR_PIE.value not in _row_texts(page)
+    assert _row_texts(page)[:4] == ["Line & Scatter", "Line", "Scatter", "Distribution"]
+
+
+def test_no_chart_types_leaves_the_page_incomplete_instead_of_raising(monkeypatch):
+    from pandaplot.gui.dialogs.chart import chart_type_page
+
+    monkeypatch.setattr(chart_type_page, "CHART_TYPE_CATEGORIES", {})
+
+    page = ChartTypePage(app_context=_fake_app_context())
+
+    assert page.selected_chart_type() is None
+    assert page.isComplete() is False
