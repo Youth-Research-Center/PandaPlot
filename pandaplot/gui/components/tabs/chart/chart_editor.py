@@ -1438,7 +1438,8 @@ def render_chart_to_qimage(chart, resolved_series_data, size_defaults) -> QImage
         )
         render_chart(chart, canvas, resolved_series_data, size_defaults, interactive=False)
         buf = io.BytesIO()
-        canvas.fig.savefig(buf, format="png", dpi=size_defaults.dpi, bbox_inches="tight")
+        # render_chart() has applied the chart's own DPI (or the default) to the figure.
+        canvas.fig.savefig(buf, format="png", dpi=canvas.fig.dpi, bbox_inches="tight")
         qimg = QImage()
         if qimg.loadFromData(buf.getvalue()):
             return qimg

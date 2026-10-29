@@ -5,6 +5,7 @@ constructing any Qt widget."""
 from unittest.mock import MagicMock
 
 import pandas as pd
+import pytest
 from PySide6.QtGui import QImage
 
 from pandaplot.gui.components.tabs.chart.chart_editor import (
@@ -102,3 +103,22 @@ def test_headless_and_widget_canvas_render_equivalent_output(qapp):
     assert widget.chart_canvas.axes.get_xlabel() == headless_canvas.axes.get_xlabel() == "X Axis"
     assert widget.chart_canvas.axes.get_title() == headless_canvas.axes.get_title()
     assert len(widget.chart_canvas.axes.get_lines()) == len(headless_canvas.axes.get_lines()) == 1
+
+
+def test_per_chart_dpi_override_sets_the_rendered_pixel_size(qapp):
+    """A chart's own DPI must win over the app-wide default, as it does in the
+    chart tab: the same chart rendered at twice the DPI is about twice as wide."""
+    project = Project(name="Test Project")
+    dataset = Dataset(name="ds", data=pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6]}))
+    project.add_item(dataset)
+    chart = Chart(name="Chart", chart_type="line")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"))
+    project.add_item(chart)
+    resolved_series_data = resolve_chart_series_data(project, chart)
+    size_defaults = ChartSizeDefaults(default_width_cm=10.0, default_height_cm=8.0, dpi=100)
+
+    default_width = render_chart_to_qimage(chart, resolved_series_data, size_defaults).width()
+    chart.config.dpi = 200
+    overridden_width = render_chart_to_qimage(chart, resolved_series_data, size_defaults).width()
+
+    assert overridden_width == pytest.approx(default_width * 2, rel=0.05)
