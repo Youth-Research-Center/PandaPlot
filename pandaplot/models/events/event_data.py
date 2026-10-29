@@ -1,17 +1,14 @@
 """
 Event data classes for used event types in PandaPlot.
 Only event types that are actually used (subscribed/emitted) have data classes.
-Unused event types are commented for future reference.
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, fields
-from typing import TYPE_CHECKING, Any, Self, TypeVar, override
+from typing import TYPE_CHECKING, Any, Self, override
 
 if TYPE_CHECKING:
     from pandaplot.models.project.items.chart import Chart
-
-T = TypeVar("T", bound="EventData")
 
 @dataclass(frozen=True)
 class EventData:

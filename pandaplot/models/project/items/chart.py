@@ -795,9 +795,9 @@ class Chart(Item):
             precomputed_x = series_dict.get("precomputed_x_data")
             precomputed_y = series_dict.get("precomputed_y_data")
             series = DataSeries(
-                dataset_id=series_dict["dataset_id"],
-                x_column=series_dict["x_column"],
-                y_column=series_dict["y_column"],
+                dataset_id=series_dict.get("dataset_id", ""),
+                x_column=series_dict.get("x_column", ""),
+                y_column=series_dict.get("y_column", ""),
                 x_column_id=series_dict.get("x_column_id", ""),
                 y_column_id=series_dict.get("y_column_id", ""),
                 label=series_dict.get("label", ""),

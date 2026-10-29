@@ -213,3 +213,12 @@ def test_max_undo_levels_round_trip_and_validation():
 def test_invalid_max_undo_levels_keeps_default():
     cfg = ApplicationConfig.from_mapping({"max_undo_levels": True})
     assert cfg.max_undo_levels == 10
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), "nan", "-inf"])
+def test_non_finite_numbers_keep_defaults(bad):
+    cfg = ApplicationConfig.default()
+    cfg.update_from_mapping({"chart_display": {"default_width_cm": bad, "dpi": bad}})
+    defaults = ApplicationConfig.default().chart_display
+    assert cfg.chart_display.default_width_cm == defaults.default_width_cm
+    assert cfg.chart_display.dpi == defaults.dpi

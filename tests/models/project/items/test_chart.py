@@ -1358,3 +1358,16 @@ def test_fill_sections_round_trip_through_chart_serialization():
     restored = Chart.from_dict(chart.to_dict())
 
     assert restored.data_series[0].style.fill_sections == [(1, 3), (6, -1)]
+
+
+def test_from_dict_tolerates_series_missing_column_keys():
+    chart = Chart(name="C", chart_type="line")
+    chart.add_data_series("ds", x_column_id="cx", y_column_id="cy")
+    data = chart.to_dict()
+    for key in ("dataset_id", "x_column", "y_column"):
+        data["data_series"][0].pop(key, None)
+
+    restored = Chart.from_dict(data)
+
+    assert len(restored.data_series) == 1
+    assert restored.data_series[0].x_column_id == "cx"
