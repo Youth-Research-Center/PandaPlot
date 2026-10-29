@@ -30,6 +30,11 @@ class SeriesData:
     # names -- see SeriesTypeSpec.needs_label_column). None when the type
     # has no label column or the series leaves it blank.
     label_data: Any | None = None
+    # Values from an optional twin Y column (#402), drawn against the same
+    # x_data on the Y axis opposite the series' own -- see
+    # SeriesTypeSpec.supports_twin_y_column. None when the type has none or
+    # the series leaves it blank.
+    twin_y_data: Any | None = None
     # Display name of the color column for the default colorbar label, resolved
     # up front so rendering never needs a live project lookup.
     z_label: str = ""
@@ -53,5 +58,6 @@ class SeriesData:
             magnitude_data=_copy_field(self.magnitude_data),
             z_data=_copy_field(self.z_data),
             label_data=_copy_field(self.label_data),
+            twin_y_data=_copy_field(self.twin_y_data),
             z_label=self.z_label,
         )

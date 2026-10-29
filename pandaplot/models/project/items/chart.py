@@ -149,6 +149,29 @@ class DataSeries:
         return error_bars is not None and error_bars.has_error_data
 
     @property
+    def has_twin_y_column(self) -> bool:
+        """Whether this series' style carries a twin Y column (#402) -- a
+        second value column drawn on the Y axis opposite `y_axis`. Only
+        LineSeriesStyle/ScatterSeriesStyle declare one, so this is always
+        False for every other style class."""
+        return bool(getattr(self.style, "twin_y_column_id", "") or getattr(self.style, "twin_y_column", ""))
+
+    @property
+    def twin_y_axis(self) -> YAxis | None:
+        """The axis the twin Y column plots on (always the one opposite
+        `y_axis`), or None when the series has no twin Y column."""
+        if not self.has_twin_y_column:
+            return None
+        return YAxis.PRIMARY if self.y_axis == YAxis.SECONDARY else YAxis.SECONDARY
+
+    @property
+    def uses_secondary_y_axis(self) -> bool:
+        """Whether anything this series draws needs the secondary Y axis:
+        its own values (`y_axis`) or its twin Y column. The single check
+        behind every "does this chart need Y2?" decision."""
+        return self.y_axis == YAxis.SECONDARY or self.twin_y_axis == YAxis.SECONDARY
+
+    @property
     def is_fit(self) -> bool:
         """Whether this series is a SeriesType.FIT snapshot rather than a
         live-column series. Single source of truth for the `series_type ==
@@ -280,7 +303,8 @@ class Chart(Item):
         # Colormap <-> Heatmap both require a Z column, and Vector <-> Vector3D
         # share U/V (plus magnitude) -- retyping between them must not force
         # the user to re-pick the same columns.
-        for role in ("z", "u", "v", "w", "magnitude"):
+        # Line <-> Scatter both take a twin Y column (#402).
+        for role in ("z", "u", "v", "w", "magnitude", "twin_y"):
             if hasattr(old_style, f"{role}_column_id") and hasattr(new_style, f"{role}_column_id"):
                 setattr(new_style, f"{role}_column_id", getattr(old_style, f"{role}_column_id"))
                 setattr(new_style, f"{role}_column", getattr(old_style, f"{role}_column", ""))
@@ -300,6 +324,8 @@ class Chart(Item):
             "fill_to_index", "fill_range_enabled", "fill_sections",
             # Density <-> Line share the curve's line style and width.
             "line_style", "line_width",
+            # Line <-> Scatter share the twin Y trace's color (#402).
+            "twin_y_color",
         ):
             if hasattr(old_style, field_name) and hasattr(new_style, field_name):
                 value = getattr(old_style, field_name)
@@ -562,7 +588,8 @@ class Chart(Item):
         """Why :meth:`swap_axes` can't run on this chart, or None if it can.
 
         Only Line/Scatter/Vector charts whose every series is a Line,
-        Scatter, Vector or Fit series on the primary Y axis qualify. Every
+        Scatter, Vector or Fit series on the primary Y axis (and without a twin
+        Y column, which plots on the secondary one) qualify. Every
         non-fit series also needs explicit X and Y columns.
         """
         if not self.supports_swap_axes:
@@ -573,7 +600,7 @@ class Chart(Item):
         for series in self.data_series:
             if series.series_type not in _SWAPPABLE_SERIES_TYPES:
                 return "X and Y can only be swapped when every series is a Line, Scatter, Vector or Fit series."
-            if series.y_axis == YAxis.SECONDARY:
+            if series.uses_secondary_y_axis:
                 return "X and Y can't be swapped while a series uses the secondary Y axis."
             if series.is_fit:
                 continue
@@ -685,8 +712,11 @@ class Chart(Item):
             dataset = project.find_item(series.dataset_id) if project else None
             x_name = resolve_series_column(dataset, series.x_column_id, series.x_column) or ""
             y_name = resolve_series_column(dataset, series.y_column_id, series.y_column) or ""
+            twin_y_name = resolve_series_column(
+                dataset, getattr(series.style, "twin_y_column_id", ""), getattr(series.style, "twin_y_column", "")) or ""
             if (query_lower in x_name.lower() or
                 query_lower in y_name.lower() or
+                query_lower in twin_y_name.lower() or
                 query_lower in series.label.lower() or
                 query_lower in series.dataset_id.lower()):
                 return True
@@ -912,7 +942,7 @@ def assign_series_column_ids(series: "DataSeries", dataset: Any) -> None:
                 if cid is not None:
                     setattr(error_bars, id_field, cid)
 
-    for role in ("u", "v", "w", "magnitude", "label"):
+    for role in ("u", "v", "w", "magnitude", "label", "twin_y"):
         id_field = f"{role}_column_id"
         name = getattr(series.style, f"{role}_column", "")
         if hasattr(series.style, id_field) and name:

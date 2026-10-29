@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 import time
 import warnings
@@ -437,16 +438,21 @@ def find_fill_artist_for_series(artist_series_map, series_idx):
     return None
 
 
-def add_fill_legend_swatches(chart, artist_series_map, handles: list) -> list:
+def add_fill_legend_swatches(chart, artist_series_map, handles: list, twin_y_artists=frozenset()) -> list:
     """For a filled/area line series (`style.fill_enabled`), pair its
     line handle with the actual `fill_between`/`fill_betweenx`
     PolyCollection artist tracked for it in `artist_series_map`, so the
     legend swatch shows the filled area's color/alpha instead of just
     the line (#278). `build_legend`'s `handler_map` draws such a tuple
     as one combined patch+line key. Series without an enabled fill, or
-    whose fill artist can't be found, pass through unchanged."""
+    whose fill artist can't be found, pass through unchanged. A twin Y
+    trace (`twin_y_artists`, #402) is drawn without the series' fill, so
+    its handle is never paired with one."""
     augmented = []
     for handle in handles:
+        if handle in twin_y_artists:
+            augmented.append(handle)
+            continue
         series_idx = resolve_series_index_for_handle(artist_series_map, handle)
         style = line_style_for_data_series_index(chart, series_idx)
         fill_artist = find_fill_artist_for_series(artist_series_map, series_idx) if style is not None and style.fill_enabled else None
@@ -507,7 +513,8 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     Colormap/Heatmap, the third spatial axis for every 3-D type including
     Vector3D) are resolved the same way, but required ones error out the
     whole series when unresolvable. A pie's optional wedge-label column
-    (label_data) is resolved leniently, like magnitude.
+    (label_data) and a line/scatter series' optional twin Y column
+    (twin_y_data, #402) are resolved leniently, like magnitude.
 
     A series carrying precomputed_x_data/precomputed_y_data (SeriesType.FIT)
     short-circuits immediately to that snapshot, without touching `project`
@@ -613,9 +620,78 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
         if label_column and label_column in df.columns:
             label_data = df[label_column]
 
+    # Optional too: a blank or stale twin Y column just drops the twin trace.
+    # getattr because wizard_preview.py's throwaway series may pass a
+    # `chart_type` whose spec doesn't match the series' own style class.
+    twin_y_data = None
+    if spec.supports_twin_y_column:
+        twin_y_column = resolve_series_column(
+            dataset, getattr(series.style, "twin_y_column_id", ""), getattr(series.style, "twin_y_column", ""))
+        if twin_y_column and twin_y_column in df.columns:
+            twin_y_data = df[twin_y_column]
+
     return SeriesData(x_data, df[y_column], x_err, y_err, x_err_minus, y_err_minus, None,
                       u_data=u_data, v_data=v_data, w_data=w_data, magnitude_data=magnitude_data, z_data=z_data,
-                      label_data=label_data, z_label=z_label)
+                      label_data=label_data, twin_y_data=twin_y_data, z_label=z_label)
+
+
+def series_needs_secondary_axis(series, series_data: SeriesData) -> bool:
+    """Whether `series` actually draws something on the secondary Y axis.
+
+    Like `DataSeries.uses_secondary_y_axis`, except a twin Y column that
+    sits on Y2 only counts when it still resolves: a stale binding draws
+    nothing, so it must not leave an empty secondary axis behind.
+    `series_data` is the series' already-resolved data.
+    """
+    from pandaplot.models.project.items.chart import YAxis
+
+    if series.y_axis == YAxis.SECONDARY:
+        return True
+    return series.twin_y_axis == YAxis.SECONDARY and series_data.twin_y_data is not None
+
+
+def render_twin_y_trace(canvas, renderer, series, series_data: SeriesData, target_axes, alpha: float, extra: dict) -> set:
+    """Draw a series' twin Y column (#402) on the Y axis opposite
+    `target_axes`, with the series' own style and X values. Returns the
+    artists drawn.
+
+    The twin trace skips the area fill (its baseline and fill-to-series
+    target are defined against the series' own values and axis) and error
+    bars (they describe the series' own Y). Its legend entry is the series
+    label tagged with the twin's axis, and it is left out when the series
+    has no label, matching the series' own entry.
+    """
+    axes2 = canvas.axes2
+    twin_axes = canvas.axes if target_axes is axes2 else axes2
+    if twin_axes is None or twin_axes is target_axes:
+        return set()
+    axis_tag = "Y₂" if twin_axes is axes2 else "Y₁"
+    twin_label = f"{series.label} ({axis_tag})" if series.label else ""
+    twin_style = twin_y_style(series.style)
+    twin_data = SeriesData(series_data.x_data, series_data.twin_y_data, None, None, None, None, None)
+
+    def children():
+        found = set(canvas.axes.get_children())
+        found.update(axes2.get_children())
+        return found
+
+    before = children()
+    renderer(twin_axes, twin_data, twin_style, twin_label, alpha, visible=series.visible, extra=extra)
+    return children() - before
+
+
+def twin_y_style(style):
+    """The series' style recolored for its twin Y trace: `twin_y_color`
+    replaces the line color and any explicit marker colors (blank marker
+    colors keep inheriting), and the area fill is dropped."""
+    color = style.twin_y_color
+    marker = style.marker
+    twin_marker = dataclasses.replace(
+        marker,
+        marker_color=color if marker.marker_color else "",
+        marker_edge_color=color if marker.marker_edge_color else "",
+    )
+    return dataclasses.replace(style, color=color, marker=twin_marker, fill_enabled=False)
 
 
 def resolve_chart_series_data(project, chart) -> list:
@@ -628,7 +704,7 @@ def resolve_chart_series_data(project, chart) -> list:
 
 def render_chart(
     chart, canvas, resolved_series_data, size_defaults, *,
-    existing_colorbar=None, interactive=True, artist_series_map=None,
+    existing_colorbar=None, interactive=True, artist_series_map=None, twin_y_artists=None,
 ):
     """Render `chart` onto `canvas` (a ChartCanvas or HeadlessChartCanvas --
     both expose the same interface). This is update_chart()'s plotting body,
@@ -655,6 +731,11 @@ def render_chart(
     the mapping to outlive this call -- a fresh dict is used internally and
     discarded.
 
+    `twin_y_artists` works the same way for the artists drawn for a series'
+    twin Y column (#402): also in `artist_series_map` (a click selects the
+    owning series) but kept apart so the legend doesn't pair a twin trace
+    with the series' own fill.
+
     Raises on error rather than catching/logging internally -- the
     interactive widget wraps this in its own try/except (reporting via its
     status label); a background render's exception is delivered through
@@ -662,6 +743,8 @@ def render_chart(
     """
     if artist_series_map is None:
         artist_series_map = {}
+    if twin_y_artists is None:
+        twin_y_artists = set()
 
     def axes_children():
         """All child artists across the primary and (if present) secondary axes."""
@@ -728,6 +811,7 @@ def render_chart(
     # Clear the current plot and artist-to-series mapping
     canvas.axes.clear()
     artist_series_map.clear()
+    twin_y_artists.clear()
     if not is_3d:
         # Axes.pie() turns the frame off and locks an equal aspect,
         # and clear() undoes neither -- without this, an emptied Pie
@@ -764,7 +848,8 @@ def render_chart(
     # setting simply doesn't apply there (set_projection already
     # tore down any axes2 left over from a 2-D type).
     needs_secondary = not is_3d and has_axes and any(
-        series.y_axis == "secondary" for series in chart.data_series)
+        series_needs_secondary_axis(series, data)
+        for series, data in zip(chart.data_series, resolved_series_data, strict=True))
     if needs_secondary:
         if canvas.axes2 is None:
             canvas.axes2 = canvas.axes.twinx()
@@ -880,23 +965,27 @@ def render_chart(
                             alpha=alpha)
 
                 renderer = SERIES_RENDERERS[series_type]
+                render_extra = {
+                    "bins": chart.config.hist_bins,
+                    "hist_density": CHART_TYPE_SPECS[chart.chart_type].hist_density,
+                    "resolve_fill_baseline": (
+                        lambda query, *, horizontal, _i=i, _style=style: resolve_fill_baseline(
+                            resolved_series_data, _i, _style.fill_base, _style.fill_to_index, query,
+                            horizontal=horizontal)
+                    ),
+                    "colormap": chart.config.colormap,
+                    "color_limits": color_limits,
+                    "stack_bottoms": bar_stack,
+                    BOX_POSITIONS_KEY: box_positions,
+                }
                 mappable = renderer(
                     target_axes, series_data, style, series.label, alpha,
                     visible=series.visible,
-                    extra={
-                        "bins": chart.config.hist_bins,
-                        "hist_density": CHART_TYPE_SPECS[chart.chart_type].hist_density,
-                        "resolve_fill_baseline": (
-                            lambda query, *, horizontal, _i=i, _style=style: resolve_fill_baseline(
-                                resolved_series_data, _i, _style.fill_base, _style.fill_to_index, query,
-                                horizontal=horizontal)
-                        ),
-                        "colormap": chart.config.colormap,
-                        "color_limits": color_limits,
-                        "stack_bottoms": bar_stack,
-                        BOX_POSITIONS_KEY: box_positions,
-                    },
+                    extra=render_extra,
                 )
+                if series_data.twin_y_data is not None:
+                    twin_y_artists.update(
+                        render_twin_y_trace(canvas, renderer, series, series_data, target_axes, alpha, render_extra))
 
             if mappable is None and series_type in SERIES_RENDERERS_REPORTING_NO_DATA:
                 series_errors.append(f"{series.label or f'Series {i + 1}'}: no plottable data")
@@ -1270,7 +1359,7 @@ def render_chart(
             handles2, labels2 = canvas.axes2.get_legend_handles_labels()
             handles += handles2
             labels += labels2
-        handles = add_fill_legend_swatches(chart, artist_series_map, handles)
+        handles = add_fill_legend_swatches(chart, artist_series_map, handles, twin_y_artists)
         # Skip drawing the legend when there are no handles to show
         # (e.g. a chart with only an unlabeled Heatmap series, or any
         # chart where nothing has a label) -- matplotlib would
@@ -1363,7 +1452,8 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
     """Compute (min, max) across every series plotted against the given
     axis (`prefix` in "x", "y", "y2", "z"). All series contribute to "x"
     and to "z" (a 3-D chart has no secondary anything to filter by);
-    "y"/"y2" are filtered by `series.y_axis`. Returns None if no series
+    "y"/"y2" are filtered by `series.y_axis`, and a series' twin Y column
+    (#402) contributes to the opposite one. Returns None if no series
     have resolvable data for this axis (no series yet, every reference is
     broken, or -- for "z" -- no series on the chart carries a Z column at
     all) -- callers fall back to a fixed default range in that case.
@@ -1391,13 +1481,21 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
     bar_stack: BarStack = {}
     box_count = 0
     for series in data_series:
+        on_twin_axis = False
         if prefix in ("y", "y2"):
-            wants_secondary = prefix == "y2"
-            if (series.y_axis == YAxis.SECONDARY) != wants_secondary:
+            wanted_axis = YAxis.SECONDARY if prefix == "y2" else YAxis.PRIMARY
+            on_twin_axis = series.y_axis != wanted_axis
+            if on_twin_axis and series.twin_y_axis != wanted_axis:
                 continue
         data = resolve_series_data(project, series)
         if data.error:
             continue
+        if on_twin_axis:
+            # Only the twin values sit on this axis; line/scatter (the only
+            # types with a twin column) take the plain-array branch below.
+            if data.twin_y_data is None:
+                continue
+            data = SeriesData(data.x_data, data.twin_y_data, None, None, None, None, None)
         if series.series_type == SeriesType.BOX:
             # Boxes have no x_data: they sit on numbered slots (see
             # render_box_series), so X spans the slots and y is the numeric
@@ -1473,6 +1571,8 @@ class ChartEditorWidget(PWidget):
         # `pick_event` on either can be traced back to a series. Rebuilt
         # from scratch on every update_chart() (see axes.clear() below).
         self._artist_series_map: dict = {}
+        # Artists drawn for a series' twin Y column (#402); see render_chart.
+        self._twin_y_artists: set = set()
         self._last_hover_check_time: float = 0.0
         # Trailing-edge state for the hover throttle: the most recent
         # motion event skipped by it, and whether a timer is already
@@ -1783,6 +1883,7 @@ class ChartEditorWidget(PWidget):
                 self.chart, self.chart_canvas, resolved_series_data, size_defaults,
                 existing_colorbar=self._colorbar, interactive=True,
                 artist_series_map=self._artist_series_map,
+                twin_y_artists=self._twin_y_artists,
             )
             self._colorbar = result.colorbar
             if result.series_errors:
@@ -1802,7 +1903,7 @@ class ChartEditorWidget(PWidget):
     def _add_fill_legend_swatches(self, handles: list) -> list:
         """Widget-level entry point to the module-level add_fill_legend_swatches,
         using this widget's artist-to-series map as rebuilt by the last render."""
-        return add_fill_legend_swatches(self.chart, self._artist_series_map, handles)
+        return add_fill_legend_swatches(self.chart, self._artist_series_map, handles, self._twin_y_artists)
 
     def _find_fill_artist_for_series(self, series_idx):
         """The fill PolyCollection tracked for `series_idx` by the last render."""

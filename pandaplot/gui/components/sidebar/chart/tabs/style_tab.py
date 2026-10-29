@@ -697,6 +697,19 @@ class StyleTab(QWidget):
 
         layout.addWidget(error_bars_card)
 
+        # TWIN Y group -- the optional twin Y column (picked on the Data tab)
+        # is drawn on the opposite Y axis with the series' style; this group
+        # only recolors it so the two traces can be told apart.
+        self.twin_y_card = Card()
+        twin_y_layout = QGridLayout(self.twin_y_card)
+        twin_y_layout.addWidget(SectionHeader("Twin Y Column"), 0, 0, 1, 2)
+
+        twin_y_layout.addWidget(QLabel("Color:"), 1, 0)
+        self.twin_y_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
+        twin_y_layout.addWidget(self.twin_y_color_row, 1, 1)
+
+        layout.addWidget(self.twin_y_card)
+
         # VALUE LABELS group -- annotate each rendered point/bar with its
         # own numeric value (#125). Mode/arrow/offset apply to Line/Scatter
         # only (BarSeriesStyle has no such fields -- see
@@ -1014,6 +1027,7 @@ class StyleTab(QWidget):
         self.marker_edge_width_slider.valueChanged.connect(self._on_field_changed)
         self.error_direction_control.currentValueChanged.connect(self._on_field_changed)
         self.error_color_row.colorChanged.connect(self._on_field_changed)
+        self.twin_y_color_row.colorChanged.connect(self._on_field_changed)
         self.error_match_line_toggle.toggled.connect(self._on_error_match_line_toggled)
         self.error_cap_size_slider.valueChanged.connect(self._on_field_changed)
         self.value_labels_enabled_toggle.toggled.connect(self._on_value_labels_enabled_toggled)
@@ -1201,6 +1215,12 @@ class StyleTab(QWidget):
         # controls (direction/color/cap size) have no error bars to apply to.
         self.error_bars_card.setVisible(
             kind == "series" and isinstance(obj, DataSeries) and obj.has_error_data and error_bars_supported
+        )
+        # Only a series that actually has a twin Y column has a twin trace to
+        # recolor (fits never do).
+        self.twin_y_card.setVisible(
+            kind == "series" and isinstance(obj, DataSeries) and not is_fit
+            and spec.supports_twin_y_column and obj.has_twin_y_column
         )
         # Fit data has no show_value_labels field (FitStyle) -- a fit is
         # always the analytic curve itself, not individually plotted points/
@@ -1482,9 +1502,8 @@ class StyleTab(QWidget):
         currently uses the secondary Y axis (mirrors
         AxesTab.refresh_axis_chips). Safe to call whenever the chart or its
         series may have changed."""
-        from pandaplot.models.project.items.chart import YAxis
         has_secondary = bool(chart) and any(
-            series.y_axis == YAxis.SECONDARY for series in chart.data_series
+            series.uses_secondary_y_axis for series in chart.data_series
         )
         current = self.axes_style_selector.currentValue()
         self.axes_style_selector.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
@@ -2256,6 +2275,9 @@ class StyleTab(QWidget):
             )
             error_bars.error_cap_size = self.error_cap_size_slider.value()
 
+        if hasattr(style, "twin_y_color"):
+            style.twin_y_color = self.twin_y_color_row.currentColor()
+
         # Area fill. "Match line" reuses the "" == inherit-style.color
         # convention. fill_to_index is -1 (fill down to the constant baseline)
         # or the index of another series to fill between. Only styles with
@@ -2437,6 +2459,9 @@ class StyleTab(QWidget):
             self.error_match_line_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self._update_error_controls_visibility()
             self.error_cap_size_slider.setValue(getattr(error_bars, "error_cap_size", 3.0))
+
+            if hasattr(style, "twin_y_color"):
+                self.twin_y_color_row.setCurrentColor(style.twin_y_color)
 
             self._populate_fill_to_options(series)
             self.fill_enabled_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
@@ -2939,6 +2964,7 @@ class StyleTab(QWidget):
         self.marker_edge_width_slider.set_tokens(tokens)
         self.error_direction_control.set_tokens(tokens)
         self.error_color_row.set_tokens(tokens)
+        self.twin_y_color_row.set_tokens(tokens)
         self.error_match_line_toggle.set_tokens(tokens)
         self.error_cap_size_slider.set_tokens(tokens)
         self.vector_card.set_tokens(tokens)

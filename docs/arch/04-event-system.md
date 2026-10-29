@@ -43,6 +43,7 @@ The hierarchy is defined in `EventHierarchy.HIERARCHY_MAP` inside `event_types.p
 | `AnalysisEvents` | `analysis.completed`, `analysis.failed` |
 | `FitEvents` | `fit.applied`, `fit.removed` |
 | `NoteEvents` | `note.created`, `note.content_changed` |
+| `SketchEvents` | `sketch.changed` (payload `sketch_id`; any change to a sketch's layers or elements; does not bubble to `project.changed`, whose subscribers only care about the tree and window title) |
 | `UIEvents` | `ui.tab_opened`, `ui.tab_closed`, `ui.panel_changed` |
 
 ## Subscription Lifecycle (WidgetExtension)

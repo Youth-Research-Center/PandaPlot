@@ -16,6 +16,15 @@ class ScatterSeriesStyle(FillStyleFields, SeriesStyleBase):
     color: str = "#1f77b4"
     marker: MarkerStyle = field(default_factory=MarkerStyle)
     error_bars: ErrorBarConfig = field(default_factory=ErrorBarConfig)
+    # Optional second value column for the same X, drawn on the Y axis
+    # opposite this series' own y_axis (#402) -- see
+    # SeriesTypeSpec.supports_twin_y_column. Blank means no twin trace.
+    twin_y_column_id: str = ""
+    twin_y_column: str = ""
+    # Color of the twin trace, so it can be told apart from the series' own
+    # (#402). Overrides the line/marker color; a marker color left blank
+    # ("inherit") follows it, an explicit one is replaced by it.
+    twin_y_color: str = "#ff7f0e"
     # Annotate each rendered point with its numeric Y value (#125) -- see
     # SeriesTypeSpec.supports_value_labels and series_renderers/value_labels.py.
     show_value_labels: bool = False

@@ -21,6 +21,7 @@ from pandaplot.commands.project.project import (
     SaveProjectAsCommand,
     SaveProjectCommand,
 )
+from pandaplot.commands.project.sketch import CreateSketchCommand
 from pandaplot.gui.core.widget_extension import PMenuBar
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -313,6 +314,11 @@ class MainMenu(PMenuBar):
         new_note_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(CreateNoteCommand(self.app_context)))
         data_menu.addAction(new_note_action)
+
+        new_sketch_action = QAction("New Sketch", self)
+        new_sketch_action.triggered.connect(lambda: self.app_context.get_command_executor(
+        ).execute_command(CreateSketchCommand(self.app_context)))
+        data_menu.addAction(new_sketch_action)
         return data_menu
 
     def _on_import_images_from_menu(self):
