@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.dialogs.chart.chart_type_page import ChartTypePage
@@ -94,7 +95,65 @@ def test_type_rows_have_icons():
     page = ChartTypePage(app_context=_fake_app_context())
 
     for row in range(page.type_list.count()):
-        assert not page.type_list.item(row).icon().isNull()
+        item = page.type_list.item(row)
+        if item.data(Qt.ItemDataRole.UserRole) is None:
+            continue  # category header
+        assert not item.icon().isNull()
+
+
+def _row_texts(page: ChartTypePage) -> list[str]:
+    return [page.type_list.item(row).text() for row in range(page.type_list.count())]
+
+
+def test_types_are_grouped_under_category_headers_in_order():
+    from pandaplot.models.chart.chart_category import ChartCategory
+    from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS
+
+    page = ChartTypePage(app_context=_fake_app_context())
+
+    expected = []
+    for category in ChartCategory:
+        expected.append(category.value)
+        expected.extend(CHART_TYPE_SPECS[chart_type].display_name for chart_type in CHART_TYPE_CATEGORIES[category])
+    assert _row_texts(page) == expected
+    assert _row_texts(page)[:7] == ["Line & Scatter", "Line", "Scatter", "Bar & Pie", "Bar", "Stacked Bar", "Pie"]
+
+
+def test_category_headers_cannot_be_selected():
+    page = ChartTypePage(app_context=_fake_app_context())
+
+    headers = [
+        page.type_list.item(row) for row in range(page.type_list.count())
+        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) is None
+    ]
+    assert len(headers) == 5
+    for header in headers:
+        assert not header.flags() & Qt.ItemFlag.ItemIsSelectable
+        assert not header.flags() & Qt.ItemFlag.ItemIsEnabled
+        assert header.icon().isNull()
+
+
+def test_keyboard_navigation_skips_category_headers():
+    page = ChartTypePage(app_context=_fake_app_context())
+    page.show()
+    page.type_list.setFocus()
+
+    def press(key):
+        QTest.keyClick(page.type_list, key)
+        return page.selected_chart_type()
+
+    assert page.selected_chart_type() == "line"
+    assert press(Qt.Key.Key_Down) == "scatter"
+    assert press(Qt.Key.Key_Down) == "bar"  # skips the "Bar & Pie" header
+    assert press(Qt.Key.Key_Up) == "scatter"
+    assert press(Qt.Key.Key_End) == "vector3d"
+    assert press(Qt.Key.Key_Home) == "line"  # row 0 is a header; Qt alone would not move
+    press(Qt.Key.Key_End)
+    assert press(Qt.Key.Key_PageUp) is not None
+    while page.selected_chart_type() != "line":
+        before = page.selected_chart_type()
+        assert press(Qt.Key.Key_PageUp) != before, "PageUp got stuck on a header"
+    page.close()
 
 
 def test_page_exposes_a_step_rail_and_footer():

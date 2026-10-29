@@ -6,8 +6,9 @@ from anywhere in the app's menu/command wiring without eagerly loading
 matplotlib (see tests/gui/test_main_menu_lazy_imports.py).
 """
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QModelIndex, Qt, Signal
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
@@ -22,9 +23,31 @@ from pandaplot.gui.core.widget_extension import PWizardPage
 from pandaplot.gui.dialogs.chart.chart_type_icons import chart_type_icon
 from pandaplot.gui.dialogs.chart.wizard_footer import WizardFooter
 from pandaplot.gui.dialogs.chart.wizard_step_rail import WizardStepRail
-from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
+
+
+class _GroupedTypeList(QListWidget):
+    """QListWidget whose cursor moves never stop on a category header.
+
+    Arrow keys already skip header rows (they have no item flags), but Home
+    and PageUp/PageDown target a fixed row; when that row is a header, Qt
+    refuses the move and the selection doesn't change at all. Moving on to
+    the nearest selectable row -- forwards first, so Home lands on the first
+    chart type -- keeps every navigation key working.
+    """
+
+    def moveCursor(self, cursorAction: QAbstractItemView.CursorAction, modifiers: Qt.KeyboardModifier) -> QModelIndex:
+        index = super().moveCursor(cursorAction, modifiers)
+        if not index.isValid() or index.flags() & Qt.ItemFlag.ItemIsSelectable:
+            return index
+        rows = self.count()
+        for row in [*range(index.row() + 1, rows), *range(index.row() - 1, -1, -1)]:
+            candidate = self.model().index(row, 0)
+            if candidate.flags() & Qt.ItemFlag.ItemIsSelectable:
+                return candidate
+        return index
 
 
 class ChartTypePage(PWizardPage):
@@ -56,11 +79,24 @@ class ChartTypePage(PWizardPage):
         type_layout = QVBoxLayout(type_card)
         type_layout.addWidget(SectionHeader("Chart type"))
 
-        self.type_list = QListWidget()
-        for chart_type, spec in CHART_TYPE_SPECS.items():
-            item = QListWidgetItem(spec.display_name)
-            item.setData(Qt.ItemDataRole.UserRole, chart_type)
-            self.type_list.addItem(item)
+        self.type_list = _GroupedTypeList()
+        self.type_list.setAccessibleName("Chart type")
+        for category, chart_types in CHART_TYPE_CATEGORIES.items():
+            # A header has no item flags: it can't be selected, and
+            # keyboard navigation skips it (see _GroupedTypeList). It carries no
+            # UserRole data, which is how the rest of this page tells it
+            # apart from a chart type row.
+            header = QListWidgetItem(category.value)
+            header.setFlags(Qt.ItemFlag.NoItemFlags)
+            header.setData(Qt.ItemDataRole.AccessibleDescriptionRole, f"{category.value} group")
+            font = header.font()
+            font.setBold(True)
+            header.setFont(font)
+            self.type_list.addItem(header)
+            for chart_type in chart_types:
+                item = QListWidgetItem(CHART_TYPE_SPECS[chart_type].display_name)
+                item.setData(Qt.ItemDataRole.UserRole, chart_type)
+                self.type_list.addItem(item)
         self.type_list.currentItemChanged.connect(self._on_type_changed)
         type_layout.addWidget(self.type_list, 1)
         type_column.addWidget(type_card, 1)
@@ -88,7 +124,9 @@ class ChartTypePage(PWizardPage):
         self.completeChanged.connect(lambda: self.footer.set_next_enabled(enabled=self.isComplete()))
         self.footer.set_next_enabled(enabled=self.isComplete())
 
-        self.type_list.setCurrentRow(0)
+        # Row 0 is a category header; making it current would leave the
+        # page with no chart type selected.
+        self.type_list.setCurrentRow(self._first_type_row())
 
     def _apply_theme(self):
         theme_manager = self.app_context.get_manager(ThemeManager)
@@ -100,6 +138,7 @@ class ChartTypePage(PWizardPage):
         self.footer.set_tokens(tokens)
         accent = tokens.get("accent", "#4A56C6")
         text_secondary = tokens.get("text_secondary", "#3F4350")
+        text_muted = tokens.get("text_muted", "#6B7280")
         border = tokens.get("border_control", "#DCDEE4")
         selected_bg = tokens.get("accent_selected_bg", "#EEF0FB")
         self.type_list.setStyleSheet(f"""
@@ -111,10 +150,16 @@ class ChartTypePage(PWizardPage):
             QListWidget::item:selected {{
                 border: 1px solid {accent}; background: {selected_bg}; color: {accent};
             }}
+            QListWidget::item:disabled {{
+                border: none; background: transparent; color: {text_muted};
+                padding: 8px 2px 2px 2px; margin-bottom: 0px;
+            }}
         """)
         for row in range(self.type_list.count()):
             item = self.type_list.item(row)
             chart_type = item.data(Qt.ItemDataRole.UserRole)
+            if chart_type is None:
+                continue
             icon_color = accent if row == self.type_list.currentRow() else text_secondary
             item.setIcon(chart_type_icon(chart_type, icon_color))
 
@@ -146,6 +191,12 @@ class ChartTypePage(PWizardPage):
 
         self.preview_container.layout().addWidget(canvas)
         self._preview_canvas = canvas
+
+    def _first_type_row(self) -> int:
+        return next(
+            row for row in range(self.type_list.count())
+            if self.type_list.item(row).data(Qt.ItemDataRole.UserRole) is not None
+        )
 
     def selected_chart_type(self) -> str | None:
         item = self.type_list.currentItem()
