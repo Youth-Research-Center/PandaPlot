@@ -3,9 +3,10 @@
 from unittest.mock import MagicMock
 
 import pandas as pd
-from PySide6.QtWidgets import QTextEdit
+from PySide6.QtWidgets import QTextEdit, QWidget
 
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.dialogs.note.note_artefacts_dialog import NoteArtefactsDialog
 from pandaplot.gui.dialogs.note.note_chart_picker_dialog import NoteChartPickerDialog
 from pandaplot.gui.dialogs.note.note_table_picker_dialog import (
@@ -231,7 +232,7 @@ def test_note_artefacts_dialog_lists_rows_for_current_text(qapp):
     assert dialog.table.item(0, 0).text() == "Line Plot"
 
 
-def test_note_artefacts_dialog_delete_snapshot_row_removes_text_and_deletes_image(qapp):
+def test_note_artefacts_dialog_delete_snapshot_row_removes_only_the_reference_text(qapp):
     project = Project(name="Test Project")
     gallery = ImageGallery(name="Chart Snapshots")
     project.add_item(gallery)
@@ -247,8 +248,11 @@ def test_note_artefacts_dialog_delete_snapshot_row_removes_text_and_deletes_imag
     dialog._on_delete_row(dialog._rows[0])
 
     assert text_edit.toPlainText() == ""
-    assert project.find_item(image.id) is None
+    assert project.find_item(image.id) is image  # kept, so undoing the text edit never points at a missing image
+    assert [(row.status, row.item_id) for row in dialog._rows] == [("unused", image.id)]
 
+    text_edit.undo()
+    assert text_edit.toPlainText() == f"![Snapshot]({image.id} =500x)"
 
 def test_note_artefacts_dialog_delete_unused_row_deletes_image_only(qapp):
     project = Project(name="Test Project")
@@ -309,26 +313,6 @@ def test_dataset_to_markdown_table_keeps_integer_columns_integral_next_to_floats
 
     assert "| 1 | 0.5 |" in md
     assert "| 2 | 1.5 |" in md
-
-
-def test_note_artefacts_dialog_delete_snapshot_row_keeps_image_while_still_referenced(qapp):
-    project = Project(name="Test Project")
-    gallery = ImageGallery(name="Chart Snapshots")
-    project.add_item(gallery)
-    note = Note(id="note-1", name="Note 1")
-    image = Image(name="Snapshot", note_id=note.id)
-    project.add_item(image, parent_id=gallery.id)
-    app_context = _create_mock_app_context_with_executor(project)
-
-    text_edit = QTextEdit()
-    text_edit.setPlainText(f"![A]({image.id} =500x)\n![B]({image.id} =500x)")
-
-    dialog = NoteArtefactsDialog(app_context, note, text_edit)
-    dialog._on_delete_row(dialog._rows[0])
-
-    assert project.find_item(image.id) is image  # one reference remains
-    dialog._on_delete_row(dialog._rows[0])
-    assert project.find_item(image.id) is None  # last reference gone
 
 
 def test_note_artefacts_dialog_rebuilds_rows_when_note_text_changes_while_open(qapp):
@@ -403,3 +387,59 @@ def test_note_artefacts_dialog_offers_refresh_only_for_snapshots_with_a_source_c
 
     refreshable = {row.name: row.refreshable for row in dialog._rows}
     assert refreshable == {"Live": True, "Gone": False}
+
+
+def test_note_artefacts_dialog_insert_buttons_leave_the_callers_cursor_alone(qapp):
+    project = Project(name="Test Project")
+    app_context = _create_mock_app_context_with_executor(project)
+    text_edit = QTextEdit()
+    text_edit.setPlainText("before after")
+    cursor = text_edit.textCursor()
+    cursor.setPosition(6)
+    text_edit.setTextCursor(cursor)
+    editor = QWidget()
+    editor.insert_chart_from_picker = lambda: None
+    dialog = NoteArtefactsDialog(app_context, Note(name="Note 1"), text_edit, parent=editor)
+
+    dialog._on_insert_chart_clicked()
+
+    assert text_edit.textCursor().position() == 6
+
+
+def test_note_artefacts_dialog_refresh_button_is_disabled_until_the_refresh_finishes(qapp):
+    project = Project(name="Test Project")
+    chart = Chart(name="Plot")
+    gallery = ImageGallery(name="Chart Snapshots")
+    note = Note(id="note-1", name="Note 1")
+    image = Image(name="Snap", note_id=note.id, source_chart_id=chart.id)
+    for item in (chart, gallery):
+        project.add_item(item)
+    project.add_item(image, parent_id=gallery.id)
+    app_context = _create_mock_app_context_with_executor(project)
+    text_edit = QTextEdit()
+    text_edit.setPlainText(f"![Snap]({image.id} =500x)")
+    callbacks = []
+    editor = QWidget()
+    editor.refresh_chart_snapshot = lambda image_id, on_done=None: callbacks.append(on_done)
+    dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=editor)
+    refresh_button = dialog.table.cellWidget(0, 3).findChildren(PButton)[0]
+
+    refresh_button.click()
+    assert not refresh_button.isEnabled()
+    callbacks[0]()
+    assert refresh_button.isEnabled()
+
+
+def test_note_table_picker_preview_is_capped_but_the_inserted_table_is_not(qapp):
+    project = Project(name="Dataset Project")
+    dataset = Dataset(name="Big")
+    dataset.data = pd.DataFrame({"A": range(500)})
+    project.add_item(dataset)
+    dialog = NoteTablePickerDialog(_create_mock_app_context(project), project)
+    dialog.limit_rows_cb.setChecked(False)
+
+    preview_rows = dialog.preview_edit.toPlainText().count("\n") + 1 - 2
+    inserted_rows = dialog.get_markdown_table().count("\n") + 1 - 2
+
+    assert preview_rows == 50
+    assert inserted_rows == 500

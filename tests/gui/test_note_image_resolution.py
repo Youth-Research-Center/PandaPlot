@@ -15,7 +15,7 @@ from pandaplot.gui.components.tabs.note.note_editor import (
     NotePreviewBrowser,
     compute_note_artefact_rows,
     extract_referenced_image_keys,
-    find_or_create_chart_snapshot_gallery,
+    find_chart_snapshot_gallery_id,
     get_project_base_dir,
     register_project_image_resources,
 )
@@ -988,46 +988,48 @@ def test_note_editor_insert_chart_uses_shared_width_constant(qapp):
     assert editor.text_edit.toPlainText().endswith(" =777x)")
 
 
-def test_find_or_create_chart_snapshot_gallery_reuses_existing(qapp):
+def test_find_chart_snapshot_gallery_id_finds_the_gallery_in_the_notes_folder(qapp):
     project = Project(name="Test Project")
     folder = Folder(name="Notes Folder")
     project.add_item(folder)
     existing_gallery = ImageGallery(name="Chart Snapshots")
     project.add_item(existing_gallery, parent_id=folder.id)
 
-    app_context = MagicMock()
-    app_state = MagicMock()
-    app_state.current_project = project
-    app_context.get_app_state.return_value = app_state
-
-    gallery_id = find_or_create_chart_snapshot_gallery(app_context, folder.id)
-    assert gallery_id == existing_gallery.id
+    assert find_chart_snapshot_gallery_id(project, folder.id) == existing_gallery.id
+    assert find_chart_snapshot_gallery_id(project, None) is None
 
 
-def test_find_or_create_chart_snapshot_gallery_creates_when_missing(qapp):
-    project = Project(name="Test Project")
+def test_first_chart_snapshot_insert_creates_gallery_and_image_as_one_undo_step(qapp):
+    from pandaplot.commands.composite_command import CompositeCommand
+
+    chart = Chart(name="Plot")
     folder = Folder(name="Notes Folder")
+    project = Project(name="Test Project")
     project.add_item(folder)
+    project.add_item(chart)
+    app_context = _app_context_with_executing_command_executor(project)
+    executed = []
+    real_side_effect = app_context.get_command_executor.return_value.execute_command.side_effect
 
-    app_context = MagicMock()
-    app_state = MagicMock()
-    app_state.current_project = project
-    app_context.get_app_state.return_value = app_state
-    fake_executor = MagicMock()
+    def _record(command, **kwargs):
+        executed.append(command)
+        return real_side_effect(command, **kwargs)
 
-    def _execute(command, **kwargs):
-        return command.execute() == CommandResult.SUCCESS
-    fake_executor.execute_command.side_effect = _execute
-    app_context.get_command_executor.return_value = fake_executor
-    app_context.get_ui_controller.return_value = MagicMock()
-    app_context.event_bus = MagicMock()
+    app_context.get_command_executor.return_value.execute_command.side_effect = _record
+    note = Note(name="Note 1", content="")
+    note.parent_id = folder.id
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
 
-    gallery_id = find_or_create_chart_snapshot_gallery(app_context, folder.id)
-    gallery = project.find_item(gallery_id)
-    assert gallery is not None
-    assert gallery.name == "Chart Snapshots"
-    assert gallery.parent_id == folder.id
+    image_id = editor._save_chart_snapshot_image(chart, QImage(2, 2, QImage.Format.Format_RGB32))
 
+    assert len(executed) == 1 and isinstance(executed[0], CompositeCommand)
+    image = project.find_item(image_id)
+    gallery = project.find_item(image.parent_id)
+    assert gallery.name == "Chart Snapshots" and gallery.parent_id == folder.id
+
+    assert executed[0].undo() is CommandResult.SUCCESS
+    assert project.find_item(image_id) is None
+    assert project.find_item(gallery.id) is None  # no empty gallery left behind
 
 def test_note_editor_chart_does_not_shadow_gallery_image_with_identical_exact_path(qapp):
     """Even the chart's *exact* gallery path (not just a bare-name alias)
@@ -1423,7 +1425,7 @@ def test_chart_snapshot_image_name_disambiguates_same_named_charts(qapp):
     app_context.get_command_executor.return_value = fake_executor
     editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
 
-    with patch("pandaplot.gui.components.tabs.note.note_editor.find_or_create_chart_snapshot_gallery", return_value="gallery-id"):
+    with patch("pandaplot.gui.components.tabs.note.note_editor.find_chart_snapshot_gallery_id", return_value="gallery-id"):
         editor._save_chart_snapshot_image(chart_a, QImage(2, 2, QImage.Format.Format_RGB32))
         editor._save_chart_snapshot_image(chart_b, QImage(2, 2, QImage.Format.Format_RGB32))
 
@@ -1474,3 +1476,65 @@ def test_refresh_chart_snapshot_warns_when_the_source_chart_is_gone(qapp):
 
     app_context.get_ui_controller().show_warning_message.assert_called_once()
     assert image.get_bytes() == b"stale"
+
+
+def _snapshot_project():
+    chart = Chart(name="Sample Plot")
+    gallery = ImageGallery(name="Chart Snapshots")
+    image = Image(name="Sample Plot", note_id="note-1", source_chart_id=chart.id, width=1, height=1)
+    image.set_bytes(b"stale")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    project.add_item(gallery)
+    project.add_item(image, parent_id=gallery.id)
+    return project, image
+
+
+def test_refresh_chart_snapshot_ignores_a_second_request_while_one_is_pending(qapp):
+    project, image = _snapshot_project()
+    app_context = _app_context_with_executing_command_executor(project)
+    pending = []
+    app_context.get_task_scheduler.return_value.run_task.side_effect = (
+        lambda task, task_arguments=None, on_result=None, on_error=None, **_kw: pending.append(on_result))
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+    finished = []
+
+    editor.refresh_chart_snapshot(image.id, on_done=lambda: finished.append(True))
+    editor.refresh_chart_snapshot(image.id)
+
+    assert len(pending) == 1  # the duplicate request never dispatched a second render
+    pending[0](QImage(8, 8, QImage.Format.Format_RGB32))
+    assert finished == [True]
+    assert image.get_bytes() != b"stale"
+    editor.refresh_chart_snapshot(image.id)
+    assert len(pending) == 2  # allowed again once the first one finished
+
+
+def test_refresh_chart_snapshot_warns_when_the_snapshot_is_deleted_while_rendering(qapp):
+    project, image = _snapshot_project()
+    app_context = _app_context_with_executing_command_executor(project)
+    pending = []
+    app_context.get_task_scheduler.return_value.run_task.side_effect = (
+        lambda task, task_arguments=None, on_result=None, on_error=None, **_kw: pending.append(on_result))
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+
+    editor.refresh_chart_snapshot(image.id)
+    project.remove_item(image)
+    pending[0](QImage(8, 8, QImage.Format.Format_RGB32))
+
+    app_context.get_ui_controller().show_warning_message.assert_called_once()
+
+
+def test_refresh_chart_snapshot_warns_when_the_replace_command_fails(qapp):
+    project, image = _snapshot_project()
+    app_context = _app_context_with_executing_command_executor(project)
+    app_context.get_command_executor.return_value.execute_command.side_effect = lambda command, **kwargs: False
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+
+    with patch(
+        "pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_qimage",
+        return_value=QImage(8, 8, QImage.Format.Format_RGB32),
+    ):
+        editor.refresh_chart_snapshot(image.id)
+
+    app_context.get_ui_controller().show_warning_message.assert_called_once()

@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
 from pandaplot.commands.project.item.delete_item_command import DeleteItemCommand
 from pandaplot.gui.components.common.p_button import PButton
@@ -138,10 +139,9 @@ class NoteArtefactsDialog(PDialog):
             actions_layout = QHBoxLayout(actions)
             actions_layout.setContentsMargins(0, 0, 0, 0)
             if row.refreshable and row.item_id is not None:
-                refresh_button = PButton(
-                    "Refresh", role="secondary",
-                    on_click=lambda _checked=False, image_id=row.item_id: self._on_refresh_snapshot(image_id),
-                )
+                refresh_button = PButton("Refresh", role="secondary")
+                refresh_button.clicked.connect(
+                    lambda _checked=False, image_id=row.item_id, b=refresh_button: self._on_refresh_snapshot(image_id, b))
                 refresh_button.setToolTip("Re-render this snapshot from its chart's current data and style")
                 refresh_button.setAccessibleName(f"Refresh snapshot {row.name}")
                 actions_layout.addWidget(refresh_button)
@@ -163,41 +163,41 @@ class NoteArtefactsDialog(PDialog):
         self._on_delete_row(row)
 
     def _on_delete_row(self, row: NoteArtefactRow) -> None:
-        """Apply one row's delete: remove its markdown text (if any) and,
-        for a snapshot this note owns, delete the underlying Image too.
-        Always refreshes afterward so remaining rows' offsets stay valid.
+        """Apply one row's delete. A row with a reference in the note text
+        removes just that text (undoable from the editor), so a snapshot it
+        pointed at becomes an "Unused" row; an unused snapshot's row deletes
+        the image (undoable from the project). Each action therefore has a
+        single, independent undo. Always refreshes afterward so remaining
+        rows' offsets stay valid.
         """
         if row.match_start is not None and row.match_end is not None:
             cursor = self.text_edit.textCursor()
             cursor.setPosition(row.match_start)
             cursor.setPosition(row.match_end, QTextCursor.MoveMode.KeepAnchor)
             cursor.removeSelectedText()
-        # A snapshot Image can be referenced more than once in the note; only
-        # delete it when this row held the last such reference.
-        shared = any(other is not row and other.item_id == row.item_id and other.match_start is not None for other in self._rows)
-        if row.is_snapshot and row.item_id is not None and not shared:
+        elif row.is_snapshot and row.item_id is not None:
             command = DeleteItemCommand(self.app_context, item_id=row.item_id, confirm=False)
             self.app_context.get_command_executor().execute_command(command, track_undo=True)
         self.refresh_rows()
 
-    def _on_refresh_snapshot(self, image_id: str) -> None:
+    def _on_refresh_snapshot(self, image_id: str, button: PButton) -> None:
         note_editor = self.parent()
-        if note_editor is not None and hasattr(note_editor, "refresh_chart_snapshot"):
-            note_editor.refresh_chart_snapshot(image_id)
+        if note_editor is None or not hasattr(note_editor, "refresh_chart_snapshot"):
+            return
+        button.setEnabled(False)
+
+        def _reenable() -> None:
+            if isValid(button):
+                button.setEnabled(True)
+
+        note_editor.refresh_chart_snapshot(image_id, on_done=_reenable)
 
     def _on_insert_chart_clicked(self) -> None:
-        self._move_cursor_to_end()
         note_editor = self.parent()
         if note_editor is not None and hasattr(note_editor, "insert_chart_from_picker"):
             note_editor.insert_chart_from_picker()
 
     def _on_insert_table_clicked(self) -> None:
-        self._move_cursor_to_end()
         note_editor = self.parent()
         if note_editor is not None and hasattr(note_editor, "insert_table_from_picker"):
             note_editor.insert_table_from_picker()
-
-    def _move_cursor_to_end(self) -> None:
-        cursor = self.text_edit.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        self.text_edit.setTextCursor(cursor)

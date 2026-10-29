@@ -5,6 +5,7 @@ import copy
 import logging
 import os
 import re
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import override
@@ -29,6 +30,8 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
+from pandaplot.commands.base_command import Command
+from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.commands.project.note import EditNoteCommand
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePickerDialog
@@ -86,10 +89,9 @@ _DEFAULT_INSERT_MAX_WIDTH = 500
 
 logger = logging.getLogger(__name__)
 
-# How long to wait, after the last chart/dataset change event, before
-# actually re-rendering the preview -- coalesces rapid-fire edits (typing
-# into a linked dataset cell fires one of these per keystroke/commit) into a
-# single synchronous chart re-render instead of one per edit.
+# How long to wait after the last note edit or image change before
+# recomputing the Artefacts toolbar badge, so a burst of typing triggers one
+# scan instead of one per keystroke.
 _ARTEFACTS_BADGE_REFRESH_DEBOUNCE_MS = 400
 
 
@@ -108,26 +110,13 @@ def get_project_base_dir(app_context: AppContext) -> str:
 _CHART_SNAPSHOT_GALLERY_NAME = "Chart Snapshots"
 
 
-def find_or_create_chart_snapshot_gallery(app_context: AppContext, folder_id: str | None) -> str | None:
-    """Return the id of the "Chart Snapshots" gallery inside `folder_id`
-    (the note's own parent folder, or None for project root), creating one
-    if it doesn't already exist there. Returns None if there's no current
-    project or the gallery couldn't be created."""
-    from pandaplot.commands.project.image.create_image_gallery_command import CreateImageGalleryCommand
-    from pandaplot.models.project.items import ImageGallery
-
-    app_state = app_context.get_app_state() if app_context else None
-    project = app_state.current_project if app_state else None
-    if project is None:
-        return None
-
+def find_chart_snapshot_gallery_id(project, folder_id: str | None) -> str | None:
+    """The id of the "Chart Snapshots" gallery inside `folder_id` (the note's
+    own parent folder, or None for project root), or None if there isn't one."""
     for item in project.get_all_items():
         if isinstance(item, ImageGallery) and item.parent_id == folder_id and item.name == _CHART_SNAPSHOT_GALLERY_NAME:
             return item.id
-
-    command = CreateImageGalleryCommand(app_context, gallery_name=_CHART_SNAPSHOT_GALLERY_NAME, parent_id=folder_id)
-    succeeded = app_context.get_command_executor().execute_command(command, track_undo=True)
-    return command.created_gallery_id if succeeded else None
+    return None
 
 
 def _qimage_to_png_bytes(qimg: QImage) -> bytes:
@@ -571,14 +560,16 @@ class NoteEditorWidget(PWidget):
         # Debounces _refresh_artefacts_badge(), since
         # compute_note_artefact_rows does real filesystem checks and an
         # O(references x project items) scan -- too expensive to run
-        # synchronously on every keystroke/content-changed event (see
-        # final-branch-review finding on Task 7).
+        # synchronously on every keystroke/content-changed event.
         self._artefacts_badge_refresh_timer = QTimer()
         self._artefacts_badge_refresh_timer.setSingleShot(True)
         self._artefacts_badge_refresh_timer.timeout.connect(self._refresh_artefacts_badge)
 
         # Since we can't check if the preview is connected, track it with a flag
         self.preview_connected = False
+
+        # Snapshot images with a refresh render currently in flight.
+        self._refreshing_snapshot_ids: set[str] = set()
 
         # Re-entrancy guard so proportional scroll syncing between the source
         # and preview panes doesn't ping-pong into an infinite loop.
@@ -930,7 +921,7 @@ class NoteEditorWidget(PWidget):
         """Debounced _refresh_artefacts_badge(), restarting the wait on every
         call -- compute_note_artefact_rows does real filesystem checks and an
         O(references x project items) scan, so it must not run on every
-        keystroke (see final-branch-review finding on Task 7)."""
+        keystroke."""
         self._artefacts_badge_refresh_timer.start(_ARTEFACTS_BADGE_REFRESH_DEBOUNCE_MS)
 
     def insert_chart_from_picker(self):
@@ -946,8 +937,8 @@ class NoteEditorWidget(PWidget):
 
     def _insert_chart_snapshot(self, chart: Chart) -> None:
         """Render `chart` once, in the background, and insert a static
-        gallery-image reference once ready -- unlike the live reference,
-        this never changes again even if the chart's data/style does.
+        gallery-image reference once ready. The snapshot doesn't change when
+        the chart does; refresh_chart_snapshot() re-renders it on demand.
 
         `cursor` is captured now and reused when the render completes:
         a live QTextCursor tracks its position through any edits made via
@@ -959,18 +950,13 @@ class NoteEditorWidget(PWidget):
         alt_text = chart.name.replace("[", "(").replace("]", ")")
 
         def _on_result(qimg: QImage | None) -> None:
+            # The note tab may have been closed while the render was in
+            # flight; check before saving, which would otherwise leave an
+            # image behind with nothing to reference it.
             if not isValid(self):
                 return
             if qimg is None:
                 self._warn_chart_snapshot_failed(chart)
-                return
-            # The note tab (and this widget) may have been closed while the
-            # render was in flight. Checked BEFORE _save_chart_snapshot_image
-            # -- which creates a gallery + image and pushes them onto the
-            # undo stack -- so a closed tab doesn't leave an orphaned
-            # gallery/image behind with nothing left to reference it (the
-            # insertion point below is gone too).
-            if not isValid(self):
                 return
             image_id = self._save_chart_snapshot_image(chart, qimg)
             if image_id is None:
@@ -999,30 +985,51 @@ class NoteEditorWidget(PWidget):
         note's "Chart Snapshots" gallery), returning its new id, or None
         on failure."""
         from pandaplot.commands.project.image.create_image_from_bytes_command import CreateImageFromBytesCommand
+        from pandaplot.commands.project.image.create_image_gallery_command import CreateImageGalleryCommand
 
         png_bytes = _qimage_to_png_bytes(qimg)
 
-        gallery_id = find_or_create_chart_snapshot_gallery(self.app_context, self.note.parent_id)
-        if gallery_id is None:
-            return None
         app_state = self.app_context.get_app_state()
         project = app_state.current_project if app_state else None
+        if project is None:
+            return None
+        commands: list[Command] = []
+        gallery_id = find_chart_snapshot_gallery_id(project, self.note.parent_id)
+        if gallery_id is None:
+            gallery_id = str(uuid.uuid4())
+            commands.append(CreateImageGalleryCommand(
+                self.app_context, gallery_name=_CHART_SNAPSHOT_GALLERY_NAME, parent_id=self.note.parent_id,
+                gallery_id=gallery_id))
         # Names aren't unique, so two same-named charts must not produce
         # indistinguishable snapshots in the shared gallery.
-        image_name = dict(chart_display_options(project)).get(chart.id, chart.name) if project else chart.name
+        image_name = dict(chart_display_options(project)).get(chart.id, chart.name)
         command = CreateImageFromBytesCommand(
             self.app_context, gallery_id=gallery_id, name=image_name,
             png_bytes=png_bytes, width=qimg.width(), height=qimg.height(),
             note_id=self.note.id, source_chart_id=chart.id,
         )
-        succeeded = self.app_context.get_command_executor().execute_command(command, track_undo=True)
+        commands.append(command)
+        # A first insert also creates the gallery; one undo step removes both.
+        to_run = commands[0] if len(commands) == 1 else CompositeCommand(commands, display_name="Insert Chart Snapshot")
+        succeeded = self.app_context.get_command_executor().execute_command(to_run, track_undo=True)
         return command.created_image_id if succeeded else None
 
-    def refresh_chart_snapshot(self, image_id: str) -> None:
+    def refresh_chart_snapshot(self, image_id: str, on_done: Callable[[], None] | None = None) -> None:
         """Re-render the chart a snapshot image came from and replace the
         image's contents in place (undoable), so every reference to it shows
-        the chart's current data and style."""
+        the chart's current data and style.
+
+        A second request for the same snapshot while its render is pending is
+        ignored. `on_done` runs once the request has finished, whether it
+        succeeded, failed, or was dropped, so a caller can re-enable its
+        trigger.
+        """
         from pandaplot.commands.project.image.edit_image_command import EditImageCommand
+
+        def _finish() -> None:
+            self._refreshing_snapshot_ids.discard(image_id)
+            if on_done is not None:
+                on_done()
 
         app_state = self.app_context.get_app_state()
         project = app_state.current_project if app_state else None
@@ -1031,25 +1038,50 @@ class NoteEditorWidget(PWidget):
         if chart is None:
             self.app_context.get_ui_controller().show_warning_message(
                 "Refresh Chart Snapshot", "The chart this snapshot was made from no longer exists.")
+            if on_done is not None:
+                on_done()
             return
+        if image_id in self._refreshing_snapshot_ids:
+            return
+        self._refreshing_snapshot_ids.add(image_id)
 
         def _on_result(qimg: QImage | None) -> None:
             if not isValid(self):
                 return
-            if qimg is None:
-                self._warn_chart_snapshot_failed(chart)
-                return
-            png_bytes = _qimage_to_png_bytes(qimg)
-            command = EditImageCommand(
-                self.app_context, image_id, png_bytes, qimg.width(), qimg.height(), new_ext="png")
-            if self.app_context.get_command_executor().execute_command(command, track_undo=True):
-                self.update_status(f"Refreshed snapshot of '{chart.name}'")
+            try:
+                current_project = self.app_context.get_app_state().current_project
+                if current_project is not project or not isinstance(current_project.find_item(image_id), Image):
+                    self._warn_snapshot_refresh_failed(chart)
+                    return
+                if qimg is None:
+                    self._warn_chart_snapshot_failed(chart)
+                    return
+                command = EditImageCommand(
+                    self.app_context, image_id, _qimage_to_png_bytes(qimg), qimg.width(), qimg.height(), new_ext="png")
+                if self.app_context.get_command_executor().execute_command(command, track_undo=True):
+                    self.update_status(f"Refreshed snapshot of '{chart.name}'")
+                else:
+                    self._warn_snapshot_refresh_failed(chart)
+            finally:
+                _finish()
 
         def _on_error(_err) -> None:
-            if isValid(self):
+            if not isValid(self):
+                return
+            try:
                 self._warn_chart_snapshot_failed(chart)
+            finally:
+                _finish()
 
-        dispatch_headless_chart_render(self.app_context, chart, on_result=_on_result, on_error=_on_error)
+        try:
+            dispatch_headless_chart_render(self.app_context, chart, on_result=_on_result, on_error=_on_error)
+        except Exception:
+            _finish()
+            raise
+
+    def _warn_snapshot_refresh_failed(self, chart: Chart) -> None:
+        self.app_context.get_ui_controller().show_warning_message(
+            "Refresh Chart Snapshot", f"Could not refresh the snapshot of chart '{chart.name}'.")
 
     def insert_table_from_picker(self):
         """Open the table picker dialog and insert markdown for the table."""
