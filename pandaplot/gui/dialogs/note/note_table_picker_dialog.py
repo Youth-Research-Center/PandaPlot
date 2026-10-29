@@ -52,11 +52,12 @@ def dataset_to_markdown_table(dataset: Dataset, max_rows: int | None = None) -> 
     headers = [_escape_markdown_table_cell(col) for col in sub_df.columns]
     header_row = "| " + " | ".join(headers) + " |"
     separator_row = "| " + " | ".join(["---"] * len(headers)) + " |"
-    data_rows = []
-    for _, row in sub_df.iterrows():
-        data_rows.append(
-            "| " + " | ".join(_escape_markdown_table_cell(val) for val in row) + " |"
-        )
+    # itertuples keeps each column's own dtype; iterrows would upcast a row
+    # mixing int and float columns, rendering 1 as 1.0.
+    data_rows = [
+        "| " + " | ".join(_escape_markdown_table_cell(val) for val in row) + " |"
+        for row in sub_df.itertuples(index=False, name=None)
+    ]
     return "\n".join([header_row, separator_row] + data_rows)
 
 

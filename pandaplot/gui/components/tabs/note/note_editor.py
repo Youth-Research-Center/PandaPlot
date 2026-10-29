@@ -1,6 +1,7 @@
 """
 Note tab widget for displaying and editing notes in the main tab container.
 """
+import copy
 import logging
 import os
 import re
@@ -219,6 +220,12 @@ def dispatch_headless_chart_render(
     from pandaplot.gui.components.tabs.chart.chart_editor import render_chart_to_qimage
 
     resolved_series_data, size_defaults = _resolve_chart_render_inputs(app_context, chart_item)
+    # The worker reads the chart's config/style/series while the GUI thread
+    # may keep editing the live one, so it gets a copy taken now.
+    chart_snapshot = copy.copy(chart_item)
+    chart_snapshot.config = copy.deepcopy(chart_item.config)
+    chart_snapshot.style = copy.deepcopy(chart_item.style)
+    chart_snapshot.data_series = [copy.deepcopy(series) for series in chart_item.data_series]
 
     def _render_task(progress_callback, chart, resolved_data, size_defs):
         del progress_callback  # unused; required by the Worker call signature
@@ -226,7 +233,7 @@ def dispatch_headless_chart_render(
 
     app_context.get_task_scheduler().run_task(
         task=_render_task,
-        task_arguments={"chart": chart_item, "resolved_data": resolved_series_data, "size_defs": size_defaults},
+        task_arguments={"chart": chart_snapshot, "resolved_data": resolved_series_data, "size_defs": size_defaults},
         on_result=on_result,
         on_error=on_error,
     )

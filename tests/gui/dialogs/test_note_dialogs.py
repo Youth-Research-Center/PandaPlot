@@ -327,3 +327,13 @@ def test_note_links_dialog_refresh_rows_reflects_current_text(qapp):
     dialog.refresh_rows()
 
     assert dialog.table.rowCount() == 1
+
+
+def test_dataset_to_markdown_table_keeps_integer_columns_integral_next_to_floats():
+    dataset = Dataset(name="Mixed Data")
+    dataset.data = pd.DataFrame({"Count": [1, 2], "Ratio": [0.5, 1.5]})
+
+    md = dataset_to_markdown_table(dataset)
+
+    assert "| 1 | 0.5 |" in md
+    assert "| 2 | 1.5 |" in md

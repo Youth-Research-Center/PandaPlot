@@ -2098,3 +2098,28 @@ def test_content_changed_debounces_links_badge_refresh(qapp, qtbot):
         mock_refresh.assert_not_called()  # debounced, not synchronous
         qtbot.wait(600)  # past the debounce delay
         mock_refresh.assert_called_once()
+
+
+def test_dispatch_headless_chart_render_hands_worker_a_snapshot_not_the_live_chart():
+    """The worker thread must not read a Chart the GUI thread can keep
+    editing while the render is in flight."""
+    from pandaplot.gui.components.tabs.note.note_editor import dispatch_headless_chart_render
+
+    chart = Chart(name="Chart A")
+    chart.config.title = "Before"
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_context.get_app_state.return_value.current_project = project
+    app_context.get_manager.return_value = None
+    captured = {}
+    app_context.get_task_scheduler.return_value.run_task.side_effect = (
+        lambda task, task_arguments=None, **_kwargs: captured.update(task_arguments))
+
+    dispatch_headless_chart_render(app_context, chart, on_result=lambda _qimg: None)
+    chart.config.title = "After"
+
+    assert captured["chart"] is not chart
+    assert captured["chart"].id == chart.id
+    assert captured["chart"].config.title == "Before"
