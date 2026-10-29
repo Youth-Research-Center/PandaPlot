@@ -16,12 +16,13 @@ from pandaplot.gui.components.tabs.note.note_editor import (
     compute_note_artefact_rows,
     extract_referenced_image_keys,
     find_chart_snapshot_gallery_id,
+    get_cached_qimage_for_chart,
     get_project_base_dir,
     register_project_image_resources,
 )
 from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePickerDialog
-from pandaplot.models.events.event_types import ProjectEvents
-from pandaplot.models.project.items import Chart, Folder, Image, ImageGallery, Note
+from pandaplot.models.events.event_types import ChartEvents, ProjectEvents
+from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
 from pandaplot.services.config.config_manager import ConfigManager
 from pandaplot.services.qtasks import TaskScheduler
@@ -470,6 +471,27 @@ def test_note_editor_subscribes_to_project_item_content_changed(qapp, tmp_path):
     assert ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED in subscribed_events
 
 
+def test_note_editor_subscribes_to_chart_data_updated(qapp):
+    """Series dataset/column/axis edits publish CHART_DATA_UPDATED, not
+    CHART_UPDATED (see ChartPropertiesPanel._on_dirty_only) -- the editor
+    must subscribe to it too, or a note's cached chart render goes stale
+    until the user clicks Apply in the chart properties panel."""
+    project = Project(name="Test Project")
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content="")
+    NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    subscribed_events = [
+        call.args[0] for call in app_context.event_bus.subscribe.call_args_list
+    ]
+    assert ChartEvents.CHART_DATA_UPDATED in subscribed_events
+
+
 def test_note_editor_refreshes_for_folder_containing_gallery(qapp, tmp_path):
     """A generic Folder isn't itself an image, but renaming/moving one that
     contains an ImageGallery (galleries can be created beneath ordinary
@@ -550,6 +572,184 @@ def test_note_editor_refreshes_for_deleted_folder_snapshot_containing_image(qapp
             }
         )
         mock_update.assert_not_called()
+
+
+def test_note_editor_invalidates_cache_for_chart_created_via_undo_redo(qapp):
+    """CreateChartCommand's CHART_CREATED bubbles to PROJECT_ITEM_ADDED via
+    the event hierarchy fan-out (event_types.py), but with only "chart_id"
+    in the payload -- not the generic "item_id" this filter otherwise looks
+    for. Without recognizing "chart_id" too, redoing a chart's creation
+    (after an undo) while a note holds a stale/missing cached entry for
+    that chart id never refreshes it (see PR #383 review)."""
+    chart = Chart(name="Recreated Chart")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content=f"![Recreated Chart]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+    # Simulates a stale cached miss left over from before the chart existed
+    # (e.g. the note was loaded while the chart was undone/deleted).
+    editor.preview.image_cache[chart.id] = None
+
+    with patch.object(editor, "update_preview") as mock_update:
+        editor.on_project_item_changed_event({
+            "event": ProjectEvents.PROJECT_ITEM_ADDED,
+            "chart_id": chart.id,
+        })
+        mock_update.assert_called_once()
+
+    assert chart.id not in editor.preview.image_cache
+
+
+def test_note_editor_invalidates_cache_for_chart_deletion(qapp):
+    """Deleting a chart referenced by the note must drop its cached render,
+    not leave the note showing the deleted chart's stale image forever
+    (see PR #383 review)."""
+    chart = Chart(name="Doomed Chart")
+    project = Project(name="Test Project")
+    # The chart is already gone from the project by the time the REMOVED
+    # event arrives, matching how delete_item_command actually behaves.
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content=f"![Doomed Chart]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+    editor.preview.image_cache[chart.id] = QImage(5, 5, QImage.Format.Format_RGB32)
+
+    with patch.object(editor, "update_preview") as mock_update:
+        editor.on_project_item_changed_event(
+            {
+                "event": ProjectEvents.PROJECT_ITEM_REMOVED,
+                "item_id": chart.id,
+                "item_type": "chart",
+                "item_data": chart.to_dict(),
+            }
+        )
+        mock_update.assert_called_once()
+
+    assert chart.id not in editor.preview.image_cache
+
+
+def test_note_editor_invalidates_cache_for_deleted_chart_snapshot_without_item_type(qapp):
+    """Same as above, but exercising the deleted-snapshot fallback path (no
+    "item_type" in the payload, matching a generic delete_item_command)."""
+    chart = Chart(name="Doomed Chart")
+    project = Project(name="Test Project")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content=f"![Doomed Chart]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+    editor.preview.image_cache[chart.id] = QImage(5, 5, QImage.Format.Format_RGB32)
+
+    with patch.object(editor, "update_preview") as mock_update:
+        editor.on_project_item_changed_event(
+            {
+                "event": ProjectEvents.PROJECT_ITEM_REMOVED,
+                "item_id": chart.id,
+                "item_data": chart.to_dict(),
+            }
+        )
+        mock_update.assert_called_once()
+
+    assert chart.id not in editor.preview.image_cache
+
+
+def test_note_editor_invalidates_chart_cache_for_deleted_dataset(qapp):
+    """Deleting a Dataset a cached chart plots must drop that chart's
+    render: DATASET_DELETED doesn't bubble to DATASET_CHANGED, and the
+    generic delete/undo command a Dataset actually goes through only ever
+    emits a generic item_id, never a dataset_id -- so neither of those
+    paths sees this on its own (see PR #383 review)."""
+    dataset = Dataset(name="Doomed Dataset")
+    chart = Chart(name="Chart Using It")
+    chart.add_data_series(dataset.id)
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    # The dataset is already gone from the project by the time the REMOVED
+    # event arrives, matching how delete_item_command actually behaves.
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content=f"![Chart Using It]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+    editor.preview.image_cache[chart.id] = QImage(5, 5, QImage.Format.Format_RGB32)
+
+    with patch.object(editor, "update_preview") as mock_update:
+        editor.on_project_item_changed_event(
+            {
+                "event": ProjectEvents.PROJECT_ITEM_REMOVED,
+                "item_id": dataset.id,
+                "item_type": "dataset",
+                "item_data": dataset.to_dict(),
+            }
+        )
+        mock_update.assert_called_once()
+
+    assert chart.id not in editor.preview.image_cache
+
+
+def test_note_editor_invalidates_chart_cache_for_dataset_deleted_inside_folder(qapp):
+    """Same as above, but the dataset is deleted as part of a Folder
+    subtree (no direct "dataset_id"/"item_type"=="dataset" in the payload
+    at all -- just the folder's own removed snapshot)."""
+    dataset = Dataset(name="Doomed Dataset")
+    chart = Chart(name="Chart Using It")
+    chart.add_data_series(dataset.id)
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    folder_snapshot = {
+        "id": "deleted-folder",
+        "name": "Deleted Folder",
+        "items": [dataset.to_dict()],
+    }
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="My Note", content=f"![Chart Using It]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+    editor.preview.image_cache[chart.id] = QImage(5, 5, QImage.Format.Format_RGB32)
+
+    with patch.object(editor, "update_preview") as mock_update:
+        editor.on_project_item_changed_event(
+            {
+                "event": ProjectEvents.PROJECT_ITEM_REMOVED,
+                "item_id": "deleted-folder",
+                "item_type": "folder",
+                "item_data": folder_snapshot,
+            }
+        )
+        mock_update.assert_called_once()
+
+    assert chart.id not in editor.preview.image_cache
 
 
 def test_note_editor_export_pdf_registers_resources(qapp, tmp_path):
@@ -848,7 +1048,59 @@ def test_note_editor_insert_image_refreshes_preview_only_mode(qapp):
         mock_update.assert_called_once()
 
 
-def test_insert_chart_from_picker_inserts_static_snapshot(qapp):
+def test_note_editor_insert_chart_action(qapp):
+    """Test inserting markdown for a selected chart via NoteChartPickerDialog."""
+    chart = Chart(name="Sample Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    mock_dialog = MagicMock()
+    mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
+    mock_dialog.get_selected_chart.return_value = chart
+
+    with patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog):
+        editor.insert_chart_from_picker()
+
+    content = editor.text_edit.toPlainText()
+    assert content == f"![Sample Plot]({chart.id} =500x)"
+
+
+def test_insert_chart_from_picker_sync_mode_inserts_live_reference(qapp):
+    chart = Chart(name="Sample Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    mock_dialog = MagicMock()
+    mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
+    mock_dialog.get_selected_chart.return_value = chart
+    mock_dialog.get_sync_mode.return_value = True
+
+    with patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog):
+        editor.insert_chart_from_picker()
+
+    content = editor.text_edit.toPlainText()
+    assert content == f"![Sample Plot]({chart.id} =500x)"
+
+
+def test_insert_chart_from_picker_no_sync_mode_inserts_static_snapshot(qapp):
     chart = Chart(name="Sample Plot")
     project = Project(name="Test Project")
     project.add_item(chart)
@@ -865,6 +1117,7 @@ def test_insert_chart_from_picker_inserts_static_snapshot(qapp):
     mock_dialog = MagicMock()
     mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
     mock_dialog.get_selected_chart.return_value = chart
+    mock_dialog.get_sync_mode.return_value = False
 
     with patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog):
         editor.insert_chart_from_picker()
@@ -966,15 +1219,115 @@ def test_note_editor_insert_table_mid_paragraph_still_renders_as_table(qapp):
     assert "<p>Following text</p>" in html
 
 
+def test_chart_cache_miss_dispatches_async_render_not_synchronous(qapp):
+    """A chart cache miss must not build a ChartEditorWidget synchronously
+    on the GUI thread -- it must dispatch a background task instead, and
+    return None (a miss) immediately."""
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    fake_task_scheduler = MagicMock()
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    result = get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache)
+
+    assert result is None  # miss, not yet rendered
+    fake_task_scheduler.run_task.assert_called_once()
+
+
+def test_chart_render_result_populates_cache_and_refreshes_preview(qapp):
+    """When the background render completes, its on_result callback must
+    populate the cache and trigger the (already-debounced) preview
+    refresh -- exactly as if get_cached_qimage_for_chart had synchronously
+    returned an image, just later."""
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    captured = {}
+
+    def fake_run_task(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
+        captured["on_result"] = on_result
+
+    fake_task_scheduler = MagicMock()
+    fake_task_scheduler.run_task.side_effect = fake_run_task
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+
+    get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache, note_editor=editor)
+    assert "on_result" in captured
+
+    fake_qimg = QImage(5, 5, QImage.Format.Format_RGB32)
+    with patch.object(editor, "update_preview") as mock_update:
+        captured["on_result"](fake_qimg)
+        from PySide6.QtCore import QEventLoop, QTimer
+        loop = QEventLoop()
+        QTimer.singleShot(600, loop.quit)
+        loop.exec()
+        mock_update.assert_called_once()
+
+    assert editor.preview.image_cache[chart.id] is fake_qimg
+
+
+def test_second_request_while_rendering_does_not_dispatch_duplicate(qapp):
+    """A second cache-miss request for the SAME chart while a render is
+    already in flight must not start a duplicate task."""
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    fake_task_scheduler = MagicMock()
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache, note_editor=editor)
+    get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache, note_editor=editor)
+
+    assert fake_task_scheduler.run_task.call_count == 1
+
+
 def test_note_editor_insert_chart_uses_shared_width_constant(qapp):
     """Chart insertion must size from the same constant image insertion uses,
     not a hardcoded duplicate, so the two stay in sync if it's ever tuned."""
     chart = Chart(name="Sample Plot")
     project = Project(name="Test Project")
     project.add_item(chart)
-    app_context = _app_context_with_executing_command_executor(project)
 
-    editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
 
     mock_dialog = MagicMock()
     mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
@@ -985,7 +1338,157 @@ def test_note_editor_insert_chart_uses_shared_width_constant(qapp):
     ):
         editor.insert_chart_from_picker()
 
-    assert editor.text_edit.toPlainText().endswith(" =777x)")
+    content = editor.text_edit.toPlainText()
+    assert content == f"![Sample Plot]({chart.id} =777x)"
+
+
+def test_chart_update_event_only_invalidates_that_chart(qapp):
+    """A CHART_UPDATED event for one chart must not evict other cached entries."""
+    chart_a = Chart(name="Chart A")
+    chart_b = Chart(name="Chart B")
+    project = Project(name="Test Project")
+    project.add_item(chart_a)
+    project.add_item(chart_b)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.preview.image_cache = {
+        chart_a.id: QImage(5, 5, QImage.Format.Format_RGB32),
+        chart_b.id: QImage(5, 5, QImage.Format.Format_RGB32),
+        "some-gallery-image-id": QImage(5, 5, QImage.Format.Format_RGB32),
+    }
+
+    with patch.object(editor, "update_preview"):
+        editor.on_chart_or_dataset_changed_event({"chart_id": chart_a.id, "chart": chart_a})
+
+    assert chart_a.id not in editor.preview.image_cache
+    assert chart_b.id in editor.preview.image_cache
+    assert "some-gallery-image-id" in editor.preview.image_cache
+
+
+def test_dataset_change_event_only_invalidates_charts_using_that_dataset(qapp):
+    """A DATASET_CHANGED event must only evict charts that reference that dataset."""
+    chart_using_ds = Chart(name="Uses Dataset")
+    chart_using_ds.add_data_series(dataset_id="ds-1", x_column_id="x", y_column_id="y")
+    chart_unrelated = Chart(name="Unrelated")
+    chart_unrelated.add_data_series(dataset_id="ds-2", x_column_id="x", y_column_id="y")
+    project = Project(name="Test Project")
+    project.add_item(chart_using_ds)
+    project.add_item(chart_unrelated)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    note = Note(name="Note 1", content="")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.preview.image_cache = {
+        chart_using_ds.id: QImage(5, 5, QImage.Format.Format_RGB32),
+        chart_unrelated.id: QImage(5, 5, QImage.Format.Format_RGB32),
+    }
+
+    with patch.object(editor, "update_preview"):
+        editor.on_chart_or_dataset_changed_event({"dataset_id": "ds-1"})
+
+    assert chart_using_ds.id not in editor.preview.image_cache
+    assert chart_unrelated.id in editor.preview.image_cache
+
+
+def test_chart_or_dataset_change_debounces_preview_refresh(qapp, qtbot):
+    """Editing a linked dataset fires a chart/dataset change event per
+    keystroke/cell-commit; each one used to call update_preview()
+    synchronously, and update_preview() eagerly re-resolves every
+    referenced image/chart, which is still wasteful to do once per
+    keystroke even now that chart rendering itself is dispatched off the
+    GUI thread. A burst of rapid-fire events must coalesce into exactly
+    one re-render, not one per event."""
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+
+    with patch.object(editor, "update_preview") as mock_update:
+        for _ in range(5):
+            editor.on_chart_or_dataset_changed_event({"chart_id": chart.id})
+        mock_update.assert_not_called()  # debounced, not synchronous
+        qtbot.wait(600)  # past the debounce delay
+        mock_update.assert_called_once()
+
+
+def test_note_editor_registers_chart_resources(qapp):
+    """Test registering chart images as resources for note documents."""
+    chart = Chart(name="Chart 1")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    doc = QTextDocument()
+    mock_qimg = QImage(20, 20, QImage.Format.Format_RGB32)
+    # Chart rendering is now asynchronous (see get_cached_qimage_for_chart):
+    # pre-populate the cache directly rather than patching a rendering
+    # function, so this test exercises resource registration, not rendering.
+    cache = {chart.id: mock_qimg}
+
+    register_project_image_resources(
+        doc, app_context, cache, referenced_keys={chart.id}
+    )
+
+    res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl(chart.id))
+    assert res is not None
+
+
+def test_note_editor_chart_does_not_shadow_same_named_gallery_image(qapp):
+    """A chart must not register a bare-name/".png" alias: it would silently
+    overwrite an unrelated gallery image resource registered under the exact
+    same key (e.g. a gallery image literally named "Plot.png" vs. a chart
+    named "Plot")."""
+    image = Image(name="Plot.png")
+    chart = Chart(name="Plot")
+    project = Project(name="Test Project")
+    project.add_item(image)
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    doc = QTextDocument()
+    image_qimg = QImage(10, 10, QImage.Format.Format_RGB32)
+    image_qimg.fill(0xFF0000FF)
+    chart_qimg = QImage(20, 20, QImage.Format.Format_RGB32)
+    chart_qimg.fill(0xFF00FF00)
+
+    # Chart rendering is now asynchronous (see get_cached_qimage_for_chart):
+    # pre-populate the cache directly rather than patching a rendering
+    # function, so this test exercises resource registration, not rendering.
+    cache = {chart.id: chart_qimg}
+    with patch(
+        "pandaplot.gui.components.tabs.note.note_editor.load_qimage_for_item", return_value=image_qimg
+    ):
+        register_project_image_resources(doc, app_context, cache)
+
+    res = doc.resource(QTextDocument.ResourceType.ImageResource, QUrl("Plot.png"))
+    assert res.width() == 10  # still the gallery image, not overwritten by the chart
 
 
 def test_find_chart_snapshot_gallery_id_finds_the_gallery_in_the_notes_folder(qapp):
@@ -1066,6 +1569,221 @@ def test_note_editor_chart_does_not_shadow_gallery_image_with_identical_exact_pa
     assert res.width() == 10  # still the gallery image, not overwritten by the chart
 
 
+def test_note_editor_export_pdf_renders_chart_synchronously(qapp, tmp_path):
+    """export_pdf() must not leave a referenced chart as a permanent cache
+    miss: get_cached_qimage_for_chart's contract is to always return None
+    (and dispatch a background render) on a cache miss, so calling
+    register_project_image_resources() without a pre-populated chart cache
+    guarantees the chart is skipped -- and document.print_() runs
+    synchronously right after, with no chance for a background render to
+    land in time. export_pdf() must render referenced charts synchronously
+    into a cache first, then pass that cache in."""
+    import pandas as pd
+
+    project = Project(name="Test Project")
+    dataset = Dataset(name="ds", data=pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6]}))
+    project.add_item(dataset)
+    chart = Chart(name="Chart", chart_type="line")
+    chart.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"))
+    project.add_item(chart)
+
+    app_context = _make_app_context_with_synchronous_task_scheduler(project)
+
+    pdf_file = str(tmp_path / "chart_output.pdf")
+    note = Note(name="Chart Note", content=f"![Chart]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    from pandaplot.gui.components.tabs.note import note_editor as note_editor_module
+    original = note_editor_module.register_project_image_resources
+    captured = {}
+
+    def _spy(document, app_context_arg, cache=None, referenced_keys=None, **kwargs):
+        captured["cache"] = cache
+        return original(document, app_context_arg, cache, referenced_keys, **kwargs)
+
+    with (
+        patch.object(note_editor_module, "register_project_image_resources", side_effect=_spy),
+        patch("PySide6.QtWidgets.QFileDialog.getSaveFileName", return_value=(pdf_file, "PDF Files (*.pdf)")),
+    ):
+        editor.export_pdf()
+
+    assert os.path.exists(pdf_file)
+    cache = captured.get("cache")
+    assert cache is not None, "export_pdf must pass a pre-populated chart cache"
+    assert chart.id in cache
+    assert cache[chart.id] is not None and not cache[chart.id].isNull()
+
+
+def test_register_project_image_resources_forwards_note_editor_for_in_flight_guard(qapp):
+    """register_project_image_resources's own internal
+    get_cached_qimage_for_chart call must pass note_editor through, or a
+    caller like update_preview() (invoked on every keystroke in split
+    mode) dispatches a duplicate render every time for the same
+    cache-cold chart -- the in-flight guard never even sees these calls."""
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    fake_task_scheduler = MagicMock()
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    doc = QTextDocument()
+    register_project_image_resources(
+        doc, app_context, editor.preview.image_cache, referenced_keys={chart.id}, note_editor=editor
+    )
+    register_project_image_resources(
+        doc, app_context, editor.preview.image_cache, referenced_keys={chart.id}, note_editor=editor
+    )
+
+    assert fake_task_scheduler.run_task.call_count == 1
+
+
+def test_stale_chart_render_result_is_discarded_after_invalidation(qapp):
+    """If a chart's cache entry is invalidated (e.g. CHART_UPDATED) while a
+    render for the pre-invalidation data is still in flight, that render's
+    result must not be written to the cache when it completes -- otherwise
+    the note silently shows stale data until some unrelated event happens
+    to invalidate it again."""
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    captured = {}
+
+    def fake_run_task(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
+        captured["on_result"] = on_result
+
+    fake_task_scheduler = MagicMock()
+    fake_task_scheduler.run_task.side_effect = fake_run_task
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")
+
+    # Dispatch a render for the pre-invalidation chart data.
+    get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache, note_editor=editor)
+    assert "on_result" in captured
+
+    # Invalidate before the render resolves (e.g. the chart changed again).
+    editor.preview.image_cache.pop(chart.id, None)
+    editor.on_chart_or_dataset_changed_event({"chart_id": chart.id})
+
+    # The stale render for the pre-invalidation data now arrives.
+    stale_qimg = QImage(5, 5, QImage.Format.Format_RGB32)
+    captured["on_result"](stale_qimg)
+
+    assert chart.id not in editor.preview.image_cache  # stale image must not have been written
+
+    # And a fresh request must still be able to dispatch (not permanently
+    # blocked by the discarded in-flight entry).
+    fake_task_scheduler.run_task.reset_mock()
+    get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache, note_editor=editor)
+    fake_task_scheduler.run_task.assert_called_once()
+
+
+def test_stale_chart_render_discard_schedules_preview_refresh(qapp):
+    """Discarding a stale render result must not leave the chart
+    permanently unrendered. If nothing re-triggers a render after the
+    discard, the chart stays a cache miss forever: the note is in
+    preview-only mode (no live textChanged->update_preview connection), so
+    nothing else is scheduled to ever re-check this chart's cache entry
+    (see PR review -- the concrete t=0/50ms/450ms/600ms scenario)."""
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    captured = {}
+
+    def fake_run_task(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
+        captured["on_result"] = on_result
+
+    fake_task_scheduler = MagicMock()
+    fake_task_scheduler.run_task.side_effect = fake_run_task
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.set_mode("preview")  # preview-only mode -- stack index 1
+
+    # Dispatch a render for the pre-invalidation chart data (generation 0).
+    get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache, note_editor=editor)
+    assert "on_result" in captured
+
+    # Invalidate before the render resolves -- bumps the chart to
+    # generation 1 while the generation-0 render is still in flight.
+    editor.preview.image_cache.pop(chart.id, None)
+    editor.on_chart_or_dataset_changed_event({"chart_id": chart.id})
+
+    # The stale, pre-invalidation render now arrives and is discarded.
+    with patch.object(editor, "_schedule_chart_preview_refresh") as mock_schedule:
+        stale_qimg = QImage(5, 5, QImage.Format.Format_RGB32)
+        captured["on_result"](stale_qimg)
+
+        # Discarding it must still schedule a refresh -- without one, the
+        # next preview tick that would notice the cache miss and dispatch a
+        # fresh render never happens, and the chart stays broken forever.
+        mock_schedule.assert_called_once()
+
+
+def test_chart_render_callback_noops_if_note_editor_deleted(qapp):
+    """A note tab can be closed (widget deleted) while a background chart
+    render is still in flight; the result callback must not touch the
+    deleted widget (RuntimeError: Internal C++ object already deleted)
+    when it eventually fires."""
+    import shiboken6
+
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+
+    captured = {}
+
+    def fake_run_task(task, task_arguments=None, on_result=None, on_error=None, **kwargs):
+        captured["on_result"] = on_result
+
+    fake_task_scheduler = MagicMock()
+    fake_task_scheduler.run_task.side_effect = fake_run_task
+    app_context.get_task_scheduler.return_value = fake_task_scheduler
+
+    note = Note(name="Note 1", content=f"![Chart A]({chart.id})")
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+
+    get_cached_qimage_for_chart(app_context, chart, editor.preview.image_cache, note_editor=editor)
+    assert "on_result" in captured
+
+    shiboken6.delete(editor)
+
+    fake_qimg = QImage(5, 5, QImage.Format.Format_RGB32)
+    captured["on_result"](fake_qimg)  # must not raise
+
+
 def test_insert_chart_snapshot_noops_if_note_editor_deleted_before_render_completes(qapp):
     """If the note tab is closed while a chart-snapshot render is still in
     flight, the result callback must not create an orphaned gallery/image
@@ -1103,6 +1821,28 @@ def test_insert_chart_snapshot_noops_if_note_editor_deleted_before_render_comple
         fake_qimg = QImage(5, 5, QImage.Format.Format_RGB32)
         captured["on_result"](fake_qimg)  # must not raise
         mock_save.assert_not_called()
+
+
+def test_compute_note_artefact_rows_classifies_live_chart_reference(qapp):
+    chart = Chart(name="Line Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    note = Note(name="Note 1", content=f"![Line Plot]({chart.id} =500x)")
+
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+
+    rows = compute_note_artefact_rows(app_context, note, note.content)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.kind == "chart"
+    assert row.status == "ok"
+    assert row.is_snapshot is False
+    assert row.item_id == chart.id
+    assert note.content[row.match_start:row.match_end] == f"![Line Plot]({chart.id} =500x)"
 
 
 def test_compute_note_artefact_rows_classifies_snapshot_image_reference(qapp):
@@ -1287,18 +2027,16 @@ def test_toolbar_has_artefacts_action_instead_of_separate_insert_actions(qapp):
 
 
 def test_artefacts_badge_shows_no_marker_when_no_issues(qapp, qtbot):
-    gallery = ImageGallery(name="Gallery")
-    image = Image(name="Line Plot")
+    chart = Chart(name="Line Plot")
     project = Project(name="Test Project")
-    project.add_item(gallery)
-    project.add_item(image, parent_id=gallery.id)
+    project.add_item(chart)
     app_context = MagicMock()
     app_state = MagicMock()
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
     app_context.get_manager.return_value.get_surface_palette.return_value = {}
 
-    note = Note(name="Note 1", content=f"![Line Plot]({image.id} =500x)")
+    note = Note(name="Note 1", content=f"![Line Plot]({chart.id} =500x)")
     editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
     qtbot.wait(600)  # past the debounce delay
 
