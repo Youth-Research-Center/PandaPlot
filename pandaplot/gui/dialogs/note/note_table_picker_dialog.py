@@ -21,6 +21,7 @@ from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.item_display_options import dataset_display_options
 
 
 def _escape_markdown_table_cell(val: object) -> str:
@@ -117,8 +118,9 @@ class NoteTablePickerDialog(PDialog):
 
         dataset_form = QFormLayout()
         self.dataset_combo = DropDownComboBox()
+        display_names = dict(dataset_display_options(self.project)) if self.project is not None else {}
         for ds in self._datasets:
-            self.dataset_combo.addItem(f"📊 {ds.name}", ds.id)
+            self.dataset_combo.addItem(f"📊 {display_names.get(ds.id, ds.name)}", ds.id)
         self.dataset_combo.currentIndexChanged.connect(self._update_preview)
         dataset_form.addRow("Select Dataset:", self.dataset_combo)
 

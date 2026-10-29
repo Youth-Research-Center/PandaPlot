@@ -93,7 +93,8 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         # chart edit. See _on_chart_updated()'s docstring.
         self._pending_quick_plot = False
 
-        self._chart_refresh_timer = QTimer()
+        # Parented so a pending refresh dies with the panel instead of firing after it is deleted.
+        self._chart_refresh_timer = QTimer(self)
         self._chart_refresh_timer.setSingleShot(True)
         # A lambda, not `self._populate_sources` directly: connecting a
         # bound method captures that exact method object at connect time,

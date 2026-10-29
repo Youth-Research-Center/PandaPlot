@@ -45,6 +45,16 @@ class NoteLinksDialog(PDialog):
         self._rows: list[NoteLinkRow] = []
         self._initialize()
         self.refresh_rows()
+        # A static chart insertion lands asynchronously, after the picker
+        # returns, so rows are rebuilt whenever the note text changes.
+        self.text_edit.textChanged.connect(self.refresh_rows)
+        self.finished.connect(self._disconnect_text_changed)
+
+    def _disconnect_text_changed(self, _result: int = 0) -> None:
+        try:
+            self.text_edit.textChanged.disconnect(self.refresh_rows)
+        except (RuntimeError, TypeError):
+            self.logger.debug("text_edit.textChanged already disconnected", exc_info=True)
 
     @override
     def _init_ui(self):
@@ -123,7 +133,10 @@ class NoteLinksDialog(PDialog):
             cursor.setPosition(row.match_start)
             cursor.setPosition(row.match_end, QTextCursor.MoveMode.KeepAnchor)
             cursor.removeSelectedText()
-        if row.is_snapshot and row.item_id is not None:
+        # A snapshot Image can be referenced more than once in the note; only
+        # delete it when this row held the last such reference.
+        shared = any(other is not row and other.item_id == row.item_id and other.match_start is not None for other in self._rows)
+        if row.is_snapshot and row.item_id is not None and not shared:
             command = DeleteItemCommand(self.app_context, item_id=row.item_id, confirm=False)
             self.app_context.get_command_executor().execute_command(command, track_undo=True)
         self.refresh_rows()
@@ -133,14 +146,12 @@ class NoteLinksDialog(PDialog):
         note_editor = self.parent()
         if note_editor is not None and hasattr(note_editor, "insert_chart_from_picker"):
             note_editor.insert_chart_from_picker()
-        self.refresh_rows()
 
     def _on_insert_table_clicked(self) -> None:
         self._move_cursor_to_end()
         note_editor = self.parent()
         if note_editor is not None and hasattr(note_editor, "insert_table_from_picker"):
             note_editor.insert_table_from_picker()
-        self.refresh_rows()
 
     def _move_cursor_to_end(self) -> None:
         cursor = self.text_edit.textCursor()

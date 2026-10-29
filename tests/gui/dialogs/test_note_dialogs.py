@@ -337,3 +337,57 @@ def test_dataset_to_markdown_table_keeps_integer_columns_integral_next_to_floats
 
     assert "| 1 | 0.5 |" in md
     assert "| 2 | 1.5 |" in md
+
+
+def test_note_links_dialog_delete_snapshot_row_keeps_image_while_still_referenced(qapp):
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    note = Note(id="note-1", name="Note 1")
+    image = Image(name="Snapshot", note_id=note.id)
+    project.add_item(image, parent_id=gallery.id)
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText(f"![A]({image.id} =500x)\n![B]({image.id} =500x)")
+
+    dialog = NoteLinksDialog(app_context, note, text_edit)
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert project.find_item(image.id) is image  # one reference remains
+    dialog._on_delete_row(dialog._rows[0])
+    assert project.find_item(image.id) is None  # last reference gone
+
+
+def test_note_links_dialog_rebuilds_rows_when_note_text_changes_while_open(qapp):
+    chart = Chart(name="Line Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    dialog = NoteLinksDialog(app_context, Note(name="Note 1"), text_edit)
+    assert dialog.table.rowCount() == 0
+
+    text_edit.setPlainText(f"![Line Plot]({chart.id} =500x)")
+    assert dialog.table.rowCount() == 1
+
+    dialog.accept()
+    text_edit.setPlainText("")
+    assert dialog.table.rowCount() == 1  # no longer listening once closed
+
+
+def test_note_table_picker_dataset_combo_disambiguates_same_named_datasets(qapp):
+    project = Project(name="Dataset Project")
+    folder_a, folder_b = Folder(name="A"), Folder(name="B")
+    project.add_item(folder_a)
+    project.add_item(folder_b)
+    for folder in (folder_a, folder_b):
+        dataset = Dataset(name="Data")
+        dataset.data = pd.DataFrame({"X": [1]})
+        project.add_item(dataset, parent_id=folder.id)
+
+    dialog = NoteTablePickerDialog(_create_mock_app_context(project), project)
+
+    labels = [dialog.dataset_combo.itemText(i) for i in range(dialog.dataset_combo.count())]
+    assert len(set(labels)) == 2

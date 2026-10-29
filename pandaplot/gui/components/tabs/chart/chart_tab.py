@@ -34,7 +34,8 @@ class ChartTab(PWidget):
     def __init__(self, app_context: AppContext, chart: Chart, parent: QWidget):
         super().__init__(app_context=app_context, parent=parent)
         self.chart = chart
-        self._chart_refresh_timer = QTimer()
+        # Parented so a pending refresh dies with the tab instead of firing after it closes.
+        self._chart_refresh_timer = QTimer(self)
         self._chart_refresh_timer.setSingleShot(True)
         self._chart_refresh_timer.timeout.connect(lambda: self._refresh_chart_editor())
         self._initialize()
