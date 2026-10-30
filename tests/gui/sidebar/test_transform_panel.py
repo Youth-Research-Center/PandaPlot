@@ -154,6 +154,17 @@ class TestApplyValidationFeedback:
 
         assert transform_panel.preview_text.toPlainText() == "⚠ Selected dataset is unavailable. Try reselecting it."
 
+    def test_preview_with_missing_dataset_id_writes_the_same_message(self, transform_panel):
+        transform_panel.current_dataset = Mock(id=None, data=Mock(columns=["a"]))
+        transform_panel._populate_column_list(["a"])
+        transform_panel.source_column_list.item(0).setSelected(True)
+        transform_panel.function_text.setPlainText("x * 2")
+
+        transform_panel.update_preview()
+
+        assert transform_panel.preview_text.toPlainText() == "⚠ Selected dataset is unavailable. Try reselecting it."
+        assert transform_panel._preview_has_error is True
+
 
 class TestPreviewErrorStyling:
     """An error message in preview_text should be visually distinct (#227
@@ -382,3 +393,18 @@ class TestFormulaColumnCheckboxes:
 
         assert transform_panel.formula_column_check.isChecked() is False
         assert transform_panel.live_recompute_check.isChecked() is False
+
+
+def test_column_rename_refreshes_active_dataset_column_list(transform_panel, app_context):
+    from pandaplot.models.events import DatasetOperationEvents
+
+    handlers = [call.args[1] for call in app_context.event_bus.subscribe.call_args_list
+                if call.args[0] == DatasetOperationEvents.DATASET_COLUMN_RENAMED]
+    assert len(handlers) == 1
+    transform_panel.current_dataset = Mock(id="dataset-1")
+    transform_panel.refresh_column_list = Mock()
+
+    handlers[0]({"dataset_id": "other"})
+    transform_panel.refresh_column_list.assert_not_called()
+    handlers[0]({"dataset_id": "dataset-1"})
+    transform_panel.refresh_column_list.assert_called_once_with()

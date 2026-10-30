@@ -142,9 +142,10 @@ class SearchPanel(SidebarPanel):
     def setup_event_subscriptions(self):
         self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, self._on_project_changed)
         self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, self._on_project_changed)
-        # Keep results live as notes are edited / added / removed.
+        # Keep results live as notes are edited / added / removed / renamed (titles are searched too).
         self.subscribe_to_event(NoteEvents.NOTE_CONTENT_CHANGED, self._on_project_changed)
-        self.subscribe_to_event(ProjectEvents.PROJECT_STRUCTURE_CHANGED, self._on_project_changed)
+        for event_type in (ProjectEvents.PROJECT_ITEM_ADDED, ProjectEvents.PROJECT_ITEM_REMOVED, ProjectEvents.PROJECT_ITEM_RENAMED):
+            self.subscribe_to_event(event_type, self._on_project_changed)
 
     @override
     def _init_ui(self):

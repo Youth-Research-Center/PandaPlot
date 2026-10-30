@@ -168,6 +168,7 @@ class IconBar(PWidget):
         # Emoji glyph needs a larger font size than the icon-shape QSS sets by default
         self.settings_button.setStyleSheet("font-size: 16px;")
         self.settings_button.setToolTip("Settings")
+        self.settings_button.setAccessibleName("Settings")
         self.button_layout.addWidget(self.settings_button)
 
     @override
@@ -215,6 +216,9 @@ class IconBar(PWidget):
         btn = QPushButton(icon)
         btn.setProperty("segment", True)  # noqa: FBT003 - Qt method rejects keyword args
         btn.clicked.connect(lambda: self.panel_requested.emit(name))
+        label = f"{name.replace('_', ' ').title()} panel"
+        btn.setAccessibleName(label)
+        btn.setToolTip(label)
         # Remove hardcoded styling - will be applied via theme
 
         # Insert before the stretch (which is before the settings button)

@@ -181,41 +181,6 @@ class TransformController(QObject):
             self.transform_failed.emit(dataset_id, error_msg)
             return False
     
-    def get_suggested_column_name(self, source_column: str, function_code: str) -> str:
-        """
-        Generate a suggested name for the new column based on the transformation.
-        
-        Args:
-            source_column: Name of the source column
-            function_code: Transformation function code
-            
-        Returns:
-            Suggested column name
-        """
-        # Simple heuristics for common transformations
-        code_lower = function_code.lower()
-        
-        if "upper" in code_lower:
-            return f"{source_column}_upper"
-        elif "lower" in code_lower:
-            return f"{source_column}_lower"
-        elif "strip" in code_lower:
-            return f"{source_column}_stripped"
-        elif "*" in function_code and "2" in function_code:
-            return f"{source_column}_doubled"
-        elif "**" in function_code and "2" in function_code:
-            return f"{source_column}_squared"
-        elif "sqrt" in code_lower:
-            return f"{source_column}_sqrt"
-        elif "log" in code_lower:
-            return f"{source_column}_log"
-        elif "datetime" in code_lower:
-            return f"{source_column}_datetime"
-        elif "mean" in code_lower or "std" in code_lower:
-            return f"{source_column}_normalized"
-        else:
-            return f"{source_column}_transformed"
-    
     def get_transformation_templates(self) -> dict[str, list[dict[str, str]]]:
         """
         Get predefined transformation templates by category.

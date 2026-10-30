@@ -324,12 +324,12 @@ class SignalPanel(SidebarPanel):
         if command is None:
             return
 
-        # Tab/column navigation stays enabled while a preview computes in
-        # the background -- capture what was actually requested so a stale
-        # completion (user switched dataset/column mid-flight) can be
-        # discarded instead of overwriting whatever the panel now shows.
+        # Tab/column/method navigation stays enabled while a preview computes
+        # in the background -- capture what was actually requested so a stale
+        # completion (dataset, column, analysis method or its parameters
+        # changed mid-flight) can be discarded instead of overwriting
+        # whatever the panel now shows.
         dispatch_params = self._get_dispatch_params()
-        dispatch_context = (self.current_dataset_id, self.column_combo.currentText())
 
         self.run_btn.setEnabled(False)
         self.add_btn.setEnabled(False)
@@ -341,10 +341,9 @@ class SignalPanel(SidebarPanel):
             self.run_btn.setEnabled(True)
             self._pending_command = None
 
-            current_context = (self.current_dataset_id, self.column_combo.currentText())
-            if current_context != dispatch_context:
+            if self._get_dispatch_params() != dispatch_params:
                 self.logger.info(
-                    "Discarding stale signal analysis preview: dataset/column changed."
+                    "Discarding stale signal analysis preview: dispatch parameters changed."
                 )
                 return
 
@@ -442,8 +441,7 @@ class SignalPanel(SidebarPanel):
         # itself already happened for real (the dataset was created in the
         # project regardless of what the panel shows by the time it
         # completes), but the *display* of that outcome belongs to whatever
-        # dataset/column is now selected -- skip it if that's changed.
-        dispatch_context = (self.current_dataset_id, self.column_combo.currentText())
+        # dataset/column/method is now selected -- skip it if that's changed.
 
         self.run_btn.setEnabled(False)
         self.add_btn.setEnabled(False)
@@ -455,10 +453,9 @@ class SignalPanel(SidebarPanel):
             self.run_btn.setEnabled(True)
             self._pending_command = None
 
-            current_context = (self.current_dataset_id, self.column_combo.currentText())
-            if current_context != dispatch_context:
+            if self._get_dispatch_params() != current_params:
                 self.logger.info(
-                    "Not displaying signal analysis commit result: dataset/column changed."
+                    "Not displaying signal analysis commit result: dispatch parameters changed."
                 )
                 return
 
@@ -486,7 +483,10 @@ class SignalPanel(SidebarPanel):
         self._last_run_params = None
         if hasattr(self, "add_btn"):
             self.add_btn.setEnabled(False)
-        if hasattr(self, "busy_spinner"):
+        # Keep the spinner running while a Run/Add command is still in flight
+        # (clear() also runs on every analysis-method change); its completion
+        # callback stops it once _pending_command is released.
+        if self._pending_command is None and hasattr(self, "busy_spinner"):
             self.busy_spinner.stop()
 
     @override
@@ -542,6 +542,7 @@ class SignalPanel(SidebarPanel):
                 DatasetOperationEvents.DATASET_COLUMN_REMOVED,
                 self.on_columns_changed
             ),
+            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_columns_changed),
             (
                 DatasetEvents.DATASET_DATA_CHANGED,
                 self.on_dataset_data_changed

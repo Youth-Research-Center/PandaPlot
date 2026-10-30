@@ -97,8 +97,6 @@ class ProjectPanelCommandManager:
         if selected_info and selected_info["type"] == "imagegallery":
             gallery_id = selected_info["id"]
 
-        from PySide6.QtWidgets import QDialog
-
         from pandaplot.gui.dialogs.image.image_import_dialog import ImageImportDialog
 
         dialog = ImageImportDialog(self.app_context, parent=self.parent_widget)
