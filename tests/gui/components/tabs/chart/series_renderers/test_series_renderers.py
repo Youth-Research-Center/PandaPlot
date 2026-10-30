@@ -827,6 +827,33 @@ def test_render_heatmap_series_contour_line_labels_does_not_raise():
     plt.close(fig)
 
 
+def test_render_heatmap_series_logs_a_failed_contour_label_placement(monkeypatch, caplog):
+    """A clabel failure is cosmetic and must not blank the chart, but it
+    must not vanish silently either."""
+    import logging
+
+    from pandaplot.gui.components.tabs.chart.series_renderers.heatmap import render_heatmap_series
+
+    fig, ax = plt.subplots()
+
+    def _raise(*_args, **_kwargs):
+        raise ValueError("no room for labels")
+
+    monkeypatch.setattr(ax, "clabel", _raise)
+    data = _series_data(**_HEATMAP_XYZ)
+    style = HeatmapSeriesStyle(heatmap_gridding="grid", render_mode="contour_lines",
+                                contour_levels=4, contour_line_labels=True)
+
+    with caplog.at_level(logging.DEBUG):
+        mappable = render_heatmap_series(ax, data, style, "S", 1.0, visible=True,
+                                          extra={"colormap": "viridis", "color_limits": (None, None)})
+
+    assert mappable is not None
+    records = [r for r in caplog.records if r.exc_info and "label" in r.getMessage().lower()]
+    assert len(records) == 1
+    plt.close(fig)
+
+
 def test_render_heatmap_series_applies_contour_line_width():
     from pandaplot.gui.components.tabs.chart.series_renderers.heatmap import render_heatmap_series
 

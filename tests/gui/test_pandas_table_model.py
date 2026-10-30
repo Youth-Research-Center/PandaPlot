@@ -207,7 +207,7 @@ class TestHeaderRefresh:
         model = PandasTableModel(mock_app_context, formula_dataset)
         spy = QSignalSpy(model.headerDataChanged)
 
-        model.on_dataset_changed({"start_index": (0, 1), "end_index": (1, 2)})
+        model.on_dataset_changed({"dataset_id": formula_dataset.id, "start_index": (0, 1), "end_index": (1, 2)})
 
         assert spy.count() == 1
         orientation, first, last = spy.at(0)
@@ -218,7 +218,7 @@ class TestHeaderRefresh:
         model = PandasTableModel(mock_app_context, formula_dataset)
         spy = QSignalSpy(model.headerDataChanged)
 
-        model.on_dataset_changed({"start_index": (0, 0), "end_index": (0, 0)})
+        model.on_dataset_changed({"dataset_id": formula_dataset.id, "start_index": (0, 0), "end_index": (0, 0)})
 
         assert spy.count() == 1
         assert tuple(spy.at(0)[1:]) == (0, 0)
@@ -227,7 +227,7 @@ class TestHeaderRefresh:
         model = PandasTableModel(mock_app_context, formula_dataset)
         spy = QSignalSpy(model.dataChanged)
 
-        model.on_dataset_changed({"start_index": (0, 1), "end_index": (1, 1)})
+        model.on_dataset_changed({"dataset_id": formula_dataset.id, "start_index": (0, 1), "end_index": (1, 1)})
 
         assert spy.count() == 1
 
@@ -273,3 +273,52 @@ def test_rerunning_a_transform_as_a_formula_repaints_the_replaced_columns_header
     repainted = [tuple(spy.at(i)[1:]) for i in range(spy.count())]
     assert any(first <= 1 <= last for first, last in repainted)
     model.unsubscribe_all()
+
+
+def test_structural_events_for_another_dataset_do_not_touch_this_model():
+    """Two open dataset tabs share one EventBus; a row/column change on
+    dataset A must not make dataset B's model announce inserts/removals
+    (or data changes) for rows and columns it doesn't have."""
+    from pandaplot.models.events.event_bus import EventBus
+    from pandaplot.models.events.event_data import (
+        DatasetColumnRenamedData,
+        DatasetColumnsAddedData,
+        DatasetColumnsRemovedData,
+        DatasetDataChangedData,
+        DatasetRowsAddedData,
+        DatasetRowsRemovedData,
+    )
+    from pandaplot.models.events.event_types import DatasetEvents, DatasetOperationEvents
+
+    app_context = Mock(spec=AppContext)
+    app_context.event_bus = EventBus()
+    dataset_a = Dataset(id="ds-a", name="A", data=pd.DataFrame({"x": [1, 2, 3]}))
+    dataset_b = Dataset(id="ds-b", name="B", data=pd.DataFrame({"x": [1, 2, 3]}))
+    model_a = PandasTableModel(app_context, dataset_a)
+    model_b = PandasTableModel(app_context, dataset_b)
+
+    spies_b = [QSignalSpy(signal) for signal in (
+        model_b.rowsInserted, model_b.rowsRemoved, model_b.columnsInserted,
+        model_b.columnsRemoved, model_b.dataChanged, model_b.headerDataChanged,
+    )]
+    rows_inserted_a = QSignalSpy(model_a.rowsInserted)
+    columns_removed_a = QSignalSpy(model_a.columnsRemoved)
+
+    bus = app_context.event_bus
+    bus.emit(DatasetOperationEvents.DATASET_ROW_ADDED,
+             DatasetRowsAddedData(dataset_id="ds-a", row_positions=[3]).to_dict())
+    bus.emit(DatasetOperationEvents.DATASET_ROW_REMOVED,
+             DatasetRowsRemovedData(dataset_id="ds-a", row_positions=[0]).to_dict())
+    bus.emit(DatasetOperationEvents.DATASET_COLUMN_ADDED,
+             DatasetColumnsAddedData(dataset_id="ds-a", column_positions=[1]).to_dict())
+    bus.emit(DatasetOperationEvents.DATASET_COLUMN_REMOVED,
+             DatasetColumnsRemovedData(dataset_id="ds-a", column_positions=[0]).to_dict())
+    bus.emit(DatasetOperationEvents.DATASET_COLUMN_RENAMED,
+             DatasetColumnRenamedData(dataset_id="ds-a", column_index=0, old_name="x", new_name="y").to_dict())
+    bus.emit(DatasetEvents.DATASET_DATA_CHANGED,
+             DatasetDataChangedData(dataset_id="ds-a", start_index=(0, 0), end_index=(1, 0)).to_dict())
+
+    assert [spy.count() for spy in spies_b] == [0] * len(spies_b)
+    # The dataset the events are actually about still reacts.
+    assert rows_inserted_a.count() == 1
+    assert columns_removed_a.count() == 1

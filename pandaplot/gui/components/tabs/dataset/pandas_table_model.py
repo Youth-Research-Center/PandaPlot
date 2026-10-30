@@ -80,7 +80,18 @@ class PandasTableModel(QAbstractTableModel):
             return "" if pd.isna(value) else str(value)
         return None
     
+    def _is_for_other_dataset(self, event: dict) -> bool:
+        """Whether ``event`` is about a dataset other than the one this model shows.
+
+        Every open dataset tab's model subscribes to the same EventBus, so
+        without this check a row or column change on one dataset would make
+        every other tab announce inserts/removals for rows it doesn't have.
+        """
+        return event.get("dataset_id") != self._dataset.id
+
     def on_dataset_changed(self, event):
+        if self._is_for_other_dataset(event):
+            return
         self.logger.info("On dataset changed: start")
         start_index = self.index(event["start_index"][0], event["start_index"][1])
         end_index = self.index(event["end_index"][0], event["end_index"][1])
@@ -93,6 +104,8 @@ class PandasTableModel(QAbstractTableModel):
         self.logger.info("On dataset changed: end")
 
     def on_add_column_event(self, event):
+        if self._is_for_other_dataset(event):
+            return
         self.logger.info("On add column event")
         event_data = DatasetColumnsAddedData.from_dict(event)
         positions = event_data.column_positions
@@ -100,6 +113,8 @@ class PandasTableModel(QAbstractTableModel):
         self.endInsertColumns()
 
     def on_remove_column_event(self, event):
+        if self._is_for_other_dataset(event):
+            return
         self.logger.info("On remove column event")
         event_data = DatasetColumnsRemovedData.from_dict(event)
         positions = event_data.column_positions
@@ -108,12 +123,16 @@ class PandasTableModel(QAbstractTableModel):
         self.endRemoveColumns()
 
     def on_rename_column_event(self, event):
+        if self._is_for_other_dataset(event):
+            return
         self.logger.info("On rename column event")
         event_data = DatasetColumnRenamedData.from_dict(event)
         self.headerDataChanged.emit(
             Qt.Orientation.Horizontal, event_data.column_index, event_data.column_index)
 
     def on_add_row_event(self, event):
+        if self._is_for_other_dataset(event):
+            return
         self.logger.info("On add row event")
         event_data = DatasetRowsAddedData.from_dict(event)
         positions = event_data.row_positions
@@ -121,6 +140,8 @@ class PandasTableModel(QAbstractTableModel):
         self.endInsertRows()
     
     def on_remove_row_event(self, event):
+        if self._is_for_other_dataset(event):
+            return
         self.logger.info("On remove row event")
         event_data = DatasetRowsRemovedData.from_dict(event)
         positions = event_data.row_positions

@@ -383,3 +383,20 @@ def test_fill_range_end_beyond_the_data_is_clamped():
     vertices = editor.chart_canvas.axes.collections[0].get_paths()[0].vertices
     assert vertices[:, 0].min() >= 3
     assert vertices[:, 0].max() >= 5
+
+
+def test_hidden_hist_series_is_not_reported_as_having_no_plottable_data():
+    """render_hist_series returns None for a hidden series on purpose; that
+    must not surface as a "no plottable data" error in the status bar."""
+    _qapp()
+    project, dataset = _project_and_dataset()
+    chart = Chart(name="Hist Chart", chart_type="hist")
+    chart.add_data_series(
+        dataset.id, y_column_id=dataset.column_id("y"),
+        style=HistSeriesStyle(color="#ffaa00"), label="Hidden",
+    )
+    chart.data_series[0].visible = False
+
+    editor = _editor_for(project, chart)
+
+    assert "no plottable data" not in editor.status_label.text()

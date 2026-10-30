@@ -49,3 +49,13 @@ def test_clicking_a_swatch_emits_color_changed():
     row.colorChanged.connect(seen.append)
     row._swatch_buttons[1].click()
     assert seen == ["#4A56C6"]
+
+
+def test_icon_only_swatches_and_custom_button_have_accessible_names():
+    row = ColorSwatchRow(["#A01818", "#4A56C6"])
+
+    names = [button.accessibleName() for button in row._swatch_buttons]
+    assert names == ["Color #A01818", "Color #4A56C6"]
+    assert all(button.toolTip() for button in row._swatch_buttons)
+    assert row._custom_button.accessibleName() == "Custom color"
+    assert row._custom_button.toolTip()
