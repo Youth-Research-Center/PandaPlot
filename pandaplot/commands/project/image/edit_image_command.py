@@ -10,6 +10,7 @@ from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Image
+from pandaplot.models.project.items.image import KEEP_RENDER_DPI, KeepRenderDpi
 from pandaplot.models.state import AppContext, AppState
 
 
@@ -20,7 +21,8 @@ class EditImageCommand(Command):
 
     def __init__(self, app_context: AppContext, image_id: str,
                  new_bytes: bytes, new_width: int, new_height: int,
-                 new_ext: str | None = None):
+                 new_ext: str | None = None, *,
+                 new_render_dpi: int | None | KeepRenderDpi = KEEP_RENDER_DPI):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -31,6 +33,9 @@ class EditImageCommand(Command):
         self.new_width = new_width
         self.new_height = new_height
         self.new_ext = new_ext
+        # KEEP_RENDER_DPI leaves the image's render DPI as it is; None or an
+        # int replaces it together with the bytes, in this one undo step.
+        self.new_render_dpi = new_render_dpi
 
         # Undo state
         self.old_bytes: bytes | None = None
@@ -40,6 +45,7 @@ class EditImageCommand(Command):
         self.old_storage_mode: str = "copied"
         self.old_image_ext: str = ""
         self.old_modified_at: str = ""
+        self.old_render_dpi: int | None = None
         # True once the old_* fields above have been captured. redo()
         # re-enters execute(), which must NOT recapture them a second
         # time: CommandExecutor pushes a command onto the redo stack even
@@ -81,6 +87,7 @@ class EditImageCommand(Command):
                 self.old_storage_mode = item.storage_mode
                 self.old_image_ext = item.image_ext
                 self.old_modified_at = item.modified_at
+                self.old_render_dpi = item.render_dpi
                 self._old_state_captured = True
 
             # Apply edit
@@ -91,6 +98,8 @@ class EditImageCommand(Command):
             item.storage_mode = "copied"
             if self.new_ext:
                 item.image_ext = self.new_ext
+            if self.new_render_dpi is not KEEP_RENDER_DPI:
+                item.render_dpi = self.new_render_dpi
             item.modified_at = datetime.datetime.now().isoformat()  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones
 
             self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED, {
@@ -128,6 +137,7 @@ class EditImageCommand(Command):
             item.size_bytes = self.old_size_bytes
             item.storage_mode = self.old_storage_mode
             item.image_ext = self.old_image_ext
+            item.render_dpi = self.old_render_dpi
             item.modified_at = self.old_modified_at
 
             self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_CONTENT_CHANGED, {
