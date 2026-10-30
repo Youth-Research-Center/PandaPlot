@@ -1,7 +1,7 @@
 # exit_command.py
 # Command to handle application exit in PandaPlot.
 
-from typing import override
+from typing import NoReturn, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.project.unsaved_changes import confirm_discard_unsaved_changes
@@ -48,7 +48,7 @@ class ExitCommand(Command):
         return CommandResult.SUCCESS
 
     @override
-    def undo(self) -> CommandResult:
+    def undo(self) -> NoReturn:
         """
         This is not applicable for exit command.
         """
@@ -56,7 +56,7 @@ class ExitCommand(Command):
         raise NotImplementedError("Exit command cannot be undone.")
 
     @override
-    def redo(self) -> CommandResult:
+    def redo(self) -> NoReturn:
         """
         This is not applicable for exit command.
         """

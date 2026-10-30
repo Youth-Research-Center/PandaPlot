@@ -152,3 +152,14 @@ def test_renaming_to_the_current_name_is_a_noop():
     assert note.name == "Same"
     assert note.modified_at == modified_at
     app_state.event_bus.emit.assert_not_called()
+
+
+def test_execute_returns_failure_when_the_rename_raises():
+    from pandaplot.models.project.items import Note
+
+    note = Note(id="note-1", name="Old")
+    app_context, app_state = _rename_setup(note)
+    app_state.event_bus.emit.side_effect = RuntimeError("subscriber failed")
+    command = RenameItemCommand(app_context, item_id="note-1", new_name="New")
+
+    assert command.execute() is CommandResult.FAILURE

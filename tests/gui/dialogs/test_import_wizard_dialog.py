@@ -34,5 +34,6 @@ def test_failed_inspection_of_a_new_file_disables_import(tmp_path, monkeypatch):
 
         assert not dialog.import_button.isEnabled()
         assert "Could not inspect file" in dialog.status_label.text()
+        assert dialog.preview_table.rowCount() == 0
     finally:
         dialog.deleteLater()

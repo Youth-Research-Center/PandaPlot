@@ -242,9 +242,12 @@ class DeleteItemCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            # Restore a fresh copy of the snapshot (kept intact for later undos)
+            # Restore the detached snapshot itself: redo() takes a new snapshot
+            # before deleting again, so copying it here would only duplicate
+            # large payloads (DataFrames, image bytes). Without a snapshot
+            # (command built from serialized data only) fall back to from_dict.
             restored_item = (
-                deepcopy(self._deleted_snapshot)
+                self._deleted_snapshot
                 if self._deleted_snapshot is not None
                 else self.deleted_item_class.from_dict(self.deleted_item_data)
             )

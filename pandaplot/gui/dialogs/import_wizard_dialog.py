@@ -259,7 +259,11 @@ class ImportWizardDialog(PDialog):
             self.logger.warning("Failed to detect import defaults for %s: %s", path, error)
             self._set_status(f"Could not inspect file: {error}", error=True)
             # The widgets still hold the previous file's options; importing
-            # this file with them must not be possible.
+            # this file with them must not be possible, and the preview of
+            # the previous file must not stay on screen.
+            self.preview_table.clear()
+            self.preview_table.setRowCount(0)
+            self.preview_table.setColumnCount(0)
             self._set_import_enabled(enabled=False)
             return
 

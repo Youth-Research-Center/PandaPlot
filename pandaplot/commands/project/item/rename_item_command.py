@@ -78,7 +78,7 @@ class RenameItemCommand(Command):
             self.logger.exception(error_msg)
             self.ui_controller.show_error_message(
                 "Rename Item Error", error_msg)
-            raise
+            return CommandResult.FAILURE
 
     def undo(self) -> CommandResult:
         """Undo the rename item command."""

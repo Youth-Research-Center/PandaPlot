@@ -95,7 +95,8 @@ def test_columns_without_a_stable_id_are_excluded(table_view, caplog):
 def test_paste_keeps_blank_lines_in_place_and_strips_crlf():
     """A spreadsheet copy uses CRLF line endings and can contain blank rows.
     The blank row must still occupy its row (later rows must not shift up)
-    and the "\\r" must not leak into the last cell of each row."""
+    as an empty row as wide as the block (EditBatchCommand rejects ragged
+    rows), and the "\\r" must not leak into the last cell of each row."""
     from pandaplot.commands.project.dataset.edit_batch_command import EditBatchCommand
 
     ctx = Mock(spec=AppContext)
@@ -111,4 +112,4 @@ def test_paste_keeps_blank_lines_in_place_and_strips_crlf():
 
     command = ctx.command_executor.execute_command.call_args.args[0]
     assert isinstance(command, EditBatchCommand)
-    assert command.new_data == [["1", "2"], [""], ["3", "4"]]
+    assert command.new_data == [["1", "2"], ["", ""], ["3", "4"]]
