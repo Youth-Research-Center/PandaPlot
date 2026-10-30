@@ -38,6 +38,7 @@ from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePicker
 from pandaplot.models.events import NoteEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Chart, Image, ImageGallery, ItemCollection, Note
+from pandaplot.models.project.items.image import KEEP_RENDER_DPI, KeepRenderDpi
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.note_render.latex_markdown_renderer import (
@@ -167,6 +168,7 @@ def _resolve_chart_render_inputs(app_context: AppContext, chart_item: Chart):
 def dispatch_headless_chart_render(
     app_context: AppContext, chart_item: Chart,
     *, on_result: Callable[[RenderedChartSnapshot | None], None], on_error: Callable | None = None,
+    dpi: int | None = None,
 ) -> None:
     """Snapshot `chart_item`'s series data on the GUI thread, then render
     it to PNG on a TaskScheduler worker thread, delivering the result
@@ -176,6 +178,9 @@ def dispatch_headless_chart_render(
     project that was current at dispatch is no longer current: the render
     belongs to that project, so it is dropped as stale instead of reaching
     a caller that would apply it to whichever project is open by then.
+
+    `dpi`, when given, replaces the chart's own DPI on the copy the worker
+    renders; the live chart is never changed.
 
     Shared by every headless-chart-render call site (snapshot insertion and
     snapshot refresh) so the resolve/copy/dispatch boilerplate and the stale
@@ -194,6 +199,8 @@ def dispatch_headless_chart_render(
     chart_snapshot.config = copy.deepcopy(chart_item.config)
     chart_snapshot.style = copy.deepcopy(chart_item.style)
     chart_snapshot.data_series = [copy.deepcopy(series) for series in chart_item.data_series]
+    if dpi is not None:
+        chart_snapshot.config.dpi = dpi
 
     def _render_task(progress_callback, chart, resolved_data, size_defs):
         del progress_callback  # unused; required by the Worker call signature
@@ -1021,10 +1028,13 @@ class NoteEditorWidget(PWidget):
             if chart is not None:
                 self._insert_chart_snapshot(chart)
 
-    def _insert_chart_snapshot(self, chart: Chart) -> None:
+    def _insert_chart_snapshot(self, chart: Chart, *, dpi: int | None = None) -> None:
         """Render `chart` once, in the background, and insert a static
         gallery-image reference once ready. The snapshot doesn't change when
         the chart does; refresh_chart_snapshot() re-renders it on demand.
+
+        `dpi` renders at that DPI and is stored on the snapshot so a refresh
+        keeps it; None uses the chart's own DPI.
 
         `cursor` is captured now and reused when the render completes:
         a live QTextCursor tracks its position through any edits made via
@@ -1049,7 +1059,7 @@ class NoteEditorWidget(PWidget):
             if rendered is None or project is None:
                 self._warn_chart_snapshot_failed(chart)
                 return
-            image_id = self._save_chart_snapshot_image(chart, rendered, project=project)
+            image_id = self._save_chart_snapshot_image(chart, rendered, project=project, render_dpi=dpi)
             if image_id is None:
                 self._warn_chart_snapshot_failed(chart)
                 return
@@ -1063,7 +1073,7 @@ class NoteEditorWidget(PWidget):
             if isValid(self):
                 self._warn_chart_snapshot_failed(chart)
 
-        dispatch_headless_chart_render(self.app_context, chart, on_result=_on_result, on_error=_on_error)
+        dispatch_headless_chart_render(self.app_context, chart, on_result=_on_result, on_error=_on_error, dpi=dpi)
 
     def _warn_chart_snapshot_failed(self, chart: Chart) -> None:
         """Tell the user a static chart insertion produced nothing, rather
@@ -1071,10 +1081,13 @@ class NoteEditorWidget(PWidget):
         self.app_context.get_ui_controller().show_warning_message(
             "Insert Chart", f"Could not insert a snapshot of chart '{chart.name}'.")
 
-    def _save_chart_snapshot_image(self, chart: Chart, rendered: RenderedChartSnapshot, *, project: Project) -> str | None:
+    def _save_chart_snapshot_image(
+        self, chart: Chart, rendered: RenderedChartSnapshot, *, project: Project, render_dpi: int | None = None,
+    ) -> str | None:
         """Add `rendered` to `project` (the one current when the render was
         dispatched) as a plain gallery Image (in the note's "Chart Snapshots"
-        gallery), returning its new id, or None on failure."""
+        gallery), returning its new id, or None on failure. `render_dpi` is
+        the DPI it was rendered at, or None if it followed the chart's own."""
         from pandaplot.commands.project.image.create_image_from_bytes_command import CreateImageFromBytesCommand
         from pandaplot.commands.project.image.create_image_gallery_command import CreateImageGalleryCommand
 
@@ -1091,7 +1104,7 @@ class NoteEditorWidget(PWidget):
         command = CreateImageFromBytesCommand(
             self.app_context, gallery_id=gallery_id, name=image_name,
             png_bytes=rendered.png_bytes, width=rendered.width, height=rendered.height,
-            note_id=self.note.id, source_chart_id=chart.id,
+            note_id=self.note.id, source_chart_id=chart.id, render_dpi=render_dpi,
         )
         commands.append(command)
         # A first insert also creates the gallery; one undo step removes both.
@@ -1103,10 +1116,17 @@ class NoteEditorWidget(PWidget):
         """Whether a refresh render for snapshot `image_id` is still pending."""
         return image_id in self._refreshing_snapshot_ids
 
-    def refresh_chart_snapshot(self, image_id: str, on_done: Callable[[], None] | None = None) -> None:
+    def refresh_chart_snapshot(
+        self, image_id: str, on_done: Callable[[], None] | None = None,
+        *, dpi: int | None | KeepRenderDpi = KEEP_RENDER_DPI,
+    ) -> None:
         """Re-render the chart a snapshot image came from and replace the
         image's contents in place (undoable), so every reference to it shows
         the chart's current data and style.
+
+        By default it renders at, and keeps, the snapshot's stored DPI. An
+        int `dpi` re-renders at that DPI and stores it with the new image
+        (one undo step); None goes back to the chart's own DPI.
 
         A second request for the same snapshot while its render is pending is
         ignored. `on_done` runs once the request has finished, whether it
@@ -1134,6 +1154,8 @@ class NoteEditorWidget(PWidget):
             if on_done is not None:
                 on_done()
             return
+        assert isinstance(image, Image)  # a source chart was only found for an Image
+        render_dpi = image.render_dpi if dpi is KEEP_RENDER_DPI else dpi
         self._refreshing_snapshot_ids.add(image_id)
 
         def _on_result(rendered: RenderedChartSnapshot | None) -> None:
@@ -1144,7 +1166,8 @@ class NoteEditorWidget(PWidget):
                     self._warn_snapshot_refresh_failed(chart)
                     return
                 command = EditImageCommand(
-                    self.app_context, image_id, rendered.png_bytes, rendered.width, rendered.height, new_ext="png")
+                    self.app_context, image_id, rendered.png_bytes, rendered.width, rendered.height,
+                    new_ext="png", new_render_dpi=dpi)
                 if self.app_context.get_command_executor().execute_command(command, track_undo=True):
                     self.update_status(f"Refreshed snapshot of '{chart.name}'")
                 else:
@@ -1161,7 +1184,8 @@ class NoteEditorWidget(PWidget):
                 _finish()
 
         try:
-            dispatch_headless_chart_render(self.app_context, chart, on_result=_on_result, on_error=_on_error)
+            dispatch_headless_chart_render(
+                self.app_context, chart, on_result=_on_result, on_error=_on_error, dpi=render_dpi)
         except Exception:
             _finish()
             raise

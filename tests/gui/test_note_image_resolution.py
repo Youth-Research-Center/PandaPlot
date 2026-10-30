@@ -1778,3 +1778,121 @@ def test_compute_note_artefact_rows_skips_the_image_index_when_there_is_nothing_
         assert compute_note_artefact_rows(app_context, note, note.content) == []
 
     index.assert_not_called()
+
+
+def _capture_render_dpi(captured: dict, png_bytes: bytes):
+    """A render_chart_to_png stand-in recording the DPI the worker's chart copy carries."""
+    def _render(chart, _resolved_data, _size_defaults):
+        captured.setdefault("dpis", []).append(chart.config.dpi)
+        return png_bytes
+    return _render
+
+
+def test_dispatch_headless_chart_render_overrides_the_dpi_on_a_copy_of_the_chart(qapp):
+    from pandaplot.gui.components.tabs.note.note_editor import dispatch_headless_chart_render
+
+    chart = Chart(name="Chart A")
+    chart.config.dpi = 150
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    app_context = _make_app_context_with_synchronous_task_scheduler(project)
+    captured: dict = {}
+    render = _capture_render_dpi(captured, create_test_png_bytes(4, 4))
+
+    with patch("pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_png", side_effect=render):
+        dispatch_headless_chart_render(app_context, chart, on_result=lambda _r: None, dpi=300)
+        dispatch_headless_chart_render(app_context, chart, on_result=lambda _r: None)
+
+    assert captured["dpis"] == [300, 150]  # an explicit DPI wins; None keeps the chart's own
+    assert chart.config.dpi == 150  # the live chart is never touched
+
+
+def test_insert_chart_snapshot_stores_the_chosen_dpi_and_renders_at_it(qapp):
+    chart = Chart(name="Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    app_context = _app_context_with_executing_command_executor(project)
+    editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
+    captured: dict = {}
+    render = _capture_render_dpi(captured, create_test_png_bytes(8, 8))
+
+    with patch("pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_png", side_effect=render):
+        editor._insert_chart_snapshot(chart, dpi=300)
+
+    images = [item for item in project.get_all_items() if isinstance(item, Image)]
+    assert [image.render_dpi for image in images] == [300]
+    assert captured["dpis"] == [300]
+
+
+def test_insert_chart_snapshot_without_a_dpi_stores_none(qapp):
+    chart = Chart(name="Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    app_context = _app_context_with_executing_command_executor(project)
+    editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
+
+    with patch(
+        "pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_png",
+        return_value=create_test_png_bytes(8, 8),
+    ):
+        editor._insert_chart_snapshot(chart)
+
+    images = [item for item in project.get_all_items() if isinstance(item, Image)]
+    assert [image.render_dpi for image in images] == [None]
+
+
+def test_refresh_chart_snapshot_renders_at_the_stored_dpi_and_keeps_it(qapp):
+    project, image = _snapshot_project()
+    image.render_dpi = 300
+    app_context = _app_context_with_executing_command_executor(project)
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+    captured: dict = {}
+    render = _capture_render_dpi(captured, create_test_png_bytes(8, 8))
+
+    with patch("pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_png", side_effect=render):
+        editor.refresh_chart_snapshot(image.id)
+
+    assert captured["dpis"] == [300]
+    assert image.render_dpi == 300
+
+
+def test_refresh_chart_snapshot_with_a_new_dpi_renders_at_it_and_stores_it(qapp):
+    project, image = _snapshot_project()
+    image.render_dpi = 150
+    app_context = _app_context_with_executing_command_executor(project)
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+    captured: dict = {}
+    render = _capture_render_dpi(captured, create_test_png_bytes(8, 8))
+
+    with patch("pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_png", side_effect=render):
+        editor.refresh_chart_snapshot(image.id, dpi=600)
+
+    assert captured["dpis"] == [600]
+    assert image.render_dpi == 600
+
+
+def test_refresh_chart_snapshot_with_the_chart_default_clears_the_stored_dpi(qapp):
+    project, image = _snapshot_project()
+    image.render_dpi = 300
+    app_context = _app_context_with_executing_command_executor(project)
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+    captured: dict = {}
+    render = _capture_render_dpi(captured, create_test_png_bytes(8, 8))
+
+    with patch("pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_png", side_effect=render):
+        editor.refresh_chart_snapshot(image.id, dpi=None)
+
+    assert captured["dpis"] == [None]  # the chart's own DPI (unset in the fixture) applies
+    assert image.render_dpi is None
+
+
+def test_refresh_chart_snapshot_failure_keeps_the_stored_dpi(qapp):
+    project, image = _snapshot_project()
+    image.render_dpi = 300
+    app_context = _app_context_with_executing_command_executor(project)
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+
+    with patch("pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_png", return_value=None):
+        editor.refresh_chart_snapshot(image.id, dpi=600)
+
+    assert image.render_dpi == 300
