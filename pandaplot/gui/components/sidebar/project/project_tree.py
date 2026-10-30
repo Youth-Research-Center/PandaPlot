@@ -8,6 +8,9 @@ from PySide6.QtWidgets import (
 from pandaplot.commands.project.item import MoveItemCommand
 from pandaplot.models.project.items import ItemCollection
 
+# Row types a dragged item may be dropped on or beside (shared by drag feedback and drop handling).
+DROP_TARGET_TYPES = ("note", "dataset", "chart", "image", "folder", "imagegallery", "sketch")
+
 
 class ProjectTreeWidget(QTreeWidget):
     """Custom tree widget that handles drag and drop properly."""
@@ -33,7 +36,12 @@ class ProjectTreeWidget(QTreeWidget):
     def startDrag(self, supportedActions):
         """Override to track drag start."""
         self._is_dragging = True
-        super().startDrag(supportedActions)
+        try:
+            super().startDrag(supportedActions)
+        finally:
+            # QAbstractItemView.startDrag blocks until the drag ends, including
+            # cancelled drags and drops outside the tree that never reach dropEvent.
+            self._is_dragging = False
 
     def dropEvent(self, event):
         """Handle drop events to persist item moves."""
@@ -81,7 +89,7 @@ class ProjectTreeWidget(QTreeWidget):
                     self.logger.debug(
                         "ProjectTreeWidget: dropping on folder new_parent_id=%s", new_parent_id)
                 # If dropping on another item, use its parent folder
-                elif target_type in ["note", "dataset", "chart", "image", "folder", "imagegallery", "sketch"]:
+                elif target_type in DROP_TARGET_TYPES:
                     target_item_obj = target_data.get("data")
                     if target_item_obj is not None and target_item_obj.parent_id:
                         # Check if the parent_id is the root collection ID
@@ -194,7 +202,7 @@ class ProjectTreeWidget(QTreeWidget):
                             "ProjectTreeWidget: drag over item %s %s", target_type, target_id)
 
                         # Valid drop targets: folders (drop into), project root, or any item (to drop beside it)
-                        if target_type in ["folder", "project", "note", "dataset", "chart", "imagegallery", "image"]:
+                        if target_type == "project" or target_type in DROP_TARGET_TYPES:
                             # Only highlight folders and project root for "drop into" operations
                             # For other items, provide subtle feedback since it's a "drop beside" operation
                             is_into_drop = target_type in ["folder", "imagegallery"] and not self._is_beside_drop(target_item, event)

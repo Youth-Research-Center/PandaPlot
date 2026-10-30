@@ -387,7 +387,6 @@ class TransformPanel(SidebarPanel):
         self.logger.info(
             "TransformPanel controller transform completed for dataset %s, column %s", dataset_id, column_name
         )
-        # The transform_applied signal is already emitted from apply_transform
     
     def on_controller_transform_failed(self, dataset_id: str, error_message: str):
         """Handle failed transformation from controller."""
@@ -672,19 +671,7 @@ class TransformPanel(SidebarPanel):
                     error_msg = preview_result.get("error", "Preview generation failed") if preview_result else "Preview unavailable"
                     self._set_preview_message(f"Preview error: {error_msg}", is_error=True)
             else:
-                # Fallback to simple preview without controller
-                df = self.current_dataset.get_dataframe()
-                preview_data = df[source_column].head(preview_rows)
-                
-                preview_text = f"Source ({source_column}):\n"
-                for i, value in enumerate(preview_data):
-                    preview_text += f"  {i+1}: {value}\n"
-                
-                preview_text += f"\nFunction: {function_code}\n"
-                preview_text += "Transformed:\n"
-                preview_text += "  (Preview will be calculated on apply)\n"
-                
-                self._set_preview_message(preview_text)
+                self._set_preview_message("Selected dataset is unavailable. Try reselecting it.", is_error=True)
 
             # Preview updated - could publish preview event if needed
 
@@ -796,6 +783,7 @@ class TransformPanel(SidebarPanel):
             # Specific dataset operations (for detailed column handling)
             (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_column_added),
             (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_column_removed),
+            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_column_renamed),
             
             # UI events
             (UIEvents.TAB_CHANGED, self.on_tab_changed),
@@ -817,6 +805,10 @@ class TransformPanel(SidebarPanel):
         if self.current_dataset and hasattr(self.current_dataset, "id") and dataset_id == self.current_dataset.id:
             self.refresh_column_list()
     
+    def on_column_renamed(self, event_data):
+        """Refresh the column list when a column of the active dataset is renamed."""
+        self.on_column_removed(event_data)
+
     def on_dataset_renamed(self, event_data):
         """Refresh the dataset name label when the active dataset is renamed."""
         if self.current_dataset and event_data.get("item_id") == self.current_dataset.id:

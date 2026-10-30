@@ -23,7 +23,7 @@ from pandaplot.commands.project.dataset.descriptive_stats_command import Descrip
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
-from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
+from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -184,10 +184,6 @@ class DescriptiveStatsPanel(SidebarPanel):
         executed = self.app_context.get_command_executor().execute_command(command)
         if executed and command.result_dataset_id:
             self.last_result = command.result
-            self.publish_event(DatasetEvents.DATASET_CREATED, {
-                "dataset_id": command.result_dataset_id,
-                "source": "descriptive_stats_panel",
-            })
             name = command.result.result_name() if command.result else "results"
             report = command.result.report() if command.result else ""
             self.results_text.setPlainText(
@@ -246,6 +242,7 @@ class DescriptiveStatsPanel(SidebarPanel):
             (UIEvents.TAB_CHANGED, self.on_tab_changed),
             (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_columns_changed),
             (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_columns_changed),
+            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_columns_changed),
         ])
 
     def on_tab_changed(self, event_data):
