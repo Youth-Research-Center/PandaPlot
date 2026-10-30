@@ -240,6 +240,7 @@ class ImportImagesCommand(Command):
 
                     self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_REMOVED, {
                         "project": project,
+                        "item_id": image_id,
                         "image_id": image_id,
                     })
 

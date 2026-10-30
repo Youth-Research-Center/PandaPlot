@@ -1,0 +1,567 @@
+"""Unit tests for note dialogs (NoteChartPickerDialog and NoteTablePickerDialog)."""
+
+from unittest.mock import MagicMock, patch
+
+import pandas as pd
+from PySide6.QtWidgets import QTextEdit, QWidget
+
+from pandaplot.commands.base_command import CommandResult
+from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.dialogs.note.note_artefacts_dialog import NoteArtefactsDialog
+from pandaplot.gui.dialogs.note.note_chart_picker_dialog import NoteChartPickerDialog
+from pandaplot.gui.dialogs.note.note_table_picker_dialog import (
+    NoteTablePickerDialog,
+    custom_to_markdown_table,
+    dataset_to_markdown_table,
+)
+from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
+from pandaplot.models.project.project import Project
+
+
+def _create_mock_app_context(project=None):
+    app_context = MagicMock()
+    app_state = MagicMock()
+    app_state.current_project = project
+    app_context.get_app_state.return_value = app_state
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+    app_context.get_manager.return_value.get_design_tokens.return_value = {}
+    return app_context
+
+
+def _create_mock_app_context_with_executor(project):
+    app_context = _create_mock_app_context(project)
+    fake_executor = MagicMock()
+    fake_executor.execute_command.side_effect = lambda command, **kwargs: command.execute() is CommandResult.SUCCESS
+    app_context.get_command_executor.return_value = fake_executor
+    return app_context
+
+
+def test_note_chart_picker_dialog_tree_and_selection(qapp):
+    project = Project(name="Test Project")
+    folder = Folder(name="Plots")
+    chart1 = Chart(name="Line Plot")
+    chart2 = Chart(name="Bar Plot")
+
+    project.add_item(folder)
+    project.add_item(chart1, parent_id=folder.id)
+    project.add_item(chart2)
+
+    app_context = _create_mock_app_context(project)
+
+    dialog = NoteChartPickerDialog(app_context, project)
+    assert dialog.tree.topLevelItemCount() == 2  # folder and chart2 at root
+
+    # Initially no selection
+    assert dialog.ok_button.isEnabled() is False
+    assert dialog.get_selected_chart() is None
+
+    # Find and select chart1 in tree
+    folder_item = dialog.tree.topLevelItem(0)
+    if folder_item.text(0) == "Plots":
+        chart1_item = folder_item.child(0)
+    else:
+        chart1_item = dialog.tree.topLevelItem(1).child(0)
+
+    dialog.tree.setCurrentItem(chart1_item)
+    assert dialog.ok_button.isEnabled() is True
+
+    dialog._on_ok_clicked()
+    assert dialog.get_selected_chart() == chart1
+
+
+def test_note_chart_picker_dialog_empty_state(qapp):
+    project = Project(name="Empty Project")
+    app_context = _create_mock_app_context(project)
+
+    dialog = NoteChartPickerDialog(app_context, project)
+    assert dialog.empty_label.isHidden() is False
+    assert dialog.ok_button.isEnabled() is False
+    assert dialog.get_selected_chart() is None
+
+
+def test_custom_to_markdown_table():
+    md = custom_to_markdown_table(rows=2, cols=2, include_header=True)
+    expected = (
+        "| Header 1 | Header 2 |\n"
+        "| --- | --- |\n"
+        "| Cell | Cell |\n"
+        "| Cell | Cell |"
+    )
+    assert md == expected
+
+
+def test_custom_to_markdown_table_without_header_still_has_blank_header_and_delimiter():
+    md = custom_to_markdown_table(rows=1, cols=2, include_header=False)
+    expected = (
+        "|  |  |\n"
+        "| --- | --- |\n"
+        "| Cell | Cell |"
+    )
+    assert md == expected
+
+
+def test_dataset_to_markdown_table():
+    dataset = Dataset(name="Sample Data")
+    dataset.data = pd.DataFrame({"X": [1, 2, 3], "Y": [10, 20, 30]})
+
+    md_all = dataset_to_markdown_table(dataset)
+    assert "| X | Y |" in md_all
+    assert "| 1 | 10 |" in md_all
+    assert "| 3 | 30 |" in md_all
+
+    md_limited = dataset_to_markdown_table(dataset, max_rows=1)
+    assert "| 1 | 10 |" in md_limited
+    assert "| 2 | 20 |" not in md_limited
+
+
+def test_custom_to_markdown_table_without_header_is_still_a_valid_table():
+    """A Markdown table needs a header + delimiter row structurally, even
+    when the user doesn't want visible header labels -- otherwise the
+    "table" is just plain pipe-delimited text lines to any Markdown
+    renderer (see PR #383 review)."""
+    from markdown import markdown
+
+    md = custom_to_markdown_table(rows=2, cols=2, include_header=False)
+    lines = md.split("\n")
+
+    assert lines[1] == "| --- | --- |"  # delimiter row must be the second line
+    html = markdown(md, extensions=["tables"])
+    assert "<table>" in html
+
+
+def test_dataset_to_markdown_table_escapes_pipes_and_newlines():
+    dataset = Dataset(name="Messy Data")
+    dataset.data = pd.DataFrame({
+        "Note": ["a | b", "line1\nline2"],
+        "Value": [1, 2],
+    })
+
+    md = dataset_to_markdown_table(dataset)
+
+    lines = md.split("\n")
+    assert len(lines) == 4  # header, separator, 2 data rows -- no extra rows from embedded newlines
+    assert "a \\| b" in md
+    assert "line1 line2" in md
+
+
+def test_dataset_to_markdown_table_preserves_literal_nan_string():
+    dataset = Dataset(name="Mixed Data")
+    dataset.data = pd.DataFrame({
+        "Label": ["nan", "real value"],
+        "Value": [float("nan"), 2],
+    })
+
+    md = dataset_to_markdown_table(dataset)
+
+    assert "| nan |  |" in md  # literal string "nan" preserved as a real cell value
+    assert "| real value | 2.0 |" in md  # a true NaN elsewhere still renders as an empty cell
+
+
+def test_dataset_to_markdown_table_handles_array_valued_cells():
+    """pd.isna(val) alone raises "truth value of an array is ambiguous" for
+    a non-scalar cell (e.g. a NumPy array in an object-dtype column) --
+    must not crash the whole table dialog open on such a dataset
+    (see PR #383 review)."""
+    import numpy as np
+
+    dataset = Dataset(name="Array Cells")
+    dataset.data = pd.DataFrame({"X": [1, 2], "Arr": [np.array([1, 2]), np.array([3, 4])]})
+
+    md = dataset_to_markdown_table(dataset)
+
+    assert "[1 2]" in md
+    assert "[3 4]" in md
+
+
+def test_note_table_picker_no_datasets_label_uses_theme_palette(qapp):
+    project = Project(name="Empty Dataset Project")
+    app_context = _create_mock_app_context(project)
+    app_context.get_manager.return_value.get_surface_palette.return_value = {"secondary_fg": "#123456"}
+
+    dialog = NoteTablePickerDialog(app_context, project)
+
+    assert "#123456" in dialog.no_datasets_label.styleSheet()
+
+
+def test_dataset_to_markdown_table_reads_the_real_data_attribute():
+    """Dataset stores its DataFrame in `.data`, not `.df` (see
+    models/project/items/dataset.py) -- constructing via the real
+    `Dataset(data=...)` API (not attribute-assignment, which would let a
+    typo'd attribute name pass silently) catches dataset_to_markdown_table
+    reading the wrong attribute (see PR #383 review)."""
+    dataset = Dataset(name="Real Dataset", data=pd.DataFrame({"A": [1, 2]}))
+
+    md = dataset_to_markdown_table(dataset)
+
+    assert "| A |" in md
+    assert "| 1 |" in md
+
+
+def test_note_table_picker_dialog_from_dataset(qapp):
+    project = Project(name="Dataset Project")
+    dataset = Dataset(name="Data 1")
+    dataset.data = pd.DataFrame({"A": [100, 200], "B": [300, 400]})
+    project.add_item(dataset)
+
+    app_context = _create_mock_app_context(project)
+
+    dialog = NoteTablePickerDialog(app_context, project)
+    dialog.tab_widget.setCurrentIndex(0)  # Dataset tab
+    assert dialog.ok_button.isEnabled() is True
+
+    md = dialog.get_markdown_table()
+    assert "| A | B |" in md
+    assert "| 100 | 300 |" in md
+
+
+def test_note_artefacts_dialog_lists_rows_for_current_text(qapp):
+    gallery = ImageGallery(name="Gallery")
+    image = Image(name="Line Plot")
+    project = Project(name="Test Project")
+    project.add_item(gallery)
+    project.add_item(image, parent_id=gallery.id)
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText(f"![Line Plot]({image.id} =500x)")
+
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+
+    assert dialog.table.rowCount() == 1
+    assert dialog.table.item(0, 0).text() == "Line Plot"
+
+
+def test_note_artefacts_dialog_delete_snapshot_row_removes_only_the_reference_text(qapp):
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    note = Note(id="note-1", name="Note 1")
+    image = Image(name="Snapshot", note_id=note.id)
+    project.add_item(image, parent_id=gallery.id)
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText(f"![Snapshot]({image.id} =500x)")
+
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert text_edit.toPlainText() == ""
+    assert project.find_item(image.id) is image  # kept, so undoing the text edit never points at a missing image
+    assert [(row.status, row.item_id) for row in dialog._rows] == [("unused", image.id)]
+
+    text_edit.undo()
+    assert text_edit.toPlainText() == f"![Snapshot]({image.id} =500x)"
+
+def test_note_artefacts_dialog_delete_unused_row_deletes_image_only(qapp):
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    note = Note(id="note-1", name="Note 1")
+    image = Image(name="Orphan", note_id=note.id)
+    project.add_item(image, parent_id=gallery.id)
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText("No references here.")
+
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert text_edit.toPlainText() == "No references here."
+    assert project.find_item(image.id) is None
+
+
+def test_note_artefacts_dialog_delete_broken_row_removes_dangling_text(qapp):
+    project = Project(name="Test Project")
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText("Before ![Gone](missing-id =500x) after")
+
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert text_edit.toPlainText() == "Before  after"
+
+
+def test_note_artefacts_dialog_refresh_rows_reflects_current_text(qapp):
+    project = Project(name="Test Project")
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText("")
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+    assert dialog.table.rowCount() == 0
+
+    chart = Chart(name="Line Plot")
+    project.add_item(chart)
+    text_edit.setPlainText(f"![Line Plot]({chart.id} =500x)")
+    dialog.refresh_rows()
+
+    assert dialog.table.rowCount() == 1
+
+
+def test_dataset_to_markdown_table_keeps_integer_columns_integral_next_to_floats():
+    dataset = Dataset(name="Mixed Data")
+    dataset.data = pd.DataFrame({"Count": [1, 2], "Ratio": [0.5, 1.5]})
+
+    md = dataset_to_markdown_table(dataset)
+
+    assert "| 1 | 0.5 |" in md
+    assert "| 2 | 1.5 |" in md
+
+
+def test_note_artefacts_dialog_rebuilds_rows_when_note_text_changes_while_open(qapp):
+    chart = Chart(name="Line Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    dialog = NoteArtefactsDialog(app_context, Note(name="Note 1"), text_edit)
+    assert dialog.table.rowCount() == 0
+
+    text_edit.setPlainText("![Gone](missing-id =500x)")
+    assert dialog.table.rowCount() == 1
+
+    dialog.accept()
+    text_edit.setPlainText("")
+    assert dialog.table.rowCount() == 1  # no longer listening once closed
+
+
+def test_note_table_picker_dataset_combo_disambiguates_same_named_datasets(qapp):
+    project = Project(name="Dataset Project")
+    folder_a, folder_b = Folder(name="A"), Folder(name="B")
+    project.add_item(folder_a)
+    project.add_item(folder_b)
+    for folder in (folder_a, folder_b):
+        dataset = Dataset(name="Data")
+        dataset.data = pd.DataFrame({"X": [1]})
+        project.add_item(dataset, parent_id=folder.id)
+
+    dialog = NoteTablePickerDialog(_create_mock_app_context(project), project)
+
+    labels = [dialog.dataset_combo.itemText(i) for i in range(dialog.dataset_combo.count())]
+    assert len(set(labels)) == 2
+
+
+def test_note_artefacts_dialog_empty_state_replaces_table_and_promotes_insert_chart(qapp):
+    project = Project(name="Test Project")
+    chart = Chart(name="Line Plot")
+    project.add_item(chart)
+    text_edit = QTextEdit()
+
+    dialog = NoteArtefactsDialog(_create_mock_app_context_with_executor(project), Note(name="Note 1"), text_edit)
+    dialog.show()
+
+    assert dialog.empty_widget.isVisible()
+    assert not dialog.table.isVisible()
+    assert dialog.insert_chart_button.property("primary") is True
+
+    text_edit.setPlainText("![Gone](missing-id =500x)")
+
+    assert not dialog.empty_widget.isVisible()
+    assert dialog.table.isVisible()
+    assert dialog.insert_chart_button.property("primary") is False
+
+
+def test_note_artefacts_dialog_offers_refresh_only_for_snapshots_with_a_source_chart(qapp):
+    project = Project(name="Test Project")
+    chart = Chart(name="Line Plot")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(chart)
+    project.add_item(gallery)
+    note = Note(id="note-1", name="Note 1")
+    live = Image(name="Live", note_id=note.id, source_chart_id=chart.id)
+    orphan_source = Image(name="Gone", note_id=note.id, source_chart_id="deleted-chart")
+    project.add_item(live, parent_id=gallery.id)
+    project.add_item(orphan_source, parent_id=gallery.id)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText(f"![Live]({live.id} =500x)\n![Gone]({orphan_source.id} =500x)")
+    dialog = NoteArtefactsDialog(_create_mock_app_context_with_executor(project), note, text_edit)
+
+    refreshable = {row.name: row.refreshable for row in dialog._rows}
+    assert refreshable == {"Live": True, "Gone": False}
+
+
+def test_note_artefacts_dialog_insert_buttons_leave_the_callers_cursor_alone(qapp):
+    project = Project(name="Test Project")
+    app_context = _create_mock_app_context_with_executor(project)
+    text_edit = QTextEdit()
+    text_edit.setPlainText("before after")
+    cursor = text_edit.textCursor()
+    cursor.setPosition(6)
+    text_edit.setTextCursor(cursor)
+    editor = QWidget()
+    editor.insert_chart_from_picker = lambda: None
+    dialog = NoteArtefactsDialog(app_context, Note(name="Note 1"), text_edit, parent=editor)
+
+    dialog._on_insert_chart_clicked()
+
+    assert text_edit.textCursor().position() == 6
+
+
+def _refresh_dialog_fixture():
+    project = Project(name="Test Project")
+    chart = Chart(name="Plot")
+    gallery = ImageGallery(name="Chart Snapshots")
+    note = Note(id="note-1", name="Note 1")
+    image = Image(name="Snap", note_id=note.id, source_chart_id=chart.id)
+    for item in (chart, gallery):
+        project.add_item(item)
+    project.add_item(image, parent_id=gallery.id)
+    app_context = _create_mock_app_context_with_executor(project)
+    text_edit = QTextEdit()
+    text_edit.setPlainText(f"![Snap]({image.id} =500x)")
+    return app_context, note, image, text_edit
+
+
+def _refresh_button(dialog):
+    return dialog.table.cellWidget(0, 3).findChildren(PButton)[0]
+
+
+def test_note_artefacts_dialog_refresh_button_is_disabled_until_the_refresh_finishes(qapp):
+    app_context, note, image, text_edit = _refresh_dialog_fixture()
+    in_flight: set[str] = set()
+    callbacks = []
+
+    def _refresh(image_id, on_done=None):
+        in_flight.add(image_id)
+        callbacks.append(on_done)
+
+    editor = QWidget()
+    editor.refresh_chart_snapshot = _refresh
+    editor.is_refreshing_snapshot = in_flight.__contains__
+    dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=editor)
+
+    _refresh_button(dialog).click()
+    assert not _refresh_button(dialog).isEnabled()
+    in_flight.discard(image.id)
+    callbacks[0]()
+    assert _refresh_button(dialog).isEnabled()
+
+
+def test_note_artefacts_dialog_keeps_refresh_disabled_when_rows_rebuild_during_a_refresh(qapp):
+    """Rebuilding the rows (e.g. after deleting another row) mid-refresh must
+    not hand back an enabled Refresh button whose clicks would be ignored."""
+    app_context, note, image, text_edit = _refresh_dialog_fixture()
+    editor = QWidget()
+    editor.refresh_chart_snapshot = lambda image_id, on_done=None: None
+    editor.is_refreshing_snapshot = lambda image_id: image_id == image.id
+    dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=editor)
+
+    assert not _refresh_button(dialog).isEnabled()
+    dialog.refresh_rows()
+    assert not _refresh_button(dialog).isEnabled()
+
+
+def test_note_table_picker_preview_is_capped_but_the_inserted_table_is_not(qapp):
+    project = Project(name="Dataset Project")
+    dataset = Dataset(name="Big")
+    dataset.data = pd.DataFrame({"A": range(500)})
+    project.add_item(dataset)
+    dialog = NoteTablePickerDialog(_create_mock_app_context(project), project)
+    dialog.limit_rows_cb.setChecked(False)
+
+    preview_rows = dialog.preview_edit.toPlainText().count("\n") + 1 - 2
+    inserted_rows = dialog.get_markdown_table().count("\n") + 1 - 2
+
+    assert preview_rows == 50
+    assert inserted_rows == 500
+
+
+def test_note_artefacts_dialog_delete_removes_exactly_the_reference_after_emoji(qapp):
+    """Row offsets index the text by code point while QTextCursor counts
+    UTF-16 units; a non-BMP character (an emoji) before the reference must
+    not shift the deleted span."""
+    project = Project(name="Test Project")
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+
+    text_edit = QTextEdit()
+    text_edit.setPlainText("🎉 Results 🚀\n![Gone](missing-id =500x)\nNext line")
+
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert text_edit.toPlainText() == "🎉 Results 🚀\n\nNext line"
+
+
+def test_note_artefacts_dialog_deleting_a_reference_rebuilds_rows_once(qapp):
+    project = Project(name="Test Project")
+    note = Note(name="Note 1")
+    app_context = _create_mock_app_context_with_executor(project)
+    text_edit = QTextEdit()
+    text_edit.setPlainText("![Gone](missing-id =500x)")
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+
+    with patch(
+        "pandaplot.gui.dialogs.note.note_artefacts_dialog.compute_note_artefact_rows", return_value=[],
+    ) as compute_rows:
+        dialog._on_delete_row(dialog._rows[0])
+
+    assert compute_rows.call_count == 1
+
+
+def _unused_snapshot_fixture():
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    note = Note(id="note-1", name="Note 1")
+    other_note = Note(id="note-2", name="Note 2", content="Nothing yet.")
+    image = Image(name="Orphan", note_id=note.id)
+    for item in (note, other_note):
+        project.add_item(item)
+    project.add_item(image, parent_id=gallery.id)
+    app_context = _create_mock_app_context_with_executor(project)
+    text_edit = QTextEdit()
+    text_edit.setPlainText("No references here.")
+    return project, app_context, note, other_note, image, text_edit
+
+
+def test_note_artefacts_dialog_delete_flushes_pending_edits_before_removing_a_snapshot(qapp):
+    """Another open note's reference may still be inside its auto-save delay;
+    deleting the Image project-wide must see it and refuse."""
+    project, app_context, note, other_note, image, text_edit = _unused_snapshot_fixture()
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+
+    def _flush() -> bool:
+        other_note.content = f"Pasted: ![Orphan]({image.id} =500x)"
+        return True
+
+    app_context.get_manager.return_value.flush_all.side_effect = _flush
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert project.find_item(image.id) is image
+    assert dialog._rows == []  # no longer offered as unused
+
+
+def test_note_artefacts_dialog_delete_refuses_a_snapshot_when_pending_edits_cannot_be_flushed(qapp):
+    project, app_context, note, _other_note, image, text_edit = _unused_snapshot_fixture()
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+    app_context.get_manager.return_value.flush_all.return_value = False
+
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert project.find_item(image.id) is image
+    app_context.get_ui_controller().show_warning_message.assert_called_once()
+
+
+def test_dataset_to_markdown_table_keeps_a_backslash_before_a_pipe_in_the_same_cell():
+    """A cell holding a backslash then a pipe, escaped only for the pipe, ends with
+    the pipe still acting as a column separator in the rendered table."""
+    from markdown import markdown
+
+    dataset = Dataset(name="Paths")
+    dataset.data = pd.DataFrame({"Pattern": ["a\\|b"], "Other": ["x"]})
+
+    md = dataset_to_markdown_table(dataset)
+
+    html = markdown(md, extensions=["tables"])
+    assert "<td>a\\|b</td>" in html
+    assert html.count("<td>") == 2
