@@ -112,8 +112,9 @@ class ProjectDataManager:
             self.logger.info(
                 f"Loaded item {item_id} of type {info['type']} from {path}")
             return item
-        except Exception as ex:  # noqa: BLE001 -- Best-effort item load -- one corrupt/incompatible item must not abort loading the rest of the project
-            self.logger.error(f"Failed to load item {item_id}: {ex}")
+        except Exception:
+            self.logger.exception("Failed to load item %s", item_id)
+            return None
 
     def _add_items_to_project(self, project: Project, items: dict[str, Item], project_tree: list[dict]) -> None:
         """Recursively add items to the project based on the project tree structure."""

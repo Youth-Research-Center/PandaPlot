@@ -19,7 +19,7 @@ class ItemDataManagerFactory:
         Register a new item type with:
           - type_name: string identifier ("note", "chart", etc.)
           - item_class: Python class implementing the Item
-          - manager: Data manager instance implementing IItemDataManager
+          - manager: Data manager instance implementing ItemDataManager
           - extension: base file extension (without dot) for save/load
         """
         self.logger.info(f"Registering item type '{type_name}' with extension '{extension}'")

@@ -301,6 +301,7 @@ class Dataset(Item):
         dataset.parent_id = data.get("parent_id")
         dataset.created_at = data.get("created_at", datetime.now().isoformat())  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones
         dataset.modified_at = data.get("modified_at", dataset.created_at)
+        dataset.metadata = data.get("metadata", {})
 
         # Restore the saved column-id registry. The DataFrame is loaded
         # separately; when set_data runs, _sync_column_ids keeps these ids for

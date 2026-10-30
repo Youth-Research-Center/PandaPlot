@@ -27,7 +27,7 @@ class ImageGalleryDataManager(ItemDataManager[ImageGallery]):
             name=metadata.get("name", ""),
         )
         gallery.parent_id = metadata.get("parent_id")
-        gallery.created_at = metadata.get("created_at")
-        gallery.modified_at = metadata.get("modified_at")
+        gallery.created_at = metadata.get("created_at", gallery.created_at)
+        gallery.modified_at = metadata.get("modified_at", gallery.created_at)
         gallery.metadata = metadata.get("metadata", {})
         return gallery

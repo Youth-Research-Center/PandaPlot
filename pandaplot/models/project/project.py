@@ -197,7 +197,8 @@ class Project:
             raise ValueError("Cannot remove the root item directly.")
         
         item = self.find_item(item_id)
-        if item:
+        # Not truthiness: an empty folder or gallery has len() == 0.
+        if item is not None:
             self.remove_item(item)
     
     def find_item(self, item_id: str) -> Item | None:

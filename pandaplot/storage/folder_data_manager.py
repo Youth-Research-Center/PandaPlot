@@ -31,7 +31,7 @@ class FolderDataManager(ItemDataManager[Folder]):
             name=metadata.get("name", "")
         )
         folder.parent_id = metadata.get("parent_id")
-        folder.created_at = metadata.get("created_at")
-        folder.modified_at = metadata.get("modified_at")
+        folder.created_at = metadata.get("created_at", folder.created_at)
+        folder.modified_at = metadata.get("modified_at", folder.created_at)
         folder.metadata = metadata.get("metadata", {})
         return folder
