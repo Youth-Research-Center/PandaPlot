@@ -90,3 +90,18 @@ def test_typing_a_multi_character_decimal_keeps_every_character():
     assert edit.text() in ("5.5", "5,5")
     assert widget.value() == pytest.approx(5.5)
     assert widget._slider.value() == 55
+
+
+def test_updating_guard_is_reset_when_setting_the_value_raises(monkeypatch):
+    """If syncing the slider raises, _updating must not stay True --
+    that would silently ignore every later user edit."""
+    widget = SliderWithSpinbox(minimum=0.0, maximum=10.0)
+
+    def _raise(_value):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(widget._slider, "setValue", _raise)
+    with pytest.raises(RuntimeError):
+        widget.setValue(3.0)
+
+    assert widget._updating is False

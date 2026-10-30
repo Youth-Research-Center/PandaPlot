@@ -61,3 +61,18 @@ def test_set_modified_true_with_zero_changes_disables_buttons():
     assert not footer._apply_button.isEnabled()
     assert not footer._revert_button.isEnabled()
     assert footer._status_label.text() == "No changes"
+
+
+def test_set_modified_refreshes_status_color_from_last_tokens():
+    """The status color used to be set only in set_tokens(), so the label
+    stayed muted after an edit (and amber after Apply/Revert) until the
+    next theme change."""
+    footer = DirtyFooter()
+    footer.set_tokens({"status_modified_text": "#AA0000", "text_hint": "#00BB00"})
+    assert "#00BB00" in footer._status_label.styleSheet()
+
+    footer.setModified(is_modified=True, change_count=2)
+    assert "#AA0000" in footer._status_label.styleSheet()
+
+    footer.setModified(is_modified=False, change_count=0)
+    assert "#00BB00" in footer._status_label.styleSheet()

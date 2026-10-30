@@ -258,6 +258,9 @@ class ImportWizardDialog(PDialog):
         except Exception as error:  # noqa: BLE001 - surfaced to the user below
             self.logger.warning("Failed to detect import defaults for %s: %s", path, error)
             self._set_status(f"Could not inspect file: {error}", error=True)
+            # The widgets still hold the previous file's options; importing
+            # this file with them must not be possible.
+            self._set_import_enabled(enabled=False)
             return
 
         self._apply_options_to_widgets(options)

@@ -291,3 +291,12 @@ def test_series_config_includes_minus_columns_and_symmetric_flag():
     assert "x_error_minus_column_id" in config
     assert "y_error_minus_column_id" in config
     assert config["error_symmetric"] is False
+
+
+def test_icon_only_expand_and_collapse_buttons_have_accessible_names():
+    card = _line_card()
+
+    assert card._expand_button.accessibleName() == "Expand series"
+    assert card._collapse_button.accessibleName() == "Collapse series"
+    assert card._expand_button.toolTip()
+    assert card._collapse_button.toolTip()

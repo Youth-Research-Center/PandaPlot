@@ -27,7 +27,6 @@ class CustomTabWidget(PTabWidget):
     def __init__(self, app_context: AppContext, parent: QWidget):
         super().__init__(app_context=app_context, parent=parent)
         self._split_capable = True
-        self._accent_color = "#4A90E2"
         self._initialize()
 
     @override
@@ -142,7 +141,6 @@ class CustomTabWidget(PTabWidget):
         else:
             accent_pressed = accent
 
-        self._accent_color = accent
         overlay_color = QColor(accent)
         overlay_r, overlay_g, overlay_b = (
             (overlay_color.red(), overlay_color.green(), overlay_color.blue())

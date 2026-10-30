@@ -132,13 +132,17 @@ class DatasetTableView(QTableView):
             return
         start_row = selection[0].row()
         start_col = selection[0].column()
-        rows = clipboard.split("\n")
-
+        # splitlines() also consumes the "\r" of CRLF clipboards (Excel,
+        # Windows). Blank lines inside the block are kept so later rows stay
+        # on their own row; only trailing empty lines are dropped.
+        rows = clipboard.splitlines()
+        while rows and rows[-1] == "":
+            rows.pop()
+        if not rows:
+            return
 
         new_data = []
         for i, row in enumerate(rows):
-            if not row.strip():
-                continue
             cols = row.split("\t")
             new_row = []
             for j, value in enumerate(cols):
