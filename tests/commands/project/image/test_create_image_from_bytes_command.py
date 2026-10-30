@@ -109,3 +109,31 @@ def test_execute_records_the_source_chart_id(app_context_with_project):
     assert command.execute() is CommandResult.SUCCESS
 
     assert project.find_item(command.created_image_id).source_chart_id == "chart-1"
+
+
+def test_execute_stores_the_render_dpi_on_the_image(app_context_with_project):
+    project = app_context_with_project.get_app_state().current_project
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+
+    command = CreateImageFromBytesCommand(
+        app_context_with_project, gallery_id=gallery.id, name="My Chart",
+        png_bytes=b"fake-png-bytes", width=100, height=80, render_dpi=300,
+    )
+    assert command.execute() is CommandResult.SUCCESS
+
+    assert project.find_item(command.created_image_id).render_dpi == 300
+
+
+def test_execute_leaves_render_dpi_unset_by_default(app_context_with_project):
+    project = app_context_with_project.get_app_state().current_project
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+
+    command = CreateImageFromBytesCommand(
+        app_context_with_project, gallery_id=gallery.id, name="My Chart",
+        png_bytes=b"fake-png-bytes", width=100, height=80,
+    )
+    command.execute()
+
+    assert project.find_item(command.created_image_id).render_dpi is None

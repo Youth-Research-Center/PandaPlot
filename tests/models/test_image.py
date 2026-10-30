@@ -1,3 +1,5 @@
+import pytest
+
 from pandaplot.models.project.items import Image, ImageGallery, ItemCollection
 
 
@@ -90,6 +92,26 @@ class TestImage:
         restored = Image.from_dict(Image(id="img-7", name="Snap", source_chart_id="chart-1").to_dict())
 
         assert restored.source_chart_id == "chart-1"
+
+    def test_render_dpi_defaults_to_none_and_round_trips(self):
+        assert Image(name="Photo").render_dpi is None
+
+        restored = Image.from_dict(Image(id="img-8", name="Snap", render_dpi=300).to_dict())
+
+        assert restored.render_dpi == 300
+
+    def test_from_dict_without_render_dpi_loads_as_none(self):
+        data = Image(id="img-9", name="Legacy").to_dict()
+        del data["render_dpi"]
+
+        assert Image.from_dict(data).render_dpi is None
+
+    @pytest.mark.parametrize("stored", [True, 12.5, "300", 29, 601, -5])
+    def test_from_dict_ignores_an_invalid_render_dpi(self, stored):
+        data = Image(id="img-10", name="Snap").to_dict()
+        data["render_dpi"] = stored
+
+        assert Image.from_dict(data).render_dpi is None
 
 
 class TestImageGallery:
