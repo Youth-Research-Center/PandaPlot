@@ -311,7 +311,7 @@ class AddRowsColumnsCommand(Command):
             self.logger.error("AddRowsColumnsCommand Undo Error: %s", e)
             return CommandResult.FAILURE
 
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo the add rows/columns command."""
         # Re-execute with the target resolved on the first run, so redo does
         # not re-open the dialog.

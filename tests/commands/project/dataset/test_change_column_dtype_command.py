@@ -89,6 +89,24 @@ class TestChangeColumnDtypeCommand:
         assert command.redo() is CommandResult.SUCCESS
         assert dataset.modified_at != "2020-01-01T00:00:00.000000"
 
+    def test_undo_and_redo_work_for_integer_column_label_zero(self, mock_app_context, sample_project):
+        """Column label 0 is falsy but valid; undo/redo must not treat it as unset."""
+        app_context, app_state, _ = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({0: [1, 2, 3]}))
+        sample_project.find_item.return_value = dataset
+
+        command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
+
+        assert command.execute() is CommandResult.SUCCESS
+        assert str(dataset.data[0].dtype) == "float64"
+        assert command.undo() is CommandResult.SUCCESS
+        pd.testing.assert_series_equal(dataset.data[0], pd.Series([1, 2, 3], name=0))
+        assert command.redo() is CommandResult.SUCCESS
+        pd.testing.assert_series_equal(dataset.data[0], pd.Series([1.0, 2.0, 3.0], name=0))
+
 
 class TestChangeColumnDtypeCommandLogging:
     """Tests that genuine failure paths log a warning instead of failing silently."""
