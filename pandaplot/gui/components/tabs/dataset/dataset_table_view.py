@@ -132,14 +132,22 @@ class DatasetTableView(QTableView):
             return
         start_row = selection[0].row()
         start_col = selection[0].column()
-        rows = clipboard.split("\n")
-
+        # Split on "\n" only (cells may contain other line-break characters)
+        # and drop the "\r" of CRLF clipboards (Excel, Windows). Blank lines
+        # inside the block are kept as empty rows so later rows stay in
+        # place; only trailing empty lines are dropped.
+        rows = [row.removesuffix("\r") for row in clipboard.split("\n")]
+        while rows and rows[-1] == "":
+            rows.pop()
+        if not rows:
+            return
+        width = max(len(row.split("\t")) for row in rows)
 
         new_data = []
         for i, row in enumerate(rows):
-            if not row.strip():
-                continue
-            cols = row.split("\t")
+            # A blank line is an empty row spanning the block, not a 1-cell row
+            # (EditBatchCommand rejects ragged blocks).
+            cols = row.split("\t") if row else [""] * width
             new_row = []
             for j, value in enumerate(cols):
                 idx = self._model.index(start_row + i, start_col + j)

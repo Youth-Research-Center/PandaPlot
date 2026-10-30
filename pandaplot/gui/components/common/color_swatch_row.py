@@ -31,12 +31,17 @@ class ColorSwatchRow(QWidget):
         for color in palette:
             button = QPushButton(self)
             button.setFixedSize(18, 18)
+            # Icon-only (a colored square), so name it for assistive tech.
+            button.setAccessibleName(f"Color {color}")
+            button.setToolTip(color)
             button.clicked.connect(lambda _checked, c=color: self._select_color(c))
             layout.addWidget(button)
             self._swatch_buttons.append(button)
 
         self._custom_button = QPushButton("+", self)
         self._custom_button.setFixedSize(18, 18)
+        self._custom_button.setAccessibleName("Custom color")
+        self._custom_button.setToolTip("Choose a custom color")
         self._custom_button.clicked.connect(self._open_color_dialog)
         layout.addWidget(self._custom_button)
 

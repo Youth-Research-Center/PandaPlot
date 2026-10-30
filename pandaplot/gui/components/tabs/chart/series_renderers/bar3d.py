@@ -7,8 +7,9 @@ its own data point (matching how a 2-D bar chart centers on its x value).
 Box width/depth come from style.bar_width/bar_depth as fractions of the
 data's own spacing -- see chart_3d.resolve_bar_footprint.
 
-Returns the Poly3DCollection bar3d draws, or None when there's nothing to
-draw (see SERIES_RENDERERS_REPORTING_NO_DATA) -- the artist is returned
+Rows with a non-finite x, y or z are dropped first. Returns the
+Poly3DCollection bar3d draws, or None when there's nothing left to draw
+(see SERIES_RENDERERS_REPORTING_NO_DATA) -- the artist is returned
 only so a successful render is distinguishable from that failure, never
 for a colorbar: the boxes are colored flat, not through the chart's color
 scale. matplotlib has no legend handler for it, so no `label` is passed."""
@@ -27,7 +28,11 @@ def render_bar3d_series(axes, series_data: SeriesData, style: Bar3DSeriesStyle,
         z = np.asarray(series_data.z_data, dtype=float)
     except (ValueError, TypeError):
         return None
-    if x.size == 0 or y.size == 0 or z.size == 0:
+    # A NaN/inf in any coordinate would hand bar3d a NaN box (and poison the
+    # footprint/axis limits), so drop those rows -- as render_trisurf_series does.
+    finite = np.isfinite(x) & np.isfinite(y) & np.isfinite(z)
+    x, y, z = x[finite], y[finite], z[finite]
+    if x.size == 0:
         return None
 
     dx = resolve_bar_footprint(x, style.bar_width)

@@ -361,9 +361,9 @@ def _resolve_error_column(df, column_name):
 def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     """Resolve a DataSeries against the project's datasets.
 
-    Returns (x_data, y_data, x_err, y_err, x_err_minus, y_err_minus, None) on
-    success, or all-None with a message when the dataset or a required
-    column cannot be found. An empty x_column means "plot against the
+    Returns a SeriesData whose `error` is None on success; when the dataset
+    or a required column cannot be found, the data fields are None and
+    `error` holds the message. An empty x_column means "plot against the
     DataFrame index" (SERIES_TYPE_SPECS[...].needs_x_column) -- keyed by
     `chart_type` when passed explicitly (wizard_preview.py's throwaway
     DataSeries lack a reliable series_type), otherwise by the series' own
@@ -1186,6 +1186,9 @@ class ChartEditorWidget(PWidget):
                                 renderer, series, series_data, target_axes, alpha, render_extra)
 
                     if mappable is None and series_type in SERIES_RENDERERS_REPORTING_NO_DATA:
+                        # A hidden series (e.g. HIST) returns None by design; that isn't missing data.
+                        if not series.visible:
+                            continue
                         series_errors.append(f"{series.label or f'Series {i + 1}'}: no plottable data")
                         continue
                     # A Vector/Vector3D renderer only returns a mappable when

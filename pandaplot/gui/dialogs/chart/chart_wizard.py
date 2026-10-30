@@ -1,4 +1,5 @@
-"""Top-level chart creation wizard: Type step, then Data step."""
+"""Top-level chart creation wizard: Type step, then Data step, then Labels
+step (with a no-dataset page offering an import when there is no data)."""
 from collections.abc import Callable
 from typing import override
 

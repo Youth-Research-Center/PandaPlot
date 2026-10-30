@@ -40,7 +40,7 @@ class WidgetExtension:
         try:
             self._apply_theme()
         except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self.logger.warning("Failed applying theme to main window: %s", e)
+            self.logger.warning("Failed applying theme to %s: %s", self.__class__.__name__, e)
     
     def setup_event_subscriptions(self):    
         """Set up event subscriptions for the main window."""
