@@ -8,7 +8,7 @@ change or accent/font change is applied.
 Responsibilities:
     * Build a global Qt stylesheet (QSS) from current configuration
     * Apply palette / font size adjustments (minimal for now)
-    * Subscribe to ``config.loaded`` & ``config.updated`` events
+    * Subscribe to ``config.updated`` events
     * Emit ``theme.changed`` after applying style
 
 Non-goals (future phases): advanced component‑specific palettes, high‑contrast

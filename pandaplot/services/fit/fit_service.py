@@ -371,17 +371,11 @@ class FitService:
         if not function_str or not params_str:
             raise ValueError("Custom function and parameters must be specified")
 
-        function_names = ["sin", "cos", "tan", "sqrt", "exp", "log", "arcsin", "arccos"]
-
-        for func in function_names:
-            function_str = function_str.replace(
-                f"{func}(",
-                f"np.{func}("
-            )
-            function_str = function_str.replace(
-                f"np.np.{func}(",
-                f"np.{func}("
-            )
+        function_str = re.sub(
+            r"(?<![\w.])(arcsin|arccos|sin|cos|tan|sqrt|exp|log)\(",
+            r"np.\1(",
+            function_str,
+        )
 
         params = [p.strip() for p in params_str.split(",")]
 

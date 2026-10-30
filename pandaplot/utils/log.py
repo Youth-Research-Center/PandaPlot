@@ -32,8 +32,11 @@ def setup_logging(
     logger = logging.getLogger()
     logger.setLevel(level)
 
-    # Prevent duplicate handlers if called multiple times
-    logger.handlers.clear()
+    # Prevent duplicate handlers if called multiple times, closing the old
+    # ones so their file handles are released.
+    for handler in logger.handlers[:]:
+        handler.close()
+        logger.removeHandler(handler)
 
     # Format: timestamp | level | logger name (module/class) | function | message
     log_format = "%(asctime)s | %(levelname)-5s | %(name)s | %(funcName)s | %(message)s"
