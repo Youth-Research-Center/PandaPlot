@@ -1943,3 +1943,21 @@ def test_compute_note_artefact_rows_carries_the_snapshots_render_dpi(qapp):
 
     assert [(row.name, row.is_chart_snapshot, row.render_dpi) for row in rows] == [
         ("Snap", True, 300), ("Plain", False, None)]
+
+
+def test_refresh_chart_snapshot_stores_the_dpi_it_rendered_at_even_if_the_stored_one_changed_meanwhile(qapp):
+    """The bytes and the stored DPI must stay in step: an undo of an earlier DPI
+    edit landing while a refresh renders must not leave 150-dpi pixels labelled 300."""
+    project, image = _snapshot_project()
+    image.render_dpi = 150
+    app_context = _app_context_with_executing_command_executor(project)
+    pending = []
+    app_context.get_task_scheduler.return_value.run_task.side_effect = (
+        lambda task, task_arguments=None, on_result=None, on_error=None, **_kw: pending.append(on_result))
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+
+    editor.refresh_chart_snapshot(image.id)
+    image.render_dpi = 300
+    pending[0](_rendered_snapshot(8, 8))
+
+    assert image.render_dpi == 150

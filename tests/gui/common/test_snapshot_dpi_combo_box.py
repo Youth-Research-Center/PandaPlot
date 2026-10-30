@@ -78,3 +78,24 @@ def test_finishing_an_edit_shows_the_normalized_value(qapp):
     box.lineEdit().editingFinished.emit()
 
     assert box.currentText() == "600"
+
+
+def test_set_value_none_discards_text_typed_while_on_the_chart_default_entry(qapp):
+    box = SnapshotDpiComboBox()
+    box.setEditText("220")
+
+    box.set_value(None)
+
+    assert box.value() is None
+    assert box.currentText() == CHART_DEFAULT_LABEL
+
+
+def test_set_value_replaces_text_typed_over_the_same_preset(qapp):
+    box = SnapshotDpiComboBox()
+    box.set_value(300)
+    box.setEditText("250")
+
+    box.set_value(300)
+
+    assert box.value() == 300
+    assert box.currentText() == "300"

@@ -1148,7 +1148,7 @@ class NoteEditorWidget(PWidget):
         project = app_state.current_project if app_state else None
         image = project.find_item(image_id) if project else None
         chart = _snapshot_source_chart(project, image) if isinstance(image, Image) else None
-        if chart is None:
+        if chart is None or not isinstance(image, Image):
             self.app_context.get_ui_controller().show_warning_message(
                 "Refresh Chart Snapshot", "The chart this snapshot was made from no longer exists.")
             if on_done is not None:
@@ -1158,7 +1158,8 @@ class NoteEditorWidget(PWidget):
             if on_done is not None:
                 on_done()
             return
-        assert isinstance(image, Image)  # a source chart was only found for an Image
+        # Resolved now, and stored with the result below, so the stored DPI is
+        # always the one the pixels were rendered at.
         render_dpi = image.render_dpi if dpi is KEEP_RENDER_DPI else dpi
         self._refreshing_snapshot_ids.add(image_id)
 
@@ -1171,7 +1172,7 @@ class NoteEditorWidget(PWidget):
                     return
                 command = EditImageCommand(
                     self.app_context, image_id, rendered.png_bytes, rendered.width, rendered.height,
-                    new_ext="png", new_render_dpi=dpi)
+                    new_ext="png", new_render_dpi=render_dpi)
                 if self.app_context.get_command_executor().execute_command(command, track_undo=True):
                     self.update_status(f"Refreshed snapshot of '{chart.name}'")
                 else:
