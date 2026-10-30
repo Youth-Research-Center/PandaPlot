@@ -51,3 +51,14 @@ def test_start_and_end_index_slicing_down_to_one_point_also_raises():
 
     with pytest.raises(ValueError, match="at least 2 data points"):
         AnalysisEngine.calculate_derivative(x, y, method="forward", start_index=1, end_index=2)
+
+
+def test_savgol_default_window_fits_even_length_slice():
+    """Regression: the default Savitzky-Golay window for an even-length slice
+    (n=10) was n+1, which exceeds the data length and made savgol_filter raise."""
+    x = pd.Series([float(i) for i in range(10)], name="x")
+    y = pd.Series([float(i) ** 2 for i in range(10)], name="y")
+
+    result = AnalysisEngine.smooth_data(x, y, method="savgol")
+
+    assert len(result.result_data) == 10
