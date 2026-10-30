@@ -133,3 +133,15 @@ def test_cleanup_releases_the_original_data_snapshot():
     command.cleanup()
 
     assert command.original_data is None
+
+
+def test_inserted_row_keeps_bool_column_bool(mock_app_context, project_with):
+    app_context, _, _ = mock_app_context
+    dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"flag": [True, False], "n": [1, 2]}))
+    project_with(dataset)
+
+    command = AddRowsCommand(app_context, "ds-1", reference_positions=[0])
+
+    assert command.execute() is CommandResult.SUCCESS
+    pd.testing.assert_series_equal(dataset.data["flag"], pd.Series([True, False, False], name="flag"))
+    pd.testing.assert_series_equal(dataset.data["n"], pd.Series([1, 0, 2], name="n"))
