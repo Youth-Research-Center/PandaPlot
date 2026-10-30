@@ -901,7 +901,7 @@ def test_save_chart_snapshot_image_stamps_note_id(qapp):
     note = Note(name="Note 1", content="")
     editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
 
-    image_id = editor._save_chart_snapshot_image(chart, _rendered_snapshot(20, 20))
+    image_id = editor._save_chart_snapshot_image(chart, _rendered_snapshot(20, 20), project=project)
 
     assert image_id is not None
     created_image = project.find_item(image_id)
@@ -1024,7 +1024,7 @@ def test_first_chart_snapshot_insert_creates_gallery_and_image_as_one_undo_step(
     note.parent_id = folder.id
     editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
 
-    image_id = editor._save_chart_snapshot_image(chart, _rendered_snapshot(2, 2))
+    image_id = editor._save_chart_snapshot_image(chart, _rendered_snapshot(2, 2), project=project)
 
     assert len(executed) == 1 and isinstance(executed[0], CompositeCommand)
     image = project.find_item(image_id)
@@ -1429,8 +1429,8 @@ def test_chart_snapshot_image_name_disambiguates_same_named_charts(qapp):
     editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
 
     with patch("pandaplot.gui.components.tabs.note.note_editor.find_chart_snapshot_gallery_id", return_value="gallery-id"):
-        editor._save_chart_snapshot_image(chart_a, _rendered_snapshot(2, 2))
-        editor._save_chart_snapshot_image(chart_b, _rendered_snapshot(2, 2))
+        editor._save_chart_snapshot_image(chart_a, _rendered_snapshot(2, 2), project=project)
+        editor._save_chart_snapshot_image(chart_b, _rendered_snapshot(2, 2), project=project)
 
     assert captured[0].name != captured[1].name
 
@@ -1670,3 +1670,111 @@ def test_compute_note_artefact_rows_resolves_local_files_the_way_the_preview_doe
     rows = compute_note_artefact_rows(app_context, note, note.content)
 
     assert [(row.kind, row.status) for row in rows] == [("file", "ok"), ("file", "ok")]
+
+
+def test_dispatch_headless_chart_render_delivers_none_if_the_project_changed(qapp):
+    """The project check lives in the dispatcher, so no caller can save or
+    apply a render into a project it wasn't started in."""
+    from pandaplot.gui.components.tabs.note.note_editor import dispatch_headless_chart_render
+
+    chart = Chart(name="Chart A")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    app_context = MagicMock()
+    app_context.get_app_state.return_value.current_project = project
+    captured = {}
+    app_context.get_task_scheduler.return_value.run_task.side_effect = (
+        lambda task, task_arguments=None, on_result=None, on_error=None, **_kw: captured.update(on_result=on_result))
+    results = []
+
+    with patch(
+        "pandaplot.gui.components.tabs.note.note_editor._resolve_chart_render_inputs", return_value=([], None),
+    ):
+        dispatch_headless_chart_render(app_context, chart, on_result=results.append)
+    app_context.get_app_state.return_value.current_project = Project(name="Other Project")
+    captured["on_result"](_rendered_snapshot(5, 5))
+
+    assert results == [None]
+
+
+def test_note_editor_reports_which_snapshots_are_refreshing(qapp):
+    project, image = _snapshot_project()
+    app_context = _app_context_with_executing_command_executor(project)
+    app_context.get_task_scheduler.return_value.run_task.side_effect = lambda *args, **kwargs: None
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+    assert not editor.is_refreshing_snapshot(image.id)
+
+    editor.refresh_chart_snapshot(image.id)
+
+    assert editor.is_refreshing_snapshot(image.id)
+
+
+def test_artefacts_badge_follows_another_notes_saved_content(qapp, qtbot):
+    """Whether a snapshot is unused depends on the other notes, so a change
+    to one of them must refresh this note's badge too."""
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    image = Image(name="Snapshot", note_id="note-1")
+    project.add_item(image, parent_id=gallery.id)
+    note = Note(id="note-1", name="Note 1", content="")
+    other_note = Note(id="note-2", name="Note 2", content=f"![Snapshot]({image.id} =500x)")
+    project.add_item(note)
+    project.add_item(other_note)
+    app_context = MagicMock()
+    app_context.get_app_state.return_value.current_project = project
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    qtbot.wait(600)
+    assert "•" not in editor.artefacts_action.text()  # the other note still references it
+
+    other_note.content = "Reference removed."
+    editor.on_note_content_changed_event({"note_id": other_note.id, "new_content": other_note.content})
+    qtbot.wait(600)
+
+    assert "•" in editor.artefacts_action.text()
+
+
+def _unreferenced_snapshot_project(other_content: str):
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    image = Image(name="Snapshot", note_id="note-1")
+    project.add_item(image, parent_id=gallery.id)
+    note = Note(id="note-1", name="Note 1", content="")
+    other_note = Note(id="note-2", name="Note 2", content=other_content)
+    project.add_item(note)
+    project.add_item(other_note)
+    app_context = MagicMock()
+    app_context.get_app_state.return_value.current_project = project
+    return app_context, note, other_note
+
+
+def test_compute_note_artefact_rows_reparses_another_note_only_when_its_content_changes(qapp):
+    app_context, note, other_note = _unreferenced_snapshot_project("Plain text, no images.")
+
+    with patch(
+        "pandaplot.gui.components.tabs.note.note_editor.extract_referenced_image_keys",
+        wraps=extract_referenced_image_keys,
+    ) as extract:
+        compute_note_artefact_rows(app_context, note, note.content)
+        compute_note_artefact_rows(app_context, note, note.content)
+        assert [call.args[0] for call in extract.call_args_list].count(other_note.content) == 1
+
+        other_note.content = "Edited, still no images."
+        compute_note_artefact_rows(app_context, note, note.content)
+        assert [call.args[0] for call in extract.call_args_list].count(other_note.content) == 1
+
+
+def test_compute_note_artefact_rows_skips_the_image_index_when_there_is_nothing_to_resolve(qapp):
+    project = Project(name="Test Project")
+    project.add_item(Image(name="Someone else's", note_id="note-2"))
+    note = Note(id="note-1", name="Note 1", content="No images here.")
+    project.add_item(note)
+    app_context = MagicMock()
+    app_context.get_app_state.return_value.current_project = project
+
+    with patch("pandaplot.gui.components.tabs.note.note_editor._project_images_by_key") as index:
+        assert compute_note_artefact_rows(app_context, note, note.content) == []
+
+    index.assert_not_called()

@@ -406,7 +406,7 @@ def test_note_artefacts_dialog_insert_buttons_leave_the_callers_cursor_alone(qap
     assert text_edit.textCursor().position() == 6
 
 
-def test_note_artefacts_dialog_refresh_button_is_disabled_until_the_refresh_finishes(qapp):
+def _refresh_dialog_fixture():
     project = Project(name="Test Project")
     chart = Chart(name="Plot")
     gallery = ImageGallery(name="Chart Snapshots")
@@ -418,16 +418,46 @@ def test_note_artefacts_dialog_refresh_button_is_disabled_until_the_refresh_fini
     app_context = _create_mock_app_context_with_executor(project)
     text_edit = QTextEdit()
     text_edit.setPlainText(f"![Snap]({image.id} =500x)")
-    callbacks = []
-    editor = QWidget()
-    editor.refresh_chart_snapshot = lambda image_id, on_done=None: callbacks.append(on_done)
-    dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=editor)
-    refresh_button = dialog.table.cellWidget(0, 3).findChildren(PButton)[0]
+    return app_context, note, image, text_edit
 
-    refresh_button.click()
-    assert not refresh_button.isEnabled()
+
+def _refresh_button(dialog):
+    return dialog.table.cellWidget(0, 3).findChildren(PButton)[0]
+
+
+def test_note_artefacts_dialog_refresh_button_is_disabled_until_the_refresh_finishes(qapp):
+    app_context, note, image, text_edit = _refresh_dialog_fixture()
+    in_flight: set[str] = set()
+    callbacks = []
+
+    def _refresh(image_id, on_done=None):
+        in_flight.add(image_id)
+        callbacks.append(on_done)
+
+    editor = QWidget()
+    editor.refresh_chart_snapshot = _refresh
+    editor.is_refreshing_snapshot = in_flight.__contains__
+    dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=editor)
+
+    _refresh_button(dialog).click()
+    assert not _refresh_button(dialog).isEnabled()
+    in_flight.discard(image.id)
     callbacks[0]()
-    assert refresh_button.isEnabled()
+    assert _refresh_button(dialog).isEnabled()
+
+
+def test_note_artefacts_dialog_keeps_refresh_disabled_when_rows_rebuild_during_a_refresh(qapp):
+    """Rebuilding the rows (e.g. after deleting another row) mid-refresh must
+    not hand back an enabled Refresh button whose clicks would be ignored."""
+    app_context, note, image, text_edit = _refresh_dialog_fixture()
+    editor = QWidget()
+    editor.refresh_chart_snapshot = lambda image_id, on_done=None: None
+    editor.is_refreshing_snapshot = lambda image_id: image_id == image.id
+    dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=editor)
+
+    assert not _refresh_button(dialog).isEnabled()
+    dialog.refresh_rows()
+    assert not _refresh_button(dialog).isEnabled()
 
 
 def test_note_table_picker_preview_is_capped_but_the_inserted_table_is_not(qapp):
@@ -476,3 +506,62 @@ def test_note_artefacts_dialog_deleting_a_reference_rebuilds_rows_once(qapp):
         dialog._on_delete_row(dialog._rows[0])
 
     assert compute_rows.call_count == 1
+
+
+def _unused_snapshot_fixture():
+    project = Project(name="Test Project")
+    gallery = ImageGallery(name="Chart Snapshots")
+    project.add_item(gallery)
+    note = Note(id="note-1", name="Note 1")
+    other_note = Note(id="note-2", name="Note 2", content="Nothing yet.")
+    image = Image(name="Orphan", note_id=note.id)
+    for item in (note, other_note):
+        project.add_item(item)
+    project.add_item(image, parent_id=gallery.id)
+    app_context = _create_mock_app_context_with_executor(project)
+    text_edit = QTextEdit()
+    text_edit.setPlainText("No references here.")
+    return project, app_context, note, other_note, image, text_edit
+
+
+def test_note_artefacts_dialog_delete_flushes_pending_edits_before_removing_a_snapshot(qapp):
+    """Another open note's reference may still be inside its auto-save delay;
+    deleting the Image project-wide must see it and refuse."""
+    project, app_context, note, other_note, image, text_edit = _unused_snapshot_fixture()
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+
+    def _flush() -> bool:
+        other_note.content = f"Pasted: ![Orphan]({image.id} =500x)"
+        return True
+
+    app_context.get_manager.return_value.flush_all.side_effect = _flush
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert project.find_item(image.id) is image
+    assert dialog._rows == []  # no longer offered as unused
+
+
+def test_note_artefacts_dialog_delete_refuses_a_snapshot_when_pending_edits_cannot_be_flushed(qapp):
+    project, app_context, note, _other_note, image, text_edit = _unused_snapshot_fixture()
+    dialog = NoteArtefactsDialog(app_context, note, text_edit)
+    app_context.get_manager.return_value.flush_all.return_value = False
+
+    dialog._on_delete_row(dialog._rows[0])
+
+    assert project.find_item(image.id) is image
+    app_context.get_ui_controller().show_warning_message.assert_called_once()
+
+
+def test_dataset_to_markdown_table_keeps_a_backslash_before_a_pipe_in_the_same_cell():
+    """A cell holding a backslash then a pipe, escaped only for the pipe, ends with
+    the pipe still acting as a column separator in the rendered table."""
+    from markdown import markdown
+
+    dataset = Dataset(name="Paths")
+    dataset.data = pd.DataFrame({"Pattern": ["a\\|b"], "Other": ["x"]})
+
+    md = dataset_to_markdown_table(dataset)
+
+    html = markdown(md, extensions=["tables"])
+    assert "<td>a\\|b</td>" in html
+    assert html.count("<td>") == 2

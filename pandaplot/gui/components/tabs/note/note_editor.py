@@ -38,6 +38,7 @@ from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePicker
 from pandaplot.models.events import NoteEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Chart, Image, ImageGallery, ItemCollection, Note
+from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.note_render.latex_markdown_renderer import (
     code_region_spans,
@@ -171,14 +172,21 @@ def dispatch_headless_chart_render(
     it to PNG on a TaskScheduler worker thread, delivering the result
     (or a failure) back via `on_result`/`on_error` on the GUI thread.
 
+    `on_result` receives None when the render produced nothing, or when the
+    project that was current at dispatch is no longer current: the render
+    belongs to that project, so it is dropped as stale instead of reaching
+    a caller that would apply it to whichever project is open by then.
+
     Shared by every headless-chart-render call site (snapshot insertion and
-    snapshot refresh) so the resolve/copy/dispatch boilerplate exists
-    exactly once. Callers own whatever they do with the result (create or
-    update an Image) -- this function only handles getting the render off
-    the GUI thread and back.
+    snapshot refresh) so the resolve/copy/dispatch boilerplate and the stale
+    check exist exactly once. Callers own whatever they do with the result
+    (create or update an Image) -- this function only handles getting the
+    render off the GUI thread and back.
     """
     from pandaplot.gui.components.tabs.chart.chart_editor import render_chart_to_png
 
+    app_state = app_context.get_app_state()
+    dispatch_project = app_state.current_project if app_state else None
     resolved_series_data, size_defaults = _resolve_chart_render_inputs(app_context, chart_item)
     # The worker reads the chart's config/style/series while the GUI thread
     # may keep editing the live one, so it gets a copy taken now.
@@ -195,10 +203,17 @@ def dispatch_headless_chart_render(
         width, height = _png_size(png_bytes)
         return RenderedChartSnapshot(png_bytes=png_bytes, width=width, height=height)
 
+    def _deliver(rendered: RenderedChartSnapshot | None) -> None:
+        current_state = app_context.get_app_state()
+        if current_state is None or current_state.current_project is not dispatch_project:
+            on_result(None)
+            return
+        on_result(rendered)
+
     app_context.get_task_scheduler().run_task(
         task=_render_task,
         task_arguments={"chart": chart_snapshot, "resolved_data": resolved_series_data, "size_defs": size_defaults},
-        on_result=on_result,
+        on_result=_deliver,
         on_error=on_error,
     )
 
@@ -358,12 +373,31 @@ def _project_images_by_key(project) -> dict[str, Image]:
     return images_by_key
 
 
+# note id -> (content, image keys parsed from it). Parsing every other note on
+# each badge refresh is the expensive part of the "unused" check, so a note is
+# only re-parsed when its content differs from what was parsed last time.
+_note_image_keys_cache: dict[str, tuple[str, frozenset[str]]] = {}
+
+
+def _note_image_keys(note: Note) -> frozenset[str]:
+    cached = _note_image_keys_cache.get(note.id)
+    if cached is not None and cached[0] == note.content:
+        return cached[1]
+    keys = frozenset(extract_referenced_image_keys(note.content))
+    _note_image_keys_cache[note.id] = (note.content, keys)
+    return keys
+
+
 def _image_keys_referenced_by_other_notes(project, note: Note) -> set[str]:
-    """Image link targets referenced by every note in `project` except `note`."""
+    """Image link targets referenced by every note in `project` except `note`,
+    from each note's saved content (see `_note_image_keys`)."""
     keys: set[str] = set()
-    for item in project.get_all_items():
-        if isinstance(item, Note) and item.id != note.id and item.content:
-            keys |= extract_referenced_image_keys(item.content)
+    other_notes = [item for item in project.get_all_items() if isinstance(item, Note) and item.id != note.id]
+    for stale_id in _note_image_keys_cache.keys() - {other.id for other in other_notes}:
+        del _note_image_keys_cache[stale_id]
+    for other in other_notes:
+        if other.content:
+            keys |= _note_image_keys(other)
     return keys
 
 
@@ -377,8 +411,10 @@ def compute_note_artefact_rows(app_context: AppContext, note: Note, source: str)
 
     `source` is the note's *current* text (e.g. text_edit.toPlainText()),
     not necessarily note.content -- callers must pass the live editor text
-    so unsaved edits are reflected. Match offsets index `source` by code
-    point, as Python strings do.
+    so unsaved edits are reflected. Other notes are read from their saved
+    content, so a caller about to delete a snapshot must first flush their
+    pending edits (see NoteArtefactsDialog). Match offsets index `source` by
+    code point, as Python strings do.
     """
     app_state = app_context.get_app_state() if app_context else None
     project = app_state.current_project if app_state else None
@@ -387,11 +423,16 @@ def compute_note_artefact_rows(app_context: AppContext, note: Note, source: str)
         return rows
 
     base_dir = get_project_base_dir(app_context)
-    images_by_key = _project_images_by_key(project)
+    images_by_key: dict[str, Image] | None = None
     resolved_targets: dict[str, tuple[str, Image | None]] = {}
 
     def _resolve(target: str) -> tuple[str, Image | None]:
+        nonlocal images_by_key
         if target not in resolved_targets:
+            # Built on the first reference to resolve, so a note without any
+            # image reference never scans the project's items for this.
+            if images_by_key is None:
+                images_by_key = _project_images_by_key(project)
             resolved_targets[target] = _resolve_note_reference_target(base_dir, images_by_key, target)
         return resolved_targets[target]
 
@@ -603,9 +644,9 @@ class NoteEditorWidget(PWidget):
         self.auto_save_timer.setSingleShot(True)
 
         # Debounces _refresh_artefacts_badge(), since
-        # compute_note_artefact_rows does real filesystem checks and an
-        # O(references x project items) scan -- too expensive to run
-        # synchronously on every keystroke/content-changed event.
+        # compute_note_artefact_rows does real filesystem checks and, for an
+        # unreferenced snapshot, a scan of the other notes -- too expensive to
+        # run synchronously on every keystroke/content-changed event.
         self._artefacts_badge_refresh_timer = QTimer()
         self._artefacts_badge_refresh_timer.setSingleShot(True)
         self._artefacts_badge_refresh_timer.timeout.connect(self._refresh_artefacts_badge)
@@ -964,9 +1005,9 @@ class NoteEditorWidget(PWidget):
 
     def _schedule_artefacts_badge_refresh(self) -> None:
         """Debounced _refresh_artefacts_badge(), restarting the wait on every
-        call -- compute_note_artefact_rows does real filesystem checks and an
-        O(references x project items) scan, so it must not run on every
-        keystroke."""
+        call -- compute_note_artefact_rows does real filesystem checks and, for
+        an unreferenced snapshot, a scan of the other notes, so it must not
+        run on every keystroke."""
         self._artefacts_badge_refresh_timer.start(_ARTEFACTS_BADGE_REFRESH_DEBOUNCE_MS)
 
     def insert_chart_from_picker(self):
@@ -1002,13 +1043,13 @@ class NoteEditorWidget(PWidget):
             # image behind with nothing to reference it.
             if not isValid(self):
                 return
-            # Likewise if the project changed: the snapshot would be saved
+            # `rendered` is None too when the project changed meanwhile (see
+            # dispatch_headless_chart_render), so the snapshot is never saved
             # into a project this note isn't part of.
-            current_app_state = self.app_context.get_app_state()
-            if rendered is None or current_app_state is None or current_app_state.current_project is not project:
+            if rendered is None or project is None:
                 self._warn_chart_snapshot_failed(chart)
                 return
-            image_id = self._save_chart_snapshot_image(chart, rendered)
+            image_id = self._save_chart_snapshot_image(chart, rendered, project=project)
             if image_id is None:
                 self._warn_chart_snapshot_failed(chart)
                 return
@@ -1030,17 +1071,13 @@ class NoteEditorWidget(PWidget):
         self.app_context.get_ui_controller().show_warning_message(
             "Insert Chart", f"Could not insert a snapshot of chart '{chart.name}'.")
 
-    def _save_chart_snapshot_image(self, chart: Chart, rendered: RenderedChartSnapshot) -> str | None:
-        """Add `rendered` to the project as a plain gallery Image (in the
-        note's "Chart Snapshots" gallery), returning its new id, or None
-        on failure."""
+    def _save_chart_snapshot_image(self, chart: Chart, rendered: RenderedChartSnapshot, *, project: Project) -> str | None:
+        """Add `rendered` to `project` (the one current when the render was
+        dispatched) as a plain gallery Image (in the note's "Chart Snapshots"
+        gallery), returning its new id, or None on failure."""
         from pandaplot.commands.project.image.create_image_from_bytes_command import CreateImageFromBytesCommand
         from pandaplot.commands.project.image.create_image_gallery_command import CreateImageGalleryCommand
 
-        app_state = self.app_context.get_app_state()
-        project = app_state.current_project if app_state else None
-        if project is None:
-            return None
         commands: list[Command] = []
         gallery_id = find_chart_snapshot_gallery_id(project, self.note.parent_id)
         if gallery_id is None:
@@ -1061,6 +1098,10 @@ class NoteEditorWidget(PWidget):
         to_run = commands[0] if len(commands) == 1 else CompositeCommand(commands, display_name="Insert Chart Snapshot")
         succeeded = self.app_context.get_command_executor().execute_command(to_run, track_undo=True)
         return command.created_image_id if succeeded else None
+
+    def is_refreshing_snapshot(self, image_id: str) -> bool:
+        """Whether a refresh render for snapshot `image_id` is still pending."""
+        return image_id in self._refreshing_snapshot_ids
 
     def refresh_chart_snapshot(self, image_id: str, on_done: Callable[[], None] | None = None) -> None:
         """Re-render the chart a snapshot image came from and replace the
@@ -1099,11 +1140,7 @@ class NoteEditorWidget(PWidget):
             if not isValid(self):
                 return
             try:
-                current_project = self.app_context.get_app_state().current_project
-                if current_project is not project or not isinstance(current_project.find_item(image_id), Image):
-                    self._warn_snapshot_refresh_failed(chart)
-                    return
-                if rendered is None:
+                if rendered is None or not isinstance(project.find_item(image_id), Image):
                     self._warn_snapshot_refresh_failed(chart)
                     return
                 command = EditImageCommand(
@@ -1525,6 +1562,9 @@ class NoteEditorWidget(PWidget):
     def on_note_content_changed_event(self, event_data: dict):
         """Handle external note content changes (undo/redo or other editors)."""
         if event_data.get("note_id") != self.note.id:
+            # Another note's references decide whether this note's snapshots
+            # are unused, so its badge may have changed too.
+            self._schedule_artefacts_badge_refresh()
             return
         new_content = event_data.get("new_content")
         if new_content is not None and self.text_edit.toPlainText() != new_content:

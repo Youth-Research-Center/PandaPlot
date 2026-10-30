@@ -24,6 +24,7 @@ from pandaplot.gui.components.tabs.note.note_editor import NoteArtefactRow, comp
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.project.items import Note
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.models.state.unsaved_changes_registry import UnsavedChangesRegistry
 
 _KIND_LABELS = {"image": "Gallery image", "file": "Local file", "unknown": "Unknown"}
 _STATUS_LABELS = {"ok": "OK", "unused": "Unused", "broken": "Broken"}
@@ -127,10 +128,12 @@ class NoteArtefactsDialog(PDialog):
 
     def refresh_rows(self) -> None:
         """Recompute rows from the text_edit's current content and rebuild
-        the table. Must be called after every delete, since deleting one
-        row's markdown text shifts the match offsets of every row after it
-        in the text -- rebuilding from scratch keeps them all valid."""
+        the table. Deleting one row's markdown text shifts the match offsets
+        of every row after it in the text, so the rows are rebuilt from
+        scratch after every delete (see `_on_delete_row`). A Refresh button
+        is disabled while the note editor is still rendering that snapshot."""
         self._rows = compute_note_artefact_rows(self.app_context, self.note, self.text_edit.toPlainText())
+        is_refreshing = getattr(self.parent(), "is_refreshing_snapshot", None)
         self.empty_widget.setVisible(not self._rows)
         self.table.setVisible(bool(self._rows))
         # With nothing listed, the insert actions are the one thing to do,
@@ -148,8 +151,12 @@ class NoteArtefactsDialog(PDialog):
             if row.refreshable and row.item_id is not None:
                 refresh_button = PButton("Refresh", role="secondary")
                 refresh_button.clicked.connect(
-                    lambda _checked=False, image_id=row.item_id, b=refresh_button: self._on_refresh_snapshot(image_id, b))
-                refresh_button.setToolTip("Re-render this snapshot from its chart's current data and style")
+                    lambda _checked=False, image_id=row.item_id: self._on_refresh_snapshot(image_id))
+                if is_refreshing is not None and is_refreshing(row.item_id):
+                    refresh_button.setEnabled(False)
+                    refresh_button.setToolTip("Refresh in progress")
+                else:
+                    refresh_button.setToolTip("Re-render this snapshot from its chart's current data and style")
                 refresh_button.setAccessibleName(f"Refresh snapshot {row.name}")
                 actions_layout.addWidget(refresh_button)
             delete_button = PButton(
@@ -185,21 +192,39 @@ class NoteArtefactsDialog(PDialog):
             cursor.setPosition(_text_cursor_position(text, row.match_end), QTextCursor.MoveMode.KeepAnchor)
             cursor.removeSelectedText()
         elif row.is_snapshot and row.item_id is not None:
-            command = DeleteItemCommand(self.app_context, item_id=row.item_id, confirm=False)
-            self.app_context.get_command_executor().execute_command(command, track_undo=True)
-            self.refresh_rows()
+            self._delete_unused_snapshot(row.item_id)
 
-    def _on_refresh_snapshot(self, image_id: str, button: PButton) -> None:
+    def _delete_unused_snapshot(self, image_id: str) -> None:
+        """Delete a snapshot Image project-wide, unless a note still refers to it.
+
+        Other open notes may hold a reference that is still inside their
+        auto-save delay, so their pending edits are committed first and the
+        row is re-checked against them. If they can't be committed the
+        check can't be trusted and nothing is deleted.
+        """
+        if not self.app_context.get_manager(UnsavedChangesRegistry).flush_all():
+            self.app_context.get_ui_controller().show_warning_message(
+                "Delete Artefact", "Other notes have unsaved changes that could not be saved, so it can't be checked whether they use this snapshot.")
+            return
+        self.refresh_rows()
+        if not any(row.item_id == image_id and row.match_start is None for row in self._rows):
+            self.app_context.get_ui_controller().show_warning_message(
+                "Delete Artefact", "Another note now uses this snapshot, so it was not deleted.")
+            return
+        command = DeleteItemCommand(self.app_context, item_id=image_id, confirm=False)
+        self.app_context.get_command_executor().execute_command(command, track_undo=True)
+        self.refresh_rows()
+
+    def _on_refresh_snapshot(self, image_id: str) -> None:
         note_editor = self.parent()
         if note_editor is None or not hasattr(note_editor, "refresh_chart_snapshot"):
             return
-        button.setEnabled(False)
+        note_editor.refresh_chart_snapshot(image_id, on_done=self._on_refresh_finished)
+        self.refresh_rows()  # shows the Refresh button disabled while the render runs
 
-        def _reenable() -> None:
-            if isValid(button):
-                button.setEnabled(True)
-
-        note_editor.refresh_chart_snapshot(image_id, on_done=_reenable)
+    def _on_refresh_finished(self) -> None:
+        if isValid(self):
+            self.refresh_rows()
 
     def _on_insert_chart_clicked(self) -> None:
         note_editor = self.parent()

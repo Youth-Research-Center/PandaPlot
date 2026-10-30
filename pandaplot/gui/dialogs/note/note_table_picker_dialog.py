@@ -1,5 +1,6 @@
 """Dialog for selecting/configuring a table to insert into a note."""
 
+import re
 from typing import override
 
 import pandas as pd
@@ -39,7 +40,9 @@ def _escape_markdown_table_cell(val: object) -> str:
     if pd.api.types.is_scalar(val) and pd.isna(val):
         return ""
     text = str(val)
-    text = text.replace("|", "\\|")
+    # Backslashes right before a pipe are doubled too: a literal `\|` escaped
+    # as `\\|` would read as an escaped backslash plus a column separator.
+    text = re.sub(r"(\\*)\|", lambda match: match.group(1) * 2 + "\\|", text)
     text = text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
     return text
 
