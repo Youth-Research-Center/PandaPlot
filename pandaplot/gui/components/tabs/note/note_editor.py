@@ -1026,7 +1026,7 @@ class NoteEditorWidget(PWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             chart = dialog.get_selected_chart()
             if chart is not None:
-                self._insert_chart_snapshot(chart)
+                self._insert_chart_snapshot(chart, dpi=dialog.get_selected_dpi())
 
     def _insert_chart_snapshot(self, chart: Chart, *, dpi: int | None = None) -> None:
         """Render `chart` once, in the background, and insert a static

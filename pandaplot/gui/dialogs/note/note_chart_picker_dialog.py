@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.snapshot_dpi_combo_box import SnapshotDpiComboBox
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.project.items import Chart, Folder, Item
 from pandaplot.models.state.app_context import AppContext
@@ -37,6 +38,7 @@ class NoteChartPickerDialog(PDialog):
         super().__init__(app_context=app_context, parent=parent)
         self.project = project
         self._selected_chart: Chart | None = None
+        self._selected_dpi: int | None = None
         self._initialize()
         self._populate_tree()
         self._refresh_ok_enabled()
@@ -58,6 +60,14 @@ class NoteChartPickerDialog(PDialog):
         self.tree.itemSelectionChanged.connect(self._refresh_ok_enabled)
         self.tree.itemDoubleClicked.connect(self._on_item_double_clicked)
         layout.addWidget(self.tree)
+
+        dpi_row = QHBoxLayout()
+        dpi_label = QLabel("Snapshot DPI:")
+        self.dpi_combo = SnapshotDpiComboBox()
+        dpi_label.setBuddy(self.dpi_combo)
+        dpi_row.addWidget(dpi_label)
+        dpi_row.addWidget(self.dpi_combo, stretch=1)
+        layout.addLayout(dpi_row)
 
         button_row = QHBoxLayout()
         self.cancel_button = PButton("Cancel", role="secondary", on_click=self.reject)
@@ -139,14 +149,20 @@ class NoteChartPickerDialog(PDialog):
         item = self._get_selected_item_object()
         if isinstance(item, Chart):
             self._selected_chart = item
+            self._selected_dpi = self.dpi_combo.value()
             self.accept()
 
     def _on_ok_clicked(self) -> None:
         item = self._get_selected_item_object()
         if isinstance(item, Chart):
             self._selected_chart = item
+            self._selected_dpi = self.dpi_combo.value()
             self.accept()
 
     def get_selected_chart(self) -> Chart | None:
         """Return the selected Chart model, or None if dialog was cancelled/no selection."""
         return self._selected_chart
+
+    def get_selected_dpi(self) -> int | None:
+        """Return the DPI chosen for the snapshot, or None to use the chart's own DPI."""
+        return self._selected_dpi

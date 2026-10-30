@@ -870,6 +870,7 @@ def test_insert_chart_from_picker_inserts_static_snapshot(qapp):
     mock_dialog = MagicMock()
     mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
     mock_dialog.get_selected_chart.return_value = chart
+    mock_dialog.get_selected_dpi.return_value = None
 
     with patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog):
         editor.insert_chart_from_picker()
@@ -885,6 +886,30 @@ def test_insert_chart_from_picker_inserts_static_snapshot(qapp):
     from pandaplot.models.project.items import Image
     assert isinstance(inserted_image, Image)
     assert inserted_image.get_bytes() is not None
+
+
+def test_insert_chart_from_picker_stores_the_dpi_chosen_in_the_dialog(qapp):
+    chart = Chart(name="Sample Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    app_context = _app_context_with_executing_command_executor(project)
+    editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
+    mock_dialog = MagicMock()
+    mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
+    mock_dialog.get_selected_chart.return_value = chart
+    mock_dialog.get_selected_dpi.return_value = 300
+    captured: dict = {}
+    render = _capture_render_dpi(captured, create_test_png_bytes(8, 8))
+
+    with (
+        patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog),
+        patch("pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_png", side_effect=render),
+    ):
+        editor.insert_chart_from_picker()
+
+    images = [item for item in project.get_all_items() if isinstance(item, Image)]
+    assert [image.render_dpi for image in images] == [300]
+    assert captured["dpis"] == [300]
 
 
 def test_save_chart_snapshot_image_stamps_note_id(qapp):
@@ -983,6 +1008,7 @@ def test_note_editor_insert_chart_uses_shared_width_constant(qapp):
     mock_dialog = MagicMock()
     mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
     mock_dialog.get_selected_chart.return_value = chart
+    mock_dialog.get_selected_dpi.return_value = None
 
     with patch("pandaplot.gui.dialogs.note.NoteChartPickerDialog", return_value=mock_dialog), patch(
         "pandaplot.gui.components.tabs.note.note_editor._DEFAULT_INSERT_MAX_WIDTH", 777

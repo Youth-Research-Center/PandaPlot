@@ -565,3 +565,39 @@ def test_dataset_to_markdown_table_keeps_a_backslash_before_a_pipe_in_the_same_c
     html = markdown(md, extensions=["tables"])
     assert "<td>a\\|b</td>" in html
     assert html.count("<td>") == 2
+
+
+def _single_chart_picker(qapp):
+    project = Project(name="Test Project")
+    chart = Chart(name="Plot")
+    project.add_item(chart)
+    dialog = NoteChartPickerDialog(_create_mock_app_context(project), project)
+    dialog.tree.setCurrentItem(dialog.tree.topLevelItem(0))
+    return dialog, chart
+
+
+def test_note_chart_picker_dialog_returns_the_chosen_dpi(qapp):
+    dialog, chart = _single_chart_picker(qapp)
+    dialog.dpi_combo.set_value(300)
+
+    dialog._on_ok_clicked()
+
+    assert dialog.get_selected_chart() is chart
+    assert dialog.get_selected_dpi() == 300
+
+
+def test_note_chart_picker_dialog_defaults_to_the_chart_dpi(qapp):
+    dialog, _chart = _single_chart_picker(qapp)
+
+    dialog._on_ok_clicked()
+
+    assert dialog.get_selected_dpi() is None
+
+
+def test_note_chart_picker_dialog_double_click_also_returns_the_chosen_dpi(qapp):
+    dialog, _chart = _single_chart_picker(qapp)
+    dialog.dpi_combo.set_value(150)
+
+    dialog._on_item_double_clicked(dialog.tree.topLevelItem(0), 0)
+
+    assert dialog.get_selected_dpi() == 150
