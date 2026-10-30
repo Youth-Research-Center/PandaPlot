@@ -6,6 +6,7 @@ from typing import override
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QTextCursor
 from PySide6.QtWidgets import (
+    QDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -20,14 +21,26 @@ from shiboken6 import isValid
 
 from pandaplot.commands.project.item.delete_item_command import DeleteItemCommand
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.snapshot_dpi_combo_box import CHART_DEFAULT_LABEL
 from pandaplot.gui.components.tabs.note.note_editor import NoteArtefactRow, compute_note_artefact_rows
 from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.gui.dialogs.note.snapshot_dpi_dialog import SnapshotDpiDialog
 from pandaplot.models.project.items import Note
+from pandaplot.models.project.items.image import KEEP_RENDER_DPI, KeepRenderDpi
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.unsaved_changes_registry import UnsavedChangesRegistry
 
 _KIND_LABELS = {"image": "Gallery image", "file": "Local file", "unknown": "Unknown"}
 _STATUS_LABELS = {"ok": "OK", "unused": "Unused", "broken": "Broken"}
+_ACTIONS_COLUMN = 4
+
+
+def _dpi_text(row: NoteArtefactRow) -> str:
+    """The DPI column text: a chart snapshot's stored DPI or the chart-default
+    label, and "-" for anything that is not a chart snapshot."""
+    if not row.is_chart_snapshot:
+        return "-"
+    return CHART_DEFAULT_LABEL if row.render_dpi is None else str(row.render_dpi)
 
 
 def _text_cursor_position(text: str, index: int) -> int:
@@ -97,8 +110,8 @@ class NoteArtefactsDialog(PDialog):
         self.empty_widget.setVisible(False)
         layout.addWidget(self.empty_widget, stretch=1)
 
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Name", "Type", "Status", ""])
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["Name", "Type", "Status", "DPI", ""])
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         self.table.horizontalHeader().setStretchLastSection(False)
@@ -130,8 +143,8 @@ class NoteArtefactsDialog(PDialog):
         """Recompute rows from the text_edit's current content and rebuild
         the table. Deleting one row's markdown text shifts the match offsets
         of every row after it in the text, so the rows are rebuilt from
-        scratch after every delete (see `_on_delete_row`). A Refresh button
-        is disabled while the note editor is still rendering that snapshot."""
+        scratch after every delete (see `_on_delete_row`). A snapshot's Refresh
+        and DPI buttons are disabled while the note editor is still rendering it."""
         self._rows = compute_note_artefact_rows(self.app_context, self.note, self.text_edit.toPlainText())
         is_refreshing = getattr(self.parent(), "is_refreshing_snapshot", None)
         self.empty_widget.setVisible(not self._rows)
@@ -145,27 +158,34 @@ class NoteArtefactsDialog(PDialog):
             self.table.setItem(row_index, 0, QTableWidgetItem(row.name))
             self.table.setItem(row_index, 1, QTableWidgetItem(_KIND_LABELS.get(row.kind, row.kind)))
             self.table.setItem(row_index, 2, QTableWidgetItem(_STATUS_LABELS.get(row.status, row.status)))
+            self.table.setItem(row_index, 3, QTableWidgetItem(_dpi_text(row)))
             actions = QWidget()
             actions_layout = QHBoxLayout(actions)
             actions_layout.setContentsMargins(0, 0, 0, 0)
             if row.refreshable and row.item_id is not None:
+                busy = is_refreshing is not None and is_refreshing(row.item_id)
                 refresh_button = PButton("Refresh", role="secondary")
                 refresh_button.clicked.connect(
                     lambda _checked=False, image_id=row.item_id: self._on_refresh_snapshot(image_id))
-                if is_refreshing is not None and is_refreshing(row.item_id):
-                    refresh_button.setEnabled(False)
-                    refresh_button.setToolTip("Refresh in progress")
-                else:
-                    refresh_button.setToolTip("Re-render this snapshot from its chart's current data and style")
+                refresh_button.setEnabled(not busy)
+                refresh_button.setToolTip(
+                    "Refresh in progress" if busy
+                    else "Re-render this snapshot from its chart's current data and style")
                 refresh_button.setAccessibleName(f"Refresh snapshot {row.name}")
                 actions_layout.addWidget(refresh_button)
+                dpi_button = PButton("DPI...", role="secondary")
+                dpi_button.clicked.connect(lambda _checked=False, r=row: self._on_change_dpi(r))
+                dpi_button.setEnabled(not busy)
+                dpi_button.setToolTip("Refresh in progress" if busy else "Re-render this snapshot at a different DPI")
+                dpi_button.setAccessibleName(f"Change DPI of snapshot {row.name}")
+                actions_layout.addWidget(dpi_button)
             delete_button = PButton(
                 "Delete", role="destructive",
                 on_click=lambda _checked=False, r=row: self._confirm_and_delete_row(r),
             )
             delete_button.setAccessibleName(f"Delete {row.name}")
             actions_layout.addWidget(delete_button)
-            self.table.setCellWidget(row_index, 3, actions)
+            self.table.setCellWidget(row_index, _ACTIONS_COLUMN, actions)
         self.table.resizeColumnsToContents()
 
     def _confirm_and_delete_row(self, row: NoteArtefactRow) -> None:
@@ -215,12 +235,19 @@ class NoteArtefactsDialog(PDialog):
         self.app_context.get_command_executor().execute_command(command, track_undo=True)
         self.refresh_rows()
 
-    def _on_refresh_snapshot(self, image_id: str) -> None:
+    def _on_refresh_snapshot(self, image_id: str, *, dpi: int | None | KeepRenderDpi = KEEP_RENDER_DPI) -> None:
         note_editor = self.parent()
         if note_editor is None or not hasattr(note_editor, "refresh_chart_snapshot"):
             return
-        note_editor.refresh_chart_snapshot(image_id, on_done=self._on_refresh_finished)
-        self.refresh_rows()  # shows the Refresh button disabled while the render runs
+        note_editor.refresh_chart_snapshot(image_id, on_done=self._on_refresh_finished, dpi=dpi)
+        self.refresh_rows()  # shows the Refresh and DPI buttons disabled while the render runs
+
+    def _on_change_dpi(self, row: NoteArtefactRow) -> None:
+        if row.item_id is None:
+            return
+        dialog = SnapshotDpiDialog(self.app_context, current_dpi=row.render_dpi, parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self._on_refresh_snapshot(row.item_id, dpi=dialog.get_dpi())
 
     def _on_refresh_finished(self) -> None:
         if isValid(self):

@@ -1922,3 +1922,24 @@ def test_refresh_chart_snapshot_failure_keeps_the_stored_dpi(qapp):
         editor.refresh_chart_snapshot(image.id, dpi=600)
 
     assert image.render_dpi == 300
+
+
+def test_compute_note_artefact_rows_carries_the_snapshots_render_dpi(qapp):
+    project = Project(name="Test Project")
+    chart = Chart(name="Plot")
+    gallery = ImageGallery(name="Chart Snapshots")
+    for item in (chart, gallery):
+        project.add_item(item)
+    image = Image(name="Snap", note_id="note-1", source_chart_id=chart.id, render_dpi=300)
+    plain = Image(name="Plain", note_id="note-1")
+    project.add_item(image, parent_id=gallery.id)
+    project.add_item(plain, parent_id=gallery.id)
+    note = Note(id="note-1", name="Note 1", content=f"![A]({image.id} =500x)\n![B]({plain.id} =500x)")
+    project.add_item(note)
+    app_context = MagicMock()
+    app_context.get_app_state.return_value.current_project = project
+
+    rows = compute_note_artefact_rows(app_context, note, note.content)
+
+    assert [(row.name, row.is_chart_snapshot, row.render_dpi) for row in rows] == [
+        ("Snap", True, 300), ("Plain", False, None)]

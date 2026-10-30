@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-from PySide6.QtWidgets import QTextEdit, QWidget
+from PySide6.QtWidgets import QDialog, QTextEdit, QWidget
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.gui.components.common.p_button import PButton
@@ -14,6 +14,7 @@ from pandaplot.gui.dialogs.note.note_table_picker_dialog import (
     custom_to_markdown_table,
     dataset_to_markdown_table,
 )
+from pandaplot.gui.dialogs.note.snapshot_dpi_dialog import SnapshotDpiDialog
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
 
@@ -422,7 +423,7 @@ def _refresh_dialog_fixture():
 
 
 def _refresh_button(dialog):
-    return dialog.table.cellWidget(0, 3).findChildren(PButton)[0]
+    return dialog.table.cellWidget(0, 4).findChildren(PButton)[0]
 
 
 def test_note_artefacts_dialog_refresh_button_is_disabled_until_the_refresh_finishes(qapp):
@@ -430,7 +431,7 @@ def test_note_artefacts_dialog_refresh_button_is_disabled_until_the_refresh_fini
     in_flight: set[str] = set()
     callbacks = []
 
-    def _refresh(image_id, on_done=None):
+    def _refresh(image_id, on_done=None, **_kwargs):
         in_flight.add(image_id)
         callbacks.append(on_done)
 
@@ -451,7 +452,7 @@ def test_note_artefacts_dialog_keeps_refresh_disabled_when_rows_rebuild_during_a
     not hand back an enabled Refresh button whose clicks would be ignored."""
     app_context, note, image, text_edit = _refresh_dialog_fixture()
     editor = QWidget()
-    editor.refresh_chart_snapshot = lambda image_id, on_done=None: None
+    editor.refresh_chart_snapshot = lambda image_id, on_done=None, **_kwargs: None
     editor.is_refreshing_snapshot = lambda image_id: image_id == image.id
     dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=editor)
 
@@ -601,3 +602,98 @@ def test_note_chart_picker_dialog_double_click_also_returns_the_chosen_dpi(qapp)
     dialog._on_item_double_clicked(dialog.tree.topLevelItem(0), 0)
 
     assert dialog.get_selected_dpi() == 150
+
+
+def _dpi_button(dialog):
+    return dialog.table.cellWidget(0, 4).findChildren(PButton)[1]
+
+
+def test_note_artefacts_dialog_shows_the_snapshot_dpi_column(qapp):
+    app_context, note, image, text_edit = _refresh_dialog_fixture()
+    project = app_context.get_app_state().current_project
+    plain = Image(name="Plain", note_id=note.id)
+    project.add_item(plain, parent_id=image.parent_id)
+    text_edit.setPlainText(f"![Snap]({image.id} =500x)\n![Plain]({plain.id} =500x)")
+    parent = QWidget()
+    dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=parent)
+    assert dialog.table.horizontalHeaderItem(3).text() == "DPI"
+    assert [dialog.table.item(r, 3).text() for r in range(2)] == ["Chart default", "-"]
+
+    image.render_dpi = 300
+    dialog.refresh_rows()
+
+    assert dialog.table.item(0, 3).text() == "300"
+
+
+def test_note_artefacts_dialog_has_a_dpi_button_only_on_refreshable_rows(qapp):
+    app_context, note, _image, text_edit = _refresh_dialog_fixture()
+    parent = QWidget()
+    dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=parent)
+
+    assert [b.text() for b in dialog.table.cellWidget(0, 4).findChildren(PButton)] == ["Refresh", "DPI...", "Delete"]
+
+    text_edit.setPlainText("![Gone](missing-id =500x)")
+    dialog.refresh_rows()
+
+    assert [b.text() for b in dialog.table.cellWidget(0, 4).findChildren(PButton)] == ["Delete"]
+
+
+def test_note_artefacts_dialog_dpi_button_is_disabled_while_the_snapshot_refreshes(qapp):
+    app_context, note, image, text_edit = _refresh_dialog_fixture()
+    editor = QWidget()
+    editor.refresh_chart_snapshot = lambda image_id, on_done=None, **_kwargs: None
+    editor.is_refreshing_snapshot = lambda image_id: image_id == image.id
+    dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=editor)
+
+    assert not _dpi_button(dialog).isEnabled()
+
+
+def test_note_artefacts_dialog_dpi_button_refreshes_the_snapshot_at_the_chosen_dpi(qapp):
+    app_context, note, image, text_edit = _refresh_dialog_fixture()
+    calls = []
+    editor = QWidget()
+    editor.refresh_chart_snapshot = lambda image_id, on_done=None, **kwargs: calls.append((image_id, kwargs))
+    editor.is_refreshing_snapshot = lambda image_id: False
+    dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=editor)
+
+    with patch("pandaplot.gui.dialogs.note.note_artefacts_dialog.SnapshotDpiDialog") as dpi_dialog_cls:
+        dpi_dialog_cls.return_value.exec.return_value = QDialog.DialogCode.Accepted
+        dpi_dialog_cls.return_value.get_dpi.return_value = 600
+        _dpi_button(dialog).click()
+
+    assert calls == [(image.id, {"dpi": 600})]
+
+
+def test_note_artefacts_dialog_cancelling_the_dpi_dialog_does_not_refresh(qapp):
+    app_context, note, _image, text_edit = _refresh_dialog_fixture()
+    calls = []
+    editor = QWidget()
+    editor.refresh_chart_snapshot = lambda image_id, on_done=None, **kwargs: calls.append(image_id)
+    editor.is_refreshing_snapshot = lambda image_id: False
+    dialog = NoteArtefactsDialog(app_context, note, text_edit, parent=editor)
+
+    with patch("pandaplot.gui.dialogs.note.note_artefacts_dialog.SnapshotDpiDialog") as dpi_dialog_cls:
+        dpi_dialog_cls.return_value.exec.return_value = QDialog.DialogCode.Rejected
+        _dpi_button(dialog).click()
+
+    assert calls == []
+
+
+def test_snapshot_dpi_dialog_starts_at_the_current_dpi(qapp):
+    dialog = SnapshotDpiDialog(_create_mock_app_context(), current_dpi=300)
+
+    assert dialog.get_dpi() == 300
+
+
+def test_snapshot_dpi_dialog_starts_at_the_chart_default_without_a_dpi(qapp):
+    dialog = SnapshotDpiDialog(_create_mock_app_context())
+
+    assert dialog.get_dpi() is None
+
+
+def test_snapshot_dpi_dialog_returns_the_chosen_dpi(qapp):
+    dialog = SnapshotDpiDialog(_create_mock_app_context(), current_dpi=300)
+
+    dialog.dpi_combo.set_value(72)
+
+    assert dialog.get_dpi() == 72

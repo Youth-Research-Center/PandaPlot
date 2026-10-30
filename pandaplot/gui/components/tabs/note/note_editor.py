@@ -335,6 +335,8 @@ class NoteArtefactRow:
     match_end: int | None  # end offset, or None (unused row)
     item_id: str | None  # resolved Image id, or None (broken row)
     refreshable: bool = False  # True for a chart snapshot whose source chart still exists
+    render_dpi: int | None = None  # a chart snapshot's stored render DPI; None = follows the chart
+    is_chart_snapshot: bool = False  # True for this note's snapshot Image that was rendered from a chart
 
 
 def _snapshot_source_chart(project, image: Image) -> Chart | None:
@@ -466,6 +468,7 @@ def compute_note_artefact_rows(app_context: AppContext, note: Note, source: str)
                 name=resolved.name, kind=kind, status="ok", is_snapshot=is_snapshot,
                 match_start=match.start(), match_end=match.end(), item_id=resolved.id,
                 refreshable=is_snapshot and _snapshot_source_chart(project, resolved) is not None,
+                render_dpi=resolved.render_dpi, is_chart_snapshot=is_snapshot and bool(resolved.source_chart_id),
             ))
         else:
             rows.append(NoteArtefactRow(
@@ -497,6 +500,7 @@ def compute_note_artefact_rows(app_context: AppContext, note: Note, source: str)
                 name=item.name, kind="image", status="unused", is_snapshot=True,
                 match_start=None, match_end=None, item_id=item.id,
                 refreshable=_snapshot_source_chart(project, item) is not None,
+                render_dpi=item.render_dpi, is_chart_snapshot=bool(item.source_chart_id),
             ))
 
     return rows
