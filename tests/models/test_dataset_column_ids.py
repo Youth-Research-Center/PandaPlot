@@ -217,3 +217,10 @@ def test_search_chart_resolves_column_ids_via_project():
     assert chart.search_chart("velocity", project) is False
     # Without a project, id-only series expose no column name to match.
     assert chart.search_chart("speed") is False
+
+
+def test_dataset_from_dict_restores_metadata():
+    dataset = Dataset(name="ds")
+    dataset.metadata = {"origin": "lab"}
+
+    assert Dataset.from_dict(dataset.to_dict()).metadata == {"origin": "lab"}

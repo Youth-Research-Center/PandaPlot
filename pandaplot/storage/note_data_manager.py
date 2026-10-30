@@ -49,7 +49,7 @@ class NoteDataManager(ItemDataManager[Note]):
             tags=metadata.get("tags", [])
         )
         note.parent_id = metadata.get("parent_id")
-        note.created_at = metadata.get("created_at")
-        note.modified_at = metadata.get("modified_at")
+        note.created_at = metadata.get("created_at", note.created_at)
+        note.modified_at = metadata.get("modified_at", note.created_at)
         note.metadata = metadata.get("metadata", {})
         return note

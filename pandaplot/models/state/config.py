@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from enum import Enum
@@ -319,15 +320,22 @@ class ApplicationConfig:
 								setattr(section_obj, skey, False)
 						continue
 					if isinstance(current, float):
+						# NaN/inf (json.loads accepts both) would slip through the
+						# max()/min() clamps in validate(), so keep the default.
 						if isinstance(sval, (int, float)):
-							setattr(section_obj, skey, float(sval))
+							if math.isfinite(sval):
+								setattr(section_obj, skey, float(sval))
 						elif isinstance(sval, str):
 							try:
-								setattr(section_obj, skey, float(sval))
+								fval = float(sval)
 							except ValueError:
-								pass
+								continue
+							if math.isfinite(fval):
+								setattr(section_obj, skey, fval)
 						continue
 					if isinstance(current, int):
+						if isinstance(sval, float) and not math.isfinite(sval):
+							continue
 						if isinstance(sval, (int, float)) or isinstance(sval, str) and sval.isdigit():
 							setattr(section_obj, skey, int(sval))
 						continue

@@ -174,6 +174,9 @@ class DatasetDataManager(ItemDataManager[Dataset]):
                 data=data,
                 source_file=metadata.get("source_file")
             )
+            dataset.created_at = metadata.get("created_at", dataset.created_at)
+            dataset.modified_at = metadata.get("modified_at", dataset.created_at)
+            dataset.metadata = metadata.get("metadata", {})
 
             # Restore the saved column-id registry so column ids stay stable
             # across save/load (chart series reference columns by these ids).
