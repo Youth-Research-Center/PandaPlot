@@ -26,7 +26,7 @@ from pandaplot.gui.components.common.number_input import DecimalInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.statistics.test_info_dialog import InfoDialogHelper
-from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
+from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -87,6 +87,7 @@ class StatisticsPanel(SidebarPanel):
         self.info_btn = PButton("ℹ️", role="secondary", icon=True, on_click=self._show_test_info)
         self.info_btn.setFixedWidth(32)
         self.info_btn.setToolTip("Learn about this test: explanation, formula and an example")
+        self.info_btn.setAccessibleName("About this test")
         selector_row.addWidget(self.info_btn)
         form.addRow("Test:", selector_row)
         group_layout.addLayout(form)
@@ -311,10 +312,6 @@ class StatisticsPanel(SidebarPanel):
         executed = self.app_context.get_command_executor().execute_command(command)
         if executed and command.result_dataset_id:
             self.last_result = command.result
-            self.publish_event(DatasetEvents.DATASET_CREATED, {
-                "dataset_id": command.result_dataset_id,
-                "source": "statistics_panel",
-            })
             name = command.result.result_name() if command.result else "results"
             self.results_text.setText(
                 f"✅ Results added to project as dataset:\n'{name}'\n\n"
@@ -376,6 +373,7 @@ class StatisticsPanel(SidebarPanel):
             (UIEvents.TAB_CHANGED, self.on_tab_changed),
             (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_columns_changed),
             (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_columns_changed),
+            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_columns_changed),
         ])
 
     def on_tab_changed(self, event_data):

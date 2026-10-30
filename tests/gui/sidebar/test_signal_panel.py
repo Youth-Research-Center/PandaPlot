@@ -461,3 +461,35 @@ class TestRunAndAddMutualExclusion:
         add_command.on_complete(CommandResult.SUCCESS)
 
         assert panel.run_btn.isEnabled() is True
+
+
+class TestMethodChangeWhileRunning:
+    def _start_run(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        assert panel.analysis_combo.count() > 1
+        captured = {}
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: captured.update(on_complete=on_complete)
+        panel._build_command = lambda: fake_command
+        panel.run_analysis()
+        return panel, captured
+
+    def test_discards_stale_result_after_analysis_method_change(self, app_context):
+        panel, captured = self._start_run(app_context)
+        panel.analysis_combo.setCurrentIndex((panel.analysis_combo.currentIndex() + 1) % panel.analysis_combo.count())
+
+        captured["on_complete"](_fake_result(), None)
+
+        assert panel.last_result is None
+        assert panel.add_btn.isEnabled() is False
+        assert "FFT" not in panel.results_text.toPlainText()
+        assert panel.busy_spinner.is_running is False
+
+    def test_clear_keeps_spinner_running_while_command_pending(self, app_context):
+        panel, captured = self._start_run(app_context)
+
+        panel.clear()
+        assert panel.busy_spinner.is_running is True
+
+        captured["on_complete"](_fake_result(), None)
+        assert panel.busy_spinner.is_running is False

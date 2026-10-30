@@ -1,6 +1,8 @@
 """Style tab: chart-style card (title/subtitle font, padding, size, dpi) plus
 the Line/Marker cards for whichever series/fit entry is currently selected.
 """
+import logging
+
 import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -156,6 +158,7 @@ class StyleTab(QWidget):
 
     def __init__(self, app_context, parent=None):
         super().__init__(parent)
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.app_context = app_context
         self._chart = None
         self._updating_controls = False
@@ -1130,8 +1133,8 @@ class StyleTab(QWidget):
         if self._config_event_subscribed:
             try:
                 self.app_context.event_bus.unsubscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
-            except Exception:  # noqa: BLE001, S110 -- best-effort cleanup on teardown
-                pass
+            except Exception:  # best-effort cleanup on teardown
+                self.logger.debug("Failed to unsubscribe from config updates", exc_info=True)
             self._config_event_subscribed = False
 
     # -- Chip selection / target routing -----------------------------------

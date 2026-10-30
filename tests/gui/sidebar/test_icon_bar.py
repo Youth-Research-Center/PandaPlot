@@ -63,3 +63,11 @@ def test_set_active_button_switches_between_buttons(icon_bar):
     assert button_b.property("selected") is True
     assert button_a.property("navActive") is False
     assert button_b.property("navActive") is True
+
+
+def test_icon_only_buttons_have_accessible_names(icon_bar):
+    button = icon_bar.add_panel_button("chart_properties", "📈")
+
+    assert button.accessibleName() == "Chart Properties panel"
+    assert button.toolTip() == "Chart Properties panel"
+    assert icon_bar.settings_button.accessibleName() == "Settings"

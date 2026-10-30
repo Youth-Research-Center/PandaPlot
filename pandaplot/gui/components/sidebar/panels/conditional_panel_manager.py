@@ -50,7 +50,7 @@ class ConditionalPanelManager(QObject):
         Args:
             panel_name: Name of the panel (must match sidebar panel name)
             condition_func: Function that takes current tab widget and returns bool
-            priority: Priority for evaluation order (higher priority evaluated first)
+            priority: Evaluation order; lower values are evaluated first and ties keep registration order
         """
         self.registered_panels[panel_name] = {
             "condition_func": condition_func,
@@ -77,12 +77,7 @@ class ConditionalPanelManager(QObject):
         self.current_tab_widget = current_tab_widget
         tab_class_name = type(current_tab_widget).__name__ if current_tab_widget else "None"
         self.logger.debug("Tab changed to %s", tab_class_name)
-        
-        # Debug: Check if it's a dataset tab
-        if current_tab_widget:
-            is_dataset = tab_class_name == "DatasetTab"
-            self.logger.debug("Is dataset tab? %s", is_dataset)
-        
+
         # Evaluate all panel conditions
         self.evaluate_panel_visibility()
     
