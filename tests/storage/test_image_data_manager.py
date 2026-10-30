@@ -119,10 +119,11 @@ class TestDeleteUndoSaveDoesNotCorruptProject:
     def test_delete_then_undo_then_save_does_not_raise(self, tmp_path):
         """
         Regression test for the reported corruption scenario: delete an Image
-        (storage_mode='copied'), undo the delete (which recreates the Image
-        via to_dict()/from_dict() -- and from_dict never carries bytes, by
-        design), then save the project. This must not raise, and the saved
-        zip must remain a valid project file containing project.json.
+        (storage_mode='copied'), undo the delete, then save the project. This
+        must not raise, and the saved zip must remain a valid project file
+        containing project.json. Undo restores a deep-copy snapshot of the
+        Image (not to_dict()/from_dict(), which never carries bytes), so the
+        copied bytes survive the delete/undo round trip.
         """
         from unittest.mock import Mock
 
@@ -156,7 +157,7 @@ class TestDeleteUndoSaveDoesNotCorruptProject:
         assert command.undo() is CommandResult.SUCCESS
         restored = project.find_item("img-del-1")
         assert restored is not None
-        assert restored.get_bytes() is None  # bytes are genuinely gone
+        assert restored.get_bytes() == b"real-bytes"
 
         filepath = str(tmp_path / "project.pandaplot")
         manager = create_project_data_manager()
@@ -169,7 +170,7 @@ class TestDeleteUndoSaveDoesNotCorruptProject:
         reloaded = manager.load(filepath)
         reloaded_image = reloaded.find_item("img-del-1")
         assert reloaded_image is not None
-        assert reloaded_image.get_bytes() is None
+        assert reloaded_image.get_bytes() == b"real-bytes"
 
 
 class TestImageRegisteredInFactory:

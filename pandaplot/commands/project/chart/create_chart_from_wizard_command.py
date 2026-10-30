@@ -191,7 +191,7 @@ class CreateChartFromWizardCommand(Command):
     def _on_wizard_finished(self, result: int, dialog: QDialog | None = None) -> None:
         """Runs once the user actually finishes the wizard (Finish or Cancel).
 
-        `execute()` returning True now only means "the wizard opened
+        `execute()` returning `CommandResult.SUCCESS` only means "the wizard opened
         successfully" -- the chart itself is created here, asynchronously, once
         the wizard's `finished` signal fires. A cancelled/closed wizard never
         emits `QDialog.DialogCode.Accepted`, so it simply never creates a chart
@@ -294,7 +294,8 @@ class CreateChartFromWizardCommand(Command):
                 # the created_chart/created_chart_id bookkeeping above so the
                 # double-fire guard above doesn't block a legitimate retry, and
                 # surface the failure here since CreateChartCommand.execute()
-                # only returns False -- it doesn't itself talk to the user.
+                # only returns CommandResult.FAILURE -- it doesn't itself talk
+                # to the user.
                 self.created_chart = None
                 self.created_chart_id = None
                 error_msg = f"Failed to create chart '{chart.name}'."

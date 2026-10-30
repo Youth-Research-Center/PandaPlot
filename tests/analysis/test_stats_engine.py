@@ -73,3 +73,14 @@ class TestStatsEngine:
             result = StatsEngine.run_test(test_type, cols)
             assert result.test_type == test_type
             assert not result.to_dataframe().empty
+
+    def test_undefined_p_value_reports_could_not_be_computed(self):
+        # A constant column makes Pearson's r (and its p-value) undefined (NaN).
+        x = np.arange(10, dtype=float)
+        with pytest.warns(Warning):
+            result = StatsEngine.run_test(StatTestType.PEARSON, _cols(X=x, Y=np.full(10, 3.0)))
+        assert np.isnan(result.p_value)
+        assert not result.significant
+        assert "could not be computed" in result.conclusion
+        assert "Fail to reject" not in result.conclusion
+        assert dict(result.rows)["Conclusion"] == result.conclusion

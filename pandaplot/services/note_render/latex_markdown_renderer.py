@@ -26,8 +26,9 @@ logger = logging.getLogger(__name__)
 
 # Render at a multiple of the display resolution so equations stay crisp on
 # high-DPI screens; the <img> is then scaled back down by the same factor.
-# 4x covers up to 400% OS display scaling before the PNG itself becomes the
-# resolution bottleneck; equations are tiny so the extra pixels cost little.
+# 16x covers up to 1600% effective display scaling before the PNG itself
+# becomes the resolution bottleneck; equations are tiny so the extra pixels
+# cost little.
 _RENDER_SCALE = 16
 _BASE_DPI = 100
 

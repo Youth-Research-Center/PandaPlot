@@ -24,6 +24,12 @@ class ExitCommand(Command):
         return False
 
     @override
+    def occupies_undo_slot(self) -> bool:
+        """Exit has no undo/redo (both raise), so it should never occupy an
+        undo slot or clear redo history when executed."""
+        return False
+
+    @override
     def execute(self) -> CommandResult:
         """
         Execute the exit command. Returns CommandResult.NOOP (without closing
@@ -42,7 +48,7 @@ class ExitCommand(Command):
         return CommandResult.SUCCESS
 
     @override
-    def undo(self):
+    def undo(self) -> CommandResult:
         """
         This is not applicable for exit command.
         """
@@ -50,7 +56,7 @@ class ExitCommand(Command):
         raise NotImplementedError("Exit command cannot be undone.")
 
     @override
-    def redo(self):
+    def redo(self) -> CommandResult:
         """
         This is not applicable for exit command.
         """
