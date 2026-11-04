@@ -12,7 +12,15 @@ from pandaplot.commands.project.image.create_image_gallery_command import (
     CreateImageGalleryCommand,
 )
 from pandaplot.commands.project.image.import_images_command import ImportImagesCommand
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Image
+
+
+def _removed_item_ids(app_context) -> list[str | None]:
+    """item_id of every PROJECT_ITEM_REMOVED event emitted so far (TabContainer closes tabs by it)."""
+    emit = app_context.get_app_state().event_bus.emit
+    return [payload.get("item_id") for event, payload in (c.args for c in emit.call_args_list)
+            if event == ProjectEvents.PROJECT_ITEM_REMOVED]
 
 
 def _write_test_png(path):
@@ -86,12 +94,14 @@ class TestImportImagesCommandCopyMode:
             sources=[str(png_path)], copy_into_project=True,
         )
         command.execute()
+        image_ids = list(command.created_image_ids)
 
         command.undo()
 
         project = app_context_with_project.get_app_state().current_project
         gallery = project.find_item(gallery_id)
         assert gallery.get_items() == []
+        assert _removed_item_ids(app_context_with_project) == image_ids
 
 
 class TestImportImagesCommandCleanup:

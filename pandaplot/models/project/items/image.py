@@ -9,9 +9,35 @@ ImageGallery. There is no separate Album class.
 """
 
 from datetime import datetime
+from enum import Enum
 from typing import Any, override
 
 from pandaplot.models.project.items.item import Item, ItemCollection
+
+MIN_RENDER_DPI = 30
+MAX_RENDER_DPI = 600
+
+
+class KeepRenderDpi(Enum):
+    """Type of `KEEP_RENDER_DPI`."""
+
+    KEEP = "keep"
+
+
+# Passed where a render DPI is optional to mean "leave it as it is", since
+# None is itself a valid value ("follow the chart's own DPI").
+KEEP_RENDER_DPI = KeepRenderDpi.KEEP
+
+
+def normalize_render_dpi(value: object) -> int | None:
+    """`value` if it is an int within [MIN_RENDER_DPI, MAX_RENDER_DPI], else None.
+
+    Used when loading a project: a hand-edited or corrupt value falls back to
+    "follow the chart's own DPI" instead of raising.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if MIN_RENDER_DPI <= value <= MAX_RENDER_DPI else None
 
 
 class Image(Item):
@@ -30,7 +56,8 @@ class Image(Item):
     def __init__(self, id: str | None = None, name: str = "",
                  source_file: str = "", storage_mode: str = "copied",
                  image_ext: str = "", width: int = 0, height: int = 0,
-                 size_bytes: int | None = None):
+                 size_bytes: int | None = None, *, note_id: str | None = None,
+                 source_chart_id: str | None = None, render_dpi: int | None = None):
         super().__init__(id, name)
         self.source_file = source_file
         self.storage_mode = storage_mode
@@ -38,6 +65,21 @@ class Image(Item):
         self.width = width
         self.height = height
         self.size_bytes = size_bytes
+        # Set only when this Image was created as a chart snapshot (see
+        # NoteEditorWidget._save_chart_snapshot_image / CreateImageFromBytesCommand);
+        # None for every other Image (imported/pasted gallery images). Lets
+        # the Artefacts dialog attribute a snapshot to the note that
+        # created it, even though the "Chart Snapshots" gallery itself is
+        # shared per-folder, not per-note.
+        self.note_id = note_id
+        # The Chart a snapshot was rendered from, so it can be re-rendered on
+        # demand (see NoteEditorWidget.refresh_chart_snapshot); None for every
+        # other Image.
+        self.source_chart_id = source_chart_id
+        # The DPI a chart snapshot is rendered at, so a Refresh keeps it;
+        # None means "use the source chart's own DPI". Only meaningful when
+        # source_chart_id is set.
+        self.render_dpi = render_dpi
         self._bytes: bytes | None = None
 
     def set_bytes(self, data: bytes | None) -> None:
@@ -58,6 +100,9 @@ class Image(Item):
             "width": self.width,
             "height": self.height,
             "size_bytes": self.size_bytes,
+            "note_id": self.note_id,
+            "source_chart_id": self.source_chart_id,
+            "render_dpi": self.render_dpi,
         })
         return data
 
@@ -73,6 +118,9 @@ class Image(Item):
             width=data.get("width", 0),
             height=data.get("height", 0),
             size_bytes=data.get("size_bytes"),
+            note_id=data.get("note_id"),
+            source_chart_id=data.get("source_chart_id"),
+            render_dpi=normalize_render_dpi(data.get("render_dpi")),
         )
         image.parent_id = data.get("parent_id")
         image.created_at = data.get("created_at", datetime.now().isoformat())  # noqa: DTZ005 -- local-time display bookkeeping, never compared across timezones

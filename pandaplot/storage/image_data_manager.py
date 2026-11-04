@@ -3,7 +3,7 @@ import logging
 from typing import override
 from zipfile import ZipFile
 
-from pandaplot.models.project.items.image import Image
+from pandaplot.models.project.items.image import Image, normalize_render_dpi
 from pandaplot.storage.item_data_manager import ItemDataManager
 
 
@@ -44,6 +44,9 @@ class ImageDataManager(ItemDataManager[Image]):
             "width": item.width,
             "height": item.height,
             "size_bytes": item.size_bytes,
+            "note_id": item.note_id,
+            "source_chart_id": item.source_chart_id,
+            "render_dpi": item.render_dpi,
         }
         zip_file.writestr(f"{path_in_zip}.json", json.dumps(metadata, indent=2))
         self.logger.info("Successfully saved image '%s' (ID: %s)", item.name, item.id)
@@ -64,6 +67,9 @@ class ImageDataManager(ItemDataManager[Image]):
             width=metadata.get("width", 0),
             height=metadata.get("height", 0),
             size_bytes=metadata.get("size_bytes"),
+            note_id=metadata.get("note_id"),
+            source_chart_id=metadata.get("source_chart_id"),
+            render_dpi=normalize_render_dpi(metadata.get("render_dpi")),
         )
         image.parent_id = metadata.get("parent_id")
         image.created_at = metadata.get("created_at", image.created_at)
