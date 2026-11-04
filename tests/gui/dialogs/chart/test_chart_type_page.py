@@ -58,12 +58,7 @@ def test_line_is_selected_by_default():
 
 def test_selecting_histogram_updates_selected_chart_type():
     page = ChartTypePage(app_context=_fake_app_context())
-    histogram_row = next(
-        row for row in range(page.type_list.count())
-        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "hist"
-    )
-
-    page.type_list.setCurrentRow(histogram_row)
+    page.select_chart_type("hist")
 
     assert page.selected_chart_type() == "hist"
 
@@ -95,64 +90,83 @@ def test_type_rows_have_icons():
     page = ChartTypePage(app_context=_fake_app_context())
 
     for row in range(page.type_list.count()):
-        item = page.type_list.item(row)
-        if item.data(Qt.ItemDataRole.UserRole) is None:
-            continue  # category header
-        assert not item.icon().isNull()
+        assert not page.type_list.item(row).icon().isNull()
 
 
 def _row_texts(page: ChartTypePage) -> list[str]:
     return [page.type_list.item(row).text() for row in range(page.type_list.count())]
 
 
-def test_types_are_grouped_under_category_headers_in_order():
+def test_category_dropdown_lists_every_category_in_order():
+    from pandaplot.models.chart.chart_category import ChartCategory
+
+    page = ChartTypePage(app_context=_fake_app_context())
+
+    labels = [page.category_combo.itemText(i) for i in range(page.category_combo.count())]
+    assert labels == [category.value for category in ChartCategory]
+    assert page.category_combo.accessibleName() == "Chart category"
+    assert page.type_list.accessibleName() == "Chart type"
+
+
+def test_only_the_current_categorys_types_are_listed():
     from pandaplot.models.chart.chart_category import ChartCategory
     from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS
 
     page = ChartTypePage(app_context=_fake_app_context())
 
-    expected = []
-    for category in ChartCategory:
-        expected.append(category.value)
-        expected.extend(CHART_TYPE_SPECS[chart_type].display_name for chart_type in CHART_TYPE_CATEGORIES[category])
-    assert _row_texts(page) == expected
-    assert _row_texts(page)[:7] == ["Line & Scatter", "Line", "Scatter", "Bar & Pie", "Bar", "Stacked Bar", "Pie"]
+    assert _row_texts(page) == ["Line", "Scatter"]
+    page.category_combo.setCurrentIndex(page.category_combo.findData(ChartCategory.THREE_D))
+    assert _row_texts(page) == [CHART_TYPE_SPECS[chart_type].display_name for chart_type in CHART_TYPE_CATEGORIES[ChartCategory.THREE_D]]
 
 
-def test_category_headers_cannot_be_selected():
+def test_choosing_a_category_selects_its_first_type_and_previews_it():
+    from pandaplot.models.chart.chart_category import ChartCategory
+
+    page = ChartTypePage(app_context=_fake_app_context())
+    rendered = []
+    page._render_preview = rendered.append
+
+    page.category_combo.setCurrentIndex(page.category_combo.findData(ChartCategory.DISTRIBUTION))
+
+    assert page.selected_chart_type() == "hist"
+    assert rendered == ["hist"]
+    assert page.isComplete() is True
+
+
+def test_select_chart_type_switches_category_and_selects_the_type():
+    from pandaplot.models.chart.chart_category import ChartCategory
+
     page = ChartTypePage(app_context=_fake_app_context())
 
-    headers = [
-        page.type_list.item(row) for row in range(page.type_list.count())
-        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) is None
-    ]
-    assert len(headers) == 5
-    for header in headers:
-        assert not header.flags() & Qt.ItemFlag.ItemIsSelectable
-        assert not header.flags() & Qt.ItemFlag.ItemIsEnabled
-        assert header.icon().isNull()
+    page.select_chart_type("box")
+
+    assert page.category_combo.currentValue() == ChartCategory.DISTRIBUTION
+    assert page.selected_chart_type() == "box"
+    page.select_chart_type("scatter")
+    assert page.category_combo.currentValue() == ChartCategory.LINE_SCATTER
+    assert page.selected_chart_type() == "scatter"
 
 
-def test_keyboard_navigation_skips_category_headers():
+def test_select_chart_type_rejects_an_unknown_type():
+    page = ChartTypePage(app_context=_fake_app_context())
+
+    with pytest.raises(ValueError):
+        page.select_chart_type("not-a-chart-type")
+    assert page.selected_chart_type() == "line"
+
+
+def test_keyboard_navigation_moves_within_the_listed_category():
     page = ChartTypePage(app_context=_fake_app_context())
     page.show()
     page.type_list.setFocus()
 
-    def press(key):
-        QTest.keyClick(page.type_list, key)
-        return page.selected_chart_type()
-
     assert page.selected_chart_type() == "line"
-    assert press(Qt.Key.Key_Down) == "scatter"
-    assert press(Qt.Key.Key_Down) == "bar"  # skips the "Bar & Pie" header
-    assert press(Qt.Key.Key_Up) == "scatter"
-    assert press(Qt.Key.Key_End) == "vector3d"
-    assert press(Qt.Key.Key_Home) == "line"  # row 0 is a header; Qt alone would not move
-    press(Qt.Key.Key_End)
-    assert press(Qt.Key.Key_PageUp) is not None
-    while page.selected_chart_type() != "line":
-        before = page.selected_chart_type()
-        assert press(Qt.Key.Key_PageUp) != before, "PageUp got stuck on a header"
+    QTest.keyClick(page.type_list, Qt.Key.Key_Down)
+    assert page.selected_chart_type() == "scatter"
+    QTest.keyClick(page.type_list, Qt.Key.Key_Down)
+    assert page.selected_chart_type() == "scatter"  # the end of the category's list
+    QTest.keyClick(page.type_list, Qt.Key.Key_Home)
+    assert page.selected_chart_type() == "line"
     page.close()
 
 
@@ -191,7 +205,7 @@ def test_selecting_a_different_type_refreshes_the_accent_colored_icon():
 
     bar_row = next(
         row for row in range(page.type_list.count())
-        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "bar"
+        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "scatter"
     )
     assert old_row != bar_row  # sanity: we actually switch rows
 
@@ -212,56 +226,7 @@ def test_selecting_a_different_type_refreshes_the_accent_colored_icon():
 
 def test_selecting_a_different_type_keeps_next_enabled_in_sync():
     page = ChartTypePage(app_context=_fake_app_context())
-    histogram_row = next(
-        row for row in range(page.type_list.count())
-        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "hist"
-    )
-
-    page.type_list.setCurrentRow(histogram_row)
+    page.select_chart_type("hist")
 
     assert page.isComplete() is True
     assert page.footer.next_button.isEnabled() is True
-
-
-def test_a_header_becoming_current_keeps_the_last_chart_type_previewed():
-    """Regression: _on_type_changed only checked for None, so a header made
-    current (setCurrentRow on a header row) was passed to the preview as
-    chart type None. The page must ignore it rather than redraw a preview
-    for no chart type."""
-    page = ChartTypePage(app_context=_fake_app_context())
-    rendered = []
-    page._render_preview = rendered.append
-
-    page.type_list.setCurrentRow(0)  # the "Line & Scatter" header
-
-    assert rendered == []
-    assert page.selected_chart_type() == "line"
-    assert page.isComplete() is True
-
-
-def test_empty_category_gets_no_header(monkeypatch):
-    """Matches GroupedValueComboBox: a category with no chart types is left
-    out rather than shown as a bare, unselectable heading."""
-    from pandaplot.gui.dialogs.chart import chart_type_page
-    from pandaplot.models.chart.chart_category import ChartCategory
-    from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES
-
-    categories = dict(CHART_TYPE_CATEGORIES)
-    categories[ChartCategory.BAR_PIE] = ()
-    monkeypatch.setattr(chart_type_page, "CHART_TYPE_CATEGORIES", categories)
-
-    page = ChartTypePage(app_context=_fake_app_context())
-
-    assert ChartCategory.BAR_PIE.value not in _row_texts(page)
-    assert _row_texts(page)[:4] == ["Line & Scatter", "Line", "Scatter", "Distribution"]
-
-
-def test_no_chart_types_leaves_the_page_incomplete_instead_of_raising(monkeypatch):
-    from pandaplot.gui.dialogs.chart import chart_type_page
-
-    monkeypatch.setattr(chart_type_page, "CHART_TYPE_CATEGORIES", {})
-
-    page = ChartTypePage(app_context=_fake_app_context())
-
-    assert page.selected_chart_type() is None
-    assert page.isComplete() is False

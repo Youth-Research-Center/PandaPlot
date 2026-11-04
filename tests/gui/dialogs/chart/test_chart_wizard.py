@@ -2,7 +2,6 @@
 from unittest.mock import Mock
 
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QWizard
 
 from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
@@ -91,11 +90,7 @@ def test_empty_requested_on_type_page_finishes_empty_with_line_type():
 
 def test_empty_requested_on_data_page_finishes_empty_with_chosen_type():
     wizard = _make_wizard()
-    histogram_row = next(
-        row for row in range(wizard.type_page.type_list.count())
-        if wizard.type_page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "hist"
-    )
-    wizard.type_page.type_list.setCurrentRow(histogram_row)
+    wizard.type_page.select_chart_type("hist")
 
     wizard.data_page.emptyRequested.emit()
 
@@ -136,11 +131,7 @@ def test_preselection_survives_back_then_a_chart_type_change():
     wizard.next()   # Type page -> Data page: pre-selection applied to card 1
     wizard.back()   # back to the Type page
 
-    bar_row = next(
-        row for row in range(wizard.type_page.type_list.count())
-        if wizard.type_page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "bar"
-    )
-    wizard.type_page.type_list.setCurrentRow(bar_row)
+    wizard.type_page.select_chart_type("bar")
 
     wizard.next()   # forward again: cards are rebuilt for the new type
 
@@ -199,11 +190,7 @@ def test_labels_seeded_from_the_initial_title_and_first_series_columns():
 def test_histogram_seeds_x_label_only_never_y():
     wizard = _make_wizard(initial_title="Chart from Sales", initial_dataset_id="ds-1",
                            initial_column_ids=["col-rev"])
-    histogram_row = next(
-        row for row in range(wizard.type_page.type_list.count())
-        if wizard.type_page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "hist"
-    )
-    wizard.type_page.type_list.setCurrentRow(histogram_row)
+    wizard.type_page.select_chart_type("hist")
     wizard.next()  # Type -> Data: pre-selection fills the Values column
     wizard.next()  # Data -> Labels
 
@@ -216,11 +203,7 @@ def test_box_plot_seeds_y_label_only_never_x():
     Y axis, and its X axis just names each box."""
     wizard = _make_wizard(initial_title="Chart from Sales", initial_dataset_id="ds-1",
                            initial_column_ids=["col-rev"])
-    box_row = next(
-        row for row in range(wizard.type_page.type_list.count())
-        if wizard.type_page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "box"
-    )
-    wizard.type_page.type_list.setCurrentRow(box_row)
+    wizard.type_page.select_chart_type("box")
     wizard.next()  # Type -> Data: pre-selection fills the Values column
     wizard.next()  # Data -> Labels
 
@@ -251,11 +234,7 @@ def test_a_touched_axis_label_survives_a_chart_type_change():
 
     wizard.back()  # Labels -> Data
     wizard.back()  # Data -> Type
-    bar_row = next(
-        row for row in range(wizard.type_page.type_list.count())
-        if wizard.type_page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "bar"
-    )
-    wizard.type_page.type_list.setCurrentRow(bar_row)
+    wizard.type_page.select_chart_type("bar")
     wizard.next()  # Type -> Data: cards rebuilt for "bar"
     wizard.next()  # Data -> Labels: fresh cards, but the field was touched
 
@@ -270,11 +249,7 @@ def test_an_untouched_axis_label_still_updates_after_a_chart_type_change():
 
     wizard.back()  # Labels -> Data
     wizard.back()  # Data -> Type
-    bar_row = next(
-        row for row in range(wizard.type_page.type_list.count())
-        if wizard.type_page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "bar"
-    )
-    wizard.type_page.type_list.setCurrentRow(bar_row)
+    wizard.type_page.select_chart_type("bar")
     wizard.next()  # Type -> Data: cards rebuilt for "bar"
     wizard.next()  # Data -> Labels: untouched field refreshes to the new default
 
@@ -290,11 +265,7 @@ def test_touched_title_survives_a_chart_type_change():
 
     wizard.back()  # Labels -> Data
     wizard.back()  # Data -> Type
-    bar_row = next(
-        row for row in range(wizard.type_page.type_list.count())
-        if wizard.type_page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "bar"
-    )
-    wizard.type_page.type_list.setCurrentRow(bar_row)
+    wizard.type_page.select_chart_type("bar")
     wizard.next()  # Type -> Data: cards rebuilt for "bar"
     wizard.next()  # Data -> Labels: fresh cards, but the title was touched
 
@@ -395,11 +366,7 @@ def test_generic_buttons_are_no_longer_forced_indigo():
 
 def test_step_rail_shows_completed_steps_with_their_summary():
     wizard = _make_wizard()
-    bar_row = next(
-        row for row in range(wizard.type_page.type_list.count())
-        if wizard.type_page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "bar"
-    )
-    wizard.type_page.type_list.setCurrentRow(bar_row)
+    wizard.type_page.select_chart_type("bar")
 
     wizard.next()  # Type -> Data
     wizard.next()  # Data -> Labels

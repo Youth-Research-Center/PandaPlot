@@ -82,8 +82,7 @@ def test_chart_tab_offers_switching_between_bar_and_stacked_bar(source, target):
     chart.add_data_series("ds1", y_column_id="col-y")
     tab.load(chart)
 
-    combo = tab.chart_type_control
-    assert combo.model().item(combo.findData(target)).isEnabled() is True
+    assert tab.chart_type_control.is_value_enabled(target) is True
 
 
 def _data_tab_with_stacked_chart() -> tuple[DataTab, Chart]:

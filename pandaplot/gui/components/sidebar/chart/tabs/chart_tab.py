@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pandaplot.gui.components.common.grouped_value_combo_box import GroupedValueComboBox
+from pandaplot.gui.components.common.category_value_select import CategoryValueSelect
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS, compatible_chart_types_for_series
@@ -54,20 +54,25 @@ class ChartTab(QWidget):
         self.subtitle_edit.setPlaceholderText("Optional (supports $LaTeX$ math)")
         info_layout.addWidget(self.subtitle_edit, 1, 1, 1, 2)
 
-        info_layout.addWidget(QLabel("Type:"), 2, 0)
-        self.chart_type_control = GroupedValueComboBox([
+        # Category first, then a type in it, so only one category's types are
+        # listed at a time. The selector is not a widget: its two dropdowns
+        # are placed on their own labelled rows here.
+        self.chart_type_control = CategoryValueSelect([
             (category.value, [(CHART_TYPE_SPECS[chart_type].display_name, chart_type) for chart_type in chart_types])
             for category, chart_types in CHART_TYPE_CATEGORIES.items()
-        ])
-        info_layout.addWidget(self.chart_type_control, 2, 1, 1, 2)
+        ], parent=self)
+        info_layout.addWidget(QLabel("Category:"), 2, 0)
+        info_layout.addWidget(self.chart_type_control.category_combo, 2, 1, 1, 2)
+        info_layout.addWidget(QLabel("Type:"), 3, 0)
+        info_layout.addWidget(self.chart_type_control.value_combo, 3, 1, 1, 2)
 
         self.hist_bins_label = QLabel("Bins:")
-        info_layout.addWidget(self.hist_bins_label, 3, 0)
+        info_layout.addWidget(self.hist_bins_label, 4, 0)
         self.hist_bins_spin = IntegerInput()
         self.hist_bins_spin.setRange(2, 200)
         self.hist_bins_spin.setValue(20)
         self.hist_bins_spin.setToolTip("Number of bins used by histogram series")
-        info_layout.addWidget(self.hist_bins_spin, 3, 1)
+        info_layout.addWidget(self.hist_bins_spin, 4, 1)
         self._update_hist_bins_visibility()
 
         layout.addWidget(info_group)
@@ -120,24 +125,15 @@ class ChartTab(QWidget):
         # FIT series are handled inside compatible_chart_types_for_series
         # (they never block a 2-D switch, but rule out 3-D targets).
         compatible = compatible_chart_types_for_series(frozenset(series_types))
-        model = self.chart_type_control.model()
-        for index in range(self.chart_type_control.count()):
-            # Category headers stay disabled and carry no chart type.
-            if self.chart_type_control.is_header(index):
-                continue
-            target_type = self.chart_type_control.itemData(index)
-            item = model.item(index)
+        for target_type in CHART_TYPE_SPECS:
             # The chart's own type is never a "switch", so it stays selectable
             # even when has_fits rules it out (a loaded chart that already holds fits).
             enabled = target_type in compatible or target_type == current_type
-            item.setEnabled(enabled)
-            if enabled:
-                item.setToolTip("")
-            else:
-                item.setToolTip(
-                    f"Switching to {CHART_TYPE_SPECS[target_type].display_name} isn't "
-                    f"supported from a {CHART_TYPE_SPECS[current_type].display_name} chart"
-                )
+            tooltip = "" if enabled else (
+                f"Switching to {CHART_TYPE_SPECS[target_type].display_name} isn't "
+                f"supported from a {CHART_TYPE_SPECS[current_type].display_name} chart"
+            )
+            self.chart_type_control.set_value_enabled(target_type, enabled=enabled, tooltip=tooltip)
 
     def _update_hist_bins_visibility(self):
         """Show the Histogram Bins control only for chart types that can hold

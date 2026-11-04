@@ -17,7 +17,7 @@ EXPECTED_STORY_NAMES = [
     "SectionHeader",
     "SliderWithSpinbox",
     "ValueComboBox",
-    "GroupedValueComboBox",
+    "CategoryValueSelect",
     "LineStyleIcons",
     "FontFamilyOptions",
     "ImageGalleryTile",
