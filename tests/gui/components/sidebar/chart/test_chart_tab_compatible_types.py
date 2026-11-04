@@ -61,8 +61,14 @@ def test_compatibility_is_recomputed_after_switching_type():
     chart = Chart(name="Vector Chart", chart_type="vector")
     tab.load(chart)
 
-    combo = tab.chart_type_control.value_combo
-    combo.setCurrentIndex(combo.findData(ChartType.LINE))
+    # Color Map can't host a Vector series, but can host a Line series, so
+    # its state only changes if compatibility is recomputed after the switch.
+    assert _is_option_enabled(tab, ChartType.COLORMAP) is False
+
+    category_combo = tab.chart_type_control.category_combo
+    category_combo.setCurrentIndex(category_combo.findText("Line & Scatter"))
+    assert chart.chart_type == ChartType.LINE
+    assert _is_option_enabled(tab, ChartType.COLORMAP) is True
 
     assert _is_option_enabled(tab, ChartType.BAR) is False
     assert _is_option_enabled(tab, ChartType.HIST) is False

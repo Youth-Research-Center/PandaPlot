@@ -139,3 +139,19 @@ def test_requires_at_least_one_category():
 def test_rejects_a_category_without_values():
     with pytest.raises(ValueError, match="Empty"):
         CategoryValueSelect([("Fruit", [("Apple", "apple")]), ("Empty", [])])
+
+
+def test_leaving_a_category_whose_values_are_all_disabled_disables_it():
+    """Regression: a fully disabled category stays enabled while it holds the
+    current value; switching away must refresh that, or it can be chosen
+    again and emit a disabled value."""
+    select = CategoryValueSelect(_GROUPS)
+    select.setCurrentValue("pecan")
+    select.set_value_enabled("pecan", enabled=False, tooltip="no nuts")
+    nuts = select.category_combo.model().item(2)
+    assert nuts.isEnabled() is True  # still current
+
+    select.category_combo.setCurrentIndex(0)
+
+    assert nuts.isEnabled() is False
+    assert nuts.toolTip() != ""

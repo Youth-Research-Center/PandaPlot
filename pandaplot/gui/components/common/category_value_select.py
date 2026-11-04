@@ -123,4 +123,7 @@ class CategoryValueSelect(QObject):
         first = next((value for value in values if value not in self._disabled), values[0])
         with QSignalBlocker(self.value_combo):
             self.value_combo.setCurrentIndex(self.value_combo.findData(first))
+        # The category just left no longer holds the current value, so it may
+        # now be fully disabled.
+        self._refresh_category_states()
         self.currentValueChanged.emit(first)
