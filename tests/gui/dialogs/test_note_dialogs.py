@@ -697,3 +697,30 @@ def test_snapshot_dpi_dialog_returns_the_chosen_dpi(qapp):
     dialog.dpi_combo.set_value(72)
 
     assert dialog.get_dpi() == 72
+
+
+def test_note_artefacts_dialog_delete_is_refused_when_the_note_changes_during_confirmation(qapp):
+    """A chart insertion can land while the confirmation is open and shift the
+    offsets, so the confirmed row must not be applied to the changed text."""
+    from PySide6.QtWidgets import QMessageBox
+
+    project = Project(name="Test Project")
+    app_context = _create_mock_app_context_with_executor(project)
+    text_edit = QTextEdit()
+    text_edit.setPlainText("![Gone](missing-id =500x)")
+    dialog = NoteArtefactsDialog(app_context, Note(name="Note 1"), text_edit)
+    row = dialog._rows[0]
+
+    def _answer_yes_after_the_note_changes(*_args, **_kwargs):
+        text_edit.setPlainText("inserted above\n" + text_edit.toPlainText())
+        return QMessageBox.StandardButton.Yes
+
+    with patch(
+        "pandaplot.gui.dialogs.note.note_artefacts_dialog.QMessageBox.question",
+        side_effect=_answer_yes_after_the_note_changes,
+    ):
+        dialog._confirm_and_delete_row(row)
+
+    assert text_edit.toPlainText() == "inserted above\n![Gone](missing-id =500x)"
+    app_context.get_ui_controller().show_warning_message.assert_called_once()
+    assert dialog._rows[0].match_start == len("inserted above\n")  # rebuilt for the new text

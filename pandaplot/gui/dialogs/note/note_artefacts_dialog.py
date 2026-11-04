@@ -189,10 +189,18 @@ class NoteArtefactsDialog(PDialog):
         self.table.resizeColumnsToContents()
 
     def _confirm_and_delete_row(self, row: NoteArtefactRow) -> None:
+        # A chart insertion can land while the confirmation is open and shift
+        # every reference offset, so `row` may no longer point at its text.
+        revision = self.text_edit.document().revision()
         confirmed = QMessageBox.question(
             self, "Delete Artefact", f"Remove this artefact from the note? ({row.name})"
         ) == QMessageBox.StandardButton.Yes
         if not confirmed:
+            return
+        if self.text_edit.document().revision() != revision:
+            self.refresh_rows()
+            self.app_context.get_ui_controller().show_warning_message(
+                "Delete Artefact", "The note changed while waiting for confirmation. Select the artefact again to delete it.")
             return
         self._on_delete_row(row)
 

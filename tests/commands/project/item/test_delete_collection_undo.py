@@ -152,7 +152,7 @@ def test_declined_confirmation_retains_no_snapshot():
     project.add_item(folder)
     command = DeleteItemCommand(ctx, folder.id)
     assert command.execute() is CommandResult.FAILURE
-    assert command._deleted_collection is None
+    assert command._deleted_snapshot is None
     assert command.deleted_item_data is None
     assert project.find_item("folder") is folder
 
@@ -164,7 +164,7 @@ def test_failed_remove_retains_no_snapshot(monkeypatch):
     monkeypatch.setattr(project, "remove_item", Mock(side_effect=RuntimeError("boom")))
     command = DeleteItemCommand(ctx, folder.id, confirm=False)
     assert command.execute() is CommandResult.FAILURE
-    assert command._deleted_collection is None
+    assert command._deleted_snapshot is None
     assert command.deleted_item_data is None
 
 
@@ -297,3 +297,48 @@ def test_deleting_collection_emits_removed_event_for_every_descendant():
     assert command.redo() is CommandResult.SUCCESS
     assert sorted(_removed_ids(state)) == ["deep", "folder", "nested", "note"]
     assert _removed_ids(state)[-1] == "folder"
+
+
+def _delete_context(project):
+    ctx = Mock(spec=AppContext)
+    state = Mock(spec=AppState)
+    ctx.get_app_state.return_value = state
+    ctx.get_ui_controller.return_value = Mock(spec=UIController)
+    ctx.event_bus = Mock()
+    state.event_bus = Mock()
+    state.has_project = True
+    state.current_project = project
+    return ctx
+
+
+def test_deleting_a_standalone_image_restores_its_bytes_on_undo_and_redo_undo():
+    project = Project("Test")
+    gallery = ImageGallery(id="gallery")
+    project.add_item(gallery)
+    image = Image(id="snap", name="Snapshot", storage_mode="copied", image_ext="png", width=2, height=2, size_bytes=13)
+    image.set_bytes(b"image payload")
+    project.add_item(image, gallery.id)
+    command = DeleteItemCommand(_delete_context(project), image.id, confirm=False)
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert project.find_item("snap") is None
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert project.find_item("snap").get_bytes() == b"image payload"
+
+    assert command.redo() is CommandResult.SUCCESS
+    assert project.find_item("snap") is None
+    assert command.undo() is CommandResult.SUCCESS
+    assert project.find_item("snap").get_bytes() == b"image payload"
+
+
+def test_deleting_a_standalone_dataset_restores_its_data_on_undo():
+    project = Project("Test")
+    dataset = Dataset(id="data", data=pd.DataFrame({"x": [1, 2]}))
+    project.add_item(dataset)
+    command = DeleteItemCommand(_delete_context(project), dataset.id, confirm=False)
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert command.undo() is CommandResult.SUCCESS
+
+    pd.testing.assert_frame_equal(project.find_item("data").data, dataset.data)

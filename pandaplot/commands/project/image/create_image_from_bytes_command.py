@@ -19,7 +19,7 @@ class CreateImageFromBytesCommand(Command):
 
     def __init__(self, app_context: AppContext, gallery_id: str, name: str,
                  png_bytes: bytes, width: int, height: int, note_id: str | None = None,
-                 source_chart_id: str | None = None, render_dpi: int | None = None):
+                 source_chart_id: str | None = None, render_dpi: int | None = None, image_id: str | None = None):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -33,6 +33,9 @@ class CreateImageFromBytesCommand(Command):
         self.note_id = note_id
         self.source_chart_id = source_chart_id
         self.render_dpi = render_dpi
+        # A caller that must reference the image in the same undo step (e.g. a
+        # note reference) needs its id before execute(); None mints one then.
+        self._preassigned_image_id = image_id
 
         self.created_image_id: str | None = None
         self.created_image: Image | None = None
@@ -61,9 +64,9 @@ class CreateImageFromBytesCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            self.created_image_id = str(uuid.uuid4())
+            image_id = self._preassigned_image_id or str(uuid.uuid4())
             self.created_image = Image(
-                id=self.created_image_id, name=self.name, storage_mode="copied",
+                id=image_id, name=self.name, storage_mode="copied",
                 image_ext="png", width=self.width, height=self.height,
                 size_bytes=len(self.png_bytes), note_id=self.note_id, source_chart_id=self.source_chart_id,
                 render_dpi=self.render_dpi,
@@ -71,6 +74,7 @@ class CreateImageFromBytesCommand(Command):
             self.created_image.set_bytes(self.png_bytes)
 
             self.project.add_item(self.created_image, parent_id=self.gallery_id)
+            self.created_image_id = image_id
 
             self.app_state.event_bus.emit(ProjectEvents.PROJECT_ITEM_ADDED, {
                 "project": self.project,

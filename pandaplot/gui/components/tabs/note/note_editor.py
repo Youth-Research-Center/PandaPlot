@@ -1063,12 +1063,26 @@ class NoteEditorWidget(PWidget):
             if rendered is None or project is None:
                 self._warn_chart_snapshot_failed(chart)
                 return
-            image_id = self._save_chart_snapshot_image(chart, rendered, project=project, render_dpi=dpi)
-            if image_id is None:
+            # The reference is committed with the image in one undo step, so
+            # an Undo before the auto-save delay can't leave a reference to a
+            # removed image behind (nor persist one afterwards).
+            image_id = str(uuid.uuid4())
+            markdown_ref = f"![{alt_text}]({image_id} ={_DEFAULT_INSERT_MAX_WIDTH}x)"
+            cursor.beginEditBlock()
+            cursor.insertText(markdown_ref)
+            cursor.endEditBlock()
+            saved_id = self._save_chart_snapshot_image(
+                chart, rendered, project=project, render_dpi=dpi,
+                image_id=image_id, note_content=self.text_edit.toPlainText())
+            if saved_id is None:
+                self.text_edit.document().undo()
                 self._warn_chart_snapshot_failed(chart)
                 return
-            markdown_ref = f"![{alt_text}]({image_id} ={_DEFAULT_INSERT_MAX_WIDTH}x)"
-            cursor.insertText(markdown_ref)
+            # The command committed the whole text, so nothing is pending.
+            self.auto_save_timer.stop()
+            self.is_modified = False
+            self.update_status("Saved ✓")
+            QTimer.singleShot(2000, self._reset_status)
             self.text_edit.setTextCursor(cursor)
             if self.stack.currentIndex() == 1:
                 self.update_preview()
@@ -1087,11 +1101,16 @@ class NoteEditorWidget(PWidget):
 
     def _save_chart_snapshot_image(
         self, chart: Chart, rendered: RenderedChartSnapshot, *, project: Project, render_dpi: int | None = None,
+        image_id: str | None = None, note_content: str | None = None,
     ) -> str | None:
         """Add `rendered` to `project` (the one current when the render was
         dispatched) as a plain gallery Image (in the note's "Chart Snapshots"
         gallery), returning its new id, or None on failure. `render_dpi` is
-        the DPI it was rendered at, or None if it followed the chart's own."""
+        the DPI it was rendered at, or None if it followed the chart's own.
+
+        `image_id` fixes the new image's id (None mints one). `note_content`
+        saves the note with that text in the same undo step, so a reference
+        to the image and the image itself are undone and redone together."""
         from pandaplot.commands.project.image.create_image_from_bytes_command import CreateImageFromBytesCommand
         from pandaplot.commands.project.image.create_image_gallery_command import CreateImageGalleryCommand
 
@@ -1108,10 +1127,12 @@ class NoteEditorWidget(PWidget):
         command = CreateImageFromBytesCommand(
             self.app_context, gallery_id=gallery_id, name=image_name,
             png_bytes=rendered.png_bytes, width=rendered.width, height=rendered.height,
-            note_id=self.note.id, source_chart_id=chart.id, render_dpi=render_dpi,
+            note_id=self.note.id, source_chart_id=chart.id, render_dpi=render_dpi, image_id=image_id,
         )
         commands.append(command)
-        # A first insert also creates the gallery; one undo step removes both.
+        if note_content is not None:
+            commands.append(EditNoteCommand(self.app_context, self.note.id, note_content))
+        # A first insert also creates the gallery; one undo step removes them all.
         to_run = commands[0] if len(commands) == 1 else CompositeCommand(commands, display_name="Insert Chart Snapshot")
         succeeded = self.app_context.get_command_executor().execute_command(to_run, track_undo=True)
         return command.created_image_id if succeeded else None
@@ -1161,14 +1182,22 @@ class NoteEditorWidget(PWidget):
         # Resolved now, and stored with the result below, so the stored DPI is
         # always the one the pixels were rendered at.
         render_dpi = image.render_dpi if dpi is KEEP_RENDER_DPI else dpi
+        # What the render is based on: if the snapshot is edited (crop, rotate,
+        # resize) or deleted and restored while it renders, the result is stale
+        # and must not overwrite the newer pixels.
+        dispatched_modified_at = image.modified_at
         self._refreshing_snapshot_ids.add(image_id)
 
         def _on_result(rendered: RenderedChartSnapshot | None) -> None:
             if not isValid(self):
                 return
             try:
-                if rendered is None or not isinstance(project.find_item(image_id), Image):
+                current = project.find_item(image_id)
+                if rendered is None or current is not image:
                     self._warn_snapshot_refresh_failed(chart)
+                    return
+                if current.modified_at != dispatched_modified_at:
+                    self.update_status(f"Snapshot of '{chart.name}' changed during refresh; refresh it again")
                     return
                 command = EditImageCommand(
                     self.app_context, image_id, rendered.png_bytes, rendered.width, rendered.height,

@@ -865,6 +865,7 @@ def test_insert_chart_from_picker_inserts_static_snapshot(qapp):
     app_context.get_command_executor.return_value = fake_executor
 
     note = Note(name="Note 1", content="")
+    project.add_item(note)
     editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
 
     mock_dialog = MagicMock()
@@ -893,7 +894,9 @@ def test_insert_chart_from_picker_stores_the_dpi_chosen_in_the_dialog(qapp):
     project = Project(name="Test Project")
     project.add_item(chart)
     app_context = _app_context_with_executing_command_executor(project)
-    editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
+    note = Note(name="Note 1", content="")
+    project.add_item(note)
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
     mock_dialog = MagicMock()
     mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
     mock_dialog.get_selected_chart.return_value = chart
@@ -1003,7 +1006,9 @@ def test_note_editor_insert_chart_uses_shared_width_constant(qapp):
     project.add_item(chart)
     app_context = _app_context_with_executing_command_executor(project)
 
-    editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
+    note = Note(name="Note 1", content="")
+    project.add_item(note)
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
 
     mock_dialog = MagicMock()
     mock_dialog.exec.return_value = QDialog.DialogCode.Accepted
@@ -1838,7 +1843,9 @@ def test_insert_chart_snapshot_stores_the_chosen_dpi_and_renders_at_it(qapp):
     project = Project(name="Test Project")
     project.add_item(chart)
     app_context = _app_context_with_executing_command_executor(project)
-    editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
+    note = Note(name="Note 1", content="")
+    project.add_item(note)
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
     captured: dict = {}
     render = _capture_render_dpi(captured, create_test_png_bytes(8, 8))
 
@@ -1855,7 +1862,9 @@ def test_insert_chart_snapshot_without_a_dpi_stores_none(qapp):
     project = Project(name="Test Project")
     project.add_item(chart)
     app_context = _app_context_with_executing_command_executor(project)
-    editor = NoteEditorWidget(app_context=app_context, note=Note(name="Note 1", content=""), parent=None)
+    note = Note(name="Note 1", content="")
+    project.add_item(note)
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
 
     with patch(
         "pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_png",
@@ -1961,3 +1970,92 @@ def test_refresh_chart_snapshot_stores_the_dpi_it_rendered_at_even_if_the_stored
     pending[0](_rendered_snapshot(8, 8))
 
     assert image.render_dpi == 150
+
+
+def _recording_context(project):
+    app_context = _app_context_with_executing_command_executor(project)
+    executed = []
+    real = app_context.get_command_executor.return_value.execute_command.side_effect
+
+    def _record(command, **kwargs):
+        executed.append(command)
+        return real(command, **kwargs)
+
+    app_context.get_command_executor.return_value.execute_command.side_effect = _record
+    return app_context, executed
+
+
+def test_insert_chart_snapshot_commits_the_reference_with_the_image_in_one_undo_step(qapp):
+    chart = Chart(name="Plot")
+    folder = Folder(name="Notes Folder")
+    note = Note(name="Note 1", content="before ")
+    note.parent_id = folder.id
+    project = Project(name="Test Project")
+    for item in (folder, chart):
+        project.add_item(item)
+    project.add_item(note, parent_id=folder.id)
+    app_context, executed = _recording_context(project)
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.text_edit.moveCursor(QTextCursor.MoveOperation.End)
+
+    with patch(
+        "pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_png",
+        return_value=create_test_png_bytes(8, 8),
+    ):
+        editor._insert_chart_snapshot(chart)
+
+    # Committed immediately, not left to the 2 s auto-save: an Undo before it
+    # fires must not strand a reference to a removed image.
+    image = next(item for item in project.get_all_items() if isinstance(item, Image))
+    assert note.content == f"before ![Plot]({image.id} =500x)"
+    assert not editor.is_modified
+    assert not editor.auto_save_timer.isActive()
+    assert len(executed) == 1
+
+    assert executed[0].undo() is CommandResult.SUCCESS
+    assert note.content == "before "
+    assert project.find_item(image.id) is None
+
+    assert executed[0].redo() is CommandResult.SUCCESS
+    assert note.content == f"before ![Plot]({image.id} =500x)"
+    assert project.find_item(image.id).get_bytes() is not None
+
+
+def test_insert_chart_snapshot_leaves_the_text_alone_when_the_commit_fails(qapp):
+    chart = Chart(name="Plot")
+    project = Project(name="Test Project")
+    project.add_item(chart)
+    note = Note(name="Note 1", content="keep me")
+    project.add_item(note)
+    app_context = _app_context_with_executing_command_executor(project)
+    app_context.get_command_executor.return_value.execute_command.side_effect = lambda command, **kwargs: False
+    editor = NoteEditorWidget(app_context=app_context, note=note, parent=None)
+    editor.text_edit.moveCursor(QTextCursor.MoveOperation.End)
+
+    with patch(
+        "pandaplot.gui.components.tabs.chart.chart_editor.render_chart_to_png",
+        return_value=create_test_png_bytes(8, 8),
+    ):
+        editor._insert_chart_snapshot(chart)
+
+    assert editor.text_edit.toPlainText() == "keep me"
+    app_context.get_ui_controller().show_warning_message.assert_called_once()
+
+
+def test_refresh_chart_snapshot_does_not_overwrite_a_snapshot_edited_while_rendering(qapp):
+    project, image = _snapshot_project()
+    app_context = _app_context_with_executing_command_executor(project)
+    pending = []
+    app_context.get_task_scheduler.return_value.run_task.side_effect = (
+        lambda task, task_arguments=None, on_result=None, on_error=None, **_kw: pending.append(on_result))
+    editor = NoteEditorWidget(app_context=app_context, note=Note(id="note-1", name="Note 1", content=""), parent=None)
+    finished = []
+
+    editor.refresh_chart_snapshot(image.id, on_done=lambda: finished.append(True))
+    image.set_bytes(b"cropped")  # e.g. a crop applied from the gallery meanwhile
+    image.modified_at = "2999-01-01T00:00:00"
+    pending[0](_rendered_snapshot(8, 8))
+
+    assert image.get_bytes() == b"cropped"
+    assert finished == [True]  # the trigger is released even though the result was dropped
+    assert not editor.is_refreshing_snapshot(image.id)
