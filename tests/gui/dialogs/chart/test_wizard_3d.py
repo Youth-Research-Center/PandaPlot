@@ -6,7 +6,6 @@ import sys
 
 import pandas as pd
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.app import build_app_context
@@ -126,11 +125,7 @@ def test_the_type_step_previews_every_3d_chart_type(chart_type):
     app_context = build_app_context()
     page = ChartTypePage(app_context=app_context)
 
-    row = next(
-        row for row in range(page.type_list.count())
-        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == chart_type
-    )
-    page.type_list.setCurrentRow(row)
+    page.select_chart_type(chart_type)
 
     assert page._preview_canvas.is_3d is True
 
@@ -223,11 +218,7 @@ def test_the_type_step_previews_vector3d():
     app_context = build_app_context()
     page = ChartTypePage(app_context=app_context)
 
-    row = next(
-        row for row in range(page.type_list.count())
-        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == ChartType.VECTOR3D
-    )
-    page.type_list.setCurrentRow(row)
+    page.select_chart_type(ChartType.VECTOR3D)
 
     assert page._preview_canvas.is_3d is True
 

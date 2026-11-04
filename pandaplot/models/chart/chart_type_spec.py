@@ -12,6 +12,7 @@ so duplicating it here would let the two silently drift again.
 """
 from dataclasses import dataclass, field
 
+from pandaplot.models.chart.chart_category import ChartCategory
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
@@ -34,6 +35,11 @@ class ChartTypeSpec:
     allowed_series_types: frozenset[SeriesType]
     allows_fit: bool
     default_series_type: SeriesType
+    # Which group this chart type is listed under in the New Chart wizard
+    # and the chart tab's Type combo (see CHART_TYPE_CATEGORIES). Required,
+    # so a new chart type can't be added without being placed in one;
+    # keyword-only so the positional field order is unchanged.
+    category: ChartCategory = field(kw_only=True)
     # Whether this chart type renders on a matplotlib mplot3d axes rather
     # than a plain 2-D one. Owned here (and mirrored per series type on
     # SeriesTypeSpec) because it decides things no per-series renderer can:
@@ -65,16 +71,19 @@ class ChartTypeSpec:
 
 CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
     ChartType.LINE: ChartTypeSpec(
+        category=ChartCategory.LINE_SCATTER,
         display_name="Line", roles=("x", "y"), required_roles=("y",),
         allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}),
         allows_fit=True, default_series_type=SeriesType.LINE,
     ),
     ChartType.SCATTER: ChartTypeSpec(
+        category=ChartCategory.LINE_SCATTER,
         display_name="Scatter", roles=("x", "y"), required_roles=("y",),
         allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}),
         allows_fit=True, default_series_type=SeriesType.SCATTER,
     ),
     ChartType.BAR: ChartTypeSpec(
+        category=ChartCategory.BAR_PIE,
         display_name="Bar", roles=("x", "y"), required_roles=("y",),
         allowed_series_types=frozenset({SeriesType.BAR, SeriesType.SCATTER}),
         allows_fit=True, default_series_type=SeriesType.BAR,
@@ -87,11 +96,13 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
     # No fits: a fit runs on a series' raw Y values, which on a stacked
     # chart no longer match where its bars are drawn.
     ChartType.STACKED_BAR: ChartTypeSpec(
+        category=ChartCategory.BAR_PIE,
         display_name="Stacked Bar", roles=("x", "y"), required_roles=("y",),
         allowed_series_types=frozenset({SeriesType.STACKED_BAR, SeriesType.SCATTER}),
         allows_fit=False, default_series_type=SeriesType.STACKED_BAR,
     ),
     ChartType.HIST: ChartTypeSpec(
+        category=ChartCategory.DISTRIBUTION,
         display_name="Histogram", roles=("values",), required_roles=("values",),
         allowed_series_types=frozenset({SeriesType.HIST}),
         allows_fit=True, default_series_type=SeriesType.HIST,
@@ -101,18 +112,21 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
     # the same data is the classic way to show both -- hist_density keeps
     # the two on the same (normalized) Y scale.
     ChartType.DENSITY: ChartTypeSpec(
+        category=ChartCategory.DISTRIBUTION,
         display_name="Density", roles=("values",), required_roles=("values",),
         allowed_series_types=frozenset({SeriesType.DENSITY, SeriesType.HIST}),
         allows_fit=False, default_series_type=SeriesType.DENSITY,
         hist_density=True,
     ),
     ChartType.VECTOR: ChartTypeSpec(
+        category=ChartCategory.FIELD_GRID,
         display_name="Vector", roles=("x", "y", "u", "v", "magnitude"),
         required_roles=("x", "y", "u", "v"),
         allowed_series_types=frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR}),
         allows_fit=True, default_series_type=SeriesType.VECTOR,
     ),
     ChartType.COLORMAP: ChartTypeSpec(
+        category=ChartCategory.FIELD_GRID,
         display_name="Color Map", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
         # Also allows plain Scatter/Line series alongside the color-mapped
         # points (e.g. an overlay of uncolored reference points or a trend
@@ -125,6 +139,7 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
         allows_fit=False, default_series_type=SeriesType.COLORMAP,
     ),
     ChartType.HEATMAP: ChartTypeSpec(
+        category=ChartCategory.FIELD_GRID,
         display_name="Heatmap", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
         # Also allows plain Scatter/Line series alongside the gridded
         # matrix (e.g. marking specific points or overlaying a trend
@@ -139,6 +154,7 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
     # wedge labels. It allows only PIE series: a wedge chart has no (x, y)
     # space to overlay a Line/Scatter series on, and no curve to fit.
     ChartType.PIE: ChartTypeSpec(
+        category=ChartCategory.BAR_PIE,
         display_name="Pie", roles=("values", "labels"), required_roles=("values",),
         allowed_series_types=frozenset({SeriesType.PIE}),
         allows_fit=False, default_series_type=SeriesType.PIE, has_axes=False,
@@ -157,16 +173,19 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
     # Scatter3D/Line3D are allowed everywhere in 3-D, though, so a point
     # cloud or a trajectory can be overlaid on a surface.
     ChartType.SCATTER3D: ChartTypeSpec(
+        category=ChartCategory.THREE_D,
         display_name="3D Scatter", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
         allowed_series_types=frozenset({SeriesType.SCATTER3D, SeriesType.LINE3D}),
         allows_fit=False, default_series_type=SeriesType.SCATTER3D, is_3d=True,
     ),
     ChartType.LINE3D: ChartTypeSpec(
+        category=ChartCategory.THREE_D,
         display_name="3D Line", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
         allowed_series_types=frozenset({SeriesType.LINE3D, SeriesType.SCATTER3D}),
         allows_fit=False, default_series_type=SeriesType.LINE3D, is_3d=True,
     ),
     ChartType.SURFACE: ChartTypeSpec(
+        category=ChartCategory.THREE_D,
         display_name="3D Surface", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
         allowed_series_types=frozenset({
             SeriesType.SURFACE, SeriesType.WIREFRAME, SeriesType.SCATTER3D, SeriesType.LINE3D,
@@ -174,6 +193,7 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
         allows_fit=False, default_series_type=SeriesType.SURFACE, is_3d=True,
     ),
     ChartType.WIREFRAME: ChartTypeSpec(
+        category=ChartCategory.THREE_D,
         display_name="3D Wireframe", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
         allowed_series_types=frozenset({
             SeriesType.WIREFRAME, SeriesType.SURFACE, SeriesType.SCATTER3D, SeriesType.LINE3D,
@@ -181,6 +201,7 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
         allows_fit=False, default_series_type=SeriesType.WIREFRAME, is_3d=True,
     ),
     ChartType.BAR3D: ChartTypeSpec(
+        category=ChartCategory.THREE_D,
         display_name="3D Bar", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
         allowed_series_types=frozenset({
             SeriesType.BAR3D, SeriesType.SCATTER3D, SeriesType.LINE3D,
@@ -188,6 +209,7 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
         allows_fit=False, default_series_type=SeriesType.BAR3D, is_3d=True,
     ),
     ChartType.TRISURF: ChartTypeSpec(
+        category=ChartCategory.THREE_D,
         display_name="3D Triangulated Surface", roles=("x", "y", "z"), required_roles=("x", "y", "z"),
         allowed_series_types=frozenset({
             SeriesType.TRISURF, SeriesType.SCATTER3D, SeriesType.LINE3D,
@@ -198,6 +220,7 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
     # position plus all three arrow components, all required -- plus the
     # same optional color-by "magnitude" role as 2-D Vector.
     ChartType.VECTOR3D: ChartTypeSpec(
+        category=ChartCategory.THREE_D,
         display_name="3D Vector", roles=("x", "y", "z", "u", "v", "w", "magnitude"),
         required_roles=("x", "y", "z", "u", "v", "w"),
         allowed_series_types=frozenset({
@@ -211,10 +234,20 @@ CHART_TYPE_SPECS: dict[ChartType, ChartTypeSpec] = {
     # nothing in the overlay's own data). No fits: there is no (x, y)
     # curve to fit a function to.
     ChartType.BOX: ChartTypeSpec(
+        category=ChartCategory.DISTRIBUTION,
         display_name="Box Plot", roles=("values",), required_roles=("values",),
         allowed_series_types=frozenset({SeriesType.BOX}),
         allows_fit=False, default_series_type=SeriesType.BOX,
     ),
+}
+
+
+# Chart types per category, in ChartCategory order and, within a category,
+# in CHART_TYPE_SPECS order. Derived from the specs (like FIT_CATEGORIES in
+# fit_service.py) so the grouping can't drift from the registry.
+CHART_TYPE_CATEGORIES: dict[ChartCategory, tuple[ChartType, ...]] = {
+    category: tuple(chart_type for chart_type, spec in CHART_TYPE_SPECS.items() if spec.category is category)
+    for category in ChartCategory
 }
 
 

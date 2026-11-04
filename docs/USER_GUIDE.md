@@ -154,7 +154,7 @@ To create a plot from any dataset:
 1. Select a dataset in the Project View or active Dataset tab.
 2. Click **New Chart** or select **Tools > Create Plot...**.
 3. The **Chart Creation Wizard** guides you through:
-   - Choosing plot category and layout.
+   - Choosing the chart type: pick a category (Line & Scatter, Bar & Pie, Distribution, Fields & Grids or 3-D) from the dropdown, then a type from that category's list. The chart's **Category** and **Type** selectors in the properties panel work the same way.
    - Mapping X and Y axes columns from available datasets.
    - Setting initial plot title and axis labels.
 

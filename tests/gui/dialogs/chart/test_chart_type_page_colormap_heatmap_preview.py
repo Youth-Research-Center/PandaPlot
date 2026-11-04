@@ -3,7 +3,6 @@ import sys
 
 import pytest
 from matplotlib.collections import PathCollection, QuadMesh
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.app import build_app_context
@@ -16,11 +15,7 @@ def qapp():
 
 
 def _select_row(page: ChartTypePage, chart_type: str) -> None:
-    row = next(
-        row for row in range(page.type_list.count())
-        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == chart_type
-    )
-    page.type_list.setCurrentRow(row)
+    page.select_chart_type(chart_type)
 
 
 def test_selecting_colormap_renders_a_scatter_preview():
