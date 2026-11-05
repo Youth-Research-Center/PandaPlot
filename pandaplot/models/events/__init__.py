@@ -15,6 +15,7 @@ from .event_types import (
     FitEvents,
     NoteEvents,
     ProjectEvents,
+    SketchEvents,
     UIEvents,
 )
 
@@ -29,5 +30,6 @@ __all__ = [
     "FitEvents",
     "NoteEvents",
     "ProjectEvents",
-    "UIEvents"
+    "SketchEvents",
+    "UIEvents",
 ]

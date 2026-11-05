@@ -33,7 +33,7 @@ class DeleteItemCommand(Command):
         # Store state for undo
         self.deleted_item_data: dict[str, Any] | None = None
         self.deleted_item_class: type[Item] | None = None
-        self._deleted_collection: ItemCollection | None = None
+        self._deleted_snapshot: Item | None = None
         self.parent_item: Item | None = None
         self._deleted_index: int | None = None
 
@@ -187,10 +187,10 @@ class DeleteItemCommand(Command):
             # about to remove, before it actually disappears -- otherwise
             # those references silently dangle (see class docstring).
             # to_dict omits child types and in-memory dataset/image payloads, so
-            # collections also keep a detached subtree snapshot for undo. Undo
-            # state is only stored once the delete has actually succeeded.
+            # every item also keeps a detached snapshot for undo. Undo state is
+            # only stored once the delete has actually succeeded.
             item_data = item.to_dict()
-            collection_snapshot = deepcopy(item) if isinstance(item, ItemCollection) else None
+            item_snapshot = deepcopy(item)
             sibling_index = self._sibling_index(project, item)
             descendants = self._descendant_removal_payloads(item)
             self._apply_dependency_cleanup(project, self._collect_ids_under(item))
@@ -201,7 +201,7 @@ class DeleteItemCommand(Command):
             self._deleted_index = sibling_index
             self.deleted_item_class = item_class
             self.deleted_item_data = item_data
-            self._deleted_collection = collection_snapshot
+            self._deleted_snapshot = item_snapshot
             self.parent_item = parent_item
 
             # Emit event
@@ -242,10 +242,11 @@ class DeleteItemCommand(Command):
                 )
                 return CommandResult.FAILURE
 
-            # Restore a fresh snapshot, or deserialize a standalone item
+            # Restore a fresh copy of the snapshot (it carries dataset data and
+            # image bytes that to_dict omits), falling back to deserializing
             restored_item = (
-                deepcopy(self._deleted_collection)
-                if self._deleted_collection is not None
+                deepcopy(self._deleted_snapshot)
+                if self._deleted_snapshot is not None
                 else self.deleted_item_class.from_dict(self.deleted_item_data)
             )
 
@@ -312,7 +313,7 @@ class DeleteItemCommand(Command):
             # anything (as execute() does), so a later undo restores the
             # state at redo time rather than at the original delete.
             item_data = item.to_dict()
-            collection_snapshot = deepcopy(item) if isinstance(item, ItemCollection) else None
+            item_snapshot = deepcopy(item)
             sibling_index = self._sibling_index(project, item)
             descendants = self._descendant_removal_payloads(item)
 
@@ -336,7 +337,7 @@ class DeleteItemCommand(Command):
                 return CommandResult.ABORTED
             self.deleted_item_data = item_data
             self._deleted_index = sibling_index
-            self._deleted_collection = collection_snapshot
+            self._deleted_snapshot = item_snapshot
 
             # Get item info for logging and events
             item_name = getattr(item, "name", self.item_id)
@@ -372,5 +373,5 @@ class DeleteItemCommand(Command):
         self.deleted_item_class = None
         self.parent_item = None
         self._snapshots = {}
-        self._deleted_collection = None
+        self._deleted_snapshot = None
         self._deleted_index = None

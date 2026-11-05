@@ -5,6 +5,7 @@ from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.items.image import Image, ImageGallery
 from pandaplot.models.project.items.item import Item, ItemCollection
 from pandaplot.models.project.items.note import Note
+from pandaplot.models.project.items.sketch import Sketch
 
 __all__ = [
     "Chart",
@@ -16,4 +17,5 @@ __all__ = [
     "Item",
     "ItemCollection",
     "Note",
+    "Sketch",
 ]

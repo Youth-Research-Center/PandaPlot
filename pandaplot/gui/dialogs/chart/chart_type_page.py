@@ -6,7 +6,9 @@ from anywhere in the app's menu/command wiring without eagerly loading
 matplotlib (see tests/gui/test_main_menu_lazy_imports.py).
 """
 
-from PySide6.QtCore import Qt, Signal
+from typing import cast
+
+from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QListWidget,
@@ -18,11 +20,14 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.section_header import SectionHeader
+from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 from pandaplot.gui.core.widget_extension import PWizardPage
 from pandaplot.gui.dialogs.chart.chart_type_icons import chart_type_icon
 from pandaplot.gui.dialogs.chart.wizard_footer import WizardFooter
 from pandaplot.gui.dialogs.chart.wizard_step_rail import WizardStepRail
-from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
+from pandaplot.models.chart.chart_category import ChartCategory
+from pandaplot.models.chart.chart_type import ChartType
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
@@ -56,12 +61,17 @@ class ChartTypePage(PWizardPage):
         type_layout = QVBoxLayout(type_card)
         type_layout.addWidget(SectionHeader("Chart type"))
 
+        # Category first, then the types in it: only one category's types
+        # are listed at a time.
+        self.category_combo = ValueComboBox([(category.value, category) for category in CHART_TYPE_CATEGORIES])
+        self.category_combo.setAccessibleName("Chart category")
+        type_layout.addWidget(self.category_combo)
+
         self.type_list = QListWidget()
-        for chart_type, spec in CHART_TYPE_SPECS.items():
-            item = QListWidgetItem(spec.display_name)
-            item.setData(Qt.ItemDataRole.UserRole, chart_type)
-            self.type_list.addItem(item)
+        self.type_list.setAccessibleName("Chart type")
+        self._populate_type_list(cast(ChartCategory, self.category_combo.currentValue()))
         self.type_list.currentItemChanged.connect(self._on_type_changed)
+        self.category_combo.currentValueChanged.connect(self._on_category_changed)
         type_layout.addWidget(self.type_list, 1)
         type_column.addWidget(type_card, 1)
         content.addLayout(type_column, 0)
@@ -118,7 +128,20 @@ class ChartTypePage(PWizardPage):
             icon_color = accent if row == self.type_list.currentRow() else text_secondary
             item.setIcon(chart_type_icon(chart_type, icon_color))
 
-    def _on_type_changed(self, current: QListWidgetItem | None, _previous):
+    def _populate_type_list(self, category: ChartCategory) -> None:
+        """List the chart types of `category`, selecting none."""
+        with QSignalBlocker(self.type_list):
+            self.type_list.clear()
+            for chart_type in CHART_TYPE_CATEGORIES[category]:
+                item = QListWidgetItem(CHART_TYPE_SPECS[chart_type].display_name)
+                item.setData(Qt.ItemDataRole.UserRole, chart_type)
+                self.type_list.addItem(item)
+
+    def _on_category_changed(self, category: ChartCategory) -> None:
+        self._populate_type_list(category)
+        self.type_list.setCurrentRow(0)
+
+    def _on_type_changed(self, current: QListWidgetItem | None, _previous: QListWidgetItem | None) -> None:
         if current is None:
             return
         self._render_preview(current.data(Qt.ItemDataRole.UserRole))
@@ -146,6 +169,18 @@ class ChartTypePage(PWizardPage):
 
         self.preview_container.layout().addWidget(canvas)
         self._preview_canvas = canvas
+
+    def select_chart_type(self, chart_type: ChartType | str) -> None:
+        """Select `chart_type`, switching to its category first.
+
+        Raises:
+            ValueError: If `chart_type` is not a known chart type.
+        """
+        spec = CHART_TYPE_SPECS[ChartType(chart_type)]
+        self.category_combo.setCurrentValue(spec.category)
+        self._populate_type_list(spec.category)
+        row = list(CHART_TYPE_CATEGORIES[spec.category]).index(ChartType(chart_type))
+        self.type_list.setCurrentRow(row)
 
     def selected_chart_type(self) -> str | None:
         item = self.type_list.currentItem()

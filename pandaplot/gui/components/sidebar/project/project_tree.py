@@ -81,7 +81,7 @@ class ProjectTreeWidget(QTreeWidget):
                     self.logger.debug(
                         "ProjectTreeWidget: dropping on folder new_parent_id=%s", new_parent_id)
                 # If dropping on another item, use its parent folder
-                elif target_type in ["note", "dataset", "chart", "image", "folder", "imagegallery"]:
+                elif target_type in ["note", "dataset", "chart", "image", "folder", "imagegallery", "sketch"]:
                     target_item_obj = target_data.get("data")
                     if target_item_obj is not None and target_item_obj.parent_id:
                         # Check if the parent_id is the root collection ID

@@ -6,7 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import QObject
-from PySide6.QtWidgets import QDialog, QMainWindow, QMenuBar, QTabWidget, QWidget, QWizard, QWizardPage
+from PySide6.QtWidgets import QDialog, QGraphicsView, QMainWindow, QMenuBar, QTabWidget, QWidget, QWizard, QWizardPage
 
 from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.state.app_context import AppContext
@@ -183,6 +183,12 @@ class PMainWindow(WidgetExtension, QMainWindow):
 class PWidget(WidgetExtension, QWidget):
     def __init__(self, app_context:AppContext, parent: QWidget | None = None, **kwargs):
         QWidget.__init__(self, parent, **kwargs)
+        WidgetExtension.__init__(self, app_context=app_context)
+        self.destroyed.connect(self.unsubscribe_all)
+
+class PGraphicsView(WidgetExtension, QGraphicsView):
+    def __init__(self, app_context:AppContext, parent: QWidget | None = None, **kwargs):
+        QGraphicsView.__init__(self, parent, **kwargs)
         WidgetExtension.__init__(self, app_context=app_context)
         self.destroyed.connect(self.unsubscribe_all)
 

@@ -256,6 +256,24 @@ class TestTransformChartSeriesCommand:
         # The source series' own bindings must be untouched too.
         assert source_series.style.error_bars.y_error_column_id == "err-col-id"
 
+    def test_new_series_does_not_copy_a_stale_twin_y_column_binding(self, ctx):
+        """The result dataset only holds the transformed (x, y) pair, so a
+        twin Y column (#402) copied from the source would dangle."""
+        _, project = ctx
+        chart = project.find_item("chart-1")
+        source_series = chart.data_series[0]
+        source_series.style.twin_y_column_id = "twin-col-id"
+        source_series.style.twin_y_column = "sq"
+
+        command = _cmd(ctx, source_index=0)
+        assert command.execute() is CommandResult.SUCCESS
+
+        new_series = chart.data_series[command.added_series_index]
+        assert new_series.style.twin_y_column_id == ""
+        assert new_series.style.twin_y_column == ""
+        assert new_series.has_twin_y_column is False
+        assert source_series.style.twin_y_column_id == "twin-col-id"
+
     def test_new_series_from_a_fit_source_uses_default_style(self, ctx):
         _, project = ctx
         chart = project.find_item("chart-1")

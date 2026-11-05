@@ -17,6 +17,7 @@ import pytest
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
 from pandaplot.models.chart.fit_style import FitStyle
+from pandaplot.models.chart.series_style.line import LineSeriesStyle
 from pandaplot.models.chart.series_style.pie import PieSeriesStyle
 from pandaplot.models.chart.series_style.vector import VectorSeriesStyle
 from pandaplot.models.chart.series_style.vector3d import Vector3DSeriesStyle
@@ -266,3 +267,18 @@ def test_events_emitted_for_a_pie_series_referencing_the_column_only_via_its_lab
     RenameColumnCommand(app_context, dataset.id, 0, "time").execute()
 
     assert chart.id in {call.args[1]["chart_id"] for call in _chart_updated_calls(app_context)}
+
+
+def test_events_emitted_for_a_series_referencing_the_column_only_via_its_twin_y_column(env):
+    app_context, dataset, _, _ = env
+    chart = Chart(name="twin")
+    chart.add_data_series(
+        dataset.id, x_column_id=dataset.column_id("b"), y_column_id=dataset.column_id("b"),
+        style=LineSeriesStyle(twin_y_column_id=dataset.column_id("a")))
+    app_context.get_app_state.return_value.current_project.add_item(chart)
+
+    RenameColumnCommand(app_context, dataset.id, 0, "time").execute()
+
+    assert chart.id in {call.args[1]["chart_id"] for call in _chart_updated_calls(app_context)}
+    style = chart.data_series[0].style
+    assert resolve_series_column(dataset, style.twin_y_column_id, style.twin_y_column) == "time"

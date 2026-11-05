@@ -12,8 +12,8 @@ from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageG
 from pandaplot.models.state import AppContext, AppState
 
 
-@pytest.mark.parametrize("collection_type", [Folder, ImageGallery])
-def test_collection_undo_restores_nested_payloads_and_index(collection_type):
+def test_collection_undo_restores_nested_payloads_and_index():
+    collection_type = Folder
     ctx = Mock(spec=AppContext)
     state = Mock(spec=AppState)
     ctx.get_app_state.return_value = state
@@ -62,6 +62,36 @@ def test_collection_undo_restores_nested_payloads_and_index(collection_type):
         assert command.redo() is CommandResult.SUCCESS
         assert all(project.find_item(i) is None for i in ["collection", "note", "nested", "data", "image"])
         assert not chart.data_series
+
+
+def test_gallery_undo_restores_nested_album_images_and_index():
+    ctx, _, project = _make_delete_setup()
+    parent = Folder(id="parent")
+    gallery = ImageGallery(id="gallery")
+    album = ImageGallery(id="album")
+    first = Image(id="first")
+    first.set_bytes(b"first payload")
+    second = Image(id="second")
+    second.set_bytes(b"second payload")
+    project.add_item(parent)
+    project.add_item(gallery, parent.id)
+    project.add_item(first, gallery.id)
+    project.add_item(album, gallery.id)
+    project.add_item(second, album.id)
+    command = DeleteItemCommand(ctx, gallery.id, confirm=False)
+    assert command.execute() is CommandResult.SUCCESS
+    for _ in range(2):
+        assert command.undo() is CommandResult.SUCCESS
+        restored = project.find_item("gallery")
+        assert isinstance(restored, ImageGallery)
+        assert restored.parent_id == parent.id
+        assert [i.id for i in restored.get_items()] == ["first", "album"]
+        assert isinstance(project.find_item("album"), ImageGallery)
+        assert project.find_item("second").parent_id == "album"
+        assert project.find_item("first").get_bytes() == b"first payload"
+        assert project.find_item("second").get_bytes() == b"second payload"
+        assert command.redo() is CommandResult.SUCCESS
+        assert all(project.find_item(i) is None for i in ["gallery", "first", "album", "second"])
 
 
 def test_adding_populated_collection_indexes_descendants():
@@ -122,7 +152,7 @@ def test_declined_confirmation_retains_no_snapshot():
     project.add_item(folder)
     command = DeleteItemCommand(ctx, folder.id)
     assert command.execute() is CommandResult.FAILURE
-    assert command._deleted_collection is None
+    assert command._deleted_snapshot is None
     assert command.deleted_item_data is None
     assert project.find_item("folder") is folder
 
@@ -134,7 +164,7 @@ def test_failed_remove_retains_no_snapshot(monkeypatch):
     monkeypatch.setattr(project, "remove_item", Mock(side_effect=RuntimeError("boom")))
     command = DeleteItemCommand(ctx, folder.id, confirm=False)
     assert command.execute() is CommandResult.FAILURE
-    assert command._deleted_collection is None
+    assert command._deleted_snapshot is None
     assert command.deleted_item_data is None
 
 
@@ -267,3 +297,48 @@ def test_deleting_collection_emits_removed_event_for_every_descendant():
     assert command.redo() is CommandResult.SUCCESS
     assert sorted(_removed_ids(state)) == ["deep", "folder", "nested", "note"]
     assert _removed_ids(state)[-1] == "folder"
+
+
+def _delete_context(project):
+    ctx = Mock(spec=AppContext)
+    state = Mock(spec=AppState)
+    ctx.get_app_state.return_value = state
+    ctx.get_ui_controller.return_value = Mock(spec=UIController)
+    ctx.event_bus = Mock()
+    state.event_bus = Mock()
+    state.has_project = True
+    state.current_project = project
+    return ctx
+
+
+def test_deleting_a_standalone_image_restores_its_bytes_on_undo_and_redo_undo():
+    project = Project("Test")
+    gallery = ImageGallery(id="gallery")
+    project.add_item(gallery)
+    image = Image(id="snap", name="Snapshot", storage_mode="copied", image_ext="png", width=2, height=2, size_bytes=13)
+    image.set_bytes(b"image payload")
+    project.add_item(image, gallery.id)
+    command = DeleteItemCommand(_delete_context(project), image.id, confirm=False)
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert project.find_item("snap") is None
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert project.find_item("snap").get_bytes() == b"image payload"
+
+    assert command.redo() is CommandResult.SUCCESS
+    assert project.find_item("snap") is None
+    assert command.undo() is CommandResult.SUCCESS
+    assert project.find_item("snap").get_bytes() == b"image payload"
+
+
+def test_deleting_a_standalone_dataset_restores_its_data_on_undo():
+    project = Project("Test")
+    dataset = Dataset(id="data", data=pd.DataFrame({"x": [1, 2]}))
+    project.add_item(dataset)
+    command = DeleteItemCommand(_delete_context(project), dataset.id, confirm=False)
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert command.undo() is CommandResult.SUCCESS
+
+    pd.testing.assert_frame_equal(project.find_item("data").data, dataset.data)

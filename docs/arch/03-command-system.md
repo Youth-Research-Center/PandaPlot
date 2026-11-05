@@ -85,6 +85,22 @@ Every `execute()`, `undo()`, and `redo()` is expected to emit the appropriate `E
 | `RemoveSeriesCommand` | Removes a DataSeries from a Chart |
 | `ApplyChartPropertiesCommand` | Updates ChartConfiguration (title, labels, grid…) |
 
+### Sketch Commands (`commands/project/sketch/`)
+
+| Command | Description |
+|---------|-------------|
+| `AddSketchElementCommand` | Adds a drawn element to a layer (on top, or at an index); fails on a missing or locked layer |
+| `DeleteSketchElementsCommand` | Deletes elements across layers in one step; undo restores each at its original index |
+| `TransformSketchElementsCommand` | Moves, resizes or rotates elements by setting geometry fields (`GEOMETRY_FIELDS` of each element type); `NOOP` if nothing changes |
+| `AddSketchLayerCommand` | Adds an empty layer (default: above the active layer, named "Layer N") and makes it active; undo re-activates the previous layer |
+| `DeleteSketchLayerCommand` | Deletes a layer with its elements; refuses the last layer and locked layers; undo restores the same layer object at its index and the previous active layer |
+| `ReorderSketchLayerCommand` | Moves a layer to another stacking index (clamped); `NOOP` if it stays put |
+| `RenameSketchLayerCommand` | Renames a layer (trimmed; empty refused; duplicates allowed); `NOOP` for the same name |
+| `SetSketchLayerPropertiesCommand` | Sets any of `visible`, `locked` and `opacity` (0-1) in one step; `NOOP` if nothing changes |
+| `SetActiveSketchLayerCommand` | Chooses the layer to draw on. The active layer is saved, so it marks the project modified, but it takes no undo slot (`occupies_undo_slot()` is `False`) |
+
+These take the `Sketch` itself rather than an id, so undo and redo act on the object the edit was made on and do not look the project up again. Redo re-inserts the original element and layer objects with their original ids. Each command validates everything first and changes nothing on failure, and announces a change with `SketchEvents.SKETCH_CHANGED`.
+
 ### Fit Commands
 
 | Command | Description |

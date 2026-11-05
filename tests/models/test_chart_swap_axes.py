@@ -83,6 +83,7 @@ def test_swap_survives_save_and_reload():
     (lambda: Chart(name="Empty", chart_type="line"), "Add a data series"),
     (lambda: Chart(name="Bars", chart_type="bar"), "Bar"),
     (lambda: _chart_with_series(y_axis=YAxis.SECONDARY), "secondary Y axis"),
+    (lambda: _chart_with_series(style=LineSeriesStyle(twin_y_column_id="ct")), "secondary Y axis"),
     (lambda: _chart_with_series(x_column_id="", x_column=""), "row index"),
     (lambda: Chart(name="Pie", chart_type="pie"), "Pie"),
     (lambda: _chart_with_series(series_type=SeriesType.HIST), "Line, Scatter, Vector or Fit"),

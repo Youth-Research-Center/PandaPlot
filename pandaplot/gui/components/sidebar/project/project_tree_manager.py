@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.models.project.visitors import ProjectTreeBuilder
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.utils.item_labels import item_label
 
 
 class ProjectTreeManager:
@@ -36,7 +37,7 @@ class ProjectTreeManager:
             self.tree.clear()
 
             # Project root item
-            root_item = QTreeWidgetItem([f"📁 {project.name}"])
+            root_item = QTreeWidgetItem([item_label("project", project.name)])
             root_item.setToolTip(0, f"Project: {project.description}")
             root_item.setData(0, Qt.ItemDataRole.UserRole, {
                               "type": "project", "id": "root"})

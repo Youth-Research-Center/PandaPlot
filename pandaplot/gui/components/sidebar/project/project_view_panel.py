@@ -20,6 +20,7 @@ from pandaplot.gui.components.sidebar.project.project_tree_manager import Projec
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.item_labels import item_label, strip_item_prefix
 
 
 class ProjectViewPanel(SidebarPanel):
@@ -183,15 +184,11 @@ class ProjectViewPanel(SidebarPanel):
             return
 
         # Extract new name from the item text (remove emoji prefix)
-        new_text = item.text(0)
-        if new_text.startswith(("📁 ", "📝 ", "📊 ", "📈 ")):
-            new_name = new_text[2:].strip()
-        else:
-            new_name = new_text.strip()
+        new_name = strip_item_prefix(item.text(0))
 
         # Get current name from data
         item_obj = item_data.get("data")
-        current_name = item_obj.name if item_obj else ""
+        current_name = item_obj.name if item_obj is not None else ""
 
         # Only process if name actually changed
         if new_name and new_name != current_name and new_name.strip():
@@ -210,8 +207,7 @@ class ProjectViewPanel(SidebarPanel):
                 self._editing_in_progress = False
         else:
             # Revert to original name if invalid
-            prefix = "📁 " if item_type == "folder" else "📝 " if item_type == "note" else "📊 " if item_type == "dataset" else "📈 "
-            item.setText(0, f"{prefix}{current_name}")
+            item.setText(0, item_label(item_type, current_name))
 
     @override
     def _apply_theme(self):
