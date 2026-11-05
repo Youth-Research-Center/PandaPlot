@@ -222,3 +222,15 @@ def test_non_finite_numbers_keep_defaults(bad):
     defaults = ApplicationConfig.default().chart_display
     assert cfg.chart_display.default_width_cm == defaults.default_width_cm
     assert cfg.chart_display.dpi == defaults.dpi
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_max_undo_levels_keeps_default(bad):
+    cfg = ApplicationConfig.default()
+    cfg.update_from_mapping({"max_undo_levels": bad})
+    assert cfg.max_undo_levels == ApplicationConfig.default().max_undo_levels
+
+
+def test_infinity_literal_in_json_does_not_break_loading():
+    cfg = ApplicationConfig.from_json('{"max_undo_levels": Infinity}')
+    assert cfg.max_undo_levels == ApplicationConfig.default().max_undo_levels

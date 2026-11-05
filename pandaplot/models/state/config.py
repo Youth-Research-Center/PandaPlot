@@ -284,7 +284,7 @@ class ApplicationConfig:
 					if isinstance(value, bool):
 						continue
 					self.max_undo_levels = int(value)
-				except (TypeError, ValueError):
+				except (TypeError, ValueError, OverflowError):  # OverflowError: int(float("inf"))
 					continue
 				continue
 			section_obj = sections.get(key)
