@@ -511,7 +511,7 @@ class StatsEngine:
             metadata={"info": STAT_TESTS[test_type].label},
         )
         if subject:
-            if p_value is None or np.isnan(p_value):
+            if np.isnan(p_value):
                 conclusion = f"The p-value could not be computed, so no conclusion can be drawn about whether {subject}."
             elif p_value < alpha:
                 conclusion = f"Reject H0 (p = {_fmt_p(p_value)} < {alpha}): evidence that {subject}."

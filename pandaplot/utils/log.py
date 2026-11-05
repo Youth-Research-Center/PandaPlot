@@ -2,6 +2,11 @@ import logging
 import sys
 from pathlib import Path
 
+# Handlers installed by the previous setup_logging() call. Only these are
+# replaced on a repeat call, so handlers owned by someone else (a test
+# harness, an embedding application) are never closed or removed.
+_installed_handlers: list[logging.Handler] = []
+
 
 def setup_logging(
     log_file: str | Path = "application.log",
@@ -32,11 +37,12 @@ def setup_logging(
     logger = logging.getLogger()
     logger.setLevel(level)
 
-    # Prevent duplicate handlers if called multiple times, closing the old
-    # ones so their file handles are released.
-    for handler in logger.handlers[:]:
-        handler.close()
+    # Prevent duplicate handlers if called multiple times, closing the ones
+    # installed previously so their file handles are released.
+    for handler in _installed_handlers:
         logger.removeHandler(handler)
+        handler.close()
+    _installed_handlers.clear()
 
     # Format: timestamp | level | logger name (module/class) | function | message
     log_format = "%(asctime)s | %(levelname)-5s | %(name)s | %(funcName)s | %(message)s"
@@ -48,6 +54,7 @@ def setup_logging(
         file_handler.setLevel(file_level)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
+        _installed_handlers.append(file_handler)
 
     # Console handler. StreamHandler() defaults to sys.stderr, which is None
     # in a windowed build with no attached console (e.g.
@@ -57,6 +64,7 @@ def setup_logging(
         console_handler.setLevel(cli_level)
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
+        _installed_handlers.append(console_handler)
 
     logger.debug("Logging initialized.")
     return logger

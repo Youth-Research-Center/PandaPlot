@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 from pandaplot.analysis import STAT_TESTS, InputMode, StatsEngine, StatTestType
 
@@ -77,10 +78,20 @@ class TestStatsEngine:
     def test_undefined_p_value_reports_could_not_be_computed(self):
         # A constant column makes Pearson's r (and its p-value) undefined (NaN).
         x = np.arange(10, dtype=float)
-        with pytest.warns(Warning):
+        with pytest.warns(stats.ConstantInputWarning):
             result = StatsEngine.run_test(StatTestType.PEARSON, _cols(X=x, Y=np.full(10, 3.0)))
         assert np.isnan(result.p_value)
         assert not result.significant
         assert "could not be computed" in result.conclusion
         assert "Fail to reject" not in result.conclusion
         assert dict(result.rows)["Conclusion"] == result.conclusion
+
+    def test_shapiro_undefined_p_value_reports_could_not_be_computed(self):
+        # Shapiro-Wilk on a constant column yields NaN for both the statistic and p-value.
+        with pytest.warns(RuntimeWarning):
+            result = StatsEngine.run_test(StatTestType.SHAPIRO, _cols(A=np.full(10, 3.0)))
+        assert np.isnan(result.p_value)
+        assert "could not be computed" in result.conclusion
+        assert "A" in result.conclusion
+        assert "Fail to reject" not in result.conclusion
+        assert "NOT normally distributed" not in result.conclusion

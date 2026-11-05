@@ -7,6 +7,13 @@ import numpy as np
 MIN_FIT_POINTS = 2
 _MAX_EXP_ARGUMENT = 700
 
+# NumPy functions a custom fit expression may call by bare name (``arctan(x)``
+# rather than ``np.arctan(x)``); ``np.`` is an implementation detail users need not know.
+CUSTOM_FUNCTION_NAMES: tuple[str, ...] = (
+    "sin", "cos", "tan", "arcsin", "arccos", "arctan", "arctan2",
+    "sinh", "cosh", "tanh", "sqrt", "exp", "log", "log10", "log2", "abs",
+)
+
 
 def _polynomial(x: np.ndarray, *coefficients: float) -> np.ndarray:
     return np.polyval(coefficients, x)
@@ -371,12 +378,6 @@ class FitService:
         if not function_str or not params_str:
             raise ValueError("Custom function and parameters must be specified")
 
-        function_str = re.sub(
-            r"(?<![\w.])(arcsin|arccos|sin|cos|tan|sqrt|exp|log)\(",
-            r"np.\1(",
-            function_str,
-        )
-
         params = [p.strip() for p in params_str.split(",")]
 
         fixed_params = {}
@@ -392,7 +393,8 @@ class FitService:
         ]
 
         def custom_func(x, *free_args):
-            local_vars = {"x": x, "np": np}
+            local_vars = {name: getattr(np, name) for name in CUSTOM_FUNCTION_NAMES}
+            local_vars.update({"x": x, "np": np})
 
             for key, value in fixed_params.items():
                 local_vars[key] = value
