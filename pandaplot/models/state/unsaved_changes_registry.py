@@ -7,6 +7,7 @@ auto-save) can opt in by calling WidgetExtension.register_unsaved_changes_source
 once it implements UnsavedChangesSource below, instead of a lifecycle guard
 needing to know how to discover every such widget by hand.
 """
+import logging
 from typing import Protocol
 
 
@@ -29,6 +30,7 @@ class UnsavedChangesRegistry:
     only exists once the GUI is built."""
 
     def __init__(self) -> None:
+        self.logger = logging.getLogger(self.__class__.__name__)
         self._sources: set[UnsavedChangesSource] = set()
 
     def register(self, source: UnsavedChangesSource) -> None:
@@ -50,6 +52,7 @@ class UnsavedChangesRegistry:
             try:
                 if source.has_unsaved_changes() and not source.save():
                     all_flushed = False
-            except Exception:  # noqa: BLE001 -- Best-effort flush -- one source's failure must not stop the others from being attempted
+            except Exception:
+                self.logger.exception("Failed to flush unsaved changes from %r", source)
                 all_flushed = False
         return all_flushed

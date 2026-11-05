@@ -1,4 +1,5 @@
 import io
+import json
 from zipfile import ZipFile
 
 from pandaplot.models.project.items.image import Image
@@ -31,6 +32,37 @@ class TestImageDataManagerCopied:
         assert loaded.height == 32
         assert loaded.get_bytes() == b"fake-png-bytes"
 
+    def test_round_trip_keeps_chart_snapshot_attribution(self):
+        image = Image(id="snap-1", name="Plot", storage_mode="copied", image_ext="png",
+                      note_id="note-1", source_chart_id="chart-1", render_dpi=300)
+        image.set_bytes(b"png")
+
+        loaded = _round_trip(image)
+
+        assert (loaded.note_id, loaded.source_chart_id, loaded.render_dpi) == ("note-1", "chart-1", 300)
+
+    def test_load_without_snapshot_fields_defaults_them(self):
+        image = Image(id="img-9", name="Plain", storage_mode="copied", image_ext="png")
+        image.set_bytes(b"png")
+        buffer = io.BytesIO()
+        with ZipFile(buffer, "w") as zf:
+            ImageDataManager().save(image, zf, "items/img-9")
+        legacy = io.BytesIO()
+        with ZipFile(buffer, "r") as source, ZipFile(legacy, "w") as target:
+            for name in source.namelist():
+                data = source.read(name)
+                if name.endswith(".json"):
+                    metadata = json.loads(data)
+                    for key in ("note_id", "source_chart_id", "render_dpi"):
+                        metadata.pop(key, None)
+                    data = json.dumps(metadata).encode("utf-8")
+                target.writestr(name, data)
+
+        with ZipFile(legacy, "r") as zf:
+            loaded = ImageDataManager().load(Image, zf, "items/img-9", schema_version=1)
+
+        assert (loaded.note_id, loaded.source_chart_id, loaded.render_dpi) == (None, None, None)
+
     def test_zip_contains_blob_entry(self):
         image = Image(id="img-2", name="Dog", storage_mode="copied", image_ext="jpg")
         image.set_bytes(b"jpeg-bytes")
@@ -46,9 +78,8 @@ class TestImageDataManagerCopied:
     def test_save_with_missing_bytes_does_not_raise_and_skips_blob(self):
         """
         Regression test: an Image with storage_mode='copied' but no bytes in
-        memory (e.g. restored via DeleteItemCommand.undo(), which recreates
-        the item from to_dict()/from_dict() data that never includes bytes)
-        must not abort the whole project save. Only the JSON metadata should
+        memory (e.g. recreated from to_dict()/from_dict() data, which never
+        includes bytes) must not abort the whole project save. Only the JSON metadata should
         be written; the blob entry should be skipped.
         """
         image = Image(id="img-5", name="Ghost", storage_mode="copied", image_ext="png")
@@ -118,12 +149,10 @@ class TestImageDataManagerExternal:
 class TestDeleteUndoSaveDoesNotCorruptProject:
     def test_delete_then_undo_then_save_does_not_raise(self, tmp_path):
         """
-        Regression test for the reported corruption scenario: delete an Image
-        (storage_mode='copied'), undo the delete, then save the project. This
-        must not raise, and the saved zip must remain a valid project file
-        containing project.json. Undo restores a deep-copy snapshot of the
-        Image (not to_dict()/from_dict(), which never carries bytes), so the
-        copied bytes survive the delete/undo round trip.
+        Delete an Image (storage_mode='copied'), undo the delete, then save
+        the project. The undo must restore the image's bytes, the save must
+        not raise, and the saved zip must remain a valid project file that
+        reloads with the bytes.
         """
         from unittest.mock import Mock
 

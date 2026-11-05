@@ -15,7 +15,7 @@ import uuid
 import pytest
 
 from pandaplot.models.project import Project
-from pandaplot.models.project.items import Item, ItemCollection
+from pandaplot.models.project.items import Folder, Item, ItemCollection
 
 
 # Fixtures
@@ -686,6 +686,17 @@ class TestProjectSchemaVersion:
         project = Project.from_dict({"name": "P", "description": "", "schema_version": 3})
 
         assert project.schema_version == 3
+
+
+def test_remove_item_by_id_removes_an_empty_folder():
+    """An empty folder has len() == 0, so a truthiness check skipped it."""
+    project = Project(name="P")
+    folder = Folder(name="Empty")
+    project.add_item(folder)
+
+    project.remove_item_by_id(folder.id)
+
+    assert project.find_item(folder.id) is None
 
 
 if __name__ == "__main__":
