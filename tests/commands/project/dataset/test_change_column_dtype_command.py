@@ -1,5 +1,5 @@
 import logging
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pandas as pd
 import pytest
@@ -106,6 +106,39 @@ class TestChangeColumnDtypeCommand:
         pd.testing.assert_series_equal(dataset.data[0], pd.Series([1, 2, 3], name=0))
         assert command.redo() is CommandResult.SUCCESS
         pd.testing.assert_series_equal(dataset.data[0], pd.Series([1.0, 2.0, 3.0], name=0))
+
+    def test_noop_execute_leaves_nothing_to_undo(self, mock_app_context, sample_project):
+        """A NOOP execute must not record executed state, so a stray undo()
+        refuses instead of rewriting the column from an unrelated snapshot."""
+        app_context, app_state, _ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1.0, 2.0, 3.0]}))
+        sample_project.find_item.return_value = dataset
+
+        command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
+        assert command.execute() is CommandResult.NOOP
+        app_context.event_bus.emit.reset_mock()
+
+        assert command.undo() is CommandResult.FAILURE
+        app_context.event_bus.emit.assert_not_called()
+
+    def test_failed_conversion_leaves_nothing_to_undo(self, mock_app_context, sample_project):
+        app_context, app_state, _ui_controller = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({"a": [1, 2, 3]}))
+        sample_project.find_item.return_value = dataset
+
+        command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
+        with patch.object(ChangeColumnDtypeCommand, "_convert_column_dtype", return_value=None):
+            assert command.execute() is CommandResult.FAILURE
+        app_context.event_bus.emit.reset_mock()
+
+        assert command.undo() is CommandResult.FAILURE
+        app_context.event_bus.emit.assert_not_called()
 
 
 class TestChangeColumnDtypeCommandLogging:
