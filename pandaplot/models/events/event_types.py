@@ -5,9 +5,10 @@ This module defines hierarchical event types following the pattern:
 - Specific events for detailed component handling
 
 Usage patterns:
-- Generic subscription: subscribe_to_event(DatasetEvents.DATASET_CHANGED, handler)
-- Specific subscription: subscribe_to_event(DatasetOperationEvents.DATASET_COLUMN_ADDED, handler)
-- Multi-level publishing: publish both specific and generic events
+- Generic subscription: event_bus.subscribe(DatasetEvents.DATASET_CHANGED, handler)
+- Specific subscription: event_bus.subscribe(DatasetOperationEvents.DATASET_COLUMN_ADDED, handler)
+- Publishing: emit only the specific event; EventBus.emit fans it out to the
+  generic parents listed in EventHierarchy
 """
 
 from typing import ClassVar
