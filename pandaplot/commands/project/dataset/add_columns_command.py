@@ -360,7 +360,7 @@ class AddColumnsCommand(Command):
             self.logger.error(f"AddColumnsCommand Undo Error: {e}")
             return CommandResult.FAILURE
 
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo the add columns command."""
         # Re-execute with stored parameters
         return self.execute()
