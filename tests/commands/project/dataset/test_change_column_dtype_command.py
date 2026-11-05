@@ -107,6 +107,24 @@ class TestChangeColumnDtypeCommand:
         assert command.redo() is CommandResult.SUCCESS
         pd.testing.assert_series_equal(dataset.data[0], pd.Series([1.0, 2.0, 3.0], name=0))
 
+    def test_undo_and_redo_work_for_column_label_none(self, mock_app_context, sample_project):
+        """None is a valid (if unusual) label; replay guards must not use it as the 'unset' marker."""
+        app_context, app_state, _ = mock_app_context
+        app_state.has_project = True
+        app_state.current_project = sample_project
+
+        dataset = Dataset(id="ds-1", name="Test", data=pd.DataFrame({None: [1, 2, 3]}))
+        sample_project.find_item.return_value = dataset
+
+        command = ChangeColumnDtypeCommand(app_context, "ds-1", 0, "float64")
+
+        assert command.execute() is CommandResult.SUCCESS
+        assert str(dataset.data[None].dtype) == "float64"
+        assert command.undo() is CommandResult.SUCCESS
+        pd.testing.assert_series_equal(dataset.data[None], pd.Series([1, 2, 3], name=None))
+        assert command.redo() is CommandResult.SUCCESS
+        pd.testing.assert_series_equal(dataset.data[None], pd.Series([1.0, 2.0, 3.0], name=None))
+
     def test_noop_execute_leaves_nothing_to_undo(self, mock_app_context, sample_project):
         """A NOOP execute must not record executed state, so a stray undo()
         refuses instead of rewriting the column from an unrelated snapshot."""

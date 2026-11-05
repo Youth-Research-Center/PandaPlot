@@ -259,8 +259,9 @@ class ChangeColumnDtypeCommand(Command):
 
     def undo(self) -> CommandResult:
         """Restore the original column data and dtype."""
-        if (self.original_data is not None and self.dataset and
-            self.dataset.data is not None and self.column_name is not None):
+        # column_name is itself a valid label when None, so it cannot serve as
+        # the "unset" marker; original_data is only recorded by a successful execute().
+        if self.original_data is not None and self.dataset and self.dataset.data is not None:
 
             self.dataset.data[self.column_name] = self.original_data
             self.dataset.set_data(self.dataset.data)
@@ -277,15 +278,14 @@ class ChangeColumnDtypeCommand(Command):
             return CommandResult.SUCCESS
 
         self.logger.warning(
-            "ChangeColumnDtypeCommand.undo: cannot undo for dataset '%s' (original_data set=%s, dataset found=%s, column_name set=%s)",
-            self.dataset_id, self.original_data is not None, self.dataset is not None, self.column_name is not None,
+            "ChangeColumnDtypeCommand.undo: cannot undo for dataset '%s' (original_data set=%s, dataset found=%s)",
+            self.dataset_id, self.original_data is not None, self.dataset is not None,
         )
         return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
         """Reapply the column dtype change."""
-        if (self.conversion_report and self.dataset and
-            self.dataset.data is not None and self.column_name is not None):
+        if self.conversion_report and self.dataset and self.dataset.data is not None:
 
             # Re-execute the conversion
             conversion_result = self._convert_column_dtype(self.column_name)
@@ -310,8 +310,8 @@ class ChangeColumnDtypeCommand(Command):
             return CommandResult.FAILURE
 
         self.logger.warning(
-            "ChangeColumnDtypeCommand.redo: cannot redo for dataset '%s' (conversion_report set=%s, dataset found=%s, column_name set=%s)",
-            self.dataset_id, bool(self.conversion_report), self.dataset is not None, self.column_name is not None,
+            "ChangeColumnDtypeCommand.redo: cannot redo for dataset '%s' (conversion_report set=%s, dataset found=%s)",
+            self.dataset_id, bool(self.conversion_report), self.dataset is not None,
         )
         return CommandResult.FAILURE
 
