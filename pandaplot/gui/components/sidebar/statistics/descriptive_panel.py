@@ -270,10 +270,11 @@ class DescriptiveStatsPanel(SidebarPanel):
         """Rebuild the column list after a column is added, removed or renamed, keeping the user's columns."""
         if event_data.get("dataset_id") != self.current_dataset_id:
             return
-        selected = self._follow_column_rename(self._selected_columns(), event_data)
-        self._refresh_inputs(keep=selected)
-        if not set(selected) <= set(self._selected_columns()):
-            # A computed column is gone, so the shown result no longer matches the selection.
+        kept = self._follow_column_rename(self._selected_columns(), event_data)
+        self._refresh_inputs(keep=kept)
+        if self._column_selection_changed(kept, self._selected_columns()):
+            # A computed column is gone (or an empty selection became select-all),
+            # so the shown result no longer matches the selection.
             self.clear()
 
     # ------------------------------------------------------------------

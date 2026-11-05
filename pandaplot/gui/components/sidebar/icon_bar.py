@@ -211,7 +211,7 @@ class IconBar(PWidget):
         button.style().unpolish(button)
         button.style().polish(button)
 
-    def add_panel_button(self, name: str, icon: str, *, label: str | None = None):
+    def add_panel_button(self, name: str, icon: str, *, label: str | None = None) -> QPushButton:
         """Add a new panel button to the icon bar.
 
         Args:

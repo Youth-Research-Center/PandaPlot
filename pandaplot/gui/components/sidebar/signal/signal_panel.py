@@ -255,11 +255,26 @@ class SignalPanel(SidebarPanel):
         """Rebuild the column picker after a column is added, removed or renamed, keeping the user's column."""
         if event_data.get("dataset_id") != self.current_dataset_id:
             return
-        [selected] = self._follow_column_rename([self.column_combo.currentText()], event_data)
-        self._refresh_columns(keep=selected)
-        if selected and self.column_combo.currentText() != selected:
+        kept = self._follow_column_rename([self.column_combo.currentText()], event_data)
+        self._refresh_columns(keep=kept[0])
+        self._forget_last_run_if_column_changed(event_data)
+        if self._column_selection_changed(kept, [self.column_combo.currentText()]):
             # The previewed column is gone, so its result no longer matches the picker.
             self.clear()
+
+    def _forget_last_run_if_column_changed(self, event_data: dict) -> None:
+        """Make Add recompute when the cached run's column was renamed or removed.
+
+        The cached parameters and the result's name ("FFT [a]") identify the
+        column by name, so after a rename or removal a different column could
+        take that name and receive the cached result.
+        """
+        if self._last_run_params is None:
+            return
+        column = self._last_run_params[2]
+        renamed = "old_name" in event_data and str(event_data["old_name"]) == column
+        if renamed or column not in self._numeric_columns():
+            self._last_run_params = None
 
     def on_dataset_data_changed(self, event_data):
         dataset_id = event_data.get("dataset_id") if isinstance(event_data, dict) else getattr(event_data, "dataset_id", None)
@@ -364,7 +379,8 @@ class SignalPanel(SidebarPanel):
                 )
                 # Replace the previous result too: it no longer describes the current inputs.
                 self.clear()
-                self.results_text.setText(STALE_RUN_MESSAGE)
+                if self._get_dispatch_params() is not None:  # there is something to re-run
+                    self.results_text.setText(STALE_RUN_MESSAGE)
                 return
 
             if error is not None:

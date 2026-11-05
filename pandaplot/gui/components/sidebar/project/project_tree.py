@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
 from pandaplot.commands.project.item import MoveItemCommand
 from pandaplot.models.project.items import ItemCollection
 
-# Row types an item can be dropped into (a drop on the row's center); a drop on any other item row lands beside it.
+# Row types that hold other items: a drop on the row's center lands inside it, and new items are
+# created inside the selected one. A drop on any other item row lands beside it.
 CONTAINER_TYPES = ("folder", "imagegallery")
 
 
@@ -172,12 +173,6 @@ class ProjectTreeWidget(QTreeWidget):
         source_item = self.currentItem()
         return source_item.data(0, Qt.ItemDataRole.UserRole) if source_item else None
 
-    @staticmethod
-    def _parent_row_data(item):
-        """Return the UserRole data of the row a beside-drop on `item` lands in, if any."""
-        parent = item.parent()
-        return parent.data(0, Qt.ItemDataRole.UserRole) if parent is not None else None
-
     def dragMoveEvent(self, event):
         """Handle drag move events with visual feedback."""
         try:
@@ -203,9 +198,7 @@ class ProjectTreeWidget(QTreeWidget):
                             # Only highlight folders and project root for "drop into" operations
                             # For other items, provide subtle feedback since it's a "drop beside" operation
                             is_into_drop = target_type in CONTAINER_TYPES and not self._is_beside_drop(target_item, event)
-                            # A beside-drop lands in the target's parent, which must accept the item too.
-                            destination_data = target_data if is_into_drop else self._parent_row_data(target_item)
-                            if destination_data and self._rejects_drop_into(destination_data, self._dragged_data()):
+                            if is_into_drop and self._rejects_drop_into(target_data, self._dragged_data()):
                                 self.setToolTip("This item cannot be dropped here")
                                 event.ignore()
                                 return

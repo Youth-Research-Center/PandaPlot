@@ -353,7 +353,8 @@ class StatisticsPanel(SidebarPanel):
         """Rebuild the input widgets against the current dataset's columns.
 
         Args:
-            keep: Columns to reselect where they still exist; the default selection is used otherwise.
+            keep: Columns to reselect where they still exist. A column picker whose kept column is gone keeps
+                its default; in group mode the default groups stay selected when none of the kept groups exist.
         """
         test_type = self._current_test_type()
         if test_type is None:
@@ -362,9 +363,10 @@ class StatisticsPanel(SidebarPanel):
         if not keep:
             return
         if self.group_list is not None:
-            for i in range(self.group_list.count()):
-                item = self.group_list.item(i)
-                item.setSelected(item.text() in keep)
+            rows = [self.group_list.item(i) for i in range(self.group_list.count())]
+            if any(item.text() in keep for item in rows):
+                for item in rows:
+                    item.setSelected(item.text() in keep)
         else:
             for combo, name in zip(self.column_combos, keep, strict=False):
                 if combo.findText(name) >= 0:
@@ -412,9 +414,9 @@ class StatisticsPanel(SidebarPanel):
         """Rebuild the pickers after a column is added, removed or renamed, keeping the user's columns."""
         if event_data.get("dataset_id") != self.current_dataset_id:
             return
-        selected = self._follow_column_rename(self._selected_columns(), event_data)
-        self._refresh_inputs(keep=selected)
-        if set(self._selected_columns()) != set(selected):
+        kept = self._follow_column_rename(self._selected_columns(), event_data)
+        self._refresh_inputs(keep=kept)
+        if self._column_selection_changed(kept, self._selected_columns()):
             # A tested column is gone, so the shown result no longer matches the pickers.
             self.clear()
 

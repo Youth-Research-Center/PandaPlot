@@ -622,3 +622,105 @@ class TestStaleRunIsReported:
         assert panel.add_btn.isEnabled() is False
         assert "FFT" not in panel.results_text.toPlainText()
         assert "changed while the analysis was running" in panel.results_text.toPlainText()
+
+
+class TestCachedResultAndColumnEvents:
+    """Add reuses last_result when the dispatch parameters match. Those
+    parameters (and the result's name, e.g. "FFT [a]") identify the column by
+    name, so a rename or removal of that column must make Add recompute;
+    otherwise a column that later takes the old name would get the cached
+    result."""
+
+    @staticmethod
+    def _run_on_a(app_context):
+        panel, dataset = _build_panel_with_columns(app_context, columns=("a", "b", "c"))
+        panel.column_combo.setCurrentText("a")
+        result = _fake_result()
+        run_command = Mock()
+        run_command.run_analysis_async = lambda on_complete: on_complete(result, None)
+        panel._build_command = lambda: run_command
+        panel.run_analysis()
+        executed = []
+        panel.app_context.get_command_executor.return_value.execute_command = lambda command: executed.append(command) or True
+        add_command = Mock()
+        panel._build_command = lambda: add_command
+        return panel, dataset, result, executed, add_command
+
+    @staticmethod
+    def _rename(panel, dataset, old, new):
+        dataset.data.rename(columns={old: new}, inplace=True)
+        panel.on_columns_changed({"dataset_id": "ds-1", "column_index": 0, "old_name": old, "new_name": new})
+
+    def test_renaming_another_column_keeps_the_cached_result(self, app_context):
+        panel, dataset, result, executed, _add_command = self._run_on_a(app_context)
+        self._rename(panel, dataset, "b", "beta")
+
+        panel.add_results_to_project()
+
+        assert len(executed) == 1
+        assert isinstance(executed[0], ApplySignalAnalysisResultCommand)
+        assert executed[0].result is result
+
+    def test_renaming_the_run_column_recomputes_under_the_new_name(self, app_context):
+        panel, dataset, _result, executed, add_command = self._run_on_a(app_context)
+        self._rename(panel, dataset, "a", "x")
+
+        panel.add_results_to_project()
+
+        assert executed == [add_command]
+
+    def test_removed_and_re_added_column_does_not_get_the_cached_result(self, app_context):
+        panel, dataset, _result, executed, add_command = self._run_on_a(app_context)
+        panel.column_combo.setCurrentText("c")
+        removed = dataset.data.pop("a")
+        panel.on_columns_changed({"dataset_id": "ds-1"})
+        dataset.data["a"] = removed * 3
+        panel.on_columns_changed({"dataset_id": "ds-1"})
+        panel.column_combo.setCurrentText("a")
+
+        panel.add_results_to_project()
+
+        assert executed == [add_command]
+
+    def test_column_taking_the_old_name_does_not_get_the_cached_result(self, app_context):
+        panel, dataset, _result, executed, add_command = self._run_on_a(app_context)
+        self._rename(panel, dataset, "a", "x")
+        self._rename(panel, dataset, "b", "a")
+        panel.column_combo.setCurrentText("a")
+
+        panel.add_results_to_project()
+
+        assert executed == [add_command]  # recomputed for the new 'a', not the cached result
+
+
+class TestIntColumnLabels:
+    """Excel imports keep numeric headers as int labels; the picker shows str(label)."""
+
+    def test_rename_and_undo_of_an_int_labelled_column_are_followed(self, app_context):
+        panel, dataset = _build_panel_with_columns(app_context, columns=("a", 2020))
+        panel.column_combo.setCurrentText("2020")
+        assert panel.column_combo.currentText() == "2020"
+
+        dataset.data.rename(columns={2020: "y2020"}, inplace=True)
+        panel.on_columns_changed({"dataset_id": "ds-1", "old_name": 2020, "new_name": "y2020"})
+        assert panel.column_combo.currentText() == "y2020"
+
+        dataset.data.rename(columns={"y2020": 2020}, inplace=True)  # undo
+        panel.on_columns_changed({"dataset_id": "ds-1", "old_name": "y2020", "new_name": 2020})
+        assert panel.column_combo.currentText() == "2020"
+        assert panel.run_btn.isEnabled() is True
+
+
+def test_completion_after_leaving_the_dataset_does_not_prompt_for_run(app_context):
+    panel, _dataset = _build_panel_with_columns(app_context)
+    captured = {}
+    fake_command = Mock()
+    fake_command.run_analysis_async = lambda on_complete: captured.update(on_complete=on_complete)
+    panel._build_command = lambda: fake_command
+    panel.run_analysis()
+
+    panel.on_tab_changed({"tab_type": "chart", "tab_id": "chart-1"})
+    captured["on_complete"](_fake_result(), None)
+
+    assert panel.run_btn.isEnabled() is False
+    assert panel.results_text.toPlainText() == ""

@@ -241,13 +241,11 @@ def test_drag_over_sketch_row_is_accepted_as_beside_drop(qtbot):
     assert tree.toolTip() == "Drop beside this item"
 
 
-def _flat_tree(qtbot, items, parent=None):
-    """Rows for `items` (all children of `parent`, or of the project root) in a shown tree."""
+def _flat_tree(qtbot, items):
+    """Top-level rows for `items` in a shown tree."""
     project = Project(name="Flat")
-    if parent is not None:
-        project.add_item(parent)
     for item in items:
-        project.add_item(item, parent.id if parent is not None else None)
+        project.add_item(item)
     state = SimpleNamespace(has_project=True, current_project=project, event_bus=Mock())
     context = Mock()
     context.get_app_state.return_value = state
@@ -255,25 +253,15 @@ def _flat_tree(qtbot, items, parent=None):
     tree = ProjectTreeWidget(SimpleNamespace(app_state=state, app_context=context))
     qtbot.addWidget(tree)
     rows = {}
-    parent_row = None
-    if parent is not None:
-        parent_row = QTreeWidgetItem([parent.name])
-        parent_row.setData(0, Qt.ItemDataRole.UserRole, {"type": "imagegallery", "id": parent.id, "data": parent})
-        tree.addTopLevelItem(parent_row)
-        parent_row.setExpanded(True)
     for item in items:
         row = QTreeWidgetItem([item.name])
         row.setData(0, Qt.ItemDataRole.UserRole, {"type": type(item).__name__.lower(), "id": item.id, "data": item})
         row.setFlags(row.flags() | Qt.ItemFlag.ItemIsEditable)  # production rows keep Qt's default drop-enabled flag
-        if parent_row is not None:
-            parent_row.addChild(row)
-        else:
-            tree.addTopLevelItem(row)
+        tree.addTopLevelItem(row)
         rows[item.id] = row
     tree.resize(500, 400)
     tree.show()
     return tree, project, context, rows
-
 
 @pytest.mark.parametrize("make_target", [lambda: Note(name="target"), lambda: Sketch(name="target")])
 def test_drop_on_sibling_in_same_parent_leaves_tree_unchanged(qtbot, make_target):
@@ -292,48 +280,3 @@ def test_drop_on_sibling_in_same_parent_leaves_tree_unchanged(qtbot, make_target
     assert rows[target.id].childCount() == 0
     assert [tree.topLevelItem(i) for i in range(tree.topLevelItemCount())] == [rows[source.id], rows[target.id]]
     context.get_command_executor.return_value.execute_command.assert_not_called()
-
-
-def test_drag_beside_gallery_child_is_rejected_for_items_the_gallery_refuses(qtbot):
-    image = Image(name="i")
-    note = Note(name="n")
-    project_items_tree, project, _context, rows = _flat_tree(qtbot, [image], parent=ImageGallery(name="Gallery"))
-    project.add_item(note)
-    note_row = QTreeWidgetItem([note.name])
-    note_row.setData(0, Qt.ItemDataRole.UserRole, {"type": "note", "id": note.id, "data": note})
-    project_items_tree.addTopLevelItem(note_row)
-    project_items_tree.setCurrentItem(note_row)
-    qtbot.wait(10)
-
-    rectangle = project_items_tree.visualItemRect(rows[image.id])
-    event = QDragMoveEvent(
-        rectangle.center(), Qt.DropAction.MoveAction, QMimeData(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier
-    )
-    event.accept()
-    project_items_tree.dragMoveEvent(event)
-
-    accepted = event.isAccepted()
-    assert accepted is False
-    assert project_items_tree.toolTip() == "This item cannot be dropped here"
-
-
-def test_drag_beside_gallery_child_is_accepted_for_images(qtbot):
-    image = Image(name="i")
-    other = Image(name="other")
-    tree, project, _context, rows = _flat_tree(qtbot, [image], parent=ImageGallery(name="Gallery"))
-    project.add_item(other)
-    other_row = QTreeWidgetItem([other.name])
-    other_row.setData(0, Qt.ItemDataRole.UserRole, {"type": "image", "id": other.id, "data": other})
-    tree.addTopLevelItem(other_row)
-    tree.setCurrentItem(other_row)
-    qtbot.wait(10)
-
-    event = QDragMoveEvent(
-        tree.visualItemRect(rows[image.id]).center(), Qt.DropAction.MoveAction, QMimeData(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier
-    )
-    event.ignore()
-    tree.dragMoveEvent(event)
-
-    accepted = event.isAccepted()
-    assert accepted is True
-    assert tree.toolTip() == "Drop beside this item"

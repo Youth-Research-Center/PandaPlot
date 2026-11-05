@@ -177,3 +177,50 @@ def test_descriptive_panel_invalidates_result_when_selected_column_is_removed(qt
     assert sorted(panel._selected_columns()) == ["a", "b", "d"]
     assert panel.last_result is None
     assert panel.add_btn.isEnabled() is False
+
+
+def test_statistics_panel_follows_rename_and_undo_of_int_labelled_column(qtbot, context):
+    """Excel imports keep numeric headers as int labels; undoing a rename emits the int label again."""
+    context.dataset.data[2020] = context.dataset.data["a"] * 2
+    panel = _open(StatisticsPanel, context, qtbot)
+    panel.test_type_combo.setCurrentIndex(panel.test_type_combo.findData(StatTestType.ONE_SAMPLE_T))
+    _select_statistics_columns(panel, ["2020"])
+    assert panel._selected_columns() == ["2020"]
+
+    _rename_column(context, 2020, "y2020")
+    assert panel._selected_columns() == ["y2020"]
+
+    _rename_column(context, "y2020", 2020)
+    assert panel._selected_columns() == ["2020"]
+
+
+def test_statistics_group_mode_falls_back_to_default_groups_when_all_kept_groups_are_gone(qtbot, context):
+    _add_columns(context, "c", "d")
+    panel = _open(StatisticsPanel, context, qtbot)
+    panel.test_type_combo.setCurrentIndex(panel.test_type_combo.findData(StatTestType.ONE_WAY_ANOVA))
+    _select_statistics_columns(panel, ["c", "d"])
+    panel.run_test()
+
+    _remove_column(context, "c")
+    _remove_column(context, "d")
+
+    assert sorted(panel._selected_columns()) == ["a", "b"]
+    assert panel.last_result is None
+    assert panel.add_btn.isEnabled() is False
+
+
+def test_descriptive_panel_clears_result_when_a_column_event_widens_an_empty_selection(qtbot, context):
+    """With nothing selected the rebuild selects every column, which no longer matches the computed result."""
+    _add_columns(context, "c", "d")
+    panel = _open(DescriptiveStatsPanel, context, qtbot)
+    for i in range(panel.column_list.count()):
+        panel.column_list.item(i).setSelected(panel.column_list.item(i).text() in ("a", "b"))
+    panel.compute()
+    panel.column_list.clearSelection()
+
+    _add_columns(context, "e")
+    context.bus.emit(DatasetOperationEvents.DATASET_COLUMN_ADDED, {"dataset_id": context.dataset.id, "column_name": "e"})
+
+    assert sorted(panel._selected_columns()) == ["a", "b", "c", "d", "e"]
+    assert panel.last_result is None
+    assert panel.add_btn.isEnabled() is False

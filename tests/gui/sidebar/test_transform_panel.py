@@ -425,9 +425,13 @@ class TestColumnEventsKeepSourceSelection:
         dataset.name = "dataset"
         transform_panel.set_active_dataset(dataset)
         transform_panel.refresh_column_list()
-        for i in range(transform_panel.source_column_list.count()):
-            item = transform_panel.source_column_list.item(i)
-            item.setSelected(item.data(Qt.ItemDataRole.UserRole) in selected)
+        items = {
+            transform_panel.source_column_list.item(i).data(Qt.ItemDataRole.UserRole): transform_panel.source_column_list.item(i)
+            for i in range(transform_panel.source_column_list.count())
+        }
+        for name in selected:  # in order: the first selected column is the one `x` refers to
+            items[name].setSelected(True)
+        assert transform_panel.get_selected_columns() == selected
         transform_panel.new_column_name.setText("result")
         transform_panel.function_text.setPlainText("x * 2")
         assert transform_panel.apply_btn.isEnabled() is True
@@ -468,3 +472,51 @@ class TestColumnEventsKeepSourceSelection:
 
         assert transform_panel.get_selected_columns() == ["c"]
         assert transform_panel.apply_btn.isEnabled() is True
+
+    def test_removing_the_x_column_clears_source_selection_and_preview(self, transform_panel, app_context):
+        """Regression (PR #535 review): a "(not used)" column must not silently become `x`."""
+        from pandaplot.models.events import DatasetOperationEvents
+
+        dataset, handlers = self._ready_panel(transform_panel, app_context, ["b", "c"])
+        transform_panel._set_preview_message("Source (b): 2.0")
+        dataset.data.drop(columns=["b"], inplace=True)
+        handlers[DatasetOperationEvents.DATASET_COLUMN_REMOVED]({"dataset_id": "dataset-1"})
+
+        assert transform_panel.get_selected_columns() == []
+        assert transform_panel.apply_btn.isEnabled() is False
+        assert transform_panel.preview_text.toPlainText() == ""
+
+    def test_selection_order_survives_a_rename_so_x_does_not_change(self, transform_panel, app_context):
+        from pandaplot.models.events import DatasetOperationEvents
+
+        dataset, handlers = self._ready_panel(transform_panel, app_context, ["c", "b"])
+        dataset.data.rename(columns={"a": "alpha"}, inplace=True)
+        handlers[DatasetOperationEvents.DATASET_COLUMN_RENAMED]({"dataset_id": "dataset-1", "old_name": "a", "new_name": "alpha"})
+
+        assert transform_panel.get_selected_columns() == ["c", "b"]
+        assert transform_panel.source_column_list.item(2).text() == "c  →  x"
+
+
+def test_int_column_labels_are_listed_and_follow_renames(transform_panel, app_context):
+    """Excel imports keep numeric headers as int labels; the list must show them and follow their renames."""
+    import pandas as pd
+
+    from pandaplot.models.events import DatasetOperationEvents
+
+    dataset = Mock(id="dataset-1", data=pd.DataFrame({2020: [1.0], "b": [2.0]}))
+    dataset.name = "dataset"
+    transform_panel.set_active_dataset(dataset)
+    transform_panel.refresh_column_list()
+    assert transform_panel.source_column_list.item(0).text() == "2020"
+    transform_panel.source_column_list.item(0).setSelected(True)
+    assert transform_panel.get_selected_columns() == [2020]
+    handler = next(call.args[1] for call in app_context.event_bus.subscribe.call_args_list
+                   if call.args[0] == DatasetOperationEvents.DATASET_COLUMN_RENAMED)
+
+    dataset.data.rename(columns={2020: "y2020"}, inplace=True)
+    handler({"dataset_id": "dataset-1", "old_name": 2020, "new_name": "y2020"})
+    assert transform_panel.get_selected_columns() == ["y2020"]
+
+    dataset.data.rename(columns={"y2020": 2020}, inplace=True)  # undo
+    handler({"dataset_id": "dataset-1", "old_name": "y2020", "new_name": 2020})
+    assert transform_panel.get_selected_columns() == [2020]

@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
-from pandaplot.models.events.event_types import NoteEvents, ProjectEvents, UIEvents
+from pandaplot.models.events.event_types import ProjectEvents, UIEvents
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.note_search.note_search_service import (
@@ -141,17 +141,13 @@ class SearchPanel(SidebarPanel):
     @override
     def setup_event_subscriptions(self):
         # Keep results live as notes are edited / added / removed / renamed (titles are searched too).
-        # Item events are not filtered by type: removing a folder removes the notes inside it.
+        # PROJECT_CHANGED receives all of those through EventHierarchy (note.content_changed and every
+        # project.item_* event), including from future emitters. It is not filtered by item type:
+        # removing a folder removes the notes inside it. Refreshes are debounced and only run with a query.
         self.subscribe_to_multiple_events([
-            (event_type, self._on_project_changed)
-            for event_type in (
-                ProjectEvents.PROJECT_LOADED,
-                ProjectEvents.PROJECT_CLOSED,
-                NoteEvents.NOTE_CONTENT_CHANGED,
-                ProjectEvents.PROJECT_ITEM_ADDED,
-                ProjectEvents.PROJECT_ITEM_REMOVED,
-                ProjectEvents.PROJECT_ITEM_RENAMED,
-            )
+            (ProjectEvents.PROJECT_LOADED, self._on_project_changed),
+            (ProjectEvents.PROJECT_CLOSED, self._on_project_changed),
+            (ProjectEvents.PROJECT_CHANGED, self._on_project_changed),
         ])
 
     @override

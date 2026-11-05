@@ -452,7 +452,7 @@ class TransformPanel(SidebarPanel):
         get_selected_columns)."""
         self.source_column_list.clear()
         for name in columns:
-            item = QListWidgetItem(name)
+            item = QListWidgetItem(str(name))  # labels can be ints (e.g. a numeric Excel header)
             item.setData(Qt.ItemDataRole.UserRole, name)
             self.source_column_list.addItem(item)
         self._update_source_column_markers()
@@ -608,7 +608,7 @@ class TransformPanel(SidebarPanel):
                 item.setText(f"{name}  (not used)")
                 font.setBold(False)
             else:
-                item.setText(name)
+                item.setText(str(name))
                 font.setBold(False)
             item.setFont(font)
         self._update_apply_enabled()
@@ -799,8 +799,16 @@ class TransformPanel(SidebarPanel):
         The selected source columns stay selected, following a rename, so Apply stays ready.
         """
         dataset_id = event_data.get("dataset_id")
-        if self.current_dataset and hasattr(self.current_dataset, "id") and dataset_id == self.current_dataset.id:
-            self.refresh_column_list(keep=self._follow_column_rename(self.get_selected_columns(), event_data))
+        if not (self.current_dataset and hasattr(self.current_dataset, "id") and dataset_id == self.current_dataset.id):
+            return
+        kept = self._follow_column_rename(self.get_selected_columns(), event_data)
+        self.refresh_column_list(keep=kept)
+        if self._column_selection_changed(kept, self.get_selected_columns()):
+            # A selected column is gone. Deselect rather than let a "(not used)" column
+            # silently become `x`, and drop the preview, which described the old source.
+            self.source_column_list.clearSelection()
+            self.preview_text.clear()
+            self._style_preview_text(is_error=False)
 
     def on_dataset_renamed(self, event_data):
         """Refresh the dataset name label when the active dataset is renamed."""
@@ -831,7 +839,7 @@ class TransformPanel(SidebarPanel):
         """Refresh the column list from current dataset.
 
         Args:
-            keep: Source columns to reselect, in selection order, where they still exist.
+            keep: Source columns to reselect, in selection order, where they still exist (matched as text).
         """
         if self.current_dataset and hasattr(self.current_dataset, "data") and self.current_dataset.data is not None:
             self.available_columns = list(self.current_dataset.data.columns)
@@ -840,16 +848,16 @@ class TransformPanel(SidebarPanel):
                 self._select_source_columns(keep)
 
     def _select_source_columns(self, names: list) -> None:
-        """Select the source-list items for `names`, in order, then refresh the markers and Apply once."""
+        """Select the source-list items for `names` (matched as text), in order, then refresh the markers and Apply once."""
         items = {
-            self.source_column_list.item(i).data(Qt.ItemDataRole.UserRole): self.source_column_list.item(i)
+            str(self.source_column_list.item(i).data(Qt.ItemDataRole.UserRole)): self.source_column_list.item(i)
             for i in range(self.source_column_list.count())
         }
         self.source_column_list.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
         try:
             for name in names:
-                if name in items:
-                    items[name].setSelected(True)
+                if str(name) in items:
+                    items[str(name)].setSelected(True)
         finally:
             self.source_column_list.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
         self._update_source_column_markers()
