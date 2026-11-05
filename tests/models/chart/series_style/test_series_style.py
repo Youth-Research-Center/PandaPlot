@@ -92,6 +92,10 @@ def test_line_series_style_fields_and_defaults():
     assert style.twin_y_column == ""
     assert style.twin_y_color == "#ff7f0e"
     assert style.value_label_subset_mode == "all"
+    assert style.value_label_arrow_style == "line"
+    assert style.value_label_arrow_color == "#000000"
+    assert style.value_label_arrow_width == 1.0
+    assert style.value_label_arrow_line_style == "solid"
     assert isinstance(style.marker, MarkerStyle)
     assert isinstance(style.error_bars, ErrorBarConfig)
     assert {f.name for f in dataclasses.fields(style)} == {
@@ -104,6 +108,8 @@ def test_line_series_style_fields_and_defaults():
         "value_label_text_color", "value_label_bg_color", "value_label_bg_alpha",
         "twin_y_column_id", "twin_y_column", "twin_y_color",
         "value_label_subset_mode",
+        "value_label_arrow_style", "value_label_arrow_color",
+        "value_label_arrow_width", "value_label_arrow_line_style",
     }
 
 
@@ -130,6 +136,10 @@ def test_scatter_series_style_fields_and_defaults():
     assert style.value_label_bg_color == ""
     assert style.value_label_bg_alpha == 1.0
     assert style.value_label_subset_mode == "all"
+    assert style.value_label_arrow_style == "line"
+    assert style.value_label_arrow_color == "#000000"
+    assert style.value_label_arrow_width == 1.0
+    assert style.value_label_arrow_line_style == "solid"
     assert isinstance(style.marker, MarkerStyle)
     assert isinstance(style.error_bars, ErrorBarConfig)
     assert style.fill_enabled is False
@@ -144,6 +154,8 @@ def test_scatter_series_style_fields_and_defaults():
         "value_label_offset_x", "value_label_offset_y",
         "value_label_text_color", "value_label_bg_color", "value_label_bg_alpha",
         "value_label_subset_mode",
+        "value_label_arrow_style", "value_label_arrow_color",
+        "value_label_arrow_width", "value_label_arrow_line_style",
         "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base",
         "fill_to_index", "fill_range_enabled", "fill_sections",
         "twin_y_column_id", "twin_y_column", "twin_y_color",
