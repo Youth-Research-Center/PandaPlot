@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.dialogs.chart.chart_type_page import ChartTypePage
@@ -57,12 +58,7 @@ def test_line_is_selected_by_default():
 
 def test_selecting_histogram_updates_selected_chart_type():
     page = ChartTypePage(app_context=_fake_app_context())
-    histogram_row = next(
-        row for row in range(page.type_list.count())
-        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "hist"
-    )
-
-    page.type_list.setCurrentRow(histogram_row)
+    page.select_chart_type("hist")
 
     assert page.selected_chart_type() == "hist"
 
@@ -95,6 +91,83 @@ def test_type_rows_have_icons():
 
     for row in range(page.type_list.count()):
         assert not page.type_list.item(row).icon().isNull()
+
+
+def _row_texts(page: ChartTypePage) -> list[str]:
+    return [page.type_list.item(row).text() for row in range(page.type_list.count())]
+
+
+def test_category_dropdown_lists_every_category_in_order():
+    from pandaplot.models.chart.chart_category import ChartCategory
+
+    page = ChartTypePage(app_context=_fake_app_context())
+
+    labels = [page.category_combo.itemText(i) for i in range(page.category_combo.count())]
+    assert labels == [category.value for category in ChartCategory]
+    assert page.category_combo.accessibleName() == "Chart category"
+    assert page.type_list.accessibleName() == "Chart type"
+
+
+def test_only_the_current_categorys_types_are_listed():
+    from pandaplot.models.chart.chart_category import ChartCategory
+    from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS
+
+    page = ChartTypePage(app_context=_fake_app_context())
+
+    assert _row_texts(page) == ["Line", "Scatter"]
+    page.category_combo.setCurrentIndex(page.category_combo.findData(ChartCategory.THREE_D))
+    assert _row_texts(page) == [CHART_TYPE_SPECS[chart_type].display_name for chart_type in CHART_TYPE_CATEGORIES[ChartCategory.THREE_D]]
+
+
+def test_choosing_a_category_selects_its_first_type_and_previews_it():
+    from pandaplot.models.chart.chart_category import ChartCategory
+
+    page = ChartTypePage(app_context=_fake_app_context())
+    rendered = []
+    page._render_preview = rendered.append
+
+    page.category_combo.setCurrentIndex(page.category_combo.findData(ChartCategory.DISTRIBUTION))
+
+    assert page.selected_chart_type() == "hist"
+    assert rendered == ["hist"]
+    assert page.isComplete() is True
+
+
+def test_select_chart_type_switches_category_and_selects_the_type():
+    from pandaplot.models.chart.chart_category import ChartCategory
+
+    page = ChartTypePage(app_context=_fake_app_context())
+
+    page.select_chart_type("box")
+
+    assert page.category_combo.currentValue() == ChartCategory.DISTRIBUTION
+    assert page.selected_chart_type() == "box"
+    page.select_chart_type("scatter")
+    assert page.category_combo.currentValue() == ChartCategory.LINE_SCATTER
+    assert page.selected_chart_type() == "scatter"
+
+
+def test_select_chart_type_rejects_an_unknown_type():
+    page = ChartTypePage(app_context=_fake_app_context())
+
+    with pytest.raises(ValueError):
+        page.select_chart_type("not-a-chart-type")
+    assert page.selected_chart_type() == "line"
+
+
+def test_keyboard_navigation_moves_within_the_listed_category():
+    page = ChartTypePage(app_context=_fake_app_context())
+    page.show()
+    page.type_list.setFocus()
+
+    assert page.selected_chart_type() == "line"
+    QTest.keyClick(page.type_list, Qt.Key.Key_Down)
+    assert page.selected_chart_type() == "scatter"
+    QTest.keyClick(page.type_list, Qt.Key.Key_Down)
+    assert page.selected_chart_type() == "scatter"  # the end of the category's list
+    QTest.keyClick(page.type_list, Qt.Key.Key_Home)
+    assert page.selected_chart_type() == "line"
+    page.close()
 
 
 def test_page_exposes_a_step_rail_and_footer():
@@ -132,7 +205,7 @@ def test_selecting_a_different_type_refreshes_the_accent_colored_icon():
 
     bar_row = next(
         row for row in range(page.type_list.count())
-        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "bar"
+        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "scatter"
     )
     assert old_row != bar_row  # sanity: we actually switch rows
 
@@ -153,12 +226,7 @@ def test_selecting_a_different_type_refreshes_the_accent_colored_icon():
 
 def test_selecting_a_different_type_keeps_next_enabled_in_sync():
     page = ChartTypePage(app_context=_fake_app_context())
-    histogram_row = next(
-        row for row in range(page.type_list.count())
-        if page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "hist"
-    )
-
-    page.type_list.setCurrentRow(histogram_row)
+    page.select_chart_type("hist")
 
     assert page.isComplete() is True
     assert page.footer.next_button.isEnabled() is True

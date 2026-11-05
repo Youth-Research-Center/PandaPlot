@@ -1,3 +1,5 @@
+import pytest
+
 from pandaplot.models.project.items import Image, ImageGallery, ItemCollection
 
 
@@ -71,6 +73,45 @@ class TestImage:
         assert restored.height == image.height
         assert restored.parent_id == image.parent_id
         assert restored.created_at == image.created_at
+
+    def test_note_id_defaults_to_none(self):
+        image = Image(name="Photo")
+
+        assert image.note_id is None
+
+    def test_note_id_round_trips_through_to_dict_from_dict(self):
+        image = Image(id="img-6", name="Chart Snapshot", note_id="note-42")
+
+        restored = Image.from_dict(image.to_dict())
+
+        assert restored.note_id == "note-42"
+
+    def test_source_chart_id_defaults_to_none_and_round_trips(self):
+        assert Image(name="Photo").source_chart_id is None
+
+        restored = Image.from_dict(Image(id="img-7", name="Snap", source_chart_id="chart-1").to_dict())
+
+        assert restored.source_chart_id == "chart-1"
+
+    def test_render_dpi_defaults_to_none_and_round_trips(self):
+        assert Image(name="Photo").render_dpi is None
+
+        restored = Image.from_dict(Image(id="img-8", name="Snap", render_dpi=300).to_dict())
+
+        assert restored.render_dpi == 300
+
+    def test_from_dict_without_render_dpi_loads_as_none(self):
+        data = Image(id="img-9", name="Legacy").to_dict()
+        del data["render_dpi"]
+
+        assert Image.from_dict(data).render_dpi is None
+
+    @pytest.mark.parametrize("stored", [True, 12.5, "300", 29, 601, -5])
+    def test_from_dict_ignores_an_invalid_render_dpi(self, stored):
+        data = Image(id="img-10", name="Snap").to_dict()
+        data["render_dpi"] = stored
+
+        assert Image.from_dict(data).render_dpi is None
 
 
 class TestImageGallery:

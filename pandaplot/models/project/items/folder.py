@@ -15,5 +15,4 @@ class Folder(ItemCollection):
     """
     
     def __init__(self, id: str | None = None, name: str = "New Folder"):
-        # Call parent constructor (ItemCollection sets item_type to FOLDER)
         super().__init__(id, name)

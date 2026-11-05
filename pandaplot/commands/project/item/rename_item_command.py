@@ -9,7 +9,7 @@ from pandaplot.models.state import AppContext, AppState
 
 class RenameItemCommand(Command):
     """
-    Command to rename a note in the project.
+    Command to rename any project item (note, dataset, chart, folder, ...).
     """
 
     def __init__(self, app_context: AppContext, item_id: str, new_name: str):
@@ -55,6 +55,9 @@ class RenameItemCommand(Command):
                 )
                 return CommandResult.FAILURE
 
+            if item.name == self.new_name:
+                return CommandResult.NOOP
+
             self.old_name = item.name
             item.update_name(self.new_name)
 
@@ -75,12 +78,12 @@ class RenameItemCommand(Command):
             self.logger.exception(error_msg)
             self.ui_controller.show_error_message(
                 "Rename Item Error", error_msg)
-            raise
+            return CommandResult.FAILURE
 
     def undo(self) -> CommandResult:
         """Undo the rename item command."""
         try:
-            if self.old_name and self.app_state.has_project:
+            if self.old_name is not None and self.app_state.has_project:
                 project = get_current_project(self.app_context)
                 if not project:
                     self.logger.warning(

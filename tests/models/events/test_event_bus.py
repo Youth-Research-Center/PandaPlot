@@ -719,3 +719,22 @@ class TestEventBus:
         assert "LOG: INFO - User logged out" in log_entries
 
         assert metrics["events_processed"] == 3
+
+
+def test_emit_reaches_every_subscriber_when_one_unsubscribes_itself():
+    event_bus = EventBus()
+    calls = []
+
+    def one_shot(_data):
+        calls.append("one_shot")
+        event_bus.unsubscribe("x.y", one_shot)
+
+    def second(_data):
+        calls.append("second")
+
+    event_bus.subscribe("x.y", one_shot)
+    event_bus.subscribe("x.y", second)
+
+    event_bus.emit("x.y", {})
+
+    assert calls == ["one_shot", "second"]
