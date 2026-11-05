@@ -31,7 +31,13 @@ from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart, DataSeries, resolve_series_column
 from pandaplot.models.state import AppContext
-from pandaplot.services.fit.fit_service import FIT_CATEGORIES, FIT_DEFINITIONS, MIN_FIT_POINTS, FitService
+from pandaplot.services.fit.fit_service import (
+    CUSTOM_FUNCTION_NAMES,
+    FIT_CATEGORIES,
+    FIT_DEFINITIONS,
+    MIN_FIT_POINTS,
+    FitService,
+)
 from pandaplot.services.theme import ThemeManager
 from pandaplot.utils.item_display_options import dataset_display_options
 
@@ -282,7 +288,7 @@ class FitPanel(SidebarPanel):
         )
         custom_layout.addWidget(self.function_button, 0, 2)
         self.menu = QMenu()
-        self.function_names = ["sin", "cos","tan", "sqrt", "exp", "log", "arcsin", "arccos"]
+        self.function_names = list(CUSTOM_FUNCTION_NAMES)
         self._apply_menu_styling()
 
         for name in self.function_names:

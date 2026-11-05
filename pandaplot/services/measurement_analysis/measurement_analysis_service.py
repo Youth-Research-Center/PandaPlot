@@ -33,8 +33,8 @@ class MeasurementAnalysisService:
     ) -> MeasurementAnalysisResult:
         """Group measurement columns by experimental variable and controlled values.
 
-        Missing or non-numeric controlled values exclude that row from all
-        groups. Missing, non-numeric, and infinite measured values are excluded
+        Missing controlled values exclude that row from all groups.
+        Missing, non-numeric, and infinite measured values are excluded
         from their variable's statistics. Multiple measured columns can share a
         measurement-group name, treating wide-format replicate columns as
         repeated observations of one quantity. Fixed columns must have at most
