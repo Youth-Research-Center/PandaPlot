@@ -28,6 +28,8 @@ from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
+STALE_RUN_MESSAGE = "Inputs changed while the analysis was running. Click Run to analyse the current settings."
+
 
 class SignalPanel(SidebarPanel):
     """Sidebar panel for signal analysis."""
@@ -202,15 +204,24 @@ class SignalPanel(SidebarPanel):
             if pd.api.types.is_numeric_dtype(df[c])
         ]
 
-    def _refresh_columns(self):
+    def _refresh_columns(self, *, keep: str | None = None) -> None:
+        """Rebuild the column picker from the current dataset.
+
+        Args:
+            keep: Column to keep selected if it still exists; otherwise the first column is selected.
+        """
         self.column_combo.clear()
         self.column_combo.addItems(
             self._numeric_columns()
         )
+        if keep and self.column_combo.findText(keep) >= 0:
+            self.column_combo.setCurrentText(keep)
 
-        self.run_btn.setEnabled(
-            self.column_combo.count() > 0
-        )
+        self._update_run_enabled()
+
+    def _update_run_enabled(self) -> None:
+        """Enable Run only when a column is available and no Run/Add command is in flight."""
+        self.run_btn.setEnabled(self._pending_command is None and self.column_combo.count() > 0)
 
     def on_tab_changed(self, event_data):
         if event_data.get("tab_type") == "dataset":
@@ -240,9 +251,15 @@ class SignalPanel(SidebarPanel):
             self.current_dataset_id = None
             self._refresh_columns()
 
-    def on_columns_changed(self, event_data):
-        if event_data.get("dataset_id") == self.current_dataset_id:
-            self._refresh_columns()
+    def on_columns_changed(self, event_data: dict) -> None:
+        """Rebuild the column picker after a column is added, removed or renamed, keeping the user's column."""
+        if event_data.get("dataset_id") != self.current_dataset_id:
+            return
+        [selected] = self._follow_column_rename([self.column_combo.currentText()], event_data)
+        self._refresh_columns(keep=selected)
+        if selected and self.column_combo.currentText() != selected:
+            # The previewed column is gone, so its result no longer matches the picker.
+            self.clear()
 
     def on_dataset_data_changed(self, event_data):
         dataset_id = event_data.get("dataset_id") if isinstance(event_data, dict) else getattr(event_data, "dataset_id", None)
@@ -338,13 +355,16 @@ class SignalPanel(SidebarPanel):
 
         def _on_complete(result, error):
             self.busy_spinner.stop()
-            self.run_btn.setEnabled(True)
             self._pending_command = None
+            self._update_run_enabled()
 
             if self._get_dispatch_params() != dispatch_params:
                 self.logger.info(
                     "Discarding stale signal analysis preview: dispatch parameters changed."
                 )
+                # Replace the previous result too: it no longer describes the current inputs.
+                self.clear()
+                self.results_text.setText(STALE_RUN_MESSAGE)
                 return
 
             if error is not None:
@@ -365,7 +385,17 @@ class SignalPanel(SidebarPanel):
                 self.add_btn.setEnabled(False)
                 self.results_text.setText(f"❌ Analysis failed:\n{e}")
 
-        command.run_analysis_async(_on_complete)
+        try:
+            command.run_analysis_async(_on_complete)
+        except Exception as e:  # a failed dispatch must release the busy state, or Run stays dead
+            self.logger.exception("Failed to start signal analysis")
+            self.busy_spinner.stop()
+            self._pending_command = None
+            self._update_run_enabled()
+            self.last_result = None
+            self._last_run_params = None
+            self.add_btn.setEnabled(False)
+            self.results_text.setText(f"❌ Analysis failed:\n{e}")
 
 
     @staticmethod
@@ -450,8 +480,8 @@ class SignalPanel(SidebarPanel):
 
         def _on_complete(result):
             self.busy_spinner.stop()
-            self.run_btn.setEnabled(True)
             self._pending_command = None
+            self._update_run_enabled()
 
             if self._get_dispatch_params() != current_params:
                 self.logger.info(
@@ -471,9 +501,9 @@ class SignalPanel(SidebarPanel):
         if not executor.execute_command(command):
             # Synchronous validation failure -- on_complete never fires.
             self.busy_spinner.stop()
-            self.run_btn.setEnabled(True)
-            self.add_btn.setEnabled(True)
             self._pending_command = None
+            self._update_run_enabled()
+            self.add_btn.setEnabled(True)
 
     def clear(self):
         if hasattr(self, "results_text"):

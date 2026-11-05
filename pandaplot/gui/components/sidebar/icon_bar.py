@@ -211,14 +211,20 @@ class IconBar(PWidget):
         button.style().unpolish(button)
         button.style().polish(button)
 
-    def add_panel_button(self, name: str, icon: str):
-        """Add a new panel button to the icon bar."""
+    def add_panel_button(self, name: str, icon: str, *, label: str | None = None):
+        """Add a new panel button to the icon bar.
+
+        Args:
+            name: Unique panel identifier, emitted by panel_requested.
+            icon: Icon text shown on the button.
+            label: Panel title used for the tooltip and accessible name; derived from `name` when omitted.
+        """
         btn = QPushButton(icon)
         btn.setProperty("segment", True)  # noqa: FBT003 - Qt method rejects keyword args
         btn.clicked.connect(lambda: self.panel_requested.emit(name))
-        label = f"{name.replace('_', ' ').title()} panel"
-        btn.setAccessibleName(label)
-        btn.setToolTip(label)
+        button_label = f"{label or name.replace('_', ' ').title()} panel"
+        btn.setAccessibleName(button_label)
+        btn.setToolTip(button_label)
         # Remove hardcoded styling - will be applied via theme
 
         # Insert before the stretch (which is before the settings button)

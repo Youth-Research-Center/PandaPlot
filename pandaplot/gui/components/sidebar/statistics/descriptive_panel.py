@@ -209,9 +209,13 @@ class DescriptiveStatsPanel(SidebarPanel):
         df = self.current_dataset.data
         return [str(c) for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
 
-    def _refresh_inputs(self):
-        """Rebuild the column list against the current dataset's columns."""
-        selected = set(self._selected_columns())
+    def _refresh_inputs(self, *, keep: list[str] | None = None) -> None:
+        """Rebuild the column list against the current dataset's columns.
+
+        Args:
+            keep: Columns to reselect; defaults to the current selection. All columns are selected when none are kept.
+        """
+        selected = set(self._selected_columns() if keep is None else keep)
         self.column_list.clear()
         columns = self._numeric_columns()
         self.column_list.addItems(columns)
@@ -262,9 +266,15 @@ class DescriptiveStatsPanel(SidebarPanel):
             self.current_dataset_id = None
             self._refresh_inputs()
 
-    def on_columns_changed(self, event_data):
-        if event_data.get("dataset_id") == self.current_dataset_id:
-            self._refresh_inputs()
+    def on_columns_changed(self, event_data: dict) -> None:
+        """Rebuild the column list after a column is added, removed or renamed, keeping the user's columns."""
+        if event_data.get("dataset_id") != self.current_dataset_id:
+            return
+        selected = self._follow_column_rename(self._selected_columns(), event_data)
+        self._refresh_inputs(keep=selected)
+        if not set(selected) <= set(self._selected_columns()):
+            # A computed column is gone, so the shown result no longer matches the selection.
+            self.clear()
 
     # ------------------------------------------------------------------
     # Helpers / theming

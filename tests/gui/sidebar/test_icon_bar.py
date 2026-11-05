@@ -71,3 +71,29 @@ def test_icon_only_buttons_have_accessible_names(icon_bar):
     assert button.accessibleName() == "Chart Properties panel"
     assert button.toolTip() == "Chart Properties panel"
     assert icon_bar.settings_button.accessibleName() == "Settings"
+
+
+def test_panel_button_label_uses_given_panel_title(icon_bar):
+    button = icon_bar.add_panel_button("fit", "📐", label="Curve Fitting")
+
+    assert button.accessibleName() == "Curve Fitting panel"
+    assert button.toolTip() == "Curve Fitting panel"
+
+
+def test_sidebar_labels_panel_buttons_with_the_panel_title(app_context, qtbot):
+    from PySide6.QtWidgets import QLabel
+
+    from pandaplot.gui.components.sidebar.sidebar import CollapsibleSidebar
+
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+    sidebar = CollapsibleSidebar(app_context=app_context, parent=None)
+    qtbot.addWidget(sidebar)
+    titled = QWidget()
+    titled.title_label = QLabel("📐 Curve Fitting")
+    untitled = QWidget()
+
+    sidebar.add_panel("fit", "📐", titled)
+    sidebar.add_panel("chart_properties", "📈", untitled)
+
+    assert sidebar.icon_bar.panels["fit"].accessibleName() == "Curve Fitting panel"
+    assert sidebar.icon_bar.panels["chart_properties"].accessibleName() == "Chart Properties panel"

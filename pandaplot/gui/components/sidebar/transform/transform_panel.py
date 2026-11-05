@@ -781,9 +781,9 @@ class TransformPanel(SidebarPanel):
         """Setup event subscriptions for this component."""
         self.subscribe_to_multiple_events([
             # Specific dataset operations (for detailed column handling)
-            (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_column_added),
-            (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_column_removed),
-            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_column_renamed),
+            (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_columns_changed),
+            (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_columns_changed),
+            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_columns_changed),
             
             # UI events
             (UIEvents.TAB_CHANGED, self.on_tab_changed),
@@ -793,21 +793,14 @@ class TransformPanel(SidebarPanel):
             (ProjectEvents.PROJECT_ITEM_RENAMED, self.on_dataset_renamed),
         ])
     
-    def on_column_added(self, event_data):
-        """Handle specific column additions."""
+    def on_columns_changed(self, event_data: dict) -> None:
+        """Refresh the source list after a column of the active dataset is added, removed or renamed.
+
+        The selected source columns stay selected, following a rename, so Apply stays ready.
+        """
         dataset_id = event_data.get("dataset_id")
         if self.current_dataset and hasattr(self.current_dataset, "id") and dataset_id == self.current_dataset.id:
-            self.refresh_column_list()
-    
-    def on_column_removed(self, event_data):
-        """Handle specific column removals.""" 
-        dataset_id = event_data.get("dataset_id")
-        if self.current_dataset and hasattr(self.current_dataset, "id") and dataset_id == self.current_dataset.id:
-            self.refresh_column_list()
-    
-    def on_column_renamed(self, event_data):
-        """Refresh the column list when a column of the active dataset is renamed."""
-        self.on_column_removed(event_data)
+            self.refresh_column_list(keep=self._follow_column_rename(self.get_selected_columns(), event_data))
 
     def on_dataset_renamed(self, event_data):
         """Refresh the dataset name label when the active dataset is renamed."""
@@ -834,8 +827,29 @@ class TransformPanel(SidebarPanel):
         self.refresh_column_list()
         self.clear_panel()
     
-    def refresh_column_list(self):
-        """Refresh the column list from current dataset."""
+    def refresh_column_list(self, *, keep: list | None = None) -> None:
+        """Refresh the column list from current dataset.
+
+        Args:
+            keep: Source columns to reselect, in selection order, where they still exist.
+        """
         if self.current_dataset and hasattr(self.current_dataset, "data") and self.current_dataset.data is not None:
             self.available_columns = list(self.current_dataset.data.columns)
             self._populate_column_list(self.available_columns)
+            if keep:
+                self._select_source_columns(keep)
+
+    def _select_source_columns(self, names: list) -> None:
+        """Select the source-list items for `names`, in order, then refresh the markers and Apply once."""
+        items = {
+            self.source_column_list.item(i).data(Qt.ItemDataRole.UserRole): self.source_column_list.item(i)
+            for i in range(self.source_column_list.count())
+        }
+        self.source_column_list.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
+        try:
+            for name in names:
+                if name in items:
+                    items[name].setSelected(True)
+        finally:
+            self.source_column_list.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
+        self._update_source_column_markers()

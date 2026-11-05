@@ -56,6 +56,22 @@ class SidebarPanel(PWidget):
             self.main_layout.addWidget(widget)
 
     @staticmethod
+    def _follow_column_rename(names: list, event_data: dict) -> list:
+        """Map selected column names through a column event payload.
+
+        Args:
+            names: Column names selected before the event.
+            event_data: A ``DATASET_COLUMN_*`` payload. Only a rename carries ``old_name``/``new_name``.
+
+        Returns:
+            ``names`` with the renamed column replaced by its new name; unchanged for other events.
+        """
+        if "old_name" not in event_data:
+            return list(names)
+        old_name, new_name = event_data["old_name"], event_data.get("new_name")
+        return [new_name if name == old_name else name for name in names]
+
+    @staticmethod
     def title_stylesheet(base_fg: str, card_border: str) -> str:
         """Shared title-label stylesheet, parameterized by theme colors."""
         return (

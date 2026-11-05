@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from pandaplot.analysis import StatTestType
 from pandaplot.gui.components.sidebar.statistics.descriptive_panel import DescriptiveStatsPanel
 from pandaplot.gui.components.sidebar.statistics.statistics_panel import StatisticsPanel
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents
@@ -90,3 +91,89 @@ def test_statistics_panel_column_combos_follow_rename(qtbot, context):
     _rename_column(context, "a", "alpha")
     combo = panel.column_combos[0]
     assert [combo.itemText(i) for i in range(combo.count())] == ["alpha", "b"]
+
+
+def _add_columns(context, *names):
+    rng = np.random.default_rng(1)
+    for name in names:
+        context.dataset.data[name] = rng.normal(size=len(context.dataset.data))
+
+
+def _remove_column(context, name):
+    context.dataset.data.drop(columns=[name], inplace=True)
+    context.bus.emit(DatasetOperationEvents.DATASET_COLUMN_REMOVED, {"dataset_id": context.dataset.id, "column_name": name})
+
+
+def _select_statistics_columns(panel, names):
+    if panel.group_list is not None:
+        panel.group_list.clearSelection()
+        for i in range(panel.group_list.count()):
+            panel.group_list.item(i).setSelected(panel.group_list.item(i).text() in names)
+    else:
+        for combo, name in zip(panel.column_combos, names, strict=False):
+            combo.setCurrentText(name)
+
+
+@pytest.mark.parametrize("test_type", [StatTestType.ONE_SAMPLE_T, StatTestType.INDEPENDENT_T, StatTestType.ONE_WAY_ANOVA])
+def test_statistics_panel_keeps_selection_and_result_across_renames(qtbot, context, test_type):
+    _add_columns(context, "c", "d")
+    panel = _open(StatisticsPanel, context, qtbot)
+    panel.test_type_combo.setCurrentIndex(panel.test_type_combo.findData(test_type))
+    chosen = ["c", "d"][: 1 if test_type == StatTestType.ONE_SAMPLE_T else 2]
+    _select_statistics_columns(panel, chosen)
+    panel.run_test()
+    assert panel.last_result is not None
+
+    _rename_column(context, "a", "alpha")
+    assert sorted(panel._selected_columns()) == chosen
+    assert panel.last_result is not None
+    assert panel.add_btn.isEnabled() is True
+
+    _rename_column(context, "c", "gamma")
+    assert sorted(panel._selected_columns()) == sorted(["gamma", *chosen[1:]])
+
+
+@pytest.mark.parametrize("test_type", [StatTestType.ONE_SAMPLE_T, StatTestType.INDEPENDENT_T, StatTestType.ONE_WAY_ANOVA])
+def test_statistics_panel_invalidates_result_when_selected_column_is_removed(qtbot, context, test_type):
+    _add_columns(context, "c", "d")
+    panel = _open(StatisticsPanel, context, qtbot)
+    panel.test_type_combo.setCurrentIndex(panel.test_type_combo.findData(test_type))
+    _select_statistics_columns(panel, ["c", "d"])
+    panel.run_test()
+    assert panel.add_btn.isEnabled() is True
+
+    _remove_column(context, "c")
+
+    assert "c" not in panel._selected_columns()
+    assert panel.last_result is None
+    assert panel.add_btn.isEnabled() is False
+    assert panel.results_text.toPlainText() == ""
+
+
+@pytest.mark.parametrize("selected", [["a", "b", "c", "d"], ["a"], ["a", "c"]])
+def test_descriptive_panel_selection_follows_rename(qtbot, context, selected):
+    _add_columns(context, "c", "d")
+    panel = _open(DescriptiveStatsPanel, context, qtbot)
+    for i in range(panel.column_list.count()):
+        panel.column_list.item(i).setSelected(panel.column_list.item(i).text() in selected)
+    panel.compute()
+    assert panel.add_btn.isEnabled() is True
+
+    _rename_column(context, "a", "alpha")
+
+    assert sorted(panel._selected_columns()) == sorted(["alpha", *selected[1:]])
+    assert panel.last_result is not None
+    assert panel.add_btn.isEnabled() is True
+
+
+def test_descriptive_panel_invalidates_result_when_selected_column_is_removed(qtbot, context):
+    _add_columns(context, "c", "d")
+    panel = _open(DescriptiveStatsPanel, context, qtbot)
+    panel.compute()
+    assert panel.add_btn.isEnabled() is True
+
+    _remove_column(context, "c")
+
+    assert sorted(panel._selected_columns()) == ["a", "b", "d"]
+    assert panel.last_result is None
+    assert panel.add_btn.isEnabled() is False

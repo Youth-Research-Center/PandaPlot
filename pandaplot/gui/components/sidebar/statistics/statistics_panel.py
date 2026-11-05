@@ -349,11 +349,26 @@ class StatisticsPanel(SidebarPanel):
         df = self.current_dataset.data
         return [str(c) for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
 
-    def _refresh_inputs(self):
-        """Rebuild the input widgets against the current dataset's columns."""
+    def _refresh_inputs(self, *, keep: list[str] | None = None) -> None:
+        """Rebuild the input widgets against the current dataset's columns.
+
+        Args:
+            keep: Columns to reselect where they still exist; the default selection is used otherwise.
+        """
         test_type = self._current_test_type()
-        if test_type is not None:
-            self._build_input_widgets(STAT_TESTS[test_type].input_mode)
+        if test_type is None:
+            return
+        self._build_input_widgets(STAT_TESTS[test_type].input_mode)
+        if not keep:
+            return
+        if self.group_list is not None:
+            for i in range(self.group_list.count()):
+                item = self.group_list.item(i)
+                item.setSelected(item.text() in keep)
+        else:
+            for combo, name in zip(self.column_combos, keep, strict=False):
+                if combo.findText(name) >= 0:
+                    combo.setCurrentText(name)
 
     def update_context(self, tab_widget):
         """Update panel context from the active tab (called by sidebar wiring)."""
@@ -393,9 +408,15 @@ class StatisticsPanel(SidebarPanel):
             self.current_dataset_id = None
             self._refresh_inputs()
 
-    def on_columns_changed(self, event_data):
-        if event_data.get("dataset_id") == self.current_dataset_id:
-            self._refresh_inputs()
+    def on_columns_changed(self, event_data: dict) -> None:
+        """Rebuild the pickers after a column is added, removed or renamed, keeping the user's columns."""
+        if event_data.get("dataset_id") != self.current_dataset_id:
+            return
+        selected = self._follow_column_rename(self._selected_columns(), event_data)
+        self._refresh_inputs(keep=selected)
+        if set(self._selected_columns()) != set(selected):
+            # A tested column is gone, so the shown result no longer matches the pickers.
+            self.clear()
 
     # ------------------------------------------------------------------
     # Helpers / theming
