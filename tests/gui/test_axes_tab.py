@@ -180,6 +180,24 @@ def test_load_auto_axis_shows_recomputed_data_range_disabled():
     assert y_form["max_spin"].isEnabled() is False
 
 
+def test_load_with_text_x_values_shows_category_span_instead_of_raising():
+    """A chart whose X column is text (e.g. 'Q1 2024') used to make load()
+    raise while computing the X Range card; the card now shows the category
+    positions 0..n-1 the categorical axis draws them at."""
+    ds = _make_dataset("ds1", x=["Q1 2024", "Q2 2024", "Q3 2024"], y=[100, 200, 300])
+    project = _FakeProject([ds])
+    chart = Chart(name="Test Chart")
+    chart.update_config({"x_auto_limits": True})
+    chart.add_data_series(dataset_id="ds1", x_column="x", y_column="y")
+
+    tab = AxesTab(_make_app_context(project))
+    tab.load(chart)
+
+    x_form = tab.axes_forms["x"]
+    assert x_form["min_spin"].value() == 0.0
+    assert x_form["max_spin"].value() == 2.0
+
+
 def test_log_scale_axis_range_display_excludes_non_positive_values():
     """A Log-scaled axis must show Min/Max computed from only the positive
     subset of the data -- matplotlib's log-scale autoscale ignores
