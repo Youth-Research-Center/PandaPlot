@@ -387,7 +387,6 @@ class TransformPanel(SidebarPanel):
         self.logger.info(
             "TransformPanel controller transform completed for dataset %s, column %s", dataset_id, column_name
         )
-        # The transform_applied signal is already emitted from apply_transform
     
     def on_controller_transform_failed(self, dataset_id: str, error_message: str):
         """Handle failed transformation from controller."""
@@ -453,7 +452,7 @@ class TransformPanel(SidebarPanel):
         get_selected_columns)."""
         self.source_column_list.clear()
         for name in columns:
-            item = QListWidgetItem(name)
+            item = QListWidgetItem(str(name))  # labels can be ints (e.g. a numeric Excel header)
             item.setData(Qt.ItemDataRole.UserRole, name)
             self.source_column_list.addItem(item)
         self._update_source_column_markers()
@@ -609,7 +608,7 @@ class TransformPanel(SidebarPanel):
                 item.setText(f"{name}  (not used)")
                 font.setBold(False)
             else:
-                item.setText(name)
+                item.setText(str(name))
                 font.setBold(False)
             item.setFont(font)
         self._update_apply_enabled()
@@ -672,19 +671,7 @@ class TransformPanel(SidebarPanel):
                     error_msg = preview_result.get("error", "Preview generation failed") if preview_result else "Preview unavailable"
                     self._set_preview_message(f"Preview error: {error_msg}", is_error=True)
             else:
-                # Fallback to simple preview without controller
-                df = self.current_dataset.get_dataframe()
-                preview_data = df[source_column].head(preview_rows)
-                
-                preview_text = f"Source ({source_column}):\n"
-                for i, value in enumerate(preview_data):
-                    preview_text += f"  {i+1}: {value}\n"
-                
-                preview_text += f"\nFunction: {function_code}\n"
-                preview_text += "Transformed:\n"
-                preview_text += "  (Preview will be calculated on apply)\n"
-                
-                self._set_preview_message(preview_text)
+                self._set_preview_message("Selected dataset is unavailable. Try reselecting it.", is_error=True)
 
             # Preview updated - could publish preview event if needed
 
@@ -794,8 +781,9 @@ class TransformPanel(SidebarPanel):
         """Setup event subscriptions for this component."""
         self.subscribe_to_multiple_events([
             # Specific dataset operations (for detailed column handling)
-            (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_column_added),
-            (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_column_removed),
+            (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_columns_changed),
+            (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_columns_changed),
+            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_columns_changed),
             
             # UI events
             (UIEvents.TAB_CHANGED, self.on_tab_changed),
@@ -805,18 +793,24 @@ class TransformPanel(SidebarPanel):
             (ProjectEvents.PROJECT_ITEM_RENAMED, self.on_dataset_renamed),
         ])
     
-    def on_column_added(self, event_data):
-        """Handle specific column additions."""
+    def on_columns_changed(self, event_data: dict) -> None:
+        """Refresh the source list after a column of the active dataset is added, removed or renamed.
+
+        The selected source columns stay selected, following a rename, so Apply stays ready.
+        Only `x` (the first selected column) feeds the transform, so only losing `x` resets the panel.
+        """
         dataset_id = event_data.get("dataset_id")
-        if self.current_dataset and hasattr(self.current_dataset, "id") and dataset_id == self.current_dataset.id:
-            self.refresh_column_list()
-    
-    def on_column_removed(self, event_data):
-        """Handle specific column removals.""" 
-        dataset_id = event_data.get("dataset_id")
-        if self.current_dataset and hasattr(self.current_dataset, "id") and dataset_id == self.current_dataset.id:
-            self.refresh_column_list()
-    
+        if not (self.current_dataset and hasattr(self.current_dataset, "id") and dataset_id == self.current_dataset.id):
+            return
+        kept = self._follow_column_rename(self.get_selected_columns(), event_data)
+        self.refresh_column_list(keep=kept)
+        if self._column_selection_changed(kept[:1], self.get_selected_columns()[:1]):
+            # The `x` column is gone. Deselect rather than let a "(not used)" column
+            # silently become `x`, and drop the preview, which described the old source.
+            self.source_column_list.clearSelection()
+            self.preview_text.clear()
+            self._style_preview_text(is_error=False)
+
     def on_dataset_renamed(self, event_data):
         """Refresh the dataset name label when the active dataset is renamed."""
         if self.current_dataset and event_data.get("item_id") == self.current_dataset.id:
@@ -842,8 +836,29 @@ class TransformPanel(SidebarPanel):
         self.refresh_column_list()
         self.clear_panel()
     
-    def refresh_column_list(self):
-        """Refresh the column list from current dataset."""
+    def refresh_column_list(self, *, keep: list | None = None) -> None:
+        """Refresh the column list from current dataset.
+
+        Args:
+            keep: Source columns to reselect, in selection order, where they still exist (matched as text).
+        """
         if self.current_dataset and hasattr(self.current_dataset, "data") and self.current_dataset.data is not None:
             self.available_columns = list(self.current_dataset.data.columns)
             self._populate_column_list(self.available_columns)
+            if keep:
+                self._select_source_columns(keep)
+
+    def _select_source_columns(self, names: list) -> None:
+        """Select the source-list items for `names` (matched as text), in order, then refresh the markers and Apply once."""
+        items = {
+            str(self.source_column_list.item(i).data(Qt.ItemDataRole.UserRole)): self.source_column_list.item(i)
+            for i in range(self.source_column_list.count())
+        }
+        self.source_column_list.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
+        try:
+            for name in names:
+                if str(name) in items:
+                    items[str(name)].setSelected(True)
+        finally:
+            self.source_column_list.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
+        self._update_source_column_markers()

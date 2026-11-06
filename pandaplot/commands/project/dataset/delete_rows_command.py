@@ -34,7 +34,7 @@ class DeleteRowsCommand(Command):
     def execute(self) -> CommandResult:
         """Execute the delete rows command."""
         try:
-            self.logger.info(f"Executing DeleteRowsBatchCommand for {len(self.row_positions)} rows")
+            self.logger.info(f"Executing DeleteRowsCommand for {len(self.row_positions)} rows")
             
             # Validate input
             if not self.row_positions:
@@ -174,10 +174,10 @@ class DeleteRowsCommand(Command):
             )
             return CommandResult.FAILURE
         except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            self.logger.error(f"DeleteRowsBatchCommand Undo Error: {e}")
+            self.logger.error(f"DeleteRowsCommand Undo Error: {e}")
             return CommandResult.FAILURE
 
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo the delete rows command."""
         # Re-execute with stored parameters
         return self.execute()

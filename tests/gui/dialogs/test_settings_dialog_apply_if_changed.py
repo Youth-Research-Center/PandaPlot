@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from pandaplot.app import build_app_context
 from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
 from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.services.config.config_manager import ConfigManager
 
 
@@ -182,3 +183,16 @@ def test_accept_settings_does_not_close_when_apply_fails(tmp_path):
 
     mock_accept.assert_not_called()
     mock_warning.assert_called_once()
+
+
+def test_config_reset_event_reloads_an_open_dialog(tmp_path):
+    """A reset to defaults elsewhere must refresh an open dialog (otherwise
+    Apply/OK would write its stale values back over the reset config). It
+    arrives through EventHierarchy as a CONFIG_UPDATED, the only event the
+    dialog subscribes to."""
+    dialog = _isolated_dialog(tmp_path)
+
+    with patch.object(dialog, "load_current_settings") as mock_reload:
+        dialog.app_context.event_bus.emit(ConfigEvents.CONFIG_RESET, {"config": dialog._config_manager.config})
+
+    mock_reload.assert_called_once()

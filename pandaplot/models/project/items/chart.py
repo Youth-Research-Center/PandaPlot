@@ -3,6 +3,7 @@ Chart model for managing chart/visualization items in the project.
 """
 
 import copy
+import logging
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
@@ -791,7 +792,11 @@ class Chart(Item):
         
         # Load data series (FIT-type entries included -- see #304)
         series_data = data.get("data_series", [])
-        for series_dict in series_data:
+        for index, series_dict in enumerate(series_data):
+            if not series_dict.get("dataset_id"):
+                logging.getLogger(cls.__name__).warning(
+                    "Skipping series %d of chart '%s': saved data has no dataset_id", index, chart.name)
+                continue
             series_type = SeriesType(series_dict.get("series_type", chart.chart_type))
             style_dict = series_dict.get("style")
             style = _series_style_from_dict(series_type, style_dict) if style_dict is not None else None
@@ -799,8 +804,8 @@ class Chart(Item):
             precomputed_y = series_dict.get("precomputed_y_data")
             series = DataSeries(
                 dataset_id=series_dict["dataset_id"],
-                x_column=series_dict["x_column"],
-                y_column=series_dict["y_column"],
+                x_column=series_dict.get("x_column", ""),
+                y_column=series_dict.get("y_column", ""),
                 x_column_id=series_dict.get("x_column_id", ""),
                 y_column_id=series_dict.get("y_column_id", ""),
                 label=series_dict.get("label", ""),

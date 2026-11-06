@@ -49,8 +49,8 @@ class TransformColumnCommand(Command):
         self.column_existed_before = False
         self.dataset = None
 
-        # Set to the reason execute()/undo() returned False, so callers (the
-        # transform panel) can surface it instead of a generic message.
+        # Set to the reason execute()/redo() returned CommandResult.FAILURE, so
+        # callers (the transform panel) can surface it instead of a generic message.
         self.error_message: str | None = None
 
         # Extract config

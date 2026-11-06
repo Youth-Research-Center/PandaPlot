@@ -95,8 +95,11 @@ class EventBus:
             event_data["original_event"] = event_type
             
             # Emit to exact subscribers
-            subscriber_count = len(self._subscribers[event_level])
-            for callback in self._subscribers[event_level]:
+            # Snapshot so a callback that (un)subscribes cannot make emit skip
+            # or repeat a later subscriber.
+            callbacks = list(self._subscribers.get(event_level, ()))
+            subscriber_count = len(callbacks)
+            for callback in callbacks:
                 try:
                     callback(event_data)
                     total_callbacks_called += 1

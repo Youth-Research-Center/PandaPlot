@@ -353,6 +353,9 @@ class SettingsDialog(PDialog):
         accent_layout.addWidget(QLabel("Accent color:"))
         self.accent_color_btn = QPushButton()
         self.accent_color_btn.setFixedSize(70, 30)
+        # Shows only a color swatch, so name it for assistive tech.
+        self.accent_color_btn.setAccessibleName("Accent color")
+        self.accent_color_btn.setToolTip("Choose the accent color")
         initial_accent_color = (
             self._config_manager.config.appearance.accent_color
             if self._config_manager is not None
@@ -523,7 +526,8 @@ class SettingsDialog(PDialog):
 
     def setup_event_subscriptions(self):
         """Subscribe to config update events to reflect external changes while dialog open."""
-        # Subscribe to both updated and reset events
+        # CONFIG_RESET and CONFIG_LOADED need no subscription of their own:
+        # EventHierarchy delivers them to CONFIG_UPDATED subscribers too.
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
     
     def _on_config_event(self, data: dict[str, Any]):
