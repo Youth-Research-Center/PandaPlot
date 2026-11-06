@@ -3,6 +3,8 @@ import logging
 from matplotlib.backends.backend_qt import NavigationToolbar2QT
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtWidgets import QLabel, QSizePolicy, QWidget
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +16,72 @@ NAV_ICON_FILES = {
     for _, _, image_file, callback_name in NavigationToolbar2QT.toolitems
     if callback_name
 }
+
+# The widest mouse readout the toolbar reserves room for: the two-Y-axes form
+# "(x, y) = (x, y1) | (x, y2)" (a series on Y2 or a twin Y column, #402) with
+# generous magnitudes. Longer text is elided rather than growing the toolbar.
+READOUT_SIZING_TEXT = "(x, y) = (-1234.567, -1234.567) | (-1234.567, -1234.567)"
+
+
+class CursorReadoutLabel(QLabel):
+    """The toolbar's (x, y) mouse readout, sized independently of its text.
+
+    A plain `QLabel` reports a size hint that follows its text, so every enter,
+    move and leave across a length boundary re-laid-out the toolbar and resized
+    the canvas below it (#511). This label always reserves room for
+    `READOUT_SIZING_TEXT`, keeps to a single line, and elides what does not fit
+    (the full text stays available as the tooltip).
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__("", parent)
+        self._full_text = ""
+        # Left-aligned so the start of the text stays put while its length changes.
+        self.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Ignored)
+        self.setAccessibleName("Cursor position")
+
+    def setText(self, text: str) -> None:
+        """Show `text` on one line, elided to the reserved width."""
+        self._full_text = " ".join(text.splitlines())
+        metrics = self.fontMetrics()
+        width = self._text_width()
+        # Checked explicitly: elidedText() also elides text exactly `width` wide.
+        fits = metrics.horizontalAdvance(self._full_text) <= width
+        shown = self._full_text if fits else metrics.elidedText(self._full_text, Qt.TextElideMode.ElideRight, width)
+        super().setText(shown)
+        self.setToolTip(self._full_text if shown != self._full_text else "")
+
+    def sizeHint(self) -> QSize:
+        """The size needed for the widest readout, whatever is currently shown."""
+        margins = self.contentsMargins()
+        padding = 2 * self.margin()
+        return QSize(
+            self._text_width() + margins.left() + margins.right() + padding,
+            self.fontMetrics().height() + margins.top() + margins.bottom() + padding,
+        )
+
+    def minimumSizeHint(self) -> QSize:
+        """Same as `sizeHint`, so the label never shrinks with its text."""
+        return self.sizeHint()
+
+    def _text_width(self) -> int:
+        """Width in pixels reserved for the text, in the label's current font."""
+        return self.fontMetrics().horizontalAdvance(READOUT_SIZING_TEXT)
+
+
+class ChartNavigationToolbar(NavigationToolbar2QT):
+    """Matplotlib's pan/zoom/save toolbar with a layout-stable (x, y) readout (#511)."""
+
+    def __init__(self, canvas: FigureCanvas, parent: QWidget | None = None) -> None:
+        # Matplotlib's own readout label sizes itself to its text; add ours instead.
+        super().__init__(canvas, parent, coordinates=False)
+        self.readout_label = CursorReadoutLabel(self)
+        self.addWidget(self.readout_label)
+
+    def set_message(self, s: str) -> None:
+        """Show matplotlib's mouse-position (or pan/zoom status) message in the readout."""
+        self.readout_label.setText(s)
 
 
 CM_PER_INCH = 2.54
@@ -112,7 +180,7 @@ class ChartCanvas(FigureCanvas):
         """Set up zoom and pan functionality."""
         # Enable matplotlib's built-in navigation toolbar functionality
         # This provides zoom, pan, and reset functionality
-        self.toolbar = NavigationToolbar2QT(self, self.parent())
+        self.toolbar = ChartNavigationToolbar(self, self.parent())
 
         # Home/Back/Forward rely on matplotlib's own navigation stack, which
         # goes stale every time update_chart() clears and rebuilds the axes.
