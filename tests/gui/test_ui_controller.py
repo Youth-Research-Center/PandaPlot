@@ -56,6 +56,19 @@ def test_show_action_or_cancel_passes_the_action_label_to_add_button(mock_messag
     assert first_call_args[0] == "Create Project"
 
 
+@pytest.mark.parametrize(("chosen", "expected"), [
+    (("/tmp/plan", "PNG image (*.png)"), "/tmp/plan.png"),
+    (("/tmp/plan.PNG", "PNG image (*.png)"), "/tmp/plan.PNG"),
+    (("", ""), None),
+])
+@patch("pandaplot.gui.controllers.ui_controller.QFileDialog.getSaveFileName")
+def test_get_save_file_path_adds_a_missing_extension(mock_save, chosen, expected):
+    mock_save.return_value = chosen
+
+    assert UIController().get_save_file_path("Export Plan", "Plan.png", "PNG image (*.png)", ".png") == expected
+    assert mock_save.call_args.args[1:] == ("Export Plan", "Plan.png", "PNG image (*.png)")
+
+
 @pytest.mark.parametrize(("picked", "expected"), [
     (QColor(255, 0, 0), "#ff0000"),
     (QColor(255, 0, 0, 128), "#80ff0000"),
