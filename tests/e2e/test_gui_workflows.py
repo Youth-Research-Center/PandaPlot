@@ -218,6 +218,8 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
 
     rectangle_button = tab.toolbar.widgetForAction(tab.tool_actions[ToolMode.RECTANGLE])
     qtbot.mouseClick(rectangle_button, Qt.MouseButton.LeftButton)
+    tab.property_bar.width_input.setFocus()
+    qtbot.keyClick(tab.property_bar.width_input.focusProxy(), Qt.Key.Key_PageUp)
     viewport = tab.canvas.viewport()
     start = tab.canvas.mapFromScene(QPointF(100.0, 100.0))
     end = tab.canvas.mapFromScene(QPointF(300.0, 200.0))
@@ -228,6 +230,8 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
     [box] = sketch.active_layer.elements
     assert isinstance(box, RectangleElement)
     assert (box.width, box.height) == pytest.approx((200.0, 100.0), abs=1.0 / tab.canvas.zoom)
+    # PageUp in the property bar's width field: 2.0 plus ten 0.5 px steps.
+    assert box.stroke_width == 7.0
     assert tab.canvas.element_item(box.id) is not None
     assert sketch.layers[0].elements == []
     qtbot.mouseClick(tab.layer_panel.rows[sketch.layers[1].id].lock_button, Qt.MouseButton.LeftButton)

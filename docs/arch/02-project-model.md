@@ -109,6 +109,8 @@ Each element type keeps its geometry relative to its anchor, so moving an elemen
 
 Layers and elements are value data of the sketch, not project-tree items, so `Sketch` is a plain `Item` rather than an `ItemCollection`. Element dicts carry a `type` string; `SketchElement.from_dict()` looks it up in the module-level `ELEMENT_TYPES` dict, so a new element type registers by adding to that dict. Elements of an unknown type are skipped on load.
 
+Each element class lists its `GEOMETRY_FIELDS` (changed by move, resize and rotate) and its `STYLE_FIELDS`, the style fields it actually draws with: shapes and freehand strokes have stroke and fill, a line has no fill, and text has its colour (`stroke_color`) and font fields. `STYLE_VALUE_CHECKS` in `sketch_element.py` holds one value test per style field; colours are `#RGB`, `#RRGGBB` or `#AARRGGBB` strings, and `fill_color=None` means no fill.
+
 ### Folder (`models/project/items/folder.py`)
 
 Extends `ItemCollection` — a named container that can hold any item type, enabling nested project organization.

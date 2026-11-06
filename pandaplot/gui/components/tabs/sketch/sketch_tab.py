@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QLabel, QSizePolicy, QSplitter, QToolBar, QVBoxLay
 
 from pandaplot.gui.components.tabs.sketch.layer_manager_panel import LayerManagerPanel
 from pandaplot.gui.components.tabs.sketch.sketch_canvas import SketchCanvas
+from pandaplot.gui.components.tabs.sketch.sketch_property_bar import SketchPropertyBar
 from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import ProjectEvents
@@ -28,7 +29,8 @@ TOOL_BUTTONS: dict[ToolMode, tuple[str, str, str]] = {
 
 class SketchTab(PWidget):
     """Shows one Sketch on a SketchCanvas, with a toolbar to pick the tool,
-    fit the canvas and see the zoom level, and a layer panel beside the
+    fit the canvas and see the zoom level, a property bar below it for the
+    style of the selection or of new elements, and a layer panel beside the
     canvas that the toolbar's "Layers" button shows or hides.
 
     The canvas redraws itself whenever the sketch changes, so drawing,
@@ -64,7 +66,9 @@ class SketchTab(PWidget):
         self.splitter.setCollapsible(1, False)  # noqa: FBT003 - Qt method rejects keyword args
         self.splitter.setSizes([10_000, self.LAYER_PANEL_WIDTH])
         self.toolbar = self._build_toolbar()
+        self.property_bar = SketchPropertyBar(self.canvas, self.app_context, self)
         layout.addWidget(self.toolbar)
+        layout.addWidget(self.property_bar)
         layout.addWidget(self.splitter)
         self.canvas.tool_manager.tool_changed.connect(self._on_tool_changed)
         self.canvas.zoom_changed.connect(self._show_zoom)
@@ -122,36 +126,41 @@ class SketchTab(PWidget):
     @override
     def _apply_theme(self):
         tokens = self.app_context.get_manager(ThemeManager).get_design_tokens()
-        self.toolbar.setStyleSheet(f"""
+        stylesheet = f"""
             QToolBar {{
                 background-color: {tokens["surface_white"]};
                 border-bottom: 1px solid {tokens["border_panel"]};
                 padding: 4px;
                 spacing: 2px;
             }}
-            QToolBar QToolButton {{
+            QToolBar > QToolButton {{
                 color: {tokens["text_primary"]};
                 background-color: transparent;
                 border: 1px solid transparent;
                 padding: 4px 10px;
                 border-radius: {tokens["radius_control"]}px;
             }}
-            QToolBar QToolButton:hover {{
+            QToolBar > QToolButton:hover {{
                 background-color: {tokens["surface_inset"]};
             }}
-            QToolBar QToolButton:checked {{
+            QToolBar > QToolButton:checked {{
                 background-color: {tokens["accent_selected_bg"]};
                 border-color: {tokens["accent"]};
                 color: {tokens["accent_active_text"]};
             }}
-            QToolBar QToolButton:focus {{
+            QToolBar > QToolButton:disabled {{
+                color: {tokens["text_disabled"]};
+            }}
+            QToolBar > QToolButton:focus {{
                 border-color: {tokens["accent"]};
             }}
-            QToolBar QLabel {{
+            QToolBar > QLabel {{
                 color: {tokens["text_secondary"]};
                 padding: 0 6px;
             }}
-        """)
+        """
+        self.toolbar.setStyleSheet(stylesheet)
+        self.property_bar.setStyleSheet(stylesheet)
 
     @override
     def setup_event_subscriptions(self):

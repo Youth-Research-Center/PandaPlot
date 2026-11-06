@@ -8,6 +8,7 @@ from pandaplot.commands.project.sketch.reorder_sketch_layer_command import Reord
 from pandaplot.commands.project.sketch.set_active_sketch_layer_command import SetActiveSketchLayerCommand
 from pandaplot.commands.project.sketch.set_sketch_layer_properties_command import SetSketchLayerPropertiesCommand
 from pandaplot.commands.project.sketch.transform_sketch_elements_command import TransformSketchElementsCommand
+from pandaplot.commands.project.sketch.update_sketch_element_style_command import UpdateSketchElementStyleCommand
 
 __all__ = [
     "AddSketchElementCommand",
@@ -20,4 +21,5 @@ __all__ = [
     "SetActiveSketchLayerCommand",
     "SetSketchLayerPropertiesCommand",
     "TransformSketchElementsCommand",
+    "UpdateSketchElementStyleCommand",
 ]
