@@ -53,6 +53,12 @@ from pandaplot.models.chart.series_style.density import MAX_BANDWIDTH
 from pandaplot.models.chart.series_style.fill import FillStyleFields
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
+from pandaplot.models.chart.value_label_arrow import (
+    DEFAULT_VALUE_LABEL_ARROW_COLOR,
+    DEFAULT_VALUE_LABEL_ARROW_WIDTH,
+    ValueLabelArrowLineStyle,
+    ValueLabelArrowStyle,
+)
 from pandaplot.models.chart.value_label_subset import ValueLabelSubset
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.project.items.chart import DataSeries
@@ -120,6 +126,18 @@ VALUE_LABEL_SUBSET_OPTIONS = [
     ("Only min", ValueLabelSubset.MIN),
     ("Only max", ValueLabelSubset.MAX),
     ("Local min and max", ValueLabelSubset.LOCAL_EXTREMES),
+]
+
+# How a value label's leader line is drawn (#504).
+VALUE_LABEL_ARROW_STYLE_OPTIONS: list[tuple[str, object]] = [
+    ("Line", ValueLabelArrowStyle.LINE),
+    ("Arrow", ValueLabelArrowStyle.ARROW),
+    ("Filled arrow", ValueLabelArrowStyle.FILLED_ARROW),
+]
+VALUE_LABEL_ARROW_LINE_STYLE_OPTIONS: list[tuple[str, object]] = [
+    ("Solid", ValueLabelArrowLineStyle.SOLID),
+    ("Dashed", ValueLabelArrowLineStyle.DASHED),
+    ("Dotted", ValueLabelArrowLineStyle.DOTTED),
 ]
 
 
@@ -740,49 +758,77 @@ class StyleTab(QWidget):
         self.value_labels_arrow_toggle = ToggleSwitch()
         value_labels_layout.addWidget(self.value_labels_arrow_toggle, 2, 1)
 
+        self.value_labels_arrow_style_label = QLabel("Arrow style:")
+        value_labels_layout.addWidget(self.value_labels_arrow_style_label, 3, 0)
+        self.value_labels_arrow_style_control = ValueComboBox(VALUE_LABEL_ARROW_STYLE_OPTIONS)
+        value_labels_layout.addWidget(self.value_labels_arrow_style_control, 3, 1)
+
+        self.value_labels_arrow_match_color_label = QLabel("Match text color:")
+        value_labels_layout.addWidget(self.value_labels_arrow_match_color_label, 4, 0)
+        self.value_labels_arrow_match_color_toggle = ToggleSwitch()
+        value_labels_layout.addWidget(self.value_labels_arrow_match_color_toggle, 4, 1)
+
+        self.value_labels_arrow_color_label = QLabel("Arrow color:")
+        value_labels_layout.addWidget(self.value_labels_arrow_color_label, 5, 0)
+        self.value_labels_arrow_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
+        value_labels_layout.addWidget(self.value_labels_arrow_color_row, 5, 1)
+
+        self.value_labels_arrow_width_label = QLabel("Arrow width:")
+        value_labels_layout.addWidget(self.value_labels_arrow_width_label, 6, 0)
+        self.value_labels_arrow_width_slider = SliderWithSpinbox(minimum=0.1, maximum=5.0, decimals=1)
+        value_labels_layout.addWidget(self.value_labels_arrow_width_slider, 6, 1)
+
+        self.value_labels_arrow_line_style_label = QLabel("Arrow line style:")
+        value_labels_layout.addWidget(self.value_labels_arrow_line_style_label, 7, 0)
+        self.value_labels_arrow_line_style_control = ValueComboBox(
+            VALUE_LABEL_ARROW_LINE_STYLE_OPTIONS,
+            icons=[build_line_style_icon(LineStyleType(line_style), _default_tokens) for _, line_style in VALUE_LABEL_ARROW_LINE_STYLE_OPTIONS],
+        )
+        value_labels_layout.addWidget(self.value_labels_arrow_line_style_control, 7, 1)
+
         self.value_labels_offset_x_label = QLabel("Offset X:")
-        value_labels_layout.addWidget(self.value_labels_offset_x_label, 3, 0)
+        value_labels_layout.addWidget(self.value_labels_offset_x_label, 8, 0)
         self.value_labels_offset_x_spin = DecimalInput()
         self.value_labels_offset_x_spin.setRange(-100.0, 100.0)
         self.value_labels_offset_x_spin.setDecimals(1)
-        value_labels_layout.addWidget(self.value_labels_offset_x_spin, 3, 1)
+        value_labels_layout.addWidget(self.value_labels_offset_x_spin, 8, 1)
 
         self.value_labels_offset_y_label = QLabel("Offset Y:")
-        value_labels_layout.addWidget(self.value_labels_offset_y_label, 4, 0)
+        value_labels_layout.addWidget(self.value_labels_offset_y_label, 9, 0)
         self.value_labels_offset_y_spin = DecimalInput()
         self.value_labels_offset_y_spin.setRange(-100.0, 100.0)
         self.value_labels_offset_y_spin.setDecimals(1)
-        value_labels_layout.addWidget(self.value_labels_offset_y_spin, 4, 1)
+        value_labels_layout.addWidget(self.value_labels_offset_y_spin, 9, 1)
 
         self.value_labels_match_color_label = QLabel("Match series color:")
-        value_labels_layout.addWidget(self.value_labels_match_color_label, 5, 0)
+        value_labels_layout.addWidget(self.value_labels_match_color_label, 10, 0)
         self.value_labels_match_color_toggle = ToggleSwitch(checked=True)
-        value_labels_layout.addWidget(self.value_labels_match_color_toggle, 5, 1)
+        value_labels_layout.addWidget(self.value_labels_match_color_toggle, 10, 1)
 
         self.value_labels_text_color_label = QLabel("Text color:")
-        value_labels_layout.addWidget(self.value_labels_text_color_label, 6, 0)
+        value_labels_layout.addWidget(self.value_labels_text_color_label, 11, 0)
         self.value_labels_text_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
-        value_labels_layout.addWidget(self.value_labels_text_color_row, 6, 1)
+        value_labels_layout.addWidget(self.value_labels_text_color_row, 11, 1)
 
         self.value_labels_bg_enabled_label = QLabel("Background:")
-        value_labels_layout.addWidget(self.value_labels_bg_enabled_label, 7, 0)
+        value_labels_layout.addWidget(self.value_labels_bg_enabled_label, 12, 0)
         self.value_labels_bg_enabled_toggle = ToggleSwitch()
-        value_labels_layout.addWidget(self.value_labels_bg_enabled_toggle, 7, 1)
+        value_labels_layout.addWidget(self.value_labels_bg_enabled_toggle, 12, 1)
 
         self.value_labels_bg_color_label = QLabel("Background color:")
-        value_labels_layout.addWidget(self.value_labels_bg_color_label, 8, 0)
+        value_labels_layout.addWidget(self.value_labels_bg_color_label, 13, 0)
         self.value_labels_bg_color_row = ColorSwatchRow(STYLE_SWATCH_PALETTE)
-        value_labels_layout.addWidget(self.value_labels_bg_color_row, 8, 1)
+        value_labels_layout.addWidget(self.value_labels_bg_color_row, 13, 1)
 
         self.value_labels_bg_alpha_label = QLabel("Background alpha:")
-        value_labels_layout.addWidget(self.value_labels_bg_alpha_label, 9, 0)
+        value_labels_layout.addWidget(self.value_labels_bg_alpha_label, 14, 0)
         self.value_labels_bg_alpha_slider = SliderWithSpinbox(minimum=0.0, maximum=1.0, decimals=2)
-        value_labels_layout.addWidget(self.value_labels_bg_alpha_slider, 9, 1)
+        value_labels_layout.addWidget(self.value_labels_bg_alpha_slider, 14, 1)
 
         self.value_labels_subset_label = QLabel("Label points:")
-        value_labels_layout.addWidget(self.value_labels_subset_label, 10, 0)
+        value_labels_layout.addWidget(self.value_labels_subset_label, 15, 0)
         self.value_labels_subset_control = ValueComboBox(VALUE_LABEL_SUBSET_OPTIONS)
-        value_labels_layout.addWidget(self.value_labels_subset_control, 10, 1)
+        value_labels_layout.addWidget(self.value_labels_subset_control, 15, 1)
         subset_tooltip = (
             "Min and max are by Y value; if several points tie, the first one is used. "
             "With X labels, 'Only max' shows the X of the highest-Y point."
@@ -1036,7 +1082,12 @@ class StyleTab(QWidget):
         self.value_labels_enabled_toggle.toggled.connect(self._on_value_labels_enabled_toggled)
         self.value_labels_mode_control.currentValueChanged.connect(self._on_field_changed)
         self.value_labels_subset_control.currentValueChanged.connect(self._on_field_changed)
-        self.value_labels_arrow_toggle.toggled.connect(self._on_field_changed)
+        self.value_labels_arrow_toggle.toggled.connect(self._on_value_labels_arrow_toggled)
+        self.value_labels_arrow_style_control.currentValueChanged.connect(self._on_field_changed)
+        self.value_labels_arrow_match_color_toggle.toggled.connect(self._on_value_labels_arrow_match_color_toggled)
+        self.value_labels_arrow_color_row.colorChanged.connect(self._on_field_changed)
+        self.value_labels_arrow_width_slider.valueChanged.connect(self._on_field_changed)
+        self.value_labels_arrow_line_style_control.currentValueChanged.connect(self._on_field_changed)
         self.value_labels_offset_x_spin.valueChanged.connect(self._on_field_changed)
         self.value_labels_offset_y_spin.valueChanged.connect(self._on_field_changed)
         self.value_labels_match_color_toggle.toggled.connect(self._on_value_labels_match_color_toggled)
@@ -2044,6 +2095,16 @@ class StyleTab(QWidget):
         self._update_value_labels_controls_visibility()
         self._on_field_changed()
 
+    def _on_value_labels_arrow_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Value Labels 'Arrow' toggle."""
+        self._update_value_labels_controls_visibility()
+        self._on_field_changed()
+
+    def _on_value_labels_arrow_match_color_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
+        """Handle the Value Labels 'Match text color' toggle for the arrow."""
+        self._update_value_labels_controls_visibility()
+        self._on_field_changed()
+
     def _on_value_labels_match_color_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
         """Handle the Value Labels 'Match series color' toggle."""
         self._update_value_labels_controls_visibility()
@@ -2059,7 +2120,9 @@ class StyleTab(QWidget):
         is on -- hidden, not just greyed, when off (same convention as
         _update_fill_controls_visibility/_update_band_controls_visibility).
         Mode/arrow/offset are further hidden for a target whose style class
-        doesn't declare them (Bar -- see BarSeriesStyle). The text-color
+        doesn't declare them (Bar -- see BarSeriesStyle). The arrow's own
+        style/color/width/line-style controls show only while 'Arrow' is on,
+        and its color swatch only while 'Match text color' is off. The text-color
         swatch is hidden while 'Match series color' is checked, and the
         background color/alpha are hidden until 'Background' is checked
         (same show_color convention as Marker/Fill/Confidence-Band)."""
@@ -2077,6 +2140,18 @@ class StyleTab(QWidget):
             self.value_labels_subset_label, self.value_labels_subset_control,
         ):
             widget.setVisible(supports_mode)
+
+        show_arrow_options = supports_mode and self.value_labels_arrow_toggle.isChecked()
+        for widget in (
+            self.value_labels_arrow_style_label, self.value_labels_arrow_style_control,
+            self.value_labels_arrow_match_color_label, self.value_labels_arrow_match_color_toggle,
+            self.value_labels_arrow_width_label, self.value_labels_arrow_width_slider,
+            self.value_labels_arrow_line_style_label, self.value_labels_arrow_line_style_control,
+        ):
+            widget.setVisible(show_arrow_options)
+        show_arrow_color = show_arrow_options and not self.value_labels_arrow_match_color_toggle.isChecked()
+        self.value_labels_arrow_color_label.setVisible(show_arrow_color)
+        self.value_labels_arrow_color_row.setVisible(show_arrow_color)
 
         self.value_labels_match_color_label.setVisible(enabled)
         self.value_labels_match_color_toggle.setVisible(enabled)
@@ -2217,6 +2292,14 @@ class StyleTab(QWidget):
             style.value_label_offset_x = self.value_labels_offset_x_spin.value()
             style.value_label_offset_y = self.value_labels_offset_y_spin.value()
             style.value_label_subset_mode = self.value_labels_subset_control.currentValue()
+            style.value_label_arrow_style = ValueLabelArrowStyle.coerce(self.value_labels_arrow_style_control.currentValue())
+            # "" == the arrow takes the label's text color.
+            style.value_label_arrow_color = (
+                "" if self.value_labels_arrow_match_color_toggle.isChecked()
+                else self.value_labels_arrow_color_row.currentColor()
+            )
+            style.value_label_arrow_width = self.value_labels_arrow_width_slider.value()
+            style.value_label_arrow_line_style = ValueLabelArrowLineStyle.coerce(self.value_labels_arrow_line_style_control.currentValue())
         # Text/background color+alpha: all three value-label-capable types.
         # "" == match series color (text) / no background box (bg) -- same
         # "" -sentinel convention as marker_color/fill_color.
@@ -2443,6 +2526,26 @@ class StyleTab(QWidget):
             self.value_labels_bg_enabled_toggle.setChecked(checked=value_label_bg_color != "")
             self.value_labels_bg_enabled_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
             self.value_labels_bg_alpha_slider.setValue(getattr(style, "value_label_bg_alpha", 1.0))
+
+            self.value_labels_arrow_style_control.setCurrentValue(
+                ValueLabelArrowStyle.coerce(getattr(style, "value_label_arrow_style", ValueLabelArrowStyle.LINE))
+            )
+            # A label with no text color of its own is drawn in the marker color for Scatter and the line
+            # color otherwise (see render_scatter_series / render_line_series); the arrow follows the label.
+            inherited_label_color = (marker_color or color) if series.series_type == SeriesType.SCATTER else color
+            value_label_arrow_color = getattr(style, "value_label_arrow_color", DEFAULT_VALUE_LABEL_ARROW_COLOR)
+            self.value_labels_arrow_color_row.setCurrentColor(
+                value_label_arrow_color or value_label_text_color or inherited_label_color
+            )
+            self.value_labels_arrow_match_color_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+            self.value_labels_arrow_match_color_toggle.setChecked(checked=value_label_arrow_color == "")
+            self.value_labels_arrow_match_color_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
+            self.value_labels_arrow_width_slider.setValue(
+                getattr(style, "value_label_arrow_width", DEFAULT_VALUE_LABEL_ARROW_WIDTH)
+            )
+            self.value_labels_arrow_line_style_control.setCurrentValue(
+                ValueLabelArrowLineStyle.coerce(getattr(style, "value_label_arrow_line_style", ValueLabelArrowLineStyle.SOLID))
+            )
 
             self._update_value_labels_controls_visibility()
 
@@ -2968,6 +3071,12 @@ class StyleTab(QWidget):
         self.error_direction_control.set_tokens(tokens)
         self.error_color_row.set_tokens(tokens)
         self.twin_y_color_row.set_tokens(tokens)
+        self.value_labels_arrow_match_color_toggle.set_tokens(tokens)
+        self.value_labels_arrow_color_row.set_tokens(tokens)
+        self.value_labels_arrow_width_slider.set_tokens(tokens)
+        for _index in range(self.value_labels_arrow_line_style_control.count()):
+            _style = self.value_labels_arrow_line_style_control.itemData(_index)
+            self.value_labels_arrow_line_style_control.setItemIcon(_index, build_line_style_icon(LineStyleType(_style), tokens))
         self.error_match_line_toggle.set_tokens(tokens)
         self.error_cap_size_slider.set_tokens(tokens)
         self.vector_card.set_tokens(tokens)

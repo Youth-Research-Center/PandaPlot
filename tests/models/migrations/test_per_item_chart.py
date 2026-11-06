@@ -459,6 +459,9 @@ def test_style_field_names_match_the_real_style_dataclasses():
         "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
         "value_label_bg_color", "value_label_bg_alpha",
         "value_label_subset_mode",
+        # #504 -- value-label arrow styling.
+        "value_label_arrow_style", "value_label_arrow_color",
+        "value_label_arrow_width", "value_label_arrow_line_style",
         # #280/#433 -- partial-range fields and section-list replacement.
         "fill_range_enabled", "fill_range_start", "fill_range_end", "fill_sections",
         # #402 -- line/scatter twin Y column.

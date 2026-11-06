@@ -320,6 +320,9 @@ class Chart(Item):
             "value_label_offset_x", "value_label_offset_y", "value_label_text_color",
             "value_label_bg_color", "value_label_bg_alpha",
             "value_label_subset_mode",
+            # Leader-line styling (#504), shared by Line and Scatter.
+            "value_label_arrow_style", "value_label_arrow_color",
+            "value_label_arrow_width", "value_label_arrow_line_style",
             # Area fill: Line/Scatter share the full FillStyleFields set.
             "fill_enabled", "fill_color", "fill_alpha", "fill_orientation", "fill_base",
             "fill_to_index", "fill_range_enabled", "fill_sections",

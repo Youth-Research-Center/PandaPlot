@@ -14,9 +14,18 @@ already positions the label without any offset/arrow concept.
 """
 import numpy as np
 import pandas as pd
+from matplotlib.colors import is_color_like
 from numpy.typing import ArrayLike
 from pandas.api.types import is_datetime64_any_dtype, is_numeric_dtype
 
+from pandaplot.gui.components.tabs.chart.style_maps import ARROWSTYLE_MAP, LINESTYLE_MAP
+from pandaplot.models.chart.value_label_arrow import (
+    DEFAULT_VALUE_LABEL_ARROW_COLOR,
+    DEFAULT_VALUE_LABEL_ARROW_WIDTH,
+    ValueLabelArrowLineStyle,
+    ValueLabelArrowStyle,
+    coerce_arrow_width,
+)
 from pandaplot.models.chart.value_label_subset import ValueLabelSubset
 
 
@@ -112,6 +121,34 @@ def resolve_label_indices(x_data: ArrayLike, y_data: ArrayLike, *, subset_mode: 
     return indices
 
 
+def _arrow_properties(
+    style: str, color: str, width: float, line_style: str, *, text_color: str, alpha: float,
+) -> dict:
+    """The `arrowprops` for a label's leader line.
+
+    Args:
+        style: A ValueLabelArrowStyle or its string value.
+        color: The arrow color; empty or not a color means `text_color`.
+        width: The line width in points; a width that is not a finite positive number draws the default width.
+        line_style: A ValueLabelArrowLineStyle or its string value.
+        text_color: The label's text color, used when `color` cannot be.
+        alpha: The effective alpha of the series.
+
+    Returns:
+        Properties for `Axes.annotate(arrowprops=...)`.
+    """
+    arrow_color = color if is_color_like(color) else text_color
+    properties = {
+        "arrowstyle": ARROWSTYLE_MAP[ValueLabelArrowStyle.coerce(style)],
+        "linewidth": coerce_arrow_width(width),
+        "linestyle": LINESTYLE_MAP[ValueLabelArrowLineStyle.coerce(line_style)],
+        "alpha": alpha,
+    }
+    if arrow_color:
+        properties["color"] = arrow_color
+    return properties
+
+
 def annotate_point_labels(
     axes, x_data, y_data, *,
     fontsize: float = 8.0,
@@ -124,6 +161,10 @@ def annotate_point_labels(
     bg_alpha: float = 1.0,
     alpha: float = 1.0,
     subset_mode: str = ValueLabelSubset.ALL,
+    arrow_style: str = ValueLabelArrowStyle.LINE,
+    arrow_color: str = DEFAULT_VALUE_LABEL_ARROW_COLOR,
+    arrow_width: float = DEFAULT_VALUE_LABEL_ARROW_WIDTH,
+    arrow_line_style: str = ValueLabelArrowLineStyle.SOLID,
 ) -> None:
     """Label each (x, y) point per `mode` ("x", "y", or "xy"), offset from
     the point by (offset_x, offset_y) points.
@@ -137,12 +178,22 @@ def annotate_point_labels(
     `subset_mode` chooses which points are labeled; see
     resolve_label_indices(). The default labels every drawable point.
 
+    `show_arrow` draws a leader line from the point to its label, styled by
+    `arrow_style` (a ValueLabelArrowStyle or its string value),
+    `arrow_color`, `arrow_width` and `arrow_line_style` (a
+    ValueLabelArrowLineStyle or its string value). An `arrow_color` that is
+    empty or not a color makes the arrow take the label's `text_color`.
+    Unknown style values draw the default plain, solid line.
+
     Intended for the small datasets the issue this implements (#125) calls
     out (lab reports, a handful of points) -- no cap on point count, since a
     series with too many points to usefully label this way is one a user
     wouldn't turn this on for in the first place.
     """
-    arrowprops = {"arrowstyle": "-", "alpha": alpha} if show_arrow else None
+    arrowprops = (
+        _arrow_properties(arrow_style, arrow_color, arrow_width, arrow_line_style, text_color=text_color, alpha=alpha)
+        if show_arrow else None
+    )
     bbox = (
         {"boxstyle": "round,pad=0.2", "facecolor": bg_color, "edgecolor": "none", "alpha": bg_alpha * alpha}
         if bg_color else None

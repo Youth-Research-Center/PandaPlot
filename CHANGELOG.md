@@ -18,6 +18,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
 
 ### Added
+- The leader line of a value label on Line and Scatter series can be styled: choose a plain line, an open arrowhead or a filled arrowhead at the point, its color (or match the label text), width and line style (solid, dashed, dotted) under the Arrow option in the Style tab (#504). Existing charts keep their thin black line.
 - Sketch export (#364): **Export…** in a sketch's toolbar writes PNG (optionally transparent), JPEG, SVG or PDF, for the whole canvas or just the drawn elements with padding, at a chosen scale for images, and with the layers you pick.
 - Chart types are organised into categories (Line & Scatter, Bar & Pie, Distribution, Fields & Grids, 3-D). The New Chart wizard and the chart tab pick a category from a dropdown and then show only that category's types (#494).
 - Value labels on Line and Scatter series can also be limited to local minima and maxima (the peaks and valleys of a curve) with the new "Local min and max" choice in the "Label points" option.
