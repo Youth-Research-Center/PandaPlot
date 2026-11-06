@@ -14,9 +14,17 @@ from pandaplot.commands.project.image.create_image_gallery_command import (
     CreateImageGalleryCommand,
 )
 from pandaplot.gui.controllers.ui_controller import UIController
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import ImageGallery
 from pandaplot.models.state import AppContext, AppState
+
+
+def _removed_item_ids(app_context) -> list[str | None]:
+    """item_id of every PROJECT_ITEM_REMOVED event emitted so far (TabContainer closes tabs by it)."""
+    emit = app_context.get_app_state().event_bus.emit
+    return [payload.get("item_id") for event, payload in (c.args for c in emit.call_args_list)
+            if event == ProjectEvents.PROJECT_ITEM_REMOVED]
 
 
 class TestCreateImageGalleryCommand:
@@ -46,6 +54,7 @@ class TestCreateImageGalleryCommand:
 
         project = app_context_with_project.get_app_state().current_project
         assert project.find_item(gallery_id) is None
+        assert _removed_item_ids(app_context_with_project) == [gallery_id]
 
     def test_redo_restores_created_gallery(self, app_context_with_project):
         command = CreateImageGalleryCommand(app_context_with_project, gallery_name="Trip")

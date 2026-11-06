@@ -152,7 +152,7 @@ def test_declined_confirmation_retains_no_snapshot():
     project.add_item(folder)
     command = DeleteItemCommand(ctx, folder.id)
     assert command.execute() is CommandResult.FAILURE
-    assert command._deleted_collection is None
+    assert command._deleted_snapshot is None
     assert command.deleted_item_data is None
     assert project.find_item("folder") is folder
 
@@ -164,7 +164,7 @@ def test_failed_remove_retains_no_snapshot(monkeypatch):
     monkeypatch.setattr(project, "remove_item", Mock(side_effect=RuntimeError("boom")))
     command = DeleteItemCommand(ctx, folder.id, confirm=False)
     assert command.execute() is CommandResult.FAILURE
-    assert command._deleted_collection is None
+    assert command._deleted_snapshot is None
     assert command.deleted_item_data is None
 
 
@@ -297,3 +297,36 @@ def test_deleting_collection_emits_removed_event_for_every_descendant():
     assert command.redo() is CommandResult.SUCCESS
     assert sorted(_removed_ids(state)) == ["deep", "folder", "nested", "note"]
     assert _removed_ids(state)[-1] == "folder"
+
+
+def test_standalone_dataset_undo_restores_data_across_redo():
+    ctx, _, project = _make_delete_setup()
+    original = pd.DataFrame({"x": [1.0, 2.0, 3.0], "y": [4.0, 5.0, 6.0]})
+    dataset = Dataset(id="data", name="Data", data=original.copy())
+    project.add_item(dataset)
+    column_ids = dict(dataset.column_ids)
+    command = DeleteItemCommand(ctx, dataset.id, confirm=False)
+    assert command.execute() is CommandResult.SUCCESS
+    for _ in range(2):
+        assert command.undo() is CommandResult.SUCCESS
+        restored = project.find_item("data")
+        assert isinstance(restored, Dataset)
+        assert restored.data is not None
+        pd.testing.assert_frame_equal(restored.data, original)
+        assert dict(restored.column_ids) == column_ids
+        assert command.redo() is CommandResult.SUCCESS
+        assert project.find_item("data") is None
+
+
+def test_standalone_image_undo_restores_bytes():
+    ctx, _, project = _make_delete_setup()
+    image = Image(id="image")
+    image.set_bytes(b"image payload")
+    project.add_item(image)
+    command = DeleteItemCommand(ctx, image.id, confirm=False)
+    assert command.execute() is CommandResult.SUCCESS
+    for _ in range(2):
+        assert command.undo() is CommandResult.SUCCESS
+        assert project.find_item("image").get_bytes() == b"image payload"
+        assert command.redo() is CommandResult.SUCCESS
+        assert project.find_item("image") is None

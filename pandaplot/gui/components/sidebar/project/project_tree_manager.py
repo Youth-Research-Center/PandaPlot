@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
 )
 
+from pandaplot.gui.components.sidebar.project.project_tree import CONTAINER_TYPES
 from pandaplot.models.project.visitors import ProjectTreeBuilder
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.utils.item_labels import item_label
@@ -94,7 +95,7 @@ class ProjectTreeManager:
         def check_item(item):
             if item.isExpanded():
                 item_data = item.data(0, Qt.ItemDataRole.UserRole)
-                if item_data and item_data.get("type") in ["project", "folder", "imagegallery"]:
+                if item_data and (item_data.get("type") == "project" or item_data.get("type") in CONTAINER_TYPES):
                     expanded.add(item_data.get("id", ""))
 
             # Check children
@@ -145,7 +146,7 @@ class ProjectTreeManager:
         if not selected_info:
             return None
 
-        if selected_info["type"] in ("folder", "imagegallery"):
+        if selected_info["type"] in CONTAINER_TYPES:
             return selected_info["id"]
         elif selected_info["type"] == "project":
             return None  # Root level

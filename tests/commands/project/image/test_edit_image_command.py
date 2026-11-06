@@ -165,3 +165,68 @@ class TestEditImageCommand:
         # And a subsequent undo must actually be able to restore it.
         assert edit_cmd.undo() is CommandResult.SUCCESS
         assert image.get_bytes() == old_data
+
+
+def _snapshot_image(app_context, *, render_dpi):
+    gallery_cmd = CreateImageGalleryCommand(app_context, gallery_name="Gallery")
+    gallery_cmd.execute()
+    project = app_context.get_app_state().current_project
+    image = Image(id="img-dpi", name="Snap", width=20, height=20, render_dpi=render_dpi)
+    image.set_bytes(_make_png_bytes(20, 20))
+    project.add_item(image, parent_id=gallery_cmd.created_gallery_id)
+    return image
+
+
+def _edit(app_context, **kwargs):
+    return EditImageCommand(
+        app_context, image_id="img-dpi", new_bytes=_make_png_bytes(10, 15), new_width=10, new_height=15,
+        new_ext="png", **kwargs,
+    )
+
+
+def test_edit_sets_the_render_dpi_and_undo_redo_restore_it(app_context_with_project):
+    image = _snapshot_image(app_context_with_project, render_dpi=150)
+    command = _edit(app_context_with_project, new_render_dpi=300)
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert image.render_dpi == 300
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert image.render_dpi == 150
+
+    assert command.redo() is CommandResult.SUCCESS
+    assert image.render_dpi == 300
+
+
+def test_edit_can_clear_the_render_dpi_back_to_the_chart_default(app_context_with_project):
+    image = _snapshot_image(app_context_with_project, render_dpi=300)
+    command = _edit(app_context_with_project, new_render_dpi=None)
+
+    command.execute()
+    assert image.render_dpi is None
+
+    command.undo()
+    assert image.render_dpi == 300
+
+
+def test_edit_leaves_the_render_dpi_alone_by_default(app_context_with_project):
+    image = _snapshot_image(app_context_with_project, render_dpi=150)
+    command = _edit(app_context_with_project)
+
+    command.execute()
+    assert image.render_dpi == 150
+    command.undo()
+    assert image.render_dpi == 150
+    command.redo()
+    assert image.render_dpi == 150
+
+
+def test_failed_edit_does_not_change_the_render_dpi(app_context_with_project):
+    image = _snapshot_image(app_context_with_project, render_dpi=150)
+    command = EditImageCommand(
+        app_context_with_project, image_id="missing-image", new_bytes=_make_png_bytes(10, 15),
+        new_width=10, new_height=15, new_ext="png", new_render_dpi=300,
+    )
+
+    assert command.execute() is CommandResult.FAILURE
+    assert image.render_dpi == 150

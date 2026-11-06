@@ -9,7 +9,6 @@ import sys
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.tabs.chart.chart_canvas import ChartCanvas
@@ -88,11 +87,7 @@ def test_a_constant_density_series_falls_back_to_the_sample_preview():
 def test_density_seeds_the_values_column_as_x_and_density_as_y():
     wizard = _make_wizard(initial_title="Chart from Sales", initial_dataset_id="ds-1",
                           initial_column_ids=["col-rev"])
-    density_row = next(
-        row for row in range(wizard.type_page.type_list.count())
-        if wizard.type_page.type_list.item(row).data(Qt.ItemDataRole.UserRole) == "density"
-    )
-    wizard.type_page.type_list.setCurrentRow(density_row)
+    wizard.type_page.select_chart_type("density")
     wizard.next()  # Type -> Data: pre-selection fills the Values column
     wizard.next()  # Data -> Labels
 

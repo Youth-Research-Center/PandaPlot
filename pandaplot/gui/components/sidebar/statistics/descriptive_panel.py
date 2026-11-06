@@ -23,7 +23,7 @@ from pandaplot.commands.project.dataset.descriptive_stats_command import Descrip
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
-from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
+from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -184,10 +184,6 @@ class DescriptiveStatsPanel(SidebarPanel):
         executed = self.app_context.get_command_executor().execute_command(command)
         if executed and command.result_dataset_id:
             self.last_result = command.result
-            self.publish_event(DatasetEvents.DATASET_CREATED, {
-                "dataset_id": command.result_dataset_id,
-                "source": "descriptive_stats_panel",
-            })
             name = command.result.result_name() if command.result else "results"
             report = command.result.report() if command.result else ""
             self.results_text.setPlainText(
@@ -213,9 +209,13 @@ class DescriptiveStatsPanel(SidebarPanel):
         df = self.current_dataset.data
         return [str(c) for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
 
-    def _refresh_inputs(self):
-        """Rebuild the column list against the current dataset's columns."""
-        selected = set(self._selected_columns())
+    def _refresh_inputs(self, *, keep: list[str] | None = None) -> None:
+        """Rebuild the column list against the current dataset's columns.
+
+        Args:
+            keep: Columns to reselect; defaults to the current selection. All columns are selected when none are kept.
+        """
+        selected = set(self._selected_columns() if keep is None else keep)
         self.column_list.clear()
         columns = self._numeric_columns()
         self.column_list.addItems(columns)
@@ -246,6 +246,7 @@ class DescriptiveStatsPanel(SidebarPanel):
             (UIEvents.TAB_CHANGED, self.on_tab_changed),
             (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_columns_changed),
             (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_columns_changed),
+            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_columns_changed),
         ])
 
     def on_tab_changed(self, event_data):
@@ -265,9 +266,16 @@ class DescriptiveStatsPanel(SidebarPanel):
             self.current_dataset_id = None
             self._refresh_inputs()
 
-    def on_columns_changed(self, event_data):
-        if event_data.get("dataset_id") == self.current_dataset_id:
-            self._refresh_inputs()
+    def on_columns_changed(self, event_data: dict) -> None:
+        """Rebuild the column list after a column is added, removed or renamed, keeping the user's columns."""
+        if event_data.get("dataset_id") != self.current_dataset_id:
+            return
+        kept = self._follow_column_rename(self._selected_columns(), event_data)
+        self._refresh_inputs(keep=kept)
+        if self._column_selection_changed(kept, self._selected_columns()):
+            # A computed column is gone (or an empty selection became select-all),
+            # so the shown result no longer matches the selection.
+            self.clear()
 
     # ------------------------------------------------------------------
     # Helpers / theming

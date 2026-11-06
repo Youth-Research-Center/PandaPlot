@@ -7,7 +7,15 @@ from pandaplot.commands.project.image.copy_images_command import CopyImagesComma
 from pandaplot.commands.project.image.create_image_gallery_command import (
     CreateImageGalleryCommand,
 )
+from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Image
+
+
+def _removed_item_ids(app_context) -> list[str | None]:
+    """item_id of every PROJECT_ITEM_REMOVED event emitted so far (TabContainer closes tabs by it)."""
+    emit = app_context.get_app_state().event_bus.emit
+    return [payload.get("item_id") for event, payload in (c.args for c in emit.call_args_list)
+            if event == ProjectEvents.PROJECT_ITEM_REMOVED]
 
 
 @pytest.fixture
@@ -168,3 +176,4 @@ class TestCopyImagesCommandUndo:
 
         assert project.find_item(copy_id) is None
         assert project.find_item(original.id) is not None, "original must survive undo"
+        assert _removed_item_ids(app_context_with_project) == [copy_id]

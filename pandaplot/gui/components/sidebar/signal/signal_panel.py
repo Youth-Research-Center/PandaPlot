@@ -28,6 +28,8 @@ from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
+STALE_RUN_MESSAGE = "Inputs changed while the analysis was running. Click Run to analyse the current settings."
+
 
 class SignalPanel(SidebarPanel):
     """Sidebar panel for signal analysis."""
@@ -202,15 +204,24 @@ class SignalPanel(SidebarPanel):
             if pd.api.types.is_numeric_dtype(df[c])
         ]
 
-    def _refresh_columns(self):
+    def _refresh_columns(self, *, keep: str | None = None) -> None:
+        """Rebuild the column picker from the current dataset.
+
+        Args:
+            keep: Column to keep selected if it still exists; otherwise the first column is selected.
+        """
         self.column_combo.clear()
         self.column_combo.addItems(
             self._numeric_columns()
         )
+        if keep and self.column_combo.findText(keep) >= 0:
+            self.column_combo.setCurrentText(keep)
 
-        self.run_btn.setEnabled(
-            self.column_combo.count() > 0
-        )
+        self._update_run_enabled()
+
+    def _update_run_enabled(self) -> None:
+        """Enable Run only when a column is available and no Run/Add command is in flight."""
+        self.run_btn.setEnabled(self._pending_command is None and self.column_combo.count() > 0)
 
     def on_tab_changed(self, event_data):
         if event_data.get("tab_type") == "dataset":
@@ -240,9 +251,30 @@ class SignalPanel(SidebarPanel):
             self.current_dataset_id = None
             self._refresh_columns()
 
-    def on_columns_changed(self, event_data):
-        if event_data.get("dataset_id") == self.current_dataset_id:
-            self._refresh_columns()
+    def on_columns_changed(self, event_data: dict) -> None:
+        """Rebuild the column picker after a column is added, removed or renamed, keeping the user's column."""
+        if event_data.get("dataset_id") != self.current_dataset_id:
+            return
+        kept = self._follow_column_rename([self.column_combo.currentText()], event_data)
+        self._refresh_columns(keep=kept[0])
+        self._forget_last_run_if_column_changed(event_data)
+        if self._column_selection_changed(kept, [self.column_combo.currentText()]):
+            # The previewed column is gone, so its result no longer matches the picker.
+            self.clear()
+
+    def _forget_last_run_if_column_changed(self, event_data: dict) -> None:
+        """Make Add recompute when the cached run's column was renamed or removed.
+
+        The cached parameters and the result's name ("FFT [a]") identify the
+        column by name, so after a rename or removal a different column could
+        take that name and receive the cached result.
+        """
+        if self._last_run_params is None:
+            return
+        column = self._last_run_params[2]
+        renamed = "old_name" in event_data and str(event_data["old_name"]) == column
+        if renamed or column not in self._numeric_columns():
+            self._last_run_params = None
 
     def on_dataset_data_changed(self, event_data):
         dataset_id = event_data.get("dataset_id") if isinstance(event_data, dict) else getattr(event_data, "dataset_id", None)
@@ -324,12 +356,12 @@ class SignalPanel(SidebarPanel):
         if command is None:
             return
 
-        # Tab/column navigation stays enabled while a preview computes in
-        # the background -- capture what was actually requested so a stale
-        # completion (user switched dataset/column mid-flight) can be
-        # discarded instead of overwriting whatever the panel now shows.
+        # Tab/column/method navigation stays enabled while a preview computes
+        # in the background -- capture what was actually requested so a stale
+        # completion (dataset, column, analysis method or its parameters
+        # changed mid-flight) can be discarded instead of overwriting
+        # whatever the panel now shows.
         dispatch_params = self._get_dispatch_params()
-        dispatch_context = (self.current_dataset_id, self.column_combo.currentText())
 
         self.run_btn.setEnabled(False)
         self.add_btn.setEnabled(False)
@@ -338,14 +370,17 @@ class SignalPanel(SidebarPanel):
 
         def _on_complete(result, error):
             self.busy_spinner.stop()
-            self.run_btn.setEnabled(True)
             self._pending_command = None
+            self._update_run_enabled()
 
-            current_context = (self.current_dataset_id, self.column_combo.currentText())
-            if current_context != dispatch_context:
+            if self._get_dispatch_params() != dispatch_params:
                 self.logger.info(
-                    "Discarding stale signal analysis preview: dataset/column changed."
+                    "Discarding stale signal analysis preview: dispatch parameters changed."
                 )
+                # Replace the previous result too: it no longer describes the current inputs.
+                self.clear()
+                if self._get_dispatch_params() is not None:  # there is something to re-run
+                    self.results_text.setText(STALE_RUN_MESSAGE)
                 return
 
             if error is not None:
@@ -366,7 +401,17 @@ class SignalPanel(SidebarPanel):
                 self.add_btn.setEnabled(False)
                 self.results_text.setText(f"❌ Analysis failed:\n{e}")
 
-        command.run_analysis_async(_on_complete)
+        try:
+            command.run_analysis_async(_on_complete)
+        except Exception as e:  # a failed dispatch must release the busy state, or Run stays dead
+            self.logger.exception("Failed to start signal analysis")
+            self.busy_spinner.stop()
+            self._pending_command = None
+            self._update_run_enabled()
+            self.last_result = None
+            self._last_run_params = None
+            self.add_btn.setEnabled(False)
+            self.results_text.setText(f"❌ Analysis failed:\n{e}")
 
 
     @staticmethod
@@ -442,8 +487,7 @@ class SignalPanel(SidebarPanel):
         # itself already happened for real (the dataset was created in the
         # project regardless of what the panel shows by the time it
         # completes), but the *display* of that outcome belongs to whatever
-        # dataset/column is now selected -- skip it if that's changed.
-        dispatch_context = (self.current_dataset_id, self.column_combo.currentText())
+        # dataset/column/method is now selected -- skip it if that's changed.
 
         self.run_btn.setEnabled(False)
         self.add_btn.setEnabled(False)
@@ -452,13 +496,12 @@ class SignalPanel(SidebarPanel):
 
         def _on_complete(result):
             self.busy_spinner.stop()
-            self.run_btn.setEnabled(True)
             self._pending_command = None
+            self._update_run_enabled()
 
-            current_context = (self.current_dataset_id, self.column_combo.currentText())
-            if current_context != dispatch_context:
+            if self._get_dispatch_params() != current_params:
                 self.logger.info(
-                    "Not displaying signal analysis commit result: dataset/column changed."
+                    "Not displaying signal analysis commit result: dispatch parameters changed."
                 )
                 return
 
@@ -474,9 +517,9 @@ class SignalPanel(SidebarPanel):
         if not executor.execute_command(command):
             # Synchronous validation failure -- on_complete never fires.
             self.busy_spinner.stop()
-            self.run_btn.setEnabled(True)
-            self.add_btn.setEnabled(True)
             self._pending_command = None
+            self._update_run_enabled()
+            self.add_btn.setEnabled(True)
 
     def clear(self):
         if hasattr(self, "results_text"):
@@ -486,7 +529,10 @@ class SignalPanel(SidebarPanel):
         self._last_run_params = None
         if hasattr(self, "add_btn"):
             self.add_btn.setEnabled(False)
-        if hasattr(self, "busy_spinner"):
+        # Keep the spinner running while a Run/Add command is still in flight
+        # (clear() also runs on every analysis-method change); its completion
+        # callback stops it once _pending_command is released.
+        if self._pending_command is None and hasattr(self, "busy_spinner"):
             self.busy_spinner.stop()
 
     @override
@@ -542,6 +588,7 @@ class SignalPanel(SidebarPanel):
                 DatasetOperationEvents.DATASET_COLUMN_REMOVED,
                 self.on_columns_changed
             ),
+            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_columns_changed),
             (
                 DatasetEvents.DATASET_DATA_CHANGED,
                 self.on_dataset_data_changed

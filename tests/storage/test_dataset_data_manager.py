@@ -173,3 +173,16 @@ def test_round_trip_of_a_dataset_saved_before_formula_columns_existed(tmp_path):
     loaded = _round_trip(dataset, tmp_path)
 
     assert loaded.formula_columns == {}
+
+
+def test_round_trip_preserves_timestamps_and_metadata(tmp_path):
+    dataset = Dataset(name="ds", data=pd.DataFrame({"x": [1, 2]}))
+    dataset.created_at = "2024-01-02T03:04:05"
+    dataset.modified_at = "2024-02-03T04:05:06"
+    dataset.metadata = {"note": "kept"}
+
+    loaded = _round_trip(dataset, tmp_path)
+
+    assert loaded.created_at == "2024-01-02T03:04:05"
+    assert loaded.modified_at == "2024-02-03T04:05:06"
+    assert loaded.metadata == {"note": "kept"}

@@ -1,10 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar
 from zipfile import ZipFile
 
 from pandaplot.models.project.items.item import Item
-
-TItem = TypeVar("TItem", bound=Item)
 
 
 class ItemDataManager[TItem: Item](ABC):

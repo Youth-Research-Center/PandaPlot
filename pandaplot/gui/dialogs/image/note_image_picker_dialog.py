@@ -241,7 +241,7 @@ class NoteImagePickerDialog(PDialog):
         for collection in collections:
             tree_item = by_id[collection.id]
             parent = items_by_id.get(collection.parent_id) if collection.parent_id else None
-            if parent and parent.id in by_id:
+            if parent is not None and parent.id in by_id:
                 by_id[parent.id].addChild(tree_item)
             else:
                 self.tree.addTopLevelItem(tree_item)
@@ -255,7 +255,7 @@ class NoteImagePickerDialog(PDialog):
             by_id[img.id] = tree_item
 
             parent = items_by_id.get(img.parent_id) if img.parent_id else None
-            if parent and parent.id in by_id:
+            if parent is not None and parent.id in by_id:
                 by_id[parent.id].addChild(tree_item)
             else:
                 self.tree.addTopLevelItem(tree_item)
