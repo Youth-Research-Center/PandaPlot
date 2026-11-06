@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication
 from pandaplot.app import build_app_context
 from pandaplot.gui.components.tabs.chart.chart_editor import ChartEditorWidget
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
-from pandaplot.models.chart.series_style import BarSeriesStyle, HistSeriesStyle, LineSeriesStyle, ScatterSeriesStyle
+from pandaplot.models.chart.series_style import BarSeriesStyle, DensitySeriesStyle, HistSeriesStyle, LineSeriesStyle, ScatterSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart
@@ -400,3 +400,23 @@ def test_hidden_hist_series_is_not_reported_as_having_no_plottable_data():
     editor = _editor_for(project, chart)
 
     assert "no plottable data" not in editor.status_label.text()
+
+
+def test_hidden_series_with_no_data_still_reports_the_error_for_renderers_that_draw_when_hidden():
+    """Only HIST returns None because it is hidden. A hidden Density series
+    that returns None has genuinely nothing to plot (constant data cannot
+    be estimated), so the status bar must still say so."""
+    _qapp()
+    project = Project(name="Hidden Density Project")
+    dataset = Dataset(name="const", data=pd.DataFrame({"y": [3, 3, 3, 3]}))
+    project.add_item(dataset)
+    chart = Chart(name="Density Chart", chart_type="density")
+    chart.add_data_series(
+        dataset.id, y_column_id=dataset.column_id("y"),
+        style=DensitySeriesStyle(), label="Hidden density",
+    )
+    chart.data_series[0].visible = False
+
+    editor = _editor_for(project, chart)
+
+    assert "no plottable data" in editor.status_label.text()

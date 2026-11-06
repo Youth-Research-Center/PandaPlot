@@ -44,13 +44,13 @@ class DirtyFooter(QWidget):
         self._apply_button.setEnabled(is_effectively_modified)
         self._refresh_status_color()
 
-    def set_tokens(self, tokens: dict):
+    def set_tokens(self, tokens: dict) -> None:
         self._tokens = tokens
         self._refresh_status_color()
         self._apply_button.style().unpolish(self._apply_button)
         self._apply_button.style().polish(self._apply_button)
 
-    def _refresh_status_color(self):
+    def _refresh_status_color(self) -> None:
         """Color the status text from the last tokens and the current modified state."""
         if self._tokens is None:
             return

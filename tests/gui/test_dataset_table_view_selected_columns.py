@@ -113,3 +113,25 @@ def test_paste_keeps_blank_lines_in_place_and_strips_crlf():
     command = ctx.command_executor.execute_command.call_args.args[0]
     assert isinstance(command, EditBatchCommand)
     assert command.new_data == [["1", "2"], ["", ""], ["3", "4"]]
+
+
+def test_paste_treats_a_whitespace_only_line_as_a_blank_row():
+    """A line of spaces between rows (common from text editors) is a blank
+    row too: it must be padded to the block width, not become a 1-cell row
+    that makes EditBatchCommand reject the whole paste as ragged."""
+    from pandaplot.commands.project.dataset.edit_batch_command import EditBatchCommand
+
+    ctx = Mock(spec=AppContext)
+    ctx.event_bus = Mock()
+    ctx.command_executor = Mock()
+    data = pd.DataFrame({"a": ["x", "y", "z"], "b": ["p", "q", "r"]}, dtype=object)
+    dataset = Dataset(id="ds-paste-ws", name="Paste", data=data)
+    view = DatasetTableView(ctx, PandasTableModel(ctx, dataset))
+    view.selectionModel().select(view.model().index(0, 0), QItemSelectionModel.SelectionFlag.ClearAndSelect)
+    QApplication.clipboard().setText("1\t2\n  \n3\t4")
+
+    view.pasteSelection()
+
+    command = ctx.command_executor.execute_command.call_args.args[0]
+    assert isinstance(command, EditBatchCommand)
+    assert command.new_data == [["1", "2"], ["", ""], ["3", "4"]]

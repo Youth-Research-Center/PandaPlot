@@ -145,9 +145,9 @@ class DatasetTableView(QTableView):
 
         new_data = []
         for i, row in enumerate(rows):
-            # A blank line is an empty row spanning the block, not a 1-cell row
-            # (EditBatchCommand rejects ragged blocks).
-            cols = row.split("\t") if row else [""] * width
+            # A blank (or whitespace-only) line is an empty row spanning the
+            # block, not a 1-cell row (EditBatchCommand rejects ragged blocks).
+            cols = row.split("\t") if row.strip() else [""] * width
             new_row = []
             for j, value in enumerate(cols):
                 idx = self._model.index(start_row + i, start_col + j)

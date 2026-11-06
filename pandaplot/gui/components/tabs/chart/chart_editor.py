@@ -44,6 +44,7 @@ from pandaplot.gui.components.tabs.chart.chart_heatmap import resolve_color_limi
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData
 from pandaplot.gui.components.tabs.chart.series_renderers import (
     SERIES_RENDERERS,
+    SERIES_RENDERERS_OMITTING_HIDDEN,
     SERIES_RENDERERS_REPORTING_NO_DATA,
 )
 from pandaplot.gui.components.tabs.chart.series_renderers.box import BOX_POSITIONS_KEY, apply_box_ticks, box_numeric_values
@@ -988,8 +989,8 @@ def render_chart(
                         render_twin_y_trace(canvas, renderer, series, series_data, target_axes, alpha, render_extra))
 
             if mappable is None and series_type in SERIES_RENDERERS_REPORTING_NO_DATA:
-                # A hidden series (e.g. HIST) returns None by design; that isn't missing data.
-                if not series.visible:
+                # A hidden HIST series returns None by design; that isn't missing data.
+                if not series.visible and series_type in SERIES_RENDERERS_OMITTING_HIDDEN:
                     continue
                 series_errors.append(f"{series.label or f'Series {i + 1}'}: no plottable data")
                 continue
