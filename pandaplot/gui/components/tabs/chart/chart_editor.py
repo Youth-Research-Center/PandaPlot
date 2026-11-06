@@ -1465,7 +1465,8 @@ def render_chart_to_qimage(chart, resolved_series_data, size_defaults) -> QImage
 def axis_positions(values, categories: dict) -> np.ndarray:
     """Positions `values` take on an axis: themselves when numeric, otherwise
     (text labels such as "Q1 2024") the index matplotlib's categorical axis
-    gives each distinct label, in order of first appearance.
+    gives each distinct label, in order of first appearance. Text that looks
+    like a number ("1") is still a label, as it is for matplotlib.
 
     Args:
         values: One series' values for the axis.
@@ -1475,10 +1476,14 @@ def axis_positions(values, categories: dict) -> np.ndarray:
     Returns:
         A float array with one position per value.
     """
-    try:
-        return np.asarray(values, dtype=float)
-    except (TypeError, ValueError):
-        return np.array([categories.setdefault(label, len(categories)) for label in values], dtype=float)
+    labels = np.asarray(values)
+    has_text = labels.dtype.kind in "USO" and any(isinstance(label, (str, bytes)) for label in labels)
+    if not has_text:
+        try:
+            return np.asarray(labels, dtype=float)
+        except (TypeError, ValueError):
+            pass
+    return np.array([categories.setdefault(label, len(categories)) for label in labels], dtype=float)
 
 
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False,
