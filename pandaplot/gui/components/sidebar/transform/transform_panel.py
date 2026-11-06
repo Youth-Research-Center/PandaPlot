@@ -797,14 +797,15 @@ class TransformPanel(SidebarPanel):
         """Refresh the source list after a column of the active dataset is added, removed or renamed.
 
         The selected source columns stay selected, following a rename, so Apply stays ready.
+        Only `x` (the first selected column) feeds the transform, so only losing `x` resets the panel.
         """
         dataset_id = event_data.get("dataset_id")
         if not (self.current_dataset and hasattr(self.current_dataset, "id") and dataset_id == self.current_dataset.id):
             return
         kept = self._follow_column_rename(self.get_selected_columns(), event_data)
         self.refresh_column_list(keep=kept)
-        if self._column_selection_changed(kept, self.get_selected_columns()):
-            # A selected column is gone. Deselect rather than let a "(not used)" column
+        if self._column_selection_changed(kept[:1], self.get_selected_columns()[:1]):
+            # The `x` column is gone. Deselect rather than let a "(not used)" column
             # silently become `x`, and drop the preview, which described the old source.
             self.source_column_list.clearSelection()
             self.preview_text.clear()

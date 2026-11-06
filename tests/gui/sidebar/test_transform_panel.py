@@ -486,6 +486,19 @@ class TestColumnEventsKeepSourceSelection:
         assert transform_panel.apply_btn.isEnabled() is False
         assert transform_panel.preview_text.toPlainText() == ""
 
+    def test_removing_a_not_used_column_keeps_x_and_the_preview(self, transform_panel, app_context):
+        """Only `x` (the first selected column) feeds the transform, so losing an extra selection changes nothing."""
+        from pandaplot.models.events import DatasetOperationEvents
+
+        dataset, handlers = self._ready_panel(transform_panel, app_context, ["b", "c"])
+        transform_panel._set_preview_message("Source (b): 2.0")
+        dataset.data.drop(columns=["c"], inplace=True)
+        handlers[DatasetOperationEvents.DATASET_COLUMN_REMOVED]({"dataset_id": "dataset-1"})
+
+        assert transform_panel.get_selected_columns() == ["b"]
+        assert transform_panel.apply_btn.isEnabled() is True
+        assert transform_panel.preview_text.toPlainText() == "Source (b): 2.0"
+
     def test_selection_order_survives_a_rename_so_x_does_not_change(self, transform_panel, app_context):
         from pandaplot.models.events import DatasetOperationEvents
 
