@@ -1,7 +1,9 @@
 import dataclasses
+import logging
 import time
 import warnings
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import override
 
 import numpy as np
@@ -17,7 +19,7 @@ from matplotlib.ticker import (
     ScalarFormatter,
 )
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QImage
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -66,6 +68,8 @@ from pandaplot.models.state.config import (
 )
 from pandaplot.services.config.config_manager import ConfigManager
 from pandaplot.services.theme.theme_manager import ThemeManager
+
+logger = logging.getLogger(__name__)
 
 
 def apply_chart_title(
@@ -358,6 +362,137 @@ def _resolve_error_column(df, column_name):
     return df[column_name].to_numpy()
 
 
+def resolve_series_index_for_handle(artist_series_map, handle):
+    """Resolve a legend handle to a series/fit index via `artist_series_map`
+    (the artist-to-series mapping a render builds, see render_chart).
+
+    Line/marker/collection series map their handle directly. Container
+    handles (`BarContainer`, `ErrorbarContainer`, ...) aren't themselves
+    tracked artists -- matplotlib's legend uses the container as the
+    "handle", but the container is just a tuple wrapping the individual
+    patches/lines that *are* tracked -- so recurse into it looking for a
+    tracked part.
+    """
+    series_idx = artist_series_map.get(handle)
+    if series_idx is not None:
+        return series_idx
+    if isinstance(handle, (tuple, list)):
+        for part in handle:
+            series_idx = resolve_series_index_for_handle(artist_series_map, part)
+            if series_idx is not None:
+                return series_idx
+    return None
+
+
+def resolve_fill_baseline(resolved_data, series_index, fill_base, fill_to_index, query, *, horizontal=False):
+    """Resolve the second bound for a series' area fill: either the
+    constant ``fill_base``, or -- when ``fill_to_index`` points at another
+    series -- that series' curve interpolated onto this series' sampling
+    grid, so the region *between* the two curves is filled.
+
+    ``resolved_data`` is the SAME already-resolved list every series in the
+    chart was resolved into up front (not a second live lookup -- this must
+    stay safe to call from a background thread, see resolve_chart_series_data).
+
+    ``query`` is this series' independent-axis samples (x for a vertical
+    fill, y for a horizontal one). Interpolation makes ``fill_between``/
+    ``fill_betweenx`` well-defined even when the two series do not share
+    a sampling grid; falls back to ``fill_base`` if the referenced
+    series is missing or fails to resolve.
+    """
+    if fill_to_index is None or fill_to_index < 0 or fill_to_index == series_index or fill_to_index >= len(resolved_data):
+        return fill_base
+    other_data = resolved_data[fill_to_index]
+    if other_data.error or other_data.x_data is None or len(other_data.x_data) == 0:
+        return fill_base
+    # Interpolate the other curve over its own independent axis (x when
+    # vertical, y when horizontal). np.interp needs that axis increasing.
+    if horizontal:
+        xp = np.asarray(other_data.y_data, dtype=float)
+        fp = np.asarray(other_data.x_data, dtype=float)
+    else:
+        xp = np.asarray(other_data.x_data, dtype=float)
+        fp = np.asarray(other_data.y_data, dtype=float)
+    order = np.argsort(xp)
+    return np.interp(np.asarray(query, dtype=float), xp[order], fp[order])
+
+
+def line_style_for_data_series_index(chart, series_idx):
+    """The line-with-optional-fill style (`LineSeriesStyle`, or a
+    Density curve's `DensitySeriesStyle`) for
+    `chart.data_series[series_idx]`, or None when `series_idx` is out
+    of range (or no match) or the series isn't drawn as a fillable line."""
+    if series_idx is None or not (0 <= series_idx < len(chart.data_series)):
+        return None
+    style = chart.data_series[series_idx].style
+    return style if isinstance(style, (LineSeriesStyle, DensitySeriesStyle)) else None
+
+
+def find_fill_artist_for_series(artist_series_map, series_idx):
+    """The PolyCollection added by render_line_series's fill_between(x)
+    call for `series_idx`, found via `artist_series_map` (populated by
+    render_chart's track_new_artists)."""
+    for artist, idx in artist_series_map.items():
+        if idx == series_idx and isinstance(artist, PolyCollection):
+            return artist
+    return None
+
+
+def add_fill_legend_swatches(chart, artist_series_map, handles: list, twin_y_artists=frozenset()) -> list:
+    """For a filled/area line series (`style.fill_enabled`), pair its
+    line handle with the actual `fill_between`/`fill_betweenx`
+    PolyCollection artist tracked for it in `artist_series_map`, so the
+    legend swatch shows the filled area's color/alpha instead of just
+    the line (#278). `build_legend`'s `handler_map` draws such a tuple
+    as one combined patch+line key. Series without an enabled fill, or
+    whose fill artist can't be found, pass through unchanged. A twin Y
+    trace (`twin_y_artists`, #402) is drawn without the series' fill, so
+    its handle is never paired with one."""
+    augmented = []
+    for handle in handles:
+        if handle in twin_y_artists:
+            augmented.append(handle)
+            continue
+        series_idx = resolve_series_index_for_handle(artist_series_map, handle)
+        style = line_style_for_data_series_index(chart, series_idx)
+        fill_artist = find_fill_artist_for_series(artist_series_map, series_idx) if style is not None and style.fill_enabled else None
+        # Line first, fill second -- same z-order render_line_series
+        # draws them in (plot() then fill_between(x)), so the swatch
+        # matches the actual chart appearance.
+        augmented.append((handle, fill_artist) if fill_artist is not None else handle)
+    return augmented
+
+
+@dataclass
+class ChartSizeDefaults:
+    """The chart-display defaults from ConfigManager, resolved once on the
+    GUI thread so render_chart() never needs live app_context access
+    (required for it to be safely callable from a background thread)."""
+    default_width_cm: float
+    default_height_cm: float
+    dpi: float
+
+
+def resolve_chart_size_defaults(app_context) -> ChartSizeDefaults:
+    """Read the chart-display defaults from ConfigManager. Must be called
+    on the GUI thread before dispatching a background render."""
+    cfg_manager = app_context.get_manager(ConfigManager)
+    display_cfg = getattr(getattr(cfg_manager, "config", None), "chart_display", None)
+    return ChartSizeDefaults(
+        default_width_cm=getattr(display_cfg, "default_width_cm", 20.0) if display_cfg else 20.0,
+        default_height_cm=getattr(display_cfg, "default_height_cm", 15.0) if display_cfg else 15.0,
+        dpi=getattr(display_cfg, "dpi", 100) if display_cfg else 100,
+    )
+
+
+@dataclass
+class ChartRenderResult:
+    """What render_chart() reports back, for the caller to act on --
+    ChartEditorWidget.update_chart() uses both fields; a headless
+    background render discards them."""
+    series_errors: list
+    colorbar: object  # Optional[matplotlib.colorbar.Colorbar]
+
 def resolve_series_data(project, series, chart_type=None) -> SeriesData:
     """Resolve a DataSeries against the project's datasets.
 
@@ -463,6 +598,7 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
                 magnitude_data = df[magnitude_column]
 
     z_data = None
+    z_label = ""
     if spec.needs_z_column:
         z_column = resolve_series_column(dataset, series.style.z_column_id, series.style.z_column)
         if not z_column:
@@ -470,6 +606,11 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
         if z_column not in df.columns:
             return SeriesData(None, None, None, None, None, None, f"Z column '{z_column}' not found")
         z_data = df[z_column]
+        z_label = z_column
+
+    # A Vector/Vector3D series' colorbar shows its magnitude column, not Z.
+    if hasattr(series.style, "magnitude_column_id"):
+        z_label = resolve_series_column(dataset, series.style.magnitude_column_id, series.style.magnitude_column) or ""
 
     # Optional, like magnitude: a blank or stale label column just leaves
     # the pie's wedges unlabeled rather than failing the series.
@@ -491,7 +632,7 @@ def resolve_series_data(project, series, chart_type=None) -> SeriesData:
 
     return SeriesData(x_data, df[y_column], x_err, y_err, x_err_minus, y_err_minus, None,
                       u_data=u_data, v_data=v_data, w_data=w_data, magnitude_data=magnitude_data, z_data=z_data,
-                      label_data=label_data, twin_y_data=twin_y_data)
+                      label_data=label_data, twin_y_data=twin_y_data, z_label=z_label)
 
 
 def series_needs_secondary_axis(series, series_data: SeriesData) -> bool:
@@ -507,6 +648,814 @@ def series_needs_secondary_axis(series, series_data: SeriesData) -> bool:
     if series.y_axis == YAxis.SECONDARY:
         return True
     return series.twin_y_axis == YAxis.SECONDARY and series_data.twin_y_data is not None
+
+
+def render_twin_y_trace(canvas, renderer, series, series_data: SeriesData, target_axes, alpha: float, extra: dict) -> set:
+    """Draw a series' twin Y column (#402) on the Y axis opposite
+    `target_axes`, with the series' own style and X values. Returns the
+    artists drawn.
+
+    The twin trace skips the area fill (its baseline and fill-to-series
+    target are defined against the series' own values and axis) and error
+    bars (they describe the series' own Y). Its legend entry is the series
+    label tagged with the twin's axis, and it is left out when the series
+    has no label, matching the series' own entry.
+    """
+    axes2 = canvas.axes2
+    twin_axes = canvas.axes if target_axes is axes2 else axes2
+    if twin_axes is None or twin_axes is target_axes:
+        return set()
+    axis_tag = "Y₂" if twin_axes is axes2 else "Y₁"
+    twin_label = f"{series.label} ({axis_tag})" if series.label else ""
+    twin_style = twin_y_style(series.style)
+    twin_data = SeriesData(series_data.x_data, series_data.twin_y_data, None, None, None, None, None)
+
+    def children():
+        found = set(canvas.axes.get_children())
+        found.update(axes2.get_children())
+        return found
+
+    before = children()
+    renderer(twin_axes, twin_data, twin_style, twin_label, alpha, visible=series.visible, extra=extra)
+    return children() - before
+
+
+def twin_y_style(style):
+    """The series' style recolored for its twin Y trace: `twin_y_color`
+    replaces the line color and any explicit marker colors (blank marker
+    colors keep inheriting), and the area fill is dropped."""
+    color = style.twin_y_color
+    marker = style.marker
+    twin_marker = dataclasses.replace(
+        marker,
+        marker_color=color if marker.marker_color else "",
+        marker_edge_color=color if marker.marker_edge_color else "",
+    )
+    return dataclasses.replace(style, color=color, marker=twin_marker, fill_enabled=False)
+
+
+def resolve_chart_series_data(project, chart) -> list:
+    """Resolve every series in `chart` against `project`'s datasets, in
+    order -- the same up-front resolution render_chart() needs (and, for a
+    background render, the point at which live project/DataFrame access
+    happens: on the GUI thread, before dispatching)."""
+    return [resolve_series_data(project, series) for series in chart.data_series]
+
+
+def render_chart(
+    chart, canvas, resolved_series_data, size_defaults, *,
+    existing_colorbar=None, interactive=True, artist_series_map=None, twin_y_artists=None,
+):
+    """Render `chart` onto `canvas` (a ChartCanvas or HeadlessChartCanvas --
+    both expose the same interface). This is update_chart()'s plotting body,
+    extracted so it can also run headlessly on a background thread.
+
+    `resolved_series_data` must already be resolved (resolve_chart_series_data)
+    and, for a background render, copied (SeriesData.copy()) -- this function
+    never touches a live project/dataset itself.
+
+    `existing_colorbar` is a previous render's colorbar to remove before this
+    one starts (ChartEditorWidget reuses the same canvas across renders and
+    passes its own last colorbar here; a fresh HeadlessChartCanvas has none,
+    so headless callers leave this None).
+
+    `interactive` gates the pickable-artist bookkeeping ChartEditorWidget's
+    click-to-select needs -- a one-shot headless render has no interactivity
+    to support, so pass False to skip that bookkeeping entirely.
+
+    `artist_series_map`: pass the CALLER'S OWN dict here to have it cleared
+    and repopulated in place -- required for ChartEditorWidget, whose
+    _on_pick_event/_apply_hover_cursor read self._artist_series_map directly
+    on a later mouse click/hover, well after this function has returned.
+    Omit it (or pass None) for a one-shot headless render, which never needs
+    the mapping to outlive this call -- a fresh dict is used internally and
+    discarded.
+
+    `twin_y_artists` works the same way for the artists drawn for a series'
+    twin Y column (#402): also in `artist_series_map` (a click selects the
+    owning series) but kept apart so the legend doesn't pair a twin trace
+    with the series' own fill.
+
+    Raises on error rather than catching/logging internally -- the
+    interactive widget wraps this in its own try/except (reporting via its
+    status label); a background render's exception is delivered through
+    TaskScheduler's on_error instead.
+    """
+    if artist_series_map is None:
+        artist_series_map = {}
+    if twin_y_artists is None:
+        twin_y_artists = set()
+
+    def axes_children():
+        """All child artists across the primary and (if present) secondary axes."""
+        children = set(canvas.axes.get_children())
+        if canvas.axes2 is not None:
+            children.update(canvas.axes2.get_children())
+        return children
+
+    def make_pickable(artist):
+        """Best-effort: give `artist` a pick tolerance appropriate to its
+        type. Not every artist type supports `set_picker`/pick radius the
+        same way -- a failure here just means that artist won't be
+        clickable, not a broken render, so it's swallowed rather than
+        surfaced to the user.
+        """
+        if not hasattr(artist, "set_picker"):
+            return
+        try:
+            if hasattr(artist, "get_linewidth") and artist.get_linewidth() is not None:
+                # Numeric picker: a pixel tolerance around thin lines/markers.
+                artist.set_picker(5)
+            else:
+                artist.set_picker(True)
+        except Exception:
+            logger.debug("Could not set picker on artist %r", artist, exc_info=True)
+
+    @contextmanager
+    def track_new_artists(index):
+        """Map every artist added to the axes inside this `with` block to
+        `index` in `artist_series_map` and make it pick-able, so a later
+        click on it resolves back to the series/fit at that index. A no-op
+        for a non-interactive (headless) render, which only records the
+        mapping (legend fill swatches need it) without making artists pickable."""
+        before = axes_children()
+        yield
+        for artist in axes_children() - before:
+            if interactive:
+                make_pickable(artist)
+            artist_series_map[artist] = index
+
+    # Remove the previous colorbar (a colormap/heatmap render adds one on
+    # its own figure axes, which axes.clear() below doesn't touch). This
+    # must happen BEFORE axes.clear(): clearing the main axes detaches the
+    # mappable the colorbar refers to, which makes Colorbar.remove() raise
+    # (its mappable's axes becomes None) instead of cleanly removing the
+    # colorbar axes.
+    if existing_colorbar is not None:
+        try:
+            existing_colorbar.remove()
+        except Exception:
+            logger.debug("Failed to remove stale colorbar", exc_info=True)
+    # Switch the axes' projection if this chart's type needs the
+    # other one. Must come after the colorbar removal above (which
+    # needs the mappable's axes to still exist) and before
+    # axes.clear() below (a 2-D <-> 3-D switch replaces the axes
+    # object outright, so clearing the outgoing one is pointless).
+    is_3d = CHART_TYPE_SPECS[chart.chart_type].is_3d
+    # False for a Pie chart: no axis scale/ticks/limits/grid at all
+    # (see ChartTypeSpec.has_axes). Title, subtitle and legend are
+    # figure-level and still apply.
+    has_axes = CHART_TYPE_SPECS[chart.chart_type].has_axes
+    canvas.set_projection(projection_3d=is_3d)
+
+    # Clear the current plot and artist-to-series mapping
+    canvas.axes.clear()
+    artist_series_map.clear()
+    twin_y_artists.clear()
+    if not is_3d:
+        # Axes.pie() turns the frame off and locks an equal aspect,
+        # and clear() undoes neither -- without this, an emptied Pie
+        # chart switched to an (x, y) type would keep a frameless,
+        # square plot area.
+        canvas.axes.set_frame_on(True)
+        canvas.axes.set_aspect("auto")
+
+    # Reset the main axes to a fresh full-figure 1x1 gridspec. A colorbar's
+    # default use_gridspec=True *subdivides* the gridspec, and that
+    # subdivision survives colorbar.remove() -- without this reset, each
+    # re-render of a colormap/heatmap chart would shrink the axes further.
+    #
+    # axes2 (twinx(), sharing the same gridspec cell) must get the SAME
+    # fresh spec unconditionally, even when no colorbar is drawn below --
+    # otherwise it stays on its old subdivided spec while axes gets the
+    # fresh one, and tight_layout() misaligns the two.
+    from matplotlib.gridspec import GridSpec
+    subplotspec = canvas.axes.get_subplotspec()
+    if subplotspec is not None:
+        fresh_subplotspec = GridSpec(1, 1, figure=canvas.fig)[0]
+        canvas.axes.set_subplotspec(fresh_subplotspec)
+        if canvas.axes2 is not None:
+            canvas.axes2.set_subplotspec(fresh_subplotspec)
+
+    fig_bg = chart.style.figure_background_color
+    axes_bg = chart.style.axes_background_color
+    canvas.fig.set_facecolor(fig_bg if fig_bg is not None else "none")
+    canvas.axes.set_facecolor(axes_bg if axes_bg is not None else "none")
+
+    # Set up (or tear down) the secondary Y axis depending on whether
+    # any series is currently routed to it. Never on a 3-D chart:
+    # twinx() has no mplot3d equivalent, and a series' y_axis
+    # setting simply doesn't apply there (set_projection already
+    # tore down any axes2 left over from a 2-D type).
+    needs_secondary = not is_3d and has_axes and any(
+        series_needs_secondary_axis(series, data)
+        for series, data in zip(chart.data_series, resolved_series_data, strict=True))
+    if needs_secondary:
+        if canvas.axes2 is None:
+            canvas.axes2 = canvas.axes.twinx()
+        else:
+            canvas.axes2.clear()
+    elif canvas.axes2 is not None:
+        canvas.axes2.remove()
+        canvas.axes2 = None
+        canvas.original_ylim2 = None
+
+    series_errors = []
+    colorbar_mappable = None
+    colorbar_label = ""
+    colorbar = None
+    # Shared by every Box series in this render pass so each can
+    # find its own X slot among its siblings (see series_renderers/
+    # box.py). Rebuilt per render_chart() call, never kept across
+    # renders: a stale list would push every re-render's boxes further right.
+    box_positions: list[tuple[int, str]] = []
+    if chart.data_series:
+        # `resolved_series_data` holds every series' data, resolved once
+        # up front (see resolve_chart_series_data): a shared color scale
+        # for Colormap/Heatmap series must be computed from
+        # ALL of their z-data before any of them render, not just
+        # whichever one happens to render first (see
+        # docs/superpowers/specs/2026-08-21-shared-chart-level-color-map-design.md).
+        color_scale_auto = chart.config.color_scale_auto
+        # Only gather z-data when the scale is auto-computed: a
+        # manual scale never reads it (see resolve_color_limits),
+        # so skip the work entirely in that case. Each array is
+        # built individually inside its own try/except so a single
+        # series with non-numeric (e.g. text) Z data can't blow up
+        # this up-front pre-pass and blank the whole chart -- that
+        # series is simply left out of the combined scale here and
+        # still gets its own per-series error below, when its
+        # renderer runs in the main loop.
+        z_arrays: list[np.ndarray] = []
+        if color_scale_auto:
+            for series, data in zip(chart.data_series, resolved_series_data, strict=True):
+                if not SERIES_TYPE_SPECS[series.series_type].uses_color_scale or data.error is not None:
+                    continue
+                try:
+                    z_arrays.append(np.asarray(data.z_data, dtype=float))
+                except (ValueError, TypeError):
+                    continue
+        combined_z = np.concatenate(z_arrays) if z_arrays else np.array([])
+        color_limits = resolve_color_limits(
+            combined_z,
+            auto=color_scale_auto,
+            vmin=chart.config.color_vmin,
+            vmax=chart.config.color_vmax,
+        )
+
+        # Stacked Bar series build on each other, so the running stack
+        # height has to outlive any one series' render -- but not this
+        # render pass, or every refresh would stack on the last one.
+        # One stack per axes: a series on the secondary Y axis has its
+        # own scale, so it must not start where a primary one ended.
+        bar_stacks: dict[object, BarStack] = {}
+
+        for i, (series, series_data) in enumerate(zip(chart.data_series, resolved_series_data, strict=True)):
+            # Route this series to its configured Y axis
+            target_axes = (canvas.axes2
+                           if series.y_axis == "secondary" and canvas.axes2 is not None
+                           else canvas.axes)
+            bar_stack = bar_stacks.setdefault(target_axes, {})
+
+            x_data = series_data.x_data
+            y_data = series_data.y_data
+            x_err = series_data.x_err
+            y_err = series_data.y_err
+            x_err_minus = series_data.x_err_minus
+            y_err_minus = series_data.y_err_minus
+            error = series_data.error
+            if error:
+                series_errors.append(
+                    f"{series.label or f'Series {i + 1}'}: {error}")
+                continue
+
+            # Hidden series (fits included) are drawn faded rather than
+            # omitted. Whether to omit them instead, for every series type
+            # and its secondary elements, is tracked in #471.
+            alpha = series.alpha if series.visible else 0.3
+            series_type = series.series_type
+            style = series.style
+
+            with track_new_artists(i):
+                # Draw error bars BEFORE the series/marker renderer:
+                # matplotlib draws artists in the order they're added
+                # to the axes when zorder is tied (neither call here
+                # sets one), so error bars drawn first land underneath
+                # the markers/line/bars instead of obscuring them.
+                error_bars = getattr(style, "error_bars", None)
+                if error_bars is not None:
+                    xerr = build_error_array(x_err, x_err_minus, error_bars.error_direction, error_bars.error_symmetric)
+                    yerr = build_error_array(y_err, y_err_minus, error_bars.error_direction, error_bars.error_symmetric)
+                    if xerr is not None or yerr is not None:
+                        err_color = error_bars.error_color or getattr(style, "color", "#1f77b4")
+                        err_y = y_data
+                        if SERIES_TYPE_SPECS[series_type].is_stacked:
+                            # Anchor each error bar at the top of its stacked
+                            # segment, not at its raw height. Placed on a copy:
+                            # the renderer below advances the real stack.
+                            err_y = place_on_stack(x_data, y_data, dict(bar_stack)) + np.asarray(y_data, dtype=float)
+                        target_axes.errorbar(
+                            x_data, err_y,
+                            xerr=xerr,
+                            yerr=yerr,
+                            fmt="none",
+                            ecolor=err_color,
+                            elinewidth=getattr(style, "line_width", 2.0),
+                            capsize=error_bars.error_cap_size,
+                            alpha=alpha)
+
+                renderer = SERIES_RENDERERS[series_type]
+                render_extra = {
+                    "bins": chart.config.hist_bins,
+                    "hist_density": CHART_TYPE_SPECS[chart.chart_type].hist_density,
+                    "resolve_fill_baseline": (
+                        lambda query, *, horizontal, _i=i, _style=style: resolve_fill_baseline(
+                            resolved_series_data, _i, _style.fill_base, _style.fill_to_index, query,
+                            horizontal=horizontal)
+                    ),
+                    "colormap": chart.config.colormap,
+                    "color_limits": color_limits,
+                    "stack_bottoms": bar_stack,
+                    BOX_POSITIONS_KEY: box_positions,
+                }
+                mappable = renderer(
+                    target_axes, series_data, style, series.label, alpha,
+                    visible=series.visible,
+                    extra=render_extra,
+                )
+                if series_data.twin_y_data is not None:
+                    twin_y_artists.update(
+                        render_twin_y_trace(canvas, renderer, series, series_data, target_axes, alpha, render_extra))
+
+            if mappable is None and series_type in SERIES_RENDERERS_REPORTING_NO_DATA:
+                series_errors.append(f"{series.label or f'Series {i + 1}'}: no plottable data")
+                continue
+            # A Vector/Vector3D renderer only returns a mappable when
+            # its arrows are colored by magnitude; that gets a
+            # colorbar too, though the type isn't on the shared scale.
+            if (mappable is not None and colorbar_mappable is None
+                    and (SERIES_TYPE_SPECS[series_type].uses_color_scale or hasattr(style, "magnitude_column_id"))
+                    and chart.config.colorbar_show):
+                colorbar_mappable = mappable
+                # None means "not customized" -- fall back to the Z
+                # column's name. Any other value (including "") is
+                # the user's explicit choice and is used as-is, so a
+                # deliberately cleared label renders with no label
+                # rather than reverting to the column name.
+                custom_label = chart.config.colorbar_label
+                colorbar_label = (
+                    custom_label if custom_label is not None
+                    else series_data.z_label
+                )
+
+        if colorbar_mappable is not None:
+            # A 3-D axes needs a wider gap than matplotlib's 0.05
+            # default: its Z tick labels are drawn at the right edge
+            # of the axes box (the projected cube is inset within
+            # it), so a default-padded colorbar lands on top of
+            # them.
+            colorbar = canvas.fig.colorbar(
+                colorbar_mappable, ax=canvas.axes,
+                **({"pad": 0.12} if is_3d else {}))
+            if canvas.axes2 is not None:
+                # fig.colorbar(..., ax=axes) subdivides *only* the
+                # primary axes' gridspec cell to make room -- axes2
+                # (a twinx() sharing that same cell) keeps its old,
+                # full-width subplotspec. Passing both axes to
+                # colorbar() doesn't help either: with two axes
+                # sharing a cell, tight_layout() flags the figure as
+                # "not compatible" and re-expands both back to full
+                # width, drawing the colorbar on top of the data.
+                # Explicitly handing axes2 the *same*, now-subdivided
+                # subplotspec keeps both axes shrunk together and
+                # keeps tight_layout happy across repeated
+                # resizes/re-renders.
+                canvas.axes2.set_subplotspec(
+                    canvas.axes.get_subplotspec())
+            if colorbar_label:
+                colorbar.set_label(colorbar_label)
+
+    # Apply chart configuration
+    config = chart.config
+
+    # Resolve the target figure size *before* applying the title:
+    # main_title_padding's points-to-fraction conversion needs the
+    # height the figure is about to be set to, not whatever height
+    # it happened to have from the previous render.
+    default_width, default_height, default_dpi = (
+        size_defaults.default_width_cm, size_defaults.default_height_cm, size_defaults.dpi)
+    width_cm, height_cm, dpi = resolve_chart_size(
+        config.width_cm, config.height_cm, config.dpi,
+        default_width, default_height, default_dpi,
+    )
+
+    apply_chart_title(
+        canvas.axes,
+        title=config.title,
+        subtitle=config.subtitle,
+        title_font_size=config.title_font_size,
+        subtitle_font_size=config.subtitle_font_size,
+        title_padding=config.title_padding,
+        main_title_padding=config.main_title_padding,
+        fig_height_inches=cm_to_inches(height_cm),
+        title_bold=config.title_bold,
+        title_italic=config.title_italic,
+        subtitle_bold=config.subtitle_bold,
+        subtitle_italic=config.subtitle_italic,
+        title_color=config.title_color,
+        subtitle_color=(
+            config.title_color
+            if config.subtitle_match_title_color
+            else config.subtitle_color
+        ),
+        title_font_family=config.title_font_family,
+        subtitle_font_family=config.subtitle_font_family,
+    )
+
+    chart_padding = config.chart_padding
+    chart_padding_w = config.chart_padding_w
+    chart_padding_h = config.chart_padding_h
+    top_margin = config.top_margin
+    canvas.set_size(
+        cm_to_inches(width_cm), cm_to_inches(height_cm),
+        pad=chart_padding, w_pad=chart_padding_w, h_pad=chart_padding_h, top_margin=top_margin,
+    )
+    canvas.set_dpi(
+        dpi, pad=chart_padding, w_pad=chart_padding_w, h_pad=chart_padding_h, top_margin=top_margin,
+    )
+
+    x_label_color = config.x.label_color
+    y_match_label = config.y.match_x_label_color
+    y_label_color = resolve_axis_color(
+        "y", config.y.label_color, y_match_label, x_label_color)
+    canvas.axes.set_xlabel(
+        config.x.label, color=x_label_color,
+        fontfamily=config.x.font_family,
+        fontweight="bold" if config.x.title_bold else "normal",
+        fontstyle="italic" if config.x.title_italic else "normal",
+        rotation=config.x.label_rotation,
+    )
+    canvas.axes.set_ylabel(
+        config.y.label, color=y_label_color,
+        fontfamily=config.y.font_family,
+        fontweight="bold" if config.y.title_bold else "normal",
+        fontstyle="italic" if config.y.title_italic else "normal",
+        rotation=config.y.label_rotation,
+    )
+    x_scale = config.x.scale if has_axes else "linear"
+    y_scale = config.y.scale if has_axes else "linear"
+    canvas.axes.set_xscale(x_scale, **resolve_scale_kwargs(x_scale, config.x.log_base))
+    canvas.axes.set_yscale(y_scale, **resolve_scale_kwargs(y_scale, config.y.log_base))
+    canvas.axes.xaxis.label.set_size(config.x.font_size)
+    canvas.axes.yaxis.label.set_size(config.y.font_size)
+    if not is_3d:
+        # Which side the Y axis is drawn on is a 2-D concept:
+        # mplot3d's own YAxis has no tick_left/tick_right at all
+        # (calling them raises AttributeError), and the axis's
+        # position on a 3-D chart follows the camera angle instead.
+        if config.y.side == "right":
+            canvas.axes.yaxis.tick_right()
+            canvas.axes.yaxis.set_label_position("right")
+        else:
+            canvas.axes.yaxis.tick_left()
+            canvas.axes.yaxis.set_label_position("left")
+
+    if is_3d:
+        canvas.axes.set_zlabel(
+            config.z.label, color=x_label_color,
+            fontfamily=config.z.font_family,
+            fontweight="bold" if config.z.title_bold else "normal",
+            fontstyle="italic" if config.z.title_italic else "normal",
+        )
+        z_scale = config.z.scale
+        canvas.axes.set_zscale(
+            z_scale, **resolve_scale_kwargs(z_scale, config.z.log_base))
+        canvas.axes.zaxis.label.set_size(config.z.font_size)
+        # The camera angle. Matplotlib's interactive drag-to-rotate
+        # still moves it freely from here -- this is the view every
+        # (re-)render starts from, not a lock.
+        canvas.axes.view_init(
+            elev=config.view_elev, azim=config.view_azim)
+
+    if canvas.axes2 is not None:
+        y2_match_label = config.y2.match_x_label_color
+        y2_label_color = resolve_axis_color(
+            "y2", config.y2.label_color, y2_match_label, x_label_color)
+        canvas.axes2.set_ylabel(
+            config.y2.label, color=y2_label_color,
+            fontfamily=config.y2.font_family,
+            fontweight="bold" if config.y2.title_bold else "normal",
+            fontstyle="italic" if config.y2.title_italic else "normal",
+            rotation=config.y2.label_rotation,
+        )
+        y2_scale = config.y2.scale
+        canvas.axes2.set_yscale(
+            y2_scale, **resolve_scale_kwargs(y2_scale, config.y2.log_base))
+        canvas.axes2.yaxis.label.set_size(config.y2.font_size)
+        if config.y2.side == "left":
+            canvas.axes2.yaxis.tick_left()
+            canvas.axes2.yaxis.set_label_position("left")
+        else:
+            canvas.axes2.yaxis.tick_right()
+            canvas.axes2.yaxis.set_label_position("right")
+
+        if not config.y2.auto_limits:
+            canvas.axes2.set_ylim(
+                config.y2.min, config.y2.max)
+
+        apply_axis_ticks(
+            canvas.axes2.yaxis,
+            config.y2.tick_mode, config.y2.tick_count,
+            config.y2.tick_step, config.y2.tick_format,
+            config.y2.tick_format_custom,
+            direction=config.y2.tick_direction,
+            minor_enabled=config.y2.minor_ticks,
+            minor_direction=config.y2.minor_tick_direction,
+            major_color=resolve_axis_color(
+                "y2", config.y2.major_tick_color,
+                config.y2.match_x_colors,
+                config.x.major_tick_color),
+            minor_color=resolve_axis_color(
+                "y2", config.y2.minor_tick_color,
+                config.y2.match_x_colors,
+                config.x.minor_tick_color),
+            labelcolor=resolve_axis_color(
+                "y2", config.y2.tick_label_color,
+                config.y2.match_x_colors,
+                config.x.tick_label_color))
+
+        apply_tick_label_font(
+            canvas.axes2.yaxis,
+            config.y2.tick_label_font_size,
+            config.y2.tick_label_font_family,
+            bold=config.y2.tick_label_bold,
+            italic=config.y2.tick_label_italic,
+            rotation=config.y2.tick_label_rotation,
+        )
+
+        if config.y2.show_grid:
+            canvas.axes2.grid(visible=True, axis="y", alpha=config.grid_alpha)
+        else:
+            canvas.axes2.grid(visible=False, axis="y")
+        if config.y2.show_minor_grid:
+            canvas.axes2.grid(
+                visible=True, axis="y", which="minor", alpha=config.minor_grid_alpha)
+        else:
+            canvas.axes2.grid(visible=False, axis="y", which="minor")
+
+    # A pie sizes its own limits to the circle; a stored manual range
+    # (never editable for one -- the Axes tab hides itself) would
+    # only crop or squash it.
+    if has_axes and not config.x.auto_limits:
+        canvas.axes.set_xlim(config.x.min, config.x.max)
+    if has_axes and not config.y.auto_limits:
+        canvas.axes.set_ylim(config.y.min, config.y.max)
+    if is_3d and not config.z.auto_limits:
+        canvas.axes.set_zlim(config.z.min, config.z.max)
+
+    apply_axis_ticks(
+        canvas.axes.xaxis,
+        config.x.tick_mode, config.x.tick_count,
+        config.x.tick_step, config.x.tick_format,
+        config.x.tick_format_custom,
+        direction=config.x.tick_direction,
+        minor_enabled=config.x.minor_ticks,
+        minor_direction=config.x.minor_tick_direction,
+        major_color=config.x.major_tick_color,
+        minor_color=config.x.minor_tick_color,
+        labelcolor=config.x.tick_label_color)
+    if box_positions:
+        # apply_axis_ticks just swapped in a numeric locator/
+        # formatter, which would replace each box's named tick with
+        # bare 0.5-step numbers -- the boxes' X positions mean
+        # nothing numerically. Restored before apply_tick_label_font
+        # so the configured tick font still reaches these labels.
+        apply_box_ticks(canvas.axes, box_positions)
+    apply_tick_label_font(
+        canvas.axes.xaxis,
+        config.x.tick_label_font_size,
+        config.x.tick_label_font_family,
+        bold=config.x.tick_label_bold,
+        italic=config.x.tick_label_italic,
+        rotation=config.x.tick_label_rotation,
+    )
+    apply_axis_ticks(
+        canvas.axes.yaxis,
+        config.y.tick_mode, config.y.tick_count,
+        config.y.tick_step, config.y.tick_format,
+        config.y.tick_format_custom,
+        direction=config.y.tick_direction,
+        minor_enabled=config.y.minor_ticks,
+        minor_direction=config.y.minor_tick_direction,
+        major_color=resolve_axis_color(
+            "y", config.y.major_tick_color,
+            config.y.match_x_colors,
+            config.x.major_tick_color),
+        minor_color=resolve_axis_color(
+            "y", config.y.minor_tick_color,
+            config.y.match_x_colors,
+            config.x.minor_tick_color),
+        labelcolor=resolve_axis_color(
+            "y", config.y.tick_label_color,
+            config.y.match_x_colors,
+            config.x.tick_label_color))
+    apply_tick_label_font(
+        canvas.axes.yaxis,
+        config.y.tick_label_font_size,
+        config.y.tick_label_font_family,
+        bold=config.y.tick_label_bold,
+        italic=config.y.tick_label_italic,
+        rotation=config.y.tick_label_rotation,
+    )
+
+    if is_3d:
+        # mplot3d's ZAxis is a plain matplotlib Axis subclass, so
+        # the same locator/formatter/tick-params helpers the X and
+        # Y axes go through apply unchanged. Z has no "match X"
+        # color flags of its own (the Style tab's per-axis color
+        # forms are X/Y/Y2 only), so it simply follows X's colors.
+        apply_axis_ticks(
+            canvas.axes.zaxis,
+            config.z.tick_mode, config.z.tick_count,
+            config.z.tick_step, config.z.tick_format,
+            config.z.tick_format_custom,
+            direction=config.z.tick_direction,
+            minor_enabled=config.z.minor_ticks,
+            minor_direction=config.z.minor_tick_direction,
+            major_color=config.x.major_tick_color,
+            minor_color=config.x.minor_tick_color,
+            labelcolor=config.x.tick_label_color)
+        apply_tick_label_font(
+            canvas.axes.zaxis,
+            config.x.tick_label_font_size,
+            config.x.tick_label_font_family,
+            bold=config.x.tick_label_bold,
+            italic=config.x.tick_label_italic,
+            rotation=config.x.tick_label_rotation,
+        )
+
+    apply_spine_colors(
+        canvas.axes, canvas.axes2,
+        config.x.spine_color,
+        resolve_axis_color(
+            "y", config.y.spine_color,
+            config.y.match_x_colors,
+            config.x.spine_color),
+        resolve_axis_color(
+            "y2", config.y2.spine_color,
+            config.y2.match_x_colors,
+            config.x.spine_color))
+
+    grid_alpha = config.grid_alpha
+    minor_grid_alpha = config.minor_grid_alpha
+    if is_3d:
+        # Axes3D.grid() takes no `axis`/`which`/`alpha` -- it draws
+        # the three panes' gridlines as one unit (any kwarg passed
+        # is silently ignored AND forces visible=True, so the 2-D
+        # per-axis calls below would turn the grid permanently on).
+        # Show it when any of the three axes wants a grid.
+        canvas.axes.grid(
+            visible=(
+                config.x.show_grid
+                or config.y.show_grid
+                or config.z.show_grid
+            ))
+    else:
+        if config.x.show_grid:
+            canvas.axes.grid(visible=True, axis="x", alpha=grid_alpha)
+        else:
+            canvas.axes.grid(visible=False, axis="x")
+        if config.x.show_minor_grid:
+            canvas.axes.grid(visible=True, axis="x", which="minor", alpha=minor_grid_alpha)
+        else:
+            canvas.axes.grid(visible=False, axis="x", which="minor")
+        if config.y.show_grid:
+            canvas.axes.grid(visible=True, axis="y", alpha=grid_alpha)
+        else:
+            canvas.axes.grid(visible=False, axis="y")
+        if config.y.show_minor_grid:
+            canvas.axes.grid(visible=True, axis="y", which="minor", alpha=minor_grid_alpha)
+        else:
+            canvas.axes.grid(visible=False, axis="y", which="minor")
+
+    if has_axes:
+        canvas.axes.set_axis_on()
+    else:
+        # Rather than skipping the X/Y configuration above piece by
+        # piece, let it run and then hide every axis artist at once:
+        # set_axis_off() drops ticks, tick labels, axis labels,
+        # spines and gridlines from the draw, but not the title or
+        # the legend, which a pie still uses. axes.clear() resets
+        # it, but set_axis_on() above keeps that explicit.
+        canvas.axes.set_axis_off()
+
+    legend = None
+    placement_kwargs = {}
+    if config.show_legend and chart.data_series:
+        # Combine handles/labels from both axes since twinx() legends
+        # are independent by default.
+        handles, labels = canvas.axes.get_legend_handles_labels()
+        if canvas.axes2 is not None:
+            handles2, labels2 = canvas.axes2.get_legend_handles_labels()
+            handles += handles2
+            labels += labels2
+        handles = add_fill_legend_swatches(chart, artist_series_map, handles, twin_y_artists)
+        # Skip drawing the legend when there are no handles to show
+        # (e.g. a chart with only an unlabeled Heatmap series, or any
+        # chart where nothing has a label) -- matplotlib would
+        # otherwise draw an empty framed legend box over the plot.
+        if handles:
+            placement_kwargs = resolve_legend_placement(
+                config.legend_position,
+                config.legend_custom_x,
+                config.legend_custom_y,
+                config.legend_custom_anchor,
+            )
+            legend = build_legend(
+                canvas.axes, handles, labels,
+                config.legend_font_family,
+                config.legend_font_size,
+                config.legend_bg_color,
+                show_frame=config.legend_show_frame,
+                columns=config.legend_columns,
+                bg_alpha=config.legend_bg_alpha,
+                placement_kwargs=placement_kwargs,
+            )
+            if legend is not None:
+                # Map legend items (handles & labels) back to series/fit index
+                for handle_art, text_art, orig_handle in zip(
+                    legend.legend_handles, legend.get_texts(), handles, strict=False
+                ):
+                    series_idx = resolve_series_index_for_handle(artist_series_map, orig_handle)
+                    if series_idx is not None and interactive:
+                        handle_art.set_picker(True)
+                        text_art.set_picker(True)
+                        artist_series_map[handle_art] = series_idx
+                        artist_series_map[text_art] = series_idx
+
+    tight_layout_kwargs = {
+        "pad": config.chart_padding,
+        "w_pad": config.chart_padding_w,
+        "h_pad": config.chart_padding_h,
+        "rect": (0, 0, 1, config.top_margin),
+    }
+    # Reserve room for the secondary axis label/ticks so they aren't
+    # clipped at the right edge of the figure.
+    apply_layout_with_legend(
+        canvas.fig, tight_layout_kwargs,
+        legend_placed_outside=(
+            legend is not None and placement_kwargs.get("bbox_to_anchor") is not None
+        ),
+        is_3d=is_3d,
+    )
+
+    # Store original limits for zoom reset functionality
+    canvas.store_original_limits()
+
+    # Refresh canvas
+    canvas.draw()
+
+    return ChartRenderResult(series_errors=series_errors, colorbar=colorbar)
+
+
+def render_chart_to_png(chart, resolved_series_data, size_defaults) -> bytes | None:
+    """Render `chart` to PNG bytes using a headless canvas -- no Qt widget
+    involved, safe to call from any thread (see HeadlessChartCanvas).
+
+    Returns None on any render failure (logged at debug level) rather than
+    raising, so a background-task caller can treat it the same as today's
+    synchronous "couldn't render" case: leave the cache entry as a miss.
+    """
+    import io
+
+    from pandaplot.gui.components.tabs.chart.headless_chart_canvas import HeadlessChartCanvas
+
+    try:
+        canvas = HeadlessChartCanvas(
+            width=cm_to_inches(size_defaults.default_width_cm),
+            height=cm_to_inches(size_defaults.default_height_cm),
+            dpi=size_defaults.dpi,
+        )
+        render_chart(chart, canvas, resolved_series_data, size_defaults, interactive=False)
+        buf = io.BytesIO()
+        # render_chart() has applied the chart's own DPI (or the default) to the figure.
+        # A snapshot is a static image: without an explicit figure background it
+        # would stay transparent and dark text would vanish on a dark preview.
+        facecolor = chart.style.figure_background_color or "white"
+        canvas.fig.savefig(buf, format="png", dpi=canvas.fig.dpi, bbox_inches="tight", facecolor=facecolor)
+        return buf.getvalue()
+    except Exception as e:  # noqa: BLE001 -- background-render boundary -- any failure must become a cache miss, not crash the task
+        logger.debug("Failed to render chart %s headlessly: %s", chart.id, e)
+    return None
+
+
+def render_chart_to_qimage(chart, resolved_series_data, size_defaults) -> QImage | None:
+    """render_chart_to_png(), decoded into a QImage; None on any render failure."""
+    png_bytes = render_chart_to_png(chart, resolved_series_data, size_defaults)
+    if png_bytes is None:
+        return None
+    qimg = QImage()
+    return qimg if qimg.loadFromData(png_bytes) else None
 
 
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False,
@@ -633,9 +1582,7 @@ class ChartEditorWidget(PWidget):
         # `pick_event` on either can be traced back to a series. Rebuilt
         # from scratch on every update_chart() (see axes.clear() below).
         self._artist_series_map: dict = {}
-        # Artists drawn for a series' twin Y column (#402). Also in
-        # _artist_series_map (a click selects the owning series); kept apart
-        # so the legend doesn't pair a twin trace with the series' own fill.
+        # Artists drawn for a series' twin Y column (#402); see render_chart.
         self._twin_y_artists: set = set()
         self._last_hover_check_time: float = 0.0
         # Trailing-edge state for the hover throttle: the most recent
@@ -928,47 +1875,6 @@ class ChartEditorWidget(PWidget):
         """Load chart configuration into UI controls."""
         # No configuration UI to load since it's now in the side panel
 
-    def _resolve_fill_baseline(self, project, series_index, fill_base, fill_to_index, query, *, horizontal=False):
-        """Resolve the second bound for a series' area fill: either the
-        constant ``fill_base``, or -- when ``fill_to_index`` points at another
-        series -- that series' curve interpolated onto this series' sampling
-        grid, so the region *between* the two curves is filled.
-
-        ``query`` is this series' independent-axis samples (x for a vertical
-        fill, y for a horizontal one). Interpolation makes ``fill_between``/
-        ``fill_betweenx`` well-defined even when the two series do not share
-        a sampling grid; falls back to ``fill_base`` if the referenced
-        series is missing or fails to resolve.
-        """
-        if fill_to_index is None or fill_to_index < 0 or fill_to_index == series_index or fill_to_index >= len(self.chart.data_series):
-            return fill_base
-        other = self.chart.data_series[fill_to_index]
-        other_data = resolve_series_data(project, other)
-        if other_data.error or other_data.x_data is None or len(other_data.x_data) == 0:
-            return fill_base
-        # Interpolate the other curve over its own independent axis (x when
-        # vertical, y when horizontal). np.interp needs that axis increasing.
-        if horizontal:
-            xp = np.asarray(other_data.y_data, dtype=float)
-            fp = np.asarray(other_data.x_data, dtype=float)
-        else:
-            xp = np.asarray(other_data.x_data, dtype=float)
-            fp = np.asarray(other_data.y_data, dtype=float)
-        order = np.argsort(xp)
-        return np.interp(np.asarray(query, dtype=float), xp[order], fp[order])
-
-    def _resolve_z_label(self, project, series) -> str:
-        """Current display name of a series' color column (Z, or the
-        magnitude column for a Vector/Vector3D series), for the default
-        colorbar label. Empty when it can't be resolved (missing
-        dataset/column) so the colorbar just goes unlabeled rather than
-        erroring."""
-        from pandaplot.models.project.items.chart import resolve_series_column
-        dataset = project.find_item(series.dataset_id) if project else None
-        if hasattr(series.style, "magnitude_column_id"):
-            return resolve_series_column(dataset, series.style.magnitude_column_id, series.style.magnitude_column) or ""
-        return resolve_series_column(dataset, series.style.z_column_id, series.style.z_column) or ""
-
     def update_chart(self):
         """Update the chart preview."""
         # Guard: Check if widget still exists
@@ -977,794 +1883,45 @@ class ChartEditorWidget(PWidget):
             return
 
         self._update_swap_axes_visibility()
+        if not self.chart.data_series:
+            self.dataset_label.setText("No Data Loaded")
+
         try:
-            # Remove the previous colorbar (a colormap/heatmap render adds
-            # one on its own figure axes, which axes.clear() below doesn't
-            # touch). This must happen BEFORE axes.clear(): clearing the
-            # main axes detaches the mappable the colorbar refers to, which
-            # makes Colorbar.remove() raise (its mappable's axes becomes
-            # None) instead of cleanly removing the colorbar axes.
-            if self._colorbar is not None:
-                try:
-                    self._colorbar.remove()
-                except Exception:
-                    self.logger.debug("Failed to remove stale colorbar", exc_info=True)
-                self._colorbar = None
-
-            # Switch the axes' projection if this chart's type needs the
-            # other one. Must come after the colorbar removal above (which
-            # needs the mappable's axes to still exist) and before
-            # axes.clear() below (a 2-D <-> 3-D switch replaces the axes
-            # object outright, so clearing the outgoing one is pointless).
-            is_3d = CHART_TYPE_SPECS[self.chart.chart_type].is_3d
-            # False for a Pie chart: no axis scale/ticks/limits/grid at all
-            # (see ChartTypeSpec.has_axes). Title, subtitle and legend are
-            # figure-level and still apply.
-            has_axes = CHART_TYPE_SPECS[self.chart.chart_type].has_axes
-            self.chart_canvas.set_projection(projection_3d=is_3d)
-
-            # Clear the current plot and artist-to-series mapping
-            self.chart_canvas.axes.clear()
-            self._artist_series_map.clear()
-            self._twin_y_artists.clear()
-            if not is_3d:
-                # Axes.pie() turns the frame off and locks an equal aspect,
-                # and clear() undoes neither -- without this, an emptied Pie
-                # chart switched to an (x, y) type would keep a frameless,
-                # square plot area.
-                self.chart_canvas.axes.set_frame_on(True)
-                self.chart_canvas.axes.set_aspect("auto")
-
-            # Reset the main axes to a fresh full-figure 1x1 gridspec. A colorbar's
-            # default use_gridspec=True *subdivides* the gridspec, and that
-            # subdivision survives colorbar.remove() -- without this reset, each
-            # re-render of a colormap/heatmap chart would shrink the axes further.
-            #
-            # axes2 (twinx(), sharing the same gridspec cell) must get the SAME
-            # fresh spec unconditionally, even when no colorbar is drawn below --
-            # otherwise it stays on its old subdivided spec while axes gets the
-            # fresh one, and tight_layout() misaligns the two.
-            from matplotlib.gridspec import GridSpec
-            subplotspec = self.chart_canvas.axes.get_subplotspec()
-            if subplotspec is not None:
-                fresh_subplotspec = GridSpec(1, 1, figure=self.chart_canvas.fig)[0]
-                self.chart_canvas.axes.set_subplotspec(fresh_subplotspec)
-                if self.chart_canvas.axes2 is not None:
-                    self.chart_canvas.axes2.set_subplotspec(fresh_subplotspec)
-
-            fig_bg = self.chart.style.figure_background_color
-            axes_bg = self.chart.style.axes_background_color
-            self.chart_canvas.fig.set_facecolor(fig_bg if fig_bg is not None else "none")
-            self.chart_canvas.axes.set_facecolor(axes_bg if axes_bg is not None else "none")
-
-            # Set up (or tear down) the secondary Y axis depending on whether
-            # any series is currently routed to it. Never on a 3-D chart:
-            # twinx() has no mplot3d equivalent, and a series' y_axis
-            # setting simply doesn't apply there (set_projection already
-            # tore down any axes2 left over from a 2-D type).
             project = self.app_context.get_app_state().current_project
-            # Resolve every series' data once, up front: the secondary-axis
-            # decision, the shared color scale and the render loop all use it.
-            resolved_data = [resolve_series_data(project, series) for series in self.chart.data_series]
-            needs_secondary = not is_3d and has_axes and any(
-                series_needs_secondary_axis(series, data)
-                for series, data in zip(self.chart.data_series, resolved_data, strict=True))
-            if needs_secondary:
-                if self.chart_canvas.axes2 is None:
-                    self.chart_canvas.axes2 = self.chart_canvas.axes.twinx()
-                else:
-                    self.chart_canvas.axes2.clear()
-            elif self.chart_canvas.axes2 is not None:
-                self.chart_canvas.axes2.remove()
-                self.chart_canvas.axes2 = None
-                self.chart_canvas.original_ylim2 = None
-
-            series_errors = []
-            colorbar_mappable = None
-            colorbar_label = ""
-            # Shared by every Box series in this render pass so each can
-            # find its own X slot among its siblings (see series_renderers/
-            # box.py). Rebuilt per update_chart() call, never kept on self:
-            # a stale list would push every re-render's boxes further right.
-            box_positions: list[tuple[int, str]] = []
-            if not self.chart.data_series:
-                self.dataset_label.setText("No Data Loaded")
-            else:
-                # A shared color scale for Colormap/Heatmap series must be
-                # computed from ALL of their z-data before any of them render,
-                # not just whichever one happens to render first (see
-                # docs/superpowers/specs/2026-08-21-shared-chart-level-color-map-design.md).
-                color_scale_auto = self.chart.config.color_scale_auto
-                # Only gather z-data when the scale is auto-computed: a
-                # manual scale never reads it (see resolve_color_limits),
-                # so skip the work entirely in that case. Each array is
-                # built individually inside its own try/except so a single
-                # series with non-numeric (e.g. text) Z data can't blow up
-                # this up-front pre-pass and blank the whole chart -- that
-                # series is simply left out of the combined scale here and
-                # still gets its own per-series error below, when its
-                # renderer runs in the main loop.
-                z_arrays: list[np.ndarray] = []
-                if color_scale_auto:
-                    for series, data in zip(self.chart.data_series, resolved_data, strict=True):
-                        if not SERIES_TYPE_SPECS[series.series_type].uses_color_scale or data.error is not None:
-                            continue
-                        try:
-                            z_arrays.append(np.asarray(data.z_data, dtype=float))
-                        except (ValueError, TypeError):
-                            continue
-                combined_z = np.concatenate(z_arrays) if z_arrays else np.array([])
-                color_limits = resolve_color_limits(
-                    combined_z,
-                    auto=color_scale_auto,
-                    vmin=self.chart.config.color_vmin,
-                    vmax=self.chart.config.color_vmax,
-                )
-
-                # Stacked Bar series build on each other, so the running stack
-                # height has to outlive any one series' render -- but not this
-                # render pass, or every refresh would stack on the last one.
-                # One stack per axes: a series on the secondary Y axis has its
-                # own scale, so it must not start where a primary one ended.
-                bar_stacks: dict[object, BarStack] = {}
-
-                for i, (series, series_data) in enumerate(zip(self.chart.data_series, resolved_data, strict=True)):
-                    # Route this series to its configured Y axis
-                    target_axes = (self.chart_canvas.axes2
-                                   if series.y_axis == "secondary" and self.chart_canvas.axes2 is not None
-                                   else self.chart_canvas.axes)
-                    bar_stack = bar_stacks.setdefault(target_axes, {})
-
-                    x_data = series_data.x_data
-                    y_data = series_data.y_data
-                    x_err = series_data.x_err
-                    y_err = series_data.y_err
-                    x_err_minus = series_data.x_err_minus
-                    y_err_minus = series_data.y_err_minus
-                    error = series_data.error
-                    if error:
-                        series_errors.append(
-                            f"{series.label or f'Series {i + 1}'}: {error}")
-                        continue
-
-                    # Hidden series (fits included) are drawn faded rather than
-                    # omitted. Whether to omit them instead, for every series type
-                    # and its secondary elements, is tracked in #471.
-                    alpha = series.alpha if series.visible else 0.3
-                    series_type = series.series_type
-                    style = series.style
-
-                    with self._track_new_artists(i):
-                        # Draw error bars BEFORE the series/marker renderer:
-                        # matplotlib draws artists in the order they're added
-                        # to the axes when zorder is tied (neither call here
-                        # sets one), so error bars drawn first land underneath
-                        # the markers/line/bars instead of obscuring them.
-                        error_bars = getattr(style, "error_bars", None)
-                        if error_bars is not None:
-                            xerr = build_error_array(x_err, x_err_minus, error_bars.error_direction, error_bars.error_symmetric)
-                            yerr = build_error_array(y_err, y_err_minus, error_bars.error_direction, error_bars.error_symmetric)
-                            if xerr is not None or yerr is not None:
-                                err_color = error_bars.error_color or getattr(style, "color", "#1f77b4")
-                                err_y = y_data
-                                if SERIES_TYPE_SPECS[series_type].is_stacked:
-                                    # Anchor each error bar at the top of its stacked
-                                    # segment, not at its raw height. Placed on a copy:
-                                    # the renderer below advances the real stack.
-                                    err_y = place_on_stack(x_data, y_data, dict(bar_stack)) + np.asarray(y_data, dtype=float)
-                                target_axes.errorbar(
-                                    x_data, err_y,
-                                    xerr=xerr,
-                                    yerr=yerr,
-                                    fmt="none",
-                                    ecolor=err_color,
-                                    elinewidth=getattr(style, "line_width", 2.0),
-                                    capsize=error_bars.error_cap_size,
-                                    alpha=alpha)
-
-                        renderer = SERIES_RENDERERS[series_type]
-                        render_extra = {
-                            "bins": self.chart.config.hist_bins,
-                            "hist_density": CHART_TYPE_SPECS[self.chart.chart_type].hist_density,
-                            "resolve_fill_baseline": (
-                                lambda query, *, horizontal, _i=i, _style=style: self._resolve_fill_baseline(
-                                    project, _i, _style.fill_base, _style.fill_to_index, query,
-                                    horizontal=horizontal)
-                            ),
-                            "colormap": self.chart.config.colormap,
-                            "color_limits": color_limits,
-                            "stack_bottoms": bar_stack,
-                            BOX_POSITIONS_KEY: box_positions,
-                        }
-                        mappable = renderer(
-                            target_axes, series_data, style, series.label, alpha,
-                            visible=series.visible,
-                            extra=render_extra,
-                        )
-                        if series_data.twin_y_data is not None:
-                            self._render_twin_y_trace(
-                                renderer, series, series_data, target_axes, alpha, render_extra)
-
-                    if mappable is None and series_type in SERIES_RENDERERS_REPORTING_NO_DATA:
-                        series_errors.append(f"{series.label or f'Series {i + 1}'}: no plottable data")
-                        continue
-                    # A Vector/Vector3D renderer only returns a mappable when
-                    # its arrows are colored by magnitude; that gets a
-                    # colorbar too, though the type isn't on the shared scale.
-                    if (mappable is not None and colorbar_mappable is None
-                            and (SERIES_TYPE_SPECS[series_type].uses_color_scale or hasattr(style, "magnitude_column_id"))
-                            and self.chart.config.colorbar_show):
-                        colorbar_mappable = mappable
-                        # None means "not customized" -- fall back to the Z
-                        # column's name. Any other value (including "") is
-                        # the user's explicit choice and is used as-is, so a
-                        # deliberately cleared label renders with no label
-                        # rather than reverting to the column name.
-                        custom_label = self.chart.config.colorbar_label
-                        colorbar_label = (
-                            custom_label if custom_label is not None
-                            else self._resolve_z_label(project, series)
-                        )
-
-                if colorbar_mappable is not None:
-                    # A 3-D axes needs a wider gap than matplotlib's 0.05
-                    # default: its Z tick labels are drawn at the right edge
-                    # of the axes box (the projected cube is inset within
-                    # it), so a default-padded colorbar lands on top of
-                    # them.
-                    self._colorbar = self.chart_canvas.fig.colorbar(
-                        colorbar_mappable, ax=self.chart_canvas.axes,
-                        **({"pad": 0.12} if is_3d else {}))
-                    if self.chart_canvas.axes2 is not None:
-                        # fig.colorbar(..., ax=axes) subdivides *only* the
-                        # primary axes' gridspec cell to make room -- axes2
-                        # (a twinx() sharing that same cell) keeps its old,
-                        # full-width subplotspec. Passing both axes to
-                        # colorbar() doesn't help either: with two axes
-                        # sharing a cell, tight_layout() flags the figure as
-                        # "not compatible" and re-expands both back to full
-                        # width, drawing the colorbar on top of the data.
-                        # Explicitly handing axes2 the *same*, now-subdivided
-                        # subplotspec keeps both axes shrunk together and
-                        # keeps tight_layout happy across repeated
-                        # resizes/re-renders.
-                        self.chart_canvas.axes2.set_subplotspec(
-                            self.chart_canvas.axes.get_subplotspec())
-                    if colorbar_label:
-                        self._colorbar.set_label(colorbar_label)
-
-            # Apply chart configuration
-            config = self.chart.config
-
-            # Resolve the target figure size *before* applying the title:
-            # main_title_padding's points-to-fraction conversion needs the
-            # height the figure is about to be set to, not whatever height
-            # it happened to have from the previous render.
-            cfg_manager = self.app_context.get_manager(ConfigManager)
-            display_cfg = getattr(getattr(cfg_manager, "config", None), "chart_display", None)
-            default_width = getattr(display_cfg, "default_width_cm", 20.0) if display_cfg else 20.0
-            default_height = getattr(display_cfg, "default_height_cm", 15.0) if display_cfg else 15.0
-            default_dpi = getattr(display_cfg, "dpi", 100) if display_cfg else 100
-            width_cm, height_cm, dpi = resolve_chart_size(
-                config.width_cm, config.height_cm, config.dpi,
-                default_width, default_height, default_dpi,
+            resolved_series_data = resolve_chart_series_data(project, self.chart)
+            size_defaults = resolve_chart_size_defaults(self.app_context)
+            # render_chart removes the previous colorbar; drop the reference
+            # first so a render that then fails can't leave it dangling.
+            previous_colorbar, self._colorbar = self._colorbar, None
+            result = render_chart(
+                self.chart, self.chart_canvas, resolved_series_data, size_defaults,
+                existing_colorbar=previous_colorbar, interactive=True,
+                artist_series_map=self._artist_series_map,
+                twin_y_artists=self._twin_y_artists,
             )
-
-            # config.title is already correctly "the chart's name" for a
-            # title never explicitly set (Chart.__init__ seeds it) and
-            # correctly "" for one explicitly cleared (from_dict only
-            # overwrites the seeded default when the saved dict actually had
-            # a "title" key) -- see chart_tab.py's load() for the same note.
-            apply_chart_title(
-                self.chart_canvas.axes,
-                title=config.title,
-                subtitle=config.subtitle,
-                title_font_size=config.title_font_size,
-                subtitle_font_size=config.subtitle_font_size,
-                title_padding=config.title_padding,
-                main_title_padding=config.main_title_padding,
-                fig_height_inches=cm_to_inches(height_cm),
-                title_bold=config.title_bold,
-                title_italic=config.title_italic,
-                subtitle_bold=config.subtitle_bold,
-                subtitle_italic=config.subtitle_italic,
-                title_color=config.title_color,
-                subtitle_color=(
-                    config.title_color
-                    if config.subtitle_match_title_color
-                    else config.subtitle_color
-                ),
-                title_font_family=config.title_font_family,
-                subtitle_font_family=config.subtitle_font_family,
-            )
-
-            chart_padding = config.chart_padding
-            chart_padding_w = config.chart_padding_w
-            chart_padding_h = config.chart_padding_h
-            top_margin = config.top_margin
-            self.chart_canvas.set_size(
-                cm_to_inches(width_cm), cm_to_inches(height_cm),
-                pad=chart_padding, w_pad=chart_padding_w, h_pad=chart_padding_h, top_margin=top_margin,
-            )
-            self.chart_canvas.set_dpi(
-                dpi, pad=chart_padding, w_pad=chart_padding_w, h_pad=chart_padding_h, top_margin=top_margin,
-            )
-
-            x_label_color = config.x.label_color
-            y_match_label = config.y.match_x_label_color
-            y_label_color = resolve_axis_color(
-                "y", config.y.label_color, y_match_label, x_label_color)
-            self.chart_canvas.axes.set_xlabel(
-                config.x.label, color=x_label_color,
-                fontfamily=config.x.font_family,
-                fontweight="bold" if config.x.title_bold else "normal",
-                fontstyle="italic" if config.x.title_italic else "normal",
-                rotation=config.x.label_rotation,
-            )
-            self.chart_canvas.axes.set_ylabel(
-                config.y.label, color=y_label_color,
-                fontfamily=config.y.font_family,
-                fontweight="bold" if config.y.title_bold else "normal",
-                fontstyle="italic" if config.y.title_italic else "normal",
-                rotation=config.y.label_rotation,
-            )
-            x_scale = config.x.scale if has_axes else "linear"
-            y_scale = config.y.scale if has_axes else "linear"
-            self.chart_canvas.axes.set_xscale(x_scale, **resolve_scale_kwargs(x_scale, config.x.log_base))
-            self.chart_canvas.axes.set_yscale(y_scale, **resolve_scale_kwargs(y_scale, config.y.log_base))
-            self.chart_canvas.axes.xaxis.label.set_size(config.x.font_size)
-            self.chart_canvas.axes.yaxis.label.set_size(config.y.font_size)
-            if not is_3d:
-                # Which side the Y axis is drawn on is a 2-D concept:
-                # mplot3d's own YAxis has no tick_left/tick_right at all
-                # (calling them raises AttributeError), and the axis's
-                # position on a 3-D chart follows the camera angle instead.
-                if config.y.side == "right":
-                    self.chart_canvas.axes.yaxis.tick_right()
-                    self.chart_canvas.axes.yaxis.set_label_position("right")
-                else:
-                    self.chart_canvas.axes.yaxis.tick_left()
-                    self.chart_canvas.axes.yaxis.set_label_position("left")
-
-            if is_3d:
-                self.chart_canvas.axes.set_zlabel(
-                    config.z.label, color=x_label_color,
-                    fontfamily=config.z.font_family,
-                    fontweight="bold" if config.z.title_bold else "normal",
-                    fontstyle="italic" if config.z.title_italic else "normal",
-                )
-                z_scale = config.z.scale
-                self.chart_canvas.axes.set_zscale(
-                    z_scale, **resolve_scale_kwargs(z_scale, config.z.log_base))
-                self.chart_canvas.axes.zaxis.label.set_size(config.z.font_size)
-                # The camera angle. Matplotlib's interactive drag-to-rotate
-                # still moves it freely from here -- this is the view every
-                # (re-)render starts from, not a lock.
-                self.chart_canvas.axes.view_init(
-                    elev=config.view_elev, azim=config.view_azim)
-
-            if self.chart_canvas.axes2 is not None:
-                y2_match_label = config.y2.match_x_label_color
-                y2_label_color = resolve_axis_color(
-                    "y2", config.y2.label_color, y2_match_label, x_label_color)
-                self.chart_canvas.axes2.set_ylabel(
-                    config.y2.label, color=y2_label_color,
-                    fontfamily=config.y2.font_family,
-                    fontweight="bold" if config.y2.title_bold else "normal",
-                    fontstyle="italic" if config.y2.title_italic else "normal",
-                    rotation=config.y2.label_rotation,
-                )
-                y2_scale = config.y2.scale
-                self.chart_canvas.axes2.set_yscale(
-                    y2_scale, **resolve_scale_kwargs(y2_scale, config.y2.log_base))
-                self.chart_canvas.axes2.yaxis.label.set_size(config.y2.font_size)
-                if config.y2.side == "left":
-                    self.chart_canvas.axes2.yaxis.tick_left()
-                    self.chart_canvas.axes2.yaxis.set_label_position("left")
-                else:
-                    self.chart_canvas.axes2.yaxis.tick_right()
-                    self.chart_canvas.axes2.yaxis.set_label_position("right")
-
-                if not config.y2.auto_limits:
-                    self.chart_canvas.axes2.set_ylim(config.y2.min, config.y2.max)
-
-                apply_axis_ticks(
-                    self.chart_canvas.axes2.yaxis,
-                    config.y2.tick_mode, config.y2.tick_count,
-                    config.y2.tick_step, config.y2.tick_format,
-                    config.y2.tick_format_custom,
-                    direction=config.y2.tick_direction,
-                    minor_enabled=config.y2.minor_ticks,
-                    minor_direction=config.y2.minor_tick_direction,
-                    major_color=resolve_axis_color(
-                        "y2", config.y2.major_tick_color,
-                        config.y2.match_x_colors,
-                        config.x.major_tick_color),
-                    minor_color=resolve_axis_color(
-                        "y2", config.y2.minor_tick_color,
-                        config.y2.match_x_colors,
-                        config.x.minor_tick_color),
-                    labelcolor=resolve_axis_color(
-                        "y2", config.y2.tick_label_color,
-                        config.y2.match_x_colors,
-                        config.x.tick_label_color))
-
-                apply_tick_label_font(
-                    self.chart_canvas.axes2.yaxis,
-                    config.y2.tick_label_font_size,
-                    config.y2.tick_label_font_family,
-                    bold=config.y2.tick_label_bold,
-                    italic=config.y2.tick_label_italic,
-                    rotation=config.y2.tick_label_rotation,
-                )
-
-                if config.y2.show_grid:
-                    self.chart_canvas.axes2.grid(visible=True, axis="y", alpha=config.grid_alpha)
-                else:
-                    self.chart_canvas.axes2.grid(visible=False, axis="y")
-                if config.y2.show_minor_grid:
-                    self.chart_canvas.axes2.grid(
-                        visible=True, axis="y", which="minor", alpha=config.minor_grid_alpha)
-                else:
-                    self.chart_canvas.axes2.grid(visible=False, axis="y", which="minor")
-
-            # A pie sizes its own limits to the circle; a stored manual range
-            # (never editable for one -- the Axes tab hides itself) would
-            # only crop or squash it.
-            if has_axes and not config.x.auto_limits:
-                self.chart_canvas.axes.set_xlim(config.x.min, config.x.max)
-            if has_axes and not config.y.auto_limits:
-                self.chart_canvas.axes.set_ylim(config.y.min, config.y.max)
-            if is_3d and not config.z.auto_limits:
-                self.chart_canvas.axes.set_zlim(config.z.min, config.z.max)
-
-            apply_axis_ticks(
-                self.chart_canvas.axes.xaxis,
-                config.x.tick_mode, config.x.tick_count,
-                config.x.tick_step, config.x.tick_format,
-                config.x.tick_format_custom,
-                direction=config.x.tick_direction,
-                minor_enabled=config.x.minor_ticks,
-                minor_direction=config.x.minor_tick_direction,
-                major_color=config.x.major_tick_color,
-                minor_color=config.x.minor_tick_color,
-                labelcolor=config.x.tick_label_color)
-            if box_positions:
-                # apply_axis_ticks just swapped in a numeric locator/
-                # formatter, which would replace each box's named tick with
-                # bare 0.5-step numbers -- the boxes' X positions mean
-                # nothing numerically. Restored before apply_tick_label_font
-                # so the configured tick font still reaches these labels.
-                apply_box_ticks(self.chart_canvas.axes, box_positions)
-            apply_tick_label_font(
-                self.chart_canvas.axes.xaxis,
-                config.x.tick_label_font_size,
-                config.x.tick_label_font_family,
-                bold=config.x.tick_label_bold,
-                italic=config.x.tick_label_italic,
-                rotation=config.x.tick_label_rotation,
-            )
-            apply_axis_ticks(
-                self.chart_canvas.axes.yaxis,
-                config.y.tick_mode, config.y.tick_count,
-                config.y.tick_step, config.y.tick_format,
-                config.y.tick_format_custom,
-                direction=config.y.tick_direction,
-                minor_enabled=config.y.minor_ticks,
-                minor_direction=config.y.minor_tick_direction,
-                major_color=resolve_axis_color(
-                    "y", config.y.major_tick_color,
-                    config.y.match_x_colors,
-                    config.x.major_tick_color),
-                minor_color=resolve_axis_color(
-                    "y", config.y.minor_tick_color,
-                    config.y.match_x_colors,
-                    config.x.minor_tick_color),
-                labelcolor=resolve_axis_color(
-                    "y", config.y.tick_label_color,
-                    config.y.match_x_colors,
-                    config.x.tick_label_color))
-            apply_tick_label_font(
-                self.chart_canvas.axes.yaxis,
-                config.y.tick_label_font_size,
-                config.y.tick_label_font_family,
-                bold=config.y.tick_label_bold,
-                italic=config.y.tick_label_italic,
-                rotation=config.y.tick_label_rotation,
-            )
-
-            if is_3d:
-                # mplot3d's ZAxis is a plain matplotlib Axis subclass, so
-                # the same locator/formatter/tick-params helpers the X and
-                # Y axes go through apply unchanged. Z has no "match X"
-                # color flags of its own (the Style tab's per-axis color
-                # forms are X/Y/Y2 only), so it simply follows X's colors.
-                apply_axis_ticks(
-                    self.chart_canvas.axes.zaxis,
-                    config.z.tick_mode, config.z.tick_count,
-                    config.z.tick_step, config.z.tick_format,
-                    config.z.tick_format_custom,
-                    direction=config.z.tick_direction,
-                    minor_enabled=config.z.minor_ticks,
-                    minor_direction=config.z.minor_tick_direction,
-                    major_color=config.x.major_tick_color,
-                    minor_color=config.x.minor_tick_color,
-                    labelcolor=config.x.tick_label_color)
-                apply_tick_label_font(
-                    self.chart_canvas.axes.zaxis,
-                    config.x.tick_label_font_size,
-                    config.x.tick_label_font_family,
-                    bold=config.x.tick_label_bold,
-                    italic=config.x.tick_label_italic,
-                    rotation=config.x.tick_label_rotation,
-                )
-
-            apply_spine_colors(
-                self.chart_canvas.axes, self.chart_canvas.axes2,
-                config.x.spine_color,
-                resolve_axis_color(
-                    "y", config.y.spine_color,
-                    config.y.match_x_colors,
-                    config.x.spine_color),
-                resolve_axis_color(
-                    "y2", config.y2.spine_color,
-                    config.y2.match_x_colors,
-                    config.x.spine_color))
-
-            grid_alpha = config.grid_alpha
-            minor_grid_alpha = config.minor_grid_alpha
-            if is_3d:
-                # Axes3D.grid() takes no `axis`/`which`/`alpha` -- it draws
-                # the three panes' gridlines as one unit (any kwarg passed
-                # is silently ignored AND forces visible=True, so the 2-D
-                # per-axis calls below would turn the grid permanently on).
-                # Show it when any of the three axes wants a grid.
-                self.chart_canvas.axes.grid(
-                    visible=(
-                        config.x.show_grid
-                        or config.y.show_grid
-                        or config.z.show_grid
-                    ))
-            else:
-                if config.x.show_grid:
-                    self.chart_canvas.axes.grid(visible=True, axis="x", alpha=grid_alpha)
-                else:
-                    self.chart_canvas.axes.grid(visible=False, axis="x")
-                if config.x.show_minor_grid:
-                    self.chart_canvas.axes.grid(visible=True, axis="x", which="minor", alpha=minor_grid_alpha)
-                else:
-                    self.chart_canvas.axes.grid(visible=False, axis="x", which="minor")
-                if config.y.show_grid:
-                    self.chart_canvas.axes.grid(visible=True, axis="y", alpha=grid_alpha)
-                else:
-                    self.chart_canvas.axes.grid(visible=False, axis="y")
-                if config.y.show_minor_grid:
-                    self.chart_canvas.axes.grid(visible=True, axis="y", which="minor", alpha=minor_grid_alpha)
-                else:
-                    self.chart_canvas.axes.grid(visible=False, axis="y", which="minor")
-
-            if has_axes:
-                self.chart_canvas.axes.set_axis_on()
-            else:
-                # Rather than skipping the X/Y configuration above piece by
-                # piece, let it run and then hide every axis artist at once:
-                # set_axis_off() drops ticks, tick labels, axis labels,
-                # spines and gridlines from the draw, but not the title or
-                # the legend, which a pie still uses. axes.clear() resets
-                # it, but set_axis_on() above keeps that explicit.
-                self.chart_canvas.axes.set_axis_off()
-
-            legend = None
-            placement_kwargs = {}
-            if config.show_legend and self.chart.data_series:
-                # Combine handles/labels from both axes since twinx() legends
-                # are independent by default.
-                handles, labels = self.chart_canvas.axes.get_legend_handles_labels()
-                if self.chart_canvas.axes2 is not None:
-                    handles2, labels2 = self.chart_canvas.axes2.get_legend_handles_labels()
-                    handles += handles2
-                    labels += labels2
-                handles = self._add_fill_legend_swatches(handles)
-                # Skip drawing the legend when there are no handles to show
-                # (e.g. a chart with only an unlabeled Heatmap series, or any
-                # chart where nothing has a label) -- matplotlib would
-                # otherwise draw an empty framed legend box over the plot.
-                if handles:
-                    placement_kwargs = resolve_legend_placement(
-                        config.legend_position,
-                        config.legend_custom_x,
-                        config.legend_custom_y,
-                        config.legend_custom_anchor,
-                    )
-                    legend = build_legend(
-                        self.chart_canvas.axes, handles, labels,
-                        config.legend_font_family,
-                        config.legend_font_size,
-                        config.legend_bg_color,
-                        show_frame=config.legend_show_frame,
-                        columns=config.legend_columns,
-                        bg_alpha=config.legend_bg_alpha,
-                        placement_kwargs=placement_kwargs,
-                    )
-                    if legend is not None:
-                        # Map legend items (handles & labels) back to series/fit index
-                        for handle_art, text_art, orig_handle in zip(
-                            legend.legend_handles, legend.get_texts(), handles, strict=False
-                        ):
-                            series_idx = self._resolve_series_index_for_handle(orig_handle)
-                            if series_idx is not None:
-                                handle_art.set_picker(True)
-                                text_art.set_picker(True)
-                                self._artist_series_map[handle_art] = series_idx
-                                self._artist_series_map[text_art] = series_idx
-
-            tight_layout_kwargs = {
-                "pad": config.chart_padding,
-                "w_pad": config.chart_padding_w,
-                "h_pad": config.chart_padding_h,
-                "rect": (0, 0, 1, config.top_margin),
-            }
-            # Reserve room for the secondary axis label/ticks so they aren't
-            # clipped at the right edge of the figure.
-            apply_layout_with_legend(
-                self.chart_canvas.fig, tight_layout_kwargs,
-                legend_placed_outside=(
-                    legend is not None and placement_kwargs.get("bbox_to_anchor") is not None
-                ),
-                is_3d=is_3d,
-            )
-
-            # Store original limits for zoom reset functionality
-            self.chart_canvas.store_original_limits()
-
-            # Refresh canvas
-            self.chart_canvas.draw()
-
-            if series_errors:
-                self.update_status("Skipped: " + "; ".join(series_errors))
+            self._colorbar = result.colorbar
+            if result.series_errors:
+                self.update_status("Skipped: " + "; ".join(result.series_errors))
             else:
                 self.update_status("Ready")
-
         except Exception as e:
             self.logger.exception("Error updating chart")
             self.update_status(f"Chart error: {e!s}")
 
-    def _render_twin_y_trace(self, renderer, series, series_data: SeriesData, target_axes, alpha: float,
-                             extra: dict) -> None:
-        """Draw a series' twin Y column (#402) on the Y axis opposite
-        `target_axes`, with the series' own style and X values.
-
-        The twin trace skips the area fill (its baseline and fill-to-series
-        target are defined against the series' own values and axis) and
-        error bars (they describe the series' own Y). Its legend entry is the
-        series label tagged with the twin's axis, and it is left out when the
-        series has no label, matching the series' own entry.
-        """
-        axes2 = self.chart_canvas.axes2
-        twin_axes = self.chart_canvas.axes if target_axes is axes2 else axes2
-        if twin_axes is None or twin_axes is target_axes:
-            return
-        axis_tag = "Y₂" if twin_axes is axes2 else "Y₁"
-        twin_label = f"{series.label} ({axis_tag})" if series.label else ""
-        twin_style = self._twin_y_style(series.style)
-        twin_data = SeriesData(series_data.x_data, series_data.twin_y_data, None, None, None, None, None)
-        before = self._axes_children()
-        renderer(twin_axes, twin_data, twin_style, twin_label, alpha, visible=series.visible, extra=extra)
-        self._twin_y_artists.update(self._axes_children() - before)
-
-    @staticmethod
-    def _twin_y_style(style):
-        """The series' style recolored for its twin Y trace: `twin_y_color`
-        replaces the line color and any explicit marker colors (blank marker
-        colors keep inheriting), and the area fill is dropped."""
-        color = style.twin_y_color
-        marker = style.marker
-        twin_marker = dataclasses.replace(
-            marker,
-            marker_color=color if marker.marker_color else "",
-            marker_edge_color=color if marker.marker_edge_color else "",
-        )
-        return dataclasses.replace(style, color=color, marker=twin_marker, fill_enabled=False)
-
-    def _axes_children(self) -> set:
-        """All child artists across the primary and (if present) secondary axes."""
-        children = set(self.chart_canvas.axes.get_children())
-        if self.chart_canvas.axes2 is not None:
-            children.update(self.chart_canvas.axes2.get_children())
-        return children
-
-    @contextmanager
-    def _track_new_artists(self, index: int):
-        """Map every artist added to the axes inside this `with` block to
-        `index` in `_artist_series_map` and make it pick-able, so a later
-        click on it resolves back to the series/fit at that index."""
-        before = self._axes_children()
-        yield
-        for artist in self._axes_children() - before:
-            self._make_pickable(artist)
-            self._artist_series_map[artist] = index
-
-    def _make_pickable(self, artist):
-        """Best-effort: give `artist` a pick tolerance appropriate to its
-        type. Not every artist type supports `set_picker`/pick radius the
-        same way -- a failure here just means that artist won't be
-        clickable, not a broken render, so it's swallowed rather than
-        surfaced to the user.
-        """
-        if not hasattr(artist, "set_picker"):
-            return
-        try:
-            if hasattr(artist, "get_linewidth") and artist.get_linewidth() is not None:
-                # Numeric picker: a pixel tolerance around thin lines/markers.
-                artist.set_picker(5)
-            else:
-                artist.set_picker(True)
-        except Exception:
-            self.logger.debug("Could not set picker on artist %r", artist, exc_info=True)
-
     def _resolve_series_index_for_handle(self, handle):
-        """Resolve a legend handle to a series/fit index via
-        `_artist_series_map`.
-
-        Line/marker/collection series map their handle directly. Container
-        handles (`BarContainer`, `ErrorbarContainer`, ...) aren't themselves
-        tracked artists -- matplotlib's legend uses the container as the
-        "handle", but the container is just a tuple wrapping the individual
-        patches/lines that *are* tracked -- so recurse into it looking for a
-        tracked part.
-        """
-        series_idx = self._artist_series_map.get(handle)
-        if series_idx is not None:
-            return series_idx
-        if isinstance(handle, (tuple, list)):
-            for part in handle:
-                series_idx = self._resolve_series_index_for_handle(part)
-                if series_idx is not None:
-                    return series_idx
-        return None
+        """Resolve a legend handle to a series/fit index via this widget's
+        artist-to-series map, as rebuilt by the last render (see the
+        module-level resolve_series_index_for_handle)."""
+        return resolve_series_index_for_handle(self._artist_series_map, handle)
 
     def _add_fill_legend_swatches(self, handles: list) -> list:
-        """For a filled/area line series (`style.fill_enabled`), pair its
-        line handle with the actual `fill_between`/`fill_betweenx`
-        PolyCollection artist tracked for it in `_artist_series_map`, so the
-        legend swatch shows the filled area's color/alpha instead of just
-        the line (#278). `build_legend`'s `handler_map` draws such a tuple
-        as one combined patch+line key. Series without an enabled fill, or
-        whose fill artist can't be found, pass through unchanged."""
-        augmented = []
-        for handle in handles:
-            if handle in self._twin_y_artists:
-                # A twin Y trace is drawn without the series' fill.
-                augmented.append(handle)
-                continue
-            series_idx = self._resolve_series_index_for_handle(handle)
-            style = self._line_style_for_data_series_index(series_idx)
-            fill_artist = self._find_fill_artist_for_series(series_idx) if style is not None and style.fill_enabled else None
-            # Line first, fill second -- same z-order render_line_series
-            # draws them in (plot() then fill_between(x)), so the swatch
-            # matches the actual chart appearance.
-            augmented.append((handle, fill_artist) if fill_artist is not None else handle)
-        return augmented
-
-    def _line_style_for_data_series_index(self, series_idx):
-        """The line-with-optional-fill style (`LineSeriesStyle`, or a
-        Density curve's `DensitySeriesStyle`) for
-        `chart.data_series[series_idx]`, or None when `series_idx` is out
-        of range (e.g. a fit curve index, or no match) or the series isn't
-        drawn as a fillable line."""
-        if series_idx is None or not (0 <= series_idx < len(self.chart.data_series)):
-            return None
-        style = self.chart.data_series[series_idx].style
-        return style if isinstance(style, (LineSeriesStyle, DensitySeriesStyle)) else None
+        """Widget-level entry point to the module-level add_fill_legend_swatches,
+        using this widget's artist-to-series map as rebuilt by the last render."""
+        return add_fill_legend_swatches(self.chart, self._artist_series_map, handles, self._twin_y_artists)
 
     def _find_fill_artist_for_series(self, series_idx):
-        """The PolyCollection added by render_line_series's fill_between(x)
-        call for `series_idx`, found via `_artist_series_map` (populated by
-        `_track_new_artists`)."""
-        for artist, idx in self._artist_series_map.items():
-            if idx == series_idx and isinstance(artist, PolyCollection):
-                return artist
-        return None
+        """The fill PolyCollection tracked for `series_idx` by the last render."""
+        return find_fill_artist_for_series(self._artist_series_map, series_idx)
 
     def _on_pick_event(self, event):
         """Handle click/pick events on chart artists (lines, scatter points, legend, etc.).

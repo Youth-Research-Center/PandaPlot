@@ -1,3 +1,4 @@
+import logging
 import sys
 import traceback
 from collections.abc import Callable
@@ -33,6 +34,7 @@ class Worker(QRunnable):
 
     def __init__(self, fn: WorkerFuncType, *args, cancellation_token: CancellationToken | None = None, **kwargs):
         super().__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.fn = fn
         self.cancellation_token = cancellation_token or CancellationToken()
         self.args = args
@@ -61,11 +63,11 @@ class Worker(QRunnable):
                 raise TaskCancelledError("Task was cancelled.")
         except TaskCancelledError:
             self.signals.cancelled.emit()
-        except Exception:  # noqa: BLE001 -- Background task boundary -- any failure other than explicit cancellation must be reported as a task failure, not crash the worker thread
+        except Exception:  # Background task boundary -- any failure other than explicit cancellation must be reported as a task failure, not crash the worker thread
             # Any exception other than TaskCancelledError is a genuine task
             # failure, even if cancellation happens to have been requested
             # around the same time - do not misreport it as a cancellation.
-            traceback.print_exc()
+            self.logger.exception("Background task failed")
             exctype, value = sys.exc_info()[:2]
             self.signals.error.emit((exctype, value, traceback.format_exc()))
         else:

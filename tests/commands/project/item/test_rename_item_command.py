@@ -108,3 +108,58 @@ class TestRenameItemCommandLogging:
         with caplog.at_level(logging.WARNING):
             command.undo()
         assert "missing-item" in caplog.text
+
+
+def _rename_setup(note):
+    from pandaplot.models.project import Project
+
+    app_context = Mock(spec=AppContext)
+    app_state = Mock(spec=AppState)
+    app_context.get_app_state.return_value = app_state
+    app_context.get_ui_controller.return_value = Mock(spec=UIController)
+    app_state.event_bus = Mock()
+    project = Project("Test")
+    project.add_item(note)
+    app_state.has_project = True
+    app_state.current_project = project
+    return app_context, app_state
+
+
+def test_undo_restores_an_empty_original_name():
+    from pandaplot.models.project.items import Note
+
+    note = Note(id="note-1", name="")
+    app_context, _ = _rename_setup(note)
+    command = RenameItemCommand(app_context, item_id="note-1", new_name="Renamed")
+
+    assert command.execute() is CommandResult.SUCCESS
+    assert note.name == "Renamed"
+    assert command.undo() is CommandResult.SUCCESS
+    assert note.name == ""
+    assert command.redo() is CommandResult.SUCCESS
+    assert note.name == "Renamed"
+
+
+def test_renaming_to_the_current_name_is_a_noop():
+    from pandaplot.models.project.items import Note
+
+    note = Note(id="note-1", name="Same")
+    app_context, app_state = _rename_setup(note)
+    modified_at = note.modified_at
+    command = RenameItemCommand(app_context, item_id="note-1", new_name="Same")
+
+    assert command.execute() is CommandResult.NOOP
+    assert note.name == "Same"
+    assert note.modified_at == modified_at
+    app_state.event_bus.emit.assert_not_called()
+
+
+def test_execute_returns_failure_when_the_rename_raises():
+    from pandaplot.models.project.items import Note
+
+    note = Note(id="note-1", name="Old")
+    app_context, app_state = _rename_setup(note)
+    app_state.event_bus.emit.side_effect = RuntimeError("subscriber failed")
+    command = RenameItemCommand(app_context, item_id="note-1", new_name="New")
+
+    assert command.execute() is CommandResult.FAILURE

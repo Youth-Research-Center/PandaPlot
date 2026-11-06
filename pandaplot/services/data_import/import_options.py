@@ -31,8 +31,9 @@ class ImportOptions:
     """
     A fully-resolved description of how to parse a data file.
 
-    ``delimiter``, ``skip_rows``, and ``encoding`` apply only to delimited
-    text; ``sheet_name`` only to Excel. ``delimiter`` may be a regex (e.g.
+    ``delimiter`` applies only to delimited text, ``skip_rows`` to delimited
+    text and Excel, ``encoding`` to delimited text and JSON, and
+    ``sheet_name`` only to Excel. ``delimiter`` may be a regex (e.g.
     ``r"\\s+"``) rather than a literal separator. When ``has_header`` is
     False, synthetic ``Column 1..N`` names are generated instead.
     """

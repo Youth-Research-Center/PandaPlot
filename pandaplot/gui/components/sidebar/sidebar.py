@@ -93,8 +93,10 @@ class CollapsibleSidebar(PWidget):
             icon (str): Icon character or text for the button
             content_widget (QWidget): Widget to display in the panel
         """
-        # Add button to icon bar
-        self.icon_bar.add_panel_button(name, icon)
+        # Add button to icon bar, labelled with the panel's visible title (without its icon)
+        title_label = getattr(content_widget, "title_label", None)
+        label = title_label.text().removeprefix(icon).strip() if title_label is not None else None
+        self.icon_bar.add_panel_button(name, icon, label=label)
 
         # Add panel to panel area
         self.panel_area.add_panel(name, content_widget)
