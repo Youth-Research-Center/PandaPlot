@@ -2527,8 +2527,13 @@ class StyleTab(QWidget):
             self.value_labels_arrow_style_control.setCurrentValue(
                 ValueLabelArrowStyle.coerce(getattr(style, "value_label_arrow_style", ValueLabelArrowStyle.LINE))
             )
+            # A label with no text color of its own is drawn in the marker color for Scatter and the line
+            # color otherwise (see render_scatter_series / render_line_series); the arrow follows the label.
+            inherited_label_color = (marker_color or color) if series.series_type == SeriesType.SCATTER else color
             value_label_arrow_color = getattr(style, "value_label_arrow_color", DEFAULT_VALUE_LABEL_ARROW_COLOR)
-            self.value_labels_arrow_color_row.setCurrentColor(value_label_arrow_color or value_label_text_color or color)
+            self.value_labels_arrow_color_row.setCurrentColor(
+                value_label_arrow_color or value_label_text_color or inherited_label_color
+            )
             self.value_labels_arrow_match_color_toggle.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
             self.value_labels_arrow_match_color_toggle.setChecked(checked=value_label_arrow_color == "")
             self.value_labels_arrow_match_color_toggle.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only

@@ -283,3 +283,20 @@ def test_arrow_line_style_icons_follow_the_theme():
     for index in range(control.count()):
         expected = build_line_style_icon(LineStyleType(control.itemData(index)), tokens)
         assert control.itemIcon(index).pixmap(size).toImage() == expected.pixmap(size).toImage()
+
+
+@pytest.mark.parametrize(
+    ("make_series", "expected"),
+    [(_line_series, "#1f77b4"), (_scatter_series, "#8c564b")],
+)
+def test_an_arrow_matching_the_label_shows_the_color_the_label_is_drawn_in(make_series, expected):
+    """Scatter labels inherit the marker color (render_scatter_series), Line labels the line color,
+    so that is what the swatch must show once Match text color is turned off."""
+    tab = _tab()
+    series = make_series(show_value_labels=True, value_label_show_arrow=True, value_label_arrow_color="")
+    series.style.color = "#1f77b4"
+    series.style.marker.marker_color = "#8c564b"
+
+    tab.load_series_style(series)
+
+    assert tab.value_labels_arrow_color_row.currentColor() == expected

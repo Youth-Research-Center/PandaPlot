@@ -67,11 +67,12 @@ def coerce_arrow_width(value: object) -> float:
     return DEFAULT_VALUE_LABEL_ARROW_WIDTH
 
 
-@dataclass
+@dataclass(kw_only=True)
 class ValueLabelArrowFields:
     """Arrow styling fields shared by the series styles that draw value labels with a leader line (Line and Scatter).
 
-    Only read while the style's `value_label_show_arrow` is on.
+    Only read while the style's `value_label_show_arrow` is on. The fields are keyword-only so that mixing them into a
+    style does not shift the positional arguments the style accepted before they existed.
     """
 
     value_label_arrow_style: ValueLabelArrowStyle = ValueLabelArrowStyle.LINE

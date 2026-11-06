@@ -156,3 +156,13 @@ def test_retyping_between_line_and_scatter_keeps_the_arrow_styling(source, targe
     style = chart.data_series[0].style
     for name, value in STYLED.items():
         assert getattr(style, name) == value, name
+
+
+@pytest.mark.parametrize("style_class", [LineSeriesStyle, ScatterSeriesStyle])
+def test_the_arrow_fields_do_not_shift_the_existing_positional_arguments(style_class):
+    """`LineSeriesStyle(True)` has always set the first positional field, fill_enabled; the
+    arrow fields must not take that slot."""
+    style = style_class(True)  # noqa: FBT003 - the positional call is exactly what this test guards
+
+    assert style.fill_enabled is True
+    assert style.value_label_arrow_style is ValueLabelArrowStyle.LINE
