@@ -1,7 +1,11 @@
 """Tests for SketchPropertyBar, driven through its controls inside a real SketchTab."""
+from collections.abc import Iterator
+from pathlib import Path
+
+import matplotlib
 import pytest
 from PySide6.QtCore import QEvent, QPointF, Qt
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtGui import QFontDatabase, QMouseEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -21,6 +25,7 @@ from pandaplot.models.project.items.sketch import (
     TextAlignment,
     TextElement,
 )
+from pandaplot.models.project.items.sketch.elements import DEFAULT_FONT_FAMILY
 
 
 @pytest.fixture
@@ -52,7 +57,18 @@ def container(qtbot):
 
 
 @pytest.fixture
-def tab(app_context, sketch, container) -> SketchTab:
+def registered_font_family(qtbot) -> Iterator[str]:
+    """Register a font from matplotlib's data so the font combo is populated on platforms with no system fonts (offscreen on Windows)."""
+    font_id = QFontDatabase.addApplicationFont(str(Path(matplotlib.get_data_path()) / "fonts" / "ttf" / "DejaVuSans.ttf"))
+    assert font_id != -1
+    family = QFontDatabase.applicationFontFamilies(font_id)[0]
+    assert family != DEFAULT_FONT_FAMILY
+    yield family
+    QFontDatabase.removeApplicationFont(font_id)
+
+
+@pytest.fixture
+def tab(app_context, sketch, container, registered_font_family) -> SketchTab:
     tab = create_tab_factory().create_tab(app_context, sketch, parent=container)
     assert isinstance(tab, SketchTab)
     container.resize(1300, 650)
@@ -229,9 +245,10 @@ class TestChangingTheSelection:
         assert bar.alignment_actions[TextAlignment.LEFT].isChecked()
         assert executor.undo_stack == []
 
-    def test_font_family(self, bar, tab, sketch):
+    def test_font_family(self, bar, tab, sketch, registered_font_family):
         tab.canvas.set_selection(["text"])
-        family = next(bar.font_combo.itemText(index) for index in range(bar.font_combo.count()) if bar.font_combo.itemText(index) != "Arial")
+        family = registered_font_family
+        assert bar.font_combo.findText(family) != -1
 
         bar.font_combo.setCurrentIndex(bar.font_combo.findText(family))
 
