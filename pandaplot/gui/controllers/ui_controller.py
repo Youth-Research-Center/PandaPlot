@@ -1,4 +1,6 @@
 
+from typing import Literal
+
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QColorDialog, QFileDialog, QInputDialog, QMessageBox, QWidget
 
@@ -13,7 +15,7 @@ class UIController:
     This separates UI logic from business logic in the MVC pattern.
     """
     
-    def __init__(self, parent_widget: QWidget | None = None):
+    def __init__(self, parent_widget: QWidget | None = None) -> None:
         self.parent_widget = parent_widget
     
     def show_open_project_dialog(self) -> str | None:
@@ -90,7 +92,7 @@ class UIController:
 
         return file_path if file_path else None
 
-    def show_error_message(self, title: str, message: str):
+    def show_error_message(self, title: str, message: str) -> None:
         """
         Show an error message dialog.
         
@@ -100,7 +102,7 @@ class UIController:
         """
         QMessageBox.critical(self.parent_widget, title, message)
     
-    def show_warning_message(self, title: str, message: str):
+    def show_warning_message(self, title: str, message: str) -> None:
         """
         Show a warning message dialog.
         
@@ -110,7 +112,7 @@ class UIController:
         """
         QMessageBox.warning(self.parent_widget, title, message)
     
-    def show_info_message(self, title: str, message: str):
+    def show_info_message(self, title: str, message: str) -> None:
         """
         Show an information message dialog.
         
@@ -185,7 +187,7 @@ class UIController:
         box.exec()
         return box.clickedButton() is action_button
 
-    def show_save_discard_cancel(self, title: str, message: str) -> str:
+    def show_save_discard_cancel(self, title: str, message: str) -> Literal["save", "discard", "cancel"]:
         """
         Show a three-way dialog offering to save, discard, or cancel.
 
@@ -194,7 +196,7 @@ class UIController:
             message (str): Message explaining what is at stake
 
         Returns:
-            str: "save", "discard", or "cancel" (also returned if the
+            Literal["save", "discard", "cancel"]: The user's choice (also "cancel" if the
                 dialog is dismissed via Esc/titlebar).
         """
         box = QMessageBox(QMessageBox.Icon.Warning, title, message, parent=self.parent_widget)
@@ -311,6 +313,6 @@ class UIController:
         
         return None
 
-    def set_parent_widget(self, parent_widget: QWidget):
+    def set_parent_widget(self, parent_widget: QWidget) -> None:
         """Set the parent widget for dialogs."""
         self.parent_widget = parent_widget

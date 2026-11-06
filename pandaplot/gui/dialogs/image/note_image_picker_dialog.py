@@ -1,5 +1,6 @@
 """Dialog for selecting an Image from project galleries to insert into a note."""
 
+import logging
 import os
 from typing import override
 
@@ -23,6 +24,8 @@ from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 _ICON_SIZE = QSize(24, 24)
+
+logger = logging.getLogger(__name__)
 
 
 class NoteImagePickerDialog(PDialog):
@@ -131,7 +134,8 @@ class NoteImagePickerDialog(PDialog):
                     with open(source, "rb") as f:
                         data = f.read()
             return data
-        except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+        except Exception:  # GUI safety net -- an unexpected error here must not crash the UI; logged below
+            logger.warning("Failed to read image bytes for %r", getattr(image, "name", image), exc_info=True)
             return None
 
     def _tile_icon_for(self, item, *, placeholder: bool = False) -> QIcon:

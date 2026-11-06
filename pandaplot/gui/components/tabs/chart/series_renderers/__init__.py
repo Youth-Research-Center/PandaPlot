@@ -78,8 +78,17 @@ SERIES_RENDERERS_REPORTING_NO_DATA: frozenset[SeriesType] = frozenset({
     SeriesType.PIE,
 })
 
+# The renderers that deliberately draw nothing (and return None) while their
+# series is hidden, so a None from one of them is not a "no data" failure.
+# Every other renderer draws a hidden series faded, so a None from it still
+# means its data could not be plotted.
+SERIES_RENDERERS_OMITTING_HIDDEN: frozenset[SeriesType] = frozenset({
+    SeriesType.HIST,
+})
+
 __all__ = [
     "SERIES_RENDERERS",
+    "SERIES_RENDERERS_OMITTING_HIDDEN",
     "SERIES_RENDERERS_REPORTING_NO_DATA",
     "render_bar3d_series",
     "render_bar_series",

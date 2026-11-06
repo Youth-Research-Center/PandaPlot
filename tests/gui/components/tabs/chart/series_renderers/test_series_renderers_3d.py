@@ -294,3 +294,32 @@ def test_3d_renderers_accept_scattered_data_via_the_gridding_modes():
 
     assert isinstance(mappable, Poly3DCollection)
     plt.close(fig)
+
+
+def test_render_bar3d_series_drops_non_finite_rows():
+    """A NaN in any of x/y/z would hand bar3d a NaN box; those rows are
+    dropped first, the same way render_trisurf_series filters them."""
+    axes = _RecordingAxes()
+    data = SeriesData(x_data=[0.0, 1.0, float("nan"), 3.0], y_data=[0.0, 1.0, 2.0, float("inf")],
+                       x_err=None, y_err=None, x_err_minus=None, y_err_minus=None,
+                       error=None, z_data=[1.0, float("nan"), 3.0, 4.0])
+
+    render_bar3d_series(axes, data, Bar3DSeriesStyle(bar_width=0.8, bar_depth=0.8),
+                         "bars", 1.0, visible=True, extra=_extra())
+
+    x, y, z, _dx, _dy, dz, _kwargs = axes.bar3d_call
+    assert list(x) == pytest.approx([-0.4])
+    assert list(y) == pytest.approx([-0.4])
+    assert list(z) == [0.0]
+    assert list(dz) == [1.0]
+
+
+def test_render_bar3d_series_returns_none_when_every_row_is_non_finite():
+    axes = _RecordingAxes()
+    data = SeriesData(x_data=[float("nan"), 1.0], y_data=[0.0, 1.0],
+                       x_err=None, y_err=None, x_err_minus=None, y_err_minus=None,
+                       error=None, z_data=[1.0, float("nan")])
+
+    assert render_bar3d_series(axes, data, Bar3DSeriesStyle(), "bars", 1.0,
+                                visible=True, extra=_extra()) is None
+    assert axes.bar3d_call is None

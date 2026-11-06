@@ -20,6 +20,8 @@ class DirtyFooter(QWidget):
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
+        self._tokens: dict | None = None  # set by set_tokens(); no color until themed
+        self._is_modified = False
         self._status_label = QLabel("No changes", self)
         self._revert_button = PButton(
             "Revert", role="secondary", on_click=self.revertClicked, enabled=False, parent=self
@@ -41,13 +43,22 @@ class DirtyFooter(QWidget):
         is_effectively_modified = is_modified and change_count > 0
         self._revert_button.setEnabled(is_effectively_modified)
         self._apply_button.setEnabled(is_effectively_modified)
+        # Kept separately: isEnabled() is also False while an ancestor is disabled.
+        self._is_modified = is_effectively_modified
+        self._refresh_status_color()
 
-    def set_tokens(self, tokens: dict):
-        modified_color = tokens.get("status_modified_text", "#B06A00")
-        muted_color = tokens.get("text_hint", "#9AA0AB")
-        is_modified = self._apply_button.isEnabled()
-        self._status_label.setStyleSheet(
-            f"color: {modified_color if is_modified else muted_color};"
-        )
+    def set_tokens(self, tokens: dict) -> None:
+        self._tokens = tokens
+        self._refresh_status_color()
         self._apply_button.style().unpolish(self._apply_button)
         self._apply_button.style().polish(self._apply_button)
+
+    def _refresh_status_color(self) -> None:
+        """Color the status text from the last tokens and the current modified state."""
+        if self._tokens is None:
+            return
+        modified_color = self._tokens.get("status_modified_text", "#B06A00")
+        muted_color = self._tokens.get("text_hint", "#9AA0AB")
+        self._status_label.setStyleSheet(
+            f"color: {modified_color if self._is_modified else muted_color};"
+        )

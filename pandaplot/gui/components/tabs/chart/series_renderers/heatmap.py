@@ -18,6 +18,8 @@ empty axes.
 The colormap name and color-scale limits are shared across every
 Colormap/Heatmap series on the chart -- see colormap.py's module
 docstring for why they come from `extra`, not `style`."""
+import logging
+
 from pandaplot.gui.components.tabs.chart.chart_heatmap import build_heatmap_grid, filter_finite_xyz
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData
 from pandaplot.models.chart.series_style import HeatmapSeriesStyle
@@ -26,6 +28,8 @@ from pandaplot.models.chart.series_style import HeatmapSeriesStyle
 # color instead of the shared colormap -- lines colored the same as the
 # fill they sit on top of would be invisible.
 _OVERLAID_LINE_COLOR = "black"
+
+logger = logging.getLogger(__name__)
 
 
 def _draw_contours(axes, x, y, z, style: HeatmapSeriesStyle, cmap: str,
@@ -52,7 +56,7 @@ def _draw_contours(axes, x, y, z, style: HeatmapSeriesStyle, cmap: str,
             try:
                 axes.clabel(contour_set, inline=True, fontsize=8)
             except (ValueError, RuntimeError):
-                pass
+                logger.debug("Could not place contour line labels", exc_info=True)
         if mappable is None:
             mappable = contour_set
     return mappable

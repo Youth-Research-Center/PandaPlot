@@ -82,6 +82,8 @@ class SeriesConfigCard(Card):
         self._expand_button = PButton(
             "▸", role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=False)
         )
+        self._expand_button.setAccessibleName("Expand series")
+        self._expand_button.setToolTip("Expand series")
         summary_layout.addWidget(self._expand_button)
         outer.addWidget(self._summary_row)
 
@@ -95,6 +97,8 @@ class SeriesConfigCard(Card):
         self._collapse_button = PButton(
             "▾", role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=True)
         )
+        self._collapse_button.setAccessibleName("Collapse series")
+        self._collapse_button.setToolTip("Collapse series")
         collapse_row.addWidget(self._collapse_button)
         grid.addLayout(collapse_row, row, 0, 1, 2)
         row += 1
