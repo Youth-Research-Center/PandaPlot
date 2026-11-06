@@ -1,4 +1,5 @@
 """Tab that shows a Sketch on its canvas, with the drawing toolbar."""
+from pathlib import Path
 from typing import override
 
 from PySide6.QtCore import Qt
@@ -7,8 +8,11 @@ from PySide6.QtWidgets import QLabel, QSizePolicy, QSplitter, QToolBar, QVBoxLay
 
 from pandaplot.gui.components.tabs.sketch.layer_manager_panel import LayerManagerPanel
 from pandaplot.gui.components.tabs.sketch.sketch_canvas import SketchCanvas
+from pandaplot.gui.components.tabs.sketch.sketch_export import FORMATS, SketchExportError, SketchExportOptions, export_sketch
+from pandaplot.gui.components.tabs.sketch.sketch_property_bar import SketchPropertyBar
 from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.gui.dialogs.sketch.export_sketch_dialog import ExportSketchDialog
 from pandaplot.models.events import ProjectEvents
 from pandaplot.models.project.items.sketch import Sketch
 from pandaplot.models.state.app_context import AppContext
@@ -28,7 +32,8 @@ TOOL_BUTTONS: dict[ToolMode, tuple[str, str, str]] = {
 
 class SketchTab(PWidget):
     """Shows one Sketch on a SketchCanvas, with a toolbar to pick the tool,
-    fit the canvas and see the zoom level, and a layer panel beside the
+    fit the canvas and see the zoom level, a property bar below it for the
+    style of the selection or of new elements, and a layer panel beside the
     canvas that the toolbar's "Layers" button shows or hides.
 
     The canvas redraws itself whenever the sketch changes, so drawing,
@@ -43,6 +48,8 @@ class SketchTab(PWidget):
         self.sketch = sketch
         self._fitted_once = False
         self.tool_actions: dict[ToolMode, QAction] = {}
+        # The options of the last export, offered again by the next one.
+        self._export_options: SketchExportOptions | None = None
         self._initialize()
 
     @override
@@ -64,7 +71,9 @@ class SketchTab(PWidget):
         self.splitter.setCollapsible(1, False)  # noqa: FBT003 - Qt method rejects keyword args
         self.splitter.setSizes([10_000, self.LAYER_PANEL_WIDTH])
         self.toolbar = self._build_toolbar()
+        self.property_bar = SketchPropertyBar(self.canvas, self.app_context, self)
         layout.addWidget(self.toolbar)
+        layout.addWidget(self.property_bar)
         layout.addWidget(self.splitter)
         self.canvas.tool_manager.tool_changed.connect(self._on_tool_changed)
         self.canvas.zoom_changed.connect(self._show_zoom)
@@ -98,6 +107,10 @@ class SketchTab(PWidget):
         self.zoom_label.setAccessibleName("Zoom level")
         toolbar.addWidget(self.zoom_label)
         toolbar.addSeparator()
+        self.export_action = QAction("Export…", toolbar)
+        self.export_action.setToolTip("Export the sketch as PNG, JPEG, SVG or PDF")
+        self.export_action.triggered.connect(self.export)
+        toolbar.addAction(self.export_action)
         self.layers_action = QAction("Layers", toolbar)
         self.layers_action.setCheckable(True)
         self.layers_action.setChecked(True)
@@ -112,6 +125,26 @@ class SketchTab(PWidget):
         toolbar.addWidget(self.status_label)
         return toolbar
 
+    def export(self) -> None:
+        """Ask for export options and a file, then write the sketch to it."""
+        options = ExportSketchDialog.ask(self.app_context, self.sketch, self, initial=self._export_options)
+        if options is None:
+            return
+        self._export_options = options
+        info = FORMATS[options.format]
+        ui_controller = self.app_context.get_ui_controller()
+        path = ui_controller.get_save_file_path(
+            f"Export {self.sketch.name}", f"{self.sketch.name or 'sketch'}{info.extension}", f"{info.label} (*{info.extension})", info.extension,
+        )
+        if path is None:
+            return
+        try:
+            export_sketch(self.sketch, Path(path), options)
+        except SketchExportError as error:
+            ui_controller.show_error_message("Export Failed", str(error))
+            return
+        self.status_label.setText(f"Exported to {Path(path).name}")
+
     def _on_tool_changed(self, mode: ToolMode) -> None:
         self.tool_actions[mode].setChecked(True)
         self.status_label.clear()
@@ -122,36 +155,41 @@ class SketchTab(PWidget):
     @override
     def _apply_theme(self):
         tokens = self.app_context.get_manager(ThemeManager).get_design_tokens()
-        self.toolbar.setStyleSheet(f"""
+        stylesheet = f"""
             QToolBar {{
                 background-color: {tokens["surface_white"]};
                 border-bottom: 1px solid {tokens["border_panel"]};
                 padding: 4px;
                 spacing: 2px;
             }}
-            QToolBar QToolButton {{
+            QToolBar > QToolButton {{
                 color: {tokens["text_primary"]};
                 background-color: transparent;
                 border: 1px solid transparent;
                 padding: 4px 10px;
                 border-radius: {tokens["radius_control"]}px;
             }}
-            QToolBar QToolButton:hover {{
+            QToolBar > QToolButton:hover {{
                 background-color: {tokens["surface_inset"]};
             }}
-            QToolBar QToolButton:checked {{
+            QToolBar > QToolButton:checked {{
                 background-color: {tokens["accent_selected_bg"]};
                 border-color: {tokens["accent"]};
                 color: {tokens["accent_active_text"]};
             }}
-            QToolBar QToolButton:focus {{
+            QToolBar > QToolButton:disabled {{
+                color: {tokens["text_disabled"]};
+            }}
+            QToolBar > QToolButton:focus {{
                 border-color: {tokens["accent"]};
             }}
-            QToolBar QLabel {{
+            QToolBar > QLabel {{
                 color: {tokens["text_secondary"]};
                 padding: 0 6px;
             }}
-        """)
+        """
+        self.toolbar.setStyleSheet(stylesheet)
+        self.property_bar.setStyleSheet(stylesheet)
 
     @override
     def setup_event_subscriptions(self):

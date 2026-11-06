@@ -1,7 +1,8 @@
 
 from typing import Literal
 
-from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox, QWidget
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QColorDialog, QFileDialog, QInputDialog, QMessageBox, QWidget
 
 # TODO(#220): ui controller should be a facade for all UI-related interactions
 # This allows us to keep UI logic separate from business logic in the MVC pattern.
@@ -226,7 +227,46 @@ class UIController:
         """
         text, ok = QInputDialog.getText(self.parent_widget, title, message, text=default_text)
         return text if ok else None
+
+    def get_color(self, title: str, initial: str, *, with_alpha: bool = False) -> str | None:
+        """
+        Show a colour picker.
+
+        Args:
+            title (str): Dialog title
+            initial (str): Colour selected when the dialog opens (`#RRGGBB` or `#AARRGGBB`)
+            with_alpha (bool): Also let the user pick the colour's opacity
+
+        Returns:
+            str: The chosen colour as `#RRGGBB`, or `#AARRGGBB` when it is not
+            fully opaque; None if cancelled
+        """
+        options = QColorDialog.ColorDialogOption.ShowAlphaChannel if with_alpha else QColorDialog.ColorDialogOption(0)
+        color = QColorDialog.getColor(QColor(initial), self.parent_widget, title, options)
+        if not color.isValid():
+            return None
+        return color.name(QColor.NameFormat.HexArgb if color.alpha() < 255 else QColor.NameFormat.HexRgb)
     
+
+    def get_save_file_path(self, title: str, default_name: str, name_filter: str, extension: str) -> str | None:
+        """
+        Show a save-file dialog for one file type.
+
+        Args:
+            title (str): Dialog title
+            default_name (str): File name suggested in the dialog
+            name_filter (str): File type filter, e.g. "PNG image (*.png)"
+            extension (str): Extension added when the chosen name lacks it, e.g. ".png"
+
+        Returns:
+            str: The chosen path, ending in `extension`; None if cancelled
+        """
+        file_path, _selected_filter = QFileDialog.getSaveFileName(self.parent_widget, title, default_name, name_filter)
+        if not file_path:
+            return None
+        if not file_path.lower().endswith(extension.lower()):
+            file_path += extension
+        return file_path
 
     def show_export_dataset_dialog(self, dataset_name: str) -> tuple[str, str] | None:
         """
