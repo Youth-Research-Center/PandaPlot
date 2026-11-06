@@ -1,5 +1,5 @@
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QWidget
 
 from pandaplot.gui.components.common.dirty_footer import DirtyFooter, format_status_text
 
@@ -76,3 +76,17 @@ def test_set_modified_refreshes_status_color_from_last_tokens():
 
     footer.setModified(is_modified=False, change_count=0)
     assert "#00BB00" in footer._status_label.styleSheet()
+
+
+def test_status_color_stays_modified_while_an_ancestor_is_disabled():
+    """isEnabled() is False for every child of a disabled ancestor, so
+    deriving "modified" from the Apply button's enabled state painted pending
+    changes in the muted color whenever the panel was temporarily disabled."""
+    parent = QWidget()
+    footer = DirtyFooter(parent)
+    footer.set_tokens({"status_modified_text": "#AA0000", "text_hint": "#00BB00"})
+    parent.setEnabled(False)
+
+    footer.setModified(is_modified=True, change_count=2)
+
+    assert "#AA0000" in footer._status_label.styleSheet()

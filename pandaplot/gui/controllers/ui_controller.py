@@ -195,7 +195,7 @@ class UIController:
             message (str): Message explaining what is at stake
 
         Returns:
-            str: "save", "discard", or "cancel" (also returned if the
+            Literal["save", "discard", "cancel"]: The user's choice (also "cancel" if the
                 dialog is dismissed via Esc/titlebar).
         """
         box = QMessageBox(QMessageBox.Icon.Warning, title, message, parent=self.parent_widget)

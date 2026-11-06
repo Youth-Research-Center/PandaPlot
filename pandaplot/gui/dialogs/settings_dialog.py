@@ -526,7 +526,8 @@ class SettingsDialog(PDialog):
 
     def setup_event_subscriptions(self):
         """Subscribe to config update events to reflect external changes while dialog open."""
-        # CONFIG_RESET is not subscribed to: only CONFIG_UPDATED is reflected here.
+        # CONFIG_RESET and CONFIG_LOADED need no subscription of their own:
+        # EventHierarchy delivers them to CONFIG_UPDATED subscribers too.
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_event)
     
     def _on_config_event(self, data: dict[str, Any]):

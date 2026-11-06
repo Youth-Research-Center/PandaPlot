@@ -135,3 +135,25 @@ def test_paste_treats_a_whitespace_only_line_as_a_blank_row():
     command = ctx.command_executor.execute_command.call_args.args[0]
     assert isinstance(command, EditBatchCommand)
     assert command.new_data == [["1", "2"], ["", ""], ["3", "4"]]
+
+
+def test_paste_pads_a_short_row_to_the_block_width():
+    """A row with fewer cells than the widest one (e.g. a text-editor paste
+    whose last line is short) must be padded so EditBatchCommand does not
+    reject the whole paste as ragged."""
+    from pandaplot.commands.project.dataset.edit_batch_command import EditBatchCommand
+
+    ctx = Mock(spec=AppContext)
+    ctx.event_bus = Mock()
+    ctx.command_executor = Mock()
+    data = pd.DataFrame({"a": ["x", "y", "z"], "b": ["p", "q", "r"]}, dtype=object)
+    dataset = Dataset(id="ds-paste-short", name="Paste", data=data)
+    view = DatasetTableView(ctx, PandasTableModel(ctx, dataset))
+    view.selectionModel().select(view.model().index(0, 0), QItemSelectionModel.SelectionFlag.ClearAndSelect)
+    QApplication.clipboard().setText("1\t2\n3")
+
+    view.pasteSelection()
+
+    command = ctx.command_executor.execute_command.call_args.args[0]
+    assert isinstance(command, EditBatchCommand)
+    assert command.new_data == [["1", "2"], ["3", ""]]
