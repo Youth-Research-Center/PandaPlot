@@ -154,7 +154,6 @@ class ProjectEvents:
     PROJECT_ITEM_RENAMED = "project.item_renamed"  # Generic item renamed
     PROJECT_ITEM_CONTENT_CHANGED = "project.item_content_changed"  # Generic item content edit (not a rename)
     PROJECT_ITEM_MOVED = "project.item_moved"  # Generic item moved
-    PROJECT_STRUCTURE_CHANGED = "project.structure_changed"  # Structure change - folders/items reorganized
 
 
 class NoteEvents:
@@ -247,7 +246,6 @@ class EventHierarchy:
         "project.item_renamed": ["project.item_renamed", "project.changed"],
         "project.item_content_changed": ["project.item_content_changed", "project.changed"],
         "project.item_moved": ["project.item_moved", "project.changed"],
-        "project.structure_changed": ["project.structure_changed", "project.changed"],
 
         "config.reset": ["config.reset", "config.updated"],
         "config.saved": ["config.saved"],

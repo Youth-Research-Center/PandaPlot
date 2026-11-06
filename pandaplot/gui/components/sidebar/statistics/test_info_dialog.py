@@ -35,8 +35,6 @@ class InfoDialogHelper(QDialog):
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
-        buttons.accepted.connect(self.accept)
-        buttons.button(QDialogButtonBox.StandardButton.Close).clicked.connect(self.accept)
         layout.addWidget(buttons)
 
     # ------------------------------------------------------------------

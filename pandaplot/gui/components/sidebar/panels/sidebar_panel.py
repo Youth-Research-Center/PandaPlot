@@ -56,6 +56,43 @@ class SidebarPanel(PWidget):
             self.main_layout.addWidget(widget)
 
     @staticmethod
+    def _follow_column_rename(names: list, event_data: dict) -> list[str]:
+        """Map selected column names through a column event payload, as text.
+
+        Pickers show ``str(label)`` while payloads carry the raw label (an Excel
+        header can be an int), so names are compared and returned as text.
+
+        Args:
+            names: Column names selected before the event.
+            event_data: A ``DATASET_COLUMN_*`` payload. Only a rename carries ``old_name``/``new_name``.
+
+        Returns:
+            ``names`` as text, with the renamed column replaced by its new name.
+        """
+        texts = [str(name) for name in names]
+        if "old_name" not in event_data:
+            return texts
+        old_name, new_name = str(event_data["old_name"]), str(event_data.get("new_name"))
+        return [new_name if text == old_name else text for text in texts]
+
+    @staticmethod
+    def _column_selection_changed(kept: list, current: list) -> bool:
+        """Whether rebuilding a column picker changed which columns are selected.
+
+        The analysis panels share this rule: when it returns True, the shown
+        result no longer describes the selection and must be cleared. Names are
+        compared as text and in any order; pickers restore the kept order.
+
+        Args:
+            kept: Columns the picker was asked to keep (see `_follow_column_rename`).
+            current: Columns selected after the rebuild.
+
+        Returns:
+            True if a kept column is no longer selected or another column became selected.
+        """
+        return {str(name) for name in kept} != {str(name) for name in current}
+
+    @staticmethod
     def title_stylesheet(base_fg: str, card_border: str) -> str:
         """Shared title-label stylesheet, parameterized by theme colors."""
         return (

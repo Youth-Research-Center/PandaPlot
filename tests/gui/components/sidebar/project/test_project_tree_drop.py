@@ -4,11 +4,11 @@ from unittest.mock import Mock
 import pytest
 from PySide6.QtCore import QMimeData, QPointF, Qt
 from PySide6.QtGui import QDragMoveEvent, QDropEvent
-from PySide6.QtWidgets import QTreeWidgetItem
+from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem
 
 from pandaplot.gui.components.sidebar.project.project_tree import ProjectTreeWidget
 from pandaplot.models.project import Project
-from pandaplot.models.project.items import Folder, Image, ImageGallery, Note
+from pandaplot.models.project.items import Folder, Image, ImageGallery, Note, Sketch
 
 
 @pytest.mark.parametrize("edge", ["above", "below"])
@@ -189,3 +189,94 @@ def test_dropping_note_into_gallery_row_is_rejected(qtbot):
     tree.dropEvent(event)
     assert note.parent_id == project.root.id
     assert note.id not in gallery.items
+
+
+@pytest.mark.parametrize("finishes", ["cancelled", "raises"])
+def test_start_drag_resets_dragging_flag_when_no_drop_arrives(qtbot, monkeypatch, finishes):
+    tree = ProjectTreeWidget(SimpleNamespace(app_state=SimpleNamespace(has_project=True), app_context=Mock()))
+    qtbot.addWidget(tree)
+    seen = []
+
+    def fake_start_drag(self, _actions):
+        seen.append(self._is_dragging)
+        if finishes == "raises":
+            raise RuntimeError("drag failed")
+
+    monkeypatch.setattr(QTreeWidget, "startDrag", fake_start_drag)
+    if finishes == "raises":
+        with pytest.raises(RuntimeError):
+            tree.startDrag(Qt.DropAction.MoveAction)
+    else:
+        tree.startDrag(Qt.DropAction.MoveAction)
+    assert seen == [True]
+    assert tree._is_dragging is False
+
+
+def test_drag_over_sketch_row_is_accepted_as_beside_drop(qtbot):
+    note = Note(name="n")
+    sketch = Sketch(name="s")
+    project = Project(name="Sketch drag")
+    project.add_item(note)
+    project.add_item(sketch)
+    state = SimpleNamespace(has_project=True, current_project=project, event_bus=Mock())
+    tree = ProjectTreeWidget(SimpleNamespace(app_state=state, app_context=Mock()))
+    qtbot.addWidget(tree)
+    rows = {}
+    for item, kind in ((note, "note"), (sketch, "sketch")):
+        row = QTreeWidgetItem([item.name])
+        row.setData(0, Qt.ItemDataRole.UserRole, {"type": kind, "id": item.id, "data": item})
+        tree.addTopLevelItem(row)
+        rows[item.id] = row
+    tree.resize(500, 400)
+    tree.show()
+    tree.setCurrentItem(rows[note.id])
+    qtbot.wait(10)
+    event = QDragMoveEvent(
+        tree.visualItemRect(rows[sketch.id]).center(), Qt.DropAction.MoveAction, QMimeData(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier
+    )
+    event.ignore()
+    tree.dragMoveEvent(event)
+    accepted = event.isAccepted()
+    assert accepted is True
+    assert tree.toolTip() == "Drop beside this item"
+
+
+def _flat_tree(qtbot, items):
+    """Top-level rows for `items` in a shown tree."""
+    project = Project(name="Flat")
+    for item in items:
+        project.add_item(item)
+    state = SimpleNamespace(has_project=True, current_project=project, event_bus=Mock())
+    context = Mock()
+    context.get_app_state.return_value = state
+    context.get_command_executor.return_value.execute_command.side_effect = lambda command: command.execute()
+    tree = ProjectTreeWidget(SimpleNamespace(app_state=state, app_context=context))
+    qtbot.addWidget(tree)
+    rows = {}
+    for item in items:
+        row = QTreeWidgetItem([item.name])
+        row.setData(0, Qt.ItemDataRole.UserRole, {"type": type(item).__name__.lower(), "id": item.id, "data": item})
+        row.setFlags(row.flags() | Qt.ItemFlag.ItemIsEditable)  # production rows keep Qt's default drop-enabled flag
+        tree.addTopLevelItem(row)
+        rows[item.id] = row
+    tree.resize(500, 400)
+    tree.show()
+    return tree, project, context, rows
+
+@pytest.mark.parametrize("make_target", [lambda: Note(name="target"), lambda: Sketch(name="target")])
+def test_drop_on_sibling_in_same_parent_leaves_tree_unchanged(qtbot, make_target):
+    source = Note(name="source")
+    target = make_target()
+    tree, _project, context, rows = _flat_tree(qtbot, [source, target])
+    tree.setCurrentItem(rows[source.id])
+    qtbot.wait(10)
+
+    point = QPointF(tree.visualItemRect(rows[target.id]).center())
+    event = QDropEvent(point, Qt.DropAction.MoveAction, QMimeData(), Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    tree.dropEvent(event)
+
+    drop_action = event.dropAction()
+    assert drop_action == Qt.DropAction.IgnoreAction
+    assert rows[target.id].childCount() == 0
+    assert [tree.topLevelItem(i) for i in range(tree.topLevelItemCount())] == [rows[source.id], rows[target.id]]
+    context.get_command_executor.return_value.execute_command.assert_not_called()

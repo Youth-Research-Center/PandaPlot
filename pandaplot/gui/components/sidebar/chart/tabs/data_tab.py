@@ -413,6 +413,7 @@ class DataTab(QWidget):
             "\U0001f5d1", role="destructive", icon=True,  # wastebasket emoji
             on_click=lambda _checked=False, i=index: self._remove_series_at(i)
         )
+        button.setAccessibleName("Remove series")
         button.setFixedWidth(24)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         button.setToolTip("Remove")
@@ -443,6 +444,7 @@ class DataTab(QWidget):
             "▼", role="secondary", icon=True,  # ▼
             on_click=lambda _checked=False, i=index: self._move_series(i, i + 1)
         )
+        button.setAccessibleName("Move series down")
         button.setFixedWidth(24)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         button.setToolTip("Move down (draw later, further to front)")
@@ -456,6 +458,9 @@ class DataTab(QWidget):
             "▾" if expanded else "▸", role="secondary", icon=True,
             on_click=lambda _checked=False, i=index: self._toggle_card_expanded(i)
         )
+        label = "Collapse series details" if expanded else "Expand series details"
+        chevron.setAccessibleName(label)
+        chevron.setToolTip(label)
         chevron.setFixedWidth(24)
         chevron.setCursor(Qt.CursorShape.PointingHandCursor)
         return chevron
@@ -622,6 +627,8 @@ class DataTab(QWidget):
         chevron = PButton(
             "▾", role="secondary", icon=True, enabled=False
         )  # ▾, indicates "currently expanded"
+        chevron.setAccessibleName("Series details expanded")
+        chevron.setToolTip("Series details expanded")
         chevron.setFixedWidth(24)
         header.addWidget(chevron)
         outer.addLayout(header)
