@@ -88,3 +88,46 @@ def test_positive_only_series_with_all_non_positive_values_contributes_nothing()
     project = _FakeProject([ds])
     series = [DataSeries(dataset_id="ds1", x_column="x", y_column="y")]
     assert compute_axis_data_range(project, series, "y", positive_only=True) is None
+
+
+def test_text_x_values_span_their_category_positions():
+    """A text X column (e.g. 'Q1 2024') is drawn on matplotlib's categorical
+    axis at positions 0..n-1, so the range is that span, not a float() crash."""
+    ds = _make_dataset("ds1", x=["Q1 2024", "Q2 2024", "Q3 2024"], y=[10, 20, 30])
+    project = _FakeProject([ds])
+    series = [DataSeries(dataset_id="ds1", x_column="x", y_column="y")]
+    assert compute_axis_data_range(project, series, "x") == (0.0, 2.0)
+    assert compute_axis_data_range(project, series, "y") == (10.0, 30.0)
+
+
+def test_text_x_categories_are_shared_across_series():
+    """Series on one axis share one category list, in order of first
+    appearance, so the range covers the union of their categories."""
+    ds1 = _make_dataset("ds1", x=["a", "b"], y=[1, 2])
+    ds2 = _make_dataset("ds2", x=["b", "c"], y=[3, 4])
+    project = _FakeProject([ds1, ds2])
+    series = [
+        DataSeries(dataset_id="ds1", x_column="x", y_column="y"),
+        DataSeries(dataset_id="ds2", x_column="x", y_column="y"),
+    ]
+    assert compute_axis_data_range(project, series, "x") == (0.0, 2.0)
+
+
+def test_numeric_looking_text_x_values_are_categories_not_numbers():
+    """Matplotlib draws the strings '1' and '2' as categories, never as the numbers 1 and 2."""
+    ds = _make_dataset("ds1", x=["1", "2"], y=[10, 20])
+    project = _FakeProject([ds])
+    series = [DataSeries(dataset_id="ds1", x_column="x", y_column="y")]
+    assert compute_axis_data_range(project, series, "x") == (0.0, 1.0)
+
+
+def test_numeric_looking_text_labels_share_the_category_map_with_other_series():
+    """['a', 'b'] then ['1', '2'] puts four categories on the axis, so the range ends at 3."""
+    ds1 = _make_dataset("ds1", x=["a", "b"], y=[1, 2])
+    ds2 = _make_dataset("ds2", x=["1", "2"], y=[3, 4])
+    project = _FakeProject([ds1, ds2])
+    series = [
+        DataSeries(dataset_id="ds1", x_column="x", y_column="y"),
+        DataSeries(dataset_id="ds2", x_column="x", y_column="y"),
+    ]
+    assert compute_axis_data_range(project, series, "x") == (0.0, 3.0)
