@@ -1358,3 +1358,42 @@ def test_fill_sections_round_trip_through_chart_serialization():
     restored = Chart.from_dict(chart.to_dict())
 
     assert restored.data_series[0].style.fill_sections == [(1, 3), (6, -1)]
+
+
+def test_from_dict_tolerates_series_missing_column_keys():
+    chart = Chart(name="C", chart_type="line")
+    chart.add_data_series("ds", x_column_id="cx", y_column_id="cy")
+    data = chart.to_dict()
+    for key in ("x_column", "y_column"):
+        data["data_series"][0].pop(key, None)
+
+    restored = Chart.from_dict(data)
+
+    assert len(restored.data_series) == 1
+    assert restored.data_series[0].x_column_id == "cx"
+
+
+class TestFromDictSkipsUnresolvableSeries:
+    """A series that cannot name its dataset is dropped with a warning, not loaded empty."""
+
+    @staticmethod
+    def _chart_dict(*series: dict) -> dict:
+        raw = Chart(name="C").to_dict()
+        raw["data_series"] = list(series)
+        return raw
+
+    def test_series_without_dataset_id_is_skipped_and_logged(self, caplog):
+        good = {"dataset_id": "ds1", "x_column": "x", "y_column": "y"}
+        bad = {"x_column": "x", "y_column": "y"}
+
+        with caplog.at_level("WARNING"):
+            restored = Chart.from_dict(self._chart_dict(bad, good))
+
+        assert [s.dataset_id for s in restored.data_series] == ["ds1"]
+        assert any("dataset_id" in record.getMessage() for record in caplog.records)
+
+    def test_row_index_series_without_x_column_still_loads(self):
+        restored = Chart.from_dict(self._chart_dict({"dataset_id": "ds1", "y_column": "y"}))
+
+        assert len(restored.data_series) == 1
+        assert restored.data_series[0].x_column == ""

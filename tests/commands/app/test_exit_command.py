@@ -430,6 +430,11 @@ def test_marks_project_modified_is_false():
     assert ExitCommand(Mock()).marks_project_modified() is False
 
 
+def test_occupies_undo_slot_is_false():
+    """Exit has no undo/redo (both raise), so it must never be pushed onto the undo stack."""
+    assert ExitCommand(Mock()).occupies_undo_slot() is False
+
+
 class TestExitCommandDocumentation:
     """Test command documentation and metadata."""
     

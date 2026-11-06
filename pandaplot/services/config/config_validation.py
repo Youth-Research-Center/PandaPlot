@@ -19,7 +19,7 @@ import re
 from pandaplot.models.state.config import AppearanceConfig, ApplicationConfig
 
 # Hard bounds / defaults (centralised here for consistency)
-ACCENT_COLOR_FALLBACK = AppearanceConfig().accent_color  # '#3B82F6'
+ACCENT_COLOR_FALLBACK = AppearanceConfig().accent_color  # follows the AppearanceConfig default
 MIN_AUTO_SAVE_INTERVAL = 5
 MAX_AUTO_SAVE_INTERVAL = 3600  # 1 hour
 MAX_INTERFACE_FONT = 36

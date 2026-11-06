@@ -2,7 +2,8 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QApplication, QColorDialog
 
 from pandaplot.gui.controllers.ui_controller import UIController
 
@@ -66,3 +67,27 @@ def test_get_save_file_path_adds_a_missing_extension(mock_save, chosen, expected
 
     assert UIController().get_save_file_path("Export Plan", "Plan.png", "PNG image (*.png)", ".png") == expected
     assert mock_save.call_args.args[1:] == ("Export Plan", "Plan.png", "PNG image (*.png)")
+
+
+@pytest.mark.parametrize(("picked", "expected"), [
+    (QColor(255, 0, 0), "#ff0000"),
+    (QColor(255, 0, 0, 128), "#80ff0000"),
+    (QColor(), None),
+])
+@patch("pandaplot.gui.controllers.ui_controller.QColorDialog.getColor")
+def test_get_color_returns_hex_with_alpha_only_when_translucent(mock_get_color, picked, expected):
+    mock_get_color.return_value = picked
+
+    assert UIController().get_color("Fill Colour", "#80112233", with_alpha=True) == expected
+
+    initial, _parent, title, options = mock_get_color.call_args.args
+    assert initial == QColor("#80112233")
+    assert title == "Fill Colour"
+    assert options & QColorDialog.ColorDialogOption.ShowAlphaChannel
+
+
+@patch("pandaplot.gui.controllers.ui_controller.QColorDialog.getColor", return_value=QColor("#123456"))
+def test_get_color_hides_the_alpha_channel_by_default(mock_get_color):
+    UIController().get_color("Stroke Colour", "#000000")
+
+    assert not mock_get_color.call_args.args[3] & QColorDialog.ColorDialogOption.ShowAlphaChannel

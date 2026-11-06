@@ -285,13 +285,14 @@ class AddRowsCommand(Command):
         """Generate appropriate default value based on column type."""
         col_dtype = data[column].dtype
         
-        if pd.api.types.is_numeric_dtype(col_dtype):
+        # bool is also a numeric dtype, so it must be checked first.
+        if pd.api.types.is_bool_dtype(col_dtype):
+            return False
+        elif pd.api.types.is_numeric_dtype(col_dtype):
             if pd.api.types.is_integer_dtype(col_dtype):
                 return 0
             else:
                 return 0.0
-        elif pd.api.types.is_bool_dtype(col_dtype):
-            return False
         else:
             return ""
 
@@ -319,7 +320,7 @@ class AddRowsCommand(Command):
             self.logger.error(f"AddRowsCommand Undo Error: {e}")
             return CommandResult.FAILURE
 
-    def redo(self):
+    def redo(self) -> CommandResult:
         """Redo the add rows command."""
         # Re-execute with stored parameters
         return self.execute()

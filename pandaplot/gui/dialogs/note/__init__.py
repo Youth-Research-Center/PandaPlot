@@ -1,0 +1,8 @@
+"""Dialogs for note editing and insertion."""
+
+from pandaplot.gui.dialogs.note.note_artefacts_dialog import NoteArtefactsDialog
+from pandaplot.gui.dialogs.note.note_chart_picker_dialog import NoteChartPickerDialog
+from pandaplot.gui.dialogs.note.note_table_picker_dialog import NoteTablePickerDialog
+from pandaplot.gui.dialogs.note.snapshot_dpi_dialog import SnapshotDpiDialog
+
+__all__ = ["NoteArtefactsDialog", "NoteChartPickerDialog", "NoteTablePickerDialog", "SnapshotDpiDialog"]

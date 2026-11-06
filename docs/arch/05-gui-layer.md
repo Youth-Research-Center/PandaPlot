@@ -102,6 +102,14 @@ TabContainer
 - Fits the whole canvas into view the first time it is shown
 - A `LayerManagerPanel` sits beside the canvas in a `QSplitter`; the toolbar's checkable "Layers" button shows or hides it (the splitter can't collapse it, so the button's state stays right)
 
+### SketchPropertyBar (`gui/components/tabs/sketch/sketch_property_bar.py`)
+
+- A second toolbar under the tool toolbar: stroke colour, width and line style, fill colour (menu: no fill or choose), font family, size, bold, italic and alignment. Colours come from `UIController.get_color()` with the alpha channel shown, so fills and strokes can be translucent; font families are Qt's (`QFontDatabase`), because sketches draw text with Qt, not matplotlib
+- With a selection it shows the selected elements' style and changes it with one `UpdateSketchElementStyleCommand` per edit. Where they differ, a control shows "Mixed" (`NumberInput.setMixed()`, an empty combo with a "Mixed" placeholder, a split swatch, no alignment checked); changing it gives every element the new value
+- With nothing selected it shows and edits `ToolManager.style`, the style of new elements, without an undo step
+- Controls a target doesn't draw with are disabled (by `STYLE_FIELDS` of the selected types, or of the active tool's element type in `TOOL_ELEMENT_TYPES`)
+- It re-reads the model on the canvas's `selection_changed`, `rebuilt` (after any model change, including undo) and the tool manager's `tool_changed`, so it needs no event-bus subscription of its own
+
 ### LayerManagerPanel (`gui/components/tabs/sketch/layer_manager_panel.py`)
 
 - Lists the layers top first. The current row is the active layer (`SetActiveSketchLayerCommand`); each row (`LayerRow`) has checkable visibility and lock buttons with painted eye and lock icons. Double-click, F2 or Enter renames the active layer through `UIController.get_text_input()`

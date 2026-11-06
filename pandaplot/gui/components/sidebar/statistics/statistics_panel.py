@@ -26,7 +26,7 @@ from pandaplot.gui.components.common.number_input import DecimalInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.statistics.test_info_dialog import InfoDialogHelper
-from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
+from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -87,6 +87,7 @@ class StatisticsPanel(SidebarPanel):
         self.info_btn = PButton("ℹ️", role="secondary", icon=True, on_click=self._show_test_info)
         self.info_btn.setFixedWidth(32)
         self.info_btn.setToolTip("Learn about this test: explanation, formula and an example")
+        self.info_btn.setAccessibleName("About this test")
         selector_row.addWidget(self.info_btn)
         form.addRow("Test:", selector_row)
         group_layout.addLayout(form)
@@ -311,10 +312,6 @@ class StatisticsPanel(SidebarPanel):
         executed = self.app_context.get_command_executor().execute_command(command)
         if executed and command.result_dataset_id:
             self.last_result = command.result
-            self.publish_event(DatasetEvents.DATASET_CREATED, {
-                "dataset_id": command.result_dataset_id,
-                "source": "statistics_panel",
-            })
             name = command.result.result_name() if command.result else "results"
             self.results_text.setText(
                 f"✅ Results added to project as dataset:\n'{name}'\n\n"
@@ -352,11 +349,28 @@ class StatisticsPanel(SidebarPanel):
         df = self.current_dataset.data
         return [str(c) for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
 
-    def _refresh_inputs(self):
-        """Rebuild the input widgets against the current dataset's columns."""
+    def _refresh_inputs(self, *, keep: list[str] | None = None) -> None:
+        """Rebuild the input widgets against the current dataset's columns.
+
+        Args:
+            keep: Columns to reselect where they still exist. A column picker whose kept column is gone keeps
+                its default; in group mode the default groups stay selected when none of the kept groups exist.
+        """
         test_type = self._current_test_type()
-        if test_type is not None:
-            self._build_input_widgets(STAT_TESTS[test_type].input_mode)
+        if test_type is None:
+            return
+        self._build_input_widgets(STAT_TESTS[test_type].input_mode)
+        if not keep:
+            return
+        if self.group_list is not None:
+            rows = [self.group_list.item(i) for i in range(self.group_list.count())]
+            if any(item.text() in keep for item in rows):
+                for item in rows:
+                    item.setSelected(item.text() in keep)
+        else:
+            for combo, name in zip(self.column_combos, keep, strict=False):
+                if combo.findText(name) >= 0:
+                    combo.setCurrentText(name)
 
     def update_context(self, tab_widget):
         """Update panel context from the active tab (called by sidebar wiring)."""
@@ -376,6 +390,7 @@ class StatisticsPanel(SidebarPanel):
             (UIEvents.TAB_CHANGED, self.on_tab_changed),
             (DatasetOperationEvents.DATASET_COLUMN_ADDED, self.on_columns_changed),
             (DatasetOperationEvents.DATASET_COLUMN_REMOVED, self.on_columns_changed),
+            (DatasetOperationEvents.DATASET_COLUMN_RENAMED, self.on_columns_changed),
         ])
 
     def on_tab_changed(self, event_data):
@@ -395,9 +410,15 @@ class StatisticsPanel(SidebarPanel):
             self.current_dataset_id = None
             self._refresh_inputs()
 
-    def on_columns_changed(self, event_data):
-        if event_data.get("dataset_id") == self.current_dataset_id:
-            self._refresh_inputs()
+    def on_columns_changed(self, event_data: dict) -> None:
+        """Rebuild the pickers after a column is added, removed or renamed, keeping the user's columns."""
+        if event_data.get("dataset_id") != self.current_dataset_id:
+            return
+        kept = self._follow_column_rename(self._selected_columns(), event_data)
+        self._refresh_inputs(keep=kept)
+        if self._column_selection_changed(kept, self._selected_columns()):
+            # A tested column is gone, so the shown result no longer matches the pickers.
+            self.clear()
 
     # ------------------------------------------------------------------
     # Helpers / theming

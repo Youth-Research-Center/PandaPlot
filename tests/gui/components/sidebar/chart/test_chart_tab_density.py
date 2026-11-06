@@ -43,8 +43,7 @@ def test_loading_a_density_chart_selects_the_density_combo_entry():
 
 
 def _type_item_enabled(tab: ChartTab, chart_type: ChartType) -> bool:
-    index = tab.chart_type_control.findData(chart_type)
-    return tab.chart_type_control.model().item(index).isEnabled()
+    return tab.chart_type_control.is_value_enabled(chart_type)
 
 
 def test_fits_on_a_hist_chart_disable_density_but_never_the_charts_own_type():

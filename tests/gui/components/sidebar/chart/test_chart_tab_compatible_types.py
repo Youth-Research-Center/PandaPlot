@@ -18,10 +18,7 @@ def qapp():
 
 
 def _is_option_enabled(tab: ChartTab, chart_type: ChartType) -> bool:
-    combo = tab.chart_type_control
-    index = combo.findData(chart_type)
-    item = combo.model().item(index)
-    return item.isEnabled()
+    return tab.chart_type_control.is_value_enabled(chart_type)
 
 
 def test_vector_chart_disables_bar_as_a_switch_target():
@@ -52,10 +49,7 @@ def test_disabled_option_has_an_explanatory_tooltip():
     chart = Chart(name="Vector Chart", chart_type="vector")
     tab.load(chart)
 
-    combo = tab.chart_type_control
-    index = combo.findData(ChartType.BAR)
-    tooltip = combo.model().item(index).toolTip()
-    assert tooltip != ""
+    assert tab.chart_type_control.value_tooltip(ChartType.BAR) != ""
 
 
 def test_compatibility_is_recomputed_after_switching_type():
@@ -67,8 +61,14 @@ def test_compatibility_is_recomputed_after_switching_type():
     chart = Chart(name="Vector Chart", chart_type="vector")
     tab.load(chart)
 
-    line_index = tab.chart_type_control.findData(ChartType.LINE)
-    tab.chart_type_control.setCurrentIndex(line_index)
+    # Color Map can't host a Vector series, but can host a Line series, so
+    # its state only changes if compatibility is recomputed after the switch.
+    assert _is_option_enabled(tab, ChartType.COLORMAP) is False
+
+    category_combo = tab.chart_type_control.category_combo
+    category_combo.setCurrentIndex(category_combo.findText("Line & Scatter"))
+    assert chart.chart_type == ChartType.LINE
+    assert _is_option_enabled(tab, ChartType.COLORMAP) is True
 
     assert _is_option_enabled(tab, ChartType.BAR) is False
     assert _is_option_enabled(tab, ChartType.HIST) is False
@@ -161,3 +161,70 @@ def test_a_fit_only_chart_does_not_allow_switching_to_3d_types():
     assert _is_option_enabled(tab, ChartType.SURFACE) is False
     # Still allows every 2-D target that can host a fit.
     assert _is_option_enabled(tab, ChartType.SCATTER) is True
+
+
+def test_type_dropdown_lists_only_the_current_categorys_types():
+    from pandaplot.models.chart.chart_category import ChartCategory
+
+    tab = ChartTab()
+    tab.load(Chart(name="Scatter", chart_type="scatter"))
+    selector = tab.chart_type_control
+
+    categories = [selector.category_combo.itemText(i) for i in range(selector.category_combo.count())]
+    assert categories == [category.value for category in ChartCategory]
+    assert selector.category_combo.currentText() == ChartCategory.LINE_SCATTER.value
+    types = [selector.value_combo.itemText(i) for i in range(selector.value_combo.count())]
+    assert types == ["Line", "Scatter"]
+
+
+def test_loading_a_chart_shows_its_category_and_type():
+    from pandaplot.models.chart.chart_category import ChartCategory
+
+    tab = ChartTab()
+    tab.load(Chart(name="Surface", chart_type="surface"))
+
+    assert tab.chart_type_control.currentValue() == ChartType.SURFACE
+    assert tab.chart_type_control.category_combo.currentText() == ChartCategory.THREE_D.value
+    assert tab.chart_type_control.value_combo.currentText() == "3D Surface"
+
+
+def test_choosing_a_category_retypes_the_chart_to_its_first_available_type():
+    tab = ChartTab()
+    chart = Chart(name="Scatter", chart_type="scatter")
+    tab.load(chart)
+    emitted = []
+    tab.chartTypeChanged.connect(emitted.append)
+
+    category_combo = tab.chart_type_control.category_combo
+    category_combo.setCurrentIndex(category_combo.findText("Bar & Pie"))
+
+    assert chart.chart_type == ChartType.BAR
+    assert tab.chart_type_control.currentValue() == ChartType.BAR
+    assert emitted == [ChartType.BAR]
+
+
+def test_disabled_types_stay_visible_and_a_fully_disabled_category_is_disabled():
+    """A vector chart cannot become a bar or pie chart, so the "Bar & Pie"
+    category is unavailable; 3-D types are ruled out for the same chart."""
+    tab = ChartTab()
+    tab.load(Chart(name="Vector Chart", chart_type="vector"))
+
+    category_combo = tab.chart_type_control.category_combo
+    model = category_combo.model()
+    assert model.item(category_combo.findText("Bar & Pie")).isEnabled() is False
+    assert model.item(category_combo.findText("Bar & Pie")).toolTip() != ""
+    assert model.item(category_combo.findText("Line & Scatter")).isEnabled() is True
+    # The current category stays enabled whatever its types' state.
+    assert model.item(category_combo.findText("Fields & Grids")).isEnabled() is True
+
+
+def test_choosing_a_category_selects_a_type_the_chart_can_switch_to():
+    """From a Vector chart the Fields & Grids category is current, so
+    choosing Line & Scatter lands on its first type, Line."""
+    tab = ChartTab()
+    tab.load(Chart(name="Vector", chart_type="vector"))
+
+    category_combo = tab.chart_type_control.category_combo
+    category_combo.setCurrentIndex(category_combo.findText("Line & Scatter"))
+
+    assert tab.chart_type_control.currentValue() == ChartType.LINE
