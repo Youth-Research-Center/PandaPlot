@@ -1462,6 +1462,39 @@ def render_chart_to_qimage(chart, resolved_series_data, size_defaults) -> QImage
     return qimg if qimg.loadFromData(png_bytes) else None
 
 
+# Series types whose renderers convert X/Y/Z with np.asarray(dtype=float): text
+# such as "10" is drawn at 10 (and text that is not a number draws nothing),
+# never as a category, so their range must not use matplotlib's categorical
+# index (see compute_axis_data_range).
+NUMERIC_COORDINATE_SERIES_TYPES = frozenset({
+    SeriesType.HEATMAP, SeriesType.SURFACE, SeriesType.WIREFRAME, SeriesType.TRISURF, SeriesType.BAR3D,
+})
+
+
+def axis_positions(values, categories: dict) -> np.ndarray:
+    """Positions `values` take on an axis: themselves when numeric, otherwise
+    (text labels such as "Q1 2024") the index matplotlib's categorical axis
+    gives each distinct label, in order of first appearance. Text that looks
+    like a number ("1") is still a label, as it is for matplotlib.
+
+    Args:
+        values: One series' values for the axis.
+        categories: Label -> index, shared by every series on the axis and
+            extended in place with labels not seen yet.
+
+    Returns:
+        A float array with one position per value.
+    """
+    labels = np.asarray(values)
+    has_text = labels.dtype.kind in "USO" and any(isinstance(label, (str, bytes)) for label in labels)
+    if not has_text:
+        try:
+            return np.asarray(labels, dtype=float)
+        except (TypeError, ValueError):
+            pass
+    return np.array([categories.setdefault(label, len(categories)) for label in labels], dtype=float)
+
+
 def compute_axis_data_range(project, data_series, prefix: str, *, positive_only: bool = False,
                             hist_density_bins: int | None = None) -> tuple[float, float] | None:
     """Compute (min, max) across every series plotted against the given
@@ -1477,7 +1510,10 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
     it needs an x-column, so mixed-type charts do not apply one series'
     column requirements to another. A stacked series (SeriesTypeSpec.
     is_stacked) contributes the tops of its stacked bars to "y"/"y2", not
-    its raw values.
+    its raw values. Text values (a categorical axis) count as their category
+    index, 0..n-1 in order of first appearance across the series (see
+    axis_positions), except for series types in
+    NUMERIC_COORDINATE_SERIES_TYPES, whose renderers read text as numbers.
 
     `positive_only` should be True for a Log-scaled axis: matplotlib's
     autoscale silently ignores non-positive values on a log axis, and this
@@ -1494,6 +1530,7 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
     # Only ever one axis' series reach the stacking below ("y" and "y2" are
     # filtered apart above), so one stack covers them all.
     bar_stack: BarStack = {}
+    categories: dict = {}
     box_count = 0
     for series in data_series:
         on_twin_axis = False
@@ -1545,7 +1582,13 @@ def compute_axis_data_range(project, data_series, prefix: str, *, positive_only:
                 # its own values -- stacked in the same order update_chart draws
                 # them, so the range matches what's actually on screen.
                 arr = place_on_stack(data.x_data, data.y_data, bar_stack) + np.asarray(data.y_data, dtype=float)
-            values = np.asarray(arr, dtype=float)
+            if series.series_type in NUMERIC_COORDINATE_SERIES_TYPES:
+                try:
+                    values = np.asarray(arr, dtype=float)
+                except (TypeError, ValueError):
+                    continue
+            else:
+                values = axis_positions(arr, categories)
             values = values[np.isfinite(values)]
         if positive_only:
             values = values[values > 0]
