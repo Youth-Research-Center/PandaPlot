@@ -2,6 +2,7 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QApplication
 
@@ -9,7 +10,9 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
+from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import UIEvents
+from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_catalog import HelpCatalog
 from pandaplot.services.help.help_types import HelpCategory, HelpTopic
@@ -205,7 +208,7 @@ class TestMainMenuHelpTopics:
         window = menu._help_window
         qtbot.addWidget(window)
         assert window.isVisible()
-        assert window.tree.currentItem().data(0, 256) == "t.first"
+        assert window.tree.currentItem().data(0, Qt.ItemDataRole.UserRole) == "t.first"
 
     def test_help_requested_event_opens_window_on_topic(self, qtbot, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
@@ -216,7 +219,7 @@ class TestMainMenuHelpTopics:
         window = menu._help_window
         qtbot.addWidget(window)
         assert window.isVisible()
-        assert window.tree.currentItem().data(0, 256) == "t.second"
+        assert window.tree.currentItem().data(0, Qt.ItemDataRole.UserRole) == "t.second"
         assert "Second summary." in window.browser.toPlainText()
 
     def test_help_requested_without_topic_shows_first_topic(self, qtbot, app_context):
@@ -225,7 +228,7 @@ class TestMainMenuHelpTopics:
         _help_requested_handler(app_context)({"topic_id": None})
 
         qtbot.addWidget(menu._help_window)
-        assert menu._help_window.tree.currentItem().data(0, 256) == "t.first"
+        assert menu._help_window.tree.currentItem().data(0, Qt.ItemDataRole.UserRole) == "t.first"
 
     def test_second_request_reuses_the_same_window(self, qtbot, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
@@ -237,7 +240,7 @@ class TestMainMenuHelpTopics:
         handler({"topic_id": "t.second"})
 
         assert menu._help_window is first_window
-        assert first_window.tree.currentItem().data(0, 256) == "t.second"
+        assert first_window.tree.currentItem().data(0, Qt.ItemDataRole.UserRole) == "t.second"
 
     def test_closed_window_is_reopened_on_next_request(self, qtbot, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
@@ -250,6 +253,46 @@ class TestMainMenuHelpTopics:
 
         assert menu._help_window is window
         assert window.isVisible()
+
+
+class _HelpPanel(SidebarPanel):
+    """Minimal sidebar panel with a "?" button that points at a help topic."""
+
+    def __init__(self, app_context, help_topic):
+        super().__init__(app_context)
+        self._topic = help_topic
+        self._init_ui()
+
+    def _init_ui(self):
+        self._init_panel_layout()
+        self._set_title("📊 Test Panel", help_topic=self._topic)
+
+    def _apply_theme(self):
+        pass
+
+
+class TestHelpButtonIntegration:
+    """Clicking a panel's "?" button reaches the MainMenu through a real EventBus."""
+
+    @pytest.fixture(autouse=True)
+    def _small_catalog(self, monkeypatch):
+        monkeypatch.setattr("pandaplot.gui.dialogs.help.help_window.get_help_catalog", _help_catalog)
+
+    def test_clicking_the_help_button_opens_the_help_window_on_the_panel_topic(self, qtbot, app_context):
+        app_context.event_bus = EventBus()
+        menu = MainMenu(parent=None, app_context=app_context)
+        panel = _HelpPanel(app_context, "t.second")
+        qtbot.addWidget(panel)
+        assert panel.help_button is not None
+
+        panel.help_button.click()
+
+        window = menu._help_window
+        assert window is not None
+        qtbot.addWidget(window)
+        assert window.isVisible()
+        assert window.tree.currentItem().data(0, Qt.ItemDataRole.UserRole) == "t.second"
+        assert "Second summary." in window.browser.toPlainText()
 
 
 class TestMainMenuUndoRedoActions:

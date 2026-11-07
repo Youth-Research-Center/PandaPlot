@@ -259,6 +259,34 @@ def test_down_arrow_in_search_focuses_first_visible_topic(qtbot, window):
     assert window.tree.currentItem().text(0) == "Linear fit"
 
 
+def test_down_arrow_in_search_focuses_the_selected_topic_when_it_is_listed(qtbot, window):
+    window.show()
+    qtbot.waitExposed(window)
+    window.search_edit.setText("test")
+    window.show_topic("stats.u")
+    window.search_edit.setFocus()
+
+    event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier)
+    handled = window.eventFilter(window.search_edit, event)
+
+    assert handled
+    qtbot.waitUntil(window.tree.hasFocus, timeout=2000)
+    assert window.tree.currentItem().text(0) == "Beta test"
+
+
+def test_down_arrow_focuses_the_first_topic_when_the_selection_is_filtered_out(qtbot, window):
+    window.show()
+    qtbot.waitExposed(window)
+    window.show_topic("fit.line")
+    window.search_edit.setText("test")
+
+    event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier)
+    handled = window.eventFilter(window.search_edit, event)
+
+    assert handled
+    assert window.tree.currentItem().text(0) == "Alpha test"
+
+
 def test_down_arrow_with_no_results_is_not_consumed(window):
     window.search_edit.setText("zzzz")
     event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier)

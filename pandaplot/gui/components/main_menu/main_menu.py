@@ -1,4 +1,4 @@
-from typing import override
+from typing import TYPE_CHECKING, override
 
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QWidget
@@ -28,6 +28,9 @@ from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.session.recent_projects import get_recent_projects
 from pandaplot.services.theme.theme_manager import ThemeManager
 
+if TYPE_CHECKING:
+    from pandaplot.gui.dialogs.help.help_window import HelpWindow
+
 
 class MainMenu(PMenuBar):
     def __init__(self, parent: QWidget, app_context: AppContext):
@@ -35,7 +38,7 @@ class MainMenu(PMenuBar):
         # Dataset of the currently active tab, if any -- used to preselect the
         # dataset in dialogs opened from the menu.
         self.active_dataset_id: str | None = None
-        self._help_window = None
+        self._help_window: HelpWindow | None = None
         self._initialize()
 
     @override
@@ -445,7 +448,7 @@ class MainMenu(PMenuBar):
         if self._help_window is None:
             from pandaplot.gui.dialogs.help.help_window import HelpWindow
 
-            self._help_window = HelpWindow(self.app_context, self.parent())
+            self._help_window = HelpWindow(self.app_context, self.window())
         self._help_window.show_topic(topic_id)
         self._help_window.show()
         self._help_window.raise_()

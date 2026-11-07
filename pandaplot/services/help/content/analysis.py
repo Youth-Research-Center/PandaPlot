@@ -5,6 +5,14 @@ mappings send every member of the analysis enums to the topic that explains it.
 """
 
 from pandaplot.analysis.analysis_types import AnalysisType, DerivativeMethod, InterpolationMethod, SmoothingMethod
+from pandaplot.services.help.content.panel_defaults import (
+    INTERPOLATION_POINTS_CHART,
+    INTERPOLATION_POINTS_DATASET,
+    ROLLING_WINDOW_CHART,
+    ROLLING_WINDOW_DATASET,
+    SAVGOL_POLYNOMIAL_ORDER,
+    SAVGOL_WINDOW_LENGTH,
+)
 from pandaplot.services.help.help_types import PANEL_TOPIC_ANALYSIS, PANEL_TOPIC_CHART_ANALYSIS, HelpCategory, HelpTopic
 
 ANALYSIS_TOPIC_IDS: dict[AnalysisType, str] = {
@@ -36,6 +44,11 @@ INTERPOLATION_TOPIC_IDS: dict[InterpolationMethod, str] = {
 
 _PANELS = (PANEL_TOPIC_ANALYSIS, PANEL_TOPIC_CHART_ANALYSIS)
 
+_PREVIEW_STEP = (
+    "Click Preview to check the result, then Apply. In the Analysis Operations panel the preview shows summary statistics; "
+    "in the Chart Analysis panel it shows the number of points and the first rows."
+)
+
 
 def topics() -> list[HelpTopic]:
     """Return the help topics of this module.
@@ -53,7 +66,7 @@ def topics() -> list[HelpTopic]:
                 "In the Analysis Operations panel (dataset tab) or the Chart Analysis panel (chart tab), choose Derivative as the type.",
                 "Choose a Method: Central difference, Forward difference or Backward difference.",
                 "Choose the X and Y columns (dataset tab) or the series (chart tab), and the range of rows or points to use.",
-                "Click Preview to check the result, then Apply.",
+                _PREVIEW_STEP,
             ),
             explanation=(
                 "The derivative is the slope of Y plotted against X. Its unit is the unit of Y per unit of X: "
@@ -108,14 +121,14 @@ def topics() -> list[HelpTopic]:
             steps=(
                 "In the Analysis Operations panel (dataset tab) or the Chart Analysis panel (chart tab), choose Integral as the type.",
                 "Choose the X and Y columns (dataset tab) or the series (chart tab), and the range of rows or points to use.",
-                "Click Preview to see the summary statistics, then Apply.",
+                _PREVIEW_STEP,
             ),
             explanation=(
                 "PandaPlot uses the trapezoidal rule: the area between each pair of neighbouring points is treated as a trapezoid, "
                 "and the areas are added up. The method is fixed, so the panel has no options for it.\n\n"
                 "The result is a running total. It is 0 at the first point of the range, and its last value is the total area under the curve. "
                 "Its unit is the unit of Y multiplied by the unit of X: velocity in metres per second integrated over seconds gives metres.\n\n"
-                "The preview shows Total Integral, Final Value and Mean Rate. "
+                "In the Analysis Operations panel the preview shows Total Integral, Final Value and Mean Rate. "
                 "The mean rate is the total area divided by the width of the X range, which is the average height of the curve."
             ),
             formula="∫ y dx ≈ Σ (xᵢ₊₁ - xᵢ) · (yᵢ + yᵢ₊₁) / 2",
@@ -132,12 +145,12 @@ def topics() -> list[HelpTopic]:
                 ("In the Analysis Operations panel (dataset tab) or the Chart Analysis panel (chart tab), choose Arc Length (called "
                 '"Arc length (line length)" on the chart tab) as the type.'),
                 "Choose the X and Y columns (dataset tab) or the series (chart tab), and the range of rows or points to use.",
-                "Click Preview to see the summary statistics, then Apply.",
+                _PREVIEW_STEP,
             ),
             explanation=(
                 "For every pair of neighbouring points PandaPlot calculates the straight-line (Euclidean) distance, using both the X and the Y change. "
                 "The result is a running total that starts at 0 at the first point of the range. Its last value is the total length of the line.\n\n"
-                "The preview shows Total Length, Mean Segment and Max Segment. "
+                "In the Analysis Operations panel the preview shows Total Length, Mean Segment and Max Segment. "
                 "X and Y should be in the same unit for the length to mean something."
             ),
             formula="length = Σ √((xᵢ₊₁ - xᵢ)² + (yᵢ₊₁ - yᵢ)²)",
@@ -154,13 +167,13 @@ def topics() -> list[HelpTopic]:
                 'Choose a Method: Savitzky-Golay, Rolling Mean ("Rolling mean" on the chart tab) or LOWESS.',
                 "Set the options the method shows, such as Window Length and Polynomial Order, or Window Size.",
                 "Choose the X and Y columns (dataset tab) or the series (chart tab), and the range of rows or points to use.",
-                "Click Preview to see the summary statistics, then Apply.",
+                _PREVIEW_STEP,
             ),
             explanation=(
                 "Smoothing replaces each Y value with a value calculated from its neighbours, so random ups and downs partly cancel out. "
                 "The result has one smoothed value for every point in the range.\n\n"
                 "A wider window gives a smoother curve, but it also flattens real peaks and dips, so use the smallest window that removes the noise.\n\n"
-                "The preview shows Original Std and Smoothed Std (the spread of the values before and after), "
+                "In the Analysis Operations panel the preview shows Original Std and Smoothed Std (the spread of the values before and after), "
                 "Noise Reduction Percent (how much the spread went down) and Correlation (how closely the smoothed values follow the original ones)."
             ),
             keywords=("smooth", "denoise", "noise reduction", "filter", "moving average", "savitzky golay", "loess", "lowess", "rolling mean"),
@@ -174,15 +187,29 @@ def topics() -> list[HelpTopic]:
             explanation=(
                 "For every point, PandaPlot fits a polynomial to the points in a window around it and uses the value of that polynomial. "
                 "Because the polynomial can bend, peaks are flattened less than with a plain moving average.\n\n"
-                "Window Length is the number of points in each window. It starts at 11 and can be set from 3 to 101. "
+                f"Window Length is the number of points in each window. It starts at {SAVGOL_WINDOW_LENGTH.default} "
+                f"and can be set from {SAVGOL_WINDOW_LENGTH.minimum} to {SAVGOL_WINDOW_LENGTH.maximum}. "
                 "PandaPlot needs an odd number, so an even number is raised by one. "
                 "The window cannot be longer than the number of points in the range you analyze.\n\n"
-                "Polynomial Order is the degree of the polynomial. It starts at 3 and can be set from 1 to 10. "
+                f"Polynomial Order is the degree of the polynomial. It starts at {SAVGOL_POLYNOMIAL_ORDER.default} "
+                f"and can be set from {SAVGOL_POLYNOMIAL_ORDER.minimum} to {SAVGOL_POLYNOMIAL_ORDER.maximum}. "
                 "It must be smaller than the window length. A low order smooths more; a high order follows the data more closely."
             ),
             parameters=(
-                ("Window Length", "Number of points in each window (11 by default, 3 to 101). Should be odd."),
-                ("Polynomial Order", "Degree of the polynomial fitted in each window (3 by default, 1 to 10). Must be less than the window length."),
+                (
+                    "Window Length",
+                    (
+                        f"Number of points in each window ({SAVGOL_WINDOW_LENGTH.default} by default, "
+                        f"{SAVGOL_WINDOW_LENGTH.minimum} to {SAVGOL_WINDOW_LENGTH.maximum}). Should be odd."
+                    ),
+                ),
+                (
+                    "Polynomial Order",
+                    (
+                        f"Degree of the polynomial fitted in each window ({SAVGOL_POLYNOMIAL_ORDER.default} by default, "
+                        f"{SAVGOL_POLYNOMIAL_ORDER.minimum} to {SAVGOL_POLYNOMIAL_ORDER.maximum}). Must be less than the window length."
+                    ),
+                ),
             ),
             keywords=("savitzky-golay", "savitzky golay", "savgol", "sg filter", "polynomial smoothing", "smooth"),
             related=(ANALYSIS_TOPIC_IDS[AnalysisType.SMOOTHING], "analysis.smoothing_rolling_mean", "analysis.smoothing_lowess"),
@@ -195,10 +222,12 @@ def topics() -> list[HelpTopic]:
             explanation=(
                 "For every point, PandaPlot averages the values in a window centred on that point. "
                 "Near the start and end of the range the window is incomplete, so those points take the value of the nearest point that could be averaged.\n\n"
-                "Window Size is the number of points averaged. It starts at 5. In the dataset panel it can be set from 2 to 50, in the Chart Analysis panel from 2 to 100. "
+                f"Window Size is the number of points averaged. It starts at {ROLLING_WINDOW_DATASET.default}. "
+                f"In the Analysis Operations panel it can be set from {ROLLING_WINDOW_DATASET.minimum} to {ROLLING_WINDOW_DATASET.maximum}, "
+                f"in the Chart Analysis panel from {ROLLING_WINDOW_CHART.minimum} to {ROLLING_WINDOW_CHART.maximum}. "
                 "A larger window gives a smoother curve but also blurs sharp peaks."
             ),
-            parameters=(("Window Size", "Number of points averaged around each point (5 by default)."),),
+            parameters=(("Window Size", f"Number of points averaged around each point ({ROLLING_WINDOW_DATASET.default} by default)."),),
             keywords=("rolling mean", "moving average", "running average", "sliding window", "average", "smooth"),
             related=(ANALYSIS_TOPIC_IDS[AnalysisType.SMOOTHING], "analysis.smoothing_savgol", "analysis.smoothing_lowess"),
         ),
@@ -227,20 +256,24 @@ def topics() -> list[HelpTopic]:
                 "Choose a Method: Linear, Cubic, Quadratic or Nearest.",
                 "Set Points, the number of new values to calculate.",
                 "Choose the X and Y columns (dataset tab) or the series (chart tab), and the range of rows or points to use.",
-                "Click Preview to see the summary statistics, then Apply.",
+                _PREVIEW_STEP,
             ),
             explanation=(
                 "PandaPlot creates Points new X positions, evenly spaced from the smallest to the largest X in the range, "
                 "and calculates a Y value at each one by passing a curve through your measured points. "
                 "Use it to fill gaps, to resample unevenly spaced data, or to draw a smooth curve through the points.\n\n"
-                "Points starts at 100 in the Analysis Operations panel (10 to 10000) and at 200 in the Chart Analysis panel (10 to 100000).\n\n"
+                f"Points starts at {INTERPOLATION_POINTS_DATASET.default} in the Analysis Operations panel "
+                f"({INTERPOLATION_POINTS_DATASET.minimum} to {INTERPOLATION_POINTS_DATASET.maximum}) and at {INTERPOLATION_POINTS_CHART.default} "
+                f"in the Chart Analysis panel ({INTERPOLATION_POINTS_CHART.minimum} to {INTERPOLATION_POINTS_CHART.maximum}).\n\n"
                 "The result has its own X positions, which are not the same as your original rows. "
                 "On the chart tab the new dataset contains both the new X values and the interpolated Y values. "
-                "In the dataset panel only the Y values are stored: they are written into the new column from the first row downwards."
+                "In the Analysis Operations panel only the Y values are stored: they are written into the new column from the first row of the dataset "
+                "downwards, whatever Data Range you chose, and any rows below them stay empty. "
+                "Points must not be larger than the number of rows in the dataset, otherwise Apply fails."
             ),
             parameters=(
                 ("Method", 'How the curve between points is drawn. See "Interpolation methods".'),
-                ("Points", "How many new values to calculate."),
+                ("Points", "How many new values to calculate. In the Analysis Operations panel it must not exceed the number of rows in the dataset."),
             ),
             keywords=("interpolate", "resample", "fill gaps", "upsample", "spline", "estimate between points"),
             related=("analysis.interpolation_methods", *_PANELS),

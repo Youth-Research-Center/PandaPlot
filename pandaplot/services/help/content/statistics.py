@@ -7,6 +7,7 @@ steps, the parameter meanings, keywords and related links are written here.
 """
 
 from pandaplot.analysis.stats_types import STAT_TESTS, InputMode, StatTestInfo, StatTestType
+from pandaplot.services.help.content.panel_defaults import EXPECTED_MEAN, SIGNIFICANCE_ALPHA
 from pandaplot.services.help.help_types import PANEL_TOPIC_STATISTICS, HelpCategory, HelpTopic
 
 STAT_TEST_TOPIC_IDS: dict[StatTestType, str] = {
@@ -68,10 +69,10 @@ _ALTERNATIVE_MEANINGS: dict[StatTestType, str] = {
 }
 
 _ALPHA_MEANING = (
-    "The significance level (default 0.05). The result's plain-language conclusion compares the p-value with this number: "
+    f"The significance level (default {SIGNIFICANCE_ALPHA.default}). The result's plain-language conclusion compares the p-value with this number: "
     "a p-value below it counts as significant. Smaller values (0.01) are stricter."
 )
-_POPMEAN_MEANING = "The value you are testing the sample mean against (default 0)."
+_POPMEAN_MEANING = f"The value you are testing the sample mean against (default {EXPECTED_MEAN.default})."
 _EQUAL_VAR_MEANING = (
     "Checked by default, which runs the classic Student's t-test and assumes both groups spread out equally. Uncheck it to run "
     "Welch's t-test, which does not make that assumption."

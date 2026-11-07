@@ -41,7 +41,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.TRANSFORMS,
             summary="Makes a new column in a dataset by applying an expression to an existing column, for example doubling every value or taking its square root.",
             steps=(
-                "Open the dataset and click the 🔧 Transform icon in the sidebar.",
+                'Open the dataset and click the 🔧 icon in the sidebar (its tooltip reads "Transform Operations panel").',
                 "Select the column to transform in Source Columns.",
                 "Type a name for the result in New Column.",
                 "Write an expression in Transform Function, using x for the selected column. For example: np.sqrt(x)",
@@ -172,7 +172,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.TRANSFORMS,
             summary="Changes the x or y values of a series on a chart with an expression and adds the result to the chart as a new series.",
             steps=(
-                "Open the chart and click the 🔧 Chart Transform icon in the sidebar.",
+                'Open the chart and click the 🔧 icon in the sidebar (its tooltip reads "Chart Transform panel").',
                 "Choose the series or fitted curve to Transform.",
                 "Under Target, choose Y or X for the values the expression will replace.",
                 "Write the expression using x and y. For example: np.log10(y)",

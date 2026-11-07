@@ -7,6 +7,14 @@ related links are written here.
 """
 
 from pandaplot.analysis.signal.signal_types import SIGNAL_ANALYSES, SignalAnalysisInfo, SignalAnalysisType
+from pandaplot.services.help.content.panel_defaults import (
+    PEAK_MINIMUM_DISTANCE,
+    PEAK_MINIMUM_HEIGHT_DEFAULT,
+    PEAK_PROMINENCE_DEFAULT,
+    PEAK_THRESHOLD_DEFAULT,
+    SAMPLING_RATE_DATASET,
+    SIGNAL_OVERLAP,
+)
 from pandaplot.services.help.help_types import PANEL_TOPIC_CHART_SIGNAL, PANEL_TOPIC_SIGNAL, HelpCategory, HelpTopic
 
 SIGNAL_TOPIC_IDS: dict[SignalAnalysisType, str] = {
@@ -56,7 +64,8 @@ _EXPLANATIONS: dict[SignalAnalysisType, str] = {
     SignalAnalysisType.PEAKS: (
         "A peak is a value that is higher than the values on both sides of it. Peak detection lists every such local maximum, "
         "which helps you count pulses, heartbeats or oscillations, and find when they happen.\n\n"
-        "The result has one row per peak, with its position (Index, counted in samples from 0), its Value and, depending on the "
+        "The result has one row per peak, with its position (Index, counted in samples from 0 after missing and non-numeric values "
+        "have been dropped, so it can differ from the row number in the table), its Value and, depending on the "
         "settings, extra columns such as Prominence. The four settings only keep peaks that pass every test, so adding "
         "restrictions can only remove peaks. All four start at values that remove nothing, except that Minimum height starts "
         "at 0, which leaves out peaks lying below zero."
@@ -65,7 +74,9 @@ _EXPLANATIONS: dict[SignalAnalysisType, str] = {
 
 _PARAMETER_MEANINGS: dict[str, str] = {
     "sampling_rate": (
-        "How many samples were recorded per second, in Hz (default 1000). It converts positions in the list into real frequencies "
+        "How many samples were recorded per second, in Hz. In the Signal Analysis panel it starts at {sampling_rate}. In the Chart Signal "
+        "Analysis panel it is filled in as 1 divided by the typical (median) spacing of the x values in the segment, and stays at "
+        "{sampling_rate} when that cannot be worked out. It converts positions in the list into real frequencies "
         "and times, so a wrong value gives correct-looking but mislabelled frequencies."
     ),
     "nfft": "How many points the FFT uses (default {nfft}). Larger values give a smoother-looking spectrum but no new detail.",
@@ -78,17 +89,17 @@ _PARAMETER_MEANINGS: dict[str, str] = {
         "long segments give finer frequency detail."
     ),
     "overlap": (
-        "The fraction of each segment shared with the next one, from 0 to 0.99 (default {overlap}). More overlap uses the data "
+        "The fraction of each segment shared with the next one, from {overlap_min:g} to {overlap_max:g} (default {overlap}). More overlap uses the data "
         "more fully but costs more computing time."
     ),
-    "height": "Peaks lower than this value are ignored (default 0). Lower it below zero to find peaks in data with negative values.",
-    "distance": "The smallest allowed gap between neighbouring peaks, in samples (default 1). Of two peaks closer than this, only the higher one is kept.",
+    "height": "Peaks lower than this value are ignored (default {height}). Lower it below zero to find peaks in data with negative values.",
+    "distance": "The smallest allowed gap between neighbouring peaks, in samples (default {distance}). Of two peaks closer than this, only the higher one is kept.",
     "prominence": (
-        "How far a peak must stand out above the surrounding signal (default 0, which accepts every peak). Raising it filters out "
+        "How far a peak must stand out above the surrounding signal (default {prominence}, which accepts every peak). Raising it filters out "
         "small bumps on noisy data."
     ),
     "threshold": (
-        "How much higher a peak must be than each of its direct neighbours (default 0, which accepts every peak). Raising it "
+        "How much higher a peak must be than each of its direct neighbours (default {threshold}, which accepts every peak). Raising it "
         "filters out peaks that sit on a flat plateau."
     ),
 }
@@ -145,7 +156,17 @@ def _parameters(info: SignalAnalysisInfo) -> tuple[tuple[str, str], ...]:
     parameters = [("Signal column", "The numeric column that holds the signal. Missing values are dropped before the analysis.")]
     for key in _used_parameter_keys(info):
         meaning = _PARAMETER_MEANINGS[key].format(
-            nfft=info.default_nfft, window=info.windows[0], nperseg=info.default_nperseg, overlap=info.default_overlap
+            sampling_rate=SAMPLING_RATE_DATASET.default,
+            nfft=info.default_nfft,
+            window=info.windows[0],
+            nperseg=info.default_nperseg,
+            overlap=info.default_overlap,
+            overlap_min=SIGNAL_OVERLAP.minimum,
+            overlap_max=SIGNAL_OVERLAP.maximum,
+            height=PEAK_MINIMUM_HEIGHT_DEFAULT,
+            distance=PEAK_MINIMUM_DISTANCE.default,
+            prominence=PEAK_PROMINENCE_DEFAULT,
+            threshold=PEAK_THRESHOLD_DEFAULT,
         )
         parameters.append((labels[key], meaning))
     return tuple(parameters)

@@ -21,7 +21,7 @@ from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.gui.dialogs.help.help_html import HELP_LINK_SCHEME, render_help_topic_html
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_catalog import HelpCatalog, get_help_catalog
-from pandaplot.services.help.help_types import HelpTopic
+from pandaplot.services.help.help_types import HelpCategory, HelpTopic
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 _TOPIC_ID_ROLE = Qt.ItemDataRole.UserRole
@@ -113,7 +113,7 @@ class HelpWindow(PDialog):
 
     @override
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        """Move focus from the search field to the first visible topic on Down arrow.
+        """Move focus from the search field to the topic list on Down arrow.
 
         Args:
             watched: The object the event was sent to.
@@ -122,10 +122,14 @@ class HelpWindow(PDialog):
         Returns:
             True when the event was handled.
         """
-        if watched is self.search_edit and event.type() == QEvent.Type.KeyPress:
-            key_event: QKeyEvent = event  # type: ignore[assignment]
-            if key_event.key() == Qt.Key.Key_Down and self._focus_first_topic():
-                return True
+        if (
+            watched is self.search_edit
+            and isinstance(event, QKeyEvent)
+            and event.type() == QEvent.Type.KeyPress
+            and event.key() == Qt.Key.Key_Down
+            and self._focus_topic_list()
+        ):
+            return True
         return super().eventFilter(watched, event)
 
     def show_topic(self, topic_id: str | None) -> None:
@@ -163,7 +167,7 @@ class HelpWindow(PDialog):
         """Rebuild the tree from topics, grouped by category in enum order."""
         with QSignalBlocker(self.tree):
             self.tree.clear()
-            by_category: dict = {}
+            by_category: dict[HelpCategory, list[HelpTopic]] = {}
             for topic in topics:
                 by_category.setdefault(topic.category, []).append(topic)
             for category in sorted(by_category, key=lambda c: list(type(c)).index(c)):
@@ -175,10 +179,15 @@ class HelpWindow(PDialog):
                 category_item.setExpanded(expand_all)
 
     def _topic_items(self) -> list[QTreeWidgetItem]:
-        items = []
+        items: list[QTreeWidgetItem] = []
         for i in range(self.tree.topLevelItemCount()):
             category_item = self.tree.topLevelItem(i)
-            items.extend(category_item.child(j) for j in range(category_item.childCount()))
+            if category_item is None:
+                continue
+            for j in range(category_item.childCount()):
+                child = category_item.child(j)
+                if child is not None:
+                    items.append(child)
         return items
 
     def _first_topic_item(self) -> QTreeWidgetItem | None:
@@ -202,8 +211,10 @@ class HelpWindow(PDialog):
         self.tree.setCurrentItem(item)
         return True
 
-    def _focus_first_topic(self) -> bool:
-        item = self._first_topic_item()
+    def _focus_topic_list(self) -> bool:
+        """Focus the tree on the selected topic if it is listed, else on the first listed topic."""
+        current = self.tree.currentItem()
+        item = current if current is not None and current.data(0, _TOPIC_ID_ROLE) is not None else self._first_topic_item()
         if item is None:
             return False
         self._expand_parent(item)

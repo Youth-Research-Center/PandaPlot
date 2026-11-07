@@ -67,6 +67,16 @@ class TestSearch:
         assert [t.id for t in catalog.search("amplitude")] == ["fit.gauss"]
         assert [t.id for t in catalog.search("preprocessing")] == ["prep.norm"]
 
+    def test_matches_parameter_meanings(self, catalog):
+        assert [t.id for t in catalog.search("height peak")] == ["fit.gauss"]
+
+    def test_parameter_meaning_matches_rank_after_title_matches(self):
+        cat = HelpCatalog([
+            _topic("fit.overview", "Curve fitting", HelpCategory.FITTING, parameters=(("Fit Range", "The x interval of the curve"),)),
+            _topic("fit.interval", "Interval picker", HelpCategory.FITTING),
+        ])
+        assert [t.id for t in cat.search("interval")] == ["fit.interval", "fit.overview"]
+
     def test_title_or_keyword_matches_rank_first(self, catalog):
         # "t-test" is in the title of stats.t and only in the summary of fit.linear.
         assert [t.id for t in catalog.search("t-test")] == ["stats.t", "fit.linear"]

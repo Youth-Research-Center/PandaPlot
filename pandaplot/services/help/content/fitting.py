@@ -7,10 +7,12 @@ every parameter are written here.
 """
 
 from dataclasses import dataclass
+from typing import cast
 
 from pandaplot.analysis.signal.signal_types import SignalAnalysisType
 from pandaplot.services.fit.fit_service import CUSTOM_FUNCTION_NAMES, FIT_DEFINITIONS
 from pandaplot.services.help.content.descriptive import DESCRIPTIVE_OVERVIEW_TOPIC_ID
+from pandaplot.services.help.content.panel_defaults import FIT_POINTS
 from pandaplot.services.help.content.signal import SIGNAL_TOPIC_IDS
 from pandaplot.services.help.help_types import (
     FIT_TOPIC_CUSTOM,
@@ -287,7 +289,7 @@ _MODEL_TEXT: dict[str, _ModelText] = {
     "Power": _ModelText(
         summary="Fits y = a·x^b + c. Use it when y scales with a power of x, such as area with length squared.",
         explanation=(
-            "On a log-log chart a power law is a straight line, and the exponent b is its slope. Typical uses are the area of a "
+            "When the offset c is 0, a power law is a straight line on a log-log chart, and the exponent b is its slope. Typical uses are the area of a "
             "circle against its radius (b = 2), the period of a pendulum against its length (b = 0.5) and many scaling laws.\n\n"
             "The model needs positive x values. When you set the Fit Range yourself, its Min must be above 0."
         ),
@@ -337,7 +339,7 @@ def _overview_topic() -> HelpTopic:
         steps=(
             "Open a chart tab and open the Curve Fitting panel in the sidebar.",
             "Under Data Source, choose the Chart Series to fit. Choose Custom... to pick any dataset with an X Column and a Y Column.",
-            "Under Fit Configuration, choose a Category and a Model, or the Custom Function category to type your own formula.",
+            "Under Fit Configuration, choose a Category and a Model, or the Category Custom and Model Custom Function to type your own formula.",
             "Optionally set Fit Points, Show Confidence Bands, Calculate R² and the Fit Range.",
             "Click Perform Fit and read the parameters, R² and Equation under Fit Results.",
             "Click Apply to draw the fitted curve on the chart. Click Clear Results to start over.",
@@ -358,7 +360,7 @@ def _overview_topic() -> HelpTopic:
             "and every point counts equally.\n\n"
             "Show Confidence Bands draws a shaded region around the curve in which the true curve is expected to lie with about 95% "
             "certainty. It needs more data points than the model has free parameters.\n\n"
-            "Fit Points is the number of points used to draw the smooth curve (500 by default). The Fit Range sets the x interval over "
+            f"Fit Points is the number of points used to draw the smooth curve ({FIT_POINTS.default} by default). The Fit Range sets the x interval over "
             "which that curve is drawn: Auto uses the range of the data, and unchecking Auto lets you enter a Min and a Max. "
             "The fit itself still uses all valid data points of the series, so choose a custom range to extend the curve "
             "beyond the data or to draw only part of it."
@@ -367,14 +369,17 @@ def _overview_topic() -> HelpTopic:
             ("Chart Series", "The series of the open chart whose points are fitted. Choose Custom... to pick any dataset and columns instead."),
             ("Category", "Groups the models by kind of curve, for example Polynomial, Exponential, Peak or Periodic."),
             ("Model", "The shape of the curve to fit. Each model has its own topic."),
-            ("Fit Points", "How many points are used to draw the fitted curve (50 to 5000, default 500)."),
+            (
+                "Fit Points",
+                f"How many points are used to draw the fitted curve ({FIT_POINTS.minimum} to {FIT_POINTS.maximum}, default {FIT_POINTS.default}).",
+            ),
             ("Show Confidence Bands", "Draws a band showing where the fitted curve is likely to lie (about 95% confidence). Off by default."),
             ("Calculate R²", "Reports R², the share of the variation in y that the curve explains. On by default."),
             ("Fit Range", "The x interval over which the fitted curve is drawn. Auto uses the range of the data."),
         ),
         keywords=(
             "fit", "regression", "least squares", "best fit", "trendline", "trend line", "r squared", "r2", "r-squared",
-            "goodness of fit", "parameters", "uncertainty", "confidence band", "weighted fit", "error bars", "curve_fit",
+            "goodness of fit", "parameters", "uncertainty", "confidence band", "weighted fit", "error bars", "curve_fit", "fit range", "fit points",
         ),
         related=(
             PANEL_TOPIC_FIT,
@@ -430,7 +435,10 @@ def _model_topic(name: str) -> HelpTopic:
     definition = FIT_DEFINITIONS[name]
     text = _MODEL_TEXT[name]
     meanings = dict(text.parameters)
-    category: str = definition["category"]
+    category = cast(str, definition["category"])
+    description = cast(str, definition["description"])
+    equation = cast(str, definition["equation"])
+    parameter_names = cast(list[str], definition["parameters"])
     siblings = [other for other, other_definition in FIT_DEFINITIONS.items() if other != name and other_definition["category"] == category]
     related_models = list(dict.fromkeys([*text.related, *siblings]))
     related = [PANEL_TOPIC_FIT, FIT_TOPIC_OVERVIEW, *(FIT_MODEL_TOPIC_IDS[other] for other in related_models)]
@@ -441,10 +449,10 @@ def _model_topic(name: str) -> HelpTopic:
         title=f"{name} fit",
         category=HelpCategory.FITTING,
         summary=text.summary,
-        steps=_model_steps(name, category, definition["description"]),
+        steps=_model_steps(name, category, description),
         explanation=text.explanation,
-        parameters=tuple((parameter, meanings[parameter]) for parameter in definition["parameters"]),
-        formula=f"y = {definition['equation']}",
+        parameters=tuple((parameter, meanings[parameter]) for parameter in parameter_names),
+        formula=f"y = {equation}",
         keywords=(name.lower(), *text.keywords),
         related=tuple(related),
     )

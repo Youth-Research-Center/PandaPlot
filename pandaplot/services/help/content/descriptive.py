@@ -8,6 +8,7 @@ stable statistic identifiers.
 from pandaplot.analysis.descriptive_types import DESCRIPTIVE_STATS
 from pandaplot.analysis.preprocessing_types import PreprocessingMethod
 from pandaplot.analysis.stats_types import StatTestType
+from pandaplot.services.help.content.panel_defaults import DESCRIPTIVE_SIGNIFICANT_DIGITS
 from pandaplot.services.help.content.preprocessing import PREPROCESSING_TOPIC_IDS
 from pandaplot.services.help.content.statistics import STAT_TEST_TOPIC_IDS
 from pandaplot.services.help.help_types import PANEL_TOPIC_DESCRIPTIVE, HelpCategory, HelpTopic
@@ -67,7 +68,7 @@ def topics() -> list[HelpTopic]:
             steps=(
                 "Open a dataset tab and open the Descriptive Statistics panel in the sidebar.",
                 "Under Columns, select one or more numeric columns (Ctrl-click or Shift-click for several), or click Select all.",
-                "Under Options, set Significant digits (6 by default) and decide whether to keep 'Also add a written report (note)' checked.",
+                f"Under Options, set Significant digits ({DESCRIPTIVE_SIGNIFICANT_DIGITS.default} by default) and decide whether to keep 'Also add a written report (note)' checked.",
                 "Click Compute to preview the table in the Results box.",
                 (
                     "Click Add to Project to save the table as a new dataset named 'Descriptive stats [<columns>]'. With the report "
@@ -85,7 +86,13 @@ def topics() -> list[HelpTopic]:
             ),
             parameters=(
                 ("Columns", "The numeric columns to summarise. Each column gets its own column in the results table."),
-                ("Significant digits", "How many significant digits the table shows (1 to 12, default 6)."),
+                (
+                    "Significant digits",
+                    (
+                        f"How many significant digits the table shows ({DESCRIPTIVE_SIGNIFICANT_DIGITS.minimum} to "
+                        f"{DESCRIPTIVE_SIGNIFICANT_DIGITS.maximum}, default {DESCRIPTIVE_SIGNIFICANT_DIGITS.default})."
+                    ),
+                ),
                 ("Also add a written report (note)", "When checked (the default), Add to Project also adds a short plain-language report as a note."),
                 *((label, STAT_MEANINGS[key]) for key, label in DESCRIPTIVE_STATS.items()),
             ),

@@ -106,7 +106,7 @@ def _searchable_text(topic: HelpTopic) -> str:
         topic.summary,
         topic.explanation,
         *topic.steps,
-        *(label for label, _meaning in topic.parameters),
+        *(text for parameter in topic.parameters for text in parameter),
     ]
     return "\n".join(parts).lower()
 

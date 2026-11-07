@@ -10,6 +10,7 @@ import pytest
 
 from pandaplot.analysis.analysis_types import AnalysisType, DerivativeMethod, InterpolationMethod, SmoothingMethod
 from pandaplot.services.help.content import analysis, measurements, panels, transforms
+from pandaplot.services.help.content import panel_defaults as defaults
 from pandaplot.services.help.help_catalog import HelpCatalog
 from pandaplot.services.help.help_types import PANEL_TOPIC_IDS, HelpCategory, HelpTopic
 from pandaplot.services.transform.expression_engine import allowed_expression_names, get_transformation_templates
@@ -88,7 +89,7 @@ class TestAnalysisTopics:
     def test_analysis_topics_are_in_the_analysis_category(self) -> None:
         assert all(topic.category is HelpCategory.ANALYSIS for topic in analysis.topics())
 
-    def test_operation_topics_name_the_defaults_of_the_panels(self, catalog: HelpCatalog) -> None:
+    def test_operation_topics_state_the_numbers_of_panel_defaults(self, catalog: HelpCatalog) -> None:
         savgol = catalog.get(analysis.SMOOTHING_TOPIC_IDS[SmoothingMethod.SAVGOL])
         rolling = catalog.get(analysis.SMOOTHING_TOPIC_IDS[SmoothingMethod.ROLLING_MEAN])
         interpolation = catalog.get(analysis.ANALYSIS_TOPIC_IDS[AnalysisType.INTERPOLATION])
@@ -96,11 +97,30 @@ class TestAnalysisTopics:
         assert rolling is not None
         assert interpolation is not None
 
-        assert "starts at 11" in savgol.explanation
-        assert "starts at 3" in savgol.explanation
-        assert "starts at 5" in rolling.explanation
-        assert "starts at 100" in interpolation.explanation
-        assert "at 200" in interpolation.explanation
+        assert f"starts at {defaults.SAVGOL_WINDOW_LENGTH.default} and can be set from 3 to 101" in savgol.explanation
+        assert f"starts at {defaults.SAVGOL_POLYNOMIAL_ORDER.default} and can be set from 1 to 10" in savgol.explanation
+        assert f"starts at {defaults.ROLLING_WINDOW_DATASET.default}." in rolling.explanation
+        assert "from 2 to 50" in rolling.explanation
+        assert "from 2 to 100" in rolling.explanation
+        assert f"starts at {defaults.INTERPOLATION_POINTS_DATASET.default} " in interpolation.explanation
+        assert "(10 to 10000)" in interpolation.explanation
+        assert f"at {defaults.INTERPOLATION_POINTS_CHART.default} " in interpolation.explanation
+        assert "(10 to 100000)" in interpolation.explanation
+
+    def test_interpolation_topic_explains_how_the_dataset_result_is_written(self, catalog: HelpCatalog) -> None:
+        interpolation = catalog.get(analysis.ANALYSIS_TOPIC_IDS[AnalysisType.INTERPOLATION])
+        assert interpolation is not None
+
+        assert "first row of the dataset" in interpolation.explanation
+        assert "must not be larger than the number of rows" in interpolation.explanation
+
+    def test_chart_analysis_preview_is_not_described_as_summary_statistics(self, catalog: HelpCatalog) -> None:
+        for analysis_type in (AnalysisType.INTEGRAL, AnalysisType.ARC_LENGTH, AnalysisType.SMOOTHING):
+            topic = catalog.get(analysis.ANALYSIS_TOPIC_IDS[analysis_type])
+            assert topic is not None
+            text = "\n".join((*topic.steps, topic.explanation))
+            assert "Chart Analysis panel it shows the number of points and the first rows" in text
+            assert "In the Analysis Operations panel the preview shows" in text
 
     def test_analysis_topics_are_found_by_common_synonyms(self, catalog: HelpCatalog) -> None:
         expectations = {
