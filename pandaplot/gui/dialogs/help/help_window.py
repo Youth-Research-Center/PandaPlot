@@ -87,6 +87,8 @@ class HelpWindow(PDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         self.close_btn = PButton("Close", role="secondary", on_click=self.close)
+        self.close_btn.setAutoDefault(False)  # Enter in the search field must not close the window
+        self.close_btn.setDefault(False)
         button_layout.addWidget(self.close_btn)
         layout.addLayout(button_layout)
 
@@ -143,8 +145,8 @@ class HelpWindow(PDialog):
         if topic_id is not None and topic is None:
             self.logger.warning("Unknown help topic id %r; showing the first topic", topic_id)
 
-        if topic is not None and self._find_topic_item(topic.id) is None and self.search_edit.text():
-            self.search_edit.clear()  # the target is hidden by the current filter
+        if self.search_edit.text() and (topic is None or self._find_topic_item(topic.id) is None):
+            self.search_edit.clear()  # the target is hidden by the current filter, or there is no target
 
         if topic is not None and self._select_topic(topic.id):
             return
@@ -163,14 +165,22 @@ class HelpWindow(PDialog):
     def _palette(self) -> dict:
         return self.app_context.get_manager(ThemeManager).get_surface_palette()
 
-    def _populate_tree(self, topics: tuple[HelpTopic, ...], *, expand_all: bool) -> None:
-        """Rebuild the tree from topics, grouped by category in enum order."""
+    def _populate_tree(self, topics: tuple[HelpTopic, ...], *, expand_all: bool, ranked: bool = False) -> None:
+        """Rebuild the tree from topics, grouped by category.
+
+        Args:
+            topics: Topics in display order.
+            expand_all: Whether to expand every category.
+            ranked: When True, categories follow the first appearance of their topics in
+                ``topics`` (search ranking); otherwise they follow enum order.
+        """
         with QSignalBlocker(self.tree):
             self.tree.clear()
             by_category: dict[HelpCategory, list[HelpTopic]] = {}
             for topic in topics:
                 by_category.setdefault(topic.category, []).append(topic)
-            for category in sorted(by_category, key=lambda c: list(type(c)).index(c)):
+            categories = list(by_category) if ranked else sorted(by_category, key=lambda c: list(type(c)).index(c))
+            for category in categories:
                 category_item = QTreeWidgetItem(self.tree, [category.value])
                 category_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
                 for topic in by_category[category]:
@@ -229,8 +239,10 @@ class HelpWindow(PDialog):
     def _on_search_changed(self, text: str) -> None:
         query = text.strip()
         matches = self._catalog.search(query) if query else self._catalog.topics()
-        self._populate_tree(matches, expand_all=bool(query))
+        self._populate_tree(matches, expand_all=bool(query), ranked=bool(query))
         if self._current_topic_id is not None and self._select_topic(self._current_topic_id):
+            return
+        if matches and self._select_topic(matches[0].id):
             return
         first_item = self._first_topic_item()
         if first_item is not None:

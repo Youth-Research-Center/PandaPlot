@@ -334,3 +334,59 @@ def test_default_catalog_is_get_help_catalog(qtbot, app_context, monkeypatch):
     qtbot.addWidget(win)
 
     assert _leaf_titles(win) == ["Alpha test", "Beta test", "Linear fit"]
+
+
+@pytest.mark.parametrize("key", [Qt.Key.Key_Return, Qt.Key.Key_Enter])
+def test_enter_in_search_field_does_not_close_the_window(qtbot, window, key):
+    window.show()
+    qtbot.waitExposed(window)
+    window.search_edit.setFocus()
+    window.search_edit.setText("beta")
+
+    qtbot.keyClick(window.search_edit, key)
+
+    assert window.isVisible()
+    assert window.search_edit.text() == "beta"
+
+
+def test_close_button_is_not_a_default_button(window):
+    assert not window.close_btn.autoDefault()
+    assert not window.close_btn.isDefault()
+
+
+@pytest.mark.parametrize("target", [None, "no.such.topic"])
+def test_reopening_after_no_result_search_clears_filter_and_shows_first_topic(window, target):
+    window.search_edit.setText("zzzz")
+    window.close()
+
+    window.show_topic(target)
+
+    assert window.search_edit.text() == ""
+    assert window.tree.currentItem().data(0, Qt.ItemDataRole.UserRole) == "stats.t"
+    assert "Alpha test" in window.browser.toPlainText()
+
+
+def _ranking_topics() -> list[HelpTopic]:
+    return [
+        HelpTopic(id="stats.a", title="Descriptive summary", category=HelpCategory.STATISTICS, summary="Mentions square root once."),
+        HelpTopic(id="stats.b", title="Other summary", category=HelpCategory.STATISTICS, summary="Also square root in the body."),
+        HelpTopic(id="fit.power", title="Power fit", category=HelpCategory.FITTING, summary="Curve.", keywords=("square root",)),
+        HelpTopic(id="stats.c", title="Unrelated", category=HelpCategory.STATISTICS, summary="Nothing relevant."),
+    ]
+
+
+def test_search_orders_categories_by_best_match_and_selects_top_result(qtbot, app_context):
+    win = HelpWindow(app_context, catalog=HelpCatalog(_ranking_topics()))
+    qtbot.addWidget(win)
+    win.show_topic("stats.c")
+
+    win.search_edit.setText("square root")
+
+    assert _category_titles(win) == [HelpCategory.FITTING.value, HelpCategory.STATISTICS.value]
+    assert _leaf_titles(win) == ["Power fit", "Descriptive summary", "Other summary"]
+    assert win.tree.currentItem().data(0, Qt.ItemDataRole.UserRole) == "fit.power"
+    assert "Power fit" in win.browser.toPlainText()
+
+    win.search_edit.clear()
+
+    assert _category_titles(win) == [HelpCategory.STATISTICS.value, HelpCategory.FITTING.value]

@@ -2,7 +2,7 @@
 
 import pytest
 
-from pandaplot.services.help.help_catalog import CONTENT_MODULES, HelpCatalog, build_help_catalog
+from pandaplot.services.help.help_catalog import CONTENT_MODULES, HelpCatalog, _content_modules, build_help_catalog
 from pandaplot.services.help.help_types import HelpCategory, HelpTopic
 
 
@@ -96,6 +96,9 @@ class TestBuildCatalog:
             "panels", "statistics", "descriptive", "preprocessing", "analysis",
             "signal", "fitting", "transforms", "measurements",
         ]
+
+    def test_content_modules_match_the_modules_the_builder_uses(self):
+        assert tuple(module.__name__ for module in _content_modules()) == CONTENT_MODULES
 
     def test_build_returns_catalog(self):
         assert isinstance(build_help_catalog(), HelpCatalog)

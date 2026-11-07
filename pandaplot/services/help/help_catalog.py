@@ -1,8 +1,8 @@
 """Help topic catalog and search."""
 
-import importlib
 from collections.abc import Iterable
 from functools import cache
+from types import ModuleType
 
 from pandaplot.services.help.help_types import HelpCategory, HelpTopic
 
@@ -111,6 +111,26 @@ def _searchable_text(topic: HelpTopic) -> str:
     return "\n".join(parts).lower()
 
 
+def _content_modules() -> tuple[ModuleType, ...]:
+    """Import the content modules lazily, in ``CONTENT_MODULES`` order.
+
+    Static imports keep the modules discoverable by the Nuitka onefile build.
+    """
+    from pandaplot.services.help.content import (
+        analysis,
+        descriptive,
+        fitting,
+        measurements,
+        panels,
+        preprocessing,
+        signal,
+        statistics,
+        transforms,
+    )
+
+    return (panels, statistics, descriptive, preprocessing, analysis, signal, fitting, transforms, measurements)
+
+
 def build_help_catalog() -> HelpCatalog:
     """Assemble the catalog from all content modules.
 
@@ -118,8 +138,7 @@ def build_help_catalog() -> HelpCatalog:
         A catalog holding every module's topics, in ``CONTENT_MODULES`` order.
     """
     topics: list[HelpTopic] = []
-    for module_name in CONTENT_MODULES:
-        module = importlib.import_module(module_name)
+    for module in _content_modules():
         topics.extend(module.topics())
     return HelpCatalog(topics)
 
