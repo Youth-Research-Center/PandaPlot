@@ -2,14 +2,17 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
+from pandaplot.models.events import UIEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_catalog import HelpCatalog
+from pandaplot.services.help.help_types import HelpCategory, HelpTopic
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 _FAKE_PALETTE = {
@@ -154,6 +157,99 @@ class TestMainMenuHelpMenu:
         command_executor.execute_command.assert_called_once()
         executed_command = command_executor.execute_command.call_args[0][0]
         assert executed_command.file_path == "/examples/sample.pplot"
+
+
+def _help_catalog() -> HelpCatalog:
+    return HelpCatalog(
+        [
+            HelpTopic(id="t.first", title="First topic", category=HelpCategory.STATISTICS, summary="First summary."),
+            HelpTopic(id="t.second", title="Second topic", category=HelpCategory.FITTING, summary="Second summary."),
+        ]
+    )
+
+
+def _help_requested_handler(app_context):
+    for call in app_context.event_bus.subscribe.call_args_list:
+        if call.args[0] == UIEvents.HELP_REQUESTED:
+            return call.args[1]
+    raise AssertionError("MainMenu did not subscribe to HELP_REQUESTED")
+
+
+class TestMainMenuHelpTopics:
+    @pytest.fixture(autouse=True)
+    def _small_catalog(self, monkeypatch):
+        monkeypatch.setattr("pandaplot.gui.dialogs.help.help_window.get_help_catalog", _help_catalog)
+
+    def test_help_topics_action_is_first_in_help_menu_and_followed_by_separator(self, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+        help_menu = next(m for m in menu.findChildren(type(menu.actions()[0].menu())) if m.title() == "Help")
+
+        actions = help_menu.actions()
+
+        assert actions[0].text() == "Help Topics..."
+        assert actions[1].isSeparator()
+        assert actions[0].parent() is help_menu
+
+    def test_help_topics_action_has_help_contents_shortcut(self, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+
+        action = _find_help_action(menu, "Help Topics...")
+
+        assert action.shortcut() == QKeySequence(QKeySequence.StandardKey.HelpContents)
+
+    def test_help_topics_action_opens_window_on_first_topic_not_on_checked_flag(self, qtbot, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+
+        _find_help_action(menu, "Help Topics...").trigger()
+
+        window = menu._help_window
+        qtbot.addWidget(window)
+        assert window.isVisible()
+        assert window.tree.currentItem().data(0, 256) == "t.first"
+
+    def test_help_requested_event_opens_window_on_topic(self, qtbot, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+        handler = _help_requested_handler(app_context)
+
+        handler({"topic_id": "t.second"})
+
+        window = menu._help_window
+        qtbot.addWidget(window)
+        assert window.isVisible()
+        assert window.tree.currentItem().data(0, 256) == "t.second"
+        assert "Second summary." in window.browser.toPlainText()
+
+    def test_help_requested_without_topic_shows_first_topic(self, qtbot, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+
+        _help_requested_handler(app_context)({"topic_id": None})
+
+        qtbot.addWidget(menu._help_window)
+        assert menu._help_window.tree.currentItem().data(0, 256) == "t.first"
+
+    def test_second_request_reuses_the_same_window(self, qtbot, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+        handler = _help_requested_handler(app_context)
+
+        handler({"topic_id": "t.first"})
+        first_window = menu._help_window
+        qtbot.addWidget(first_window)
+        handler({"topic_id": "t.second"})
+
+        assert menu._help_window is first_window
+        assert first_window.tree.currentItem().data(0, 256) == "t.second"
+
+    def test_closed_window_is_reopened_on_next_request(self, qtbot, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+        menu.show_help("t.first")
+        window = menu._help_window
+        qtbot.addWidget(window)
+        window.close()
+
+        menu.show_help("t.second")
+
+        assert menu._help_window is window
+        assert window.isVisible()
 
 
 class TestMainMenuUndoRedoActions:
