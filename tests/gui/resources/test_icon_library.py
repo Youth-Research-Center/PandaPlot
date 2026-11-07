@@ -1,8 +1,9 @@
 """Tests for the bundled-icon loader and tinted QIcon renderer."""
 
 import pytest
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QByteArray, QSize
 from PySide6.QtGui import QColor, QIcon
+from PySide6.QtSvg import QSvgRenderer
 
 from pandaplot.gui.resources import icon_library
 
@@ -25,7 +26,21 @@ def test_icon_svg_unknown_weight_lists_available_weights():
 
 
 def test_icon_attributions_name_each_source_with_version_and_licence():
-    assert icon_library.icon_attributions() == ["Phosphor Icons 2.1.1 (MIT)"]
+    sources = icon_library._load_bundle()["sources"]
+    expected = [f"{meta['title']} {meta['version']} ({meta['license']})" for _, meta in sorted(sources.items())]
+
+    attributions = icon_library.icon_attributions()
+
+    assert attributions == expected
+    assert any(line.startswith("Phosphor Icons ") for line in attributions)
+
+
+def test_every_bundled_icon_renders_in_every_weight(qapp):
+    for name, entry in icon_library._load_bundle()["icons"].items():
+        for weight, svg in entry["weights"].items():
+            renderer = QSvgRenderer(QByteArray(svg.replace("currentColor", "#000000").encode("utf-8")))
+            assert renderer.isValid(), f"{name}/{weight}"
+            assert not icon_library.build_icon(name, "#000000", weight=weight).isNull(), f"{name}/{weight}"
 
 
 def test_build_icon_renders_in_the_requested_colour(qapp):

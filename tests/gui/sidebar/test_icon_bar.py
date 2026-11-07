@@ -10,6 +10,8 @@ previous selection) would have gone unnoticed.
 from unittest.mock import Mock
 
 import pytest
+from PySide6.QtCore import QSize
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication, QWidget
 
 from pandaplot.gui.components.sidebar.icon_bar import IconBar
@@ -26,6 +28,12 @@ DESIGN_TOKENS = {
     "text_muted": "#6B7280",
     "accent_active_text": "#3A45A8",
     "text_disabled": "#AEB2BC",
+}
+
+DARK_DESIGN_TOKENS = {
+    "text_muted": "#C0392B",
+    "accent_active_text": "#2ECC71",
+    "text_disabled": "#555555",
 }
 
 
@@ -123,30 +131,67 @@ def test_panel_button_without_icon_name_keeps_its_text_icon(icon_bar):
 
 
 def test_active_panel_button_icon_is_retinted_with_the_active_colour(icon_bar):
-    from PySide6.QtCore import QSize
-    from PySide6.QtGui import QColor
-
     button = icon_bar.add_panel_button("fit", "📐", icon_name="function")
 
-    def strongest_color():
-        image = button.icon().pixmap(QSize(20, 20)).toImage()
-        pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
-        return max(pixels, key=lambda pixel: pixel.alpha())
-
-    muted = QColor(DESIGN_TOKENS["text_muted"])
-    assert abs(strongest_color().red() - muted.red()) < 12
+    _assert_tinted(button, DESIGN_TOKENS["text_muted"])
 
     icon_bar.set_active_button("fit")
 
-    active = QColor(DESIGN_TOKENS["accent_active_text"])
-    assert abs(strongest_color().red() - active.red()) < 12
-    assert abs(strongest_color().blue() - active.blue()) < 12
+    _assert_tinted(button, DESIGN_TOKENS["accent_active_text"])
 
 
 def test_settings_button_uses_a_bundled_icon(icon_bar):
     assert icon_bar.settings_button.text() == ""
     assert not icon_bar.settings_button.icon().isNull()
     assert icon_bar.settings_button.accessibleName() == "Settings"
+
+
+def _strongest_color(button) -> QColor:
+    image = button.icon().pixmap(QSize(20, 20)).toImage()
+    pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
+    return max(pixels, key=lambda pixel: pixel.alpha())
+
+
+def _assert_tinted(button, expected_hex: str) -> None:
+    expected = QColor(expected_hex)
+    actual = _strongest_color(button)
+    assert abs(actual.red() - expected.red()) < 12
+    assert abs(actual.green() - expected.green()) < 12
+    assert abs(actual.blue() - expected.blue()) < 12
+
+
+def test_settings_button_gear_is_tinted_with_the_muted_text_colour(icon_bar):
+    _assert_tinted(icon_bar.settings_button, DESIGN_TOKENS["text_muted"])
+
+
+def test_theme_change_keeps_the_active_panel_state_and_retints_every_icon(icon_bar, app_context):
+    active = icon_bar.add_panel_button("fit", "📐", icon_name="function")
+    inactive = icon_bar.add_panel_button("explorer", "📁", icon_name="folder")
+    icon_bar.set_active_button("fit")
+
+    app_context.get_manager.return_value.get_design_tokens.return_value = DARK_DESIGN_TOKENS
+    icon_bar._apply_theme()
+
+    assert active.property("selected") is True
+    assert active.property("navActive") is True
+    assert inactive.property("selected") is False
+    assert inactive.property("navActive") is False
+    _assert_tinted(active, DARK_DESIGN_TOKENS["accent_active_text"])
+    _assert_tinted(inactive, DARK_DESIGN_TOKENS["text_muted"])
+    _assert_tinted(icon_bar.settings_button, DARK_DESIGN_TOKENS["text_muted"])
+
+
+def test_removing_the_active_panel_clears_the_stored_active_state(icon_bar):
+    icon_bar.add_panel_button("fit", "📐", icon_name="function")
+    icon_bar.set_active_button("fit")
+
+    icon_bar.remove_panel_button("fit")
+    readded = icon_bar.add_panel_button("fit", "📐", icon_name="function")
+    icon_bar._apply_theme()
+
+    assert readded.property("selected") is False
+    assert readded.property("navActive") is False
+    _assert_tinted(readded, DESIGN_TOKENS["text_muted"])
 
 
 def test_sidebar_passes_icon_name_to_the_icon_bar(app_context, qtbot):

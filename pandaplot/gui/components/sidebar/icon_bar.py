@@ -33,6 +33,7 @@ class IconBar(PWidget):
         self.icon_width = width
         self.panels = {}  # Store panel names and their buttons
         self.current_position = "left"  # Side the sidebar is currently docked on
+        self._active_panel: str | None = None  # Panel whose button shows the active state
 
         # Drag-to-dock state. The empty area of the icon bar acts as a drag
         # handle: dragging it toward an edge re-docks the sidebar on that side.
@@ -195,10 +196,9 @@ class IconBar(PWidget):
         self.settings_button.setIcon(self._tinted_icon("gear", "text_muted"))
 
     def _apply_panel_buttons_theme(self):
-        """Apply theme styling to all panel buttons."""
-        # Apply styling to all existing panel buttons
-        for btn in self.panels.values():
-            self._apply_button_theme(btn, is_active=False)
+        """Apply theme styling to all panel buttons, keeping the active panel's button highlighted."""
+        for name, btn in self.panels.items():
+            self._apply_button_theme(btn, is_active=(name == self._active_panel))
 
     def _tinted_icon(self, icon_name: str, token: str) -> QIcon:
         """Render a bundled icon in a design-token colour (same tokens the button QSS uses for its text)."""
@@ -262,9 +262,12 @@ class IconBar(PWidget):
             self.button_layout.removeWidget(btn)
             btn.deleteLater()
             del self.panels[name]
+            if self._active_panel == name:
+                self._active_panel = None
 
     def set_active_button(self, name: str):
         """Set the active button styling."""
+        self._active_panel = name
         for panel_name, btn in self.panels.items():
             is_active = (panel_name == name)
             self._apply_button_theme(btn, is_active=is_active)

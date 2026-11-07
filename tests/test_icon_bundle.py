@@ -56,6 +56,15 @@ def test_every_used_source_ships_its_licence_and_is_named_in_the_notices(script,
         assert f"licenses/{name}-LICENSE.txt" in notices
 
 
+def test_committed_notices_match_the_generated_notices_exactly(script, bundle):
+    licences = {
+        name: (script.ICONS_DIR / "licenses" / f"{name}-LICENSE.txt").read_text(encoding="utf-8")
+        for name in bundle["sources"]
+    }
+
+    assert script.NOTICES_PATH.read_text(encoding="utf-8") == script.render_notices(bundle, licences)
+
+
 def test_icon_sources_reference_declared_sources(bundle):
     for name, entry in bundle["icons"].items():
         assert entry["source"] in bundle["sources"], name
