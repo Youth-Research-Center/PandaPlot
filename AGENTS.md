@@ -27,7 +27,19 @@ QT_QPA_PLATFORM=offscreen uv run pytest
 QT_QPA_PLATFORM=offscreen uv run pytest tests/gui/
 QT_QPA_PLATFORM=offscreen uv run pytest tests/e2e/
 QT_QPA_PLATFORM=offscreen uv run pytest --cov=pandaplot
+QT_QPA_PLATFORM=offscreen uv run pytest -n 0 tests/gui/test_axes_tab.py   # serial: for --pdb and IDE debuggers
 ```
+
+pytest runs in parallel by default (`pytest-xdist`, `addopts` in `pyproject.toml`:
+`-n auto --maxprocesses=8 --dist=loadfile --max-worker-restart=1`), which cuts the full
+suite from about 14 minutes serial (with coverage) to roughly 4-7 minutes. `loadfile` keeps each test file on one worker, so module-scoped
+Qt fixtures keep working; do not rely on state shared between test files, because
+files run in different processes and in no fixed order. Pass `-n 0` to run serially
+(required for `--pdb` and IDE debuggers). `pytest-timeout` aborts any single test
+(setup, call and teardown) that runs longer than 120s, so a hung Qt test cannot
+consume the whole job: it dumps all stacks and kills the worker, which xdist
+reports as `worker crashed while running <test>` (it retries at most once). Keep
+legitimate tests well under that limit. `--cov` works with xdist.
 
 Every test runs with `HOME`/`USERPROFILE` redirected to its own empty directory
 (the autouse `isolated_home` fixture in `tests/conftest.py`), so `build_app_context()`
@@ -43,8 +55,9 @@ platform file pickers when a path must be supplied; do not mock commands,
 project state, import workers, or the EventBus. Use `qtbot.waitUntil` for async
 results rather than fixed sleeps.
 Modal-dialog helpers must reject on failure so a failed assertion cannot hang
-the test run. The Tests workflow runs the existing suite and this GUI layer
-headlessly, and uploads their JUnit results even when a test fails.
+the test run. The Tests workflow runs the whole suite, including this GUI layer,
+headlessly and in parallel, prints the 25 slowest tests, and uploads the JUnit
+results even when a test fails.
 
 ## Code Quality
 The repo has no `ruff format` step; `ruff check` (rules `E`, `F`, `B`, `Q`, `I`, `FBT`) is the only gate. Run it, plus the tests for the code you touched, before every push. Unsorted imports (`I001`), unused imports (`F401`) and missing `noqa` on Qt overrides are the most common avoidable review comments:

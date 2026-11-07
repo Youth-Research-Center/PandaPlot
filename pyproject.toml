@@ -29,6 +29,8 @@ dev = [
     "pytest-cov>=7.1.0",
     "pytest-mock>=3.16.0",
     "pytest-qt>=4.5.0",
+    "pytest-timeout>=2.4.0",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.16.10",
     "ty>=0.0.84",
     "viztracer>=1.1.1",
@@ -41,6 +43,17 @@ files = ["pandaplot/app.py"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = ["pandaplot_storybook"]
+# Run in parallel by default. `loadfile` keeps each test file on one worker because many GUI test
+# modules share module-scoped Qt fixtures. Workers are capped because each one loads Qt and
+# Matplotlib. Pass `-n 0` to run serially (needed for --pdb and IDE debuggers).
+addopts = "-n auto --maxprocesses=8 --dist=loadfile --max-worker-restart=1"
+# A hung Qt test must fail instead of consuming the whole job. Covers setup, call and teardown;
+# the slowest legitimate test (an e2e workflow) takes about 50s under load. The `thread` method
+# dumps all stacks and kills the process, which also works when the hang is inside a native Qt
+# call that a signal handler could not interrupt. xdist then reports the worker as crashed;
+# `--max-worker-restart=1` stops it retrying the same hung test on a fresh worker every time.
+timeout = 120
+timeout_method = "thread"
 
 [tool.ruff]
 line-length = 150
