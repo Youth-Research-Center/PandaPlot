@@ -30,9 +30,7 @@ class _Container(QWidget):
 
 
 @pytest.fixture
-def app_context(monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+def app_context():
     return build_app_context()
 
 

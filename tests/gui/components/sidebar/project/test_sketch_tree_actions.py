@@ -12,9 +12,7 @@ from pandaplot.models.project.items import Folder, Note, Sketch
 
 
 @pytest.fixture
-def panel(qtbot, monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+def panel(qtbot):
     app_context = build_app_context()
     project = Project(name="Tree")
     project.add_item(Folder(id="folder", name="Drawings"))

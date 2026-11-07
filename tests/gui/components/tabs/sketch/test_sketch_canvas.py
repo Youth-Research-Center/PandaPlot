@@ -34,13 +34,6 @@ from pandaplot.models.project.items.sketch import (
 pytestmark = pytest.mark.usefixtures("qapp")
 
 
-@pytest.fixture(autouse=True)
-def _isolated_home(monkeypatch, tmp_path):
-    # build_app_context() reads and writes config under the home directory.
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path))
-
-
 def _canvas(qtbot: QtBot, sketch: Sketch) -> SketchCanvas:
     canvas = SketchCanvas(sketch, app_context=build_app_context())
     qtbot.addWidget(canvas)

@@ -243,12 +243,11 @@ def test_a_new_element_type_registered_from_outside_is_drawn_and_exported(monkey
     assert _pixel(image, 155, 65) == BLUE
 
 
-def test_export_never_includes_canvas_overlays(qtbot, monkeypatch, tmp_path):
+def test_export_never_includes_canvas_overlays(qtbot):
     """A selection box and handles on the canvas are not part of the export."""
     from pandaplot.app import build_app_context
     from pandaplot.gui.components.tabs.sketch.sketch_canvas import SketchCanvas
 
-    monkeypatch.setenv("HOME", str(tmp_path))
     sketch = Sketch(canvas_width=200.0, canvas_height=100.0, background_color="#FFFF00", layers=[SketchLayer(elements=[
         RectangleElement(id="box", x=20.0, y=20.0, width=40.0, height=30.0, stroke_width=0.0, fill_color="#FF0000"),
     ])])
