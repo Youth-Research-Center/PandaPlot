@@ -38,6 +38,7 @@ from pandaplot.services.fit.fit_service import (
     MIN_FIT_POINTS,
     FitService,
 )
+from pandaplot.services.help.help_types import PANEL_TOPIC_FIT
 from pandaplot.services.theme import ThemeManager
 from pandaplot.utils.item_display_options import dataset_display_options
 
@@ -89,7 +90,7 @@ class FitPanel(SidebarPanel):
         self._init_panel_layout()
 
         # Title
-        self._set_title("📐 Curve Fitting")
+        self._set_title("📐 Curve Fitting", help_topic=PANEL_TOPIC_FIT)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)

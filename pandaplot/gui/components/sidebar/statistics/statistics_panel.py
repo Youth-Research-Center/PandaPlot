@@ -29,6 +29,7 @@ from pandaplot.gui.components.sidebar.statistics.test_info_dialog import InfoDia
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import PANEL_TOPIC_STATISTICS
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -51,7 +52,7 @@ class StatisticsPanel(SidebarPanel):
     def _init_ui(self):
         self._init_panel_layout()
 
-        self._set_title("🧪 Statistical Tests")
+        self._set_title("🧪 Statistical Tests", help_topic=PANEL_TOPIC_STATISTICS)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)

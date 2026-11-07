@@ -3,9 +3,10 @@ content area that is either scrollable or added directly.
 """
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QScrollArea, QToolButton, QVBoxLayout, QWidget
 
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.models.events.event_types import UIEvents
 from pandaplot.models.state.app_context import AppContext
 
 
@@ -23,6 +24,9 @@ class SidebarPanel(PWidget):
         super().__init__(app_context=app_context, parent=parent, **kwargs)
         self.main_layout: QVBoxLayout | None = None
         self.title_label: QLabel | None = None
+        self.help_button: QToolButton | None = None
+        self.help_topic: str | None = None
+        self._title_row: QWidget | None = None
 
     def _init_panel_layout(self) -> QVBoxLayout:
         """Create `self.main_layout` with the shared panel margins/spacing."""
@@ -31,12 +35,48 @@ class SidebarPanel(PWidget):
         self.main_layout.setSpacing(8)
         return self.main_layout
 
-    def _set_title(self, text: str) -> QLabel:
-        """Create `self.title_label` and pin it at the top of `main_layout`."""
+    def _set_title(self, text: str, *, help_topic: str | None = None) -> QLabel:
+        """Create `self.title_label` and pin it at the top of `main_layout`.
+
+        Args:
+            text: Title text, usually starting with an icon.
+            help_topic: Help topic id. When given, a "?" button that opens that
+                topic in the Help window is placed beside the title.
+
+        Returns:
+            The title label.
+        """
         assert self.main_layout is not None, "_init_panel_layout must run first"
         self.title_label = QLabel(text)
-        self.main_layout.addWidget(self.title_label)
+        self.help_topic = help_topic
+        if help_topic is None:
+            self.main_layout.addWidget(self.title_label)
+            return self.title_label
+
+        panel_name = text.split(maxsplit=1)[-1]
+        self.help_button = QToolButton()
+        self.help_button.setText("?")
+        self.help_button.setToolTip("Open help for this panel")
+        self.help_button.setAccessibleName(f"Help: {panel_name}")
+        self.help_button.setAccessibleDescription(f"Opens the Help window on the {panel_name} topic")
+        self.help_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.help_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.help_button.clicked.connect(self._on_help_clicked)
+
+        self._title_row = QWidget()
+        self._title_row.setObjectName("panelTitleRow")
+        row_layout = QHBoxLayout(self._title_row)
+        row_layout.setContentsMargins(0, 0, 4, 0)
+        row_layout.setSpacing(4)
+        row_layout.addWidget(self.title_label, 1)
+        row_layout.addWidget(self.help_button)
+        self.main_layout.addWidget(self._title_row)
         return self.title_label
+
+    def _on_help_clicked(self, _checked: bool = False) -> None:  # noqa: FBT001, FBT002 -- Qt clicked(bool) slot signature
+        """Ask the Help window to open this panel's topic."""
+        if self.help_topic is not None:
+            self.publish_event(UIEvents.HELP_REQUESTED, {"topic_id": self.help_topic})
 
     def _set_content(self, widget: QWidget, *, scrollable: bool = True) -> None:
         """Add `widget` to `main_layout`, after the title.
@@ -101,11 +141,30 @@ class SidebarPanel(PWidget):
         )
 
     def _apply_title_theme(self, base_fg: str, card_border: str) -> None:
-        """Apply `title_stylesheet` to `title_label`, for subclasses'
-        `_apply_theme()` to call instead of each repeating the same
-        setStyleSheet line. Guarded since `title_label` is only set once
-        `_set_title()` runs, and `_apply_theme()` can in principle be
-        invoked before that (e.g. via the base ThemeEvents.THEME_CHANGED
-        subscription) depending on subclass init order."""
-        if self.title_label is not None:
-            self.title_label.setStyleSheet(self.title_stylesheet(base_fg, card_border))
+        """Apply the shared title styling, for subclasses' `_apply_theme()` to
+        call instead of each repeating the same setStyleSheet line.
+
+        Without a help button the band is `title_stylesheet` on `title_label`.
+        With one, the band moves to the row container so the button sits inside
+        it, and the label and button are drawn on top of it.
+
+        Guarded since `title_label` is only set once `_set_title()` runs, and
+        `_apply_theme()` can in principle be invoked before that (e.g. via the
+        base ThemeEvents.THEME_CHANGED subscription) depending on subclass
+        init order."""
+        title_label = getattr(self, "title_label", None)
+        if title_label is None:
+            return
+        title_row = getattr(self, "_title_row", None)
+        help_button = getattr(self, "help_button", None)
+        if title_row is None or help_button is None:
+            title_label.setStyleSheet(self.title_stylesheet(base_fg, card_border))
+            return
+        title_row.setStyleSheet(f"QWidget#panelTitleRow {{ background-color: {card_border}; border-radius: 3px; }}")
+        title_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {base_fg}; padding: 5px; background-color: transparent;")
+        help_button.setStyleSheet(
+            f"QToolButton {{ background-color: transparent; color: {base_fg}; font-weight: bold; "
+            f"border: 1px solid transparent; border-radius: 3px; padding: 2px 6px; }}"
+            f"QToolButton:hover {{ border: 1px solid {base_fg}; }}"
+            f"QToolButton:focus {{ border: 2px solid {base_fg}; }}"
+        )

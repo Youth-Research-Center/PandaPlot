@@ -26,6 +26,7 @@ from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import PANEL_TOPIC_SIGNAL
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 STALE_RUN_MESSAGE = "Inputs changed while the analysis was running. Click Run to analyse the current settings."
@@ -54,7 +55,7 @@ class SignalPanel(SidebarPanel):
     def _init_ui(self):
         self._init_panel_layout()
 
-        self._set_title("📡 Signal Analysis")
+        self._set_title("📡 Signal Analysis", help_topic=PANEL_TOPIC_SIGNAL)
 
         content_widget = QWidget()
         layout = QVBoxLayout(content_widget)
