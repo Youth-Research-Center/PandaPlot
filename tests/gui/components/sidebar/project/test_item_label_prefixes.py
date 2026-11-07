@@ -47,9 +47,7 @@ def test_delegate_keeps_the_prefix_of_the_item_type_after_rename(tree_with_galle
 
 
 @pytest.fixture
-def panel(qtbot, monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+def panel(qtbot):
     app_context = build_app_context()
     project = Project(name="Labels")
     project.add_item(ImageGallery(id="gallery", name="Album"))

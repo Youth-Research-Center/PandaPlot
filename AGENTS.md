@@ -29,12 +29,19 @@ QT_QPA_PLATFORM=offscreen uv run pytest tests/e2e/
 QT_QPA_PLATFORM=offscreen uv run pytest --cov=pandaplot
 ```
 
+Every test runs with `HOME`/`USERPROFILE` redirected to its own empty directory
+(the autouse `isolated_home` fixture in `tests/conftest.py`), so `build_app_context()`
+and anything else that uses `~/.pandaplot` never touches the developer's real
+config, log, or session files. Do not add per-test `monkeypatch.setenv("HOME", ...)`
+workarounds, and never run code that saves config outside pytest without redirecting
+the home directory first.
+
 `tests/e2e/` exercises complete workflows through a real `PandaMainWindow`,
 application services, menu clicks, dialogs, and background imports. Keep these
 separate from isolated widget/controller tests in `tests/gui/`. Replace only
 platform file pickers when a path must be supplied; do not mock commands,
 project state, import workers, or the EventBus. Use `qtbot.waitUntil` for async
-results rather than fixed sleeps, and isolate config/session files in `tmp_path`.
+results rather than fixed sleeps.
 Modal-dialog helpers must reject on failure so a failed assertion cannot hang
 the test run. The Tests workflow runs the existing suite and this GUI layer
 headlessly, and uploads their JUnit results even when a test fails.

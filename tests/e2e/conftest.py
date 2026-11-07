@@ -1,7 +1,6 @@
 """Isolated, real application services and windows for GUI workflows."""
 
 from collections.abc import Iterator
-from pathlib import Path
 
 import pytest
 from PySide6.QtCore import Qt, QTimer
@@ -15,10 +14,9 @@ from pandaplot.services.theme import ThemeManager
 
 
 @pytest.fixture
-def app_window(qtbot: QtBot, qapp: QApplication, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[PandaMainWindow]:
-    # Config, recent projects, and session files must never touch the user's home.
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+def app_window(qtbot: QtBot, qapp: QApplication) -> Iterator[PandaMainWindow]:
+    # Config, recent projects, and session files stay out of the user's home through
+    # the autouse isolated_home fixture in tests/conftest.py.
     original_palette = qapp.palette()
     original_font = qapp.font()
     original_stylesheet = qapp.styleSheet()
