@@ -1,0 +1,37 @@
+# Icons bundled with PandaPlot. To add or change an icon:
+#   1. add its Phosphor name to `icons` (browse https://phosphoricons.com),
+#   2. run `uv run python scripts/icons/build_icon_bundle.py`,
+#   3. commit the regenerated icon_bundle.json, licenses/ and THIRD_PARTY_NOTICES.md.
+# `uv run python scripts/icons/build_icon_bundle.py --check` fails when the committed files are out of date.
+
+# Phosphor weights to bundle. Each extra weight multiplies the bundle size.
+weights = ["regular"]
+
+icons = [
+    "calculator",
+    "chart-bar",
+    "chart-line",
+    "flask",
+    "folder",
+    "function",
+    "gear",
+    "magnifying-glass",
+    "sliders-horizontal",
+    "table",
+    "waveform",
+    "wrench",
+]
+
+[sources.phosphor]
+package = "@phosphor-icons/core"
+title = "Phosphor Icons"
+version = "2.1.1"
+integrity = "sha512-v4ARvrip4qBCImOE5rmPUylOEK4iiED9ZyKjcvzuezqMaiRASCHKcRIuvvxL/twvLpkfnEODCOJp5dM4eZilxQ=="
+license = "MIT"
+
+# Replace a single Phosphor icon with one from another library using `<icon> = "<source>:<name>"`.
+# Declare the source under [sources.<name>] (package, title, version, integrity, license) first; the script
+# then bundles that library's licence automatically. Supported sources: phosphor, lucide.
+# A Lucide override has a single weight, so the same SVG is repeated under every bundled weight.
+# Example: mountains = "lucide:mountain"
+[overrides]
