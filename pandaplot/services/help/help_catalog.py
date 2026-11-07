@@ -105,6 +105,9 @@ def _searchable_text(topic: HelpTopic) -> str:
         topic.category.value,
         topic.summary,
         topic.explanation,
+        topic.assumptions,
+        topic.formula,
+        topic.example,
         *topic.steps,
         *(text for parameter in topic.parameters for text in parameter),
     ]

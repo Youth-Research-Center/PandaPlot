@@ -258,9 +258,10 @@ def topics() -> list[HelpTopic]:
                 'Open a chart tab and click the 📡 icon in the sidebar (its tooltip reads "Chart Signal Analysis panel").',
                 "Under Series, choose what to Analyze: a data series or a fitted curve of this chart.",
                 "Under Method, choose the analysis. A short description appears below it.",
-                ("Under Parameters, set the options the method offers. If there is a Sampling rate, it is filled in from the spacing of the x values "
-                "(1 divided by the typical spacing); change it if it is not right."),
                 "Under Segment (index range), set Start index and End index to analyze only part of the series. The first point is index 0 and both ends are included.",
+                ("Under Parameters, set the options the method offers. If there is a Sampling rate, it is filled in from the spacing of the x values "
+                "in the segment (1 divided by the typical spacing) and is filled in again whenever you change the series, the method or the segment, "
+                "replacing a value you typed. Set it last, and change it if it is not right."),
                 "Click Run. The calculation runs in the background and a summary appears in the Results box.",
                 'Keep "Plot result" ticked to draw the result, and choose in "Plot on:" whether it goes on a new chart or an existing one.',
                 'Click Add to Project to save the result as a new dataset, and plot it if "Plot result" is ticked.',

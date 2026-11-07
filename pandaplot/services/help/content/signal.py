@@ -76,7 +76,8 @@ _PARAMETER_MEANINGS: dict[str, str] = {
     "sampling_rate": (
         "How many samples were recorded per second, in Hz. In the Signal Analysis panel it starts at {sampling_rate}. In the Chart Signal "
         "Analysis panel it is filled in as 1 divided by the typical (median) spacing of the x values in the segment, and stays at "
-        "{sampling_rate} when that cannot be worked out. It converts positions in the list into real frequencies "
+        "{sampling_rate} when that cannot be worked out. There it is filled in again whenever the series, method or segment changes, replacing a "
+        "value you typed, so set it last. It converts positions in the list into real frequencies "
         "and times, so a wrong value gives correct-looking but mislabelled frequencies."
     ),
     "nfft": "How many points the FFT uses (default {nfft}). Larger values give a smoother-looking spectrum but no new detail.",

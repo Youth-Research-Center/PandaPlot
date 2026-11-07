@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, override
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QWidget
 
@@ -450,6 +451,8 @@ class MainMenu(PMenuBar):
 
             self._help_window = HelpWindow(self.app_context, self.window())
         self._help_window.show_topic(topic_id)
+        if self._help_window.isMinimized():
+            self._help_window.setWindowState(self._help_window.windowState() & ~Qt.WindowState.WindowMinimized)
         self._help_window.show()
         self._help_window.raise_()
         self._help_window.activateWindow()

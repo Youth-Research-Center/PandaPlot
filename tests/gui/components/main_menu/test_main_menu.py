@@ -242,6 +242,20 @@ class TestMainMenuHelpTopics:
         assert menu._help_window is first_window
         assert first_window.tree.currentItem().data(0, Qt.ItemDataRole.UserRole) == "t.second"
 
+    def test_minimized_window_is_restored_on_next_request(self, qtbot, app_context):
+        menu = MainMenu(parent=None, app_context=app_context)
+        menu.show_help("t.first")
+        window = menu._help_window
+        qtbot.addWidget(window)
+        window.setWindowState(Qt.WindowState.WindowMinimized)
+        assert window.windowState() & Qt.WindowState.WindowMinimized
+
+        menu.show_help("t.second")
+
+        assert not window.windowState() & Qt.WindowState.WindowMinimized
+        assert not window.isMinimized()
+        assert window.tree.currentItem().data(0, Qt.ItemDataRole.UserRole) == "t.second"
+
     def test_closed_window_is_reopened_on_next_request(self, qtbot, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
         menu.show_help("t.first")

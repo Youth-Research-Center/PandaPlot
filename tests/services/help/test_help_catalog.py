@@ -89,6 +89,24 @@ class TestSearch:
     def test_no_match(self, catalog):
         assert catalog.search("zzzz") == ()
 
+    @pytest.mark.parametrize(
+        ("field", "term"),
+        [("assumptions", "symmetric"), ("formula", "sigma"), ("example", "thermometer")],
+    )
+    def test_matches_assumptions_formula_and_example(self, field, term):
+        cat = HelpCatalog([
+            _topic("a.hit", "Alpha", **{field: f"Needs a {term} distribution."}),
+            _topic("a.miss", "Beta"),
+        ])
+        assert [t.id for t in cat.search(term)] == ["a.hit"]
+
+    def test_assumption_matches_rank_after_title_matches(self):
+        cat = HelpCatalog([
+            _topic("a.assumes", "Alpha", assumptions="Data are symmetric."),
+            _topic("a.title", "Symmetric data"),
+        ])
+        assert [t.id for t in cat.search("symmetric")] == ["a.title", "a.assumes"]
+
 
 class TestBuildCatalog:
     def test_content_modules_listed_in_order(self):
