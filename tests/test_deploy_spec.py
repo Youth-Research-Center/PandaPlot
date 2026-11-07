@@ -27,7 +27,7 @@ def test_pysidedeploy_spec_contents():
 
     assert parser.has_section("qt")
     modules = [m.strip() for m in parser.get("qt", "modules").split(",")]
-    for expected_mod in ("Core", "Gui", "Widgets"):
+    for expected_mod in ("Core", "Gui", "Widgets", "Svg"):
         assert expected_mod in modules
 
 
@@ -57,3 +57,12 @@ def test_pyside6_deploy_dry_run():
     assert result.returncode == 0, f"pyside6-deploy dry-run failed:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     assert "WARNING:root:[DEPLOY] Found 'import PySide6'" not in result.stderr
     assert "WARNING:root:[DEPLOY] Unable to resolve a valid project file" not in result.stderr
+
+
+def test_pysidedeploy_spec_ships_the_icon_bundle():
+    """The committed icon bundle must be inside a directory Nuitka is told to include."""
+    spec_text = Path("pysidedeploy.spec").read_text(encoding="utf-8")
+    included = "--include-data-dir=pandaplot/gui/resources/icons=pandaplot/gui/resources/icons"
+
+    assert included in spec_text
+    assert Path("pandaplot/gui/resources/icons/icon_bundle.json").is_file()
