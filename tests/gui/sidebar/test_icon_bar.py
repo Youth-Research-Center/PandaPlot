@@ -22,10 +22,18 @@ def qapp():
     yield app
 
 
+DESIGN_TOKENS = {
+    "text_muted": "#6B7280",
+    "accent_active_text": "#3A45A8",
+    "text_disabled": "#AEB2BC",
+}
+
+
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
+    ctx.get_manager.return_value.get_design_tokens.return_value = DESIGN_TOKENS
     return ctx
 
 
@@ -97,3 +105,63 @@ def test_sidebar_labels_panel_buttons_with_the_panel_title(app_context, qtbot):
 
     assert sidebar.icon_bar.panels["fit"].accessibleName() == "Curve Fitting panel"
     assert sidebar.icon_bar.panels["chart_properties"].accessibleName() == "Chart Properties panel"
+
+
+def test_panel_button_with_icon_name_shows_a_bundled_icon_instead_of_text(icon_bar):
+    button = icon_bar.add_panel_button("fit", "📐", label="Curve Fitting", icon_name="function")
+
+    assert button.text() == ""
+    assert not button.icon().isNull()
+    assert button.accessibleName() == "Curve Fitting panel"
+
+
+def test_panel_button_without_icon_name_keeps_its_text_icon(icon_bar):
+    button = icon_bar.add_panel_button("panel_a", "A")
+
+    assert button.text() == "A"
+    assert button.icon().isNull()
+
+
+def test_active_panel_button_icon_is_retinted_with_the_active_colour(icon_bar):
+    from PySide6.QtCore import QSize
+    from PySide6.QtGui import QColor
+
+    button = icon_bar.add_panel_button("fit", "📐", icon_name="function")
+
+    def strongest_color():
+        image = button.icon().pixmap(QSize(20, 20)).toImage()
+        pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
+        return max(pixels, key=lambda pixel: pixel.alpha())
+
+    muted = QColor(DESIGN_TOKENS["text_muted"])
+    assert abs(strongest_color().red() - muted.red()) < 12
+
+    icon_bar.set_active_button("fit")
+
+    active = QColor(DESIGN_TOKENS["accent_active_text"])
+    assert abs(strongest_color().red() - active.red()) < 12
+    assert abs(strongest_color().blue() - active.blue()) < 12
+
+
+def test_settings_button_uses_a_bundled_icon(icon_bar):
+    assert icon_bar.settings_button.text() == ""
+    assert not icon_bar.settings_button.icon().isNull()
+    assert icon_bar.settings_button.accessibleName() == "Settings"
+
+
+def test_sidebar_passes_icon_name_to_the_icon_bar(app_context, qtbot):
+    from PySide6.QtWidgets import QLabel
+
+    from pandaplot.gui.components.sidebar.sidebar import CollapsibleSidebar
+
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+    sidebar = CollapsibleSidebar(app_context=app_context, parent=None)
+    qtbot.addWidget(sidebar)
+    titled = QWidget()
+    titled.title_label = QLabel("📐 Curve Fitting")
+
+    sidebar.add_panel("fit", "📐", titled, icon_name="function")
+
+    button = sidebar.icon_bar.panels["fit"]
+    assert not button.icon().isNull()
+    assert button.accessibleName() == "Curve Fitting panel"

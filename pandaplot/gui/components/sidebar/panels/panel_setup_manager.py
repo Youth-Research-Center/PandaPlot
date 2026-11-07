@@ -44,32 +44,33 @@ class PanelSetupManager:
         # TODO(#216): this should happen differently as it ideally should be driven 
         # by app registration and support plugin architecture with 
         # distributed panel registration
-        self.register_panel(ProjectViewPanel(app_context=self.app_context), "explorer", "📁", lambda _: True)
-        self.register_panel(SearchPanel(app_context=self.app_context), "search", "🔍", lambda _: True)
-        self.register_panel(TransformPanel(self.app_context), "transform", "🔧", is_dataset_tab_active)
-        self.register_panel(PreprocessingPanel(self.app_context), "preprocessing", "⚖️", is_dataset_tab_active)
+        self.register_panel(ProjectViewPanel(app_context=self.app_context), "explorer", "📁", lambda _: True, icon_name="folder")
+        self.register_panel(SearchPanel(app_context=self.app_context), "search", "🔍", lambda _: True, icon_name="magnifying-glass")
+        self.register_panel(TransformPanel(self.app_context), "transform", "🔧", is_dataset_tab_active, icon_name="wrench")
+        self.register_panel(PreprocessingPanel(self.app_context), "preprocessing", "⚖️", is_dataset_tab_active, icon_name="sliders-horizontal")
 
-        self.register_panel(AnalysisPanel(self.app_context), "analysis", "📊", is_dataset_tab_active)
-        self.register_panel(DescriptiveStatsPanel(self.app_context), "descriptive", "📋", is_dataset_tab_active)
-        self.register_panel(StatisticsPanel(self.app_context), "statistics", "🧪", is_dataset_tab_active)
-        self.register_panel(SignalPanel(self.app_context), "signal", "📡", is_dataset_tab_active)
-        self.register_panel(ChartPropertiesPanel(self.app_context), "chart_properties", "📈", is_chart_tab_active)
-        self.register_panel(FitPanel(self.app_context), "fit", "📐", is_chart_tab_active)
-        self.register_panel(ChartAnalysisPanel(self.app_context), "chart_analysis", "🧮", is_chart_tab_active)
-        self.register_panel(ChartSignalAnalysisPanel(self.app_context), "chart_signal", "📡", is_chart_tab_active)
-        self.register_panel(ChartTransformPanel(self.app_context), "chart_transform", "🔧", is_chart_tab_active)
+        self.register_panel(AnalysisPanel(self.app_context), "analysis", "📊", is_dataset_tab_active, icon_name="chart-bar")
+        self.register_panel(DescriptiveStatsPanel(self.app_context), "descriptive", "📋", is_dataset_tab_active, icon_name="table")
+        self.register_panel(StatisticsPanel(self.app_context), "statistics", "🧪", is_dataset_tab_active, icon_name="flask")
+        self.register_panel(SignalPanel(self.app_context), "signal", "📡", is_dataset_tab_active, icon_name="waveform")
+        self.register_panel(ChartPropertiesPanel(self.app_context), "chart_properties", "📈", is_chart_tab_active, icon_name="chart-line")
+        self.register_panel(FitPanel(self.app_context), "fit", "📐", is_chart_tab_active, icon_name="function")
+        self.register_panel(ChartAnalysisPanel(self.app_context), "chart_analysis", "🧮", is_chart_tab_active, icon_name="calculator")
+        self.register_panel(ChartSignalAnalysisPanel(self.app_context), "chart_signal", "📡", is_chart_tab_active, icon_name="waveform")
+        self.register_panel(ChartTransformPanel(self.app_context), "chart_transform", "🔧", is_chart_tab_active, icon_name="wrench")
 
-    def register_panel(self, panel: QWidget, name: str, icon: str, visibility_condition):
+    def register_panel(self, panel: QWidget, name: str, icon: str, visibility_condition, *, icon_name: str | None = None):
         self.logger.info("Registered panel: %s", name)
         self.panels.append({
             "panel": panel,
             "name": name,
             "icon": icon,
+            "icon_name": icon_name,
             "visibility_condition": visibility_condition
         })
 
     def add_panels(self, sidebar: CollapsibleSidebar, panel_manager:ConditionalPanelManager):
         for priority, panel_info in enumerate(self.panels):
-            sidebar.add_panel(panel_info["name"], panel_info["icon"], panel_info["panel"])
+            sidebar.add_panel(panel_info["name"], panel_info["icon"], panel_info["panel"], icon_name=panel_info["icon_name"])
             panel_manager.register_conditional_panel(panel_info["name"], panel_info["visibility_condition"], priority)
         panel_manager.evaluate_panel_visibility()

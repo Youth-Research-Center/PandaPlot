@@ -84,19 +84,20 @@ class CollapsibleSidebar(PWidget):
         self._apply_widget_order()
         self.position_changed.emit(position)
 
-    def add_panel(self, name: str, icon, content_widget):
+    def add_panel(self, name: str, icon, content_widget, *, icon_name: str | None = None):
         """
         Add a new panel to the sidebar.
 
         Args:
             name (str): Unique identifier for the panel
-            icon (str): Icon character or text for the button
+            icon (str): Icon character used to strip the emoji prefix from the panel title and as a text fallback
             content_widget (QWidget): Widget to display in the panel
+            icon_name (str | None): Name of a bundled icon shown on the panel's button
         """
         # Add button to icon bar, labelled with the panel's visible title (without its icon)
         title_label = getattr(content_widget, "title_label", None)
         label = title_label.text().removeprefix(icon).strip() if title_label is not None else None
-        self.icon_bar.add_panel_button(name, icon, label=label)
+        self.icon_bar.add_panel_button(name, icon, label=label, icon_name=icon_name)
 
         # Add panel to panel area
         self.panel_area.add_panel(name, content_widget)
