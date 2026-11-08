@@ -201,7 +201,7 @@ class IconBar(PWidget):
             self._apply_button_theme(btn, is_active=(name == self._active_panel))
 
     def _tinted_icon(self, icon_name: str, token: str) -> QIcon:
-        """Render a bundled icon in a design-token colour (same tokens the button QSS uses for its text)."""
+        """Render a bundled icon in a design-token colour: `text_muted` normally, the contrast-safe `accent_icon_active` when selected."""
         tokens = self.app_context.get_manager(ThemeManager).get_design_tokens()
         return build_icon(icon_name, tokens[token], size=_ICON_SIZE, disabled_color=tokens["text_disabled"])
 
@@ -221,7 +221,7 @@ class IconBar(PWidget):
         button.style().polish(button)
         icon_name = button.property("iconName")
         if icon_name:
-            button.setIcon(self._tinted_icon(icon_name, "accent_active_text" if is_active else "text_muted"))
+            button.setIcon(self._tinted_icon(icon_name, "accent_icon_active" if is_active else "text_muted"))
 
     def add_panel_button(self, name: str, icon: str, *, label: str | None = None, icon_name: str | None = None) -> QPushButton:
         """Add a new panel button to the icon bar.

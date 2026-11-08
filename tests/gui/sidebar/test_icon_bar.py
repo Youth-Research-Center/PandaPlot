@@ -26,13 +26,13 @@ def qapp():
 
 DESIGN_TOKENS = {
     "text_muted": "#6B7280",
-    "accent_active_text": "#3A45A8",
+    "accent_icon_active": "#3A45A8",
     "text_disabled": "#AEB2BC",
 }
 
 DARK_DESIGN_TOKENS = {
     "text_muted": "#C0392B",
-    "accent_active_text": "#2ECC71",
+    "accent_icon_active": "#2ECC71",
     "text_disabled": "#555555",
 }
 
@@ -137,7 +137,7 @@ def test_active_panel_button_icon_is_retinted_with_the_active_colour(icon_bar):
 
     icon_bar.set_active_button("fit")
 
-    _assert_tinted(button, DESIGN_TOKENS["accent_active_text"])
+    _assert_tinted(button, DESIGN_TOKENS["accent_icon_active"])
 
 
 def test_settings_button_uses_a_bundled_icon(icon_bar):
@@ -176,7 +176,7 @@ def test_theme_change_keeps_the_active_panel_state_and_retints_every_icon(icon_b
     assert active.property("navActive") is True
     assert inactive.property("selected") is False
     assert inactive.property("navActive") is False
-    _assert_tinted(active, DARK_DESIGN_TOKENS["accent_active_text"])
+    _assert_tinted(active, DARK_DESIGN_TOKENS["accent_icon_active"])
     _assert_tinted(inactive, DARK_DESIGN_TOKENS["text_muted"])
     _assert_tinted(icon_bar.settings_button, DARK_DESIGN_TOKENS["text_muted"])
 
