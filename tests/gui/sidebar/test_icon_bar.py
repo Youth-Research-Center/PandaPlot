@@ -10,6 +10,8 @@ previous selection) would have gone unnoticed.
 from unittest.mock import Mock
 
 import pytest
+from PySide6.QtCore import QSize
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QApplication, QWidget
 
 from pandaplot.gui.components.sidebar.icon_bar import IconBar
@@ -22,10 +24,24 @@ def qapp():
     yield app
 
 
+DESIGN_TOKENS = {
+    "text_muted": "#6B7280",
+    "accent_icon_active": "#3A45A8",
+    "text_disabled": "#AEB2BC",
+}
+
+DARK_DESIGN_TOKENS = {
+    "text_muted": "#C0392B",
+    "accent_icon_active": "#2ECC71",
+    "text_disabled": "#555555",
+}
+
+
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
+    ctx.get_manager.return_value.get_design_tokens.return_value = DESIGN_TOKENS
     return ctx
 
 
@@ -97,3 +113,100 @@ def test_sidebar_labels_panel_buttons_with_the_panel_title(app_context, qtbot):
 
     assert sidebar.icon_bar.panels["fit"].accessibleName() == "Curve Fitting panel"
     assert sidebar.icon_bar.panels["chart_properties"].accessibleName() == "Chart Properties panel"
+
+
+def test_panel_button_with_icon_name_shows_a_bundled_icon_instead_of_text(icon_bar):
+    button = icon_bar.add_panel_button("fit", "📐", label="Curve Fitting", icon_name="function")
+
+    assert button.text() == ""
+    assert not button.icon().isNull()
+    assert button.accessibleName() == "Curve Fitting panel"
+
+
+def test_panel_button_without_icon_name_keeps_its_text_icon(icon_bar):
+    button = icon_bar.add_panel_button("panel_a", "A")
+
+    assert button.text() == "A"
+    assert button.icon().isNull()
+
+
+def test_active_panel_button_icon_is_retinted_with_the_active_colour(icon_bar):
+    button = icon_bar.add_panel_button("fit", "📐", icon_name="function")
+
+    _assert_tinted(button, DESIGN_TOKENS["text_muted"])
+
+    icon_bar.set_active_button("fit")
+
+    _assert_tinted(button, DESIGN_TOKENS["accent_icon_active"])
+
+
+def test_settings_button_uses_a_bundled_icon(icon_bar):
+    assert icon_bar.settings_button.text() == ""
+    assert not icon_bar.settings_button.icon().isNull()
+    assert icon_bar.settings_button.accessibleName() == "Settings"
+
+
+def _strongest_color(button) -> QColor:
+    image = button.icon().pixmap(QSize(20, 20)).toImage()
+    pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
+    return max(pixels, key=lambda pixel: pixel.alpha())
+
+
+def _assert_tinted(button, expected_hex: str) -> None:
+    expected = QColor(expected_hex)
+    actual = _strongest_color(button)
+    assert abs(actual.red() - expected.red()) < 12
+    assert abs(actual.green() - expected.green()) < 12
+    assert abs(actual.blue() - expected.blue()) < 12
+
+
+def test_settings_button_gear_is_tinted_with_the_muted_text_colour(icon_bar):
+    _assert_tinted(icon_bar.settings_button, DESIGN_TOKENS["text_muted"])
+
+
+def test_theme_change_keeps_the_active_panel_state_and_retints_every_icon(icon_bar, app_context):
+    active = icon_bar.add_panel_button("fit", "📐", icon_name="function")
+    inactive = icon_bar.add_panel_button("explorer", "📁", icon_name="folder")
+    icon_bar.set_active_button("fit")
+
+    app_context.get_manager.return_value.get_design_tokens.return_value = DARK_DESIGN_TOKENS
+    icon_bar._apply_theme()
+
+    assert active.property("selected") is True
+    assert active.property("navActive") is True
+    assert inactive.property("selected") is False
+    assert inactive.property("navActive") is False
+    _assert_tinted(active, DARK_DESIGN_TOKENS["accent_icon_active"])
+    _assert_tinted(inactive, DARK_DESIGN_TOKENS["text_muted"])
+    _assert_tinted(icon_bar.settings_button, DARK_DESIGN_TOKENS["text_muted"])
+
+
+def test_removing_the_active_panel_clears_the_stored_active_state(icon_bar):
+    icon_bar.add_panel_button("fit", "📐", icon_name="function")
+    icon_bar.set_active_button("fit")
+
+    icon_bar.remove_panel_button("fit")
+    readded = icon_bar.add_panel_button("fit", "📐", icon_name="function")
+    icon_bar._apply_theme()
+
+    assert readded.property("selected") is False
+    assert readded.property("navActive") is False
+    _assert_tinted(readded, DESIGN_TOKENS["text_muted"])
+
+
+def test_sidebar_passes_icon_name_to_the_icon_bar(app_context, qtbot):
+    from PySide6.QtWidgets import QLabel
+
+    from pandaplot.gui.components.sidebar.sidebar import CollapsibleSidebar
+
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+    sidebar = CollapsibleSidebar(app_context=app_context, parent=None)
+    qtbot.addWidget(sidebar)
+    titled = QWidget()
+    titled.title_label = QLabel("📐 Curve Fitting")
+
+    sidebar.add_panel("fit", "📐", titled, icon_name="function")
+
+    button = sidebar.icon_bar.panels["fit"]
+    assert not button.icon().isNull()
+    assert button.accessibleName() == "Curve Fitting panel"

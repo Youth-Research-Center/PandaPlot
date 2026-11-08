@@ -1,7 +1,7 @@
 from typing import override
 
-from PySide6.QtCore import QPoint, QRect, Qt, Signal
-from PySide6.QtGui import QContextMenuEvent, QMouseEvent
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
+from PySide6.QtGui import QContextMenuEvent, QIcon, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QMenu,
@@ -13,8 +13,11 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
+
+_ICON_SIZE = 20
 
 
 class IconBar(PWidget):
@@ -30,6 +33,7 @@ class IconBar(PWidget):
         self.icon_width = width
         self.panels = {}  # Store panel names and their buttons
         self.current_position = "left"  # Side the sidebar is currently docked on
+        self._active_panel: str | None = None  # Panel whose button shows the active state
 
         # Drag-to-dock state. The empty area of the icon bar acts as a drag
         # handle: dragging it toward an edge re-docks the sidebar on that side.
@@ -163,12 +167,12 @@ class IconBar(PWidget):
         # TODO(#216): use command instead of signal
         # TODO(#216): make settings button addition more generic so that icon bar doesn't know about settings
         self.settings_button = PButton(
-            "⚙️", role="secondary", icon=True, on_click=self.settings_requested.emit
+            "", role="secondary", icon=True, on_click=self.settings_requested.emit
         )
-        # Emoji glyph needs a larger font size than the icon-shape QSS sets by default
-        self.settings_button.setStyleSheet("font-size: 16px;")
+        self.settings_button.setIconSize(QSize(_ICON_SIZE, _ICON_SIZE))
         self.settings_button.setToolTip("Settings")
         self.settings_button.setAccessibleName("Settings")
+        self.settings_button.setIcon(self._tinted_icon("gear", "text_muted"))
         self.button_layout.addWidget(self.settings_button)
 
     @override
@@ -189,13 +193,18 @@ class IconBar(PWidget):
         
         # Apply theme to all panel buttons
         self._apply_panel_buttons_theme()
+        self.settings_button.setIcon(self._tinted_icon("gear", "text_muted"))
 
     def _apply_panel_buttons_theme(self):
-        """Apply theme styling to all panel buttons."""
-        # Apply styling to all existing panel buttons
-        for btn in self.panels.values():
-            self._apply_button_theme(btn, is_active=False)
-    
+        """Apply theme styling to all panel buttons, keeping the active panel's button highlighted."""
+        for name, btn in self.panels.items():
+            self._apply_button_theme(btn, is_active=(name == self._active_panel))
+
+    def _tinted_icon(self, icon_name: str, token: str) -> QIcon:
+        """Render a bundled icon in a design-token colour: `text_muted` normally, the contrast-safe `accent_icon_active` when selected."""
+        tokens = self.app_context.get_manager(ThemeManager).get_design_tokens()
+        return build_icon(icon_name, tokens[token], size=_ICON_SIZE, disabled_color=tokens["text_disabled"])
+
     def _apply_button_theme(self, button: QPushButton, *, is_active: bool = False) -> None:
         """Toggle the button's active/inactive appearance via the shared
         [segment="true"][selected="true"] QSS rule, plus a left-border accent
@@ -210,16 +219,23 @@ class IconBar(PWidget):
         button.setProperty("navActive", is_active)
         button.style().unpolish(button)
         button.style().polish(button)
+        icon_name = button.property("iconName")
+        if icon_name:
+            button.setIcon(self._tinted_icon(icon_name, "accent_icon_active" if is_active else "text_muted"))
 
-    def add_panel_button(self, name: str, icon: str, *, label: str | None = None) -> QPushButton:
+    def add_panel_button(self, name: str, icon: str, *, label: str | None = None, icon_name: str | None = None) -> QPushButton:
         """Add a new panel button to the icon bar.
 
         Args:
             name: Unique panel identifier, emitted by panel_requested.
-            icon: Icon text shown on the button.
+            icon: Icon text shown on the button when no bundled icon is given.
             label: Panel title used for the tooltip and accessible name; derived from `name` when omitted.
+            icon_name: Name of a bundled icon (see icon_manifest.toml) shown instead of the text.
         """
-        btn = QPushButton(icon)
+        btn = QPushButton("" if icon_name else icon)
+        if icon_name:
+            btn.setProperty("iconName", icon_name)
+            btn.setIconSize(QSize(_ICON_SIZE, _ICON_SIZE))
         btn.setProperty("segment", True)  # noqa: FBT003 - Qt method rejects keyword args
         btn.clicked.connect(lambda: self.panel_requested.emit(name))
         button_label = f"{label or name.replace('_', ' ').title()} panel"
@@ -246,9 +262,12 @@ class IconBar(PWidget):
             self.button_layout.removeWidget(btn)
             btn.deleteLater()
             del self.panels[name]
+            if self._active_panel == name:
+                self._active_panel = None
 
     def set_active_button(self, name: str):
         """Set the active button styling."""
+        self._active_panel = name
         for panel_name, btn in self.panels.items():
             is_active = (panel_name == name)
             self._apply_button_theme(btn, is_active=is_active)
