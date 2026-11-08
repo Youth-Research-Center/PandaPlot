@@ -33,6 +33,7 @@ from pandaplot.gui.components.sidebar.transform.transform_controller import Tran
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import PANEL_TOPIC_TRANSFORM
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -76,7 +77,7 @@ class TransformPanel(SidebarPanel):
         self._init_panel_layout()
 
         # Panel title
-        self._set_title("🔧 Transform Operations")
+        self._set_title("🔧 Transform Operations", help_topic=PANEL_TOPIC_TRANSFORM)
 
         # Content widget
         content_widget = QWidget()

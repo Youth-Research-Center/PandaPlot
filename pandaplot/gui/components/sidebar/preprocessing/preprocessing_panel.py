@@ -30,6 +30,7 @@ from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import PANEL_TOPIC_PREPROCESSING
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -52,7 +53,7 @@ class PreprocessingPanel(SidebarPanel):
         """Build the panel layout."""
         self._init_panel_layout()
 
-        self._set_title("⚖️ Preprocessing")
+        self._set_title("⚖️ Preprocessing", help_topic=PANEL_TOPIC_PREPROCESSING)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)

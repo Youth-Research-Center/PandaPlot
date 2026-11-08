@@ -76,7 +76,7 @@ PandaPlot features a modern, intuitive PySide6 desktop interface divided into th
 - **Edit**: Undo (`Ctrl+Z`), Redo (`Ctrl+Y`), and project editing operations.
 - **View**: Toggle sidebar visibility, switch theme (Light/Dark), zoom, and layout options.
 - **Tools**: Access mathematical analysis, curve fitting, signal analysis, and formula transformation tools.
-- **Help**: Open the Welcome tab, examples, and About information.
+- **Help**: Open Help Topics (`F1`), the Welcome tab, examples, and About information.
 
 ### Collapsible Sidebar
 Located on the left, the sidebar uses icon tabs to switch contextual control panels:
@@ -315,10 +315,11 @@ User preferences are stored in `~/.pandaplot/config.json`:
    - *Solution*: Open Chart Properties and verify that the active series maps to valid dataset columns.
 
 ### Getting Help
-1. **Built-in Help**: Access keyboard shortcut guides from the shortcuts listed in this guide.
-2. **Tooltips**: Hover over control panel inputs and toolbar buttons for brief usage context.
-3. **Documentation**: Refer to `docs/ARCHITECTURE.md` and `docs/USER_GUIDE.md` in the source repository.
-4. **Examples**: Explore sample files provided in the `examples/` directory.
+1. **Help Topics**: Choose **Help → Help Topics...** (`F1`; `Cmd+?` on macOS) to open the Help window. Type in the search field to filter topics, pick one from the list on the left, and follow the **Related topics** links at the bottom of each page. Topics cover every statistical test, descriptive statistics, preprocessing, the analysis operations (derivatives, integrals, smoothing, interpolation), signal analysis, every curve-fitting model, transforms and formulas, and the Analyze Measurements wizard. The window stays open while you work.
+2. **Panel help buttons**: The analysis panels in the sidebar (Transform, Preprocessing, Analysis, Descriptive Statistics, Statistical Tests, Signal Analysis, Curve Fitting, Chart Analysis, Chart Signal Analysis and Chart Transform) have a **?** button next to their title that opens the Help window on step-by-step instructions for that panel.
+3. **Tooltips**: Hover over control panel inputs and toolbar buttons for brief usage context.
+4. **Documentation**: Refer to `docs/ARCHITECTURE.md` and `docs/USER_GUIDE.md` in the source repository.
+5. **Examples**: Explore sample files provided in the `examples/` directory.
 
 ### Reporting Issues
 When reporting problems, include:

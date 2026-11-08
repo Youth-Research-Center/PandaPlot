@@ -62,6 +62,7 @@ from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
 from pandaplot.models.events import DatasetEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import PANEL_TOPIC_CHART_SIGNAL
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -122,7 +123,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     @override
     def _init_ui(self):
         self._init_panel_layout()
-        self._set_title("📡 Chart Signal Analysis")
+        self._set_title("📡 Chart Signal Analysis", help_topic=PANEL_TOPIC_CHART_SIGNAL)
 
         content_widget = QWidget()
         layout = QVBoxLayout(content_widget)

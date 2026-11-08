@@ -18,6 +18,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
 
 ### Added
+- In-app Help (#519): **Help → Help Topics...** (`F1`) opens a searchable Help window that explains each analysis operation (statistical tests, descriptive statistics, preprocessing, derivatives, integrals, smoothing, interpolation, signal analysis, curve-fitting models, transforms and formulas, and the Analyze Measurements wizard), with step-by-step instructions for each analysis panel. A **?** button next to each analysis panel's title opens the Help window on that panel's topic.
 - The leader line of a value label on Line and Scatter series can be styled: choose a plain line, an open arrowhead or a filled arrowhead at the point, its color (or match the label text), width and line style (solid, dashed, dotted) under the Arrow option in the Style tab (#504). Existing charts keep their thin black line.
 - Sketch export (#364): **Export…** in a sketch's toolbar writes PNG (optionally transparent), JPEG, SVG or PDF, for the whole canvas or just the drawn elements with padding, at a chosen scale for images, and with the layers you pick.
 - Chart types are organised into categories (Line & Scatter, Bar & Pie, Distribution, Fields & Grids, 3-D). The New Chart wizard and the chart tab pick a category from a dropdown and then show only that category's types (#494).

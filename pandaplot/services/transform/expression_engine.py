@@ -140,6 +140,15 @@ class _ModuleProxy:
         return [name for name in dir(self._module) if not _is_blocked_attribute(name)]
 
 
+def allowed_expression_names() -> tuple[str, ...]:
+    """Return the sorted names an expression may reference.
+
+    Returns:
+        The keys of :func:`build_safe_globals`, sorted alphabetically.
+    """
+    return tuple(sorted(build_safe_globals()))
+
+
 def build_safe_globals() -> dict[str, Any]:
     """Build the globals dict used to eval() a transform expression.
 

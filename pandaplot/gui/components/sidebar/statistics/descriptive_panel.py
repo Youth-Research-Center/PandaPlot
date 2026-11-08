@@ -26,6 +26,7 @@ from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import PANEL_TOPIC_DESCRIPTIVE
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -48,7 +49,7 @@ class DescriptiveStatsPanel(SidebarPanel):
     def _init_ui(self):
         self._init_panel_layout()
 
-        self._set_title("📋 Descriptive Statistics")
+        self._set_title("📋 Descriptive Statistics", help_topic=PANEL_TOPIC_DESCRIPTIVE)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)

@@ -116,6 +116,9 @@ class UIEvents:
     # note search to jump into a result. Payload: note_id, line_number,
     # match_start, match_end.
     NOTE_REVEAL_MATCH = "ui.note_reveal_match"
+    # Request the Help window to open, optionally on a specific topic.
+    # Payload: topic_id (str | None).
+    HELP_REQUESTED = "ui.help_requested"
 
 
 class FitEvents:
@@ -232,6 +235,7 @@ class EventHierarchy:
         # UI events (no hierarchy needed)
         "ui.tab_changed": ["ui.tab_changed"],
         "ui.tab_closed": ["ui.tab_closed"],
+        "ui.help_requested": ["ui.help_requested"],
 
         # Project events (already top-level)
         "project.created": ["project.created"],

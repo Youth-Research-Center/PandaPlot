@@ -1,5 +1,6 @@
-from typing import override
+from typing import TYPE_CHECKING, override
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QWidget
 
@@ -28,6 +29,9 @@ from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.session.recent_projects import get_recent_projects
 from pandaplot.services.theme.theme_manager import ThemeManager
 
+if TYPE_CHECKING:
+    from pandaplot.gui.dialogs.help.help_window import HelpWindow
+
 
 class MainMenu(PMenuBar):
     def __init__(self, parent: QWidget, app_context: AppContext):
@@ -35,6 +39,7 @@ class MainMenu(PMenuBar):
         # Dataset of the currently active tab, if any -- used to preselect the
         # dataset in dialogs opened from the menu.
         self.active_dataset_id: str | None = None
+        self._help_window: HelpWindow | None = None
         self._initialize()
 
     @override
@@ -145,6 +150,14 @@ class MainMenu(PMenuBar):
         # Help menu
         help_menu = QMenu("Help", self)
         self.addMenu(help_menu)
+
+        help_topics_action = QAction("Help Topics...", help_menu)
+        help_topics_action.setShortcut(QKeySequence(QKeySequence.StandardKey.HelpContents))
+        # A bare connect would pass the signal's `checked` bool as the topic id.
+        help_topics_action.triggered.connect(lambda: self.show_help(None))
+        help_menu.addAction(help_topics_action)
+
+        help_menu.addSeparator()
 
         welcome_action = QAction("Welcome", self)
         welcome_action.triggered.connect(self.show_welcome_tab)
@@ -398,6 +411,7 @@ class MainMenu(PMenuBar):
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(AppEvents.HISTORY_CHANGED, self._update_undo_redo_actions)
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._update_recent_menu)
+        self.subscribe_to_event(UIEvents.HELP_REQUESTED, lambda data: self.show_help(data.get("topic_id")))
 
     def show_settings_dialog(self):
         """Show the settings dialog."""
@@ -425,6 +439,23 @@ class MainMenu(PMenuBar):
         from pandaplot.gui.dialogs.about_dialog import AboutDialog
         dialog = AboutDialog(self.app_context, self.parent())
         dialog.exec()
+
+    def show_help(self, topic_id: str | None = None) -> None:
+        """Show the Help window, creating it on first use, on the given topic.
+
+        Args:
+            topic_id: Id of the topic to open, or None for the first topic.
+        """
+        if self._help_window is None:
+            from pandaplot.gui.dialogs.help.help_window import HelpWindow
+
+            self._help_window = HelpWindow(self.app_context, self.window())
+        self._help_window.show_topic(topic_id)
+        if self._help_window.isMinimized():
+            self._help_window.setWindowState(self._help_window.windowState() & ~Qt.WindowState.WindowMinimized)
+        self._help_window.show()
+        self._help_window.raise_()
+        self._help_window.activateWindow()
 
     def show_welcome_tab(self):
         """Show the Welcome tab from Help > Welcome, focusing one if already
