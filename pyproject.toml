@@ -41,6 +41,7 @@ files = ["pandaplot/app.py"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = ["pandaplot_storybook"]
+pythonpath = ["scripts/icons"]
 
 [tool.ruff]
 line-length = 150
