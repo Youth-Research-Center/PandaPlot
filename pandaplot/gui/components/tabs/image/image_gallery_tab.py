@@ -4,10 +4,11 @@ folder-style tiles for nested ImageGallery children (albums), with
 multi-select rename/delete/group-into-album and a double-click lightbox.
 """
 
+from collections.abc import Callable
 from typing import ClassVar, override
 
 from PySide6.QtCore import QMimeData, QSize, Qt
-from PySide6.QtGui import QDrag, QImage, QPixmap
+from PySide6.QtGui import QAction, QDrag, QImage, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -34,8 +35,9 @@ from pandaplot.gui.components.common.image_thumbnail_tile import build_gallery_t
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.gui.components.tabs.image.image_lightbox_dialog import ImageLightboxDialog
-from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.gui.core.widget_extension import PWidget, unsubscribe_widget_tree
 from pandaplot.gui.dialogs.image.image_editor_dialog import ImageEditorDialog
+from pandaplot.gui.resources.themed_icons import ActionIcons, themed_icon
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Image, ImageGallery
 from pandaplot.models.state.app_context import AppContext
@@ -48,6 +50,9 @@ _IMAGE_MIME_TYPE = "application/x-pandaplot-image-ids"
 # fixed-width elision is acceptable for this pass rather than measuring the
 # actual column width at render time.
 _LIST_NAME_COLUMN_ELIDE_WIDTH = 200
+
+_SORT_ASCENDING_TOOLTIP = "Sorted ascending. Click to sort descending"
+_SORT_DESCENDING_TOOLTIP = "Sorted descending. Click to sort ascending"
 
 
 class _ImageGalleryGrid(QListWidget):
@@ -179,6 +184,8 @@ class ImageGalleryTab(PWidget):
         self._last_child_ids: set[str] = set()
         self._sort_field: str = "name"
         self._sort_ascending: bool = True
+        # Must exist before _initialize() builds the buttons, which bind their icons.
+        self._icons = ActionIcons(app_context)
         self._initialize()
         self._rebuild_breadcrumb()
         self._populate_grid()
@@ -189,8 +196,12 @@ class ImageGalleryTab(PWidget):
         layout = QVBoxLayout(self)
 
         breadcrumb_row = QHBoxLayout()
-        self.back_button = PButton("◀", on_click=self._go_back, enabled=False)
-        self.forward_button = PButton("▶", on_click=self._go_forward, enabled=False)
+        self.back_button = self._build_icon_only_button(
+            "caret-left", "Back", "Go back to the previous gallery", on_click=self._go_back, enabled=False,
+        )
+        self.forward_button = self._build_icon_only_button(
+            "caret-right", "Forward", "Go forward to the next gallery", on_click=self._go_forward, enabled=False,
+        )
         self.breadcrumb_row_layout = QHBoxLayout()
         breadcrumb_row.addWidget(self.back_button)
         breadcrumb_row.addWidget(self.forward_button)
@@ -209,10 +220,16 @@ class ImageGalleryTab(PWidget):
         self.group_into_album_button = PButton("Group into Album", on_click=self._on_group_into_album_clicked, enabled=False)
         self.move_button = PButton("Move...", on_click=self._on_move_clicked, enabled=False)
         self.copy_button = PButton("Copy to...", on_click=self._on_copy_clicked, enabled=False)
-        for button in (
-            self.import_button, self.edit_image_button, self.rename_button, self.delete_button,
-            self.group_into_album_button, self.move_button, self.copy_button,
+        for button, icon_name in (
+            (self.import_button, "image"),
+            (self.edit_image_button, "pencil-simple"),
+            (self.rename_button, "textbox"),
+            (self.delete_button, "trash"),
+            (self.group_into_album_button, "stack"),
+            (self.move_button, "folder-simple"),
+            (self.copy_button, "copy"),
         ):
+            self._icons.bind(button, icon_name)
             toolbar.addWidget(button)
 
         from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
@@ -225,7 +242,9 @@ class ImageGalleryTab(PWidget):
         )
         toolbar.addWidget(self.sort_field_combo)
 
-        self.sort_direction_button = PButton("▲", on_click=self._on_sort_direction_toggled)
+        self.sort_direction_button = PButton(on_click=self._on_sort_direction_toggled)
+        self.sort_direction_button.setAccessibleName("Sort direction")
+        self._refresh_sort_direction_button()
         toolbar.addWidget(self.sort_direction_button)
 
         layout.addLayout(toolbar)
@@ -265,10 +284,41 @@ class ImageGalleryTab(PWidget):
         self.list_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.list_view.customContextMenuRequested.connect(self._on_list_context_menu)
 
+    def _build_icon_only_button(
+        self, icon_name: str, accessible_name: str, tooltip: str, *, on_click: Callable[[], None], enabled: bool = True,
+    ) -> PButton:
+        """Create a text-less button showing a bundled icon, with an accessible name and tooltip.
+
+        Args:
+            icon_name: Bundled icon name.
+            accessible_name: Name announced by assistive technology.
+            tooltip: Tooltip describing the button's action.
+            on_click: Callback connected to the button's `clicked` signal.
+            enabled: Whether the button starts enabled.
+
+        Returns:
+            The icon button; it stays keyboard-focusable and re-tints with the theme.
+        """
+        button = PButton(on_click=on_click, enabled=enabled)
+        self._icons.bind(button, icon_name)
+        button.setAccessibleName(accessible_name)
+        button.setToolTip(tooltip)
+        return button
+
+    def _refresh_sort_direction_button(self) -> None:
+        """Show the caret, tooltip and accessible description matching the current sort direction."""
+        icon_name = "caret-up" if self._sort_ascending else "caret-down"
+        tooltip = _SORT_ASCENDING_TOOLTIP if self._sort_ascending else _SORT_DESCENDING_TOOLTIP
+        self.sort_direction_button.setIcon(themed_icon(self.app_context, icon_name))
+        self.sort_direction_button.setToolTip(tooltip)
+        self.sort_direction_button.setAccessibleDescription(tooltip)
+
     @override
     def _apply_theme(self):
         if hasattr(self, "grid"):
             self._refresh_tile_icons()
+            self._icons.retint()
+            self._refresh_sort_direction_button()
 
     def setup_connections(self):
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, self._on_project_item_changed)
@@ -444,7 +494,7 @@ class ImageGalleryTab(PWidget):
 
     def _on_sort_direction_toggled(self) -> None:
         self._sort_ascending = not self._sort_ascending
-        self.sort_direction_button.setText("▲" if self._sort_ascending else "▼")
+        self._refresh_sort_direction_button()
         self._populate_grid()
 
     def _on_list_header_sort_changed(self, column: int, order) -> None:
@@ -462,7 +512,7 @@ class ImageGalleryTab(PWidget):
         self.sort_field_combo.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
         self.sort_field_combo.setCurrentIndex(self._sort_field_values.index(field))
         self.sort_field_combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
-        self.sort_direction_button.setText("▲" if self._sort_ascending else "▼")
+        self._refresh_sort_direction_button()
         self._populate_grid()
 
     def _sorted_children(self) -> list:
@@ -652,7 +702,6 @@ class ImageGalleryTab(PWidget):
         return item.data(Qt.ItemDataRole.UserRole)
 
     def _build_context_menu(self, item):
-        from PySide6.QtGui import QAction
         from PySide6.QtWidgets import QMenu
 
         menu = QMenu(self)
@@ -941,8 +990,17 @@ class ImageGalleryTab(PWidget):
             # relationship being semantically correct.
             on_edit=lambda img: self._edit_image(img, parent=lightbox),
             parent=self,
+            app_context=self.app_context,
         )
-        lightbox.exec()
+        try:
+            lightbox.exec()
+        finally:
+            # exec() only hides the dialog and it is parented to this tab, so
+            # without this it (and its THEME_CHANGED subscription) would live
+            # as long as the tab does. The destroyed signal does not reliably
+            # unsubscribe a PDialog (#585), so unsubscribe explicitly.
+            unsubscribe_widget_tree(lightbox)
+            lightbox.deleteLater()
 
     def _on_view_mode_changed(self, mode: str) -> None:
         # Switching views is a scope simplification that resets selection

@@ -34,6 +34,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - `Build Release Installer` GitHub Actions workflow: builds installers for Linux, Windows, and macOS, and publishes them to a GitHub Release with SHA256 checksums under a user-supplied version tag.
 
 ### Changed
+- The chart and note editor toolbars, the image gallery buttons and the image lightbox show bundled Phosphor icons that follow the theme colours instead of emoji or arrow glyphs; menus are unchanged and stay text only (#572). The gallery's back/forward/sort buttons are now icon buttons with accessible names, and the image lightbox is released when it closes.
 - The sidebar icon bar and its settings button show bundled Phosphor vector icons that follow the theme colours (muted normally, accent for the open panel) instead of emoji, and the About dialog credits the icon library (#520). Maintainers add icons by editing `icon_manifest.toml` and running `scripts/icons/build_icon_bundle.py`, which regenerates the committed bundle, licence files and `THIRD_PARTY_NOTICES.md` (`--check` verifies they are in sync).
 - Dropdowns (combo boxes) share one themed style in sidebar panels, dialogs, and wizards: rounded bordered field, caret arrow, accent outline on hover and focus, an inset disabled state, and a list that always opens below the field instead of over it on macOS (#406).
 - The packaged Windows executable no longer opens a console window; logs are written to `~/.pandaplot/application.log` instead of the process's working directory.

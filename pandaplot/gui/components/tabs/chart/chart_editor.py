@@ -18,7 +18,7 @@ from matplotlib.ticker import (
     NullLocator,
     ScalarFormatter,
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QImage
 from PySide6.QtWidgets import (
     QFrame,
@@ -52,6 +52,7 @@ from pandaplot.gui.components.tabs.chart.series_renderers.density import compute
 from pandaplot.gui.components.tabs.chart.series_renderers.hist import finite_numeric_values
 from pandaplot.gui.components.tabs.chart.series_renderers.stacked_bar import BarStack, place_on_stack
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.gui.resources.themed_icons import DEFAULT_ICON_SIZE, ActionIcons
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style import DensitySeriesStyle, LineSeriesStyle
@@ -1638,6 +1639,9 @@ class ChartEditorWidget(PWidget):
         self._pending_hover_event = None
         self._hover_flush_scheduled: bool = False
 
+        # Must exist before _initialize() builds the toolbar, which binds its actions.
+        self._toolbar_icons = ActionIcons(app_context)
+
         self._initialize()
         self.load_chart_config()
         self.update_chart()
@@ -1689,6 +1693,7 @@ class ChartEditorWidget(PWidget):
         
         # Apply theme to toolbar if it exists
         self._apply_toolbar_theme()
+        self._toolbar_icons.retint()
 
         # Apply theme to chart canvas navigation if it exists
         self.chart_canvas.apply_navigation_theme(base_fg, card_bg, card_border)
@@ -1800,6 +1805,8 @@ class ChartEditorWidget(PWidget):
         # Preview toolbar with chart actions and size controls
         self.preview_toolbar = QToolBar()
         self.preview_toolbar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.preview_toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.preview_toolbar.setIconSize(QSize(DEFAULT_ICON_SIZE, DEFAULT_ICON_SIZE))
 
         # Add chart actions
         self.create_chart_toolbar_actions(self.preview_toolbar)
@@ -1894,25 +1901,29 @@ class ChartEditorWidget(PWidget):
         # Refresh action: re-read the current dataset values and redraw. The
         # chart already refreshes automatically on dataset changes, but this
         # lets the user force a redraw on demand.
-        refresh_action = QAction("♻️ Refresh", self)
+        refresh_action = QAction("Refresh", self)
+        self._toolbar_icons.bind(refresh_action, "arrows-clockwise")
         refresh_action.setToolTip("Reload data from the datasets and redraw the chart")
         refresh_action.triggered.connect(self._on_refresh)
         toolbar.addAction(refresh_action)
 
         # Reset action
-        reset_action = QAction("🔄 Reset", self)
+        reset_action = QAction("Reset", self)
+        self._toolbar_icons.bind(reset_action, "arrow-counter-clockwise")
         reset_action.triggered.connect(self.reset_chart)
         toolbar.addAction(reset_action)
 
         # Reset zoom button (the nav toolbar's own Home/Back/Forward are
         # removed since they rely on a view stack that goes stale whenever
         # the chart re-renders; this uses the chart's own tracked limits)
-        reset_zoom_action = QAction("🔍 Reset Zoom", self)
+        reset_zoom_action = QAction("Reset Zoom", self)
+        self._toolbar_icons.bind(reset_zoom_action, "magnifying-glass-minus")
         reset_zoom_action.setToolTip("Reset chart zoom to fit all data")
         reset_zoom_action.triggered.connect(self._on_reset_zoom)
         toolbar.addAction(reset_zoom_action)
 
-        self._swap_axes_action = QAction("⇄ Swap X/Y", toolbar)
+        self._swap_axes_action = QAction("Swap X/Y", toolbar)
+        self._toolbar_icons.bind(self._swap_axes_action, "arrows-left-right")
         self._swap_axes_action.setToolTip("Swap the X and Y axes, including their titles, scales and ranges")
         self._swap_axes_action.triggered.connect(self._on_swap_axes)
         toolbar.addAction(self._swap_axes_action)

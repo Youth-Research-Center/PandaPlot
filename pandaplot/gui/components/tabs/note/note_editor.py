@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import override
 from urllib.parse import unquote
 
-from PySide6.QtCore import Qt, QTimer, QUrl, Signal
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QFont, QImage, QKeySequence, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QDialog,
@@ -35,6 +35,7 @@ from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.commands.project.note import EditNoteCommand
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePickerDialog
+from pandaplot.gui.resources.themed_icons import DEFAULT_ICON_SIZE, ActionIcons
 from pandaplot.models.events import NoteEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Chart, Image, ImageGallery, ItemCollection, Note
@@ -674,6 +675,9 @@ class NoteEditorWidget(PWidget):
         # Whether split-view scroll positions track each other.
         self.scroll_sync_enabled = True
 
+        # Must exist before _initialize() builds the toolbar, which binds its actions.
+        self._toolbar_icons = ActionIcons(app_context)
+
         self._initialize()
         self.setup_connections()
         self.load_note_content()
@@ -745,6 +749,8 @@ class NoteEditorWidget(PWidget):
                 }}
             """)
 
+        self._toolbar_icons.retint()
+
         # Apply styling to status frame
         self.status_frame.setStyleSheet(f"""
             QFrame {{
@@ -776,6 +782,8 @@ class NoteEditorWidget(PWidget):
 
         # Toolbar
         self.toolbar = QToolBar()
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.toolbar.setIconSize(QSize(DEFAULT_ICON_SIZE, DEFAULT_ICON_SIZE))
 
         # Add formatting actions
         self.create_toolbar_actions(self.toolbar)
@@ -937,23 +945,27 @@ class NoteEditorWidget(PWidget):
         """Create toolbar actions for text formatting."""
 
         # Save action
-        save_action = QAction("💾 Save", self)
+        save_action = QAction("Save", self)
+        self._toolbar_icons.bind(save_action, "floppy-disk")
         save_action.setShortcut(QKeySequence.StandardKey.Save)
         save_action.triggered.connect(self.save_content)
         toolbar.addAction(save_action)
 
         # Clear action
-        clear_action = QAction("🗑 Clear", self)
+        clear_action = QAction("Clear", self)
+        self._toolbar_icons.bind(clear_action, "trash")
         clear_action.triggered.connect(self.clear_content)
         toolbar.addAction(clear_action)
 
         # Export to PDF action (renders the same HTML shown in preview).
-        export_pdf_action = QAction("📄 Export PDF", self)
+        export_pdf_action = QAction("Export PDF", self)
+        self._toolbar_icons.bind(export_pdf_action, "file-pdf")
         export_pdf_action.triggered.connect(self.export_pdf)
         toolbar.addAction(export_pdf_action)
 
         # Insert Gallery Image action
-        insert_image_action = QAction("🖼️ Insert Image", self)
+        insert_image_action = QAction("Insert Image", self)
+        self._toolbar_icons.bind(insert_image_action, "image")
         insert_image_action.setToolTip("Insert an image from the project gallery")
         insert_image_action.triggered.connect(self.insert_image_from_picker)
         toolbar.addAction(insert_image_action)
@@ -962,28 +974,33 @@ class NoteEditorWidget(PWidget):
         # actions with one dialog that lists, inserts, and cleans up a
         # note's chart/image references (see NoteArtefactsDialog). Badge text
         # (a trailing " •") is applied by _refresh_artefacts_badge().
-        self.artefacts_action = QAction("📎 Artefacts", self)
+        self.artefacts_action = QAction("Artefacts", self)
+        self._toolbar_icons.bind(self.artefacts_action, "paperclip")
         self.artefacts_action.setToolTip("Manage the charts and images in this note")
         self.artefacts_action.triggered.connect(self.open_artefacts_dialog)
         toolbar.addAction(self.artefacts_action)
 
         toolbar.addSeparator()
-        self.edit_mode_action = QAction("✍ Edit", self)
+        self.edit_mode_action = QAction("Edit", self)
+        self._toolbar_icons.bind(self.edit_mode_action, "pencil-simple")
         self.edit_mode_action.triggered.connect(lambda: self.set_mode("edit"))
         toolbar.addAction(self.edit_mode_action)
 
-        self.preview_mode_action = QAction("👁 Preview", self)
+        self.preview_mode_action = QAction("Preview", self)
+        self._toolbar_icons.bind(self.preview_mode_action, "eye")
         self.preview_mode_action.triggered.connect(
             lambda: self.set_mode("preview"))
         toolbar.addAction(self.preview_mode_action)
 
-        self.split_mode_action = QAction("⇔ Split", self)
+        self.split_mode_action = QAction("Split", self)
+        self._toolbar_icons.bind(self.split_mode_action, "columns")
         self.split_mode_action.triggered.connect(
             lambda: self.set_mode("split"))
         toolbar.addAction(self.split_mode_action)
 
         # Toggle for synced scrolling between the two split-view panes.
-        self.scroll_sync_action = QAction("🔗 Sync Scroll", self)
+        self.scroll_sync_action = QAction("Sync Scroll", self)
+        self._toolbar_icons.bind(self.scroll_sync_action, "link")
         self.scroll_sync_action.setCheckable(True)
         self.scroll_sync_action.setChecked(self.scroll_sync_enabled)
         self.scroll_sync_action.setToolTip(
@@ -1008,7 +1025,7 @@ class NoteEditorWidget(PWidget):
             return
         rows = compute_note_artefact_rows(self.app_context, self.note, self.text_edit.toPlainText())
         has_issues = any(row.status in ("unused", "broken") for row in rows)
-        self.artefacts_action.setText("📎 Artefacts" + (" •" if has_issues else ""))
+        self.artefacts_action.setText("Artefacts" + (" •" if has_issues else ""))
         tooltip = "Manage the charts and images in this note"
         if has_issues:
             tooltip += " -- some references are unused or broken"

@@ -10,5 +10,5 @@ application in `pandaplot/gui/resources/icons/licenses/`.
 - Package: `@phosphor-icons/core`
 - Licence: MIT
 - Copyright (c) 2023 Phosphor Icons
-- Icons used: calculator, chart-bar, chart-line, flask, folder, function, gear, magnifying-glass, sliders-horizontal, table, waveform, wrench
+- Icons used: arrow-counter-clockwise, arrows-clockwise, arrows-left-right, calculator, caret-down, caret-left, caret-right, caret-up, chart-bar, chart-line, columns, copy, eye, file-pdf, flask, floppy-disk, folder, folder-simple, function, gear, image, link, magnifying-glass, magnifying-glass-minus, paperclip, pencil-simple, sliders-horizontal, stack, table, textbox, trash, waveform, wrench
 - Full licence text: `pandaplot/gui/resources/icons/licenses/phosphor-LICENSE.txt`
