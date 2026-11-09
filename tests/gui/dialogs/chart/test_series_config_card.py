@@ -300,3 +300,47 @@ def test_icon_only_expand_and_collapse_buttons_have_accessible_names():
     assert card._collapse_button.accessibleName() == "Collapse series"
     assert card._expand_button.toolTip()
     assert card._collapse_button.toolTip()
+
+
+def test_default_card_keeps_wizard_controls_and_collapsing():
+    card = _line_card()
+
+    assert card.remove_button.isVisible()
+    assert card._collapse_button.isVisible()
+    card.set_collapsed(collapsed=True)
+    assert card.is_collapsed()
+    assert card._summary_row.isVisible()
+    assert not card._form_widget.isVisible()
+
+
+def test_standalone_card_hides_remove_collapse_and_summary():
+    card = SeriesConfigCard(role_spec=get_chart_type_spec("line"), standalone=True)
+    card.show()
+
+    assert not card.remove_button.isVisible()
+    assert not card._collapse_button.isVisible()
+    assert not card._summary_row.isVisible()
+    assert card._form_widget.isVisible()
+
+
+def test_standalone_card_ignores_set_collapsed():
+    card = SeriesConfigCard(role_spec=get_chart_type_spec("line"), standalone=True)
+    card.show()
+
+    card.set_collapsed(collapsed=True)
+
+    assert not card.is_collapsed()
+    assert card._form_widget.isVisible()
+    assert not card._summary_row.isVisible()
+
+
+def test_every_role_label_has_its_combo_as_buddy():
+    from PySide6.QtWidgets import QLabel
+
+    card = SeriesConfigCard(role_spec=get_chart_type_spec("line"))
+    buddies = {label.text(): label.buddy() for label in card.findChildren(QLabel) if label.buddy() is not None}
+
+    assert buddies["Dataset:"] is card.dataset_combo
+    assert buddies["X column:"] is card.x_column_combo
+    assert buddies["Y column:"] is card.y_column_combo
+    assert buddies["Y error (+) column:"] is card.y_error_column_combo

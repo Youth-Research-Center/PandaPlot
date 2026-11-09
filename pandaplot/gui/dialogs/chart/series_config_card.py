@@ -36,8 +36,19 @@ class SeriesConfigCard(Card):
     configChanged = Signal()
     datasetChanged = Signal(str)
 
-    def __init__(self, role_spec: ChartTypeSpec, parent: QWidget | None = None, index: int = 0):
+    def __init__(self, role_spec: ChartTypeSpec, parent: QWidget | None = None, index: int = 0, *, standalone: bool = False):
+        """Build the card.
+
+        Args:
+            role_spec: Chart type spec that determines the role pickers.
+            parent: Optional parent widget.
+            index: Position of the card, used to pick its summary swatch color.
+            standalone: When true the card is used on its own (outside the wizard's
+                accordion): the remove button, collapse button and summary row are
+                hidden and `set_collapsed` does nothing.
+        """
         super().__init__(parent)
+        self._standalone = standalone
         self._role_spec = role_spec
         self._role_combos: dict[str, QComboBox] = {}
         self.error_bars_check: QCheckBox | None = None
@@ -94,15 +105,19 @@ class SeriesConfigCard(Card):
         grid.addLayout(collapse_row, row, 0, 1, 2)
         row += 1
 
-        grid.addWidget(QLabel("Dataset:"), row, 0)
+        dataset_label = QLabel("Dataset:")
+        grid.addWidget(dataset_label, row, 0)
         self.dataset_combo = DropDownComboBox()
+        dataset_label.setBuddy(self.dataset_combo)
         self.dataset_combo.currentIndexChanged.connect(self._on_dataset_changed)
         grid.addWidget(self.dataset_combo, row, 1)
         row += 1
 
         for role in self._role_spec.roles:
-            grid.addWidget(QLabel(f"{ROLE_LABELS[role]}:"), row, 0)
+            role_label = QLabel(f"{ROLE_LABELS[role]}:")
+            grid.addWidget(role_label, row, 0)
             combo = DropDownComboBox()
+            role_label.setBuddy(combo)
             combo.currentIndexChanged.connect(lambda _index=None: self.configChanged.emit())
             self._role_combos[role] = combo
             setattr(self, f"{role}_column_combo", combo)
@@ -126,6 +141,7 @@ class SeriesConfigCard(Card):
             ):
                 error_label = QLabel(f"{label}:")
                 combo = DropDownComboBox()
+                error_label.setBuddy(combo)
                 combo.currentIndexChanged.connect(lambda _index=None: self.configChanged.emit())
                 self._role_combos[error_role] = combo
                 setattr(self, f"{error_role}_column_combo", combo)
@@ -150,6 +166,8 @@ class SeriesConfigCard(Card):
         return self._collapsed
 
     def set_collapsed(self, *, collapsed: bool) -> None:
+        if self._standalone:
+            return
         self._collapsed = collapsed
         self._update_visibility()
         if collapsed:
@@ -158,6 +176,8 @@ class SeriesConfigCard(Card):
     def _update_visibility(self):
         self._summary_row.setVisible(self._collapsed)
         self._form_widget.setVisible(not self._collapsed)
+        self._collapse_button.setVisible(not self._standalone)
+        self.remove_button.setVisible(not self._standalone)
 
     def _refresh_summary(self):
         names = self.get_display_names()
