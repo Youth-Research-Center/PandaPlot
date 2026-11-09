@@ -154,10 +154,8 @@ def test_refresh_vector_fields_preserves_the_selected_series_u_v_magnitude():
     assert series.style.magnitude_column_id == dataset.column_id("x")
 
 
-def test_apply_to_creates_a_default_vector_series_with_u_and_v():
-    """apply_to's "create a default series if none exist yet" path (used
-    when an empty chart is Applied without ever clicking + Add series) must
-    include U/V, or the created series can never render."""
+def test_apply_to_does_not_create_a_vector_series_on_an_empty_chart():
+    """Applying an empty vector chart never invents a series, even with U/V picked."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Vector Chart", chart_type="vector")
     project.add_item(chart)
@@ -174,9 +172,7 @@ def test_apply_to_creates_a_default_vector_series_with_u_and_v():
 
     tab.apply_to(chart)
 
-    assert len(chart.data_series) == 1
-    assert chart.data_series[0].style.u_column_id == dataset.column_id("u")
-    assert chart.data_series[0].style.v_column_id == dataset.column_id("v")
+    assert chart.data_series == []
 
 
 def test_vector_fields_hidden_for_a_non_vector_series_on_a_vector_typed_chart():
