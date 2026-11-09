@@ -4,6 +4,7 @@ from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtWidgets import QWidget
 
 from pandaplot.gui.core.widget_extension import PMainWindow
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
@@ -20,9 +21,19 @@ class FloatingTabWindow(PMainWindow):
     redock_requested = Signal(str)  # item_id
     activated = Signal(str)  # item_id
 
-    def __init__(self, app_context: AppContext, item_id: str, content: QWidget, title: str):
+    def __init__(self, app_context: AppContext, item_id: str, content: QWidget, title: str, *, icon_name: str | None = None):
+        """Create the window.
+
+        Args:
+            app_context: Application context.
+            item_id: Id of the project item shown in the hosted tab.
+            content: The tab widget to host.
+            title: Window title.
+            icon_name: Bundled icon shown as the window icon and re-tinted on theme changes; no icon when omitted.
+        """
         super().__init__(app_context=app_context)
         self.item_id = item_id
+        self._icon_name = icon_name
         self._content = content
         self._redock_on_close = True
 
@@ -56,6 +67,8 @@ class FloatingTabWindow(PMainWindow):
         palette = theme_manager.get_surface_palette()
         background_color = palette.get("card_bg", "#F5F5F5")
         self.setStyleSheet(f"QMainWindow {{ background-color: {background_color}; }}")
+        if self._icon_name is not None:
+            self.setWindowIcon(themed_icon(self.app_context, self._icon_name))
 
     def update_tab_title(self, widget: QWidget, new_title: str):
         """Mirror TabContainer's API so a popped-out tab can refresh its title.

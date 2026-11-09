@@ -237,8 +237,7 @@ class DatasetTab(PWidget):
 
     def get_tab_title(self) -> str:
         """Get the title for this tab."""
-        title = f"📊 {self.dataset.name}"
-        return title
+        return self.dataset.name
 
     def get_tab_data(self) -> dict:
         """Identify this tab to TabContainer for session/event bookkeeping."""

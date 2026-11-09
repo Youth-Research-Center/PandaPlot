@@ -640,4 +640,4 @@ class WelcomeTab(PWidget):
 
     def get_tab_title(self):
         """Get the title for this tab."""
-        return "🏠 Welcome"
+        return "Welcome"
