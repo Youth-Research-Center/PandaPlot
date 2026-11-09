@@ -5,10 +5,15 @@ Each `ChartWizard` page owns its own `WizardFooter` instance and wires its
 signals directly to `self.wizard().back()/next()/accept()/reject()` -- the
 footer itself has no reference to the wizard, keeping it independently
 testable (see test_wizard_footer.py).
+
+When given a `help_topic`, the footer also shows a "?" button at the far left
+that emits `helpRequested(help_topic)`. The page, not the footer, publishes the
+help event, so the footer stays free of `AppContext`.
 """
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QToolButton, QWidget
 
+from pandaplot.gui.components.common.help_button import build_help_button, help_button_stylesheet
 from pandaplot.gui.components.common.p_button import PButton
 
 
@@ -18,13 +23,26 @@ class WizardFooter(QWidget):
     finishClicked = Signal()
     cancelClicked = Signal()
     emptyRequested = Signal()
+    helpRequested = Signal(str)
 
     def __init__(self, step_number: int, total_steps: int, *, show_empty_link: bool,
-                 show_next: bool = True, parent: QWidget | None = None):
+                 show_next: bool = True, parent: QWidget | None = None,
+                 help_topic: str | None = None, help_label: str | None = None):
         super().__init__(parent)
         self.setFixedHeight(48)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 0, 14, 0)
+
+        self.help_button: QToolButton | None = None
+        if help_topic is not None:
+            self.help_button = build_help_button(
+                accessible_name=f"Help: {help_label or 'this step'}",
+                accessible_description="Opens the Help window on this step's topic",
+                tooltip="Open help for this step",
+                parent=self,
+            )
+            self.help_button.clicked.connect(lambda _checked=False: self.helpRequested.emit(help_topic))
+            layout.addWidget(self.help_button)
 
         self.step_label = QLabel(f"Step {step_number} of {total_steps}", self)
         layout.addWidget(self.step_label)
@@ -75,6 +93,8 @@ class WizardFooter(QWidget):
         text_hint = tokens.get("text_hint", "#9AA0AB")
 
         self.step_label.setStyleSheet(f"color: {text_hint}; font-size: 10.5px;")
+        if self.help_button is not None:
+            self.help_button.setStyleSheet(help_button_stylesheet(tokens.get("text_primary", "#1C1E26")))
         if self.empty_link is not None:
             self.empty_link.setStyleSheet(
                 f"QPushButton {{ color: {accent}; font-weight: 600; border: none; }}"

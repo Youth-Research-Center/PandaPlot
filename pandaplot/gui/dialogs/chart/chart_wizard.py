@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import override
 
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import QDialog, QWizard
 
 from pandaplot.gui.core.widget_extension import PWizard
@@ -12,7 +12,7 @@ from pandaplot.gui.dialogs.chart.chart_data_page import ChartDataPage
 from pandaplot.gui.dialogs.chart.chart_labels_page import ChartLabelsPage
 from pandaplot.gui.dialogs.chart.chart_no_dataset_page import ChartNoDatasetPage
 from pandaplot.gui.dialogs.chart.chart_type_page import ChartTypePage
-from pandaplot.models.events.event_types import DatasetEvents
+from pandaplot.models.events.event_types import DatasetEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -77,6 +77,9 @@ class ChartWizard(PWizard):
         self.no_dataset_page.emptyRequested.connect(self._finish_empty)
         self._no_dataset_page_id = self.addPage(self.no_dataset_page)
 
+        self.help_shortcut = QShortcut(QKeySequence(QKeySequence.StandardKey.HelpContents), self)
+        self.help_shortcut.activated.connect(self._on_help_shortcut)
+
         self.currentIdChanged.connect(self._on_page_changed)
         # QWizard only assigns a currentId (and instantiates page state) once it
         # is shown or restarted; since this wizard is driven headlessly in
@@ -87,6 +90,12 @@ class ChartWizard(PWizard):
 
         for page in (self.type_page, self.data_page, self.labels_page, self.no_dataset_page):
             page.step_rail.stepClicked.connect(self._jump_to_step)
+
+    def _on_help_shortcut(self) -> None:
+        """F1: open the Help window on the current page's topic."""
+        topic_id = getattr(self.currentPage(), "help_topic", None)
+        if topic_id is not None:
+            self.publish_event(UIEvents.HELP_REQUESTED, {"topic_id": topic_id})
 
     def _jump_to_step(self, step_index: int) -> None:
         page_id = {0: self._type_page_id, 1: self._data_page_id, 2: self._labels_page_id}[step_index]
