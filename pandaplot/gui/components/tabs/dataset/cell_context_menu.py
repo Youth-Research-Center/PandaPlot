@@ -8,7 +8,6 @@ from pandaplot.commands.project.dataset.add_columns_command import AddColumnsCom
 from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
 from pandaplot.commands.project.dataset.delete_columns_command import DeleteColumnsCommand
 from pandaplot.commands.project.dataset.delete_rows_command import DeleteRowsCommand
-from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -32,7 +31,6 @@ class CellContextMenu(QMenu):
         cols.sort()
         
         add_row_below_action = QAction("Add row(s) below", self)
-        add_row_below_action.setIcon(themed_icon(self.app_context, "rows-plus-bottom", on_accent=True))
         add_row_below_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddRowsCommand(
                 self.app_context, 
@@ -44,7 +42,6 @@ class CellContextMenu(QMenu):
         self.addAction(add_row_below_action)
 
         add_row_above_action = QAction("Add row(s) above", self)
-        add_row_above_action.setIcon(themed_icon(self.app_context, "rows-plus-top", on_accent=True))
         add_row_above_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddRowsCommand(
                 self.app_context, 
@@ -56,7 +53,6 @@ class CellContextMenu(QMenu):
         self.addAction(add_row_above_action)
 
         add_col_right_action = QAction("Add column(s) to the right", self)
-        add_col_right_action.setIcon(themed_icon(self.app_context, "columns-plus-right", on_accent=True))
         add_col_right_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddColumnsCommand(
                 self.app_context, 
@@ -69,7 +65,6 @@ class CellContextMenu(QMenu):
         self.addAction(add_col_right_action)
 
         add_col_left_action = QAction("Add column(s) to the left", self)
-        add_col_left_action.setIcon(themed_icon(self.app_context, "columns-plus-left", on_accent=True))
         add_col_left_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddColumnsCommand(
                 self.app_context, 
@@ -84,14 +79,12 @@ class CellContextMenu(QMenu):
         self.addSeparator()
         
         remove_rows_action = QAction("Delete selected rows", self)
-        remove_rows_action.setIcon(themed_icon(self.app_context, "trash", on_accent=True))
         remove_rows_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(DeleteRowsCommand(self.app_context, self.dataset_id, rows))
         )
         self.addAction(remove_rows_action)
 
         remove_cols_action = QAction("Delete selected columns", self)
-        remove_cols_action.setIcon(themed_icon(self.app_context, "trash", on_accent=True))
         remove_cols_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(DeleteColumnsCommand(self.app_context, self.dataset_id, cols))
         )

@@ -1,4 +1,4 @@
-"""Tests for the theme-token icon helpers used by menus, toolbars and buttons."""
+"""Tests for the theme-token icon helpers used by toolbars and buttons."""
 
 from unittest.mock import Mock
 
@@ -12,8 +12,6 @@ from pandaplot.models.state.app_context import AppContext
 
 LIGHT = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
 DARK = {"text_primary": "#E2E2E2", "text_muted": "#9AA0AB", "accent_icon_active": "#8995FF", "text_disabled": "#5B6270"}
-LIGHT_WITH_ON_ACCENT = {**LIGHT, "text_on_accent": "#FFFFFF"}
-DARK_WITH_ON_ACCENT = {**DARK, "text_on_accent": "#101010"}
 
 
 @pytest.fixture
@@ -61,8 +59,8 @@ def test_action_icons_bind_sets_the_icon_on_actions_and_buttons(qapp, app_contex
     action = QAction("Open")
     button = QPushButton("Open")
 
-    icons.bind(action, "folder-open")
-    icons.bind(button, "folder-open")
+    icons.bind(action, "folder-simple")
+    icons.bind(button, "folder-simple")
 
     _assert_close(_strongest(action.icon()), LIGHT["text_primary"])
     _assert_close(_strongest(button.icon()), LIGHT["text_primary"])
@@ -72,8 +70,8 @@ def test_action_icons_retint_follows_the_new_theme_tokens(qapp, app_context):
     icons = ActionIcons(app_context, size=32)
     action = QAction("Open")
     button = QPushButton("Open")
-    icons.bind(action, "folder-open")
-    icons.bind(button, "folder-open")
+    icons.bind(action, "folder-simple")
+    icons.bind(button, "folder-simple")
 
     app_context.get_manager.return_value.get_design_tokens.return_value = DARK
     icons.retint()
@@ -86,8 +84,8 @@ def test_action_icons_retint_skips_deleted_targets(qapp, app_context):
     icons = ActionIcons(app_context)
     keep = QAction("Keep")
     doomed = QPushButton("Doomed")
-    icons.bind(keep, "folder-open")
-    icons.bind(doomed, "folder-open")
+    icons.bind(keep, "folder-simple")
+    icons.bind(doomed, "folder-simple")
     doomed.deleteLater()
 
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
@@ -95,50 +93,3 @@ def test_action_icons_retint_skips_deleted_targets(qapp, app_context):
     icons.retint()
 
     assert not keep.icon().isNull()
-
-
-def test_themed_icon_on_accent_tints_the_active_mode_with_the_on_accent_token(qapp, app_context):
-    app_context.get_manager.return_value.get_design_tokens.return_value = LIGHT_WITH_ON_ACCENT
-
-    icon = themed_icon(app_context, "folder", size=32, on_accent=True)
-
-    _assert_close(_strongest(icon, mode=QIcon.Mode.Active), "#FFFFFF")
-    _assert_close(_strongest(icon, mode=QIcon.Mode.Normal), LIGHT["text_primary"])
-
-
-def test_themed_icon_active_mode_equals_normal_by_default(qapp, app_context):
-    app_context.get_manager.return_value.get_design_tokens.return_value = LIGHT_WITH_ON_ACCENT
-
-    icon = themed_icon(app_context, "folder", size=32)
-
-    _assert_close(_strongest(icon, mode=QIcon.Mode.Active), LIGHT["text_primary"])
-
-
-def test_themed_icon_on_accent_without_the_token_adds_no_active_pixmap(qapp, app_context):
-    icon = themed_icon(app_context, "folder", size=32, on_accent=True)
-
-    _assert_close(_strongest(icon, mode=QIcon.Mode.Active), LIGHT["text_primary"])
-
-
-def test_action_icons_on_accent_retint_rerenders_the_active_pixmap(qapp, app_context):
-    app_context.get_manager.return_value.get_design_tokens.return_value = LIGHT_WITH_ON_ACCENT
-    icons = ActionIcons(app_context, size=32, on_accent=True)
-    action = QAction("Open")
-    icons.bind(action, "folder-open")
-    _assert_close(_strongest(action.icon(), mode=QIcon.Mode.Active), "#FFFFFF")
-
-    app_context.get_manager.return_value.get_design_tokens.return_value = DARK_WITH_ON_ACCENT
-    icons.retint()
-
-    _assert_close(_strongest(action.icon(), mode=QIcon.Mode.Active), "#101010")
-    _assert_close(_strongest(action.icon(), mode=QIcon.Mode.Normal), DARK["text_primary"])
-
-
-def test_action_icons_active_mode_equals_normal_by_default(qapp, app_context):
-    app_context.get_manager.return_value.get_design_tokens.return_value = LIGHT_WITH_ON_ACCENT
-    icons = ActionIcons(app_context, size=32)
-    action = QAction("Open")
-
-    icons.bind(action, "folder-open")
-
-    _assert_close(_strongest(action.icon(), mode=QIcon.Mode.Active), LIGHT["text_primary"])

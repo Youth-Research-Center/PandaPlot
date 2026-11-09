@@ -14,8 +14,6 @@ from pandaplot.models.project.project import Project
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 RECOMPUTE_TEXT = "Recompute formula column(s)"
-# The menu icons are tinted from these design tokens.
-ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
 
 
 @pytest.fixture
@@ -31,7 +29,6 @@ def setup(qtbot):
     app_context.app_state.current_project = project
     app_context.get_manager.return_value = Mock(spec=ThemeManager)
     app_context.get_manager.return_value.build_context_menu_stylesheet.return_value = ""
-    app_context.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
     parent = QWidget()
     qtbot.addWidget(parent)
     return app_context, parent

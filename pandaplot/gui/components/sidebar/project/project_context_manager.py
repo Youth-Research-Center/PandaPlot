@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
 from pandaplot.gui.components.sidebar.project.project_command_manager import (
     ProjectPanelCommandManager,
 )
-from pandaplot.gui.resources.themed_icons import ActionIcons
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
@@ -25,14 +24,12 @@ class ProjectViewPanelContextManager(QMenu):
         self.command_manager = command_manager
         self.getItemAt = getItemAt
         self.getGlobalPosition = getGlobalPosition
-        self._action_icons = ActionIcons(app_context, on_accent=True)
 
         self._setup_ui()
 
     def _setup_ui(self):
         # Open action
         self.open_action = QAction("Open", self)
-        self._action_icons.bind(self.open_action, "folder-open")
         self.open_action.triggered.connect(
             self.command_manager.open_selected_item)
         self.addAction(self.open_action)
@@ -41,7 +38,6 @@ class ProjectViewPanelContextManager(QMenu):
 
         # Rename action
         self.rename_action = QAction("Rename", self)
-        self._action_icons.bind(self.rename_action, "textbox")
         self.rename_action.triggered.connect(
             self.command_manager.rename_selected_item)
         self.addAction(self.rename_action)
@@ -50,54 +46,45 @@ class ProjectViewPanelContextManager(QMenu):
 
         # Add actions
         self.add_folder_action = QAction("Add Folder", self)
-        self._action_icons.bind(self.add_folder_action, "folder-simple-plus")
         self.add_folder_action.triggered.connect(
             self.command_manager.add_folder)
         self.addAction(self.add_folder_action)
 
         self.add_note_action = QAction("Add Note", self)
-        self._action_icons.bind(self.add_note_action, "note-pencil")
         self.add_note_action.triggered.connect(self.command_manager.add_note)
         self.addAction(self.add_note_action)
 
         self.add_sketch_action = QAction("Add Sketch", self)
-        self._action_icons.bind(self.add_sketch_action, "pencil-simple-line")
         self.add_sketch_action.triggered.connect(self.command_manager.add_sketch)
         self.addAction(self.add_sketch_action)
 
         self.add_image_gallery_action = QAction("Add Image Gallery", self)
-        self._action_icons.bind(self.add_image_gallery_action, "images")
         self.add_image_gallery_action.triggered.connect(
             self.command_manager.add_image_gallery)
         self.addAction(self.add_image_gallery_action)
 
         self.import_data_action = QAction("Import Data...", self)
-        self._action_icons.bind(self.import_data_action, "download-simple")
         self.import_data_action.triggered.connect(
             self.command_manager.import_data)
         self.addAction(self.import_data_action)
 
         self.create_empty_dataset_action = QAction(
             "Create Empty Dataset", self)
-        self._action_icons.bind(self.create_empty_dataset_action, "table")
         self.create_empty_dataset_action.triggered.connect(
             self.command_manager.create_empty_dataset)
         self.addAction(self.create_empty_dataset_action)
 
         # Chart creation action (for datasets)
         self.create_chart_action = QAction("Create Chart", self)
-        self._action_icons.bind(self.create_chart_action, "chart-line-up")
         self.create_chart_action.triggered.connect(
             self.command_manager.create_chart_from_dataset)
         self.addAction(self.create_chart_action)
 
         self.analyze_measurements_action = QAction("Analyze Measurements...", self)
-        self._action_icons.bind(self.analyze_measurements_action, "ruler")
         self.analyze_measurements_action.triggered.connect(self.command_manager.analyze_measurements)
         self.addAction(self.analyze_measurements_action)
 
         self.import_images_action = QAction("Import Images...", self)
-        self._action_icons.bind(self.import_images_action, "image")
         self.import_images_action.triggered.connect(
             self.command_manager.import_images)
         self.addAction(self.import_images_action)
@@ -106,7 +93,6 @@ class ProjectViewPanelContextManager(QMenu):
 
         # Delete action
         self.delete_action = QAction("Delete", self)
-        self._action_icons.bind(self.delete_action, "trash")
         self.delete_action.triggered.connect(
             self.command_manager.delete_selected_item)
         self.addAction(self.delete_action)
@@ -115,7 +101,6 @@ class ProjectViewPanelContextManager(QMenu):
         """Show context menu at the given position."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         self.setStyleSheet(theme_manager.build_context_menu_stylesheet())
-        self._action_icons.retint()
 
         if not self.app_state.has_project:
             return

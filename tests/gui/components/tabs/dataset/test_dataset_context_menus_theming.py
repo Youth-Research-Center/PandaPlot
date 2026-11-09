@@ -13,9 +13,6 @@ from pandaplot.gui.components.tabs.dataset.column_context_menu import ColumnHead
 from pandaplot.gui.components.tabs.dataset.row_context_menu import RowHeaderContextMenu
 from pandaplot.services.theme.theme_manager import ThemeManager
 
-# The menu icons are tinted from these design tokens.
-ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
-
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():
@@ -26,7 +23,6 @@ def qapp():
 def _app_context_with_theme():
     theme_manager = Mock(spec=ThemeManager)
     theme_manager.build_context_menu_stylesheet.return_value = "QMenu { background-color: #2A2C2E; }"
-    theme_manager.get_design_tokens.return_value = dict(ICON_TOKENS)
     app_context = Mock()
     app_context.get_manager.return_value = theme_manager
     app_context.command_executor = Mock()

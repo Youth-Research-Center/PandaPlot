@@ -3,8 +3,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 import shiboken6
-from PySide6.QtCore import QBuffer, QCoreApplication, QEvent, QIODevice, QMimeData, QSize, Qt
-from PySide6.QtGui import QColor, QIcon, QImage, QPixmap
+from PySide6.QtCore import QBuffer, QCoreApplication, QEvent, QIODevice, QMimeData, Qt
+from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
 
 from pandaplot.commands.composite_command import CompositeCommand
@@ -1568,16 +1568,6 @@ _ICON_ONLY_BUTTONS = {
     "forward_button": ("caret-right", "Forward", "Go forward to the next gallery"),
 }
 
-_CONTEXT_MENU_ICONS = {
-    "Edit Image...": "pencil-simple",
-    "Rename": "textbox",
-    "Delete": "trash",
-    "Move...": "folder-simple",
-    "Copy to...": "copy",
-    "Open in New Tab": "arrow-square-out",
-}
-
-
 def _icon_image(icon) -> QImage:
     return icon.pixmap(_ICON_SIZE, _ICON_SIZE).toImage()
 
@@ -1632,7 +1622,7 @@ class TestImageGalleryTabIcons:
 
         assert _icon_image(tab.sort_direction_button.icon()) == _expected_icon_image("caret-down", app_context.theme_tokens)
 
-    def test_context_menu_actions_carry_their_icons(self, app_context):
+    def test_context_menu_actions_are_plain_text_without_icons(self, app_context):
         gallery = ImageGallery(name="Trip")
         gallery.add_item(Image(name="Beach"))
         gallery.add_item(ImageGallery(name="Day 1"))
@@ -1642,10 +1632,10 @@ class TestImageGalleryTabIcons:
 
         menu = tab._build_context_menu(tab.grid.item(album_row))
 
-        icons_by_text = {action.text(): action.icon() for action in menu.actions() if not action.isSeparator()}
-        assert set(icons_by_text) == set(_CONTEXT_MENU_ICONS)
-        for text, icon_name in _CONTEXT_MENU_ICONS.items():
-            assert _icon_image(icons_by_text[text]) == _expected_icon_image(icon_name, app_context.theme_tokens), text
+        actions = [action for action in menu.actions() if not action.isSeparator()]
+        assert {action.text() for action in actions} == {"Edit Image...", "Rename", "Delete", "Move...", "Copy to...", "Open in New Tab"}
+        for action in actions:
+            assert action.icon().isNull(), action.text()
 
     def test_icons_retint_when_the_theme_changes(self, app_context):
         tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
@@ -1670,26 +1660,3 @@ class TestImageGalleryTabIcons:
         tab._apply_theme()
 
         assert _icon_image(tab.sort_direction_button.icon()) == _expected_icon_image("caret-down", app_context.theme_tokens)
-
-    def test_context_menu_hover_icons_use_the_on_accent_colour_but_buttons_do_not(self, app_context):
-        app_context.theme_tokens["text_on_accent"] = "#FFFFFF"
-        gallery = ImageGallery(name="Trip")
-        gallery.add_item(ImageGallery(name="Day 1"))
-        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
-        tab.grid.item(0).setSelected(True)
-
-        menu = tab._build_context_menu(tab.grid.item(0))
-
-        def strongest(icon: QIcon, mode: QIcon.Mode) -> QColor:
-            image = icon.pixmap(QSize(32, 32), mode).toImage()
-            return max((image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height())), key=lambda p: p.alpha())
-
-        actions = [action for action in menu.actions() if not action.isSeparator()]
-        assert actions
-        for action in actions:
-            active = strongest(action.icon(), QIcon.Mode.Active)
-            normal = strongest(action.icon(), QIcon.Mode.Normal)
-            assert (active.red(), active.green(), active.blue()) == (255, 255, 255), action.text()
-            assert abs(normal.red() - 0x1C) < 12 and abs(normal.blue() - 0x26) < 12, action.text()
-        button_icon = tab.import_button.icon()
-        assert strongest(button_icon, QIcon.Mode.Active) == strongest(button_icon, QIcon.Mode.Normal)

@@ -5,7 +5,7 @@ import re
 import pandas as pd
 import pytest
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QAction, QColor, QIcon
+from PySide6.QtGui import QAction, QColor
 from PySide6.QtWidgets import QToolBar
 
 from pandaplot.app import build_app_context
@@ -119,13 +119,3 @@ def test_icons_are_retinted_when_the_theme_changes(editor, tokens):
     editor._apply_theme()
 
     _assert_close(_strongest(action), DARK_TOKENS["text_primary"])
-
-
-def test_toolbar_icons_do_not_change_colour_when_hovered(editor, tokens):
-    tokens["text_on_accent"] = "#FFFFFF"
-    editor._apply_theme()
-
-    for action in _toolbar_actions(editor).values():
-        normal = action.icon().pixmap(QSize(ICON_SIZE, ICON_SIZE), QIcon.Mode.Normal).toImage()
-        active = action.icon().pixmap(QSize(ICON_SIZE, ICON_SIZE), QIcon.Mode.Active).toImage()
-        assert active == normal, action.text()

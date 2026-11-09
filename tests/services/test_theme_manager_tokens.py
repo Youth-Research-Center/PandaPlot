@@ -26,7 +26,7 @@ def test_design_tokens_has_all_required_keys(tmp_path):
         "text_primary", "text_secondary", "text_muted", "text_hint", "text_disabled",
         "border_panel", "border_control", "border_subtle",
         "surface_white", "surface_chrome", "surface_inset",
-        "accent", "accent_active_text", "accent_icon_active", "accent_selected_bg", "accent_disabled", "text_on_accent",
+        "accent", "accent_active_text", "accent_icon_active", "accent_selected_bg", "accent_disabled",
         "status_modified_dot", "status_modified_text", "status_success",
         "y2_accent", "y2_accent_bg", "series_palette",
         "radius_swatch", "radius_control", "radius_card", "radius_chip",
@@ -116,18 +116,3 @@ def test_accent_icon_active_matches_active_text_in_the_light_theme(tmp_path):
     tokens = _make_manager(tmp_path, theme=Theme.LIGHT).get_design_tokens()
 
     assert tokens["accent_icon_active"] == tokens["accent_active_text"]
-
-
-@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
-@pytest.mark.parametrize("accent", ["#4A56C6", "#1F2A8C", "#FF0000", "#00AA55", "#FFD400", "#FFFFFF", "#000000"])
-def test_text_on_accent_is_legible_on_the_accent(tmp_path, theme, accent):
-    tokens = _make_manager(tmp_path, theme=theme, accent=accent).get_design_tokens()
-
-    assert _contrast_ratio(tokens["text_on_accent"], tokens["accent"]) >= 4.5
-
-
-@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
-def test_text_on_accent_is_white_for_the_default_accent(tmp_path, theme):
-    tokens = _make_manager(tmp_path, theme=theme).get_design_tokens()
-
-    assert tokens["text_on_accent"].upper() == "#FFFFFF"

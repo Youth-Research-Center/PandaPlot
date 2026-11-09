@@ -24,7 +24,6 @@ from pandaplot.commands.project.project import (
 )
 from pandaplot.commands.project.sketch import CreateSketchCommand
 from pandaplot.gui.core.widget_extension import PMenuBar
-from pandaplot.gui.resources.themed_icons import ActionIcons
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.session.recent_projects import get_recent_projects
@@ -41,7 +40,6 @@ class MainMenu(PMenuBar):
         # dataset in dialogs opened from the menu.
         self.active_dataset_id: str | None = None
         self._help_window: HelpWindow | None = None
-        self._icons = ActionIcons(app_context, on_accent=True)
         self._initialize()
 
     @override
@@ -118,8 +116,6 @@ class MainMenu(PMenuBar):
             }}
         """)
         
-        self._icons.retint()
-
         self.logger.debug("Applied theme.")
     
     @override
@@ -147,7 +143,6 @@ class MainMenu(PMenuBar):
         self.addMenu(settings_menu)
 
         preferences_action = QAction("Preferences...", self)
-        self._icons.bind(preferences_action, "gear")
         # TODO(#216): consider showing settings dialog by triggering event which invokes a command
         preferences_action.triggered.connect(self.show_settings_dialog)
         settings_menu.addAction(preferences_action)
@@ -157,7 +152,6 @@ class MainMenu(PMenuBar):
         self.addMenu(help_menu)
 
         help_topics_action = QAction("Help Topics...", help_menu)
-        self._icons.bind(help_topics_action, "question")
         help_topics_action.setShortcut(QKeySequence(QKeySequence.StandardKey.HelpContents))
         # A bare connect would pass the signal's `checked` bool as the topic id.
         help_topics_action.triggered.connect(lambda: self.show_help(None))
@@ -166,44 +160,37 @@ class MainMenu(PMenuBar):
         help_menu.addSeparator()
 
         welcome_action = QAction("Welcome", self)
-        self._icons.bind(welcome_action, "house")
         welcome_action.triggered.connect(self.show_welcome_tab)
         help_menu.addAction(welcome_action)
 
         open_example_project_action = QAction("Open Example Project...", self)
-        self._icons.bind(open_example_project_action, "book-open")
         open_example_project_action.triggered.connect(self.show_examples_dialog)
         help_menu.addAction(open_example_project_action)
 
         help_menu.addSeparator()
 
         about_action = QAction("About", self)
-        self._icons.bind(about_action, "info")
         about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
 
     def _create_file_menu(self) -> QMenu:
         file_menu = QMenu("File", self)
         new_action = QAction("New", self)
-        self._icons.bind(new_action, "file-plus")
         new_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(NewProjectCommand(self.app_context)))
         file_menu.addAction(new_action)
 
         open_action = QAction("Open", self)
-        self._icons.bind(open_action, "folder-open")
         open_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(OpenProjectCommand(self.app_context)))
         file_menu.addAction(open_action)
 
         self.recent_menu = QMenu("Recent", self)
         self.recent_menu.setToolTipsVisible(True)
-        self._icons.bind(self.recent_menu.menuAction(), "clock-counter-clockwise")
         self._update_recent_menu()
         file_menu.addMenu(self.recent_menu)
 
         close_action = QAction("Close", self)
-        self._icons.bind(close_action, "x")
         close_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(CloseProjectCommand(self.app_context)))
         file_menu.addAction(close_action)
@@ -211,14 +198,12 @@ class MainMenu(PMenuBar):
         file_menu.addSeparator()
 
         save_action = QAction("Save", self)
-        self._icons.bind(save_action, "floppy-disk")
         save_action.setShortcut(QKeySequence.StandardKey.Save)
         save_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(SaveProjectCommand(self.app_context)))
         file_menu.addAction(save_action)
 
         save_as_action = QAction("Save As...", self)
-        self._icons.bind(save_as_action, "floppy-disk-back")
         save_as_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(SaveProjectAsCommand(self.app_context)))
         file_menu.addAction(save_as_action)
@@ -226,7 +211,6 @@ class MainMenu(PMenuBar):
         file_menu.addSeparator()
 
         exit_action = QAction("Exit", self)
-        self._icons.bind(exit_action, "sign-out")
         exit_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(ExitCommand(self.app_context)))
         file_menu.addAction(exit_action)
@@ -281,14 +265,12 @@ class MainMenu(PMenuBar):
         # _update_undo_redo_actions) rather than re-checked lazily on
         # menu-open, so the keyboard shortcuts stay correctly enabled too.
         self.undo_action = QAction("Undo", self)
-        self._icons.bind(self.undo_action, "arrow-u-up-left")
         self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
         self.undo_action.triggered.connect(
             lambda: self.app_context.get_command_executor().undo())
         edit_menu.addAction(self.undo_action)
 
         self.redo_action = QAction("Redo", self)
-        self._icons.bind(self.redo_action, "arrow-u-up-right")
         self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
         self.redo_action.triggered.connect(
             lambda: self.app_context.get_command_executor().redo())
@@ -321,24 +303,20 @@ class MainMenu(PMenuBar):
         data_menu = QMenu("Data", self)
 
         import_data_action = QAction("Import Data...", self)
-        self._icons.bind(import_data_action, "download-simple")
         import_data_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(ImportDataCommand(self.app_context)))
         data_menu.addAction(import_data_action)
 
         create_empty_dataset_action = QAction("Add Dataset", self)
-        self._icons.bind(create_empty_dataset_action, "table")
         create_empty_dataset_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(CreateEmptyDatasetCommand(self.app_context)))
         data_menu.addAction(create_empty_dataset_action)
 
         import_images_action = QAction("Import Images...", self)
-        self._icons.bind(import_images_action, "image")
         import_images_action.triggered.connect(self._on_import_images_from_menu)
         data_menu.addAction(import_images_action)
 
         self.add_rows_columns_action = QAction("Add Rows / Columns...", self)
-        self._icons.bind(self.add_rows_columns_action, "rows-plus-bottom")
         self.add_rows_columns_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(AddRowsColumnsCommand(self.app_context, dataset_id=self.active_dataset_id)))
         data_menu.addAction(self.add_rows_columns_action)
@@ -346,13 +324,11 @@ class MainMenu(PMenuBar):
         data_menu.addSeparator()
 
         new_note_action = QAction("New Note", self)
-        self._icons.bind(new_note_action, "note-pencil")
         new_note_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(CreateNoteCommand(self.app_context)))
         data_menu.addAction(new_note_action)
 
         new_sketch_action = QAction("New Sketch", self)
-        self._icons.bind(new_sketch_action, "pencil-simple-line")
         new_sketch_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(CreateSketchCommand(self.app_context)))
         data_menu.addAction(new_sketch_action)
@@ -396,7 +372,6 @@ class MainMenu(PMenuBar):
         chart_menu = QMenu("Chart", self)
 
         self.create_chart_action = QAction("Create New", self)
-        self._icons.bind(self.create_chart_action, "chart-line-up")
         self.create_chart_action.triggered.connect(lambda: self.app_context.get_command_executor(
         ).execute_command(CreateChartFromWizardCommand(self.app_context)))
         chart_menu.addAction(self.create_chart_action)
