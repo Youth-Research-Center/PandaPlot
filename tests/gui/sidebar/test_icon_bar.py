@@ -210,3 +210,27 @@ def test_sidebar_passes_icon_name_to_the_icon_bar(app_context, qtbot):
     button = sidebar.icon_bar.panels["fit"]
     assert not button.icon().isNull()
     assert button.accessibleName() == "Curve Fitting panel"
+
+
+def test_context_menu_is_deleted_after_closing(icon_bar, monkeypatch):
+    import shiboken6
+    from PySide6.QtCore import QCoreApplication, QEvent, QPoint
+    from PySide6.QtGui import QContextMenuEvent
+    from PySide6.QtWidgets import QMenu
+
+    opened: list[QMenu] = []
+
+    def _make_nonblocking_menu(parent) -> QMenu:
+        menu = QMenu(parent)
+        opened.append(menu)
+        menu.exec = lambda *_args: None
+        return menu
+
+    monkeypatch.setattr("pandaplot.gui.components.sidebar.icon_bar.QMenu", _make_nonblocking_menu)
+    event = QContextMenuEvent(QContextMenuEvent.Reason.Mouse, QPoint(5, 5), QPoint(5, 5))
+    icon_bar.contextMenuEvent(event)
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+    assert len(opened) == 1
+    assert not shiboken6.isValid(opened[0])
+    assert icon_bar.findChildren(QMenu) == []

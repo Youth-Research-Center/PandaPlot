@@ -142,7 +142,10 @@ class IconBar(PWidget):
             lambda: self.position_change_requested.emit("left"))
         right_action.triggered.connect(
             lambda: self.position_change_requested.emit("right"))
-        menu.exec(event.globalPos())
+        try:
+            menu.exec(event.globalPos())
+        finally:
+            menu.deleteLater()
 
     @override
     def _init_ui(self):

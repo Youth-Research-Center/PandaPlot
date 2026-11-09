@@ -121,7 +121,10 @@ class CustomTabBar(QTabBar):
                 can_split=self.can_split,
                 can_merge=self.can_merge,
             )
-            menu.exec(self.mapToGlobal(position))
+            try:
+                menu.exec(self.mapToGlobal(position))
+            finally:
+                menu.deleteLater()
 
     # ----- drag start (escalates to a real QDrag once the cursor leaves the bar) -----
     def mousePressEvent(self, event):

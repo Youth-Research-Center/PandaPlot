@@ -169,8 +169,11 @@ class DatasetTableView(QTableView):
         indexes = self.selectionModel().selectedIndexes()
         if not indexes:
             return
-        self.menu = CellContextMenu(self.app_context, self, self._model._dataset.id, indexes)
-        self.menu.exec(self.viewport().mapToGlobal(position))
+        menu = CellContextMenu(self.app_context, self, self._model._dataset.id, indexes)
+        try:
+            menu.exec(self.viewport().mapToGlobal(position))
+        finally:
+            menu.deleteLater()
     
     def _on_column_header_context_menu(self, position):
         """Handle right-click context menu on column headers."""
@@ -200,7 +203,10 @@ class DatasetTableView(QTableView):
             selected_columns
         )
         global_position = self.horizontalHeader().mapToGlobal(position)
-        menu.exec(global_position)
+        try:
+            menu.exec(global_position)
+        finally:
+            menu.deleteLater()
     
     def _on_row_header_context_menu(self, position):
         """Handle right-click context menu on row headers."""
@@ -230,4 +236,7 @@ class DatasetTableView(QTableView):
             selected_rows
         )
         global_position = self.verticalHeader().mapToGlobal(position)
-        menu.exec(global_position)
+        try:
+            menu.exec(global_position)
+        finally:
+            menu.deleteLater()

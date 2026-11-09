@@ -425,6 +425,61 @@ class TestImageGalleryTabContextMenu:
         args = app_context.get_app_state.return_value.event_bus.emit.call_args.args
         assert args[1]["item_id"] == album.id
 
+    def test_grid_context_menu_is_deleted_after_closing(self, app_context):
+        from PySide6.QtGui import QAction
+        from PySide6.QtWidgets import QMenu
+
+        gallery = ImageGallery(name="Trip")
+        gallery.add_item(Image(name="Beach"))
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        position = tab.grid.visualItemRect(tab.grid.item(0)).center()
+
+        opened: list[QMenu] = []
+        original_build = tab._build_context_menu
+
+        def _build_with_nonblocking_exec(item) -> QMenu:
+            menu = original_build(item)
+            opened.append(menu)
+            menu.exec = lambda *_args: None
+            return menu
+
+        with patch.object(tab, "_build_context_menu", _build_with_nonblocking_exec):
+            tab._on_grid_context_menu(position)
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        assert len(opened) == 1
+        assert not shiboken6.isValid(opened[0])
+        assert tab.findChildren(QMenu) == []
+        assert tab.findChildren(QAction) == []
+
+    def test_list_context_menu_is_deleted_after_closing(self, app_context):
+        from PySide6.QtGui import QAction
+        from PySide6.QtWidgets import QMenu
+
+        gallery = ImageGallery(name="Trip")
+        gallery.add_item(Image(name="Beach"))
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab._on_view_mode_changed("list")
+        position = tab.list_view.visualItemRect(tab.list_view.topLevelItem(0)).center()
+
+        opened: list[QMenu] = []
+        original_build = tab._build_context_menu
+
+        def _build_with_nonblocking_exec(item) -> QMenu:
+            menu = original_build(item)
+            opened.append(menu)
+            menu.exec = lambda *_args: None
+            return menu
+
+        with patch.object(tab, "_build_context_menu", _build_with_nonblocking_exec):
+            tab._on_list_context_menu(position)
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        assert len(opened) == 1
+        assert not shiboken6.isValid(opened[0])
+        assert tab.findChildren(QMenu) == []
+        assert tab.findChildren(QAction) == []
+
 
 class TestImageGalleryTabViewToggle:
     def test_defaults_to_grid_view_visible(self, app_context):
