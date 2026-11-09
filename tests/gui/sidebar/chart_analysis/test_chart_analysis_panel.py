@@ -12,6 +12,8 @@ from pandaplot.commands.project.chart import AddAnalysisSeriesCommand, CreateCha
 from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
 )
+from pandaplot.gui.components.common.icon_label import IconLabel
+from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.chart_analysis.chart_analysis_panel import (
     ChartAnalysisPanel,
 )
@@ -417,3 +419,101 @@ class TestChartAnalysisPanelQuickPlot:
         assert executor.execute_command.called
         cmd = executor.execute_command.call_args[0][0]
         assert isinstance(cmd, AnalyzeChartSeriesCommand)
+
+
+class TestChartAnalysisPanelStatusMessage:
+    def test_status_message_sits_directly_above_the_preview_text(self, panel):
+        layout = panel.preview_text.parentWidget().layout()
+
+        assert layout.indexOf(panel.status_message) == layout.indexOf(panel.preview_text) - 1
+        assert panel.status_message.isHidden()
+
+    def test_preview_without_a_series_is_an_error_status(self, app_context):
+        panel = ChartAnalysisPanel(app_context)
+
+        panel.preview()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Select a series to analyze."
+        assert panel.preview_text.toPlainText() == ""
+
+    def test_apply_without_a_series_is_an_error_status(self, app_context):
+        panel = ChartAnalysisPanel(app_context)
+
+        panel.apply()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Select a series to analyze."
+
+    def test_preview_error_is_an_error_status(self, panel, monkeypatch):
+        monkeypatch.setattr(AnalyzeChartSeriesCommand, "run_analysis", Mock(side_effect=ValueError("bad <b>input</b>")))
+
+        panel.preview()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Preview error: bad <b>input</b>"
+        assert panel.preview_text.toPlainText() == ""
+
+    def test_a_successful_preview_clears_an_earlier_status(self, panel):
+        panel.status_message.set_message(StatusKind.ERROR, "old")
+
+        panel.preview()
+
+        assert panel.status_message.message() == ""
+        assert "Series: Squared" in panel.preview_text.toPlainText()
+
+    def test_apply_failure_is_an_error_status(self, panel, app_context):
+        app_context.get_command_executor.return_value.execute_command.return_value = False
+
+        panel.apply()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Could not analyze the series. See the log for details."
+
+    def test_apply_success_on_a_new_chart_keeps_the_plot_note_in_the_text_area(self, panel, app_context):
+        app_context.get_command_executor.return_value.execute_command.return_value = True
+
+        panel.apply()
+
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Created a new dataset from the analysis. Find it in the project explorer."
+        assert panel.preview_text.toPlainText() == "Plotted on a new chart."
+
+    def test_apply_success_on_an_existing_chart_names_it_in_the_text_area(self, panel, app_context, project):
+        project.add_item(Chart(id="chart-2", name="Other", chart_type=ChartType.LINE))
+        panel._populate_sources()
+        panel.plot_target_combo.setCurrentIndex(panel.plot_target_combo.findData("chart-2"))
+        app_context.get_command_executor.return_value.execute_command.return_value = True
+
+        panel.apply()
+
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.preview_text.toPlainText() == "Plotted on 'Other'."
+
+    def test_apply_success_without_quick_plot_leaves_the_text_area_empty(self, panel, app_context):
+        app_context.get_command_executor.return_value.execute_command.return_value = True
+        panel.plot_result_cb.setChecked(False)
+
+        panel.apply()
+
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.preview_text.toPlainText() == ""
+
+    def test_clear_inputs_clears_the_status_message(self, app_context):
+        panel = ChartAnalysisPanel(app_context)
+        panel.preview()
+        assert panel.status_message.kind() is StatusKind.ERROR
+
+        panel.clear_inputs()
+
+        assert panel.status_message.message() == ""
+        assert panel.status_message.kind() is None
+
+    def test_theme_change_retints_the_status_icon(self, app_context):
+        panel = ChartAnalysisPanel(app_context)
+        panel.preview()
+        app_context.get_manager.return_value.get_design_tokens.return_value["status_danger"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.status_message.findChild(IconLabel).pixmap()), "#00AA00")
