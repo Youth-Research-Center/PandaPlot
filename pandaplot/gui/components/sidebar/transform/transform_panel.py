@@ -43,6 +43,8 @@ class TransformPanel(SidebarPanel):
     Designed for sidebar integration with conditional visibility.
     """
 
+    ICON_NAME = "wrench"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None=None):
         # Set before self._initialize() below -- that call runs _init_ui()
         # then _apply_theme(), and _apply_theme() needs this to style
@@ -77,7 +79,7 @@ class TransformPanel(SidebarPanel):
         self._init_panel_layout()
 
         # Panel title
-        self._set_title("🔧 Transform Operations", help_topic=PANEL_TOPIC_TRANSFORM)
+        self._set_title("Transform Operations", help_topic=PANEL_TOPIC_TRANSFORM)
 
         # Content widget
         content_widget = QWidget()

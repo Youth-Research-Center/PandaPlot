@@ -50,6 +50,8 @@ CUSTOM_SERIES_SENTINEL = "__custom__"
 class FitPanel(SidebarPanel):
     """Side panel for performing curve fitting on chart data."""
 
+    ICON_NAME = "function"
+
     fit_completed = Signal(dict)  # Emitted when fit is completed with results
     fit_applied = Signal(dict)   # Emitted when fit should be applied to chart
 
@@ -90,7 +92,7 @@ class FitPanel(SidebarPanel):
         self._init_panel_layout()
 
         # Title
-        self._set_title("📐 Curve Fitting", help_topic=PANEL_TOPIC_FIT)
+        self._set_title("Curve Fitting", help_topic=PANEL_TOPIC_FIT)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)

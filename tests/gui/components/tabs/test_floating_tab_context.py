@@ -13,6 +13,9 @@ from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.project.project import Project
 
+# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
+ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+
 
 class _ChartContextTab(QWidget):
     def __init__(self, chart: Chart) -> None:
@@ -44,7 +47,7 @@ def test_floating_activation_and_same_pane_focus_restore_fit_context(qtbot: QtBo
     context.get_app_state.return_value = context.app_state
     context.event_bus = EventBus()
     context.get_manager.return_value.get_surface_palette.return_value = {"card_bg": "#17191e", "base_fg": "#ffffff"}
-    context.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
+    context.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     container = TabContainer(context, parent=None)
     panel = FitPanel(context)
     qtbot.addWidget(container)

@@ -35,6 +35,8 @@ STALE_RUN_MESSAGE = "Inputs changed while the analysis was running. Click Run to
 class SignalPanel(SidebarPanel):
     """Sidebar panel for signal analysis."""
 
+    ICON_NAME = "waveform"
+
     def __init__(
         self,
         app_context: AppContext,
@@ -55,7 +57,7 @@ class SignalPanel(SidebarPanel):
     def _init_ui(self):
         self._init_panel_layout()
 
-        self._set_title("📡 Signal Analysis", help_topic=PANEL_TOPIC_SIGNAL)
+        self._set_title("Signal Analysis", help_topic=PANEL_TOPIC_SIGNAL)
 
         content_widget = QWidget()
         layout = QVBoxLayout(content_widget)

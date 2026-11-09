@@ -126,6 +126,8 @@ def _is_dark(hex_color: str) -> bool:
 class SearchPanel(SidebarPanel):
     """Search-across-notes panel shown in the sidebar."""
 
+    ICON_NAME = "magnifying-glass"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.app_state = app_context.get_app_state()
@@ -154,7 +156,7 @@ class SearchPanel(SidebarPanel):
     def _init_ui(self):
         self._init_panel_layout()
 
-        self._set_title("🔍 Search Notes")
+        self._set_title("Search Notes")
 
         # Search box
         self.search_input = QLineEdit()

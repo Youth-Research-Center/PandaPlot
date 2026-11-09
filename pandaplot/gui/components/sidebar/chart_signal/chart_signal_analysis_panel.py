@@ -69,6 +69,8 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for signal analysis operations on chart data/fit series."""
 
+    ICON_NAME = "waveform"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
 
@@ -123,7 +125,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     @override
     def _init_ui(self):
         self._init_panel_layout()
-        self._set_title("📡 Chart Signal Analysis", help_topic=PANEL_TOPIC_CHART_SIGNAL)
+        self._set_title("Chart Signal Analysis", help_topic=PANEL_TOPIC_CHART_SIGNAL)
 
         content_widget = QWidget()
         layout = QVBoxLayout(content_widget)

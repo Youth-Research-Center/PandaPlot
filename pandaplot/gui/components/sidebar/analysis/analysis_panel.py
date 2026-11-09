@@ -36,6 +36,8 @@ class AnalysisPanel(SidebarPanel):
     Side panel for mathematical analysis operations on dataset columns.
     """
 
+    ICON_NAME = "chart-bar"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.current_dataset = None
@@ -52,7 +54,7 @@ class AnalysisPanel(SidebarPanel):
         self._init_panel_layout()
 
         # Panel title
-        self._set_title("📊 Analysis Operations", help_topic=PANEL_TOPIC_ANALYSIS)
+        self._set_title("Analysis Operations", help_topic=PANEL_TOPIC_ANALYSIS)
 
         # Content widget
         content_widget = QWidget()

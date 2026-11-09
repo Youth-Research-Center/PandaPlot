@@ -16,6 +16,9 @@ from pandaplot.models.events.event_data import DatasetColumnRenamedData
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Dataset
 
+# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
+ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+
 
 @pytest.fixture
 def context():
@@ -30,7 +33,7 @@ def context():
     ctx.app_state = app_state
     ctx.get_app_state.return_value = app_state
     ctx.get_manager.return_value.get_surface_palette.return_value = {}
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
 
     def execute(command):
         return command.execute().value == "success"

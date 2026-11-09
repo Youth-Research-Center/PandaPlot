@@ -29,6 +29,9 @@ from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.fit.fit_service import FitResult
 
+# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
+ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():
@@ -40,7 +43,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     return ctx
 
 
@@ -94,7 +97,7 @@ def test_equation_label_uses_theme_tokens_not_hardcoded_colors(app_context):
         "card_hover": "#26282B", "card_pressed": "#232527", "secondary_fg": "#C7CAD1",
         "accent": "#4A56C6",
     }
-    theme_manager.get_design_tokens.return_value = {"font_size_group_title": 9}
+    theme_manager.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     app_context.get_manager.return_value = theme_manager
 
     panel = FitPanel(app_context)
@@ -2148,6 +2151,7 @@ def test_switching_to_unsupported_chart_clears_stale_points_and_range_warning(ap
 
 def test_availability_label_uses_theme_warning_color(app_context):
     app_context.get_manager.return_value.get_design_tokens.return_value = {
+        **ICON_TOKENS,
         "font_size_group_title": 9,
         "status_modified_text": "#123456",
     }

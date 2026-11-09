@@ -33,6 +33,8 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class DescriptiveStatsPanel(SidebarPanel):
     """Side panel for computing descriptive statistics on dataset columns."""
 
+    ICON_NAME = "table"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.current_dataset: Dataset | None = None
@@ -49,7 +51,7 @@ class DescriptiveStatsPanel(SidebarPanel):
     def _init_ui(self):
         self._init_panel_layout()
 
-        self._set_title("📋 Descriptive Statistics", help_topic=PANEL_TOPIC_DESCRIPTIVE)
+        self._set_title("Descriptive Statistics", help_topic=PANEL_TOPIC_DESCRIPTIVE)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)

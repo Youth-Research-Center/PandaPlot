@@ -63,6 +63,8 @@ _EXPRESSION_REFERENCE_HTML = (
 class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for expression transforms on chart data/fit series."""
 
+    ICON_NAME = "wrench"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.current_chart: Chart | None = None
@@ -75,7 +77,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     @override
     def _init_ui(self):
         self._init_panel_layout()
-        self._set_title("🔧 Chart Transform", help_topic=PANEL_TOPIC_CHART_TRANSFORM)
+        self._set_title("Chart Transform", help_topic=PANEL_TOPIC_CHART_TRANSFORM)
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
