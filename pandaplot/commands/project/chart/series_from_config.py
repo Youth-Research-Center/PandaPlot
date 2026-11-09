@@ -13,22 +13,10 @@ from pandaplot.models.chart.series_style_builder import build_series_style
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import DataSeries, YAxis
-from pandaplot.utils.item_display_options import dataset_display_options
+from pandaplot.models.project.project import Project
 
 
-def dataset_options(project) -> list[tuple[str, str]]:
-    """Return (dataset_id, display name) pairs for every dataset in `project`.
-
-    Args:
-        project: The project whose datasets are listed.
-
-    Returns:
-        Disambiguated display options, as produced by `dataset_display_options`.
-    """
-    return dataset_display_options(project)
-
-
-def dataset_columns(project, dataset_id: str) -> list[tuple[str, str]]:
+def dataset_columns(project: Project, dataset_id: str) -> list[tuple[str, str]]:
     """Return (column_id, column name) pairs for one dataset.
 
     Args:
@@ -45,7 +33,7 @@ def dataset_columns(project, dataset_id: str) -> list[tuple[str, str]]:
     return [(dataset.column_id(name) or "", name) for name in dataset.data.columns]
 
 
-def _default_series_label(project, config: Mapping[str, str | bool]) -> str:
+def _default_series_label(project: Project, config: Mapping[str, str | bool]) -> str:
     """Default label "{dataset name}:{Y column name}", or just the dataset name.
 
     Falls back to the dataset id if the dataset is missing, and to the bare
@@ -63,7 +51,7 @@ def _default_series_label(project, config: Mapping[str, str | bool]) -> str:
     return dataset_name
 
 
-def build_series_from_config(project, chart_type: str, config: Mapping[str, str | bool], *, color: str) -> DataSeries:
+def build_series_from_config(project: Project, chart_type: str, config: Mapping[str, str | bool], *, color: str) -> DataSeries:
     """Build a `DataSeries` for `chart_type` from a role-keyed column config.
 
     The series is not added to any chart. Missing config keys default to an

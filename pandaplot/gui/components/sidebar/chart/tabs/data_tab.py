@@ -31,7 +31,7 @@ from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
-from pandaplot.models.chart.series_style_builder import DEFAULT_SERIES_COLORS, build_series_style
+from pandaplot.models.chart.series_style_builder import build_series_style, default_series_color
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS, SeriesTypeSpec
 from pandaplot.models.project.items import Dataset
@@ -702,8 +702,7 @@ class DataTab(QWidget):
         # series with whatever U/V values happen to be available (often
         # empty) -- an incomplete Vector series already renders a graceful
         # "no U/V column configured" message, recoverable by selecting the
-        # new series and filling in U/V via its own now-visible combos,
-        # exactly matching apply_to's already-established bootstrap path.
+        # new series and filling in U/V via its own now-visible combos.
         if dataset_id and x_column_id and y_column_id:
             style = build_series_style(
                 new_series_type,
@@ -1440,10 +1439,7 @@ class DataTab(QWidget):
 
     def _get_next_series_color(self) -> str:
         """Get the next color for a new series."""
-        if not self.current_chart or not self.current_chart.data_series:
-            return DEFAULT_SERIES_COLORS[0]
-
-        return DEFAULT_SERIES_COLORS[len(self.current_chart.data_series) % len(DEFAULT_SERIES_COLORS)]
+        return default_series_color(len(self.current_chart.data_series) if self.current_chart else 0)
 
     # -- Dataset / column combos ------------------------------------------
 

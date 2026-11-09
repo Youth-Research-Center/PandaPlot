@@ -16,7 +16,7 @@ from pandaplot.commands.project.chart.chart_finder import ChartFinder
 from pandaplot.commands.project.chart.series_from_config import build_series_from_config
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.chart.series_style_builder import DEFAULT_SERIES_COLORS
+from pandaplot.models.chart.series_style_builder import default_series_color
 from pandaplot.models.events import ChartEvents
 from pandaplot.models.events.event_data import SeriesSelectedData
 from pandaplot.models.project import Project
@@ -32,7 +32,7 @@ _TITLE = "Add Series"
 class AddSeriesFromDialogCommand(Command):
     """Opens `AddSeriesDialog` for a chart; on acceptance adds the series via `AddSeriesCommand`."""
 
-    def __init__(self, app_context: AppContext, chart_id: str, *, parent: QWidget | None = None):
+    def __init__(self, app_context: AppContext, chart_id: str, *, parent: QWidget | None = None) -> None:
         """Create the command.
 
         Args:
@@ -116,7 +116,7 @@ class AddSeriesFromDialogCommand(Command):
                 self.logger.info("AddSeriesFromDialogCommand: chart '%s' is gone; nothing added", self.chart_id)
                 return
 
-            color = DEFAULT_SERIES_COLORS[len(chart.data_series) % len(DEFAULT_SERIES_COLORS)]
+            color = default_series_color(len(chart.data_series))
             series = build_series_from_config(project, chart.chart_type, dialog.series_config(), color=color)
             add_command = AddSeriesCommand(self.app_context, self.chart_id, series)
             if not self.app_context.get_command_executor().execute_command(add_command):

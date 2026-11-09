@@ -63,7 +63,7 @@ from pandaplot.models.chart.series_style import DensitySeriesStyle, LineSeriesSt
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_data import SeriesSelectedData
-from pandaplot.models.events.event_types import ChartEvents, ConfigEvents
+from pandaplot.models.events.event_types import ChartEvents, ConfigEvents, ProjectEvents
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.config import (
@@ -1776,6 +1776,14 @@ class ChartEditorWidget(PWidget):
         """Set up event subscriptions for the chart editor."""
         # Subscribe to config updates to adjust display settings like DPI
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
+        # The status line names the chart's datasets, so a rename or removal must refresh it.
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_RENAMED, self._on_project_item_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, self._on_project_item_changed)
+
+    def _on_project_item_changed(self, event_data: dict) -> None:
+        """Refresh the status line when one of the chart's datasets is renamed or removed."""
+        if event_data.get("item_id") in {series.dataset_id for series in self.chart.data_series}:
+            self._update_dataset_label()
 
     def _on_config_updated(self, data):
         """Handle config.updated events to apply display changes (e.g., DPI)."""
@@ -1964,6 +1972,11 @@ class ChartEditorWidget(PWidget):
         self._update_swap_axes_visibility()
         self._update_empty_state()
         self._update_dataset_label()
+        if not self.chart.data_series:
+            # Nothing to draw: the empty-state page is shown instead of the canvas, which is
+            # redrawn as soon as the chart gets a series.
+            self.update_status("Ready")
+            return
 
         try:
             project = self.app_context.get_app_state().current_project

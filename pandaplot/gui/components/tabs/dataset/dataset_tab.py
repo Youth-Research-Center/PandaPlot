@@ -38,6 +38,7 @@ class DatasetTab(PWidget):
 
         self._initialize()
         self.load_dataset_data()
+        self._update_empty_state()
 
     def setup_event_subscriptions(self):
         """Set up event subscriptions for dataset updates."""
@@ -55,7 +56,7 @@ class DatasetTab(PWidget):
         self.subscribe_to_event(
             DatasetEvents.DATASET_CHANGED, self.on_dataset_changed)
 
-    def on_dataset_changed(self, event_data: dict):
+    def on_dataset_changed(self, event_data: dict) -> None:
         """Re-check the empty state when this dataset changes."""
         if event_data.get("dataset_id") == self.dataset.id:
             self._update_empty_state()
@@ -76,7 +77,6 @@ class DatasetTab(PWidget):
         """Open the Add Rows / Columns command for this dataset."""
         from pandaplot.commands.project.dataset import AddRowsColumnsCommand
 
-        self.app_context.get_ui_controller().set_parent_widget(self)
         self.app_context.get_command_executor().execute_command(
             AddRowsColumnsCommand(self.app_context, dataset_id=self.dataset.id))
 
@@ -242,7 +242,6 @@ class DatasetTab(PWidget):
         
         # The PandasTableModel automatically handles data loading when dataset is set
         # Log the data shape for debugging
-        self._update_empty_state()
         df = self.dataset.data
         if df is not None:
             rows, cols = df.shape

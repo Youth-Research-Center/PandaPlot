@@ -7,6 +7,7 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import QDialog, QWizard
 
+from pandaplot.commands.project.chart.series_from_config import dataset_columns
 from pandaplot.gui.core.widget_extension import PWizard
 from pandaplot.gui.dialogs.chart.chart_data_page import ChartDataPage
 from pandaplot.gui.dialogs.chart.chart_labels_page import ChartLabelsPage
@@ -14,9 +15,9 @@ from pandaplot.gui.dialogs.chart.chart_no_dataset_page import ChartNoDatasetPage
 from pandaplot.gui.dialogs.chart.chart_type_page import ChartTypePage
 from pandaplot.gui.dialogs.chart.series_form_style import series_form_stylesheet
 from pandaplot.models.events.event_types import DatasetEvents, UIEvents
-from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.item_display_options import dataset_display_options
 
 
 class ChartWizard(PWizard):
@@ -124,7 +125,7 @@ class ChartWizard(PWizard):
                 background-color: {card_bg};
                 color: {base_fg};
             }}"""
-        self.setStyleSheet(background_rules + series_form_stylesheet(palette, scope="QWizardPage") + "        ")
+        self.setStyleSheet(background_rules + series_form_stylesheet(palette, scope="QWizardPage"))
 
     def _on_page_changed(self, page_id: int) -> None:
         if page_id not in (
@@ -256,16 +257,15 @@ class ChartWizard(PWizard):
     def _current_dataset_options(self) -> list[tuple[str, str]]:
         if self._project is None:
             return []
-        return [(item.id, item.name) for item in self._project.get_all_items() if isinstance(item, Dataset)]
+        return dataset_display_options(self._project)
 
     def _current_columns_provider(self) -> Callable[[str], list[tuple[str, str]]]:
+        project = self._project
+
         def provider(dataset_id: str) -> list[tuple[str, str]]:
-            if self._project is None:
+            if project is None:
                 return []
-            dataset = self._project.find_item(dataset_id)
-            if not isinstance(dataset, Dataset) or dataset.data is None:
-                return []
-            return [(dataset.column_id(name) or "", name) for name in dataset.data.columns]
+            return dataset_columns(project, dataset_id)
         return provider
 
     def _finish_empty(self) -> None:

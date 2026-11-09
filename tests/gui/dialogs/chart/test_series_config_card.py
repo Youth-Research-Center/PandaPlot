@@ -344,3 +344,22 @@ def test_every_role_label_has_its_combo_as_buddy():
     assert buddies["X column:"] is card.x_column_combo
     assert buddies["Y column:"] is card.y_column_combo
     assert buddies["Y error (+) column:"] is card.y_error_column_combo
+
+
+def test_missing_required_roles_lists_roles_without_a_column():
+    card = SeriesConfigCard(role_spec=get_chart_type_spec("heatmap"))
+    card.set_datasets([("ds-1", "Sales")])
+    card.set_dataset_columns("ds-1", [("col-x", "X"), ("col-y", "Y"), ("col-z", "Z")])
+
+    assert card.missing_required_roles() == ["x", "y", "z"]
+    assert not card.is_complete()
+
+    card.x_column_combo.setCurrentIndex(card.x_column_combo.findData("col-x"))
+    card.z_column_combo.setCurrentIndex(card.z_column_combo.findData("col-z"))
+
+    assert card.missing_required_roles() == ["y"]
+
+    card.y_column_combo.setCurrentIndex(card.y_column_combo.findData("col-y"))
+
+    assert card.missing_required_roles() == []
+    assert card.is_complete()

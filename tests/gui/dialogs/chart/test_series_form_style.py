@@ -81,7 +81,8 @@ def test_wizard_stylesheet_is_unchanged_by_the_extraction(qtbot):
     wizard = ChartWizard(app_context=_fake_app_context(), datasets=[("ds-1", "Sales")])
     qtbot.addWidget(wizard)
 
-    assert wizard.styleSheet() == _PRE_EXTRACTION_WIZARD_STYLESHEET
+    # The pre-extraction literal ended with indentation whitespace before its closing quotes; nothing else differs.
+    assert wizard.styleSheet() == _PRE_EXTRACTION_WIZARD_STYLESHEET.rstrip(" ")
 
 
 def test_every_rule_is_prefixed_with_the_scope():

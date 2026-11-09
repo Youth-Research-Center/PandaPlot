@@ -3,7 +3,7 @@ for the chart's type, reusing the wizard's `SeriesConfigCard`."""
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QToolButton, QVBoxLayout, QWidget
 
-from pandaplot.commands.project.chart.series_from_config import dataset_columns, dataset_options
+from pandaplot.commands.project.chart.series_from_config import dataset_columns
 from pandaplot.gui.components.common.help_button import build_help_button
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
@@ -17,6 +17,7 @@ from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import CHART_TOPIC_SERIES
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.item_display_options import dataset_display_options
 
 _ADD_TOOLTIP = "Add this series to the chart"
 
@@ -31,7 +32,7 @@ class AddSeriesDialog(PDialog):
         help_button: Opens the Help window on the series topic.
     """
 
-    def __init__(self, app_context: AppContext, *, chart: Chart, project: Project, parent: QWidget | None = None):
+    def __init__(self, app_context: AppContext, *, chart: Chart, project: Project, parent: QWidget | None = None) -> None:
         """Create the dialog.
 
         Args:
@@ -56,7 +57,7 @@ class AddSeriesDialog(PDialog):
         layout.addWidget(self.heading_label)
 
         self.card = SeriesConfigCard(get_chart_type_spec(self._chart.chart_type), standalone=True)
-        self.card.set_datasets(dataset_options(self._project))
+        self.card.set_datasets(dataset_display_options(self._project))
         initial_dataset_id = self._initial_dataset_id()
         if initial_dataset_id is not None:
             self.card.dataset_combo.blockSignals(True)  # noqa: FBT003 - Qt method, no keyword args
@@ -113,8 +114,7 @@ class AddSeriesDialog(PDialog):
     def _missing_hint(self) -> str:
         if not self.card.dataset_combo.currentData():
             return "Choose a dataset"
-        spec = get_chart_type_spec(self._chart.chart_type)
-        missing = [ROLE_LABELS[role] for role in spec.required_roles if not self.card._role_combos[role].currentData()]
+        missing = [ROLE_LABELS[role] for role in self.card.missing_required_roles()]
         return f"Choose: {', '.join(missing)}"
 
     def _request_help(self) -> None:

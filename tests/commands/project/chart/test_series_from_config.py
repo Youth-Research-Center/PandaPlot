@@ -7,7 +7,6 @@ import pytest
 from pandaplot.commands.project.chart.series_from_config import (
     build_series_from_config,
     dataset_columns,
-    dataset_options,
 )
 from pandaplot.models.chart.series_style.heatmap import HeatmapSeriesStyle
 from pandaplot.models.chart.series_style.line import LineSeriesStyle
@@ -59,11 +58,6 @@ def test_dataset_columns_empty_for_non_dataset_item(project):
 def test_dataset_columns_empty_when_data_is_none(project, dataset):
     dataset.data = None
     assert dataset_columns(project, "ds-1") == []
-
-
-def test_dataset_options_lists_datasets(project):
-    options = dataset_options(project)
-    assert [dataset_id for dataset_id, _ in options] == ["ds-1"]
 
 
 def test_line_with_x_and_y(project, dataset):

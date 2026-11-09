@@ -13,14 +13,15 @@ from PySide6.QtWidgets import QDialog
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.create_chart_command import CreateChartCommand
-from pandaplot.commands.project.chart.series_from_config import build_series_from_config, dataset_columns, dataset_options
+from pandaplot.commands.project.chart.series_from_config import build_series_from_config, dataset_columns
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.require_project import ensure_project_or_offer_create
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.chart.series_style_builder import DEFAULT_SERIES_COLORS
+from pandaplot.models.chart.series_style_builder import default_series_color
 from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.config.config_manager import ConfigManager
+from pandaplot.utils.item_display_options import dataset_display_options
 
 
 class CreateChartFromWizardCommand(Command):
@@ -50,7 +51,7 @@ class CreateChartFromWizardCommand(Command):
         return False
 
     def _dataset_options(self, project) -> list[tuple[str, str]]:
-        return dataset_options(project)
+        return dataset_display_options(project)
 
     def _columns_provider(self, project):
         def provider(dataset_id: str) -> list[tuple[str, str]]:
@@ -229,7 +230,7 @@ class CreateChartFromWizardCommand(Command):
                     # "+Add series" uses, so multiple wizard-created series
                     # aren't all left on the style class's own single
                     # hardcoded default color.
-                    color = DEFAULT_SERIES_COLORS[index % len(DEFAULT_SERIES_COLORS)]
+                    color = default_series_color(index)
                     chart.data_series.append(build_series_from_config(project, chart.chart_type, series_config, color=color))
                 chart.update_modified_time()
 

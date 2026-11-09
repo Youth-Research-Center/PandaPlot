@@ -114,7 +114,11 @@ class EmptyStatePanel(Card):
         super().set_tokens(tokens)
         text_primary = tokens.get("text_primary", "#1C1E26")
         text_muted = tokens.get("text_muted", "#6B7280")
-        self.heading_label.setStyleSheet(f"font-size: 13px; font-weight: 600; color: {text_primary};")
-        self.description_label.setStyleSheet(f"color: {text_muted};")
+        # Hosts may style every QFrame (QLabel is one) with a border and background;
+        # reset both so the texts never render as boxed fields inside the card.
+        plain = "border: none; background: transparent;"
+        self.heading_label.setStyleSheet(f"{plain} font-size: 16px; font-weight: 600; color: {text_primary};")
+        self.description_label.setStyleSheet(f"{plain} color: {text_muted};")
         if self.icon_label is not None:
+            self.icon_label.setStyleSheet(plain)
             self.icon_label.retint()

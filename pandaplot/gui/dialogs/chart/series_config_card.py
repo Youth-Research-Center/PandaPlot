@@ -314,13 +314,12 @@ class SeriesConfigCard(Card):
                 names[role] = combo.currentText()
         return names
 
+    def missing_required_roles(self) -> list[str]:
+        """Required roles that have no column chosen yet, in the chart type's order."""
+        return [role for role in self._role_spec.required_roles if not self._role_combos[role].currentData()]
+
     def is_complete(self) -> bool:
-        if not self.dataset_combo.currentData():
-            return False
-        for role in self._role_spec.required_roles:
-            if not self._role_combos[role].currentData():
-                return False
-        return True
+        return bool(self.dataset_combo.currentData()) and not self.missing_required_roles()
 
     def apply_picked_columns(self, role: str, column_ids: list[str]) -> None:
         if not column_ids or role not in self._role_combos:

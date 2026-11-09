@@ -94,3 +94,29 @@ def test_initial_fit_does_nothing_while_empty_page_is_current(env, qtbot):
 
     assert chart.config.width_cm is None
     assert chart.config.height_cm is None
+
+
+def test_status_line_follows_a_dataset_rename(env):
+    from pandaplot.commands.project.item.rename_item_command import RenameItemCommand
+
+    app_context, dataset, chart, _, editor = env
+    executor = app_context.get_command_executor()
+    assert executor.execute_command(AddSeriesCommand(app_context, chart.id, _series(dataset)))
+    assert editor.dataset_label.text() == "Datasets: ds"
+
+    assert executor.execute_command(RenameItemCommand(app_context, dataset.id, "Raw"))
+
+    assert editor.dataset_label.text() == "Datasets: Raw"
+
+
+def test_empty_chart_skips_rendering_the_hidden_canvas(env, monkeypatch):
+    import pandaplot.gui.components.tabs.chart.chart_editor as chart_editor_module
+
+    _, _, _, _, editor = env
+    calls = []
+    monkeypatch.setattr(chart_editor_module, "render_chart", lambda *args, **kwargs: calls.append(args))
+
+    editor.update_chart()
+
+    assert calls == []
+    assert editor.preview_stack.currentWidget() is editor.empty_state_panel
