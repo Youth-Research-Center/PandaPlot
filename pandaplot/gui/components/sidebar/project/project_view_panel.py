@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
 
 from pandaplot.commands.project.item import RenameItemCommand
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
-from pandaplot.gui.components.sidebar.project.item_name_delegate import ItemNameDelegate
 from pandaplot.gui.components.sidebar.project.project_command_manager import ProjectPanelCommandManager
 from pandaplot.gui.components.sidebar.project.project_context_manager import ProjectViewPanelContextManager
 from pandaplot.gui.components.sidebar.project.project_tree import ProjectTreeWidget
@@ -20,7 +19,6 @@ from pandaplot.gui.components.sidebar.project.project_tree_manager import Projec
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
-from pandaplot.utils.item_labels import item_label, strip_item_prefix
 
 
 class ProjectViewPanel(SidebarPanel):
@@ -98,10 +96,6 @@ class ProjectViewPanel(SidebarPanel):
         self.tree.setEditTriggers(
             QTreeWidget.EditTrigger.SelectedClicked | QTreeWidget.EditTrigger.EditKeyPressed)
         self.tree.itemChanged.connect(self.on_item_name_changed)
-
-        # Set custom delegate to handle editing only the name portion
-        self.item_delegate = ItemNameDelegate(self.tree)
-        self.tree.setItemDelegate(self.item_delegate)
 
         # Add a flag to prevent recursive updates during editing
         self._editing_in_progress = False
@@ -185,8 +179,7 @@ class ProjectViewPanel(SidebarPanel):
         if item_type == "project":
             return
 
-        # Extract new name from the item text (remove emoji prefix)
-        new_name = strip_item_prefix(item.text(0))
+        new_name = item.text(0).strip()
 
         # Get current name from data
         item_obj = item_data.get("data")
@@ -209,7 +202,7 @@ class ProjectViewPanel(SidebarPanel):
                 self._editing_in_progress = False
         else:
             # Revert to original name if invalid
-            item.setText(0, item_label(item_type, current_name))
+            item.setText(0, current_name)
 
     @override
     def _apply_theme(self):
@@ -291,6 +284,10 @@ class ProjectViewPanel(SidebarPanel):
                 background-color: {card_hover};
                 color: {base_fg};
             }}
+            QTreeWidget::item:selected:hover {{
+                background-color: {accent};
+                color: white;
+            }}
             QHeaderView::section {{
                 background-color: {card_bg};
                 color: {base_fg};
@@ -300,6 +297,11 @@ class ProjectViewPanel(SidebarPanel):
             }}
         """)
         
+        # _apply_theme also runs from _initialize(), before the tree manager exists.
+        project_tree_manager = getattr(self, "project_tree_manager", None)
+        if project_tree_manager is not None:
+            project_tree_manager.retint_icons()
+
         self.logger.debug("Applied theme.")
 
     def update_project_display(self):

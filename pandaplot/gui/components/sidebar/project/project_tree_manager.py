@@ -1,14 +1,19 @@
 import logging
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSignalBlocker, Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QTreeWidgetItem,
+    QTreeWidgetItemIterator,
 )
 
 from pandaplot.gui.components.sidebar.project.project_tree import CONTAINER_TYPES
+from pandaplot.gui.resources.item_icons import item_icon
 from pandaplot.models.project.visitors import ProjectTreeBuilder
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.utils.item_labels import item_label
+
+# Matches the `selection-color` of the tree stylesheet in `ProjectViewPanel._apply_theme`.
+SELECTED_ROW_ICON_COLOR = "#FFFFFF"
 
 
 class ProjectTreeManager:
@@ -17,6 +22,9 @@ class ProjectTreeManager:
         self.app_context = app_context
         self.tree = tree
         self.on_item_name_changed = on_item_name_changed
+
+    def _icon(self, item_type: str) -> QIcon:
+        return item_icon(self.app_context, item_type, selected_color=SELECTED_ROW_ICON_COLOR)
 
     def show_no_project_content(self):
         """Show placeholder content when no project is loaded."""
@@ -38,7 +46,8 @@ class ProjectTreeManager:
             self.tree.clear()
 
             # Project root item
-            root_item = QTreeWidgetItem([item_label("project", project.name)])
+            root_item = QTreeWidgetItem([project.name])
+            root_item.setIcon(0, self._icon("project"))
             root_item.setToolTip(0, f"Project: {project.description}")
             root_item.setData(0, Qt.ItemDataRole.UserRole, {
                               "type": "project", "id": "root"})
@@ -59,12 +68,27 @@ class ProjectTreeManager:
         # Restore expanded state of folders
         self._restore_expanded_folders(expanded_folders)
 
+    def retint_icons(self) -> None:
+        """Re-render every item icon from the current theme tokens.
+
+        Setting an icon emits `itemChanged`, which the panel treats as a rename, so the tree's signals are blocked meanwhile.
+        """
+        with QSignalBlocker(self.tree):
+            iterator = QTreeWidgetItemIterator(self.tree)
+            while iterator.value():
+                tree_item = iterator.value()
+                item_data = tree_item.data(0, Qt.ItemDataRole.UserRole)
+                if isinstance(item_data, dict) and item_data.get("type"):
+                    tree_item.setIcon(0, self._icon(item_data["type"]))
+                iterator += 1
+
     def _build_tree_from_project(self, project, root_item):
         """Build tree structure from project using visitor pattern."""
         # Create a factory for QTreeWidgetItem creation
         def create_tree_item(display_text: str, item_type: str, item_data: dict) -> QTreeWidgetItem:
             """Factory function to create QTreeWidgetItem instances."""
             tree_item = QTreeWidgetItem([display_text])
+            tree_item.setIcon(0, self._icon(item_type))
             tree_item.setData(0, Qt.ItemDataRole.UserRole, item_data)
 
             # Set item flags based on type

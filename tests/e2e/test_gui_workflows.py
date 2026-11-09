@@ -204,7 +204,7 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
         tree_item for tree_item in tree.findItems("New Sketch 1", Qt.MatchFlag.MatchContains | Qt.MatchFlag.MatchRecursive)
         if tree_item.data(0, Qt.ItemDataRole.UserRole).get("id") == sketch.id
     )
-    assert row.text(0) == "✏️ New Sketch 1"
+    assert row.text(0) == "New Sketch 1"
     tree.scrollToItem(row)
     position = tree.visualItemRect(row).center()
     qtbot.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=position)

@@ -60,15 +60,15 @@ class TestTreeVisitor(unittest.TestCase):
         
         # Verify the structure
         self.assertIsNotNone(root_tree_item)
-        self.assertEqual(root_tree_item.display_text, f"📁 {project.root.name}")
+        self.assertEqual(root_tree_item.display_text, project.root.name)
         
         # Should have created tree items for folder and dataset at root level
         # Plus the note inside the folder
         expected_items = [
-            "📁 Test Project Root",  # Root
-            "📁 Documents",          # Folder
-            "📝 Meeting Notes",      # Note (child of folder)
-            "📊 Sales Data"          # Dataset (child of root)
+            "Test Project Root",  # Root
+            "Documents",          # Folder
+            "Meeting Notes",      # Note (child of folder)
+            "Sales Data"          # Dataset (child of root)
         ]
         
         actual_display_texts = [item.display_text for item in self.tree_items]
@@ -105,12 +105,48 @@ class TestTreeVisitor(unittest.TestCase):
         # Find the root item and verify hierarchy
         root_item = None
         for item in self.tree_items:
-            if item.display_text == f"📁 {project.root.name}":
+            if item.display_text == project.root.name:
                 root_item = item
                 break
         
         self.assertIsNotNone(root_item)
         print("✅ Nested folder test passed")
+
+
+    def test_visitor_passes_the_plain_name_for_every_item_type(self):
+        from pandaplot.models.project.items import Chart, Image, ImageGallery, Item, ItemCollection, Sketch
+
+        project = Project("Names")
+        items = [
+            Folder(name="Folder name"),
+            ItemCollection(name="Collection name"),
+            Note(name="Note name"),
+            Dataset(name="Dataset name"),
+            Chart(name="Chart name"),
+            ImageGallery(name="Gallery name"),
+            Image(name="Image name"),
+            Sketch(name="Sketch name"),
+        ]
+        for item in items:
+            project.add_item(item)
+
+        self.tree_builder.build_tree(project.root)
+        generic = self.tree_builder.visit_item(Item(name="Generic name"))
+
+        recorded = {item.item_type: item.display_text for item in self.tree_items}
+        assert recorded == {
+            "project": project.root.name,
+            "folder": "Folder name",
+            "collection": "Collection name",
+            "note": "Note name",
+            "dataset": "Dataset name",
+            "chart": "Chart name",
+            "imagegallery": "Gallery name",
+            "image": "Image name",
+            "sketch": "Sketch name",
+            "item": "Generic name",
+        }
+        assert generic.display_text == "Generic name"
 
 
 if __name__ == "__main__":

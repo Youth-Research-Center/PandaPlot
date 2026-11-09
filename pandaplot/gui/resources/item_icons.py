@@ -25,15 +25,16 @@ def item_icon_name(item_type: str) -> str:
     return ITEM_TYPE_ICON_NAMES.get(item_type, DEFAULT_ITEM_ICON_NAME)
 
 
-def item_icon(app_context: AppContext, item_type: str, *, size: int = DEFAULT_ICON_SIZE) -> QIcon:
+def item_icon(app_context: AppContext, item_type: str, *, size: int = DEFAULT_ICON_SIZE, selected_color: str | None = None) -> QIcon:
     """Render the icon of an item type tinted for the current theme.
 
     Args:
         app_context: Provides the `ThemeManager` whose design tokens supply the colours.
         item_type: Project item type such as ``"dataset"`` or ``"chart"``.
         size: Logical pixel size of the square icon.
+        selected_color: Colour of the icon on a selected row, for views whose selection colour differs from the theme's text colour.
 
     Returns:
         The icon for `item_type`, or the default file icon when the type is unknown.
     """
-    return themed_icon(app_context, item_icon_name(item_type), size=size)
+    return themed_icon(app_context, item_icon_name(item_type), size=size, selected_color=selected_color)

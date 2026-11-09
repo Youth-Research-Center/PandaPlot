@@ -4,11 +4,12 @@ from unittest.mock import Mock
 
 import pytest
 from PySide6.QtCore import QSize
+from PySide6.QtGui import QIcon
 
 from pandaplot.gui.resources.icon_library import build_icon, icon_svg
 from pandaplot.gui.resources.item_icons import DEFAULT_ITEM_ICON_NAME, ITEM_TYPE_ICON_NAMES, item_icon, item_icon_name
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 EXPECTED_NAMES = {
     "project": "folder",
@@ -55,3 +56,10 @@ def test_item_icon_renders_the_mapped_icon_in_the_text_colour(qapp, app_context)
 
 def test_item_icon_honours_the_requested_size(qapp, app_context):
     assert item_icon(app_context, "chart", size=24).pixmap(QSize(24, 24)).width() >= 24
+
+
+def test_item_icon_renders_the_selected_pixmap_in_the_requested_colour(qapp, app_context):
+    icon = item_icon(app_context, "dataset", selected_color="#ffffff")
+
+    assert_tinted(strongest_pixel(icon.pixmap(QSize(16, 16), QIcon.Mode.Selected)), "#ffffff")
+    assert_tinted(strongest_pixel(icon.pixmap(QSize(16, 16), QIcon.Mode.Normal)), ICON_TOKENS["text_primary"])
