@@ -39,6 +39,7 @@ from pandaplot.gui.components.sidebar.chart.series_result_messages import (
 )
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_series_fit_sources,
+    retint_combo_icons,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -292,7 +293,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
         self.result_name.setPlaceholderText(f"{self.source_combo.currentText()} ({target} transformed)")
 
     def _populate_sources(self):
-        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
+        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart, app_context=self.app_context)
         self.apply_btn.setEnabled(has_sources)
         self.preview_btn.setEnabled(has_sources)
         self.source_hint.setText(
@@ -304,8 +305,12 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     def setup_event_subscriptions(self):
         self.setup_chart_series_context_subscriptions()
 
+    def _retint_source_combos(self):
+        retint_combo_icons(self.source_combo, self.app_context)
+
     @override
     def _apply_theme(self):
+        self._retint_source_combos()
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         tokens = theme_manager.get_design_tokens()

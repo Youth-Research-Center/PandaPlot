@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.gui.resources.item_icons import item_icon
 from pandaplot.models.events.event_types import ProjectEvents, UIEvents
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
@@ -208,6 +209,9 @@ class SearchPanel(SidebarPanel):
 
     @override
     def _apply_theme(self):
+        note_icon = item_icon(self.app_context, "note")
+        for row in range(self.results.topLevelItemCount()):
+            self.results.topLevelItem(row).setIcon(0, note_icon)
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         card_bg = palette.get("card_bg", "#ffffff")
@@ -320,7 +324,8 @@ class SearchPanel(SidebarPanel):
 
         for result in results:
             count = f" ({result.match_count}{'+' if result.truncated else ''})"
-            note_item = QTreeWidgetItem([f"📝 {result.note_name}{count}"])
+            note_item = QTreeWidgetItem([f"{result.note_name}{count}"])
+            note_item.setIcon(0, item_icon(self.app_context, "note"))
             note_item.setData(0, _ROLE_NOTE_ID, result.note_id)
             # Store the first match so activating the note row still jumps somewhere.
             note_item.setData(0, _ROLE_MATCH, result.matches[0])

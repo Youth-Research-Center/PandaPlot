@@ -52,6 +52,7 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_chart_target_combo,
     populate_series_fit_sources,
     refresh_chart_target_combo_preserving_selection,
+    retint_combo_icons,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -735,7 +736,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self._generation += 1
             if hasattr(self, "add_btn"):
                 self.add_btn.setEnabled(False)
-        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
+        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart, app_context=self.app_context)
         # A tab switch while a Run/Add-to-Project computation is still in
         # flight (for whatever chart/source was previously selected) must
         # not re-enable the Run button -- _pending_command's own guard would
@@ -746,7 +747,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
         project = self.app_context.get_app_state().current_project
-        populate_chart_target_combo(self.plot_target_combo, project)
+        populate_chart_target_combo(self.plot_target_combo, project, app_context=self.app_context)
         self._update_quick_plot_compatibility(has_sources=has_sources)
         self._on_source_changed()
 
@@ -763,7 +764,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _refresh_chart_references(self):
         project = self.app_context.get_app_state().current_project
-        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
+        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project, app_context=self.app_context)
 
     def _on_tab_changed(self, event_data):
         if self._pending_quick_plot:
@@ -840,8 +841,13 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- theme ------------------------------------------------------------------
 
+    def _retint_source_combos(self):
+        retint_combo_icons(self.source_combo, self.app_context)
+        retint_combo_icons(self.plot_target_combo, self.app_context)
+
     @override
     def _apply_theme(self):
+        self._retint_source_combos()
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         tokens = theme_manager.get_design_tokens()

@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import numpy as np
 import pandas as pd
 import pytest
+from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.composite_command import CompositeCommand
@@ -14,6 +15,8 @@ from pandaplot.commands.project.chart.analyze_chart_series_command import (
 from pandaplot.gui.components.sidebar.chart_analysis.chart_analysis_panel import (
     ChartAnalysisPanel,
 )
+from pandaplot.gui.resources.item_icons import item_icon
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
@@ -22,9 +25,12 @@ from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
-# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
-ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+
+def same_pixels(first, second) -> bool:
+    size = QSize(16, 16)
+    return first.pixmap(size).toImage() == second.pixmap(size).toImage()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -216,8 +222,38 @@ class TestChartAnalysisPanelQuickPlot:
         assert panel.plot_result_cb.isEnabled() is True
 
     def test_destination_combo_defaults_to_new_chart(self, panel):
-        assert panel.plot_target_combo.itemText(0) == "➕ New chart"
+        assert panel.plot_target_combo.itemText(0) == "New chart"
         assert panel.plot_target_combo.currentData() is None
+
+    def test_new_chart_destination_has_the_plus_icon(self, panel, app_context):
+        assert same_pixels(panel.plot_target_combo.itemIcon(0), themed_icon(app_context, "plus"))
+
+    def test_source_entries_are_plain_labels_with_the_series_and_fit_icons(self, panel, app_context):
+        panel.current_chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0, 3.0]), y_data=np.array([1.0, 2.0, 3.0]),
+            label="Fit 1", style=FitStyle(fit_type="linear"),
+        )
+        panel._populate_sources()
+
+        combo = panel.source_combo
+        assert [combo.itemText(i) for i in range(combo.count())] == ["Squared", "Fit 1  (fit)"]
+        assert same_pixels(combo.itemIcon(0), item_icon(app_context, "chart"))
+        assert same_pixels(combo.itemIcon(1), themed_icon(app_context, "waveform"))
+
+    def test_preview_header_and_placeholder_use_the_plain_source_label(self, panel):
+        panel.preview()
+
+        assert "Series: Squared" in panel.preview_text.toPlainText()
+        assert panel.result_name.placeholderText().endswith("— Squared")
+
+    def test_apply_theme_retints_the_combo_icons(self, panel, app_context):
+        tokens = app_context.get_manager.return_value.get_design_tokens.return_value
+        tokens["text_primary"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.plot_target_combo.itemIcon(0)), "#00AA00")
+        assert_tinted(strongest_pixel(panel.source_combo.itemIcon(0)), "#00AA00")
 
     def test_plot_target_row_hides_when_checkbox_unchecked(self, panel):
         assert panel.plot_target_row.isVisibleTo(panel) is True
@@ -240,7 +276,7 @@ class TestChartAnalysisPanelQuickPlot:
         panel._populate_sources()
 
         labels = [panel.plot_target_combo.itemText(i) for i in range(panel.plot_target_combo.count())]
-        assert labels == ["➕ New chart"]
+        assert labels == ["New chart"]
 
     def test_compatible_other_chart_is_offered_in_the_destination_combo(self, panel, project):
         other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)

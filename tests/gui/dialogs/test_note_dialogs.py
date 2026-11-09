@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QDialog, QTextEdit, QWidget
 
 from pandaplot.commands.base_command import CommandResult
@@ -15,8 +16,10 @@ from pandaplot.gui.dialogs.note.note_table_picker_dialog import (
     dataset_to_markdown_table,
 )
 from pandaplot.gui.dialogs.note.snapshot_dpi_dialog import SnapshotDpiDialog
+from pandaplot.gui.resources.item_icons import item_icon
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
+from tests.gui.icon_testing import ICON_TOKENS
 
 
 def _create_mock_app_context(project=None):
@@ -25,7 +28,7 @@ def _create_mock_app_context(project=None):
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
     app_context.get_manager.return_value.get_surface_palette.return_value = {}
-    app_context.get_manager.return_value.get_design_tokens.return_value = {}
+    app_context.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
     return app_context
 
 
@@ -68,6 +71,25 @@ def test_note_chart_picker_dialog_tree_and_selection(qapp):
 
     dialog._on_ok_clicked()
     assert dialog.get_selected_chart() == chart1
+
+
+def _same_pixels(first, second, *, size_px: int = 16) -> bool:
+    size = QSize(size_px, size_px)
+    return first.pixmap(size).toImage() == second.pixmap(size).toImage()
+
+
+def test_note_chart_picker_dialog_chart_rows_are_plain_names_with_the_chart_icon(qapp):
+    project = Project(name="Test Project")
+    folder = Folder(name="Plots")
+    project.add_item(folder)
+    project.add_item(Chart(name="Line Plot"), parent_id=folder.id)
+    app_context = _create_mock_app_context(project)
+
+    dialog = NoteChartPickerDialog(app_context, project)
+
+    chart_row = dialog.tree.topLevelItem(0).child(0)
+    assert chart_row.text(0) == "Line Plot"
+    assert _same_pixels(chart_row.icon(0), item_icon(app_context, "chart", size=24), size_px=24)
 
 
 def test_note_chart_picker_dialog_empty_state(qapp):
@@ -332,6 +354,20 @@ def test_note_artefacts_dialog_rebuilds_rows_when_note_text_changes_while_open(q
     dialog.accept()
     text_edit.setPlainText("")
     assert dialog.table.rowCount() == 1  # no longer listening once closed
+
+
+def test_note_table_picker_dataset_combo_items_are_plain_names_with_the_table_icon(qapp):
+    project = Project(name="Dataset Project")
+    dataset = Dataset(name="Sales")
+    dataset.data = pd.DataFrame({"X": [1]})
+    project.add_item(dataset)
+    app_context = _create_mock_app_context(project)
+
+    dialog = NoteTablePickerDialog(app_context, project)
+
+    assert dialog.dataset_combo.itemText(0) == "Sales"
+    assert dialog.dataset_combo.itemData(0) == dataset.id
+    assert _same_pixels(dialog.dataset_combo.itemIcon(0), item_icon(app_context, "dataset"))
 
 
 def test_note_table_picker_dataset_combo_disambiguates_same_named_datasets(qapp):

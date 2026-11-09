@@ -43,6 +43,7 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_chart_target_combo,
     populate_series_fit_sources,
     refresh_chart_target_combo_preserving_selection,
+    retint_combo_icons,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -433,14 +434,14 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self._update_plot_target_visibility()
 
     def _populate_sources(self):
-        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
+        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart, app_context=self.app_context)
         self.apply_btn.setEnabled(has_sources)
         self.preview_btn.setEnabled(has_sources)
         self.source_hint.setText(
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
         project = self.app_context.get_app_state().current_project
-        populate_chart_target_combo(self.plot_target_combo, project)
+        populate_chart_target_combo(self.plot_target_combo, project, app_context=self.app_context)
         self._update_quick_plot_compatibility(has_sources=has_sources)
         self._on_source_changed()
 
@@ -450,10 +451,15 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _refresh_chart_references(self):
         project = self.app_context.get_app_state().current_project
-        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
+        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project, app_context=self.app_context)
+
+    def _retint_source_combos(self):
+        retint_combo_icons(self.source_combo, self.app_context)
+        retint_combo_icons(self.plot_target_combo, self.app_context)
 
     @override
     def _apply_theme(self):
+        self._retint_source_combos()
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         tokens = theme_manager.get_design_tokens()

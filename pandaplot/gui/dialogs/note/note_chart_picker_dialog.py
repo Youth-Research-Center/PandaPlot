@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.snapshot_dpi_combo_box import SnapshotDpiComboBox
 from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.gui.resources.item_icons import item_icon
 from pandaplot.models.project.items import Chart, Folder, Item
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -121,8 +122,10 @@ class NoteChartPickerDialog(PDialog):
 
         # Attach chart nodes
         display_names = dict(chart_display_options(self.project))
+        chart_icon = item_icon(self.app_context, "chart", size=_ICON_SIZE.width())
         for chart in all_charts:
-            tree_item = QTreeWidgetItem([f"📈 {display_names.get(chart.id, chart.name)}"])
+            tree_item = QTreeWidgetItem([display_names.get(chart.id, chart.name)])
+            tree_item.setIcon(0, chart_icon)
             tree_item.setData(0, Qt.ItemDataRole.UserRole, chart.id)
             by_id[chart.id] = tree_item
 

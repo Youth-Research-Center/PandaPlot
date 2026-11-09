@@ -5,12 +5,14 @@ from unittest.mock import Mock
 import numpy as np
 import pandas as pd
 import pytest
+from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.gui.components.sidebar.chart_transform.chart_transform_panel import (
     ChartTransformPanel,
 )
+from pandaplot.gui.resources.item_icons import item_icon
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -18,9 +20,12 @@ from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
-# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
-ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+
+def same_pixels(first, second) -> bool:
+    size = QSize(16, 16)
+    return first.pixmap(size).toImage() == second.pixmap(size).toImage()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -138,6 +143,23 @@ class TestChartTransformPanelApply:
         panel.expression_text.setPlainText("y * 2")
         panel.preview()
         assert "Result:" in panel.preview_text.toPlainText()
+
+    def test_source_entries_are_plain_labels_with_the_series_icon_and_feed_the_preview(self, panel, app_context):
+        combo = panel.source_combo
+        assert combo.itemText(0) == "Squared"
+        assert same_pixels(combo.itemIcon(0), item_icon(app_context, "chart"))
+
+        panel.expression_text.setPlainText("y * 2")
+        panel.preview()
+
+        assert "Series: Squared" in panel.preview_text.toPlainText()
+
+    def test_apply_theme_retints_the_source_combo_icons(self, panel, app_context):
+        app_context.get_manager.return_value.get_design_tokens.return_value["text_primary"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.source_combo.itemIcon(0)), "#00AA00")
 
     def test_preview_shows_an_error_for_an_unsafe_expression(self, panel):
         panel.expression_text.setPlainText("__import__('os')")
