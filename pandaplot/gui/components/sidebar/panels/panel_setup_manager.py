@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 
 from PySide6.QtWidgets import QWidget
 
@@ -59,7 +60,7 @@ class PanelSetupManager:
         self.register_panel(ChartSignalAnalysisPanel(self.app_context), "chart_signal", is_chart_tab_active)
         self.register_panel(ChartTransformPanel(self.app_context), "chart_transform", is_chart_tab_active)
 
-    def register_panel(self, panel: QWidget, name: str, visibility_condition) -> None:
+    def register_panel(self, panel: QWidget, name: str, visibility_condition: Callable[[QWidget | None], bool]) -> None:
         """Register a panel for the sidebar; its icon comes from the panel's `ICON_NAME`.
 
         Args:

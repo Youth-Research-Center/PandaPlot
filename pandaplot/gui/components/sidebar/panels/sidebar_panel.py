@@ -63,10 +63,9 @@ class SidebarPanel(PWidget):
         self._title_row = QWidget()
         self._title_row.setObjectName("panelTitleRow")
         row_layout = QHBoxLayout(self._title_row)
-        row_layout.setContentsMargins(0, 0, 4, 0)
+        row_layout.setContentsMargins(6 if self.ICON_NAME is not None else 0, 0, 4, 0)
         row_layout.setSpacing(4)
         if self.ICON_NAME is not None:
-            row_layout.setContentsMargins(6, 0, 4, 0)
             self.title_icon = IconLabel(self.app_context, self.ICON_NAME)
             row_layout.addWidget(self.title_icon)
         row_layout.addWidget(self.title_label, 1)
