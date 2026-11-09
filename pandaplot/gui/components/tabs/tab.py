@@ -33,7 +33,7 @@ class CustomTabWidget(PTabWidget):
     def _init_ui(self):
         """Set up the user interface components."""
         # Set custom tab bar
-        self.custom_tab_bar = CustomTabBar(self)
+        self.custom_tab_bar = CustomTabBar(self, app_context=self.app_context)
         self.setTabBar(self.custom_tab_bar)
 
         self.setAcceptDrops(True)

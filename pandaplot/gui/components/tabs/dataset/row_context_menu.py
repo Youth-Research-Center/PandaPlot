@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QMenu
 
 from pandaplot.commands.project.dataset.add_rows_command import AddRowsCommand
 from pandaplot.commands.project.dataset.delete_rows_command import DeleteRowsCommand
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 
@@ -24,6 +25,7 @@ class RowHeaderContextMenu(QMenu):
 
         # Add row actions
         add_row_above_action = QAction("Add row(s) above", self)
+        add_row_above_action.setIcon(themed_icon(self.app_context, "rows-plus-top"))
         add_row_above_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddRowsCommand(
                 self.app_context, 
@@ -35,6 +37,7 @@ class RowHeaderContextMenu(QMenu):
         self.addAction(add_row_above_action)
         
         add_row_below_action = QAction("Add row(s) below", self)
+        add_row_below_action.setIcon(themed_icon(self.app_context, "rows-plus-bottom"))
         add_row_below_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddRowsCommand(
                 self.app_context, 
@@ -49,6 +52,7 @@ class RowHeaderContextMenu(QMenu):
         
         # Delete row action
         delete_rows_action = QAction("Delete selected row(s)", self)
+        delete_rows_action.setIcon(themed_icon(self.app_context, "trash"))
         delete_rows_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(DeleteRowsCommand(
                 self.app_context, 

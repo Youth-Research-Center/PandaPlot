@@ -15,6 +15,9 @@ from pandaplot.gui.components.sidebar.project.project_context_manager import (
 )
 from pandaplot.services.theme.theme_manager import ThemeManager
 
+# The menu icons are tinted from these design tokens.
+ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():
@@ -28,6 +31,7 @@ def test_show_context_menu_restyles_from_current_theme():
         "QMenu { background-color: #FFFFFF; }",
         "QMenu { background-color: #2A2C2E; }",
     ]
+    theme_manager.get_design_tokens.return_value = dict(ICON_TOKENS)
     app_context = Mock()
     app_context.get_manager.return_value = theme_manager
     app_state = Mock()
@@ -53,6 +57,7 @@ def test_measurement_analysis_action_is_available_only_for_datasets(item_type, v
     app_context = Mock()
     theme_manager = Mock(spec=ThemeManager)
     theme_manager.build_context_menu_stylesheet.return_value = ""
+    theme_manager.get_design_tokens.return_value = dict(ICON_TOKENS)
     app_context.get_manager.return_value = theme_manager
     app_state = Mock()
     app_state.has_project = True
@@ -75,6 +80,7 @@ def test_measurement_analysis_action_is_hidden_when_tree_item_has_no_data():
     app_context = Mock()
     theme_manager = Mock(spec=ThemeManager)
     theme_manager.build_context_menu_stylesheet.return_value = ""
+    theme_manager.get_design_tokens.return_value = dict(ICON_TOKENS)
     app_context.get_manager.return_value = theme_manager
     app_state = Mock()
     app_state.has_project = True

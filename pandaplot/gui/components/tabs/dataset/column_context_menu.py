@@ -9,6 +9,7 @@ from pandaplot.commands.project.dataset.change_column_dtype_command import Chang
 from pandaplot.commands.project.dataset.delete_columns_command import DeleteColumnsCommand
 from pandaplot.commands.project.dataset.recompute_formula_columns_command import RecomputeFormulaColumnsCommand
 from pandaplot.commands.project.dataset.rename_column_command import RenameColumnCommand
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.project.items import Dataset
 from pandaplot.services.theme.theme_manager import ThemeManager
 
@@ -29,6 +30,7 @@ class ColumnHeaderContextMenu(QMenu):
 
         # Add column actions
         add_col_left_action = QAction("Add column(s) to the left", self)
+        add_col_left_action.setIcon(themed_icon(self.app_context, "columns-plus-left"))
         add_col_left_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddColumnsCommand(
                 self.app_context, 
@@ -41,6 +43,7 @@ class ColumnHeaderContextMenu(QMenu):
         self.addAction(add_col_left_action)
         
         add_col_right_action = QAction("Add column(s) to the right", self)
+        add_col_right_action.setIcon(themed_icon(self.app_context, "columns-plus-right"))
         add_col_right_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddColumnsCommand(
                 self.app_context, 
@@ -57,10 +60,12 @@ class ColumnHeaderContextMenu(QMenu):
         # Add dtype change submenu (only for single column selection)
         if len(self.column_indices) == 1:
             rename_action = QAction("Rename column...", self)
+            rename_action.setIcon(themed_icon(self.app_context, "textbox"))
             rename_action.triggered.connect(self._rename_column)
             self.addAction(rename_action)
 
             dtype_menu = QMenu("Change Data Type", self)
+            dtype_menu.setIcon(themed_icon(self.app_context, "table"))
             dtype_menu.setStyleSheet(self.styleSheet())  # Apply same styling
             
             # Define available data types
@@ -91,6 +96,7 @@ class ColumnHeaderContextMenu(QMenu):
         
         if self._has_non_live_formula_column():
             recompute_action = QAction("Recompute formula column(s)", self)
+            recompute_action.setIcon(themed_icon(self.app_context, "arrows-clockwise"))
             recompute_action.triggered.connect(
                 lambda: self.app_context.command_executor.execute_command(RecomputeFormulaColumnsCommand(
                     self.app_context,
@@ -103,6 +109,7 @@ class ColumnHeaderContextMenu(QMenu):
 
         # Delete column action
         delete_cols_action = QAction("Delete selected column(s)", self)
+        delete_cols_action.setIcon(themed_icon(self.app_context, "trash"))
         delete_cols_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(DeleteColumnsCommand(
                 self.app_context,
