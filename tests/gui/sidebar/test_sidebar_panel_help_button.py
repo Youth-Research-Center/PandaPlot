@@ -63,7 +63,7 @@ class _TitlePanel(SidebarPanel):
         pass
 
 
-def _make(app_context, title="📊 Analysis Operations", help_topic="panel.analysis"):
+def _make(app_context, title="Analysis Operations", help_topic="panel.analysis"):
     panel = _TitlePanel(app_context, title, help_topic)
     return panel
 
@@ -76,15 +76,12 @@ def test_help_button_exists_and_is_keyboard_focusable(app_context):
     assert panel.help_button.focusPolicy() == Qt.FocusPolicy.StrongFocus
     assert panel.help_button.toolTip() == "Open help for this panel"
     assert panel.title_label is not None
-    assert panel.title_label.text() == "📊 Analysis Operations"
+    assert panel.title_label.text() == "Analysis Operations"
 
 
-@pytest.mark.parametrize(
-    ("title", "name"),
-    [("📊 Analysis Operations", "Analysis Operations"), ("⚖️ Preprocessing", "Preprocessing")],
-)
-def test_help_button_accessible_text_uses_title_without_icon(app_context, title, name):
-    panel = _make(app_context, title=title)
+@pytest.mark.parametrize("name", ["Analysis Operations", "Preprocessing"])
+def test_help_button_accessible_text_uses_the_full_title(app_context, name):
+    panel = _make(app_context, title=name)
 
     assert panel.help_button.accessibleName() == f"Help: {name}"
     assert panel.help_button.accessibleDescription() == f"Opens the Help window on the {name} topic"
@@ -101,12 +98,14 @@ def test_clicking_help_button_publishes_help_requested(app_context):
     assert data["topic_id"] == "panel.analysis"
 
 
-def test_without_topic_there_is_no_button_and_title_is_a_direct_layout_item(app_context):
+def test_without_topic_there_is_no_button_and_title_lives_in_the_row_container(app_context):
     panel = _make(app_context, help_topic=None)
 
     assert panel.help_button is None
     assert panel.help_topic is None
-    assert panel.main_layout.itemAt(0).widget() is panel.title_label
+    row = panel.main_layout.itemAt(0).widget()
+    assert row is panel._title_row
+    assert panel.title_label.parentWidget() is row
 
 
 def test_with_topic_title_lives_in_a_row_container(app_context):
