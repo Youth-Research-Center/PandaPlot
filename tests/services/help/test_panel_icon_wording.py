@@ -35,7 +35,7 @@ def test_chart_properties_topic_describes_apply_and_undo_correctly() -> None:
     assert "until you click Apply" not in text
 
 
-_OLD_BUTTON_AND_PANEL_NAMES = ("📐 Curve Fitting", "♻️ Refresh", "🔍 Reset Zoom", "⇄ Swap X/Y", "🔄 Reset", "📎 Artefacts")
+_OLD_BUTTON_AND_PANEL_NAMES = ("📐 Curve Fitting", "♻️ Refresh", "🔍 Reset Zoom", "⇄ Swap X/Y", "🔄 Reset", "📎 Artefacts", "ℹ️ button")
 
 
 def test_no_topic_names_a_button_or_panel_with_its_old_emoji() -> None:

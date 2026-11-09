@@ -18,6 +18,8 @@ from pandaplot.commands.project.chart import AddAnalysisSeriesCommand, CreateCha
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
 )
+from pandaplot.gui.components.common.icon_label import IconLabel
+from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.chart_signal.chart_signal_analysis_panel import (
     ChartSignalAnalysisPanel,
 )
@@ -308,7 +310,9 @@ class TestRunAnalysisAsyncDispatch:
 
         assert panel.busy_spinner.is_running is False
         assert panel.add_btn.isEnabled() is False
-        assert "boom" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Analysis failed: boom"
+        assert panel.results_text.toPlainText() == ""
 
 
 class TestResultFolderMatchesChart:
@@ -545,7 +549,7 @@ class TestStaleCompletionDiscard:
         command.on_complete(CommandResult.SUCCESS)
 
         assert panel.last_result is None
-        assert "added to project" not in panel.results_text.toPlainText()
+        assert panel.status_message.message() == ""
 
     def test_run_discards_a_stale_result_after_a_chart_update_bumps_generation(self, panel):
         """Same-params case: the underlying data changed (e.g. a dataset
@@ -880,7 +884,8 @@ class TestChartSignalAnalysisPanelQuickPlot:
         # success message it left behind is unaffected, and nothing is left
         # dangling in the queue.
         assert panel.last_result is None
-        assert "added to project" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Results added to project"
         assert panel._deferred_chart_updates == []
 
     def test_async_add_still_discards_an_unrelated_series_added_mid_flight(self, panel):
@@ -902,7 +907,7 @@ class TestChartSignalAnalysisPanelQuickPlot:
         command.on_complete(CommandResult.SUCCESS)
 
         assert panel.last_result is None
-        assert "added to project" not in panel.results_text.toPlainText()
+        assert panel.status_message.message() == ""
 
     def test_pending_quick_plot_cleared_on_synchronous_dispatch_failure(self, panel):
         """Regression: on_complete never runs for a dispatch that fails
@@ -976,7 +981,8 @@ class TestChartSignalAnalysisPanelQuickPlot:
 
         command.on_complete(CommandResult.SUCCESS)
 
-        assert "added to project" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Results added to project"
         assert panel.current_chart_id == "new-chart-id"  # replayed after on_complete settled
         assert panel._deferred_tab_change is None  # consumed
 
@@ -1219,3 +1225,69 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert panel._deferred_tab_change is None
         assert panel.current_chart is None
         assert panel.current_chart_id is None
+
+
+class TestChartSignalPanelStatusMessage:
+    def test_status_message_sits_directly_above_the_results_text(self, panel):
+        layout = panel.results_text.parentWidget().layout()
+
+        assert layout.indexOf(panel.status_message) == layout.indexOf(panel.results_text) - 1
+        assert panel.status_message.isHidden()
+
+    def test_the_report_stays_in_the_text_area_when_results_are_added(self, panel):
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: on_complete(
+            Mock(analysis_name="FFT", data=pd.DataFrame({"frequency": [1.0], "magnitude": [0.1]}), metadata={}), None
+        )
+        panel._build_command = lambda: fake_command
+        panel.run_analysis()
+        panel.app_context.get_command_executor.return_value.execute_command = lambda cmd: True
+
+        panel.add_results_to_project()
+
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert "FFT" in panel.results_text.toPlainText()
+        assert "added to project" not in panel.results_text.toPlainText()
+
+    def test_a_malformed_result_is_an_error_status(self, panel):
+        broken_result = Mock()
+        broken_result.analysis_name = "FFT"
+        broken_result.data = object()
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: on_complete(broken_result, None)
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message().startswith("Analysis failed: ")
+        assert panel.add_btn.isEnabled() is False
+
+    def test_a_new_result_clears_the_earlier_success_status(self, panel):
+        panel.status_message.set_message(StatusKind.SUCCESS, "Results added to project")
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: on_complete(
+            Mock(analysis_name="FFT", data=pd.DataFrame({"frequency": [1.0], "magnitude": [0.1]}), metadata={}), None
+        )
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        assert panel.status_message.message() == ""
+        assert "FFT" in panel.results_text.toPlainText()
+
+    def test_clear_clears_the_status_message(self, panel):
+        panel.status_message.set_message(StatusKind.ERROR, "boom")
+
+        panel.clear()
+
+        assert panel.status_message.message() == ""
+        assert panel.status_message.kind() is None
+
+    def test_theme_change_retints_the_status_icon(self, panel, app_context):
+        panel.status_message.set_message(StatusKind.ERROR, "boom")
+        app_context.get_manager.return_value.get_design_tokens.return_value["status_danger"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.status_message.findChild(IconLabel).pixmap()), "#00AA00")

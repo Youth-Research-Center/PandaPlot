@@ -45,6 +45,7 @@ from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
 )
@@ -215,6 +216,8 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self.results_text = QTextEdit()
         self.results_text.setReadOnly(True)
         self.results_text.setPlaceholderText("Run analysis to see results...")
+        self.status_message = StatusMessage(self.app_context)
+        vbox.addWidget(self.status_message)
         vbox.addWidget(self.results_text)
 
         layout.addWidget(group)
@@ -455,19 +458,20 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
-                self.results_text.setText(f"❌ Analysis failed:\n{error}")
+                self._show_error(f"Analysis failed: {error}")
                 return
 
             self.last_result = result
             self._last_run_params = dispatch_params
             try:
-                self.results_text.setText(SignalPanel._format_result(result))
+                self.results_text.setPlainText(SignalPanel._format_result(result))
+                self.status_message.clear()
                 self.add_btn.setEnabled(True)
             except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
-                self.results_text.setText(f"❌ Analysis failed:\n{e}")
+                self._show_error(f"Analysis failed: {e}")
 
         command.run_analysis_async(_on_complete)
 
@@ -506,7 +510,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 success = executor.execute_command(apply_command)
 
             if success:
-                self.results_text.append("\n\n✅ Results added to project")
+                self.status_message.set_message(StatusKind.SUCCESS, "Results added to project")
                 self.add_btn.setEnabled(False)
             else:
                 self.add_btn.setEnabled(True)
@@ -550,7 +554,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             elif result is CommandResult.SUCCESS:
                 self.last_result = command.result
                 self._last_run_params = current_params
-                self.results_text.append("\n\n✅ Results added to project")
+                self.status_message.set_message(StatusKind.SUCCESS, "Results added to project")
             else:
                 self.add_btn.setEnabled(True)  # let the user retry
 
@@ -600,9 +604,16 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 self._deferred_tab_change = None
                 self._on_tab_changed(deferred)
 
+    def _show_error(self, text: str) -> None:
+        """Show `text` as an error status in place of any report."""
+        self.results_text.clear()
+        self.status_message.set_message(StatusKind.ERROR, text)
+
     def clear(self):
         if hasattr(self, "results_text"):
             self.results_text.clear()
+        if hasattr(self, "status_message"):
+            self.status_message.clear()
 
         self.last_result = None
         self._last_run_params = None
@@ -881,6 +892,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         """)
 
         self._apply_title_theme(base_fg, card_border)
+        self.status_message.retint()
 
         self.source_hint.setStyleSheet(
             f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"

@@ -5,6 +5,7 @@ hypothesis tests on dataset columns and adding the results to the project as dat
 
 from typing import override
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -22,10 +23,13 @@ from PySide6.QtWidgets import (
 from pandaplot.analysis import STAT_TESTS, InputMode, StatTestResult, StatTestType
 from pandaplot.commands.project.dataset.statistical_test_command import StatisticalTestCommand
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.number_input import DecimalInput
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.statistics.test_info_dialog import InfoDialogHelper
+from pandaplot.gui.resources.themed_icons import ActionIcons, IconRole
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
@@ -43,6 +47,7 @@ class StatisticsPanel(SidebarPanel):
         self.current_dataset: Dataset | None = None
         self.current_dataset_id: str | None = None
         self.last_result: StatTestResult | None = None
+        self._icons = ActionIcons(app_context)
 
         self._initialize()
 
@@ -87,7 +92,8 @@ class StatisticsPanel(SidebarPanel):
         selector_row = QHBoxLayout()
         selector_row.setContentsMargins(0, 0, 0, 0)
         selector_row.addWidget(self.test_type_combo, 1)
-        self.info_btn = PButton("ℹ️", role="secondary", icon=True, on_click=self._show_test_info)
+        self.info_btn = PButton("", role="secondary", icon=True, on_click=self._show_test_info)
+        self._icons.bind(self.info_btn, "info")
         self.info_btn.setFixedWidth(32)
         self.info_btn.setToolTip("Learn about this test: explanation, formula and an example")
         self.info_btn.setAccessibleName("About this test")
@@ -95,9 +101,14 @@ class StatisticsPanel(SidebarPanel):
         form.addRow("Test:", selector_row)
         group_layout.addLayout(form)
 
+        description_row = QHBoxLayout()
+        description_row.setContentsMargins(0, 0, 0, 0)
+        self.description_icon = IconLabel(self.app_context, "info", role=IconRole.INFO)
         self.description_label = QLabel()
         self.description_label.setWordWrap(True)
-        group_layout.addWidget(self.description_label)
+        description_row.addWidget(self.description_icon, 0, Qt.AlignmentFlag.AlignTop)
+        description_row.addWidget(self.description_label, 1)
+        group_layout.addLayout(description_row)
 
         self.assumptions_label = QLabel()
         self.assumptions_label.setWordWrap(True)
@@ -129,6 +140,8 @@ class StatisticsPanel(SidebarPanel):
         self.results_text.setReadOnly(True)
         self.results_text.setMinimumHeight(160)
         self.results_text.setPlaceholderText("Run a test to see results here...")
+        self.status_message = StatusMessage(self.app_context)
+        group_layout.addWidget(self.status_message)
         group_layout.addWidget(self.results_text)
 
         group.setLayout(group_layout)
@@ -168,7 +181,7 @@ class StatisticsPanel(SidebarPanel):
             return
         info = STAT_TESTS[test_type]
 
-        self.description_label.setText(f"ℹ️ {info.description}")
+        self.description_label.setText(info.description)
         self.assumptions_label.setText(f"Assumptions: {info.assumptions}" if info.assumptions else "")
         self._apply_hint_label_theme(self.description_label)
         self._apply_hint_label_theme(self.assumptions_label)
@@ -262,7 +275,7 @@ class StatisticsPanel(SidebarPanel):
 
     def _build_command(self) -> StatisticalTestCommand | None:
         if not self.current_dataset_id:
-            self.results_text.setText("❌ No dataset selected.")
+            self._show_status(StatusKind.ERROR, "No dataset selected.")
             return None
 
         test_type = self._current_test_type()
@@ -270,13 +283,13 @@ class StatisticsPanel(SidebarPanel):
         columns = self._selected_columns()
 
         if info.input_mode == InputMode.MANY and len(columns) < 2:
-            self.results_text.setText("❌ Please select at least 2 group columns.")
+            self._show_status(StatusKind.ERROR, "Please select at least 2 group columns.")
             return None
         if info.input_mode == InputMode.TWO and (len(columns) < 2 or columns[0] == columns[1]):
-            self.results_text.setText("❌ Please select two different columns.")
+            self._show_status(StatusKind.ERROR, "Please select two different columns.")
             return None
         if info.input_mode == InputMode.ONE and not columns:
-            self.results_text.setText("❌ Please select a column.")
+            self._show_status(StatusKind.ERROR, "Please select a column.")
             return None
 
         return StatisticalTestCommand(
@@ -290,6 +303,11 @@ class StatisticsPanel(SidebarPanel):
             equal_var=self.equal_var_check.isChecked() if self.equal_var_check else True,
         )
 
+    def _show_status(self, kind: StatusKind, text: str) -> None:
+        """Show `text` as a status message in place of any report."""
+        self.results_text.clear()
+        self.status_message.set_message(kind, text)
+
     def run_test(self):
         """Run the selected test and preview results (without adding to project)."""
         command = self._build_command()
@@ -300,12 +318,13 @@ class StatisticsPanel(SidebarPanel):
         except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
             self.last_result = None
             self.add_btn.setEnabled(False)
-            self.results_text.setText(f"❌ Test failed: {e}")
+            self._show_status(StatusKind.ERROR, f"Test failed: {e}")
             return
 
         self.last_result = result
         self.add_btn.setEnabled(True)
-        self.results_text.setText(self._format_result(result))
+        self.status_message.clear()
+        self.results_text.setPlainText(self._format_result(result))
 
     def add_results_to_project(self):
         """Run the test through the command executor and add results as a dataset."""
@@ -316,15 +335,14 @@ class StatisticsPanel(SidebarPanel):
         if executed and command.result_dataset_id:
             self.last_result = command.result
             name = command.result.result_name() if command.result else "results"
-            self.results_text.setText(
-                f"✅ Results added to project as dataset:\n'{name}'\n\n"
-                + (self._format_result(command.result) if command.result else "")
-            )
+            self.results_text.setPlainText(self._format_result(command.result) if command.result else "")
+            self.status_message.set_message(StatusKind.SUCCESS, f"Results added to project as dataset: '{name}'")
         else:
-            self.results_text.setText("❌ Failed to add results. Please check your selection.")
+            self._show_status(StatusKind.ERROR, "Failed to add results. Please check your selection.")
 
     def clear(self):
         self.results_text.clear()
+        self.status_message.clear()
         self.last_result = None
         self.add_btn.setEnabled(False)
 
@@ -474,3 +492,6 @@ class StatisticsPanel(SidebarPanel):
         """)
 
         self._apply_title_theme(base_fg, card_border)
+        self._icons.retint()
+        self.description_icon.retint()
+        self.status_message.retint()
