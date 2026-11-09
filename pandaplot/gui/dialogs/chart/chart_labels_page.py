@@ -15,9 +15,8 @@ from PySide6.QtWidgets import (
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.toggle_switch import ToggleSwitch
 from pandaplot.gui.core.widget_extension import PWizardPage
-from pandaplot.gui.dialogs.chart.wizard_footer import WizardFooter
+from pandaplot.gui.dialogs.chart.wizard_footer import WizardFooter, connect_footer_help
 from pandaplot.gui.dialogs.chart.wizard_step_rail import WizardStepRail
-from pandaplot.models.events.event_types import UIEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import WIZARD_TOPIC_LABELS
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -106,7 +105,7 @@ class ChartLabelsPage(PWizardPage):
         self.footer.backClicked.connect(lambda: self.wizard().back())
         self.footer.finishClicked.connect(lambda: self.wizard().accept())
         self.footer.cancelClicked.connect(lambda: self.wizard().reject())
-        self.footer.helpRequested.connect(self._on_help_requested)
+        connect_footer_help(self, self.footer)
         outer.addWidget(self.footer)
 
     def _apply_theme(self):
@@ -206,7 +205,3 @@ class ChartLabelsPage(PWizardPage):
 
     def _refresh_preview_from_cache(self, *_args) -> None:
         self.refresh_preview(self._last_project, self._last_chart_type, self._last_series_configs)
-
-    def _on_help_requested(self, topic_id: str) -> None:
-        """Ask the Help window to open this step's topic."""
-        self.publish_event(UIEvents.HELP_REQUESTED, {"topic_id": topic_id})

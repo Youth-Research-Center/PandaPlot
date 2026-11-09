@@ -20,7 +20,7 @@ def test_hand_written_panel_and_transform_topics_have_no_emoji_icon(topic: HelpT
 
 
 def test_no_topic_in_the_full_catalog_has_an_emoji_icon() -> None:
-    """(full catalog)"""
+    """No topic in the assembled help catalog refers to a sidebar icon by its old emoji."""
     for topic in build_help_catalog().topics():
         assert _SIDEBAR_EMOJI_ICON.search(_text(topic)) is None, topic.id
 

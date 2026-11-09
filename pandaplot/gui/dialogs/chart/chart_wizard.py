@@ -103,9 +103,11 @@ class ChartWizard(PWizard):
 
     def _apply_theme(self):
         # Qt stylesheets cascade to descendants by default, so setting this on
-        # the wizard itself themes both pages (ChartTypePage's type list,
+        # the wizard itself themes every page (ChartTypePage's type list,
         # ChartDataPage's SeriesConfigCard combos/buttons/checkboxes) without
-        # needing per-page stylesheets.
+        # needing per-page stylesheets. Widget rules are scoped to `QWizardPage`
+        # descendants so they do not leak into other top-level windows parented
+        # to the wizard (such as the Help window).
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
 
@@ -118,7 +120,7 @@ class ChartWizard(PWizard):
         input_bg = palette.get("card_hover", "#e9ecef")
 
         self.setStyleSheet(f"""
-            QWizard, QDialog {{
+            QWizard {{
                 background-color: {card_bg};
                 color: {base_fg};
             }}
@@ -126,21 +128,21 @@ class ChartWizard(PWizard):
                 background-color: {card_bg};
                 color: {base_fg};
             }}
-            QLabel, QCheckBox {{
+            QWizardPage QLabel, QWizardPage QCheckBox {{
                 color: {base_fg};
             }}
-            QCheckBox::indicator {{
+            QWizardPage QCheckBox::indicator {{
                 width: 14px;
                 height: 14px;
                 border: 1px solid {card_border};
                 border-radius: 3px;
                 background-color: {input_bg};
             }}
-            QCheckBox::indicator:checked {{
+            QWizardPage QCheckBox::indicator:checked {{
                 background-color: {accent};
                 border-color: {accent};
             }}
-            QLineEdit {{
+            QWizardPage QLineEdit {{
                 background-color: {input_bg};
                 border: 1px solid {card_border};
                 border-radius: 4px;
@@ -148,28 +150,28 @@ class ChartWizard(PWizard):
                 min-height: 22px;
                 color: {base_fg};
             }}
-            QLineEdit:focus {{
+            QWizardPage QLineEdit:focus {{
                 border-color: {accent};
             }}
-            QLineEdit:hover {{
+            QWizardPage QLineEdit:hover {{
                 border-color: {accent};
             }}
-            QLineEdit:disabled {{
+            QWizardPage QLineEdit:disabled {{
                 color: {secondary_fg};
                 background-color: {card_bg};
                 border-color: {card_border};
             }}
-            QListWidget {{
+            QWizardPage QListWidget {{
                 background-color: {input_bg};
                 border: 1px solid {card_border};
                 border-radius: 4px;
                 color: {base_fg};
                 outline: none;
             }}
-            QListWidget::item {{
+            QWizardPage QListWidget::item {{
                 padding: 4px 6px;
             }}
-            QListWidget::item:selected {{
+            QWizardPage QListWidget::item:selected {{
                 background-color: {accent};
                 color: white;
             }}

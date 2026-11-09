@@ -10,11 +10,27 @@ When given a `help_topic`, the footer also shows a "?" button at the far left
 that emits `helpRequested(help_topic)`. The page, not the footer, publishes the
 help event, so the footer stays free of `AppContext`.
 """
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QToolButton, QWidget
 
 from pandaplot.gui.components.common.help_button import build_help_button, help_button_stylesheet
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.models.events.event_types import UIEvents
+
+if TYPE_CHECKING:
+    from pandaplot.gui.core.widget_extension import PWizardPage
+
+
+def connect_footer_help(page: "PWizardPage", footer: "WizardFooter") -> None:
+    """Publish `UIEvents.HELP_REQUESTED` for the footer's topic when its "?" button is clicked.
+
+    Args:
+        page: The wizard page that owns the footer and publishes the event.
+        footer: The page's footer, whose `helpRequested(topic_id)` signal is connected.
+    """
+    footer.helpRequested.connect(lambda topic_id: page.publish_event(UIEvents.HELP_REQUESTED, {"topic_id": topic_id}))
 
 
 class WizardFooter(QWidget):

@@ -23,12 +23,11 @@ from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 from pandaplot.gui.core.widget_extension import PWizardPage
 from pandaplot.gui.dialogs.chart.chart_type_icons import chart_type_icon
-from pandaplot.gui.dialogs.chart.wizard_footer import WizardFooter
+from pandaplot.gui.dialogs.chart.wizard_footer import WizardFooter, connect_footer_help
 from pandaplot.gui.dialogs.chart.wizard_step_rail import WizardStepRail
 from pandaplot.models.chart.chart_category import ChartCategory
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS
-from pandaplot.models.events.event_types import UIEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import WIZARD_TOPIC_TYPE
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -96,7 +95,7 @@ class ChartTypePage(PWizardPage):
         self.footer.cancelClicked.connect(lambda: self.wizard().reject())
         self.footer.emptyRequested.connect(self.emptyRequested.emit)
         self.empty_button = self.footer.empty_link
-        self.footer.helpRequested.connect(self._on_help_requested)
+        connect_footer_help(self, self.footer)
         outer.addWidget(self.footer)
 
         self.completeChanged.connect(lambda: self.footer.set_next_enabled(enabled=self.isComplete()))
@@ -199,7 +198,3 @@ class ChartTypePage(PWizardPage):
         if no_dataset_page_id is not None and getattr(wizard, "_no_dataset_mode", False):
             return no_dataset_page_id
         return super().nextId()
-
-    def _on_help_requested(self, topic_id: str) -> None:
-        """Ask the Help window to open this step's topic."""
-        self.publish_event(UIEvents.HELP_REQUESTED, {"topic_id": topic_id})

@@ -86,8 +86,9 @@ def _show_active(qtbot, wizard: ChartWizard) -> None:
     assert QTest.qWaitForWindowActive(wizard)
 
 
-def test_page_topics_come_from_the_wizard_constants():
+def test_page_topics_come_from_the_wizard_constants(qtbot):
     wizard = _make_wizard()
+    qtbot.addWidget(wizard)
 
     assert wizard.type_page.help_topic == WIZARD_TOPIC_TYPE
     assert wizard.data_page.help_topic == WIZARD_TOPIC_DATA
@@ -96,8 +97,9 @@ def test_page_topics_come_from_the_wizard_constants():
 
 
 @pytest.mark.parametrize("page_name", ["type_page", "data_page", "labels_page", "no_dataset_page"])
-def test_footer_help_button_publishes_the_page_topic(page_name):
+def test_footer_help_button_publishes_the_page_topic(qtbot, page_name):
     wizard = _make_wizard()
+    qtbot.addWidget(wizard)
     page = getattr(wizard, page_name)
 
     assert page.footer.help_button is not None
@@ -149,10 +151,30 @@ def test_f1_on_the_no_dataset_page(qtbot):
     assert _help_topics(wizard) == [WIZARD_TOPIC_NO_DATASET]
 
 
-def test_help_shortcut_without_page_topic_does_nothing():
+def test_help_shortcut_without_page_topic_does_nothing(qtbot):
     wizard = _make_wizard()
+    qtbot.addWidget(wizard)
     del wizard.type_page.help_topic
+    assert wizard.currentPage() is wizard.type_page
 
     wizard._on_help_shortcut()
 
     assert _help_topics(wizard) == []
+
+
+def test_help_window_search_field_is_not_restyled_by_the_wizard_stylesheet(qtbot):
+    from PySide6.QtWidgets import QLineEdit, QWidget
+
+    from pandaplot.gui.dialogs.help.help_window import HelpWindow
+
+    wizard = _make_wizard()
+    qtbot.addWidget(wizard)
+    wizard.show()
+    plain_parent = QWidget()
+    qtbot.addWidget(plain_parent)
+
+    under_plain = HelpWindow(wizard.app_context, plain_parent)
+    under_wizard = HelpWindow(wizard.app_context, wizard)
+
+    assert under_wizard.search_edit.sizeHint() == under_plain.search_edit.sizeHint()
+    assert isinstance(wizard.labels_page.findChild(QLineEdit), QLineEdit)
