@@ -25,6 +25,10 @@ class IconRole(Enum):
     TEXT = "text_primary"
     MUTED = "text_muted"
     ACTIVE = "accent_icon_active"
+    SUCCESS = "status_success"
+    ERROR = "status_danger"
+    WARNING = "status_modified_text"
+    INFO = "accent"
 
 
 def themed_icon(
