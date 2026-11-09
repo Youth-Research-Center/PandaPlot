@@ -19,18 +19,9 @@ from PySide6.QtWidgets import (
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.models.chart.chart_role_labels import ROLE_LABELS
 from pandaplot.models.chart.chart_type_spec import ChartTypeSpec
 
-_ROLE_LABELS = {
-    "x": "X column", "y": "Y column", "values": "Values column",
-    "u": "U column", "v": "V column", "w": "W column",
-    "magnitude": "Color-by column (optional)",
-    # Plain "Z column" rather than "Z (color) column": Z drives point color
-    # on a Colormap/Heatmap chart but is the third spatial axis on every
-    # 3-D one, and one label has to be true of both.
-    "z": "Z column",
-    "labels": "Labels column (optional)",
-}
 _ROLE_TO_FIELD = {
     "x": "x_column_id", "y": "y_column_id", "values": "y_column_id",
     "u": "u_column_id", "v": "v_column_id", "w": "w_column_id",
@@ -110,7 +101,7 @@ class SeriesConfigCard(Card):
         row += 1
 
         for role in self._role_spec.roles:
-            grid.addWidget(QLabel(f"{_ROLE_LABELS[role]}:"), row, 0)
+            grid.addWidget(QLabel(f"{ROLE_LABELS[role]}:"), row, 0)
             combo = DropDownComboBox()
             combo.currentIndexChanged.connect(lambda _index=None: self.configChanged.emit())
             self._role_combos[role] = combo

@@ -13,6 +13,7 @@ class HelpCategory(Enum):
     """Help topic categories; display order is definition order."""
 
     PANELS = "Using the panels"
+    CHARTS = "Charts"
     STATISTICS = "Statistical tests"
     DESCRIPTIVE = "Descriptive statistics"
     PREPROCESSING = "Preprocessing"
@@ -81,6 +82,7 @@ PANEL_TOPIC_FIT = "panel.fit"
 PANEL_TOPIC_CHART_ANALYSIS = "panel.chart_analysis"
 PANEL_TOPIC_CHART_SIGNAL = "panel.chart_signal"
 PANEL_TOPIC_CHART_TRANSFORM = "panel.chart_transform"
+PANEL_TOPIC_CHART_PROPERTIES = "panel.chart_properties"
 
 PANEL_TOPIC_IDS: tuple[str, ...] = (
     PANEL_TOPIC_TRANSFORM,
@@ -93,7 +95,45 @@ PANEL_TOPIC_IDS: tuple[str, ...] = (
     PANEL_TOPIC_CHART_ANALYSIS,
     PANEL_TOPIC_CHART_SIGNAL,
     PANEL_TOPIC_CHART_TRANSFORM,
+    PANEL_TOPIC_CHART_PROPERTIES,
 )
+
+# Hand-written chart topics. The ids live here (not in content/charts.py) so that
+# content/chart_types.py can reference them without importing content/charts.py.
+CHART_TOPIC_CREATE = "charts.create"
+CHART_TOPIC_CHOOSE_TYPE = "charts.choose_type"
+CHART_TOPIC_WIZARD_DATA = "charts.wizard_data"
+CHART_TOPIC_SERIES = "charts.series"
+CHART_TOPIC_ERROR_BARS = "charts.error_bars"
+CHART_TOPIC_STYLE = "charts.style"
+CHART_TOPIC_AXES = "charts.axes"
+CHART_TOPIC_LEGEND = "charts.legend"
+CHART_TOPIC_MATH_TEXT = "charts.math_text"
+CHART_TOPIC_VIEW = "charts.view"
+CHART_TOPIC_SAVE_IMAGE = "charts.save_image"
+
+CHART_TOPIC_IDS: tuple[str, ...] = (
+    CHART_TOPIC_CREATE,
+    CHART_TOPIC_CHOOSE_TYPE,
+    CHART_TOPIC_WIZARD_DATA,
+    CHART_TOPIC_SERIES,
+    CHART_TOPIC_ERROR_BARS,
+    CHART_TOPIC_STYLE,
+    CHART_TOPIC_AXES,
+    CHART_TOPIC_LEGEND,
+    CHART_TOPIC_MATH_TEXT,
+    CHART_TOPIC_VIEW,
+    CHART_TOPIC_SAVE_IMAGE,
+)
+
+# Topics the chart wizard's "?" buttons open. Separate from PANEL_TOPIC_IDS, which
+# lists sidebar panels only.
+WIZARD_TOPIC_TYPE = CHART_TOPIC_CHOOSE_TYPE
+WIZARD_TOPIC_DATA = CHART_TOPIC_WIZARD_DATA
+WIZARD_TOPIC_LABELS = CHART_TOPIC_CREATE
+WIZARD_TOPIC_NO_DATASET = CHART_TOPIC_CREATE
+
+WIZARD_TOPIC_IDS: tuple[str, ...] = (WIZARD_TOPIC_TYPE, WIZARD_TOPIC_DATA, WIZARD_TOPIC_LABELS)
 
 FIT_TOPIC_OVERVIEW = "fit.overview"
 FIT_TOPIC_CUSTOM = "fit.custom"

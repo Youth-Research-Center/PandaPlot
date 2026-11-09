@@ -25,6 +25,8 @@ from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
+CHART_PROPERTIES_TAB_TITLES: tuple[str, ...] = ("Chart", "Data", "Style", "Axes", "Legend")
+
 
 class ChartPropertiesPanel(SidebarPanel):
     """Side panel for configuring chart properties."""
@@ -55,7 +57,7 @@ class ChartPropertiesPanel(SidebarPanel):
         # doesn't fit the panel's width, `resizeEvent` swaps it for
         # `tab_selector_combo` (a dropdown driving the same pages) instead of
         # letting Qt shrink/elide/scroll the tab labels.
-        self._tab_titles = ["Chart", "Data", "Style", "Axes", "Legend"]
+        self._tab_titles = list(CHART_PROPERTIES_TAB_TITLES)
         self.tab_selector_combo = DropDownComboBox(self)
         self.tab_selector_combo.addItems(self._tab_titles)
         self.tab_selector_combo.setVisible(False)

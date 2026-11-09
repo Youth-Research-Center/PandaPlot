@@ -40,7 +40,8 @@ def test_every_mapped_topic_id_exists(catalog):
 def test_content_modules_expose_mappings():
     names = {name for module_name in CONTENT_MODULES for name in vars(importlib.import_module(module_name)) if name.endswith("_TOPIC_IDS")}
     expected = {"STAT_TEST_TOPIC_IDS", "PREPROCESSING_TOPIC_IDS", "SIGNAL_TOPIC_IDS", "FIT_MODEL_TOPIC_IDS", "ANALYSIS_TOPIC_IDS",
-                "SMOOTHING_TOPIC_IDS", "DERIVATIVE_TOPIC_IDS", "INTERPOLATION_TOPIC_IDS"}
+                "SMOOTHING_TOPIC_IDS", "DERIVATIVE_TOPIC_IDS", "INTERPOLATION_TOPIC_IDS",
+                "CHART_TYPE_TOPIC_IDS"}
     assert expected <= names
 
 
