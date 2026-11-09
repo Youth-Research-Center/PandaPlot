@@ -6,7 +6,7 @@ import pytest
 
 from pandaplot.gui.dialogs.help.help_html import render_help_topic_html
 from pandaplot.services.help.help_catalog import CONTENT_MODULES, build_help_catalog
-from pandaplot.services.help.help_types import PANEL_TOPIC_IDS, HelpCategory
+from pandaplot.services.help.help_types import PANEL_TOPIC_IDS, WIZARD_TOPIC_IDS, HelpCategory
 
 
 @pytest.fixture(scope="module")
@@ -25,6 +25,10 @@ def test_every_category_is_used(catalog):
 
 def test_every_panel_topic_exists(catalog):
     assert [topic_id for topic_id in PANEL_TOPIC_IDS if catalog.get(topic_id) is None] == []
+
+
+def test_every_wizard_topic_exists(catalog):
+    assert [topic_id for topic_id in WIZARD_TOPIC_IDS if catalog.get(topic_id) is None] == []
 
 
 def test_every_mapped_topic_id_exists(catalog):
