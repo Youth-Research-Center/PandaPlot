@@ -39,6 +39,8 @@ class PreprocessingPanel(SidebarPanel):
     Side panel for applying preprocessing transformations to dataset columns.
     """
 
+    ICON_NAME = "sliders-horizontal"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.current_dataset: Dataset | None = None
@@ -53,7 +55,7 @@ class PreprocessingPanel(SidebarPanel):
         """Build the panel layout."""
         self._init_panel_layout()
 
-        self._set_title("⚖️ Preprocessing", help_topic=PANEL_TOPIC_PREPROCESSING)
+        self._set_title("Preprocessing", help_topic=PANEL_TOPIC_PREPROCESSING)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)

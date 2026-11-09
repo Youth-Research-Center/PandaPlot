@@ -15,6 +15,9 @@ from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.transform.transform_panel import TransformPanel
 from pandaplot.models.state.app_context import AppContext
 
+# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
+ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():
@@ -26,7 +29,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     return ctx
 
 

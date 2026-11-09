@@ -36,6 +36,8 @@ from pandaplot.services.theme.theme_manager import ThemeManager
 class StatisticsPanel(SidebarPanel):
     """Side panel for guided statistical testing on dataset columns."""
 
+    ICON_NAME = "flask"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.current_dataset: Dataset | None = None
@@ -52,7 +54,7 @@ class StatisticsPanel(SidebarPanel):
     def _init_ui(self):
         self._init_panel_layout()
 
-        self._set_title("🧪 Statistical Tests", help_topic=PANEL_TOPIC_STATISTICS)
+        self._set_title("Statistical Tests", help_topic=PANEL_TOPIC_STATISTICS)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)

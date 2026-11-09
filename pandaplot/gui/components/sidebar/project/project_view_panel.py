@@ -29,6 +29,8 @@ class ProjectViewPanel(SidebarPanel):
     This follows the MVC pattern by listening to events from the app state.
     """
 
+    ICON_NAME = "folder"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None=None):
         super().__init__(app_context=app_context, parent=parent)
         self.app_state = app_context.get_app_state()
@@ -65,7 +67,7 @@ class ProjectViewPanel(SidebarPanel):
         self._init_panel_layout()
 
         # Panel title
-        self._set_title("📁 Project Explorer")
+        self._set_title("Project Explorer")
 
         # Create project title display
         self.title_frame = QGroupBox("Project Info")

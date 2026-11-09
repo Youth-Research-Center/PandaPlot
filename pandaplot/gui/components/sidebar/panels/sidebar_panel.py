@@ -2,10 +2,14 @@
 content area that is either scrollable or added directly.
 """
 
+from typing import override
+
+import shiboken6
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QScrollArea, QToolButton, QVBoxLayout, QWidget
 
 from pandaplot.gui.components.common.help_button import build_help_button, help_button_stylesheet
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events.event_types import UIEvents
 from pandaplot.models.state.app_context import AppContext
@@ -21,10 +25,13 @@ class SidebarPanel(PWidget):
     4. `self._set_content(content_widget, scrollable=...)`
     """
 
+    ICON_NAME: str | None = None  # bundled icon shown before the title
+
     def __init__(self, app_context: AppContext, parent: QWidget | None = None, **kwargs):
         super().__init__(app_context=app_context, parent=parent, **kwargs)
         self.main_layout: QVBoxLayout | None = None
         self.title_label: QLabel | None = None
+        self.title_icon: IconLabel | None = None
         self.help_button: QToolButton | None = None
         self.help_topic: str | None = None
         self._title_row: QWidget | None = None
@@ -37,10 +44,12 @@ class SidebarPanel(PWidget):
         return self.main_layout
 
     def _set_title(self, text: str, *, help_topic: str | None = None) -> QLabel:
-        """Create `self.title_label` and pin it at the top of `main_layout`.
+        """Create the title row and pin it at the top of `main_layout`.
+
+        The row holds the `ICON_NAME` icon (when set), `title_label` and, when a help topic is given, a help button.
 
         Args:
-            text: Title text, usually starting with an icon.
+            text: Title text, without an icon: the icon comes from `ICON_NAME`.
             help_topic: Help topic id. When given, a "?" button that opens that
                 topic in the Help window is placed beside the title.
 
@@ -50,27 +59,35 @@ class SidebarPanel(PWidget):
         assert self.main_layout is not None, "_init_panel_layout must run first"
         self.title_label = QLabel(text)
         self.help_topic = help_topic
-        if help_topic is None:
-            self.main_layout.addWidget(self.title_label)
-            return self.title_label
-
-        panel_name = text.split(maxsplit=1)[-1]
-        self.help_button = build_help_button(
-            accessible_name=f"Help: {panel_name}",
-            accessible_description=f"Opens the Help window on the {panel_name} topic",
-            tooltip="Open help for this panel",
-        )
-        self.help_button.clicked.connect(self._on_help_clicked)
 
         self._title_row = QWidget()
         self._title_row.setObjectName("panelTitleRow")
         row_layout = QHBoxLayout(self._title_row)
-        row_layout.setContentsMargins(0, 0, 4, 0)
+        row_layout.setContentsMargins(6 if self.ICON_NAME is not None else 0, 0, 4, 0)
         row_layout.setSpacing(4)
+        if self.ICON_NAME is not None:
+            self.title_icon = IconLabel(self.app_context, self.ICON_NAME)
+            row_layout.addWidget(self.title_icon)
         row_layout.addWidget(self.title_label, 1)
-        row_layout.addWidget(self.help_button)
+
+        if help_topic is not None:
+            self.help_button = build_help_button(
+                accessible_name=f"Help: {text}",
+                accessible_description=f"Opens the Help window on the {text} topic",
+                tooltip="Open help for this panel",
+            )
+            self.help_button.clicked.connect(self._on_help_clicked)
+            row_layout.addWidget(self.help_button)
+
         self.main_layout.addWidget(self._title_row)
         return self.title_label
+
+    @override
+    def _on_theme_changed(self, event_data: dict) -> None:
+        """Re-tint the title icon after the normal theme handling."""
+        super()._on_theme_changed(event_data)
+        if self.title_icon is not None and shiboken6.isValid(self.title_icon):
+            self.title_icon.retint()
 
     def _on_help_clicked(self, _checked: bool = False) -> None:  # noqa: FBT001, FBT002 -- Qt clicked(bool) slot signature
         """Ask the Help window to open this panel's topic."""
@@ -143,9 +160,9 @@ class SidebarPanel(PWidget):
         """Apply the shared title styling, for subclasses' `_apply_theme()` to
         call instead of each repeating the same setStyleSheet line.
 
-        Without a help button the band is `title_stylesheet` on `title_label`.
-        With one, the band moves to the row container so the button sits inside
-        it, and the label and button are drawn on top of it.
+        Without an icon or help button the band is `title_stylesheet` on
+        `title_label`. With either, the band moves to the row container so
+        they sit inside it, and the label and button are drawn on top of it.
 
         Guarded since `title_label` is only set once `_set_title()` runs, and
         `_apply_theme()` can in principle be invoked before that (e.g. via the
@@ -156,9 +173,10 @@ class SidebarPanel(PWidget):
             return
         title_row = getattr(self, "_title_row", None)
         help_button = getattr(self, "help_button", None)
-        if title_row is None or help_button is None:
+        if title_row is None or (help_button is None and getattr(self, "title_icon", None) is None):
             title_label.setStyleSheet(self.title_stylesheet(base_fg, card_border))
             return
         title_row.setStyleSheet(f"QWidget#panelTitleRow {{ background-color: {card_border}; border-radius: 3px; }}")
         title_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {base_fg}; padding: 5px; background-color: transparent;")
-        help_button.setStyleSheet(help_button_stylesheet(base_fg))
+        if help_button is not None:
+            help_button.setStyleSheet(help_button_stylesheet(base_fg))

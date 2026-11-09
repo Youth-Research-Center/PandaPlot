@@ -32,6 +32,8 @@ CHART_PROPERTIES_TAB_TITLES: tuple[str, ...] = ("Chart", "Data", "Style", "Axes"
 class ChartPropertiesPanel(SidebarPanel):
     """Side panel for configuring chart properties."""
 
+    ICON_NAME = "chart-line"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.command_executor = app_context.command_executor
@@ -52,7 +54,7 @@ class ChartPropertiesPanel(SidebarPanel):
         self._init_panel_layout()
 
         # Header
-        self._set_title("📈 Chart Properties", help_topic=PANEL_TOPIC_CHART_PROPERTIES)
+        self._set_title("Chart Properties", help_topic=PANEL_TOPIC_CHART_PROPERTIES)
 
         # Tab widget for organizing chart properties. When the tab bar
         # doesn't fit the panel's width, `resizeEvent` swaps it for

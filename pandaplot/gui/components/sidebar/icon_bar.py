@@ -223,19 +223,20 @@ class IconBar(PWidget):
         if icon_name:
             button.setIcon(self._tinted_icon(icon_name, "accent_icon_active" if is_active else "text_muted"))
 
-    def add_panel_button(self, name: str, icon: str, *, label: str | None = None, icon_name: str | None = None) -> QPushButton:
+    def add_panel_button(self, name: str, *, label: str | None = None, icon_name: str) -> QPushButton:
         """Add a new panel button to the icon bar.
 
         Args:
             name: Unique panel identifier, emitted by panel_requested.
-            icon: Icon text shown on the button when no bundled icon is given.
             label: Panel title used for the tooltip and accessible name; derived from `name` when omitted.
-            icon_name: Name of a bundled icon (see icon_manifest.toml) shown instead of the text.
+            icon_name: Name of the bundled icon (see icon_manifest.toml) shown on the button.
+
+        Returns:
+            The new icon-only button.
         """
-        btn = QPushButton("" if icon_name else icon)
-        if icon_name:
-            btn.setProperty("iconName", icon_name)
-            btn.setIconSize(QSize(_ICON_SIZE, _ICON_SIZE))
+        btn = QPushButton()
+        btn.setProperty("iconName", icon_name)
+        btn.setIconSize(QSize(_ICON_SIZE, _ICON_SIZE))
         btn.setProperty("segment", True)  # noqa: FBT003 - Qt method rejects keyword args
         btn.clicked.connect(lambda: self.panel_requested.emit(name))
         button_label = f"{label or name.replace('_', ' ').title()} panel"

@@ -10,6 +10,9 @@ from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Note
 
+# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
+ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+
 
 @pytest.fixture
 def search_setup(qtbot):
@@ -23,7 +26,7 @@ def search_setup(qtbot):
     context.event_bus = EventBus()
     context.get_app_state.return_value = app_state
     context.get_manager.return_value.get_surface_palette.return_value = {}
-    context.get_manager.return_value.get_design_tokens.return_value = {}
+    context.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
     panel = SearchPanel(context)
     qtbot.addWidget(panel)
     panel.search_input.setText("needle")

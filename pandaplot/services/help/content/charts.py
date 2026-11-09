@@ -197,7 +197,7 @@ def topics() -> list[HelpTopic]:
                 "The Data tab cannot clear an X column once one is chosen.\n\n"
                 "You can also click a line, point, bar or legend entry on the chart to select that series in the panel. "
                 "Clicking does not select a series while the Pan or Zoom tool is active. "
-                'Fits made with the "📐 Curve Fitting" panel, or by choosing "Series Type:" > "Fit", also appear in this list.'
+                'Fits made with the "Curve Fitting" panel, or by choosing "Series Type:" > "Fit", also appear in this list.'
             ),
             keywords=(
                 "series", "add series", "remove series", "delete series", "reorder", "order", "z order", "data tab", "second y axis", "y2",
@@ -363,18 +363,18 @@ def topics() -> list[HelpTopic]:
             summary="What the buttons above the chart do: Refresh, Reset, Reset Zoom, Swap X/Y, and matplotlib's pan, zoom and save tools.",
             steps=(),
             explanation=(
-                'Our buttons: "♻️ Refresh" reloads the data from your datasets and redraws the chart. '
-                '"🔍 Reset Zoom" zooms back out to show all the data. '
-                f'"⇄ Swap X/Y" exchanges the X and Y axes, including their titles, scales and ranges. It appears only for {_SWAP_CHART_TYPES} '
+                'Our buttons: "Refresh" reloads the data from your datasets and redraws the chart. '
+                '"Reset Zoom" zooms back out to show all the data. '
+                f'"Swap X/Y" exchanges the X and Y axes, including their titles, scales and ranges. It appears only for {_SWAP_CHART_TYPES} '
                 "charts. When it cannot run, the line under the chart says why, but only briefly. The reasons include: there are no series yet, a series is on "
                 "the secondary Y axis, a series is plotted against the row index (it has no X column), a series has no Y column, "
                 "or a series is of a type that cannot be swapped. You can undo a swap with Edit > Undo.\n\n"
-                '"🔄 Reset" puts all chart-level settings back to their defaults: the title (back to the chart name), subtitle, axes, legend, '
+                '"Reset" puts all chart-level settings back to their defaults: the title (back to the chart name), subtitle, axes, legend, '
                 "grid, size, DPI, fonts, backgrounds and the histogram bin count. Your series and their styles are kept, and so is the chart "
                 "type. There is no confirmation, and Reset cannot be undone: Edit > Undo will not bring the old settings back. "
                 "Think twice before you click it.\n\n"
                 "Next to them are matplotlib's own tools. Pan and Zoom let you move around and zoom in with the mouse; "
-                'use "🔍 Reset Zoom" to zoom back out. "Subplots" and "Customize" are there too, but what you change with them is not saved and is '
+                'use "Reset Zoom" to zoom back out. "Subplots" and "Customize" are there too, but what you change with them is not saved and is '
                 "replaced the next time the chart redraws, so use the Style and Axes tabs instead. The Save button saves an image "
                 "(see the save-image topic). As you move the mouse over the chart, the (x, y) readout in the toolbar shows the position.\n\n"
                 "On a 3-D chart, drag the chart with the mouse to rotate it. The rotation is not saved; set Elevation and Azimuth on the Axes tab "
@@ -404,7 +404,7 @@ def topics() -> list[HelpTopic]:
                 'The "Size" card offers ready-made sizes, "Custom" (type a width and height) and "Use app default". '
                 'The "DPI" card offers 100, 150 and 300 dpi, "Custom" and "Use app default". A higher DPI gives more detail and a larger file. '
                 'The hint on the Size card reads "Size affects export & default fonts".\n\n'
-                'To put a chart into a note, open the note, click "📎 Artefacts" on the note toolbar, click "📊 Insert Chart...", pick the chart, '
+                'To put a chart into a note, open the note, click "Artefacts" on the note toolbar, click "📊 Insert Chart...", pick the chart, '
                 'choose a "Snapshot DPI:" and click "Insert Chart". The note gets a picture of the chart as it looks at that moment. '
                 'The Artefacts window has a "Refresh" button to update the picture later.'
             ),

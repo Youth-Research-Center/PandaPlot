@@ -3,10 +3,14 @@
 Every panel class register_default_panels() constructs is patched out with a
 plain Mock -- constructing the real widgets needs a live AppContext/QWidget
 tree that is irrelevant to verifying which (name, icon, visibility_condition)
-tuples get registered, and is already covered by each panel's own tests.
+entries get registered (the icon is read from each panel's `ICON_NAME`), and is already covered by each panel's own tests.
 """
 from unittest.mock import Mock, call, patch
 
+import pytest
+from PySide6.QtWidgets import QWidget
+
+from pandaplot.gui.components.sidebar.panels import panel_setup_manager
 from pandaplot.gui.components.sidebar.panels.panel_conditions import (
     is_chart_tab_active,
     is_dataset_tab_active,
@@ -33,7 +37,10 @@ _PATCHED_PANEL_CLASSES = [
 
 def _register_with_patched_panels():
     patchers = [
-        patch(f"pandaplot.gui.components.sidebar.panels.panel_setup_manager.{name}", return_value=Mock())
+        patch(
+            f"pandaplot.gui.components.sidebar.panels.panel_setup_manager.{name}",
+            return_value=Mock(ICON_NAME=getattr(panel_setup_manager, name).ICON_NAME),
+        )
         for name in _PATCHED_PANEL_CLASSES
     ]
     for patcher in patchers:
@@ -52,7 +59,7 @@ def test_register_default_panels_registers_chart_signal_panel_for_chart_tabs():
 
     by_name = {info["name"]: info for info in manager.panels}
     assert "chart_signal" in by_name
-    assert by_name["chart_signal"]["icon"] == "📡"
+    assert by_name["chart_signal"]["icon_name"] == "waveform"
     assert by_name["chart_signal"]["visibility_condition"] is is_chart_tab_active
 
 
@@ -87,7 +94,7 @@ def test_register_default_panels_gives_every_panel_a_bundled_icon():
     manager = _register_with_patched_panels()
 
     for info in manager.panels:
-        assert info["icon_name"], info["name"]
+        assert info["icon_name"] == info["panel"].ICON_NAME, info["name"]
         assert icon_library.icon_svg(info["icon_name"]), info["name"]
 
 
@@ -99,8 +106,44 @@ def test_add_panels_passes_the_icon_name_through_to_the_sidebar():
     manager.add_panels(sidebar, panel_manager)
 
     expected = [
-        call(info["name"], info["icon"], info["panel"], icon_name=info["icon_name"])
+        call(info["name"], info["panel"], icon_name=info["panel"].ICON_NAME)
         for info in manager.panels
     ]
     assert sidebar.add_panel.call_args_list == expected
     assert all(c.kwargs["icon_name"] for c in sidebar.add_panel.call_args_list)
+
+
+def test_register_panel_reads_the_icon_name_from_the_panel(qtbot):
+    panel = QWidget()
+    panel.ICON_NAME = "folder"
+    qtbot.addWidget(panel)
+    manager = PanelSetupManager(app_context=Mock())
+
+    manager.register_panel(panel, "explorer", lambda _: True)
+
+    assert manager.panels[0]["icon_name"] == "folder"
+    assert "icon" not in manager.panels[0]
+
+
+def test_register_panel_without_an_icon_name_raises_naming_the_panel(qtbot):
+    panel = QWidget()
+    qtbot.addWidget(panel)
+    manager = PanelSetupManager(app_context=Mock())
+
+    with pytest.raises(ValueError, match="explorer"):
+        manager.register_panel(panel, "explorer", lambda _: True)
+
+    assert manager.panels == []
+
+
+@pytest.mark.parametrize("icon_name", [None, ""])
+def test_register_panel_rejects_a_missing_or_empty_icon_name(qtbot, icon_name):
+    panel = QWidget()
+    panel.ICON_NAME = icon_name
+    qtbot.addWidget(panel)
+    manager = PanelSetupManager(app_context=Mock())
+
+    with pytest.raises(ValueError, match="ICON_NAME"):
+        manager.register_panel(panel, "explorer", lambda _: True)
+
+    assert manager.panels == []
