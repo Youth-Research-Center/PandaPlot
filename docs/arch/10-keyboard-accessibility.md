@@ -32,9 +32,9 @@ Still open:
   on Enter, and Qt forwards Enter to a dialog's default button, so pressing
   Enter on a switch in a dialog flips it instead of accepting. See
   [Shared ToggleSwitch](#shared-toggleswitch).
-- `sidebar/icon_bar.py` creates panel buttons from icon text. Semantic names
-  need to be supplied independently of the displayed glyph; a tooltip alone
-  is not an accessible name.
+- `sidebar/icon_bar.py` creates icon-only panel buttons from bundled icons.
+  Semantic names are supplied independently of the icon (the panel title via
+  `label`); a tooltip alone is not an accessible name.
 - `StyleTab._field_row` places a QLabel beside a field without a buddy or
   accessible-name association (`setBuddy` is not used anywhere). Repeated
   labels such as "Match line" also need the group context, for example
