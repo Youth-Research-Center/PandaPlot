@@ -68,7 +68,7 @@ class PanelSetupManager:
             visibility_condition: Callable deciding when the panel is visible.
 
         Raises:
-            ValueError: If the panel does not define `ICON_NAME`.
+            ValueError: If the panel does not define a non-empty `ICON_NAME`.
         """
         icon_name = getattr(panel, "ICON_NAME", None)
         if not icon_name:

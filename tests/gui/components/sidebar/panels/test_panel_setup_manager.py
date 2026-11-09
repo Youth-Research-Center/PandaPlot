@@ -3,7 +3,7 @@
 Every panel class register_default_panels() constructs is patched out with a
 plain Mock -- constructing the real widgets needs a live AppContext/QWidget
 tree that is irrelevant to verifying which (name, icon, visibility_condition)
-tuples get registered, and is already covered by each panel's own tests.
+entries get registered (the icon is read from each panel's `ICON_NAME`), and is already covered by each panel's own tests.
 """
 from unittest.mock import Mock, call, patch
 
@@ -131,6 +131,19 @@ def test_register_panel_without_an_icon_name_raises_naming_the_panel(qtbot):
     manager = PanelSetupManager(app_context=Mock())
 
     with pytest.raises(ValueError, match="explorer"):
+        manager.register_panel(panel, "explorer", lambda _: True)
+
+    assert manager.panels == []
+
+
+@pytest.mark.parametrize("icon_name", [None, ""])
+def test_register_panel_rejects_a_missing_or_empty_icon_name(qtbot, icon_name):
+    panel = QWidget()
+    panel.ICON_NAME = icon_name
+    qtbot.addWidget(panel)
+    manager = PanelSetupManager(app_context=Mock())
+
+    with pytest.raises(ValueError, match="ICON_NAME"):
         manager.register_panel(panel, "explorer", lambda _: True)
 
     assert manager.panels == []

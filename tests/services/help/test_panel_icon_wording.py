@@ -33,3 +33,14 @@ def test_chart_properties_topic_describes_apply_and_undo_correctly() -> None:
     assert "undo" in text.lower()
     assert "only take effect" not in text
     assert "until you click Apply" not in text
+
+
+_OLD_BUTTON_AND_PANEL_NAMES = ("📐 Curve Fitting", "♻️ Refresh", "🔍 Reset Zoom", "⇄ Swap X/Y", "🔄 Reset", "📎 Artefacts")
+
+
+def test_no_topic_names_a_button_or_panel_with_its_old_emoji() -> None:
+    """Panels and toolbar buttons are named by their text; their icons are bundled SVGs, not emoji."""
+    for topic in build_help_catalog().topics():
+        text = _text(topic)
+        for old_name in _OLD_BUTTON_AND_PANEL_NAMES:
+            assert old_name not in text, f"{topic.id} still says {old_name!r}"

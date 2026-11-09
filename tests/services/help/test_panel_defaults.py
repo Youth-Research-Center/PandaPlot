@@ -32,7 +32,13 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
+    ctx.get_manager.return_value.get_design_tokens.return_value = {
+        "font_size_group_title": 9,
+        "text_primary": "#1C1E26",
+        "text_muted": "#6B7280",
+        "accent_icon_active": "#404BAC",
+        "text_disabled": "#AEB2BC",
+    }
     return ctx
 
 
