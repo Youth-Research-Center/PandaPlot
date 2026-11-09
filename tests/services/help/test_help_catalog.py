@@ -111,7 +111,7 @@ class TestSearch:
 class TestBuildCatalog:
     def test_content_modules_listed_in_order(self):
         assert [name.rsplit(".", 1)[-1] for name in CONTENT_MODULES] == [
-            "panels", "statistics", "descriptive", "preprocessing", "analysis",
+            "panels", "charts", "chart_types", "statistics", "descriptive", "preprocessing", "analysis",
             "signal", "fitting", "transforms", "measurements",
         ]
 

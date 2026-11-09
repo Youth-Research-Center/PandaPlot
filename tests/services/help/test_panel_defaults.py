@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QApplication, QFormLayout
 from pandaplot.analysis.analysis_types import AnalysisType
 from pandaplot.analysis.signal.signal_types import SIGNAL_ANALYSES, SignalAnalysisType
 from pandaplot.gui.components.sidebar.analysis.analysis_panel import AnalysisPanel
+from pandaplot.gui.components.sidebar.chart.tabs.chart_tab import ChartTab
 from pandaplot.gui.components.sidebar.chart_analysis.chart_analysis_panel import ChartAnalysisPanel
 from pandaplot.gui.components.sidebar.fit.fit_panel import FitPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import build_signal_parameter_widgets
@@ -136,6 +137,11 @@ class TestSignalParameterWidgets:
         assert peaks["distance"].minimum() == defaults.PEAK_MINIMUM_DISTANCE.minimum
         assert peaks["prominence"].value() == defaults.PEAK_PROMINENCE_DEFAULT
         assert peaks["threshold"].value() == defaults.PEAK_THRESHOLD_DEFAULT
+
+
+class TestChartTab:
+    def test_histogram_bins(self):
+        _assert_spin(ChartTab().hist_bins_spin, defaults.HIST_BINS)
 
 
 class TestHelpTextUsesTheConstants:

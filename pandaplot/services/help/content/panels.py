@@ -16,10 +16,18 @@ from pandaplot.services.help.content.panel_defaults import (
     SIGNIFICANCE_ALPHA,
 )
 from pandaplot.services.help.help_types import (
+    CHART_TOPIC_AXES,
+    CHART_TOPIC_CHOOSE_TYPE,
+    CHART_TOPIC_ERROR_BARS,
+    CHART_TOPIC_LEGEND,
+    CHART_TOPIC_MATH_TEXT,
+    CHART_TOPIC_SERIES,
+    CHART_TOPIC_STYLE,
     FIT_TOPIC_CUSTOM,
     FIT_TOPIC_OVERVIEW,
     PANEL_TOPIC_ANALYSIS,
     PANEL_TOPIC_CHART_ANALYSIS,
+    PANEL_TOPIC_CHART_PROPERTIES,
     PANEL_TOPIC_CHART_SIGNAL,
     PANEL_TOPIC_CHART_TRANSFORM,
     PANEL_TOPIC_DESCRIPTIVE,
@@ -58,7 +66,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.PANELS,
             summary="Create a new column from a dataset column by writing a short expression, such as x * 2 or np.sqrt(x).",
             steps=(
-                'Open a dataset tab and click the 🔧 icon in the sidebar (its tooltip reads "Transform Operations panel").',
+                'Open a dataset tab and click the wrench icon in the sidebar (its tooltip reads "Transform Operations panel").',
                 "Check the Active Dataset box at the top shows the dataset you want to work on.",
                 ("Under Column Selection, click a column in Source Columns. If you select several, only the first one is used as x; "
                 'the list marks it with "→ x" and the others with "(not used)".'),
@@ -92,7 +100,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.PANELS,
             summary="Rescale one or more numeric columns, for example to compare columns measured in different units.",
             steps=(
-                'Open a dataset tab and click the ⚖️ icon in the sidebar (its tooltip reads "Preprocessing panel").',
+                'Open a dataset tab and click the sliders icon in the sidebar (its tooltip reads "Preprocessing panel").',
                 "Under Transformation, choose a Method. A short description and its formula appear below the list.",
                 "Under Columns, select one or more numeric columns (Ctrl-click or Shift-click for several).",
                 ('For "Min-Max scale" only, set Output min and Output max under Parameters (0 and 1 by default). '
@@ -116,7 +124,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.PANELS,
             summary="Calculate a derivative, integral, arc length, smoothed values or interpolated values from two columns and store the result as a new column.",
             steps=(
-                'Open a dataset tab and click the 📊 icon in the sidebar (its tooltip reads "Analysis Operations panel").',
+                'Open a dataset tab and click the bar-chart icon in the sidebar (its tooltip reads "Analysis Operations panel").',
                 "Under Analysis Type, choose Derivative, Integral, Arc Length, Smoothing or Interpolation.",
                 ("Under Column Selection, choose the X Column and the Y Column. Both must be numeric. "
                 "The first two columns of the dataset are selected by default."),
@@ -146,7 +154,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.PANELS,
             summary="Summarize one or more numeric columns with statistics such as the mean, median and standard deviation.",
             steps=(
-                'Open a dataset tab and click the 📋 icon in the sidebar (its tooltip reads "Descriptive Statistics panel").',
+                'Open a dataset tab and click the table icon in the sidebar (its tooltip reads "Descriptive Statistics panel").',
                 'Under Columns, select one or more numeric columns (Ctrl-click or Shift-click). "Select all" selects every column.',
                 f"Under Options, set Significant digits ({DESCRIPTIVE_SIGNIFICANT_DIGITS.default} by default).",
                 'Under Options, leave "Also add a written report (note)" ticked if you want a note with the results, or untick it.',
@@ -163,7 +171,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.PANELS,
             summary="Run a hypothesis test on columns of a dataset and read the p-value, with a plain-language explanation of each test.",
             steps=(
-                'Open a dataset tab and click the 🧪 icon in the sidebar (its tooltip reads "Statistical Tests panel").',
+                'Open a dataset tab and click the flask icon in the sidebar (its tooltip reads "Statistical Tests panel").',
                 ("Under Test, choose a test. Its description and assumptions appear below. "
                 "Click the ℹ️ button for a longer explanation, the formula and an example."),
                 ("Under Data Selection, choose the data. Depending on the test this is one Sample column, "
@@ -183,7 +191,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.PANELS,
             summary="Analyze a numeric column as a signal, for example to find its frequencies or its peaks.",
             steps=(
-                'Open a dataset tab and click the 📡 icon in the sidebar (its tooltip reads "Signal Analysis panel").',
+                'Open a dataset tab and click the waveform icon in the sidebar (its tooltip reads "Signal Analysis panel").',
                 "Under Analysis, choose a Method. A short description appears below it.",
                 "Under Input, choose the Signal column. Only numeric columns are listed.",
                 ("Under Parameters, set the options the method offers. Depending on the method these can be "
@@ -205,7 +213,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.PANELS,
             summary="Fit a mathematical model to a series on the current chart and add the fitted curve to the chart.",
             steps=(
-                'Open a chart tab and click the 📐 icon in the sidebar (its tooltip reads "Curve Fitting panel").',
+                'Open a chart tab and click the function (ƒ) icon in the sidebar (its tooltip reads "Curve Fitting panel").',
                 ('Under Data Source, choose a series in Chart Series. Choose "Custom..." to pick any Dataset, X Column and Y Column in the project instead. '
                 "Data Points shows how many points will be used."),
                 "Under Fit Configuration, choose a Category and then a Model.",
@@ -233,7 +241,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.PANELS,
             summary="Calculate a derivative, integral, arc length, smoothed curve or interpolated curve for a series of the current chart.",
             steps=(
-                'Open a chart tab and click the 🧮 icon in the sidebar (its tooltip reads "Chart Analysis panel").',
+                'Open a chart tab and click the calculator icon in the sidebar (its tooltip reads "Chart Analysis panel").',
                 "Under Series, choose what to Analyze: a data series or a fitted curve of this chart.",
                 "Under Operation, choose the Type: Derivative, Integral, Arc length (line length), Smoothing or Interpolation.",
                 ("Under Parameters, set the options for the chosen operation (for example Method, Window length or Points). "
@@ -255,7 +263,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.PANELS,
             summary="Analyze a series of the current chart as a signal, for example to find its frequencies or its peaks.",
             steps=(
-                'Open a chart tab and click the 📡 icon in the sidebar (its tooltip reads "Chart Signal Analysis panel").',
+                'Open a chart tab and click the waveform icon in the sidebar (its tooltip reads "Chart Signal Analysis panel").',
                 "Under Series, choose what to Analyze: a data series or a fitted curve of this chart.",
                 "Under Method, choose the analysis. A short description appears below it.",
                 "Under Segment (index range), set Start index and End index to analyze only part of the series. The first point is index 0 and both ends are included.",
@@ -276,7 +284,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.PANELS,
             summary="Change the x or y values of a chart series with an expression and add the result to the chart as a new series.",
             steps=(
-                'Open a chart tab and click the 🔧 icon in the sidebar (its tooltip reads "Chart Transform panel").',
+                'Open a chart tab and click the wrench icon in the sidebar (its tooltip reads "Chart Transform panel").',
                 "Under Series, choose which series or fitted curve to Transform.",
                 "Under Target, choose whether the result replaces Y or X. The other axis stays as it is.",
                 ('Under Transform Expression, type an expression using x and y, or choose a ready-made one from "ƒ  Insert function ▾". '
@@ -296,6 +304,45 @@ def topics() -> list[HelpTopic]:
                 "transforms.expressions",
                 "transforms.names",
                 PANEL_TOPIC_TRANSFORM,
+            ),
+        ),
+        HelpTopic(
+            id=PANEL_TOPIC_CHART_PROPERTIES,
+            title="Chart Properties panel",
+            category=HelpCategory.PANELS,
+            summary="Change how the open chart looks and what it plots, with most edits redrawing the chart as you make them.",
+            steps=(
+                'Open a chart tab and click the line-chart icon in the sidebar (its tooltip reads "Chart Properties panel").',
+                "Pick a tab: Chart, Data, Style, Axes or Legend. If the sidebar is narrow, the tabs are shown as a dropdown list instead.",
+                ("Make your changes. Chart, Style, Axes and Legend edits redraw the chart at once. Edits on the Data tab (dataset, columns, label, "
+                "Y axis) only mark the panel Modified and show on the chart when you click Apply."),
+                'Check the footer at the bottom. It reads "No changes" until you edit something, then "Modified".',
+                ("Click Apply to keep your changes as one step you can undo with Edit > Undo, "
+                "or click Revert to go back to how the chart was when you opened it or last clicked Apply."),
+                "Before you open any other tab (another chart, a dataset or a note), click Apply or Revert.",
+            ),
+            explanation=(
+                "Chart holds the title, subtitle, category, chart type and, for histograms, the number of bins. "
+                'Data lists the series on the chart: add one with "+ Add series", remove it with the wastebasket button on its row, '
+                "move it up or down with the arrow buttons, and set which columns it uses. "
+                "Style sets fonts, colours, backgrounds, lines, markers and the other look of the chart and its series. "
+                "Axes sets each axis's label, range, scale, ticks and grid. Legend turns the legend on or off and sets its position, font and background.\n\n"
+                "Edits on the Chart, Style, Axes and Legend tabs show on the chart straight away, but they only become one undoable step when you click Apply. "
+                "Dataset, column, label and Y-axis edits on the Data tab are different: they only mark the panel Modified, and show on the chart when you click Apply. "
+                "Adding, removing and reordering series on the Data tab are different: they happen at once, and each is its own step in Edit > Undo. "
+                "They also make the chart as it is now the new point that Revert goes back to, so click Apply or Revert first if you have other edits waiting.\n\n"
+                "Apply or Revert before you switch to any other tab, including a dataset or note tab. "
+                "Changes you have not applied can no longer be reverted and have no undo step."
+            ),
+            keywords=("apply", "revert", "undo", "change not saved", "properties", "format chart", "edit chart"),
+            related=(
+                CHART_TOPIC_SERIES,
+                CHART_TOPIC_STYLE,
+                CHART_TOPIC_AXES,
+                CHART_TOPIC_LEGEND,
+                CHART_TOPIC_CHOOSE_TYPE,
+                CHART_TOPIC_ERROR_BARS,
+                CHART_TOPIC_MATH_TEXT,
             ),
         ),
     ]

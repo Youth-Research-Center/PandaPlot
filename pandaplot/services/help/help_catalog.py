@@ -8,6 +8,8 @@ from pandaplot.services.help.help_types import HelpCategory, HelpTopic
 
 CONTENT_MODULES: tuple[str, ...] = (
     "pandaplot.services.help.content.panels",
+    "pandaplot.services.help.content.charts",
+    "pandaplot.services.help.content.chart_types",
     "pandaplot.services.help.content.statistics",
     "pandaplot.services.help.content.descriptive",
     "pandaplot.services.help.content.preprocessing",
@@ -103,6 +105,7 @@ def _searchable_text(topic: HelpTopic) -> str:
         topic.title,
         *topic.keywords,
         topic.category.value,
+        topic.group,
         topic.summary,
         topic.explanation,
         topic.assumptions,
@@ -121,6 +124,8 @@ def _content_modules() -> tuple[ModuleType, ...]:
     """
     from pandaplot.services.help.content import (
         analysis,
+        chart_types,
+        charts,
         descriptive,
         fitting,
         measurements,
@@ -131,7 +136,7 @@ def _content_modules() -> tuple[ModuleType, ...]:
         transforms,
     )
 
-    return (panels, statistics, descriptive, preprocessing, analysis, signal, fitting, transforms, measurements)
+    return (panels, charts, chart_types, statistics, descriptive, preprocessing, analysis, signal, fitting, transforms, measurements)
 
 
 def build_help_catalog() -> HelpCatalog:

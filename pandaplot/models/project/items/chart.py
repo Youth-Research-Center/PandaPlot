@@ -38,7 +38,7 @@ class YAxis(StrEnum):
 # Chart and series types that plot a 2-D curve or points from an X and a Y,
 # so swapping them is just exchanging the two references (#266). A vector
 # series also swaps its U and V components, a fit swaps its stored curve.
-_SWAPPABLE_CHART_TYPES = frozenset({ChartType.LINE, ChartType.SCATTER, ChartType.VECTOR})
+SWAPPABLE_CHART_TYPES = frozenset({ChartType.LINE, ChartType.SCATTER, ChartType.VECTOR})
 _SWAPPABLE_SERIES_TYPES = frozenset({SeriesType.LINE, SeriesType.SCATTER, SeriesType.VECTOR, SeriesType.FIT})
 
 # AxisConfig fields that describe what is plotted on an axis (its title,
@@ -586,7 +586,7 @@ class Chart(Item):
         """Whether this chart's type can ever be swapped (see
         :meth:`swap_axes_blocker` for the per-chart reasons it may not be
         right now). Used to hide the swap action on other chart types."""
-        return self.chart_type in _SWAPPABLE_CHART_TYPES
+        return self.chart_type in SWAPPABLE_CHART_TYPES
 
     def swap_axes_blocker(self) -> str | None:
         """Why :meth:`swap_axes` can't run on this chart, or None if it can.

@@ -6,6 +6,7 @@ import pytest
 
 from pandaplot.services.help.help_types import (
     PANEL_TOPIC_IDS,
+    WIZARD_TOPIC_IDS,
     HelpCategory,
     HelpTopic,
     fit_topic_id,
@@ -24,6 +25,7 @@ class TestHelpTopicValidation:
         assert topic.steps == ()
         assert topic.related == ()
         assert topic.assumptions == ""
+        assert topic.group == ""
 
     @pytest.mark.parametrize("field", ["id", "title", "summary"])
     def test_empty_required_field_rejected(self, field):
@@ -51,12 +53,22 @@ class TestCategoryOrder:
         assert members[0] is HelpCategory.PANELS
         assert members[-1] is HelpCategory.MEASUREMENTS
 
+    def test_charts_directly_after_panels(self):
+        members = list(HelpCategory)
+        assert members[members.index(HelpCategory.PANELS) + 1] is HelpCategory.CHARTS
+
 
 class TestPanelTopicIds:
-    def test_ten_unique_panel_ids(self):
-        assert len(PANEL_TOPIC_IDS) == 10
-        assert len(set(PANEL_TOPIC_IDS)) == 10
+    def test_eleven_unique_panel_ids(self):
+        assert len(PANEL_TOPIC_IDS) == 11
+        assert len(set(PANEL_TOPIC_IDS)) == 11
         assert all(topic_id.startswith("panel.") for topic_id in PANEL_TOPIC_IDS)
+
+
+class TestWizardTopicIds:
+    def test_wizard_ids_unique_and_disjoint_from_panel_ids(self):
+        assert len(set(WIZARD_TOPIC_IDS)) == len(WIZARD_TOPIC_IDS) == 3
+        assert set(WIZARD_TOPIC_IDS).isdisjoint(PANEL_TOPIC_IDS)
 
 
 class TestFitTopicId:

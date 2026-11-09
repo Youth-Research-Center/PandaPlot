@@ -5,6 +5,7 @@ content area that is either scrollable or added directly.
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QScrollArea, QToolButton, QVBoxLayout, QWidget
 
+from pandaplot.gui.components.common.help_button import build_help_button, help_button_stylesheet
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events.event_types import UIEvents
 from pandaplot.models.state.app_context import AppContext
@@ -54,13 +55,11 @@ class SidebarPanel(PWidget):
             return self.title_label
 
         panel_name = text.split(maxsplit=1)[-1]
-        self.help_button = QToolButton()
-        self.help_button.setText("?")
-        self.help_button.setToolTip("Open help for this panel")
-        self.help_button.setAccessibleName(f"Help: {panel_name}")
-        self.help_button.setAccessibleDescription(f"Opens the Help window on the {panel_name} topic")
-        self.help_button.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.help_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.help_button = build_help_button(
+            accessible_name=f"Help: {panel_name}",
+            accessible_description=f"Opens the Help window on the {panel_name} topic",
+            tooltip="Open help for this panel",
+        )
         self.help_button.clicked.connect(self._on_help_clicked)
 
         self._title_row = QWidget()
@@ -162,9 +161,4 @@ class SidebarPanel(PWidget):
             return
         title_row.setStyleSheet(f"QWidget#panelTitleRow {{ background-color: {card_border}; border-radius: 3px; }}")
         title_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {base_fg}; padding: 5px; background-color: transparent;")
-        help_button.setStyleSheet(
-            f"QToolButton {{ background-color: transparent; color: {base_fg}; font-weight: bold; "
-            f"border: 1px solid transparent; border-radius: 3px; padding: 2px 6px; }}"
-            f"QToolButton:hover {{ border: 1px solid {base_fg}; }}"
-            f"QToolButton:focus {{ border: 2px solid {base_fg}; }}"
-        )
+        help_button.setStyleSheet(help_button_stylesheet(base_fg))

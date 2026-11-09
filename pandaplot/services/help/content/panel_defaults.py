@@ -25,6 +25,7 @@ ROLLING_WINDOW_CHART = SpinRange(default=5, minimum=2, maximum=100)
 INTERPOLATION_POINTS_DATASET = SpinRange(default=100, minimum=10, maximum=10000)
 INTERPOLATION_POINTS_CHART = SpinRange(default=200, minimum=10, maximum=100000)
 
+HIST_BINS = SpinRange(default=20, minimum=2, maximum=200)
 FIT_POINTS = SpinRange(default=500, minimum=50, maximum=5000)
 DESCRIPTIVE_SIGNIFICANT_DIGITS = SpinRange(default=6, minimum=1, maximum=12)
 SIGNIFICANCE_ALPHA = SpinRange(default=0.05, minimum=0.0001, maximum=0.5)

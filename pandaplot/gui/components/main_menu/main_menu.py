@@ -1,8 +1,11 @@
+import weakref
+from collections.abc import Callable
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QMenu, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QMenu, QWidget
+from shiboken6 import isValid
 
 from pandaplot.commands.app.exit_command import ExitCommand
 from pandaplot.commands.project.chart import CreateChartFromWizardCommand
@@ -33,6 +36,28 @@ if TYPE_CHECKING:
     from pandaplot.gui.dialogs.help.help_window import HelpWindow
 
 
+class _HelpOwnerWatcher(QObject):
+    """Event filter on a modal dialog that owns the Help window.
+
+    Calls `on_gone(dialog)` when the dialog is hidden (closed) or is about to be
+    deleted, so the Help window can move to another owner before Qt destroys it
+    together with the dialog it is a child of.
+    """
+
+    def __init__(self, dialog: QDialog, on_gone: Callable[[QDialog], None]) -> None:
+        super().__init__(dialog)
+        self._on_gone = on_gone
+        dialog.installEventFilter(self)
+
+    @override
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        # A spontaneous Hide is the window system minimising or unmapping the dialog, not it closing.
+        is_gone = event.type() == QEvent.Type.DeferredDelete or (event.type() == QEvent.Type.Hide and not event.spontaneous())
+        if is_gone and isinstance(watched, QDialog):
+            self._on_gone(watched)
+        return False
+
+
 class MainMenu(PMenuBar):
     def __init__(self, parent: QWidget, app_context: AppContext):
         super().__init__(app_context=app_context, parent=parent)
@@ -40,6 +65,8 @@ class MainMenu(PMenuBar):
         # dataset in dialogs opened from the menu.
         self.active_dataset_id: str | None = None
         self._help_window: HelpWindow | None = None
+        # Modal dialogs already watched to re-home the Help window when they close.
+        self._hooked_modals: weakref.WeakSet[QDialog] = weakref.WeakSet()
         self._initialize()
 
     @override
@@ -443,19 +470,107 @@ class MainMenu(PMenuBar):
     def show_help(self, topic_id: str | None = None) -> None:
         """Show the Help window, creating it on first use, on the given topic.
 
+        If a modal dialog is open (for example the chart wizard), the window is
+        moved under it so Qt does not block its input.
+
         Args:
             topic_id: Id of the topic to open, or None for the first topic.
         """
-        if self._help_window is None:
+        if self._help_window is None or not isValid(self._help_window):
             from pandaplot.gui.dialogs.help.help_window import HelpWindow
 
-            self._help_window = HelpWindow(self.app_context, self.window())
-        self._help_window.show_topic(topic_id)
-        if self._help_window.isMinimized():
-            self._help_window.setWindowState(self._help_window.windowState() & ~Qt.WindowState.WindowMinimized)
-        self._help_window.show()
-        self._help_window.raise_()
-        self._help_window.activateWindow()
+            if self._help_window is not None:
+                # The old window's C++ object was destroyed (e.g. with its owner dialog);
+                # drop its event-bus subscriptions so they are not called on a dead object.
+                self._help_window.unsubscribe_all()
+            # Create it directly under its owner: re-parenting a never-shown window would copy a
+            # meaningless geometry and stop Qt from centring it.
+            self._help_window = HelpWindow(self.app_context, self._help_owner())
+        help_window = self._help_window
+        help_window.show_topic(topic_id)
+        self._attach_help_window_to_active_modal()
+        if help_window.isMinimized():
+            help_window.setWindowState(help_window.windowState() & ~Qt.WindowState.WindowMinimized)
+        help_window.show()
+        help_window.raise_()
+        help_window.activateWindow()
+
+    def _help_owner(self, exclude: QDialog | None = None) -> QWidget:
+        """Return the widget the Help window should be parented to right now.
+
+        Args:
+            exclude: A dialog that is closing and must not be chosen, even if it is still the active modal.
+
+        Returns:
+            The active modal dialog; if that is the excluded dialog, its nearest visible
+            modal dialog ancestor (a dialog deleted while visible is still the active modal
+            when it goes, while the dialog that opened it stays modal); otherwise the main window.
+        """
+        modal = QApplication.activeModalWidget()
+        if modal is exclude and exclude is not None:
+            modal = self._modal_dialog_ancestor(exclude)
+        if isinstance(modal, QDialog) and modal is not self._help_window and modal is not exclude:
+            return modal
+        return self.window()
+
+    @staticmethod
+    def _modal_dialog_ancestor(widget: QWidget) -> QDialog | None:
+        """Return the nearest ancestor of a widget that is a visible modal dialog, if any."""
+        parent = widget.parentWidget()
+        while parent is not None:
+            if isinstance(parent, QDialog) and parent.isVisible() and parent.isModal():
+                return parent
+            parent = parent.parentWidget()
+        return None
+
+    def _attach_help_window_to_active_modal(self, exclude: QDialog | None = None) -> None:
+        """Parent the Help window to the active modal dialog, or to the main window if none.
+
+        Qt blocks input to every window outside the active modal dialog's
+        hierarchy, so a Help window owned by the main window cannot be used while
+        a modal dialog is open. The window is therefore re-parented under that
+        dialog, and moved back when the dialog closes. Re-parenting never activates the window.
+
+        Args:
+            exclude: A closing dialog that must not become the owner.
+        """
+        help_window = self._help_window
+        if help_window is None or not isValid(help_window):
+            return
+        owner = self._help_owner(exclude)
+        if help_window.parentWidget() is not owner:
+            was_visible = help_window.isVisible()
+            if was_visible:
+                geometry = help_window.geometry()
+                help_window.setParent(owner, help_window.windowFlags())
+                help_window.setGeometry(geometry)
+                # setParent() hides the window; show it again without stealing activation
+                # (for example from the main window when a modal dialog closes).
+                previous = help_window.testAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+                help_window.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)  # noqa: FBT003 -- Qt API
+                help_window.show()
+                help_window.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, previous)
+            else:
+                help_window.setParent(owner, help_window.windowFlags())
+        dialog = owner if isinstance(owner, QDialog) else None
+        if dialog is not None and dialog not in self._hooked_modals:
+            self._hooked_modals.add(dialog)
+            _HelpOwnerWatcher(dialog, self._on_help_owner_gone)
+
+    def _on_help_owner_gone(self, dialog: QDialog) -> None:
+        """Move the Help window to the next owner once a dialog it sat under closes or is deleted.
+
+        Args:
+            dialog: The dialog that was hidden or is about to be deleted.
+        """
+        if not isValid(self):
+            return
+        self._hooked_modals.discard(dialog)
+        watcher = dialog.findChild(_HelpOwnerWatcher)
+        if watcher is not None:
+            dialog.removeEventFilter(watcher)
+            watcher.deleteLater()
+        self._attach_help_window_to_active_modal(exclude=dialog)
 
     def show_welcome_tab(self):
         """Show the Welcome tab from Help > Welcome, focusing one if already

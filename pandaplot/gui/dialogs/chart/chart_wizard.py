@@ -4,7 +4,7 @@ from collections.abc import Callable
 from typing import override
 
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import QDialog, QWizard
 
 from pandaplot.gui.core.widget_extension import PWizard
@@ -12,7 +12,7 @@ from pandaplot.gui.dialogs.chart.chart_data_page import ChartDataPage
 from pandaplot.gui.dialogs.chart.chart_labels_page import ChartLabelsPage
 from pandaplot.gui.dialogs.chart.chart_no_dataset_page import ChartNoDatasetPage
 from pandaplot.gui.dialogs.chart.chart_type_page import ChartTypePage
-from pandaplot.models.events.event_types import DatasetEvents
+from pandaplot.models.events.event_types import DatasetEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -77,6 +77,9 @@ class ChartWizard(PWizard):
         self.no_dataset_page.emptyRequested.connect(self._finish_empty)
         self._no_dataset_page_id = self.addPage(self.no_dataset_page)
 
+        self.help_shortcut = QShortcut(QKeySequence(QKeySequence.StandardKey.HelpContents), self)
+        self.help_shortcut.activated.connect(self._on_help_shortcut)
+
         self.currentIdChanged.connect(self._on_page_changed)
         # QWizard only assigns a currentId (and instantiates page state) once it
         # is shown or restarted; since this wizard is driven headlessly in
@@ -88,15 +91,23 @@ class ChartWizard(PWizard):
         for page in (self.type_page, self.data_page, self.labels_page, self.no_dataset_page):
             page.step_rail.stepClicked.connect(self._jump_to_step)
 
+    def _on_help_shortcut(self) -> None:
+        """F1: open the Help window on the current page's topic."""
+        topic_id = getattr(self.currentPage(), "help_topic", None)
+        if topic_id is not None:
+            self.publish_event(UIEvents.HELP_REQUESTED, {"topic_id": topic_id})
+
     def _jump_to_step(self, step_index: int) -> None:
         page_id = {0: self._type_page_id, 1: self._data_page_id, 2: self._labels_page_id}[step_index]
         self.setCurrentId(page_id)
 
     def _apply_theme(self):
         # Qt stylesheets cascade to descendants by default, so setting this on
-        # the wizard itself themes both pages (ChartTypePage's type list,
+        # the wizard itself themes every page (ChartTypePage's type list,
         # ChartDataPage's SeriesConfigCard combos/buttons/checkboxes) without
-        # needing per-page stylesheets.
+        # needing per-page stylesheets. Widget rules are scoped to `QWizardPage`
+        # descendants so they do not leak into other top-level windows parented
+        # to the wizard (such as the Help window).
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
 
@@ -109,7 +120,7 @@ class ChartWizard(PWizard):
         input_bg = palette.get("card_hover", "#e9ecef")
 
         self.setStyleSheet(f"""
-            QWizard, QDialog {{
+            QWizard {{
                 background-color: {card_bg};
                 color: {base_fg};
             }}
@@ -117,21 +128,21 @@ class ChartWizard(PWizard):
                 background-color: {card_bg};
                 color: {base_fg};
             }}
-            QLabel, QCheckBox {{
+            QWizardPage QLabel, QWizardPage QCheckBox {{
                 color: {base_fg};
             }}
-            QCheckBox::indicator {{
+            QWizardPage QCheckBox::indicator {{
                 width: 14px;
                 height: 14px;
                 border: 1px solid {card_border};
                 border-radius: 3px;
                 background-color: {input_bg};
             }}
-            QCheckBox::indicator:checked {{
+            QWizardPage QCheckBox::indicator:checked {{
                 background-color: {accent};
                 border-color: {accent};
             }}
-            QLineEdit {{
+            QWizardPage QLineEdit {{
                 background-color: {input_bg};
                 border: 1px solid {card_border};
                 border-radius: 4px;
@@ -139,28 +150,28 @@ class ChartWizard(PWizard):
                 min-height: 22px;
                 color: {base_fg};
             }}
-            QLineEdit:focus {{
+            QWizardPage QLineEdit:focus {{
                 border-color: {accent};
             }}
-            QLineEdit:hover {{
+            QWizardPage QLineEdit:hover {{
                 border-color: {accent};
             }}
-            QLineEdit:disabled {{
+            QWizardPage QLineEdit:disabled {{
                 color: {secondary_fg};
                 background-color: {card_bg};
                 border-color: {card_border};
             }}
-            QListWidget {{
+            QWizardPage QListWidget {{
                 background-color: {input_bg};
                 border: 1px solid {card_border};
                 border-radius: 4px;
                 color: {base_fg};
                 outline: none;
             }}
-            QListWidget::item {{
+            QWizardPage QListWidget::item {{
                 padding: 4px 6px;
             }}
-            QListWidget::item:selected {{
+            QWizardPage QListWidget::item:selected {{
                 background-color: {accent};
                 color: white;
             }}
