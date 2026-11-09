@@ -166,13 +166,13 @@ Each wizard step has a **?** button at the bottom left, and `F1` does the same: 
 Charts can contain these series types, depending on the chart and selected data:
 - **Line**: Connects values in order.
 - **Scatter**: Shows individual data points.
-- **Bar**: Compares values with bars.
+- **Bar**: Compares values with bars. Bar series that share X values are drawn on top of each other; use Stacked Bar to compare groups.
 - **Stacked Bar**: Stacks bar values at each X position.
 - **Histogram**: Shows the frequency distribution of one values column.
 - **Density**: Shows a kernel density estimate for one values column.
 - **Box**: Summarizes a distribution with quartiles, median, and outliers.
 - **Pie**: Shows values as wedges, with optional category labels.
-- **Vector**: Shows two-dimensional vector fields.
+- **Vector**: Shows two-dimensional vector fields. Arrows are coloured by the Color-by column only when you choose a colormap under **Color by magnitude:** on the Style tab.
 - **Color Map**: Colors points by a third data column.
 - **Heatmap**: Displays values on a two-dimensional grid.
 - **3D Scatter**: Plots data points in three dimensions.
@@ -181,7 +181,7 @@ Charts can contain these series types, depending on the chart and selected data:
 - **3D Wireframe**: Shows a wireframe in three dimensions.
 - **3D Bar**: Shows values as three-dimensional bars.
 - **3D Triangulated Surface**: Shows a triangulated surface in three dimensions.
-- **3D Vector**: Shows a three-dimensional vector field.
+- **3D Vector**: Shows a three-dimensional vector field. Colouring by the Color-by column also needs a colormap under **Color by magnitude:** on the Style tab.
 
 ### Plot Customization & Styling
 Click the line-chart icon in the sidebar (tooltip "Chart Properties panel") while viewing a chart tab. Its tabs are:
@@ -191,7 +191,7 @@ Click the line-chart icon in the sidebar (tooltip "Chart Properties panel") whil
 - **Axes**: Each axis's label, range, scale, ticks and grid.
 - **Legend**: Show or hide the legend and set its position, font and background.
 
-Edits on the Chart, Style, Axes and Legend tabs appear on the chart immediately. The footer at the bottom of the panel shows **Modified** once you have edited something: click **Apply** to keep the changes as one undo step (**Edit > Undo**), or **Revert** to go back to how the chart was when you opened it or last applied. Apply or Revert before switching to another chart tab. Adding, removing and reordering series on the Data tab take effect at once, and each is its own undo step.
+Edits on the Chart, Style, Axes and Legend tabs appear on the chart immediately. The footer at the bottom of the panel shows **Modified** once you have edited something: click **Apply** to keep the changes as one undo step (**Edit > Undo**), or **Revert** to go back to how the chart was when you opened it or last applied. Edits to a series' dataset, columns, label or Y axis on the Data tab only mark the panel **Modified** and show on the chart when you click **Apply**. Apply or Revert before switching to any other tab (a dataset or note tab as well); otherwise the changes can no longer be reverted and have no undo step. Adding, removing and reordering series on the Data tab take effect at once, and each is its own undo step. **+ Add series** copies the selected series, so a chart with no series cannot get its first series there: create the chart with the wizard.
 
 ### Saving a Chart as an Image
 Click the **Save** button (floppy-disk icon, tooltip "Save the figure") in the toolbar above the chart and choose a file name and format such as PNG, PDF or SVG. To set the picture size and sharpness first, use the **Size** and **DPI** cards on the Style tab (with **Chart** selected in the drop-down).

@@ -310,15 +310,16 @@ def topics() -> list[HelpTopic]:
             id=PANEL_TOPIC_CHART_PROPERTIES,
             title="Chart Properties panel",
             category=HelpCategory.PANELS,
-            summary="Change how the open chart looks and what it plots, with the chart redrawing as you edit.",
+            summary="Change how the open chart looks and what it plots, with most edits redrawing the chart as you make them.",
             steps=(
                 'Open a chart tab and click the line-chart icon in the sidebar (its tooltip reads "Chart Properties panel").',
                 "Pick a tab: Chart, Data, Style, Axes or Legend. If the sidebar is narrow, the tabs are shown as a dropdown list instead.",
-                "Make your changes. The chart redraws at once.",
+                ("Make your changes. Chart, Style, Axes and Legend edits redraw the chart at once. Edits on the Data tab (dataset, columns, label, "
+                "Y axis) only mark the panel Modified and show on the chart when you click Apply."),
                 'Check the footer at the bottom. It reads "No changes" until you edit something, then "Modified".',
                 ("Click Apply to keep your changes as one step you can undo with Edit > Undo, "
                 "or click Revert to go back to how the chart was when you opened it or last clicked Apply."),
-                "Before you open a different chart tab, click Apply or Revert.",
+                "Before you open any other tab (another chart, a dataset or a note), click Apply or Revert.",
             ),
             explanation=(
                 "Chart holds the title, subtitle, category, chart type and, for histograms, the number of bins. "
@@ -327,10 +328,11 @@ def topics() -> list[HelpTopic]:
                 "Style sets fonts, colours, backgrounds, lines, markers and the other look of the chart and its series. "
                 "Axes sets each axis's label, range, scale, ticks and grid. Legend turns the legend on or off and sets its position, font and background.\n\n"
                 "Edits on the Chart, Style, Axes and Legend tabs show on the chart straight away, but they only become one undoable step when you click Apply. "
+                "Dataset, column, label and Y-axis edits on the Data tab are different: they only mark the panel Modified, and show on the chart when you click Apply. "
                 "Adding, removing and reordering series on the Data tab are different: they happen at once, and each is its own step in Edit > Undo. "
                 "They also make the chart as it is now the new point that Revert goes back to, so click Apply or Revert first if you have other edits waiting.\n\n"
-                "Apply or Revert before you switch to another chart tab. "
-                "Changes you have not applied stay on the chart, but they can no longer be reverted and have no undo step."
+                "Apply or Revert before you switch to any other tab, including a dataset or note tab. "
+                "Changes you have not applied can no longer be reverted and have no undo step."
             ),
             keywords=("apply", "revert", "undo", "change not saved", "properties", "format chart", "edit chart"),
             related=(

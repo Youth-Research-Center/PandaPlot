@@ -43,7 +43,8 @@ class _ChartTypeText:
 
 
 _ROW_NUMBER_NOTE = (
-    "The X column is optional. If you leave it empty, the values are plotted against the row number of the dataset."
+    "The X column is optional. If you leave it empty (or leave X column blank in the chart wizard), the values are plotted against the "
+    "row number of the dataset, counting from 0 (the table header numbers rows from 1)."
 )
 
 _THREE_D_NOTE = "A 3-D chart needs an X, a Y and a Z column. You can add a 3D Scatter or 3D Line series on top to mark points or a path."
@@ -70,8 +71,8 @@ _CHART_TYPE_TEXT: dict[ChartType, _ChartTypeText] = {
     ChartType.BAR: _ChartTypeText(
         summary="Draws one bar per row, with the height set by the Y value. Use it to compare amounts between categories.",
         explanation=(
-            "The X values place and label the bars. They can be numbers, text or dates. Add one series per group to "
-            "compare several groups.\n\n" + _ROW_NUMBER_NOTE
+            "The X values place and label the bars. They can be numbers, text or dates. Bar series that share X values are drawn on top of each other, not side by side, "
+            "so to compare groups use Stacked Bar or give each group different X values.\n\n" + _ROW_NUMBER_NOTE
         ),
         example="Compare the number of goals scored by each team in a league (teams in X, goals in Y).",
         keywords=("bar graph", "bar chart", "column chart", "compare", "categories"),
@@ -80,7 +81,7 @@ _CHART_TYPE_TEXT: dict[ChartType, _ChartTypeText] = {
         summary="Stacks the bars of several series on top of each other at each X position. Use it to show how a total is made up of parts.",
         explanation=(
             "Each series adds its bar on top of the bars of the series before it. Negative values stack downwards from zero. "
-            "You need at least two series to see any stacking.\n\n" + _ROW_NUMBER_NOTE
+            "Rows with the same X value stack even within one series.\n\n" + _ROW_NUMBER_NOTE
         ),
         example="Show the sales of three products in each month, stacked so that the full height is the total sales.",
         keywords=("stacked bar graph", "stacked column", "stack", "total", "parts of a whole"),
@@ -109,7 +110,7 @@ _CHART_TYPE_TEXT: dict[ChartType, _ChartTypeText] = {
         summary="Draws an arrow at each (X, Y) position. The U and V columns set how far the arrow points sideways and up.",
         explanation=(
             "Use it to show a field, such as wind or water flow, where every position has a direction and a size. "
-            "If you add the optional Color-by column (the magnitude), the arrows are coloured by it and a colour bar is shown."
+            'The arrows are coloured by the optional Color-by column (the magnitude) only when you pick a colormap under "Color by magnitude:" in the Vector card on the Style tab; otherwise they are one solid colour.'
         ),
         example="Show the wind at weather stations: X and Y give the position, U is the east-west speed, V is the north-south speed.",
         keywords=("quiver", "arrows", "vector field", "field", "flow", "direction"),
@@ -118,7 +119,7 @@ _CHART_TYPE_TEXT: dict[ChartType, _ChartTypeText] = {
         summary="Draws a point at each (X, Y) position and colours it by the Z value. Use it when you have a third quantity to show.",
         explanation=(
             "The points keep their own position, so the data does not need to lie on a grid. A colour bar shows which colour means "
-            "which Z value. Choose the colormap and the colour range on the Axes tab, in the Color Map card.\n\n"
+            'which Z value. Click the "Color" chip on the Axes tab to open the Color Map card, where you choose the colormap and the colour range.\n\n'
             "A Heatmap is different: it fills a whole grid of cells, or draws contour lines, instead of separate points."
         ),
         example="Plot the temperature measured at different (X, Y) positions on a metal plate and colour each point by its temperature.",
@@ -127,20 +128,20 @@ _CHART_TYPE_TEXT: dict[ChartType, _ChartTypeText] = {
     ChartType.HEATMAP: _ChartTypeText(
         summary="Fills a grid of cells with colour by the Z value, or draws contour lines. Use it to see how a value changes over an area.",
         explanation=(
-            "The (X, Y, Z) rows are placed on a regular grid, so each cell is coloured by one Z value. Cells with no data stay empty. "
-            "The Style tab can instead draw filled contours, contour lines or both, and can build the picture from scattered points "
-            "by triangulating them.\n\n"
+            'The (X, Y, Z) rows are placed on a regular grid, so each cell is coloured by one Z value. With "Exact grid" or "Binned", cells with no data stay empty; "Interpolated" also fills in between points inside the data outline. '
+            "X and Y must be numbers. The Style tab can instead draw filled contours, contour lines or both, and can build the picture from scattered points "
+            "by binning, interpolating or triangulating them.\n\n"
             "A Color Map chart is different: it draws a separate coloured point for every row and does not fill the space between them."
         ),
-        example="Show the number of visitors by weekday (X) and hour of the day (Y), coloured by how busy it is (Z).",
+        example="Show the number of visitors by day number, 1 to 7 (X), and hour of the day (Y), coloured by how busy it is (Z).",
         keywords=("heat map", "grid", "contour", "contour plot", "contourf", "colour map", "color map", "matrix"),
     ),
     ChartType.PIE: _ChartTypeText(
         summary="Draws one wedge per value. The size of each wedge is its share of the total. Use it to show parts of a whole.",
         explanation=(
             "The values column sets the size of the wedges. The optional labels column names the wedges. "
-            "Rows that are blank or zero are skipped. A pie chart cannot show negative values, so a chart with a negative value is "
-            "not drawn. The Style tab can show percentages and turn the pie into a donut."
+            "Rows that are blank or zero are skipped. A pie chart cannot show negative values, so a pie series with a negative value is "
+            'skipped (the status bar shows "Skipped: <label>: no plottable data"). The Style tab can show percentages and turn the pie into a donut.'
         ),
         example="Show how a class votes on a trip: one wedge per destination, sized by the number of votes.",
         keywords=("pie chart", "pie graph", "donut", "doughnut", "share", "percentage", "wedge"),
@@ -176,12 +177,12 @@ _CHART_TYPE_TEXT: dict[ChartType, _ChartTypeText] = {
         keywords=("3d", "three dimensional", "3-d wireframe", "mesh", "wire frame", "grid lines"),
     ),
     ChartType.BAR3D: _ChartTypeText(
-        summary="Draws a 3-D bar at each (X, Y) position, rising from zero to the Z value. Use it to compare values over two categories.",
+        summary="Draws a 3-D bar at each (X, Y) position, rising from zero to the Z value. Use it to compare values at two numeric positions.",
         explanation=(
-            "Each row becomes one box. The width of the boxes follows the spacing between the X values and between the Y values. "
+            "X and Y must be numbers, not text. Each row becomes one box. The width of the boxes follows the spacing between the X values and between the Y values. "
             + _THREE_D_NOTE
         ),
-        example="Show the average temperature for each combination of month (X) and city (Y).",
+        example="Show the average temperature for each combination of month number (X) and weather station number (Y).",
         keywords=("3d", "three dimensional", "3-d bar", "3d bar chart", "3d histogram", "boxes"),
     ),
     ChartType.TRISURF: _ChartTypeText(
@@ -197,7 +198,7 @@ _CHART_TYPE_TEXT: dict[ChartType, _ChartTypeText] = {
         summary="Draws an arrow at each (X, Y, Z) position. The U, V and W columns set the arrow's direction and length.",
         explanation=(
             "Use it to show a 3-D field, such as a magnetic field or air flow. All six columns are needed. "
-            "The Color-by column (the magnitude) is optional. " + _THREE_D_NOTE
+            'The Color-by column (the magnitude) is optional, and it colours the arrows only when you pick a colormap under "Color by magnitude:" on the Style tab. ' + _THREE_D_NOTE
         ),
         example="Show the direction and strength of a magnetic field measured at points around a magnet.",
         keywords=("3d", "three dimensional", "3-d vector", "quiver", "arrows", "vector field", "field"),
@@ -205,8 +206,8 @@ _CHART_TYPE_TEXT: dict[ChartType, _ChartTypeText] = {
     ChartType.BOX: _ChartTypeText(
         summary="Summarises one column of values as a box with whiskers. Use it to compare the spread of several groups side by side.",
         explanation=(
-            "The box covers the middle half of the values, and the line inside it is the median. The whiskers reach out to the "
-            "rest of the typical values. Points beyond the whiskers are outliers.\n\n"
+            "The box covers the middle half of the values, and the line inside it is the median. The whiskers reach the furthest values within 1.5 times the box height (the interquartile range) from the box. "
+            'Points beyond the whiskers are outliers; they are drawn unless "Show outliers" is turned off on the Style tab.\n\n'
             "Each series draws one box. To compare groups, add one series for each group, with each group's values in its own column. "
             "The series label names the box on the X axis."
         ),
@@ -276,7 +277,7 @@ def _topic(chart_type: ChartType, spec: ChartTypeSpec) -> HelpTopic:
         summary=text.summary,
         explanation=f"{text.explanation}\n\n{_facts(chart_type, spec)}",
         example=text.example,
-        keywords=(*text.keywords, spec.display_name.lower(), chart_type.value),
+        keywords=tuple(dict.fromkeys((*text.keywords, spec.display_name.lower(), chart_type.value))),
         related=tuple(related),
     )
 

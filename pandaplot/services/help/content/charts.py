@@ -53,7 +53,7 @@ def topics() -> list[HelpTopic]:
                  'Next stays greyed out until every required column is chosen. Click "+ Add series" to plot more than one data set on the same chart. '
                  'See "Chart wizard: choose the data" for the details.'),
                 ('Step 3, Labels: type a Title and Subtitle. For charts with axes, also type an "X-axis label" and a "Y-axis label". '
-                 'Fields you have not typed in start with suggestions; the axis labels come from your column names.'),
+                 'The Title and axis-label fields start with suggestions; the axis labels come from your column names. The Subtitle starts empty.'),
                 'Use the "Show legend" and "Show grid lines" switches. The preview on the right updates as you type.',
                 'Click "Create Chart". The new chart opens in its own tab.',
                 ("To go back to an earlier step, click its name in the step bar at the top (Type, Data or Labels) or click Back. "
@@ -64,12 +64,13 @@ def topics() -> list[HelpTopic]:
             explanation=(
                 'The Labels step is the last one. Pie charts have no axes, so for a pie the axis-label fields and the "Show grid lines" switch are '
                 "hidden. A title, subtitle or label can contain math such as $x^2$ (see the math topic).\n\n"
-                'Not ready to choose data? Click "Create empty plot instead" on the Type or Data step to get a blank chart you can fill in '
-                'later on the Data tab of Chart Properties.\n\n'
+                'Not ready to choose data? Click "Create empty plot instead" on the Type or Data step to get a blank chart with no series. '
+                'To plot data, create the chart with the wizard: the Data tab of Chart Properties can only add a series to a chart that '
+                'already has one.\n\n'
                 'If the project has no datasets yet, the Data step is replaced by a page that says "This project has no datasets yet". '
                 'Click "Import Dataset" to bring in a file and carry on, or "Create Empty Chart" for a blank chart. '
                 'Click Cancel at any step to close the wizard without creating anything. '
-                'Use the ? button at the bottom left of a step, or F1, to open help for that step.'
+                'Use the ? button at the bottom left of a step, or press F1 (on a Mac, Cmd+?), to open help for that step.'
             ),
             keywords=(
                 "graph", "plot", "new chart", "create chart", "make a graph", "make a plot", "wizard", "visualization", "empty chart", "import",
@@ -121,7 +122,7 @@ def topics() -> list[HelpTopic]:
                 'Look at the "Dataset:" drop-down on the first series card and choose the dataset.',
                 ('Choose the columns. The list depends on the chart type you picked: for example "X column" and "Y column" for a Line chart, '
                  'or "Values column" for a Histogram. The first entry in each drop-down is blank.'),
-                'Columns marked "(optional)" can be left blank. Next stays greyed out until every other column is chosen.',
+                'Columns marked "(optional)" can be left blank. Next stays greyed out until each series card has a dataset and all its required columns. On Line, Scatter, Bar and Stacked Bar, "X column" is also optional even though its label does not say so.',
                 'To plot another data set on the same chart, click "+ Add series" and fill in the new card.',
                 ('To tidy a long list, click the ▾ button on a card (tooltip "Collapse series") to fold it into a one-line summary. '
                  'Click ▸ ("Expand series") to open it again.'),
@@ -133,10 +134,9 @@ def topics() -> list[HelpTopic]:
                 "The wizard shows only the columns its type uses. Line and Scatter charts use X column and Y column. "
                 "Bar and Stacked Bar use the same two. Histogram, Density and Box Plot use Values column. "
                 "Pie uses Values column and an optional Labels column that names each wedge. Vector adds U column and V column "
-                "(the arrow components) and an optional Color-by column. Color Map and Heatmap use X column, Y column and Z column. "
-                "The 3-D types use X column, Y column and Z column, and 3D Vector adds U column, V column and W column.\n\n"
-                "On Line, Scatter, Bar and Stacked Bar, the X column is optional. Leave it blank and the values are plotted against the row index "
-                "(row numbers).\n\n"
+                '(the arrow components) and an optional "Color-by column (optional)". Color Map and Heatmap use X column, Y column and Z column. '
+                'The 3-D types use X column, Y column and Z column, and 3D Vector adds U column, V column and W column and an optional "Color-by column (optional)".\n\n'
+                "On Line, Scatter, Bar and Stacked Bar, the X column is optional. Leave it blank and the values are plotted against the row position, counting from 0.\n\n"
                 'Ticking "Add error bars" shows X error (+) column and Y error (+) column, plus the "Asymmetric Error Bars" box, which adds '
                 "X error (-) column and Y error (-) column. See the error bars topic for what these do. "
                 'If you opened the wizard from a dataset tab with columns selected, the first series is filled in from your selection. '
@@ -156,9 +156,11 @@ def topics() -> list[HelpTopic]:
             steps=(
                 ('Open a chart tab, click the line-chart icon in the sidebar (its tooltip reads "Chart Properties panel") '
                  "and open the Data tab."),
-                ('Click "+ Add series" to add one. It starts with the dataset and columns shown in the form, so change them afterwards. '
-                 "Adding a series is recorded as its own undo step."),
-                'Click a series card to select it. Click its ▸ button (tooltip "Expand series details") to open its settings; ▾ closes them.',
+                ('Click "+ Add series" to add one. It is a copy of the selected series, with the same dataset and columns, so change them afterwards. '
+                 "This needs at least one series to copy from. Adding a series is recorded as its own undo step."),
+                ('Click a series card to select it. Its settings open in that card and you can edit them. On the other cards, ▸ (tooltip '
+                 '"Expand series details") shows a read-only summary and ▾ hides it again. On the selected card ▾ is greyed out '
+                 '(tooltip "Series details expanded").'),
                 'Choose the "Dataset:" and the columns. The column boxes that appear depend on the series type.',
                 'Type a name in "Label:". This is the text shown for the series in the legend.',
                 ('Use "Series Type:" to change how this series is drawn. The list shows the types the chart type allows. '
@@ -169,16 +171,17 @@ def topics() -> list[HelpTopic]:
             ),
             explanation=(
                 "Adding, removing and reordering series on the Data tab happen at once and each is its own undo step. "
-                "Other edits on the tab change the chart live, like the rest of Chart Properties; see the Chart Properties panel topic "
-                "for Apply and Revert.\n\n"
+                "Other edits on the Data tab (dataset, columns, label, Y axis) only mark the panel Modified and show on the chart when you click Apply; see the "
+                "Chart Properties panel topic for Apply and Revert.\n\n"
                 'Some boxes appear only when they make sense. "X Column:" is hidden for Histogram, Density, Box Plot and Pie; there "Y Column:" '
                 'becomes "Values Column:". "Y₂ Column (optional):" appears on Line and Scatter series: it plots a second set of values for '
                 'the same X on the opposite Y axis, and its colour is set in the "Twin Y Column" card on the Style tab. '
                 '"Color-by Column (optional):" is for Vector series. "Labels Column (optional):" is for Pie. '
-                "Leave an X column blank (Line, Scatter, Bar, Stacked Bar) to plot against the row index.\n\n"
+                "In the chart wizard you can leave the X column blank (Line, Scatter, Bar, Stacked Bar) to plot against the row position. "
+                "The Data tab cannot clear an X column once one is chosen.\n\n"
                 "You can also click a line, point, bar or legend entry on the chart to select that series in the panel. "
                 "Clicking does not select a series while the Pan or Zoom tool is active. "
-                "Fits made from the Chart Analysis panel also appear in this list."
+                'Fits made with the "📐 Curve Fitting" panel, or by choosing "Series Type:" > "Fit", also appear in this list.'
             ),
             keywords=(
                 "series", "add series", "remove series", "delete series", "reorder", "order", "z order", "data tab", "second y axis", "y2",
@@ -211,8 +214,9 @@ def topics() -> list[HelpTopic]:
                 "With it on, the (+) column gives the size above and the (-) column the size below.\n\n"
                 'The "Error Bars" card on the Style tab appears only once the series has an error column. '
                 'Other chart types, such as Histogram, Pie and the 3-D types, have no error bars, and the error columns are not shown for them.\n\n'
-                'A fit can show a shaded confidence band. When you turn a series into a fit on the Data tab ("Series Type:" > "Fit") you can '
-                'choose "Confidence Lower Column (optional):" and "Confidence Upper Column (optional):". A fit with these columns gets a '
+                'A fit can show a shaded confidence band. On the Data tab, first choose "Confidence Lower Column (optional):" and '
+                '"Confidence Upper Column (optional):", then set "Series Type:" to "Fit" (it is greyed out on chart types without fits). '
+                'The two columns stay editable on the fit afterwards. A fit with these columns gets a '
                 '"Confidence Band" card on the Style tab for its colour and opacity.'
             ),
             keywords=(
@@ -292,7 +296,8 @@ def topics() -> list[HelpTopic]:
                 ('Choose a "Position:". It can be inside the chart, such as Upper Right or Best, or outside: "Outside Right", "Outside Top" or '
                  '"Outside Bottom".'),
                 ('For full control choose "Custom..." and set "X:", "Y:" and "Anchor:". '
-                 'X and Y are between 0 and 1 across the chart; the anchor says which corner of the legend sits at that point.'),
+                 'X and Y run from 0 to 1 across the plot area, with (0, 0) at the bottom left. "Anchor:" picks which point of the legend box '
+                 '(a corner, the middle of an edge or the centre) is placed there.'),
                 'Adjust the "Font Size:", the number of "Columns:" and the "Font family:".',
                 'Use the "Frame" card to turn the frame on or off and, when it is on, to set its "Background:" colour and "Opacity:".',
             ),
@@ -338,7 +343,7 @@ def topics() -> list[HelpTopic]:
                 'Our buttons: "♻️ Refresh" reloads the data from your datasets and redraws the chart. '
                 '"🔍 Reset Zoom" zooms back out to show all the data. '
                 f'"⇄ Swap X/Y" exchanges the X and Y axes, including their titles, scales and ranges. It appears only for {_SWAP_CHART_TYPES} '
-                "charts. When it cannot run, the line under the chart says why. The reasons include: there are no series yet, a series is on "
+                "charts. When it cannot run, the line under the chart says why, but only briefly. The reasons include: there are no series yet, a series is on "
                 "the secondary Y axis, a series is plotted against the row index (it has no X column), a series has no Y column, "
                 "or a series is of a type that cannot be swapped. You can undo a swap with Edit > Undo.\n\n"
                 '"🔄 Reset" puts all chart-level settings back to their defaults: the title (back to the chart name), subtitle, axes, legend, '
@@ -346,7 +351,7 @@ def topics() -> list[HelpTopic]:
                 "type. There is no confirmation, and Reset cannot be undone: Edit > Undo will not bring the old settings back. "
                 "Think twice before you click it.\n\n"
                 "Next to them are matplotlib's own tools. Pan and Zoom let you move around and zoom in with the mouse; "
-                'use "🔍 Reset Zoom" to zoom back out. "Subplots" and "Customize" may also be there, but what you change with them is not saved and is '
+                'use "🔍 Reset Zoom" to zoom back out. "Subplots" and "Customize" are there too, but what you change with them is not saved and is '
                 "replaced the next time the chart redraws, so use the Style and Axes tabs instead. The Save button saves an image "
                 "(see the save-image topic). As you move the mouse over the chart, the (x, y) readout in the toolbar shows the position.\n\n"
                 "On a 3-D chart, drag the chart with the mouse to rotate it. The rotation is not saved; set Elevation and Azimuth on the Axes tab "

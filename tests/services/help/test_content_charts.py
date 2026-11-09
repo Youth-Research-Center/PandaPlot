@@ -118,3 +118,20 @@ def test_topics_returns_fresh_equal_lists() -> None:
 
     assert first == second
     assert first is not second
+
+
+def test_create_topic_does_not_promise_filling_an_empty_chart_later(catalog: HelpCatalog) -> None:
+    text = _all_text(catalog.get("charts.create"))
+    assert "fill in later" not in text
+    assert "press F1 (on a Mac, Cmd+?)" in text
+
+
+def test_series_topic_does_not_claim_data_tab_x_blank_or_chart_analysis_fits(catalog: HelpCatalog) -> None:
+    text = _all_text(catalog.get("charts.series"))
+    assert "Chart Analysis panel" not in text
+    assert "to plot against the row index" not in text
+    assert "Curve Fitting" in text
+
+
+def test_wizard_data_topic_does_not_say_every_column_is_required(catalog: HelpCatalog) -> None:
+    assert "until every other column is chosen" not in _all_text(catalog.get("charts.wizard_data"))

@@ -131,3 +131,27 @@ class TestFreshness:
         second = chart_types.topics()
         assert first == second
         assert first is not second
+
+
+class TestFactFixes:
+    def test_no_duplicate_keywords(self, catalog):
+        for topic in catalog.topics():
+            assert len(topic.keywords) == len(set(topic.keywords)), topic.id
+
+    def test_bar_does_not_suggest_side_by_side_groups(self, catalog):
+        assert "one series per group to" not in catalog.get("charts.bar").explanation
+        assert "on top of each other" in catalog.get("charts.bar").explanation
+
+    def test_stacked_bar_does_not_need_two_series(self, catalog):
+        assert "at least two series" not in catalog.get("charts.stacked_bar").explanation
+
+    def test_vector_colouring_needs_a_colormap(self, catalog):
+        assert "Color by magnitude:" in catalog.get("charts.vector").explanation
+        assert "Color by magnitude:" in catalog.get("charts.vector3d").explanation
+
+    def test_bar3d_and_heatmap_need_numeric_positions(self, catalog):
+        assert "month (X) and city (Y)" not in catalog.get("charts.bar3d").example
+        assert "weekday" not in catalog.get("charts.heatmap").example
+
+    def test_pie_negative_value_is_skipped_not_undrawn(self, catalog):
+        assert "is not drawn" not in catalog.get("charts.pie").explanation
