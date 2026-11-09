@@ -1,8 +1,10 @@
+import weakref
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QKeySequence
-from PySide6.QtWidgets import QMenu, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QMenu, QWidget
+from shiboken6 import isValid
 
 from pandaplot.commands.app.exit_command import ExitCommand
 from pandaplot.commands.project.chart import CreateChartFromWizardCommand
@@ -40,6 +42,8 @@ class MainMenu(PMenuBar):
         # dataset in dialogs opened from the menu.
         self.active_dataset_id: str | None = None
         self._help_window: HelpWindow | None = None
+        # Modal dialogs whose `finished` signal is already hooked to re-home the Help window.
+        self._hooked_modals: weakref.WeakSet[QDialog] = weakref.WeakSet()
         self._initialize()
 
     @override
@@ -443,19 +447,63 @@ class MainMenu(PMenuBar):
     def show_help(self, topic_id: str | None = None) -> None:
         """Show the Help window, creating it on first use, on the given topic.
 
+        If a modal dialog is open (for example the chart wizard), the window is
+        moved under it so Qt does not block its input.
+
         Args:
             topic_id: Id of the topic to open, or None for the first topic.
         """
-        if self._help_window is None:
+        if self._help_window is None or not isValid(self._help_window):
             from pandaplot.gui.dialogs.help.help_window import HelpWindow
 
             self._help_window = HelpWindow(self.app_context, self.window())
-        self._help_window.show_topic(topic_id)
-        if self._help_window.isMinimized():
-            self._help_window.setWindowState(self._help_window.windowState() & ~Qt.WindowState.WindowMinimized)
-        self._help_window.show()
-        self._help_window.raise_()
-        self._help_window.activateWindow()
+        help_window = self._help_window
+        help_window.show_topic(topic_id)
+        self._attach_help_window_to_active_modal()
+        if help_window.isMinimized():
+            help_window.setWindowState(help_window.windowState() & ~Qt.WindowState.WindowMinimized)
+        help_window.show()
+        help_window.raise_()
+        help_window.activateWindow()
+
+    def _attach_help_window_to_active_modal(self) -> None:
+        """Parent the Help window to the active modal dialog, or to the main window if none.
+
+        Qt blocks input to every window outside the active modal dialog's
+        hierarchy, so a Help window owned by the main window cannot be used while
+        a modal dialog is open. The window is therefore re-parented under that
+        dialog, and moved back when the dialog finishes.
+        """
+        help_window = self._help_window
+        if help_window is None or not isValid(help_window):
+            return
+        modal = QApplication.activeModalWidget()
+        owner = modal if isinstance(modal, QDialog) and modal is not help_window else self.window()
+        if help_window.parentWidget() is not owner:
+            was_visible = help_window.isVisible()
+            geometry = help_window.geometry()
+            help_window.setParent(owner, help_window.windowFlags())
+            help_window.setGeometry(geometry)
+            if was_visible:
+                help_window.show()
+        if owner is modal and modal not in self._hooked_modals:
+            self._hooked_modals.add(modal)
+            modal_ref = weakref.ref(modal)
+            modal.finished.connect(
+                lambda _result=0: self._on_help_owner_finished(modal_ref),
+                Qt.ConnectionType.SingleShotConnection,
+            )
+
+    def _on_help_owner_finished(self, dialog_ref: "weakref.ReferenceType[QDialog]") -> None:
+        """Move the Help window to the next owner once a modal dialog it sat under finishes.
+
+        Args:
+            dialog_ref: Weak reference to the dialog that finished.
+        """
+        dialog = dialog_ref()
+        if dialog is not None:
+            self._hooked_modals.discard(dialog)
+        self._attach_help_window_to_active_modal()
 
     def show_welcome_tab(self):
         """Show the Welcome tab from Help > Welcome, focusing one if already
