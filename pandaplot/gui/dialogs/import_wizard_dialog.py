@@ -40,6 +40,7 @@ from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.data_import import (
     CSV_FORMAT,
@@ -103,7 +104,8 @@ class ImportWizardDialog(PDialog):
 
     @override
     def _init_ui(self):
-        self.setWindowTitle("📥 Import Dataset")
+        self.setWindowTitle("Import Dataset")
+        self.setWindowIcon(themed_icon(self.app_context, "download-simple"))
         self.setModal(True)
         self.resize(820, 620)
         self.setMinimumSize(720, 540)

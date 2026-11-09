@@ -20,11 +20,13 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from pandaplot.commands.project.item.delete_item_command import DeleteItemCommand
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.snapshot_dpi_combo_box import CHART_DEFAULT_LABEL
 from pandaplot.gui.components.tabs.note.note_editor import NoteArtefactRow, compute_note_artefact_rows
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.gui.dialogs.note.snapshot_dpi_dialog import SnapshotDpiDialog
+from pandaplot.gui.resources.themed_icons import IconRole, themed_icon
 from pandaplot.models.project.items import Note
 from pandaplot.models.project.items.image import KEEP_RENDER_DPI, KeepRenderDpi
 from pandaplot.models.state.app_context import AppContext
@@ -90,10 +92,7 @@ class NoteArtefactsDialog(PDialog):
         self.empty_widget = QWidget()
         empty_layout = QVBoxLayout(self.empty_widget)
         empty_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_icon = QLabel("📎")
-        empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_icon.setStyleSheet("font-size: 36px;")
-        empty_icon.setAccessibleName("No artefacts")
+        empty_icon = IconLabel(self.app_context, "paperclip", size=36, role=IconRole.MUTED)
         self.empty_title_label = QLabel("No artefacts yet")
         self.empty_title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty_title_label.setStyleSheet("font-size: 15px; font-weight: 600;")
@@ -103,7 +102,7 @@ class NoteArtefactsDialog(PDialog):
         self.empty_label.setWordWrap(True)
         self.empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.addStretch()
-        empty_layout.addWidget(empty_icon)
+        empty_layout.addWidget(empty_icon, alignment=Qt.AlignmentFlag.AlignHCenter)
         empty_layout.addWidget(self.empty_title_label)
         empty_layout.addWidget(self.empty_label)
         empty_layout.addStretch()
@@ -121,9 +120,11 @@ class NoteArtefactsDialog(PDialog):
         insert_row = QHBoxLayout()
         insert_row.addStretch()
         self.insert_chart_button = PButton(
-            "📊 Insert Chart...", role="secondary", on_click=self._on_insert_chart_clicked)
+            "Insert Chart...", role="secondary", on_click=self._on_insert_chart_clicked)
+        self.insert_chart_button.setIcon(themed_icon(self.app_context, "chart-line"))
         self.insert_table_button = PButton(
-            "📋 Insert Table...", role="secondary", on_click=self._on_insert_table_clicked)
+            "Insert Table...", role="secondary", on_click=self._on_insert_table_clicked)
+        self.insert_table_button.setIcon(themed_icon(self.app_context, "table"))
         insert_row.addWidget(self.insert_chart_button)
         insert_row.addWidget(self.insert_table_button)
         insert_row.addStretch()

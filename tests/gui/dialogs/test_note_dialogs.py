@@ -4,9 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 from PySide6.QtCore import QSize
-from PySide6.QtWidgets import QDialog, QTextEdit, QWidget
+from PySide6.QtWidgets import QDialog, QLabel, QTextEdit, QWidget
 
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.dialogs.note.note_artefacts_dialog import NoteArtefactsDialog
 from pandaplot.gui.dialogs.note.note_chart_picker_dialog import NoteChartPickerDialog
@@ -17,9 +18,10 @@ from pandaplot.gui.dialogs.note.note_table_picker_dialog import (
 )
 from pandaplot.gui.dialogs.note.snapshot_dpi_dialog import SnapshotDpiDialog
 from pandaplot.gui.resources.item_icons import item_icon
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
-from tests.gui.icon_testing import ICON_TOKENS
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 
 def _create_mock_app_context(project=None):
@@ -404,6 +406,34 @@ def test_note_artefacts_dialog_empty_state_replaces_table_and_promotes_insert_ch
     assert not dialog.empty_widget.isVisible()
     assert dialog.table.isVisible()
     assert dialog.insert_chart_button.property("primary") is False
+
+
+def test_note_artefacts_dialog_empty_state_uses_a_muted_paperclip_icon(qapp):
+    dialog = NoteArtefactsDialog(_create_mock_app_context_with_executor(Project(name="Test Project")), Note(name="Note 1"), QTextEdit())
+
+    (icon,) = dialog.empty_widget.findChildren(IconLabel)
+
+    assert icon.icon_name == "paperclip"
+    assert icon.width() == 36
+    assert_tinted(strongest_pixel(icon.pixmap().toImage()), ICON_TOKENS["text_muted"])
+    assert all(label.text() != "📎" for label in dialog.empty_widget.findChildren(QLabel))
+
+
+def test_note_artefacts_dialog_insert_buttons_have_plain_text_and_icons_that_survive_role_changes(qapp):
+    text_edit = QTextEdit()
+    dialog = NoteArtefactsDialog(_create_mock_app_context_with_executor(Project(name="Test Project")), Note(name="Note 1"), text_edit)
+    chart_icon = themed_icon(dialog.app_context, "chart-line").pixmap(QSize(16, 16)).toImage()
+    table_icon = themed_icon(dialog.app_context, "table").pixmap(QSize(16, 16)).toImage()
+
+    assert dialog.insert_chart_button.text() == "Insert Chart..."
+    assert dialog.insert_table_button.text() == "Insert Table..."
+    assert dialog.insert_chart_button.icon().pixmap(QSize(16, 16)).toImage() == chart_icon
+    assert dialog.insert_table_button.icon().pixmap(QSize(16, 16)).toImage() == table_icon
+
+    text_edit.setPlainText("![Gone](missing-id =500x)")  # refresh_rows switches the chart button to the secondary role
+
+    assert dialog.insert_chart_button.property("primary") is False
+    assert dialog.insert_chart_button.icon().pixmap(QSize(16, 16)).toImage() == chart_icon
 
 
 def test_note_artefacts_dialog_offers_refresh_only_for_snapshots_with_a_source_chart(qapp):
