@@ -390,3 +390,88 @@ def test_search_orders_categories_by_best_match_and_selects_top_result(qtbot, ap
     win.search_edit.clear()
 
     assert _category_titles(win) == [HelpCategory.STATISTICS.value, HelpCategory.FITTING.value]
+
+
+def _grouped_topics() -> list[HelpTopic]:
+    return [
+        HelpTopic(id="charts.create", title="Create a chart", category=HelpCategory.CHARTS, summary="Use the wizard."),
+        HelpTopic(id="charts.line", title="Line chart", category=HelpCategory.CHARTS, summary="Joins points.", group="Line & Scatter"),
+        HelpTopic(id="charts.scatter", title="Scatter chart", category=HelpCategory.CHARTS, summary="Shows points.", group="Line & Scatter"),
+        HelpTopic(id="charts.pie", title="Pie chart", category=HelpCategory.CHARTS, summary="Shows shares.", group="Bar & Pie"),
+        HelpTopic(id="charts.save", title="Save a chart", category=HelpCategory.CHARTS, summary="Save an image."),
+        HelpTopic(id="fit.line", title="Linear fit", category=HelpCategory.FITTING, summary="Fits a straight line."),
+    ]
+
+
+@pytest.fixture
+def grouped_window(qtbot, app_context):
+    win = HelpWindow(app_context, catalog=HelpCatalog(_grouped_topics()))
+    qtbot.addWidget(win)
+    return win
+
+
+def _children_texts(item) -> list[str]:
+    return [item.child(i).text(0) for i in range(item.childCount())]
+
+
+class TestTopicGroups:
+    def test_grouped_topics_sit_under_group_nodes_after_the_ungrouped_ones(self, grouped_window):
+        charts = grouped_window.tree.topLevelItem(0)
+
+        assert charts.text(0) == HelpCategory.CHARTS.value
+        assert _children_texts(charts) == ["Create a chart", "Save a chart", "Line & Scatter", "Bar & Pie"]
+        assert _children_texts(charts.child(2)) == ["Line chart", "Scatter chart"]
+        assert _children_texts(charts.child(3)) == ["Pie chart"]
+
+    def test_topic_items_lists_every_leaf_in_display_order(self, grouped_window):
+        assert _leaf_titles(grouped_window) == ["Create a chart", "Save a chart", "Line chart", "Scatter chart", "Pie chart", "Linear fit"]
+
+    def test_group_nodes_are_collapsed_and_cannot_be_selected(self, grouped_window):
+        group_item = grouped_window.tree.topLevelItem(0).child(2)
+
+        assert group_item.data(0, Qt.ItemDataRole.UserRole) is None
+        assert not group_item.flags() & Qt.ItemFlag.ItemIsSelectable
+        assert not group_item.isExpanded()
+
+    def test_show_topic_expands_the_group_and_the_category(self, grouped_window):
+        grouped_window.show_topic("charts.pie")
+
+        item = grouped_window.tree.currentItem()
+        assert item.data(0, Qt.ItemDataRole.UserRole) == "charts.pie"
+        assert item.parent().text(0) == "Bar & Pie"
+        assert item.parent().isExpanded()
+        assert item.parent().parent().isExpanded()
+        assert "Shows shares." in grouped_window.browser.toPlainText()
+
+    def test_search_expands_matching_groups(self, grouped_window):
+        grouped_window.search_edit.setText("points")
+
+        charts = grouped_window.tree.topLevelItem(0)
+        assert _leaf_titles(grouped_window) == ["Line chart", "Scatter chart"]
+        assert _children_texts(charts) == ["Line & Scatter"]
+        assert charts.isExpanded()
+        assert charts.child(0).isExpanded()
+
+    def test_search_matches_the_group_name(self, grouped_window):
+        grouped_window.search_edit.setText("bar & pie")
+
+        assert _leaf_titles(grouped_window) == ["Pie chart"]
+
+    def test_help_link_to_a_grouped_topic_selects_it(self, grouped_window):
+        grouped_window._on_anchor_clicked(QUrl("help:charts.scatter"))
+
+        assert grouped_window.tree.currentItem().data(0, Qt.ItemDataRole.UserRole) == "charts.scatter"
+
+    def test_down_arrow_focuses_a_grouped_first_result(self, qtbot, grouped_window):
+        grouped_window.show()
+        qtbot.waitExposed(grouped_window)
+        grouped_window.activateWindow()
+        grouped_window.search_edit.setText("shares")
+        grouped_window.search_edit.setFocus()
+
+        event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Down, Qt.KeyboardModifier.NoModifier)
+        handled = grouped_window.eventFilter(grouped_window.search_edit, event)
+
+        assert handled
+        qtbot.waitUntil(grouped_window.tree.hasFocus, timeout=2000)
+        assert grouped_window.tree.currentItem().text(0) == "Pie chart"

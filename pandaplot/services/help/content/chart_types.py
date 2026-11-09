@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from pandaplot.models.chart.chart_role_labels import ROLE_LABELS
 from pandaplot.models.chart.chart_type import ChartType
-from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, ChartTypeSpec
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS, ChartTypeSpec
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import SWAPPABLE_CHART_TYPES
 from pandaplot.services.help.content.panel_defaults import HIST_BINS
@@ -279,6 +279,7 @@ def _topic(chart_type: ChartType, spec: ChartTypeSpec) -> HelpTopic:
         example=text.example,
         keywords=tuple(dict.fromkeys((*text.keywords, spec.display_name.lower(), chart_type.value))),
         related=tuple(related),
+        group=spec.category.value,
     )
 
 
@@ -286,6 +287,7 @@ def topics() -> list[HelpTopic]:
     """Return the per-chart-type topics.
 
     Returns:
-        One topic per chart type, in ``CHART_TYPE_SPECS`` order.
+        One topic per chart type, grouped by wizard category in the order the chart wizard
+        lists them (``CHART_TYPE_CATEGORIES``).
     """
-    return [_topic(chart_type, spec) for chart_type, spec in CHART_TYPE_SPECS.items()]
+    return [_topic(chart_type, CHART_TYPE_SPECS[chart_type]) for chart_types in CHART_TYPE_CATEGORIES.values() for chart_type in chart_types]

@@ -25,6 +25,7 @@ class TestHelpTopicValidation:
         assert topic.steps == ()
         assert topic.related == ()
         assert topic.assumptions == ""
+        assert topic.group == ""
 
     @pytest.mark.parametrize("field", ["id", "title", "summary"])
     def test_empty_required_field_rejected(self, field):

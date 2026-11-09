@@ -166,11 +166,14 @@ class HelpWindow(PDialog):
         return self.app_context.get_manager(ThemeManager).get_surface_palette()
 
     def _populate_tree(self, topics: tuple[HelpTopic, ...], *, expand_all: bool, ranked: bool = False) -> None:
-        """Rebuild the tree from topics, grouped by category.
+        """Rebuild the tree from topics, grouped by category and then by topic group.
+
+        Within a category, ungrouped topics come first, then one node per group
+        (``HelpTopic.group``) in the order the groups first appear in ``topics``.
 
         Args:
             topics: Topics in display order.
-            expand_all: Whether to expand every category.
+            expand_all: Whether to expand every category and group.
             ranked: When True, categories follow the first appearance of their topics in
                 ``topics`` (search ranking); otherwise they follow enum order.
         """
@@ -181,23 +184,43 @@ class HelpWindow(PDialog):
                 by_category.setdefault(topic.category, []).append(topic)
             categories = list(by_category) if ranked else sorted(by_category, key=lambda c: list(type(c)).index(c))
             for category in categories:
-                category_item = QTreeWidgetItem(self.tree, [category.value])
-                category_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                category_item = self._add_heading(self.tree, category.value, expanded=expand_all)
+                by_group: dict[str, list[HelpTopic]] = {}
                 for topic in by_category[category]:
-                    leaf = QTreeWidgetItem(category_item, [topic.title])
-                    leaf.setData(0, _TOPIC_ID_ROLE, topic.id)
-                category_item.setExpanded(expand_all)
+                    if topic.group:
+                        by_group.setdefault(topic.group, []).append(topic)
+                    else:
+                        self._add_topic_leaf(category_item, topic)
+                for group, group_topics in by_group.items():
+                    group_item = self._add_heading(category_item, group, expanded=expand_all)
+                    for topic in group_topics:
+                        self._add_topic_leaf(group_item, topic)
+
+    @staticmethod
+    def _add_heading(parent: QTreeWidget | QTreeWidgetItem, text: str, *, expanded: bool) -> QTreeWidgetItem:
+        """Add a category or group node, which can be expanded but not selected."""
+        item = QTreeWidgetItem(parent, [text])
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+        item.setExpanded(expanded)
+        return item
+
+    @staticmethod
+    def _add_topic_leaf(parent: QTreeWidgetItem, topic: HelpTopic) -> None:
+        leaf = QTreeWidgetItem(parent, [topic.title])
+        leaf.setData(0, _TOPIC_ID_ROLE, topic.id)
 
     def _topic_items(self) -> list[QTreeWidgetItem]:
+        """Return every topic leaf in display order, however deeply it is nested."""
         items: list[QTreeWidgetItem] = []
-        for i in range(self.tree.topLevelItemCount()):
-            category_item = self.tree.topLevelItem(i)
-            if category_item is None:
+        pending = [self.tree.topLevelItem(i) for i in range(self.tree.topLevelItemCount())]
+        while pending:
+            item = pending.pop(0)
+            if item is None:
                 continue
-            for j in range(category_item.childCount()):
-                child = category_item.child(j)
-                if child is not None:
-                    items.append(child)
+            if item.data(0, _TOPIC_ID_ROLE) is not None:
+                items.append(item)
+                continue
+            pending[0:0] = [item.child(j) for j in range(item.childCount())]
         return items
 
     def _first_topic_item(self) -> QTreeWidgetItem | None:
@@ -208,9 +231,11 @@ class HelpWindow(PDialog):
         return next((item for item in self._topic_items() if item.data(0, _TOPIC_ID_ROLE) == topic_id), None)
 
     def _expand_parent(self, item: QTreeWidgetItem) -> None:
+        """Expand every node above the item (its group and category) and scroll to it."""
         parent = item.parent()
-        if parent is not None:
+        while parent is not None:
             parent.setExpanded(True)
+            parent = parent.parent()
         self.tree.scrollToItem(item)
 
     def _select_topic(self, topic_id: str) -> bool:

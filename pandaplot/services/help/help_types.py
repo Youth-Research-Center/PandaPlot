@@ -41,6 +41,8 @@ class HelpTopic:
         example: Worked example text.
         keywords: Extra search terms (synonyms, abbreviations).
         related: Ids of related topics.
+        group: Optional subgroup within the category. The Help window lists topics
+            that share a group under one collapsible node, after the ungrouped topics.
     """
 
     id: str
@@ -55,6 +57,7 @@ class HelpTopic:
     example: str = ""
     keywords: tuple[str, ...] = ()
     related: tuple[str, ...] = ()
+    group: str = ""
 
     def __post_init__(self) -> None:
         """Validate required fields.

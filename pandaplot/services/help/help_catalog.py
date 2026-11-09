@@ -105,6 +105,7 @@ def _searchable_text(topic: HelpTopic) -> str:
         topic.title,
         *topic.keywords,
         topic.category.value,
+        topic.group,
         topic.summary,
         topic.explanation,
         topic.assumptions,

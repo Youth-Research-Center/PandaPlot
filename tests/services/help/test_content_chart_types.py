@@ -7,7 +7,7 @@ import pytest
 
 from pandaplot.models.chart.chart_role_labels import ROLE_LABELS
 from pandaplot.models.chart.chart_type import ChartType
-from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
+from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import SWAPPABLE_CHART_TYPES
 from pandaplot.services.help.content import chart_types
@@ -46,8 +46,15 @@ class TestMappings:
     def test_text_covers_every_chart_type(self):
         assert set(chart_types._CHART_TYPE_TEXT) == set(ChartType)
 
-    def test_topics_are_in_spec_order(self):
-        assert [topic.id for topic in chart_types.topics()] == [chart_types.CHART_TYPE_TOPIC_IDS[t] for t in CHART_TYPE_SPECS]
+    def test_topics_follow_the_wizard_category_order(self):
+        expected = [chart_types.CHART_TYPE_TOPIC_IDS[t] for types in CHART_TYPE_CATEGORIES.values() for t in types]
+
+        assert [topic.id for topic in chart_types.topics()] == expected
+
+    def test_each_topic_is_grouped_under_its_wizard_category(self):
+        groups = {topic.id: topic.group for topic in chart_types.topics()}
+
+        assert groups == {chart_types.CHART_TYPE_TOPIC_IDS[t]: spec.category.value for t, spec in CHART_TYPE_SPECS.items()}
 
 
 class TestTopicContent:
