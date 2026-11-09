@@ -26,13 +26,17 @@ from PySide6.QtWidgets import (
     QLabel,
     QScrollArea,
     QSizePolicy,
+    QStackedWidget,
     QToolBar,
     QVBoxLayout,
     QWidget,
 )
 from shiboken6 import isValid
 
+from pandaplot.commands.project.chart import AddSeriesFromDialogCommand
 from pandaplot.commands.project.chart.swap_chart_axes_command import SwapChartAxesCommand
+from pandaplot.commands.project.dataset.import_data_command import ImportDataCommand
+from pandaplot.gui.components.common.empty_state_panel import EmptyStatePanel
 from pandaplot.gui.components.tabs.chart.chart_canvas import (
     ChartCanvas,
     cm_to_inches,
@@ -1638,6 +1642,8 @@ class ChartEditorWidget(PWidget):
         # queued to re-check it (see _schedule_hover_flush).
         self._pending_hover_event = None
         self._hover_flush_scheduled: bool = False
+        # True while the preview stack shows the empty-state page; used to detect the empty -> canvas switch.
+        self._showing_empty_state: bool = False
 
         # Must exist before _initialize() builds the toolbar, which binds its actions.
         self._toolbar_icons = ActionIcons(app_context)
@@ -1697,6 +1703,8 @@ class ChartEditorWidget(PWidget):
 
         # Apply theme to chart canvas navigation if it exists
         self.chart_canvas.apply_navigation_theme(base_fg, card_bg, card_border)
+
+        self.empty_state_panel.set_tokens(theme_manager.get_design_tokens())
 
     def _apply_toolbar_theme(self):
         """Apply theme-aware styling to the preview toolbar."""
@@ -1868,7 +1876,21 @@ class ChartEditorWidget(PWidget):
         canvas_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         self.canvas_scroll = canvas_scroll
-        preview_layout.addWidget(canvas_scroll)
+
+        self.empty_state_panel = EmptyStatePanel(
+            self.app_context,
+            heading="This chart has no data yet",
+            description="Add a series to plot columns from one of your datasets.",
+            icon_name="chart-line",
+            actions=[("Add Series", self._on_empty_add_series), ("Import Data", self._on_empty_import_data)],
+        )
+
+        # The canvas page is shown once the chart has a series; the empty-state page until then.
+        self.preview_stack = QStackedWidget()
+        self.preview_stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.preview_stack.addWidget(canvas_scroll)
+        self.preview_stack.addWidget(self.empty_state_panel)
+        preview_layout.addWidget(self.preview_stack)
 
         layout.addWidget(self.preview_frame)
 
@@ -1884,10 +1906,9 @@ class ChartEditorWidget(PWidget):
         status_layout.setContentsMargins(8, 1, 8, 1)
         status_layout.setSpacing(4)
 
-        datasets = self.chart.get_all_datasets()
-        dataset_text = f"Datasets: {', '.join(datasets)}" if datasets else "Sample Data"
-        self.dataset_label = QLabel(dataset_text)
+        self.dataset_label = QLabel()
         status_layout.addWidget(self.dataset_label)
+        self._update_dataset_label()
 
         status_layout.addStretch()
 
@@ -1941,8 +1962,8 @@ class ChartEditorWidget(PWidget):
             return
 
         self._update_swap_axes_visibility()
-        if not self.chart.data_series:
-            self.dataset_label.setText("No Data Loaded")
+        self._update_empty_state()
+        self._update_dataset_label()
 
         try:
             project = self.app_context.get_app_state().current_project
@@ -1965,6 +1986,47 @@ class ChartEditorWidget(PWidget):
         except Exception as e:
             self.logger.exception("Error updating chart")
             self.update_status(f"Chart error: {e!s}")
+
+    def _update_empty_state(self) -> None:
+        """Show the empty-state page while the chart has no series, and the canvas page otherwise.
+
+        The navigation toolbar is disabled while the empty-state page is shown. When the first series appears on a
+        chart without a saved size, the canvas is fitted to the preview panel once the page switch has been laid out.
+        """
+        empty = not self.chart.data_series
+        was_empty = self._showing_empty_state
+        self._showing_empty_state = empty
+        self.preview_stack.setCurrentWidget(self.empty_state_panel if empty else self.canvas_scroll)
+
+        nav_toolbar = getattr(self.chart_canvas, "navigation_toolbar", None)
+        if nav_toolbar is not None and isValid(nav_toolbar):
+            nav_toolbar.setEnabled(not empty)
+
+        if was_empty and not empty and self.chart.config.width_cm is None and self.chart.config.height_cm is None:
+            QTimer.singleShot(0, self._apply_initial_fit_size)
+
+    def _update_dataset_label(self) -> None:
+        """Show "No series" or the names of the datasets the chart's series draw from."""
+        if not isValid(self.dataset_label):
+            return
+        if not self.chart.data_series:
+            self.dataset_label.setText("No series")
+            return
+        project = self.app_context.get_app_state().current_project
+        names = []
+        for dataset_id in dict.fromkeys(series.dataset_id for series in self.chart.data_series):
+            item = project.find_item(dataset_id) if project is not None else None
+            names.append(item.name if item is not None else str(dataset_id))
+        self.dataset_label.setText(f"Datasets: {', '.join(names)}")
+
+    def _on_empty_add_series(self) -> None:
+        """Open the Add Series dialog for this chart from the empty-state panel."""
+        command = AddSeriesFromDialogCommand(self.app_context, self.chart.id, parent=self.window())
+        self.app_context.get_command_executor().execute_command(command)
+
+    def _on_empty_import_data(self) -> None:
+        """Open the data import flow from the empty-state panel."""
+        self.app_context.get_command_executor().execute_command(ImportDataCommand(self.app_context))
 
     def _resolve_series_index_for_handle(self, handle):
         """Resolve a legend handle to a series/fit index via this widget's
@@ -2110,8 +2172,13 @@ class ChartEditorWidget(PWidget):
         chart already has a per-chart width/height saved in its config
         (in which case that saved size takes precedence and must not be
         overwritten by the fit-to-panel heuristic).
+        Does nothing while the empty-state page is shown, because the canvas
+        page has no meaningful viewport size then.
         """
         if not isValid(self.canvas_scroll) or not isValid(self.chart_canvas):
+            return
+
+        if self._showing_empty_state:
             return
 
         if self.chart.config.width_cm is not None or self.chart.config.height_cm is not None:
@@ -2182,8 +2249,3 @@ class ChartEditorWidget(PWidget):
             return
 
         self.update_chart()
-
-        # Update dataset label in status
-        datasets = self.chart.get_all_datasets()
-        dataset_text = f"Datasets: {', '.join(datasets)}" if datasets else "Sample Data"
-        self.dataset_label.setText(dataset_text)
