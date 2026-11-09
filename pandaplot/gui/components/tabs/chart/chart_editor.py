@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from pandaplot.commands.project.chart.swap_chart_axes_command import SwapChartAxesCommand
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.tabs.chart.chart_canvas import (
     ChartCanvas,
     cm_to_inches,
@@ -52,7 +53,7 @@ from pandaplot.gui.components.tabs.chart.series_renderers.density import compute
 from pandaplot.gui.components.tabs.chart.series_renderers.hist import finite_numeric_values
 from pandaplot.gui.components.tabs.chart.series_renderers.stacked_bar import BarStack, place_on_stack
 from pandaplot.gui.core.widget_extension import PWidget
-from pandaplot.gui.resources.themed_icons import DEFAULT_ICON_SIZE, ActionIcons
+from pandaplot.gui.resources.themed_icons import DEFAULT_ICON_SIZE, ActionIcons, IconRole
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style import DensitySeriesStyle, LineSeriesStyle
@@ -1690,6 +1691,7 @@ class ChartEditorWidget(PWidget):
         
         # Apply styling to status label (preserve color logic based on current text)
         self._update_status_label_style()
+        self.status_icon.retint()
         
         # Apply theme to toolbar if it exists
         self._apply_toolbar_theme()
@@ -1891,6 +1893,12 @@ class ChartEditorWidget(PWidget):
 
         status_layout.addStretch()
 
+        self.status_icon = IconLabel(self.app_context, "check", role=IconRole.SUCCESS)
+        # The status frame's QFrame rule would otherwise draw its border and padding around the icon.
+        self.status_icon.setStyleSheet("border: none; padding: 0; background: transparent;")
+        self.status_icon.hide()
+        status_layout.addWidget(self.status_icon)
+
         self.status_label = QLabel("Ready")
         status_layout.addWidget(self.status_label)
 
@@ -2087,18 +2095,24 @@ class ChartEditorWidget(PWidget):
         """Reset chart to default configuration."""
         self.chart._init_default_config()
         self.update_chart()
-        self.update_status("Reset to defaults ✓")
+        self.update_status("Reset to defaults", success=True)
 
         # Reset status after 2 seconds
         QTimer.singleShot(2000, lambda: self.update_status("Ready"))
 
-    def update_status(self, status: str):
-        """Update the status label."""
+    def update_status(self, status: str, *, success: bool = False) -> None:
+        """Update the status label.
+
+        Args:
+            status: The plain status text.
+            success: Show the check icon beside the text; any other status hides it again.
+        """
         # Guard: Check if widget still exists
         if not isValid(self.status_label):
             return
 
         self.status_label.setText(status)
+        self.status_icon.setVisible(success)
         self._update_status_label_style()
 
     def _apply_initial_fit_size(self):
@@ -2135,7 +2149,7 @@ class ChartEditorWidget(PWidget):
     def _on_refresh(self):
         """Reload data from the datasets and redraw the chart on demand."""
         self.refresh_chart()
-        self.update_status("Refreshed ✓")
+        self.update_status("Refreshed", success=True)
 
         # Reset status after 2 seconds
         QTimer.singleShot(2000, lambda: self.update_status("Ready"))
@@ -2166,7 +2180,7 @@ class ChartEditorWidget(PWidget):
         else:
             command = SwapChartAxesCommand(self.app_context, chart_id=self.chart.id)
             if self.app_context.command_executor.execute_command(command):
-                self.update_status("Swapped X and Y ✓")
+                self.update_status("Swapped X and Y", success=True)
             else:
                 self.update_status("Couldn't swap X and Y")
         QTimer.singleShot(2000, lambda: self.update_status("Ready"))

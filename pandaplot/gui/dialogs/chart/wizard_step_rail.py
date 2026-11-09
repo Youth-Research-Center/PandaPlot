@@ -12,14 +12,17 @@ from PySide6.QtCore import QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QPushButton, QWidget
 
+from pandaplot.gui.resources.icon_library import build_icon
+
 _CIRCLE_SIZE = 17
+_CHECK_SIZE = 10
 
 
 def _circle_icon(state: str, number: int, tokens: dict) -> QIcon:
     """Paint a `_CIRCLE_SIZE`x`_CIRCLE_SIZE` circle for `state` ("current",
     "completed", or "upcoming"), matching the mockup's three treatments:
     indigo-filled + white number, light-indigo-bg + checkmark, or
-    outlined + muted number.
+    outlined + muted number. The completed checkmark is the bundled `check` icon.
     """
     accent = tokens.get("accent", "#4A56C6")
     muted = tokens.get("text_muted", "#9AA0AB")
@@ -46,10 +49,10 @@ def _circle_icon(state: str, number: int, tokens: dict) -> QIcon:
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(QColor(completed_bg)))
         painter.drawEllipse(rect)
-        painter.setPen(QPen(QColor(completed_fg)))
-        font.setPixelSize(9)
-        font.setWeight(QFont.Weight.Bold)
-        text = "✓"
+        check = build_icon("check", completed_fg, size=_CHECK_SIZE).pixmap(QSize(_CHECK_SIZE, _CHECK_SIZE))
+        offset = (_CIRCLE_SIZE - _CHECK_SIZE) // 2
+        painter.drawPixmap(offset, offset, check)
+        text = ""
     else:
         painter.setPen(QPen(QColor(border)))
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -58,8 +61,9 @@ def _circle_icon(state: str, number: int, tokens: dict) -> QIcon:
         font.setPixelSize(10)
         text = str(number)
 
-    painter.setFont(font)
-    painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, text)
+    if text:
+        painter.setFont(font)
+        painter.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, text)
     painter.end()
 
     # Register the painted pixmap for both Normal and Disabled modes: the

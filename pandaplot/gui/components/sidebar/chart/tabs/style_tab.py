@@ -26,6 +26,7 @@ from pandaplot.gui.components.common.slider_with_spinbox import SliderWithSpinbo
 from pandaplot.gui.components.common.toggle_switch import ToggleSwitch
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 from pandaplot.gui.components.sidebar.chart.tabs.axes_tab import AXES_SWATCH_PALETTE
+from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.chart.chart_configuration import (
     LineStyleType,
     MarkerType,
@@ -139,6 +140,18 @@ VALUE_LABEL_ARROW_LINE_STYLE_OPTIONS: list[tuple[str, object]] = [
     ("Dashed", ValueLabelArrowLineStyle.DASHED),
     ("Dotted", ValueLabelArrowLineStyle.DOTTED),
 ]
+
+# Marker shapes offered by the Markers card: display name, stored value, bundled icon.
+_MARKER_SHAPE_OPTIONS: list[tuple[str, MarkerType, str]] = [
+    ("Circle", MarkerType.CIRCLE, "circle"),
+    ("Square", MarkerType.SQUARE, "square"),
+    ("Triangle", MarkerType.TRIANGLE, "triangle"),
+    ("Diamond", MarkerType.DIAMOND, "diamond"),
+    ("Star", MarkerType.STAR, "star"),
+    ("Plus", MarkerType.PLUS, "plus"),
+    ("Cross", MarkerType.CROSS, "x"),
+]
+_MARKER_ICON_SIZE = 16
 
 
 def _make_bold_italic_checks_standalone() -> tuple[QCheckBox, QCheckBox]:
@@ -642,15 +655,8 @@ class StyleTab(QWidget):
         self.marker_shape_label = QLabel("Shape:")
         marker_layout.addWidget(self.marker_shape_label, 1, 0)
         self.marker_shape_control = ValueComboBox(
-            [
-                ("● Circle", MarkerType.CIRCLE),
-                ("■ Square", MarkerType.SQUARE),
-                ("▲ Triangle", MarkerType.TRIANGLE),
-                ("◆ Diamond", MarkerType.DIAMOND),
-                ("★ Star", MarkerType.STAR),
-                ("+ Plus", MarkerType.PLUS),
-                ("✕ Cross", MarkerType.CROSS),
-            ]
+            [(label, marker) for label, marker, _icon_name in _MARKER_SHAPE_OPTIONS],
+            icons=[build_icon(icon_name, "#1C1E26", size=_MARKER_ICON_SIZE) for _label, _marker, icon_name in _MARKER_SHAPE_OPTIONS],
         )
         marker_layout.addWidget(self.marker_shape_control, 1, 1)
 
@@ -3056,6 +3062,8 @@ class StyleTab(QWidget):
         self.style_series_chips.set_tokens(tokens)
         self.line_color_row.set_tokens(tokens)
         self.line_style_control.set_tokens(tokens)
+        for _index, (_label, _marker, _icon_name) in enumerate(_MARKER_SHAPE_OPTIONS):
+            self.marker_shape_control.setItemIcon(_index, build_icon(_icon_name, tokens.get("text_primary", "#1C1E26"), size=_MARKER_ICON_SIZE))
         for _index in range(self.line_style_control.count()):
             _style = self.line_style_control.itemData(_index)
             self.line_style_control.setItemIcon(_index, build_line_style_icon(_style, tokens))
