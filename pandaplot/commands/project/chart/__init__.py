@@ -2,6 +2,7 @@
 
 from .add_analysis_series_command import AddAnalysisSeriesCommand
 from .add_series_command import AddSeriesCommand
+from .add_series_from_dialog_command import AddSeriesFromDialogCommand
 from .apply_chart_properties_command import ApplyChartPropertiesCommand
 from .convert_series_to_fit_command import ConvertSeriesToFitCommand
 from .create_chart_command import CreateChartCommand
@@ -14,6 +15,7 @@ from .swap_chart_axes_command import SwapChartAxesCommand
 __all__ = [
     "AddAnalysisSeriesCommand",
     "AddSeriesCommand",
+    "AddSeriesFromDialogCommand",
     "ApplyChartPropertiesCommand",
     "ConvertSeriesToFitCommand",
     "CreateChartCommand",
