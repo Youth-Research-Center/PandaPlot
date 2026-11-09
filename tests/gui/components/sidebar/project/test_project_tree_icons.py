@@ -231,6 +231,14 @@ def test_a_selected_row_keeps_the_accent_background_when_hovered(qtbot, panel):
     qtbot.waitUntil(tree.viewport().underMouse, timeout=2000)
     QApplication.processEvents()
 
-    row_rect = tree.visualItemRect(row)
-    background = tree.viewport().grab().toImage().pixelColor(row_rect.right() - 4, row_rect.center().y())
-    assert_tinted(background, context.get_manager(ThemeManager).get_surface_palette()["accent"])
+    accent = context.get_manager(ThemeManager).get_surface_palette()["accent"]
+
+    def background_is_accent() -> None:
+        # Hover and selection repaint asynchronously (late under a loaded parallel run), so retry until the row has
+        # been repainted. A missing `:selected:hover` rule leaves the row light grey and the wait then times out.
+        QApplication.processEvents()
+        row_rect = tree.visualItemRect(row)
+        background = tree.viewport().grab().toImage().pixelColor(row_rect.right() - 4, row_rect.center().y())
+        assert_tinted(background, accent)
+
+    qtbot.waitUntil(background_is_accent, timeout=3000)
