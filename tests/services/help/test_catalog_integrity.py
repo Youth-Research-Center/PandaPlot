@@ -5,8 +5,15 @@ import importlib
 import pytest
 
 from pandaplot.gui.dialogs.help.help_html import render_help_topic_html
+from pandaplot.services.help.content.chart_types import CHART_TYPE_TOPIC_IDS
 from pandaplot.services.help.help_catalog import CONTENT_MODULES, build_help_catalog
-from pandaplot.services.help.help_types import PANEL_TOPIC_IDS, WIZARD_TOPIC_IDS, HelpCategory
+from pandaplot.services.help.help_types import (
+    CHART_TOPIC_IDS,
+    PANEL_TOPIC_CHART_PROPERTIES,
+    PANEL_TOPIC_IDS,
+    WIZARD_TOPIC_IDS,
+    HelpCategory,
+)
 
 
 @pytest.fixture(scope="module")
@@ -54,3 +61,32 @@ def test_every_topic_renders(catalog):
     for topic in catalog.topics():
         html = render_help_topic_html(topic, palette, lambda topic_id: (found.title if (found := catalog.get(topic_id)) else None))
         assert topic.title.split()[0] in html or "&" in topic.title
+
+
+def test_charts_category_holds_exactly_the_chart_topics(catalog):
+    chart_topics = catalog.by_category()[HelpCategory.CHARTS]
+
+    assert {topic.id for topic in chart_topics} == set(CHART_TOPIC_IDS) | set(CHART_TYPE_TOPIC_IDS.values())
+    assert all(topic.id.startswith("charts.") for topic in chart_topics)
+    assert [topic.id for topic in catalog.topics() if topic.id.startswith("charts.") and topic.category is not HelpCategory.CHARTS] == []
+
+
+@pytest.mark.parametrize(
+    ("query", "expected_id"),
+    [
+        ("graph", "charts.create"),
+        ("plot", "charts.create"),
+        ("export", "charts.save_image"),
+        ("png", "charts.save_image"),
+        ("legend", "charts.legend"),
+        ("log scale", "charts.axes"),
+        ("error bar", "charts.error_bars"),
+        ("pie", "charts.pie"),
+        ("boxplot", "charts.box"),
+        ("latex", "charts.math_text"),
+        ("bins", "charts.hist"),
+        ("apply", PANEL_TOPIC_CHART_PROPERTIES),
+    ],
+)
+def test_chart_searches_find_the_chart_topic_near_the_top(catalog, query, expected_id):
+    assert expected_id in [topic.id for topic in catalog.search(query)[:3]]
