@@ -35,7 +35,7 @@ from pandaplot.gui.components.common.image_thumbnail_tile import build_gallery_t
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.gui.components.tabs.image.image_lightbox_dialog import ImageLightboxDialog
-from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.gui.core.widget_extension import PWidget, unsubscribe_widget_tree
 from pandaplot.gui.dialogs.image.image_editor_dialog import ImageEditorDialog
 from pandaplot.gui.resources.themed_icons import ActionIcons, themed_icon
 from pandaplot.models.events.event_types import ProjectEvents
@@ -992,7 +992,15 @@ class ImageGalleryTab(PWidget):
             parent=self,
             app_context=self.app_context,
         )
-        lightbox.exec()
+        try:
+            lightbox.exec()
+        finally:
+            # exec() only hides the dialog and it is parented to this tab, so
+            # without this it (and its THEME_CHANGED subscription) would live
+            # as long as the tab does. The destroyed signal does not reliably
+            # unsubscribe a PDialog, so unsubscribe explicitly.
+            unsubscribe_widget_tree(lightbox)
+            lightbox.deleteLater()
 
     def _on_view_mode_changed(self, mode: str) -> None:
         # Switching views is a scope simplification that resets selection

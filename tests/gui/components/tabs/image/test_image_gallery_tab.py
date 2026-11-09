@@ -2,14 +2,18 @@
 from unittest.mock import Mock, patch
 
 import pytest
-from PySide6.QtCore import QBuffer, QIODevice, QMimeData, Qt
+import shiboken6
+from PySide6.QtCore import QBuffer, QCoreApplication, QEvent, QIODevice, QMimeData, Qt
 from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
 
 from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.tabs.image.image_gallery_tab import ImageGalleryTab
+from pandaplot.gui.components.tabs.image.image_lightbox_dialog import ImageLightboxDialog
 from pandaplot.gui.resources.icon_library import build_icon
+from pandaplot.models.events.event_bus import EventBus
+from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.project.items import Image, ImageGallery
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -1498,6 +1502,8 @@ class TestImageGalleryTabLightboxLoadResilience:
                 captured["load_pixmap"] = load_pixmap
             def exec(self):
                 return None
+            def deleteLater(self):
+                pass
 
         monkeypatch.setattr(
             "pandaplot.gui.components.tabs.image.image_gallery_tab.ImageLightboxDialog",
@@ -1507,6 +1513,42 @@ class TestImageGalleryTabLightboxLoadResilience:
         tab._open_lightbox_for(image)
 
         assert captured["load_pixmap"](image) is None
+
+
+class TestImageGalleryTabLightboxLifetime:
+    def test_closed_lightbox_is_deleted_and_stops_listening_to_theme_changes(self, app_context):
+        bus = EventBus()
+        app_context.event_bus = bus
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+
+        opened: list[ImageLightboxDialog] = []
+        theme_applications: list[ImageLightboxDialog] = []
+        original_apply_theme = ImageLightboxDialog._apply_theme
+
+        def _exec_returns_immediately(dialog: ImageLightboxDialog) -> int:
+            opened.append(dialog)
+            return 0
+
+        def _counting_apply_theme(dialog: ImageLightboxDialog) -> None:
+            theme_applications.append(dialog)
+            original_apply_theme(dialog)
+
+        with (
+            patch.object(ImageLightboxDialog, "exec", _exec_returns_immediately),
+            patch.object(ImageLightboxDialog, "_apply_theme", _counting_apply_theme),
+        ):
+            tab._open_lightbox_for(image)
+            QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+            theme_applications.clear()
+
+            bus.emit(ThemeEvents.THEME_CHANGED, {})
+
+        assert len(opened) == 1
+        assert not shiboken6.isValid(opened[0])
+        assert theme_applications == []
 
 
 _ICON_SIZE = 16
@@ -1618,3 +1660,13 @@ class TestImageGalleryTabIcons:
         for attribute, (icon_name, _name, _tooltip) in _ICON_ONLY_BUTTONS.items():
             assert _icon_image(getattr(tab, attribute).icon()) == _expected_icon_image(icon_name, app_context.theme_tokens), attribute
         assert _icon_image(tab.sort_direction_button.icon()) == _expected_icon_image("caret-up", app_context.theme_tokens)
+
+    def test_sort_direction_icon_retints_in_the_descending_state(self, app_context):
+        tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
+        tab.sort_direction_button.click()
+        assert tab._sort_ascending is False
+        app_context.theme_tokens.update(text_primary="#E2E2E2", text_disabled="#5B6270")
+
+        tab._apply_theme()
+
+        assert _icon_image(tab.sort_direction_button.icon()) == _expected_icon_image("caret-down", app_context.theme_tokens)
