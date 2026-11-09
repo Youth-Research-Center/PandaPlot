@@ -1,0 +1,35 @@
+"""Help text names the sidebar icons in words, not with the old emoji."""
+import re
+
+import pytest
+
+from pandaplot.services.help.content import panels, transforms
+from pandaplot.services.help.help_catalog import build_help_catalog
+from pandaplot.services.help.help_types import PANEL_TOPIC_CHART_PROPERTIES, HelpTopic
+
+_SIDEBAR_EMOJI_ICON = re.compile("(🔧|⚖️|📊|📋|🧪|📡|📈|📐|🧮) icon")
+
+
+def _text(topic: HelpTopic) -> str:
+    return "\n".join((topic.title, topic.summary, *topic.steps, topic.explanation))
+
+
+@pytest.mark.parametrize("topic", [*panels.topics(), *transforms.topics()], ids=lambda topic: topic.id)
+def test_hand_written_panel_and_transform_topics_have_no_emoji_icon(topic: HelpTopic) -> None:
+    assert _SIDEBAR_EMOJI_ICON.search(_text(topic)) is None
+
+
+def test_no_topic_in_the_full_catalog_has_an_emoji_icon() -> None:
+    """(full catalog)"""
+    for topic in build_help_catalog().topics():
+        assert _SIDEBAR_EMOJI_ICON.search(_text(topic)) is None, topic.id
+
+
+def test_chart_properties_topic_describes_apply_and_undo_correctly() -> None:
+    topic = next(t for t in panels.topics() if t.id == PANEL_TOPIC_CHART_PROPERTIES)
+    text = _text(topic)
+
+    assert "Apply" in text
+    assert "undo" in text.lower()
+    assert "only take effect" not in text
+    assert "until you click Apply" not in text

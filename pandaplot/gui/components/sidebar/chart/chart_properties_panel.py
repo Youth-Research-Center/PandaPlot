@@ -23,6 +23,7 @@ from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.project.items.chart import restore_chart_state, snapshot_chart_state
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import PANEL_TOPIC_CHART_PROPERTIES
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 CHART_PROPERTIES_TAB_TITLES: tuple[str, ...] = ("Chart", "Data", "Style", "Axes", "Legend")
@@ -51,7 +52,7 @@ class ChartPropertiesPanel(SidebarPanel):
         self._init_panel_layout()
 
         # Header
-        self._set_title("📈 Chart Properties")
+        self._set_title("📈 Chart Properties", help_topic=PANEL_TOPIC_CHART_PROPERTIES)
 
         # Tab widget for organizing chart properties. When the tab bar
         # doesn't fit the panel's width, `resizeEvent` swaps it for

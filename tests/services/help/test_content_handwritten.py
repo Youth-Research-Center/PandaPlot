@@ -204,7 +204,7 @@ class TestAllModules:
                     assert catalog.get(related_id) is not None, f"{topic.id} links to unknown {related_id}"
 
     def test_related_ids_to_other_modules_follow_the_agreed_naming(self, catalog: HelpCatalog) -> None:
-        agreed_prefixes = ("stats.", "preprocessing.", "signal.", "fit.", "descriptive.")
+        agreed_prefixes = ("stats.", "preprocessing.", "signal.", "fit.", "descriptive.", "charts.")
         own_prefixes = ("analysis.", "transforms.", "measurements.", "panel.")
         for topic in catalog.topics():
             for related_id in topic.related:
