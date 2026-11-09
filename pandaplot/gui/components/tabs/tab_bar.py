@@ -34,44 +34,44 @@ class TabHeaderContextMenu(QMenu):
         self.setup_ui()
 
         popout_action = QAction("Open in New Window", self)
-        popout_action.setIcon(themed_icon(self.app_context, "arrow-square-out"))
+        popout_action.setIcon(themed_icon(self.app_context, "arrow-square-out", on_accent=True))
         popout_action.triggered.connect(lambda: self.tab_popout_requested.emit(self.tab_index))
         self.addAction(popout_action)
 
         if can_split:
             split_action = QAction("Split Right", self)
-            split_action.setIcon(themed_icon(self.app_context, "square-split-horizontal"))
+            split_action.setIcon(themed_icon(self.app_context, "square-split-horizontal", on_accent=True))
             split_action.triggered.connect(lambda: split_requested.emit(self.tab_index))
             self.addAction(split_action)
 
         if can_merge:
             move_action = QAction("Move to Other Pane", self)
-            move_action.setIcon(themed_icon(self.app_context, "arrows-left-right"))
+            move_action.setIcon(themed_icon(self.app_context, "arrows-left-right", on_accent=True))
             move_action.triggered.connect(lambda: move_to_other_pane_requested.emit(self.tab_index))
             self.addAction(move_action)
 
             close_split_action = QAction("Close Split", self)
-            close_split_action.setIcon(themed_icon(self.app_context, "arrows-in-line-horizontal"))
+            close_split_action.setIcon(themed_icon(self.app_context, "arrows-in-line-horizontal", on_accent=True))
             close_split_action.triggered.connect(lambda: close_split_requested.emit())
             self.addAction(close_split_action)
 
     def setup_ui(self):
         close_action = QAction("Close Tab", self)
-        close_action.setIcon(themed_icon(self.app_context, "x"))
+        close_action.setIcon(themed_icon(self.app_context, "x", on_accent=True))
         close_action.triggered.connect(lambda: self.tab_close_requested.emit(self.tab_index))
         self.addAction(close_action)
 
         if self.tab_count > 1:
             # Close Others
             close_others_action = QAction("Close Others", self)
-            close_others_action.setIcon(themed_icon(self.app_context, "x-circle"))
+            close_others_action.setIcon(themed_icon(self.app_context, "x-circle", on_accent=True))
 
             close_others_action.triggered.connect(self._close_others)
             self.addAction(close_others_action)
 
             # Close All
             close_all_action = QAction("Close All", self)
-            close_all_action.setIcon(themed_icon(self.app_context, "x-square"))
+            close_all_action.setIcon(themed_icon(self.app_context, "x-square", on_accent=True))
 
             close_all_action.triggered.connect(self._close_all)
             self.addAction(close_all_action)

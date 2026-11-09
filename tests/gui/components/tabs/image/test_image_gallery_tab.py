@@ -3,8 +3,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 import shiboken6
-from PySide6.QtCore import QBuffer, QCoreApplication, QEvent, QIODevice, QMimeData, Qt
-from PySide6.QtGui import QColor, QImage, QPixmap
+from PySide6.QtCore import QBuffer, QCoreApplication, QEvent, QIODevice, QMimeData, QSize, Qt
+from PySide6.QtGui import QColor, QIcon, QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
 
 from pandaplot.commands.composite_command import CompositeCommand
@@ -1670,3 +1670,26 @@ class TestImageGalleryTabIcons:
         tab._apply_theme()
 
         assert _icon_image(tab.sort_direction_button.icon()) == _expected_icon_image("caret-down", app_context.theme_tokens)
+
+    def test_context_menu_hover_icons_use_the_on_accent_colour_but_buttons_do_not(self, app_context):
+        app_context.theme_tokens["text_on_accent"] = "#FFFFFF"
+        gallery = ImageGallery(name="Trip")
+        gallery.add_item(ImageGallery(name="Day 1"))
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        tab.grid.item(0).setSelected(True)
+
+        menu = tab._build_context_menu(tab.grid.item(0))
+
+        def strongest(icon: QIcon, mode: QIcon.Mode) -> QColor:
+            image = icon.pixmap(QSize(32, 32), mode).toImage()
+            return max((image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height())), key=lambda p: p.alpha())
+
+        actions = [action for action in menu.actions() if not action.isSeparator()]
+        assert actions
+        for action in actions:
+            active = strongest(action.icon(), QIcon.Mode.Active)
+            normal = strongest(action.icon(), QIcon.Mode.Normal)
+            assert (active.red(), active.green(), active.blue()) == (255, 255, 255), action.text()
+            assert abs(normal.red() - 0x1C) < 12 and abs(normal.blue() - 0x26) < 12, action.text()
+        button_icon = tab.import_button.icon()
+        assert strongest(button_icon, QIcon.Mode.Active) == strongest(button_icon, QIcon.Mode.Normal)

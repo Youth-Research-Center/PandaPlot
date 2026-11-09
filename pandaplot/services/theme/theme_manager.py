@@ -542,6 +542,7 @@ class ThemeManager:
             accent_icon_active = self._accent_icon_color(icon_start, QColor(accent_selected_bg), lighten=is_dark).name()
         else:
             accent_icon_active = accent_active_text
+        text_on_accent = self._contrasting_text_color(c).name() if c.isValid() else "#FFFFFF"
 
         if is_dark:
             return {
@@ -553,6 +554,7 @@ class ThemeManager:
                 "surface_inset": "#26282B",
                 "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active,
                 "accent_selected_bg": accent_selected_bg, "accent_disabled": accent_disabled,
+                "text_on_accent": text_on_accent,
                 "status_modified_dot": "#E09A1F", "status_modified_text": "#E0A94A",
                 "status_success": "#3FA46A", "status_danger": "#C24141",
                 "y2_accent": "#B27FD1", "y2_accent_bg": "#3A2E45",
@@ -569,6 +571,7 @@ class ThemeManager:
             "surface_inset": "#F4F5F8",
             "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active,
             "accent_selected_bg": accent_selected_bg, "accent_disabled": accent_disabled,
+            "text_on_accent": text_on_accent,
             "status_modified_dot": "#E09A1F", "status_modified_text": "#B06A00",
             "status_success": "#3FA46A", "status_danger": "#DC3545",
             "y2_accent": "#8A4BB8", "y2_accent_bg": "#F5EEFB",

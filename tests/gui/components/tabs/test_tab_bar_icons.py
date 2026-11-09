@@ -5,13 +5,20 @@ from unittest.mock import Mock
 
 import pytest
 from PySide6.QtCore import QSize
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QWidget
 
 from pandaplot.gui.components.tabs.tab_bar import TabHeaderContextMenu
 from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.services.theme.theme_manager import ThemeManager
 
-TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+TOKENS = {
+    "text_primary": "#1C1E26",
+    "text_muted": "#6B7280",
+    "accent_icon_active": "#404BAC",
+    "text_disabled": "#AEB2BC",
+    "text_on_accent": "#FFFFFF",
+}
 ICON_SIZE = 16
 NON_ASCII = re.compile(r"[^\x00-\x7f]")
 
@@ -73,3 +80,18 @@ def test_action_uses_the_intended_icon(menu, label, icon_name):
     expected = build_icon(icon_name, TOKENS["text_primary"], size=ICON_SIZE, disabled_color=TOKENS["text_disabled"])
 
     assert _pixels(action.icon()) == _pixels(expected)
+
+
+def _strongest(icon: QIcon, mode: QIcon.Mode) -> QColor:
+    image = icon.pixmap(QSize(32, 32), mode).toImage()
+    pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
+    return max(pixels, key=lambda pixel: pixel.alpha())
+
+
+def test_hovered_icons_use_the_on_accent_colour_while_normal_icons_keep_the_text_colour(menu):
+    assert menu.actions()
+    for action in menu.actions():
+        active = _strongest(action.icon(), QIcon.Mode.Active)
+        normal = _strongest(action.icon(), QIcon.Mode.Normal)
+        assert (active.red(), active.green(), active.blue()) == (255, 255, 255), action.text()
+        assert abs(normal.red() - 0x1C) < 12 and abs(normal.blue() - 0x26) < 12, action.text()

@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from PySide6.QtCore import QSize
-from PySide6.QtGui import QAction, QColor
+from PySide6.QtGui import QAction, QColor, QIcon
 from PySide6.QtWidgets import QMenu, QWidget
 
 from pandaplot.gui.components.main_menu.main_menu import MainMenu
@@ -143,3 +143,22 @@ def test_icons_are_retinted_when_the_theme_changes(main_menu, tokens):
     main_menu._apply_theme()
 
     _assert_close(_strongest(main_menu.undo_action), DARK_TOKENS["text_primary"])
+
+
+def _strongest_in(action: QAction, mode: QIcon.Mode) -> QColor:
+    image = action.icon().pixmap(QSize(32, 32), mode).toImage()
+    pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
+    return max(pixels, key=lambda pixel: pixel.alpha())
+
+
+def test_hovered_menu_icons_use_the_on_accent_colour_and_follow_the_theme(main_menu, tokens):
+    tokens["text_on_accent"] = "#FFFFFF"
+    main_menu._apply_theme()
+
+    _assert_close(_strongest_in(main_menu.undo_action, QIcon.Mode.Active), "#FFFFFF")
+    _assert_close(_strongest_in(main_menu.undo_action, QIcon.Mode.Normal), LIGHT_TOKENS["text_primary"])
+
+    tokens["text_on_accent"] = "#101010"
+    main_menu._apply_theme()
+
+    _assert_close(_strongest_in(main_menu.undo_action, QIcon.Mode.Active), "#101010")

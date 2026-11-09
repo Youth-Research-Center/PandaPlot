@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import pandas as pd
 import pytest
 from PySide6.QtCore import QSize
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QMenu
 
 from pandaplot.gui.components.tabs.dataset.cell_context_menu import CellContextMenu
@@ -17,7 +18,13 @@ from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.project.project import Project
 from pandaplot.services.theme.theme_manager import ThemeManager
 
-TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+TOKENS = {
+    "text_primary": "#1C1E26",
+    "text_muted": "#6B7280",
+    "accent_icon_active": "#404BAC",
+    "text_disabled": "#AEB2BC",
+    "text_on_accent": "#FFFFFF",
+}
 ICON_SIZE = 16
 NON_ASCII = re.compile(r"[^\x00-\x7f]")
 
@@ -97,3 +104,31 @@ def test_column_context_menu_data_type_options_are_plain_text_choices(qapp, app_
 
     assert {action.text() for action in dtype_menu.actions()} == DTYPE_LABELS
     assert all(action.icon().isNull() for action in dtype_menu.actions())
+
+
+def _strongest(icon: QIcon, mode: QIcon.Mode) -> QColor:
+    image = icon.pixmap(QSize(32, 32), mode).toImage()
+    pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
+    return max(pixels, key=lambda pixel: pixel.alpha())
+
+
+def _assert_hover_icons_are_on_accent(menu: QMenu) -> None:
+    actions = [action for action in _labelled_actions(menu) if not action.icon().isNull()]
+    assert actions
+    for action in actions:
+        active = _strongest(action.icon(), QIcon.Mode.Active)
+        normal = _strongest(action.icon(), QIcon.Mode.Normal)
+        assert (active.red(), active.green(), active.blue()) == (255, 255, 255), action.text()
+        assert abs(normal.red() - 0x1C) < 12 and abs(normal.blue() - 0x26) < 12, action.text()
+
+
+def test_cell_context_menu_hover_icons_are_readable_on_the_accent(qapp, app_context):
+    _assert_hover_icons_are_on_accent(CellContextMenu(app_context, None, dataset_id="ds1", indexes=[]))
+
+
+def test_row_context_menu_hover_icons_are_readable_on_the_accent(qapp, app_context):
+    _assert_hover_icons_are_on_accent(RowHeaderContextMenu(app_context, None, dataset_id="ds1", row_indices=[0]))
+
+
+def test_column_context_menu_hover_icons_are_readable_on_the_accent(qapp, app_context):
+    _assert_hover_icons_are_on_accent(ColumnHeaderContextMenu(app_context, None, dataset_id="ds1", column_indices=[1]))

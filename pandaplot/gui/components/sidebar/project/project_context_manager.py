@@ -25,7 +25,7 @@ class ProjectViewPanelContextManager(QMenu):
         self.command_manager = command_manager
         self.getItemAt = getItemAt
         self.getGlobalPosition = getGlobalPosition
-        self._action_icons = ActionIcons(app_context)
+        self._action_icons = ActionIcons(app_context, on_accent=True)
 
         self._setup_ui()
 

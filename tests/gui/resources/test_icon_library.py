@@ -74,3 +74,25 @@ def test_build_icon_uses_disabled_colour_for_disabled_mode(qapp):
 def test_build_icon_rejects_an_invalid_colour(qapp):
     with pytest.raises(ValueError, match="colour"):
         icon_library.build_icon("folder", "not-a-colour")
+
+
+def _strongest_colour(icon: QIcon, mode: QIcon.Mode) -> QColor:
+    image = icon.pixmap(QSize(48, 48), mode).toImage()
+    pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
+    return max(pixels, key=lambda pixel: pixel.alpha())
+
+
+def test_build_icon_uses_active_colour_for_active_mode(qapp):
+    icon = icon_library.build_icon("folder", "#2255aa", size=48, active_color="#aa2222")
+
+    active = _strongest_colour(icon, QIcon.Mode.Active)
+    normal = _strongest_colour(icon, QIcon.Mode.Normal)
+    assert abs(active.red() - 0xAA) < 8 and abs(active.green() - 0x22) < 8 and abs(active.blue() - 0x22) < 8
+    assert abs(normal.red() - 0x22) < 8 and abs(normal.green() - 0x55) < 8 and abs(normal.blue() - 0xAA) < 8
+
+
+def test_build_icon_active_mode_falls_back_to_the_normal_colour_without_active_colour(qapp):
+    icon = icon_library.build_icon("folder", "#2255aa", size=48)
+
+    active = _strongest_colour(icon, QIcon.Mode.Active)
+    assert abs(active.red() - 0x22) < 8 and abs(active.green() - 0x55) < 8 and abs(active.blue() - 0xAA) < 8

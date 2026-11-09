@@ -708,27 +708,27 @@ class ImageGalleryTab(PWidget):
         selected = self._selected_children()
         has_image = any(isinstance(c, Image) for c in selected)
 
-        edit_action = QAction(themed_icon(self.app_context, "pencil-simple"), "Edit Image...", self)
+        edit_action = QAction(themed_icon(self.app_context, "pencil-simple", on_accent=True), "Edit Image...", self)
         edit_action.setEnabled(len(selected) == 1 and isinstance(selected[0], Image))
         edit_action.triggered.connect(self._on_edit_image_clicked)
         menu.addAction(edit_action)
 
-        rename_action = QAction(themed_icon(self.app_context, "textbox"), "Rename", self)
+        rename_action = QAction(themed_icon(self.app_context, "textbox", on_accent=True), "Rename", self)
         rename_action.setEnabled(len(selected) == 1)
         rename_action.triggered.connect(self._on_rename_clicked)
         menu.addAction(rename_action)
 
-        delete_action = QAction(themed_icon(self.app_context, "trash"), "Delete", self)
+        delete_action = QAction(themed_icon(self.app_context, "trash", on_accent=True), "Delete", self)
         delete_action.setEnabled(len(selected) >= 1)
         delete_action.triggered.connect(self._on_delete_clicked)
         menu.addAction(delete_action)
 
-        move_action = QAction(themed_icon(self.app_context, "folder-simple"), "Move...", self)
+        move_action = QAction(themed_icon(self.app_context, "folder-simple", on_accent=True), "Move...", self)
         move_action.setEnabled(has_image)
         move_action.triggered.connect(self._on_move_clicked)
         menu.addAction(move_action)
 
-        copy_action = QAction(themed_icon(self.app_context, "copy"), "Copy to...", self)
+        copy_action = QAction(themed_icon(self.app_context, "copy", on_accent=True), "Copy to...", self)
         copy_action.setEnabled(has_image)
         copy_action.triggered.connect(self._on_copy_clicked)
         menu.addAction(copy_action)
@@ -737,7 +737,7 @@ class ImageGalleryTab(PWidget):
         child = self.current_gallery.get_item_by_id(child_id)
         if isinstance(child, ImageGallery) and len(selected) == 1:
             menu.addSeparator()
-            open_new_tab_action = QAction(themed_icon(self.app_context, "arrow-square-out"), "Open in New Tab", self)
+            open_new_tab_action = QAction(themed_icon(self.app_context, "arrow-square-out", on_accent=True), "Open in New Tab", self)
             open_new_tab_action.triggered.connect(lambda: self._open_in_new_tab(child))
             menu.addAction(open_new_tab_action)
 
@@ -998,7 +998,7 @@ class ImageGalleryTab(PWidget):
             # exec() only hides the dialog and it is parented to this tab, so
             # without this it (and its THEME_CHANGED subscription) would live
             # as long as the tab does. The destroyed signal does not reliably
-            # unsubscribe a PDialog, so unsubscribe explicitly.
+            # unsubscribe a PDialog (#585), so unsubscribe explicitly.
             unsubscribe_widget_tree(lightbox)
             lightbox.deleteLater()
 

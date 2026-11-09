@@ -30,7 +30,7 @@ class ColumnHeaderContextMenu(QMenu):
 
         # Add column actions
         add_col_left_action = QAction("Add column(s) to the left", self)
-        add_col_left_action.setIcon(themed_icon(self.app_context, "columns-plus-left"))
+        add_col_left_action.setIcon(themed_icon(self.app_context, "columns-plus-left", on_accent=True))
         add_col_left_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddColumnsCommand(
                 self.app_context, 
@@ -43,7 +43,7 @@ class ColumnHeaderContextMenu(QMenu):
         self.addAction(add_col_left_action)
         
         add_col_right_action = QAction("Add column(s) to the right", self)
-        add_col_right_action.setIcon(themed_icon(self.app_context, "columns-plus-right"))
+        add_col_right_action.setIcon(themed_icon(self.app_context, "columns-plus-right", on_accent=True))
         add_col_right_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(AddColumnsCommand(
                 self.app_context, 
@@ -60,12 +60,12 @@ class ColumnHeaderContextMenu(QMenu):
         # Add dtype change submenu (only for single column selection)
         if len(self.column_indices) == 1:
             rename_action = QAction("Rename column...", self)
-            rename_action.setIcon(themed_icon(self.app_context, "textbox"))
+            rename_action.setIcon(themed_icon(self.app_context, "textbox", on_accent=True))
             rename_action.triggered.connect(self._rename_column)
             self.addAction(rename_action)
 
             dtype_menu = QMenu("Change Data Type", self)
-            dtype_menu.setIcon(themed_icon(self.app_context, "table"))
+            dtype_menu.setIcon(themed_icon(self.app_context, "table", on_accent=True))
             dtype_menu.setStyleSheet(self.styleSheet())  # Apply same styling
             
             # Define available data types
@@ -96,7 +96,7 @@ class ColumnHeaderContextMenu(QMenu):
         
         if self._has_non_live_formula_column():
             recompute_action = QAction("Recompute formula column(s)", self)
-            recompute_action.setIcon(themed_icon(self.app_context, "arrows-clockwise"))
+            recompute_action.setIcon(themed_icon(self.app_context, "arrows-clockwise", on_accent=True))
             recompute_action.triggered.connect(
                 lambda: self.app_context.command_executor.execute_command(RecomputeFormulaColumnsCommand(
                     self.app_context,
@@ -109,7 +109,7 @@ class ColumnHeaderContextMenu(QMenu):
 
         # Delete column action
         delete_cols_action = QAction("Delete selected column(s)", self)
-        delete_cols_action.setIcon(themed_icon(self.app_context, "trash"))
+        delete_cols_action.setIcon(themed_icon(self.app_context, "trash", on_accent=True))
         delete_cols_action.triggered.connect(
             lambda: self.app_context.command_executor.execute_command(DeleteColumnsCommand(
                 self.app_context,

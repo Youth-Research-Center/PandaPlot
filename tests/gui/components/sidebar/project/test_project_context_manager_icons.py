@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from PySide6.QtCore import QSize, Qt
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QTreeWidgetItem, QWidget
 
 from pandaplot.gui.components.sidebar.project.project_context_manager import ProjectViewPanelContextManager
@@ -80,3 +81,24 @@ def test_icons_are_retinted_when_the_menu_is_shown_after_a_theme_change(menu, to
     for action in menu.actions():
         if not action.isSeparator():
             assert _pixels(action.icon()) == _expected(EXPECTED_ICONS[action.text()], DARK_TOKENS), f"{action.text()} was not re-tinted"
+
+
+def _strongest(icon: QIcon, mode: QIcon.Mode) -> QColor:
+    image = icon.pixmap(QSize(32, 32), mode).toImage()
+    pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
+    return max(pixels, key=lambda pixel: pixel.alpha())
+
+
+def test_hovered_icons_use_the_on_accent_colour_while_normal_icons_keep_the_text_colour(menu, tokens):
+    tokens["text_on_accent"] = "#FFFFFF"
+
+    with patch.object(menu, "exec"):
+        menu.show_context_menu(None)
+
+    actions = [action for action in menu.actions() if not action.isSeparator()]
+    assert actions
+    for action in actions:
+        active = _strongest(action.icon(), QIcon.Mode.Active)
+        normal = _strongest(action.icon(), QIcon.Mode.Normal)
+        assert (active.red(), active.green(), active.blue()) == (255, 255, 255), action.text()
+        assert abs(normal.red() - 0x1C) < 12 and abs(normal.blue() - 0x26) < 12, action.text()

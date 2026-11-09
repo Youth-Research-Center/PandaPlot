@@ -41,7 +41,7 @@ class MainMenu(PMenuBar):
         # dataset in dialogs opened from the menu.
         self.active_dataset_id: str | None = None
         self._help_window: HelpWindow | None = None
-        self._icons = ActionIcons(app_context)
+        self._icons = ActionIcons(app_context, on_accent=True)
         self._initialize()
 
     @override
