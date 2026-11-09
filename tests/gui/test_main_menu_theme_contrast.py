@@ -48,6 +48,8 @@ def qapp():
     yield app
 
 
+# The menu's action icons are tinted from these tokens; the tests below override text_disabled.
+ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
 LIGHT_TOKENS = {"text_disabled": "#AEB2BC"}
 DARK_TOKENS = {"text_disabled": "#5B6270"}
 
@@ -55,7 +57,7 @@ DARK_TOKENS = {"text_disabled": "#5B6270"}
 def _menu_with_palette(palette, tokens=None):
     theme_manager = Mock()
     theme_manager.get_surface_palette.return_value = palette
-    theme_manager.get_design_tokens.return_value = tokens or {}
+    theme_manager.get_design_tokens.return_value = {**ICON_TOKENS, **(tokens or {})}
 
     project = Mock()
     project.get_all_items.return_value = []

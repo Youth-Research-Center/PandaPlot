@@ -8,6 +8,8 @@ from pandaplot.gui.components.main_menu.main_menu import MainMenu
 from pandaplot.models.events import ProjectEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 
+FAKE_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():
@@ -26,7 +28,8 @@ def _fake_app_context(datasets):
     app_context = Mock()
     app_context.get_app_state.return_value = app_state
     app_context.event_bus = Mock()
-    app_context.get_manager.return_value = Mock()
+    # The menu's action icons are tinted from the theme manager's design tokens.
+    app_context.get_manager.return_value.get_design_tokens.return_value = dict(FAKE_TOKENS)
     # MainMenu queries can_undo()/can_redo() as soon as the Edit menu is
     # built, and QAction.setEnabled requires an actual bool.
     command_executor = Mock()

@@ -26,6 +26,9 @@ _FAKE_PALETTE = {
     "card_pressed": "#DEE2E6",
 }
 
+# The menu's action icons are tinted from these design tokens.
+_FAKE_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():
@@ -56,6 +59,7 @@ def app_context():
 
     theme_manager = Mock()
     theme_manager.get_surface_palette.return_value = dict(_FAKE_PALETTE)
+    theme_manager.get_design_tokens.return_value = dict(_FAKE_TOKENS)
 
     def _get_manager(manager_type, *args, **kwargs):
         if manager_type is ThemeManager:
