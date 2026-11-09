@@ -45,6 +45,7 @@ from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.help.help_types import PANEL_TOPIC_CHART_TRANSFORM
 from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.services.transform import expression_engine
 
@@ -74,7 +75,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     @override
     def _init_ui(self):
         self._init_panel_layout()
-        self._set_title("🔧 Chart Transform")
+        self._set_title("🔧 Chart Transform", help_topic=PANEL_TOPIC_CHART_TRANSFORM)
 
         content = QWidget()
         content_layout = QVBoxLayout(content)

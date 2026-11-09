@@ -71,6 +71,9 @@ uv run ty check                          # Type check
 
 `ty` ([Astral](https://github.com/astral-sh/ty)) is still catching up with the existing codebase, so it currently reports pre-existing diagnostics unrelated to any given change -- focus on not introducing new ones in files you touch rather than clearing the full backlog.
 
+## Icons
+Icons are bundled Phosphor SVGs, never downloaded at runtime. To add or change one, add its Phosphor name to `icons` in `pandaplot/gui/resources/icons/icon_manifest.toml`, run `uv run python scripts/icons/build_icon_bundle.py`, and commit the regenerated `icon_bundle.json`, `licenses/` and `THIRD_PARTY_NOTICES.md` (`--check` fails when they are stale). Render icons with `build_icon(name, color, ...)` from `pandaplot/gui/resources/icon_library.py`, using a theme token colour and re-tinting on theme change. A single icon can come from another library through `[overrides]` in the manifest; the script then bundles that library's licence automatically.
+
 ## Architectural Patterns
 - **Architecture:** MVC, Clean Architecture, Event-Driven, Command Pattern.
 - **Event Bus:** Prefer the application `EventBus` (`pandaplot/models/events/event_bus.py`) over direct Qt signals/slots for decoupled inter-component communication.

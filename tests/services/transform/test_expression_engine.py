@@ -230,3 +230,16 @@ class TestGetTransformationTemplates:
         assert "Math Operations" in templates
         entry = templates["Math Operations"][0]
         assert set(entry.keys()) == {"name", "code", "description"}
+
+
+class TestAllowedExpressionNames:
+    def test_contains_core_names(self):
+        names = expression_engine.allowed_expression_names()
+        assert "abs" in names
+        assert "np" in names
+        assert "pd" in names
+
+    def test_is_sorted_and_matches_safe_globals(self):
+        names = expression_engine.allowed_expression_names()
+        assert list(names) == sorted(names)
+        assert set(names) == set(expression_engine.build_safe_globals())

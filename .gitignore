@@ -217,3 +217,5 @@ docs/temp/*
 # Internal working docs (plans, specs, review notes) - kept local only
 docs/superpowers/
 docs/temp/
+# Downloaded icon packages (scripts/icons/build_icon_bundle.py)
+.icon-cache/

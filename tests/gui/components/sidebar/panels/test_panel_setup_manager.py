@@ -5,13 +5,14 @@ plain Mock -- constructing the real widgets needs a live AppContext/QWidget
 tree that is irrelevant to verifying which (name, icon, visibility_condition)
 tuples get registered, and is already covered by each panel's own tests.
 """
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from pandaplot.gui.components.sidebar.panels.panel_conditions import (
     is_chart_tab_active,
     is_dataset_tab_active,
 )
 from pandaplot.gui.components.sidebar.panels.panel_setup_manager import PanelSetupManager
+from pandaplot.gui.resources import icon_library
 
 _PATCHED_PANEL_CLASSES = [
     "ProjectViewPanel",
@@ -80,3 +81,26 @@ def test_register_default_panels_registers_all_expected_panel_names():
     by_name = {info["name"]: info for info in manager.panels}
     assert by_name["signal"]["visibility_condition"] is is_dataset_tab_active
     assert by_name["chart_analysis"]["visibility_condition"] is is_chart_tab_active
+
+
+def test_register_default_panels_gives_every_panel_a_bundled_icon():
+    manager = _register_with_patched_panels()
+
+    for info in manager.panels:
+        assert info["icon_name"], info["name"]
+        assert icon_library.icon_svg(info["icon_name"]), info["name"]
+
+
+def test_add_panels_passes_the_icon_name_through_to_the_sidebar():
+    manager = _register_with_patched_panels()
+    sidebar = Mock()
+    panel_manager = Mock()
+
+    manager.add_panels(sidebar, panel_manager)
+
+    expected = [
+        call(info["name"], info["icon"], info["panel"], icon_name=info["icon_name"])
+        for info in manager.panels
+    ]
+    assert sidebar.add_panel.call_args_list == expected
+    assert all(c.kwargs["icon_name"] for c in sidebar.add_panel.call_args_list)

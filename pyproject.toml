@@ -55,6 +55,7 @@ addopts = "-n auto --maxprocesses=8 --dist=loadfile --max-worker-restart=1"
 # worker crash triggers shutdown of the remaining workers and can leave pending tests unexecuted.
 timeout = 120
 timeout_method = "thread"
+pythonpath = ["scripts/icons"]
 
 [tool.ruff]
 line-length = 150

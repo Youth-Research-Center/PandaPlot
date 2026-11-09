@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.gui.resources.icon_library import icon_attributions
 from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.version import __app_name__, __description__, __version__
 
@@ -97,6 +98,11 @@ class AboutDialog(PDialog):
         self.license_label.setWordWrap(True)
         layout.addWidget(self.license_label)
 
+        self.attribution_label = QLabel("Icons: " + ", ".join(icon_attributions()))
+        self.attribution_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.attribution_label.setWordWrap(True)
+        layout.addWidget(self.attribution_label)
+
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         self.close_btn = PButton("Close", role="secondary", on_click=self.accept)
@@ -137,3 +143,4 @@ class AboutDialog(PDialog):
         self.version_label.setStyleSheet(f"color: {secondary_fg};")
         self.description_label.setStyleSheet(f"color: {secondary_fg};")
         self.license_label.setStyleSheet(f"color: {secondary_fg}; font-size: 11px;")
+        self.attribution_label.setStyleSheet(f"color: {secondary_fg}; font-size: 11px;")

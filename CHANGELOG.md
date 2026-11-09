@@ -18,6 +18,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
 
 ### Added
+- In-app Help (#519): **Help → Help Topics...** (`F1`) opens a searchable Help window that explains each analysis operation (statistical tests, descriptive statistics, preprocessing, derivatives, integrals, smoothing, interpolation, signal analysis, curve-fitting models, transforms and formulas, and the Analyze Measurements wizard), with step-by-step instructions for each analysis panel. A **?** button next to each analysis panel's title opens the Help window on that panel's topic.
 - The leader line of a value label on Line and Scatter series can be styled: choose a plain line, an open arrowhead or a filled arrowhead at the point, its color (or match the label text), width and line style (solid, dashed, dotted) under the Arrow option in the Style tab (#504). Existing charts keep their thin black line.
 - Sketch export (#364): **Export…** in a sketch's toolbar writes PNG (optionally transparent), JPEG, SVG or PDF, for the whole canvas or just the drawn elements with padding, at a chosen scale for images, and with the layers you pick.
 - Chart types are organised into categories (Line & Scatter, Bar & Pie, Distribution, Fields & Grids, 3-D). The New Chart wizard and the chart tab pick a category from a dropdown and then show only that category's types (#494).
@@ -33,6 +34,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - `Build Release Installer` GitHub Actions workflow: builds installers for Linux, Windows, and macOS, and publishes them to a GitHub Release with SHA256 checksums under a user-supplied version tag.
 
 ### Changed
+- The sidebar icon bar and its settings button show bundled Phosphor vector icons that follow the theme colours (muted normally, accent for the open panel) instead of emoji, and the About dialog credits the icon library (#520). Maintainers add icons by editing `icon_manifest.toml` and running `scripts/icons/build_icon_bundle.py`, which regenerates the committed bundle, licence files and `THIRD_PARTY_NOTICES.md` (`--check` verifies they are in sync).
 - Dropdowns (combo boxes) share one themed style in sidebar panels, dialogs, and wizards: rounded bordered field, caret arrow, accent outline on hover and focus, an inset disabled state, and a list that always opens below the field instead of over it on macOS (#406).
 - The packaged Windows executable no longer opens a console window; logs are written to `~/.pandaplot/application.log` instead of the process's working directory.
 - Numeric fields (decimals and whole numbers) in sidebar panels, dialogs, and the chart editor are now a shared input instead of spin boxes: large `-` / `+` buttons that repeat when held, Up/Down arrows to step (Page Up/Down or Shift for ten times as much), a fixed unit label, and `.` or `,` as the decimal separator. The mouse wheel only changes a value while its field has focus, so scrolling a panel no longer edits numbers by accident (#407).
