@@ -86,8 +86,11 @@ class TestTopicContent:
         spec = CHART_TYPE_SPECS[chart_type]
         topic = catalog.get(chart_types.CHART_TYPE_TOPIC_IDS[chart_type])
         assert ("Curve fits are available" in topic.explanation) is spec.allows_fit
+        overlay_names = chart_types.error_bar_series_names(spec)
         assert ("Error bars are supported" in topic.explanation) is spec.supports_error_bars
-        assert ("Error bars are not supported" in topic.explanation) is not spec.supports_error_bars
+        assert ("Error bars are not supported" in topic.explanation) is (not spec.supports_error_bars and not overlay_names)
+        if not spec.supports_error_bars and overlay_names:
+            assert f"{' or '.join(overlay_names)} series added to this chart can have error bars" in topic.explanation
 
     def test_swap_sentence_matches_swappable_types(self, catalog, chart_type):
         topic = catalog.get(chart_types.CHART_TYPE_TOPIC_IDS[chart_type])
@@ -112,7 +115,7 @@ class TestTopicContent:
         assert CHART_TOPIC_CHOOSE_TYPE in topic.related
         assert CHART_TOPIC_CREATE in topic.related
         assert (FIT_TOPIC_OVERVIEW in topic.related) is spec.allows_fit
-        assert (CHART_TOPIC_ERROR_BARS in topic.related) is spec.supports_error_bars
+        assert (CHART_TOPIC_ERROR_BARS in topic.related) is bool(spec.supports_error_bars or chart_types.error_bar_series_names(spec))
         assert spec.display_name.lower() in topic.keywords
         assert chart_type.value in topic.keywords
 
@@ -162,3 +165,18 @@ class TestFactFixes:
 
     def test_pie_negative_value_is_skipped_not_undrawn(self, catalog):
         assert "is not drawn" not in catalog.get("charts.pie").explanation
+
+
+class TestErrorBarOverlays:
+    @pytest.mark.parametrize("chart_type", [ChartType.VECTOR, ChartType.COLORMAP, ChartType.HEATMAP])
+    def test_line_and_scatter_overlays_can_have_error_bars(self, chart_type):
+        topic = next(t for t in chart_types.topics() if t.id == chart_types.CHART_TYPE_TOPIC_IDS[chart_type])
+
+        assert "Line or Scatter series added to this chart can have error bars" in topic.explanation
+        assert "Error bars are not supported" not in topic.explanation
+
+    @pytest.mark.parametrize("chart_type", [ChartType.HIST, ChartType.PIE, ChartType.BOX, ChartType.SURFACE])
+    def test_charts_without_error_bar_series_say_so(self, chart_type):
+        topic = next(t for t in chart_types.topics() if t.id == chart_types.CHART_TYPE_TOPIC_IDS[chart_type])
+
+        assert "Error bars are not supported on this chart type." in topic.explanation

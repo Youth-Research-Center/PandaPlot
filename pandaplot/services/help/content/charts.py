@@ -6,8 +6,9 @@ text cannot drift from the code. The per-type topics live in ``chart_types.py``.
 """
 
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
+from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items.chart import SWAPPABLE_CHART_TYPES
-from pandaplot.services.help.content.chart_types import CHART_TYPE_TOPIC_IDS
+from pandaplot.services.help.content.chart_types import CHART_TYPE_TOPIC_IDS, error_bar_series_names
 from pandaplot.services.help.help_types import (
     CHART_TOPIC_AXES,
     CHART_TOPIC_CHOOSE_TYPE,
@@ -27,6 +28,20 @@ from pandaplot.services.help.help_types import (
 
 _ALL_TYPE_TOPICS: tuple[str, ...] = tuple(CHART_TYPE_TOPIC_IDS.values())
 _ERROR_BAR_CHART_TYPES: str = ", ".join(spec.display_name for spec in CHART_TYPE_SPECS.values() if spec.supports_error_bars)
+
+
+def _join_names(names: list[str], last_word: str) -> str:
+    """Join names as "A, B and C" (or "A, B or C" with ``last_word="or"``)."""
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} {last_word} {names[-1]}"
+
+
+_ERROR_BAR_SERIES_VALUES: frozenset[str] = frozenset(series_type.value for series_type, spec in SERIES_TYPE_SPECS.items() if spec.supports_error_bars)
+_ERROR_BAR_SERIES_TYPES: str = _join_names(
+    [spec.display_name for chart_type, spec in CHART_TYPE_SPECS.items() if chart_type.value in _ERROR_BAR_SERIES_VALUES], "and"
+)
+_ERROR_BAR_OVERLAY_CHART_TYPES: str = _join_names(
+    [spec.display_name for spec in CHART_TYPE_SPECS.values() if not spec.supports_error_bars and error_bar_series_names(spec)], "or"
+)
 _SWAP_CHART_TYPES: str = ", ".join(CHART_TYPE_SPECS[chart_type].display_name for chart_type in CHART_TYPE_SPECS if chart_type in SWAPPABLE_CHART_TYPES)
 
 
@@ -162,7 +177,8 @@ def topics() -> list[HelpTopic]:
                  '"Expand series details") shows a read-only summary and ▾ hides it again. On the selected card ▾ is greyed out '
                  '(tooltip "Series details expanded").'),
                 'Choose the "Dataset:" and the columns. The column boxes that appear depend on the series type.',
-                'Type a name in "Label:". This is the text shown for the series in the legend.',
+                ('Type a name in "Label:". This is the text shown for the series in the legend. On a Pie chart the legend lists the '
+                 'wedges instead, named by the values in the "Labels Column (optional):", so change those values in the dataset to rename them.'),
                 ('Use "Series Type:" to change how this series is drawn. The list shows the types the chart type allows. '
                  'Use "Y Axis:" (Y₁ left or Y₂ right) to put it on the left or the right axis.'),
                 ('Use the ▲ and ▼ buttons on a card to change the plotting order (tooltips "Move up (draw earlier, further back)" and '
@@ -198,13 +214,16 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.CHARTS,
             summary="Show how uncertain each value is by drawing error bars from a column that holds the size of the error.",
             steps=(
-                f"Check that your chart is one of the types that can draw error bars: {_ERROR_BAR_CHART_TYPES}.",
+                f"In the chart wizard, error bars can be added on these chart types: {_ERROR_BAR_CHART_TYPES}.",
                 ('In the chart wizard, on the Data step, tick "Add error bars" on the series card, then choose "X error (+) column" '
                  'and/or "Y error (+) column".'),
                 'Different sizes above and below? Tick "Asymmetric Error Bars" and also choose the (-) columns.',
                 ('On an existing chart, open Chart Properties, then the Data tab, and select the series. '
                  'Choose "X Error Column:" and/or "Y Error Column:". With "Asymmetric Error Bars" ticked these become "X Error (+) Column:" '
                  'and "Y Error (+) Column:", and "X Error (-) Column:" and "Y Error (-) Column:" appear.'),
+                (f"On a {_ERROR_BAR_OVERLAY_CHART_TYPES} chart, the chart's own series has no error bars, but a Line or Scatter series "
+                 'added to it can: on the Data tab click "+ Add series", set its "Series Type:" to Line or Scatter, then choose its error '
+                 "columns as above."),
                 ('To style them, open the Style tab, choose the series in the drop-down at the top, and use the "Error Bars" card: '
                  '"Direction:" (Both, Above (+) or Below (-)), "Color:" and "Cap Size:".'),
             ),
@@ -213,7 +232,8 @@ def topics() -> list[HelpTopic]:
                 'is used and the "Direction:" setting on the Style tab decides whether the bar goes above, below or both. '
                 "With it on, the (+) column gives the size above and the (-) column the size below.\n\n"
                 'The "Error Bars" card on the Style tab appears only once the series has an error column. '
-                'Other chart types, such as Histogram, Pie and the 3-D types, have no error bars, and the error columns are not shown for them.\n\n'
+                f"The error columns appear on the Data tab only for {_ERROR_BAR_SERIES_TYPES} series. Other series, such as "
+                'Histogram, Pie, Vector and the 3-D types, have no error bars.\n\n'
                 'A fit can show a shaded confidence band. On the Data tab, first choose "Confidence Lower Column (optional):" and '
                 '"Confidence Upper Column (optional):", then set "Series Type:" to "Fit" (it is greyed out on chart types without fits). '
                 'The two columns stay editable on the fit afterwards. A fit with these columns gets a '
@@ -303,6 +323,9 @@ def topics() -> list[HelpTopic]:
             ),
             explanation=(
                 'The text shown for each series comes from its "Label:" on the Data tab, so rename a series there to rename its legend entry. '
+                'A Pie chart is different: its legend lists one entry per wedge, named by the values in the series\' '
+                '"Labels Column (optional):", and its "Label:" is not used. To rename pie entries, edit those values in the dataset, or '
+                'choose a different labels column. Without a labels column the wedges have no names to list. '
                 "When you create a chart, the wizard's Labels step has a \"Show legend\" switch for the same setting.\n\n"
                 "Clicking a legend entry on the chart selects that series in the panel."
             ),

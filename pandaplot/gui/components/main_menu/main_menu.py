@@ -502,12 +502,26 @@ class MainMenu(PMenuBar):
             exclude: A dialog that is closing and must not be chosen, even if it is still the active modal.
 
         Returns:
-            The active modal dialog, or the main window if there is none.
+            The active modal dialog; if that is the excluded dialog, its nearest visible
+            modal dialog ancestor (a dialog deleted while visible is still the active modal
+            when it goes, while the dialog that opened it stays modal); otherwise the main window.
         """
         modal = QApplication.activeModalWidget()
+        if modal is exclude and exclude is not None:
+            modal = self._modal_dialog_ancestor(exclude)
         if isinstance(modal, QDialog) and modal is not self._help_window and modal is not exclude:
             return modal
         return self.window()
+
+    @staticmethod
+    def _modal_dialog_ancestor(widget: QWidget) -> QDialog | None:
+        """Return the nearest ancestor of a widget that is a visible modal dialog, if any."""
+        parent = widget.parentWidget()
+        while parent is not None:
+            if isinstance(parent, QDialog) and parent.isVisible() and parent.isModal():
+                return parent
+            parent = parent.parentWidget()
+        return None
 
     def _attach_help_window_to_active_modal(self, exclude: QDialog | None = None) -> None:
         """Parent the Help window to the active modal dialog, or to the main window if none.

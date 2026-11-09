@@ -378,6 +378,26 @@ class TestHelpWindowWithModalDialogs:
         assert help_window.parentWidget() is main_window
         assert shiboken6.isValid(help_window)
 
+    def test_deleting_a_visible_inner_modal_hands_the_window_to_the_outer_modal(self, qtbot, menu, main_window):
+        outer = _modal(main_window, qtbot)
+        # Not registered with qtbot: it is deleted here, and `outer` owns it until then.
+        inner = QDialog(outer)
+        inner.setModal(True)
+        inner.show()
+        menu.show_help("t.first")
+        help_window = menu._help_window
+        recorder = _BlockRecorder()
+        help_window.installEventFilter(recorder)
+        assert help_window.parentWidget() is inner
+
+        inner.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        qtbot.wait(0)
+
+        assert shiboken6.isValid(help_window)
+        assert help_window.parentWidget() is outer
+        assert recorder.blocked is False
+
     def test_repeated_show_help_during_one_modal_reparents_once(self, qtbot, menu, main_window):
         dialog = _modal(main_window, qtbot)
         menu.show_help("t.first")

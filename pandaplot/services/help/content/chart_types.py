@@ -11,6 +11,7 @@ from pandaplot.models.chart.chart_role_labels import ROLE_LABELS
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_CATEGORIES, CHART_TYPE_SPECS, ChartTypeSpec
 from pandaplot.models.chart.series_type import SeriesType
+from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items.chart import SWAPPABLE_CHART_TYPES
 from pandaplot.services.help.content.panel_defaults import HIST_BINS
 from pandaplot.services.help.help_types import (
@@ -229,6 +230,48 @@ def _uses_histogram_bins(spec: ChartTypeSpec) -> bool:
     return SeriesType.HIST in spec.allowed_series_types
 
 
+def error_bar_series_names(spec: ChartTypeSpec) -> list[str]:
+    """Name the series types a chart can hold, other than its own, that draw error bars.
+
+    A chart's own series type decides ``spec.supports_error_bars``, but some charts also
+    accept Line or Scatter series, and the Data tab offers error columns for those.
+
+    Args:
+        spec: The chart type's entry in ``CHART_TYPE_SPECS``.
+
+    Returns:
+        Display names (e.g. "Line", "Scatter") in ``SeriesType`` order; empty when none.
+    """
+    return [
+        _series_type_name(series_type)
+        for series_type in SeriesType
+        if series_type in spec.allowed_series_types
+        and series_type is not spec.default_series_type
+        and SERIES_TYPE_SPECS[series_type].supports_error_bars
+    ]
+
+
+def _series_type_name(series_type: SeriesType) -> str:
+    """Return the display name of a series type, using the chart type of the same name."""
+    try:
+        return CHART_TYPE_SPECS[ChartType(series_type.value)].display_name
+    except ValueError:
+        return series_type.value.replace("_", " ").title()
+
+
+def _error_bar_sentence(spec: ChartTypeSpec) -> str:
+    """Say whether the chart can show error bars, including on series added to it."""
+    if spec.supports_error_bars:
+        return "Error bars are supported."
+    overlay_names = error_bar_series_names(spec)
+    if overlay_names:
+        return (
+            f"Its own {spec.display_name} series has no error bars, but {' or '.join(overlay_names)} series added to this chart "
+            "can have error bars: set their error columns on the Data tab of Chart Properties."
+        )
+    return "Error bars are not supported on this chart type."
+
+
 def _facts(chart_type: ChartType, spec: ChartTypeSpec) -> str:
     """Build the paragraph of facts that is derived from the chart type spec.
 
@@ -243,7 +286,7 @@ def _facts(chart_type: ChartType, spec: ChartTypeSpec) -> str:
         f"Listed under {spec.category.value} in the chart wizard.",
         "Columns: " + ", ".join(_role_label(role, spec) for role in spec.roles) + ".",
         "Curve fits are available." if spec.allows_fit else "Curve fits are not available on this chart type.",
-        "Error bars are supported." if spec.supports_error_bars else "Error bars are not supported on this chart type.",
+        _error_bar_sentence(spec),
     ]
     if chart_type in SWAPPABLE_CHART_TYPES:
         sentences.append('The "Swap X/Y" button on the chart toolbar is available on this chart type.')
@@ -268,7 +311,7 @@ def _topic(chart_type: ChartType, spec: ChartTypeSpec) -> HelpTopic:
     related = [CHART_TOPIC_CHOOSE_TYPE, CHART_TOPIC_CREATE]
     if spec.allows_fit:
         related.append(FIT_TOPIC_OVERVIEW)
-    if spec.supports_error_bars:
+    if spec.supports_error_bars or error_bar_series_names(spec):
         related.append(CHART_TOPIC_ERROR_BARS)
     return HelpTopic(
         id=CHART_TYPE_TOPIC_IDS[chart_type],

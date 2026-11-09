@@ -9,7 +9,9 @@ from pandaplot.services.help.help_types import (
     CHART_TOPIC_CHOOSE_TYPE,
     CHART_TOPIC_ERROR_BARS,
     CHART_TOPIC_IDS,
+    CHART_TOPIC_LEGEND,
     CHART_TOPIC_SAVE_IMAGE,
+    CHART_TOPIC_SERIES,
     CHART_TOPIC_VIEW,
     CHART_TOPIC_WIZARD_DATA,
     HelpCategory,
@@ -103,6 +105,8 @@ def test_error_bar_topic_names_exactly_the_supporting_types(catalog: HelpCatalog
     text = _all_text(catalog.get(CHART_TOPIC_ERROR_BARS))
 
     assert "Line, Scatter, Bar, Stacked Bar" in text
+    assert "Vector, Color Map or Heatmap chart" in text
+    assert '"Series Type:"' in text
 
 
 def test_every_related_id_resolves() -> None:
@@ -135,3 +139,11 @@ def test_series_topic_does_not_claim_data_tab_x_blank_or_chart_analysis_fits(cat
 
 def test_wizard_data_topic_does_not_say_every_column_is_required(catalog: HelpCatalog) -> None:
     assert "until every other column is chosen" not in _all_text(catalog.get("charts.wizard_data"))
+
+
+def test_pie_legend_entries_come_from_the_labels_column(catalog: HelpCatalog) -> None:
+    for topic_id in (CHART_TOPIC_LEGEND, CHART_TOPIC_SERIES):
+        text = _all_text(catalog.get(topic_id))
+
+        assert "Pie chart" in text
+        assert '"Labels Column (optional):"' in text
