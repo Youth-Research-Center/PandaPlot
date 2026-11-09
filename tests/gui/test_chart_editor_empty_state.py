@@ -108,15 +108,3 @@ def test_status_line_follows_a_dataset_rename(env):
 
     assert editor.dataset_label.text() == "Datasets: Raw"
 
-
-def test_empty_chart_skips_rendering_the_hidden_canvas(env, monkeypatch):
-    import pandaplot.gui.components.tabs.chart.chart_editor as chart_editor_module
-
-    _, _, _, _, editor = env
-    calls = []
-    monkeypatch.setattr(chart_editor_module, "render_chart", lambda *args, **kwargs: calls.append(args))
-
-    editor.update_chart()
-
-    assert calls == []
-    assert editor.preview_stack.currentWidget() is editor.empty_state_panel

@@ -1972,11 +1972,6 @@ class ChartEditorWidget(PWidget):
         self._update_swap_axes_visibility()
         self._update_empty_state()
         self._update_dataset_label()
-        if not self.chart.data_series:
-            # Nothing to draw: the empty-state page is shown instead of the canvas, which is
-            # redrawn as soon as the chart gets a series.
-            self.update_status("Ready")
-            return
 
         try:
             project = self.app_context.get_app_state().current_project
