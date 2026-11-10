@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.services.theme.theme_manager import ThemeManager
-from pandaplot.utils.examples import discover_example_projects
+from pandaplot.utils.examples import ExampleProject, discover_example_projects
 
 
 class ExamplesDialog(PDialog):
@@ -85,7 +85,7 @@ class ExamplesDialog(PDialog):
         self.close_btn = PButton("Cancel", role="secondary", on_click=self.reject)
         layout.addWidget(self.close_btn, alignment=Qt.AlignmentFlag.AlignRight)
 
-    def _create_example_item(self, example: dict) -> QPushButton:
+    def _create_example_item(self, example: ExampleProject) -> QPushButton:
         """Create a clickable card for one example project."""
         button = QPushButton()
         button.setObjectName("ExampleItemButton")
@@ -94,14 +94,14 @@ class ExamplesDialog(PDialog):
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         # Visible text lives in child QLabels, which leaves the button itself
         # unnamed for assistive tech.
-        button.setAccessibleName(example["name"])
-        button.setAccessibleDescription(example["description"] or "")
+        button.setAccessibleName(example.name)
+        button.setAccessibleDescription(example.description or "")
 
         item_layout = QVBoxLayout(button)
         item_layout.setContentsMargins(14, 10, 14, 10)
         item_layout.setSpacing(4)
 
-        name_label = QLabel(example["name"])
+        name_label = QLabel(example.name)
         name_font = name_label.font()
         name_font.setBold(True)
         name_label.setFont(name_font)
@@ -109,15 +109,15 @@ class ExamplesDialog(PDialog):
         name_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         item_layout.addWidget(name_label)
 
-        if example["description"]:
-            desc_label = QLabel(example["description"])
+        if example.description:
+            desc_label = QLabel(example.description)
             desc_label.setProperty("secondary", True)  # noqa: FBT003 - Qt method, no keyword args
             desc_label.setWordWrap(True)
             desc_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
             desc_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
             item_layout.addWidget(desc_label)
 
-        button.clicked.connect(lambda: self._on_example_chosen(example["path"]))
+        button.clicked.connect(lambda: self._on_example_chosen(example.path))
         return button
 
     def _on_example_chosen(self, path: str):

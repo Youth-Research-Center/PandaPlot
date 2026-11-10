@@ -2,12 +2,17 @@ import json
 import logging
 import zipfile
 
+from PySide6.QtGui import QImage
+
 from pandaplot.models.migrations.runner import run_cross_item_migrations
 from pandaplot.models.migrations.schema_version import CURRENT_SCHEMA_VERSION
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Item
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.utils.errors import UserFacingError
+
+COVER_IMAGE_ENTRY = "cover.png"
+"""Reserved zip entry holding the project's cover image (#598)."""
 
 
 class _ZipBytesProxy:
@@ -42,6 +47,10 @@ class ProjectDataManager:
                 }
                 manager = self.data_factory.get_manager(type_name)
                 manager.save(item, zf, item_file)
+
+            if project.cover_image is not None:
+                zf.writestr(COVER_IMAGE_ENTRY, project.cover_image)
+                project_dict["cover_image"] = COVER_IMAGE_ENTRY
 
             # Save project.json last
             zf.writestr("project.json", json.dumps(project_dict, indent=2))
@@ -91,6 +100,8 @@ class ProjectDataManager:
             else:
                 failed_items.append(item_id)
 
+        project.cover_image = self._read_cover_image(project_dict, raw_data)
+
         project_root = project_dict.get("root", {})
         project.root.id = project_root.get("id", project.root.id)
         self._add_items_to_project(project, items, project_root.get("items", []))
@@ -100,6 +111,20 @@ class ProjectDataManager:
         # instead of the failure disappearing into the log.
         project.failed_item_ids = failed_items
         return project
+
+    def _read_cover_image(self, project_dict: dict, raw_data: dict[str, bytes]) -> bytes | None:
+        """Return the cover image bytes, or None when absent or not a readable image."""
+        entry = project_dict.get("cover_image")
+        if entry is None:
+            return None
+        data = raw_data.get(entry) if entry == COVER_IMAGE_ENTRY else None
+        if data is None:
+            self.logger.warning("Project references a missing cover image entry %r; ignoring it", entry)
+            return None
+        if QImage.fromData(data).isNull():
+            self.logger.warning("Project cover image %r is not a readable image; ignoring it", entry)
+            return None
+        return data
 
     def _load_item(self, item_id: str, info, zip_file, schema_version: int) -> Item | None:
         try:
