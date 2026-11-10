@@ -18,7 +18,7 @@ from pandaplot.gui.dialogs.note.note_table_picker_dialog import (
 )
 from pandaplot.gui.dialogs.note.snapshot_dpi_dialog import SnapshotDpiDialog
 from pandaplot.gui.resources.item_icons import item_icon
-from pandaplot.gui.resources.themed_icons import themed_icon
+from pandaplot.gui.resources.themed_icons import IconRole, themed_icon
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
 from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
@@ -419,21 +419,34 @@ def test_note_artefacts_dialog_empty_state_uses_a_muted_paperclip_icon(qapp):
     assert all(label.text() != "📎" for label in dialog.empty_widget.findChildren(QLabel))
 
 
-def test_note_artefacts_dialog_insert_buttons_have_plain_text_and_icons_that_survive_role_changes(qapp):
+def test_note_artefacts_dialog_insert_buttons_have_plain_text_and_icons_that_follow_role_changes(qapp):
     text_edit = QTextEdit()
     dialog = NoteArtefactsDialog(_create_mock_app_context_with_executor(Project(name="Test Project")), Note(name="Note 1"), text_edit)
-    chart_icon = themed_icon(dialog.app_context, "chart-line").pixmap(QSize(16, 16)).toImage()
-    table_icon = themed_icon(dialog.app_context, "table").pixmap(QSize(16, 16)).toImage()
+
+    def pixels(button) -> object:
+        return button.icon().pixmap(QSize(16, 16)).toImage()
+
+    def expected(name: str, role: IconRole) -> object:
+        return themed_icon(dialog.app_context, name, role=role).pixmap(QSize(16, 16)).toImage()
 
     assert dialog.insert_chart_button.text() == "Insert Chart..."
     assert dialog.insert_table_button.text() == "Insert Table..."
-    assert dialog.insert_chart_button.icon().pixmap(QSize(16, 16)).toImage() == chart_icon
-    assert dialog.insert_table_button.icon().pixmap(QSize(16, 16)).toImage() == table_icon
+    assert pixels(dialog.insert_table_button) == expected("table", IconRole.TEXT)
+    # With nothing listed the chart button is the primary action: its icon uses the primary button's foreground, not text_primary.
+    assert dialog.insert_chart_button.property("primary") is True
+    assert pixels(dialog.insert_chart_button) == expected("chart-line", IconRole.ON_ACCENT)
+    assert_tinted(strongest_pixel(dialog.insert_chart_button.icon()), ICON_TOKENS["text_on_accent"])
 
     text_edit.setPlainText("![Gone](missing-id =500x)")  # refresh_rows switches the chart button to the secondary role
 
     assert dialog.insert_chart_button.property("primary") is False
-    assert dialog.insert_chart_button.icon().pixmap(QSize(16, 16)).toImage() == chart_icon
+    assert pixels(dialog.insert_chart_button) == expected("chart-line", IconRole.TEXT)
+    assert pixels(dialog.insert_table_button) == expected("table", IconRole.TEXT)
+
+    text_edit.setPlainText("")  # back to nothing listed: promoted again
+
+    assert dialog.insert_chart_button.property("primary") is True
+    assert pixels(dialog.insert_chart_button) == expected("chart-line", IconRole.ON_ACCENT)
 
 
 def test_note_artefacts_dialog_offers_refresh_only_for_snapshots_with_a_source_chart(qapp):

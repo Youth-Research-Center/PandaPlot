@@ -29,6 +29,7 @@ class IconRole(Enum):
     ERROR = "status_danger"
     WARNING = "status_modified_text"
     INFO = "accent"
+    ON_ACCENT = "text_on_accent"
 
 
 def themed_icon(

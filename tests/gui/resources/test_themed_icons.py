@@ -111,3 +111,9 @@ def test_action_icons_retint_skips_deleted_targets(qapp, app_context):
     icons.retint()
 
     assert not keep.icon().isNull()
+
+
+def test_on_accent_role_maps_to_the_on_accent_token(qapp, app_context):
+    app_context.get_manager.return_value.get_design_tokens.return_value = {**LIGHT, "text_on_accent": "#FFFFFF"}
+
+    _assert_close(_strongest(themed_icon(app_context, "folder", role=IconRole.ON_ACCENT, size=32)), "#FFFFFF")

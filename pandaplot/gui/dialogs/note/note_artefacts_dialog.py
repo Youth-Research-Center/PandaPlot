@@ -121,7 +121,7 @@ class NoteArtefactsDialog(PDialog):
         insert_row.addStretch()
         self.insert_chart_button = PButton(
             "Insert Chart...", role="secondary", on_click=self._on_insert_chart_clicked)
-        self.insert_chart_button.setIcon(themed_icon(self.app_context, "chart-line"))
+        self._set_insert_chart_role(promoted=False)
         self.insert_table_button = PButton(
             "Insert Table...", role="secondary", on_click=self._on_insert_table_clicked)
         self.insert_table_button.setIcon(themed_icon(self.app_context, "table"))
@@ -140,6 +140,12 @@ class NoteArtefactsDialog(PDialog):
     def _apply_theme(self):
         pass
 
+    def _set_insert_chart_role(self, *, promoted: bool) -> None:
+        """Make the Insert Chart button primary (`promoted`) or secondary, with an icon that contrasts with its background."""
+        self.insert_chart_button.set_role("primary" if promoted else "secondary")
+        role = IconRole.ON_ACCENT if promoted else IconRole.TEXT
+        self.insert_chart_button.setIcon(themed_icon(self.app_context, "chart-line", role=role))
+
     def refresh_rows(self) -> None:
         """Recompute rows from the text_edit's current content and rebuild
         the table. Deleting one row's markdown text shifts the match offsets
@@ -152,7 +158,7 @@ class NoteArtefactsDialog(PDialog):
         self.table.setVisible(bool(self._rows))
         # With nothing listed, the insert actions are the one thing to do,
         # so the first one is the dialog's primary action.
-        self.insert_chart_button.set_role("primary" if not self._rows else "secondary")
+        self._set_insert_chart_role(promoted=not self._rows)
 
         self.table.setRowCount(len(self._rows))
         for row_index, row in enumerate(self._rows):
