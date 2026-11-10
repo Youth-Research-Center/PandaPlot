@@ -4,14 +4,15 @@ from unittest.mock import Mock
 
 import pytest
 from PySide6.QtCore import QSize
+from PySide6.QtGui import QIcon
 
 from pandaplot.gui.components.sidebar.search.search_panel import _ROLE_MATCH, _ROLE_NOTE_ID, SearchPanel
-from pandaplot.gui.resources.item_icons import item_icon
+from pandaplot.gui.resources.item_icons import SELECTED_ROW_FOREGROUND, item_icon
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Note
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, hovered_selected_row_background, strongest_pixel
 
 
 @pytest.fixture
@@ -114,3 +115,32 @@ def test_apply_theme_retints_the_result_icons(search_setup):
 
     for i in range(panel.results.topLevelItemCount()):
         assert_tinted(strongest_pixel(panel.results.topLevelItem(i).icon(0)), "#00AA00")
+
+
+def test_selected_result_rows_use_the_selected_foreground_for_the_icon(search_setup):
+    panel = search_setup[0]
+
+    for i in range(panel.results.topLevelItemCount()):
+        icon = panel.results.topLevelItem(i).icon(0)
+        assert_tinted(strongest_pixel(icon.pixmap(QSize(16, 16), QIcon.Mode.Selected)), SELECTED_ROW_FOREGROUND)
+        assert_tinted(strongest_pixel(icon), ICON_TOKENS["text_primary"])
+
+
+def test_apply_theme_keeps_the_selected_icon_colour_of_the_result_rows(search_setup):
+    panel = search_setup[0]
+    tokens = panel.app_context.get_manager.return_value.get_design_tokens.return_value
+    tokens["text_primary"] = "#00AA00"
+
+    panel._apply_theme()
+
+    icon = panel.results.topLevelItem(0).icon(0)
+    assert_tinted(strongest_pixel(icon.pixmap(QSize(16, 16), QIcon.Mode.Selected)), SELECTED_ROW_FOREGROUND)
+    assert_tinted(strongest_pixel(icon), "#00AA00")
+
+
+def test_a_selected_result_row_keeps_the_accent_background_when_hovered(search_setup):
+    panel = search_setup[0]
+
+    background = hovered_selected_row_background(panel.results, panel.results.topLevelItem(0))
+
+    assert_tinted(background, "#4A90E2")

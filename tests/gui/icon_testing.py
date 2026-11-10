@@ -1,7 +1,8 @@
 """Shared helpers for tests that check bundled, theme-tinted icons."""
 
-from PySide6.QtCore import QSize
-from PySide6.QtGui import QColor, QIcon, QImage, QPixmap
+from PySide6.QtCore import QRect, QSize
+from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
+from PySide6.QtWidgets import QStyle, QStyleOptionViewItem, QTreeWidget, QTreeWidgetItem
 
 from pandaplot.models.state.config import Theme
 from pandaplot.services.theme.theme_manager import ThemeContext, ThemeManager
@@ -44,3 +45,28 @@ def assert_tinted(actual: QColor, expected_hex: str, *, tolerance: int = 12) -> 
     assert abs(actual.red() - wanted.red()) < tolerance, f"{actual.name()} is not {wanted.name()}"
     assert abs(actual.green() - wanted.green()) < tolerance, f"{actual.name()} is not {wanted.name()}"
     assert abs(actual.blue() - wanted.blue()) < tolerance, f"{actual.name()} is not {wanted.name()}"
+
+
+def hovered_selected_row_background(tree: QTreeWidget, row: QTreeWidgetItem) -> QColor:
+    """Paint `row` as a selected row under the mouse and return the background colour at its right-hand side.
+
+    The option is forged rather than driven by a real mouse because hover state is process-wide (`QCursor::pos()`, popups left
+    open by earlier tests), which makes synthetic mouse moves unreliable in loaded parallel runs. The tree's own stylesheet and
+    delegate paint the row, so a missing `QTreeWidget::item:selected:hover` rule shows up as the plain hover colour.
+    """
+    index = tree.indexFromItem(row)
+    rect = tree.visualRect(index)
+    option = QStyleOptionViewItem()
+    option.initFrom(tree.viewport())
+    option.rect = QRect(0, 0, 200, max(rect.height(), 20))
+    option.widget = tree
+    tree.itemDelegate().initStyleOption(option, index)
+    option.state |= QStyle.StateFlag.State_Selected | QStyle.StateFlag.State_MouseOver | QStyle.StateFlag.State_Enabled
+    image = QImage(option.rect.size(), QImage.Format.Format_ARGB32)
+    image.fill(QColor("#000000"))
+    painter = QPainter(image)
+    try:
+        tree.itemDelegate().paint(painter, option, index)
+    finally:
+        painter.end()
+    return image.pixelColor(option.rect.width() - 4, option.rect.height() // 2)

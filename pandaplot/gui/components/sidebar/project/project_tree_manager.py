@@ -8,12 +8,9 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.sidebar.project.project_tree import CONTAINER_TYPES
-from pandaplot.gui.resources.item_icons import item_icon
+from pandaplot.gui.resources.item_icons import SELECTED_ROW_FOREGROUND, item_icon
 from pandaplot.models.project.visitors import ProjectTreeBuilder
 from pandaplot.models.state.app_context import AppContext
-
-# Matches the `selection-color` of the tree stylesheet in `ProjectViewPanel._apply_theme`.
-SELECTED_ROW_ICON_COLOR = "#FFFFFF"
 
 
 class ProjectTreeManager:
@@ -24,7 +21,7 @@ class ProjectTreeManager:
         self.on_item_name_changed = on_item_name_changed
 
     def _icon(self, item_type: str) -> QIcon:
-        return item_icon(self.app_context, item_type, selected_color=SELECTED_ROW_ICON_COLOR)
+        return item_icon(self.app_context, item_type, selected_color=SELECTED_ROW_FOREGROUND)
 
     def show_no_project_content(self):
         """Show placeholder content when no project is loaded."""

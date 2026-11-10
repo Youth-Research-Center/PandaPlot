@@ -16,6 +16,7 @@ from pandaplot.gui.components.sidebar.project.project_command_manager import Pro
 from pandaplot.gui.components.sidebar.project.project_context_manager import ProjectViewPanelContextManager
 from pandaplot.gui.components.sidebar.project.project_tree import ProjectTreeWidget
 from pandaplot.gui.components.sidebar.project.project_tree_manager import ProjectTreeManager
+from pandaplot.gui.resources.item_icons import SELECTED_ROW_FOREGROUND
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -272,13 +273,13 @@ class ProjectViewPanel(SidebarPanel):
                 color: {base_fg};
                 background-color: {card_bg};
                 selection-background-color: {accent};
-                selection-color: white;
+                selection-color: {SELECTED_ROW_FOREGROUND};
                 border: 1px solid {card_border};
                 border-radius: 4px;
             }}
             QTreeWidget::item:selected {{
                 background-color: {accent};
-                color: white;
+                color: {SELECTED_ROW_FOREGROUND};
             }}
             QTreeWidget::item:hover {{
                 background-color: {card_hover};
@@ -286,7 +287,7 @@ class ProjectViewPanel(SidebarPanel):
             }}
             QTreeWidget::item:selected:hover {{
                 background-color: {accent};
-                color: white;
+                color: {SELECTED_ROW_FOREGROUND};
             }}
             QHeaderView::section {{
                 background-color: {card_bg};

@@ -19,6 +19,9 @@ ITEM_TYPE_ICON_NAMES: dict[str, str] = {
 
 DEFAULT_ITEM_ICON_NAME = "file"
 
+# Foreground of a selected row in the project tree and the search results, whose selected rows are painted with the accent colour.
+SELECTED_ROW_FOREGROUND = "#FFFFFF"
+
 
 def item_icon_name(item_type: str) -> str:
     """Return the bundled icon name for an item type, or the default file icon for an unknown type."""

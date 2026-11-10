@@ -3,8 +3,7 @@
 import pytest
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QStyledItemDelegate, QTreeWidgetItem, QTreeWidgetItemIterator
+from PySide6.QtWidgets import QStyledItemDelegate, QTreeWidgetItem, QTreeWidgetItemIterator
 
 from pandaplot.app import build_app_context
 from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
@@ -12,7 +11,7 @@ from pandaplot.gui.resources.item_icons import item_icon
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, ItemCollection, Note, Sketch
 from pandaplot.services.theme import ThemeManager
-from tests.gui.icon_testing import assert_tinted, strongest_pixel
+from tests.gui.icon_testing import assert_tinted, hovered_selected_row_background, strongest_pixel
 
 ICON_SIZE = QSize(16, 16)
 
@@ -216,29 +215,11 @@ def test_retint_keeps_the_white_selected_icon(panel, monkeypatch):
     assert_tinted(strongest_pixel(_tree_item(tree_panel, "chart").icon(0)), "#00AA00")
 
 
-def test_a_selected_row_keeps_the_accent_background_when_hovered(qtbot, panel):
+def test_a_selected_row_keeps_the_accent_background_when_hovered(panel):
     tree_panel, _project, context = panel
-    tree = tree_panel.tree
-    tree.expandAll()
-    tree_panel.resize(500, 600)
-    tree_panel.show()
-    qtbot.waitExposed(tree)
-    tree.doItemsLayout()
-    row = _tree_item(tree_panel, "dataset")
-    tree.setCurrentItem(row)
+    tree_panel.tree.expandAll()
 
-    QTest.mouseMove(tree.viewport(), tree.visualItemRect(row).center())
-    qtbot.waitUntil(tree.viewport().underMouse, timeout=2000)
-    QApplication.processEvents()
+    # A forged option stands in for the mouse: hover state is process-wide, so real mouse moves are unreliable in parallel runs.
+    background = hovered_selected_row_background(tree_panel.tree, _tree_item(tree_panel, "dataset"))
 
-    accent = context.get_manager(ThemeManager).get_surface_palette()["accent"]
-
-    def background_is_accent() -> None:
-        # Hover and selection repaint asynchronously (late under a loaded parallel run), so retry until the row has
-        # been repainted. A missing `:selected:hover` rule leaves the row light grey and the wait then times out.
-        QApplication.processEvents()
-        row_rect = tree.visualItemRect(row)
-        background = tree.viewport().grab().toImage().pixelColor(row_rect.right() - 4, row_rect.center().y())
-        assert_tinted(background, accent)
-
-    qtbot.waitUntil(background_is_accent, timeout=3000)
+    assert_tinted(background, context.get_manager(ThemeManager).get_surface_palette()["accent"])
