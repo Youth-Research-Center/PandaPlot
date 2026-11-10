@@ -44,6 +44,7 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
+from pandaplot.gui.resources.themed_icons import ActionIcons
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import PANEL_TOPIC_CHART_TRANSFORM
@@ -68,6 +69,8 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
+        # Must exist before _initialize() builds the toolbar, which binds its icon.
+        self._icons = ActionIcons(app_context)
         self.current_chart: Chart | None = None
         self.current_chart_id: str | None = None
 
@@ -135,7 +138,9 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
 
         toolbar = QHBoxLayout()
         self.insert_function_btn = QToolButton()
-        self.insert_function_btn.setText("ƒ  Insert function ▾")
+        self.insert_function_btn.setText("Insert function")
+        self.insert_function_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._icons.bind(self.insert_function_btn, "function")
         self.insert_function_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.insert_function_btn.setMenu(self._build_function_menu())
         self.reference_btn = QToolButton()
@@ -315,6 +320,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     @override
     def _apply_theme(self):
         self._retint_source_combos()
+        self._icons.retint()
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         tokens = theme_manager.get_design_tokens()

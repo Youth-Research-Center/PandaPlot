@@ -8,13 +8,14 @@ go unnoticed. These tests just build the panel and check the buttons exist.
 from unittest.mock import Mock
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtWidgets import QApplication, QToolButton
 
 from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.transform.transform_panel import TransformPanel
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.state.app_context import AppContext
 from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
@@ -617,3 +618,37 @@ def test_int_column_labels_are_listed_and_follow_renames(transform_panel, app_co
     dataset.data.rename(columns={"y2020": 2020}, inplace=True)  # undo
     handler({"dataset_id": "dataset-1", "old_name": "y2020", "new_name": 2020})
     assert transform_panel.get_selected_columns() == [2020]
+
+
+def _function_icon_image(app_context):
+    return themed_icon(app_context, "function").pixmap(QSize(16, 16)).toImage()
+
+
+def test_insert_function_button_is_text_with_a_function_icon_and_still_opens_its_menu(transform_panel, app_context):
+    button = transform_panel.insert_function_btn
+
+    assert button.text() == "Insert function"
+    assert button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+    assert button.popupMode() == QToolButton.ToolButtonPopupMode.InstantPopup
+    assert button.icon().pixmap(QSize(16, 16)).toImage() == _function_icon_image(app_context)
+    assert button.menu() is not None
+    assert any(action.menu() for action in button.menu().actions())
+
+
+def test_insert_function_icon_retints_when_the_theme_changes(transform_panel, app_context):
+    tokens = app_context.get_manager.return_value.get_design_tokens.return_value
+    before = transform_panel.insert_function_btn.icon().pixmap(QSize(16, 16)).toImage()
+    app_context.get_manager.return_value.get_design_tokens.return_value = {**tokens, "text_primary": "#E2E2E2", "text_disabled": "#5B6270"}
+
+    transform_panel._apply_theme()
+
+    after = transform_panel.insert_function_btn.icon().pixmap(QSize(16, 16)).toImage()
+    assert after != before
+    assert after == _function_icon_image(app_context)
+
+
+def test_function_placeholder_points_to_the_insert_function_button_without_its_glyphs(transform_panel):
+    placeholder = transform_panel.function_text.placeholderText()
+
+    assert "Or pick one from 'Insert function' above." in placeholder
+    assert "▾" not in placeholder
