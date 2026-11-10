@@ -114,7 +114,7 @@ class ExamplesDialog(PDialog):
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        self.stack = QStackedWidget()
+        self.stack = QStackedWidget(self)
         root.addWidget(self.stack)
         self.list_page = self._build_list_page()
         self.details_page = self._build_details_page()
@@ -130,21 +130,21 @@ class ExamplesDialog(PDialog):
         from pandaplot.gui.components.common.section_header import SectionHeader
         from pandaplot.gui.dialogs.example_card import ExampleCard
 
-        page = QWidget()
+        page = QWidget(self.stack)
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 20, 20, 16)
         layout.setSpacing(10)
 
-        self.title_label = QLabel("Examples")
+        self.title_label = QLabel("Examples", page)
         self.title_label.setAccessibleName("Examples")
         layout.addWidget(self.title_label)
-        self.subtitle_label = QLabel(SUBTITLE)
+        self.subtitle_label = QLabel(SUBTITLE, page)
         self.subtitle_label.setWordWrap(True)
         layout.addWidget(self.subtitle_label)
 
         search_row = QHBoxLayout()
         search_row.setSpacing(8)
-        self.search_edit = QLineEdit()
+        self.search_edit = QLineEdit(page)
         self.search_edit.setPlaceholderText("Search examples")
         self.search_edit.setClearButtonEnabled(True)
         self.search_edit.setAccessibleName("Search examples")
@@ -153,26 +153,26 @@ class ExamplesDialog(PDialog):
         self.clear_button = PButton("Clear filters", role="secondary", on_click=self._clear_filters)
         self._enter_activates(self.clear_button)
         search_row.addWidget(self.clear_button)
-        self.search_row = QWidget()
+        self.search_row = QWidget(page)
         self.search_row.setLayout(search_row)
         search_row.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.search_row)
 
-        self.chips_widget = self._build_chips()
+        self.chips_widget = self._build_chips(page)
         layout.addWidget(self.chips_widget)
 
-        self.no_examples_label = QLabel("No example projects were found.")
+        self.no_examples_label = QLabel("No example projects were found.", page)
         self.no_examples_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.no_examples_label.setVisible(not self._examples)
         layout.addWidget(self.no_examples_label)
 
-        self.list_scroll = QScrollArea()
+        self.list_scroll = QScrollArea(page)
         self.list_scroll.setWidgetResizable(True)
         self.list_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.list_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.list_scroll.viewport().setAutoFillBackground(False)
         self.list_scroll.setVisible(bool(self._examples))
-        content = QWidget()
+        content = QWidget(self.list_scroll)
         content.setObjectName("ExamplesListContent")
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 8, 0)
@@ -185,7 +185,7 @@ class ExamplesDialog(PDialog):
             section_examples = [example for example in self._examples if example.section is section]
             if not section_examples:
                 continue
-            header = SectionHeader(section.label)
+            header = SectionHeader(section.label, content)
             header.setAccessibleName(section.label)
             content_layout.addWidget(header)
             grid = QGridLayout()
@@ -195,7 +195,7 @@ class ExamplesDialog(PDialog):
             self.section_headers[section] = header
             self.section_grids[section] = grid
             for example in section_examples:
-                card = ExampleCard(self.app_context, example)
+                card = ExampleCard(self.app_context, example, content)
                 card.details_requested.connect(self._show_details)
                 card.open_requested.connect(self._open_example)
                 self._enter_activates(card.details_button, card.open_button)
@@ -208,6 +208,7 @@ class ExamplesDialog(PDialog):
             description="Try other words or fewer filters.",
             icon_name="magnifying-glass",
             actions=[("Clear filters", self._clear_filters)],
+            parent=content,
         )
         self._enter_activates(self.empty_panel.action_buttons[0])
         self.empty_panel.setMinimumHeight(160)
@@ -224,14 +225,14 @@ class ExamplesDialog(PDialog):
         layout.addLayout(footer)
         return page
 
-    def _build_chips(self) -> QWidget:
+    def _build_chips(self, parent: QWidget) -> QWidget:
         from pandaplot.gui.components.common.flow_layout import FlowLayout
         from pandaplot.gui.components.common.p_button import PButton
 
         used_tag_ids = {tag.id for example in self._examples for tag in example.tags}
         self.tag_chips: dict[str, PButton] = {}
         self.group_labels: dict[TagGroup, QLabel] = {}
-        widget = QWidget()
+        widget = QWidget(parent)
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
@@ -241,16 +242,16 @@ class ExamplesDialog(PDialog):
                 continue
             row = QHBoxLayout()
             row.setSpacing(8)
-            label = QLabel(_GROUP_LABELS[group])
+            label = QLabel(_GROUP_LABELS[group], widget)
             label.setFixedWidth(80)
             label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
             label.setContentsMargins(0, 5, 0, 0)
             self.group_labels[group] = label
             row.addWidget(label)
-            chips_host = QWidget()
+            chips_host = QWidget(widget)
             flow = FlowLayout(chips_host, spacing=6)
             for tag in group_tags:
-                chip = PButton(tag.label, role="secondary")
+                chip = PButton(tag.label, role="secondary", parent=chips_host)
                 chip.setProperty("chip", True)  # noqa: FBT003 -- Qt bound method, positional-only
                 chip.setCheckable(True)
                 self._enter_activates(chip)
@@ -268,7 +269,7 @@ class ExamplesDialog(PDialog):
         from pandaplot.gui.components.common.p_button import PButton
         from pandaplot.gui.components.common.section_header import SectionHeader
 
-        page = QWidget()
+        page = QWidget(self.stack)
         layout = QVBoxLayout(page)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(10)
@@ -281,44 +282,44 @@ class ExamplesDialog(PDialog):
         top.addStretch(1)
         layout.addLayout(top)
 
-        scroll = QScrollArea()
+        scroll = QScrollArea(page)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.viewport().setAutoFillBackground(False)
         self.details_scroll = scroll
-        content = QWidget()
+        content = QWidget(scroll)
         content.setObjectName("ExampleDetailsContent")
         self.details_layout = QVBoxLayout(content)
         self.details_layout.setContentsMargins(0, 0, 8, 0)
         self.details_layout.setSpacing(10)
 
-        self.details_title = QLabel()
+        self.details_title = QLabel(content)
         self.details_title.setWordWrap(True)
         self.details_layout.addWidget(self.details_title)
         self.details_meta_slot = QVBoxLayout()
         self.details_meta_slot.setContentsMargins(0, 0, 0, 0)
         self.details_layout.addLayout(self.details_meta_slot)
         self.details_meta: ExampleMetaRow | None = None
-        self.details_contents = QLabel()
+        self.details_contents = QLabel(content)
         self.details_layout.addWidget(self.details_contents)
 
-        self.description_browser = _AutoHeightTextBrowser()
+        self.description_browser = _AutoHeightTextBrowser(content)
         self.description_browser.setAccessibleName("Description")
         self.details_layout.addWidget(self.description_browser)
 
-        self.previews_header = SectionHeader("Featured charts")
+        self.previews_header = SectionHeader("Featured charts", content)
         self.details_layout.addWidget(self.previews_header)
-        self.previews_host = QWidget()
+        self.previews_host = QWidget(content)
         self.previews_flow = FlowLayout(self.previews_host, spacing=12)
         self.details_layout.addWidget(self.previews_host)
         self.preview_tiles: list[QWidget] = []
         self.preview_images: list[QLabel] = []
         self.preview_captions: list[QLabel] = []
 
-        self.credit_header = SectionHeader("Data source and credit")
+        self.credit_header = SectionHeader("Data source and credit", content)
         self.details_layout.addWidget(self.credit_header)
-        self.credit_label = QLabel()
+        self.credit_label = QLabel(content)
         self.credit_label.setWordWrap(True)
         self.credit_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.details_layout.addWidget(self.credit_label)
@@ -549,7 +550,7 @@ class ExamplesDialog(PDialog):
         self.details_title.setAccessibleName(example.name)
         if self.details_meta is not None:
             self._discard(self.details_meta)
-        self.details_meta = ExampleMetaRow(example)
+        self.details_meta = ExampleMetaRow(example, self.details_scroll.widget())
         self.details_meta_slot.addWidget(self.details_meta)
         contents = describe_contents(example)
         self.details_contents.setText(f"What's inside: {contents}" if contents else "")
@@ -587,14 +588,14 @@ class ExamplesDialog(PDialog):
         self.description_browser.fit_height()
 
     def _add_preview_tile(self, caption: str) -> None:
-        image = QLabel("Loading preview...")
+        tile = QWidget(self.previews_host)
+        image = QLabel("Loading preview...", tile)
         image.setAlignment(Qt.AlignmentFlag.AlignCenter)
         image.setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
         image.setProperty("previewImage", True)  # noqa: FBT003 -- Qt bound method, positional-only
-        caption_label = QLabel(caption)
+        caption_label = QLabel(caption, tile)
         caption_label.setWordWrap(True)
         caption_label.setFixedWidth(PREVIEW_WIDTH)
-        tile = QWidget()
         tile_layout = QVBoxLayout(tile)
         tile_layout.setContentsMargins(0, 0, 0, 0)
         tile_layout.setSpacing(4)

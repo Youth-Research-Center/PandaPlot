@@ -101,12 +101,12 @@ class ExampleMetaRow(QWidget):
     def __init__(self, example: ExampleProject, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         layout = FlowLayout(self, spacing=6)
-        self.level_label = QLabel(example.level.label)
+        self.level_label = QLabel(example.level.label, self)
         self.level_label.setProperty("exampleLevel", True)  # noqa: FBT003 -- Qt bound method, positional-only
         layout.addWidget(self.level_label)
         self.tag_labels: list[QLabel] = []
         for tag in example.tags:
-            label = QLabel(tag.label)
+            label = QLabel(tag.label, self)
             label.setProperty("exampleTag", True)  # noqa: FBT003 -- Qt bound method, positional-only
             self.tag_labels.append(label)
             layout.addWidget(label)
@@ -154,23 +154,23 @@ class ExampleCard(Card):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(6)
 
-        self.cover = _CoverLabel()
+        self.cover = _CoverLabel(self)
         layout.addWidget(self.cover)
 
-        self.title_label = QLabel(example.name)
+        self.title_label = QLabel(example.name, self)
         self.title_label.setWordWrap(True)
         self.title_label.setAccessibleName(example.name)
         layout.addWidget(self.title_label)
 
-        self.summary_label = QLabel(example.summary)
+        self.summary_label = QLabel(example.summary, self)
         self.summary_label.setWordWrap(True)
         self.summary_label.setVisible(bool(example.summary))
         layout.addWidget(self.summary_label)
 
-        self.meta_row = ExampleMetaRow(example)
+        self.meta_row = ExampleMetaRow(example, self)
         layout.addWidget(self.meta_row)
 
-        self.contents_label = QLabel(describe_contents(example))
+        self.contents_label = QLabel(describe_contents(example), self)
         self.contents_label.setVisible(bool(self.contents_label.text()))
         layout.addWidget(self.contents_label)
         layout.addStretch(1)

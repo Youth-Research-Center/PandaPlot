@@ -3,7 +3,7 @@
 import sys
 
 import pytest
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import QEvent, QObject, Qt, QUrl
 from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QDialog
 
@@ -656,3 +656,42 @@ def test_unchanged_visible_set_does_not_rebuild_the_grids(make_dialog, monkeypat
 
     dialog.search_edit.setText("Spring")
     assert calls
+
+
+class _TopLevelShowRecorder(QObject):
+    """Application-wide event filter that records every top-level widget that receives a Show event."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.shown: list = []
+
+    def eventFilter(self, watched, event) -> bool:
+        if event.type() == QEvent.Type.Show and watched.isWidgetType() and watched.isWindow():
+            self.shown.append(watched)
+        return False
+
+
+def test_opening_the_dialog_and_its_details_shows_no_stray_top_level_windows(make_dialog, monkeypatch, qtbot):
+    _patch_renderer(monkeypatch)
+    charts = {"c1": Chart(id="c1", name="Decay"), "c2": Chart(id="c2", name="Fit")}
+    examples = [
+        _example(
+            f"Ex{index}", tags=_tags("physics", "statistics"), featured_chart_ids=("c1", "c2"), data_credit="Credit.",
+            dataset_count=1, chart_count=2, note_count=1,
+        )
+        for index in range(4)
+    ] + [_example("Bare", summary="")]
+    recorder = _TopLevelShowRecorder()
+    app = _qapp()
+    app.installEventFilter(recorder)
+    try:
+        dialog = make_dialog(examples, charts=charts)
+        app.processEvents()
+        dialog.cards[0].details_button.click()
+        qtbot.waitUntil(lambda: [label.text() for label in dialog.preview_captions] == ["Decay", "Fit"])
+        dialog.back_button.click()
+        app.processEvents()
+    finally:
+        app.removeEventFilter(recorder)
+
+    assert recorder.shown == [dialog]
