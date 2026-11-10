@@ -6,7 +6,9 @@ from PySide6.QtGui import QImage
 
 from pandaplot.app import build_app_context
 from pandaplot.gui.dialogs.image.image_editor_dialog import ImageEditorDialog
+from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.project.items import Image
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 def _make_test_image_bytes(width: int = 100, height: int = 80) -> bytes:
@@ -65,6 +67,49 @@ class TestImageEditorDialog:
         res_bytes = dialog.get_result_bytes()
         assert isinstance(res_bytes, bytes)
         assert len(res_bytes) > 0
+
+
+class TestImageEditorDialogRotateButtons:
+    def test_quarter_turn_buttons_keep_the_degrees_and_show_rotation_icons(self, qapp):
+        app_context = build_app_context()
+        tokens = app_context.get_manager(ThemeManager).get_design_tokens()
+        image = Image(id="rot", name="Photo", width=10, height=10, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(10, 10))
+
+        expected = {
+            dialog.btn_rotate_ccw: ("arrow-counter-clockwise", "Rotate 90° counter-clockwise"),
+            dialog.btn_rotate_cw: ("arrow-clockwise", "Rotate 90° clockwise"),
+        }
+        for button, (icon_name, accessible_name) in expected.items():
+            assert button.text() == "90°"
+            assert button.accessibleName() == accessible_name
+            assert button.toolTip() == accessible_name
+            wanted = build_icon(icon_name, tokens["text_primary"], size=16, disabled_color=tokens["text_disabled"])
+            assert button.icon().pixmap(16, 16).toImage() == wanted.pixmap(16, 16).toImage(), icon_name
+        assert dialog.btn_rotate_180.text() == "180°"
+        assert dialog.btn_rotate_180.icon().isNull()
+
+    def test_rotation_icons_retint_when_the_theme_changes(self, qapp, monkeypatch):
+        app_context = build_app_context()
+        manager = app_context.get_manager(ThemeManager)
+        image = Image(id="rot", name="Photo", width=10, height=10, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(10, 10))
+        dark_tokens = {**manager.get_design_tokens(), "text_primary": "#E2E2E2", "text_disabled": "#5B6270"}
+        monkeypatch.setattr(manager, "get_design_tokens", lambda: dict(dark_tokens))
+
+        dialog._apply_theme()
+
+        wanted = build_icon("arrow-clockwise", dark_tokens["text_primary"], size=16, disabled_color=dark_tokens["text_disabled"])
+        assert dialog.btn_rotate_cw.icon().pixmap(16, 16).toImage() == wanted.pixmap(16, 16).toImage()
+
+    def test_quarter_turn_buttons_still_rotate(self, qapp):
+        app_context = build_app_context()
+        image = Image(id="rot", name="Photo", width=100, height=80, image_ext="png")
+        dialog = ImageEditorDialog(app_context, image, _make_test_image_bytes(100, 80))
+
+        dialog.btn_rotate_cw.click()
+
+        assert (dialog.working_qimage.width(), dialog.working_qimage.height()) == (80, 100)
 
 
 class TestImageEditorDialogFormatPreservation:

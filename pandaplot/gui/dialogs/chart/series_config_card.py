@@ -19,8 +19,13 @@ from PySide6.QtWidgets import (
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.resources.icon_library import build_icon
+from pandaplot.gui.resources.themed_icons import DEFAULT_ICON_SIZE
 from pandaplot.models.chart.chart_role_labels import ROLE_LABELS
 from pandaplot.models.chart.chart_type_spec import ChartTypeSpec
+
+_FALLBACK_ICON_COLOR = "#6B7280"
+_FALLBACK_DISABLED_ICON_COLOR = "#AEB2BC"
 
 _ROLE_TO_FIELD = {
     "x": "x_column_id", "y": "y_column_id", "values": "y_column_id",
@@ -81,9 +86,7 @@ class SeriesConfigCard(Card):
         summary_layout.addWidget(self.summary_label, 1)
         self._error_status_label = QLabel()
         summary_layout.addWidget(self._error_status_label)
-        self._expand_button = PButton(
-            "▸", role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=False)
-        )
+        self._expand_button = PButton(role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=False))
         self._expand_button.setAccessibleName("Expand series")
         self._expand_button.setToolTip("Expand series")
         summary_layout.addWidget(self._expand_button)
@@ -96,9 +99,7 @@ class SeriesConfigCard(Card):
 
         collapse_row = QHBoxLayout()
         collapse_row.addStretch(1)
-        self._collapse_button = PButton(
-            "▾", role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=True)
-        )
+        self._collapse_button = PButton(role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=True))
         self._collapse_button.setAccessibleName("Collapse series")
         self._collapse_button.setToolTip("Collapse series")
         collapse_row.addWidget(self._collapse_button)
@@ -204,8 +205,19 @@ class SeriesConfigCard(Card):
     def set_tokens(self, tokens: dict) -> None:
         super().set_tokens(tokens)
         self._tokens = tokens
+        self._refresh_chevron_icons()
         if self._collapsed:
             self._refresh_summary()
+
+    def _refresh_chevron_icons(self) -> None:
+        """Render the expand/collapse chevrons in the theme's muted and disabled text colours.
+
+        The card has no `AppContext`, so the icons come from the tokens handed to `set_tokens` and are absent until then.
+        """
+        muted = self._tokens.get("text_muted", _FALLBACK_ICON_COLOR)
+        disabled = self._tokens.get("text_disabled", _FALLBACK_DISABLED_ICON_COLOR)
+        self._expand_button.setIcon(build_icon("caret-right", muted, size=DEFAULT_ICON_SIZE, disabled_color=disabled))
+        self._collapse_button.setIcon(build_icon("caret-down", muted, size=DEFAULT_ICON_SIZE, disabled_color=disabled))
 
     # -- Everything below is unchanged from the pre-redesign implementation --
 
