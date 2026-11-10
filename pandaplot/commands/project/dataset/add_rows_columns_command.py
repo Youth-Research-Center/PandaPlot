@@ -156,9 +156,8 @@ class AddRowsColumnsCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to add rows/columns: {e!s}"
-            self.logger.exception("AddRowsColumnsCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message("Add Rows / Columns Error", error_msg)
+            self.logger.exception("AddRowsColumnsCommand Error")
+            self.ui_controller.show_error_message("Add Rows / Columns Error", "Couldn't add the rows and columns.", error=e)
             return CommandResult.FAILURE
 
     def _prompt_for_target(self) -> bool:
@@ -307,8 +306,8 @@ class AddRowsColumnsCommand(Command):
                 self.dataset_id, self.dataset is not None, self.original_data is not None,
             )
             return CommandResult.FAILURE
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            self.logger.error("AddRowsColumnsCommand Undo Error: %s", e)
+        except Exception:
+            self.logger.exception("AddRowsColumnsCommand Undo Error")
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:

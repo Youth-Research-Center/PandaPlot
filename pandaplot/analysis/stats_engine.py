@@ -13,6 +13,8 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 
+from pandaplot.utils.errors import UserFacingError
+
 from .stats_types import STAT_TESTS, StatTestResult, StatTestType
 
 logger = logging.getLogger(__name__)
@@ -486,7 +488,7 @@ class StatsEngine:
     @staticmethod
     def _require(*, condition: bool, requirement: str) -> None:
         if not condition:
-            raise ValueError(f"This test requires {requirement}.")
+            raise UserFacingError(f"This test requires {requirement}.")
 
     @staticmethod
     def _build(

@@ -35,6 +35,7 @@ from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import PANEL_TOPIC_STATISTICS
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.error_messages import describe_error
 
 
 class StatisticsPanel(SidebarPanel):
@@ -315,10 +316,11 @@ class StatisticsPanel(SidebarPanel):
             return
         try:
             result = command.run_test()
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+        except Exception as e:
+            self.logger.exception("Statistical test failed")
             self.last_result = None
             self.add_btn.setEnabled(False)
-            self._show_status(StatusKind.ERROR, f"Test failed: {e}")
+            self._show_status(StatusKind.ERROR, f"Test failed: {describe_error(e).inline_text}")
             return
 
         self.last_result = result

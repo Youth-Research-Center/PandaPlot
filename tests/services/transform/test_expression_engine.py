@@ -20,7 +20,7 @@ class TestValidateExpression:
     def test_syntax_error_is_invalid(self):
         is_valid, message = expression_engine.validate_expression("x *")
         assert is_valid is False
-        assert "syntax" in message.lower()
+        assert message == "The formula has a typo, for example a missing bracket, quote or operator."
 
     @pytest.mark.parametrize("expression", [
         "__import__('os')",

@@ -206,19 +206,19 @@ def validate_expression_safety(expression: str) -> tuple[bool, str]:
     import re
     
     if not expression.strip():
-        return False, "Expression cannot be empty"
+        return False, "Function code cannot be empty"
     
     # Check for dangerous patterns
-    for pattern_type, patterns in VALIDATION_PATTERNS.items():
+    for patterns in VALIDATION_PATTERNS.values():
         for pattern in patterns:
             if re.search(pattern, expression, re.IGNORECASE):
-                return False, f"Potentially unsafe operation detected: {pattern_type}"
+                return False, "This formula uses an operation that is not allowed, such as importing modules or accessing files."
     
     # Try to compile the expression
     try:
         compile(expression, "<expression>", "eval")
         return True, ""
-    except SyntaxError as e:
-        return False, f"Syntax error: {e}"
-    except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-        return False, f"Invalid expression: {e}"
+    except SyntaxError:
+        return False, "The formula has a typo, for example a missing bracket, quote or operator."
+    except Exception:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+        return False, "The formula could not be checked. Review it for mistakes."

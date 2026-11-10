@@ -43,6 +43,7 @@ from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.transform import expression_engine
+from pandaplot.utils.errors import UserFacingError
 
 Target = Literal["x", "y"]
 
@@ -83,30 +84,32 @@ class TransformChartSeriesCommand(Command):
     def run_transform(self) -> tuple[pd.DataFrame, str]:
         """Compute the transform and return (result dataframe, default name).
 
-        Raises ValueError if the chart/series/expression is unavailable or
+        Raises UserFacingError if the chart/series/expression is unavailable or
         invalid. Does not touch the project, so the UI can call it for a
         preview.
         """
         chart = self._get_chart()
         if chart is None:
-            raise ValueError("Chart is not available.")
+            raise UserFacingError("Chart is not available.")
 
         x, y, x_label, y_label = resolve_series_xy(
             self.app_state, chart, self.source_index, coerce_numeric=False,
         )
         if len(x) < 1:
-            raise ValueError("Series has no points to transform.")
+            raise UserFacingError("Series has no points to transform.")
 
         is_valid, error_msg = expression_engine.validate_expression(self.expression)
         if not is_valid:
-            raise ValueError(error_msg)
+            raise UserFacingError(error_msg)
 
         target_series = x if self.target == "x" else y
         local_vars = {"x": x, "y": y}
         try:
             result = expression_engine.evaluate_expression(self.expression, local_vars)
         except Exception as e:
-            raise ValueError(f"Expression failed: {e}") from e
+            raise UserFacingError(
+                "The expression could not be calculated for this data. Check that it only uses x, y and supported functions."
+            ) from e
 
         if not isinstance(result, pd.Series):
             if pd.api.types.is_scalar(result):
@@ -122,7 +125,7 @@ class TransformChartSeriesCommand(Command):
                 result = pd.Series(result)
 
         if len(result) != len(target_series):
-            raise ValueError(
+            raise UserFacingError(
                 f"Expression returned {len(result)} values but the series has {len(target_series)} points."
             )
 
@@ -193,14 +196,14 @@ class TransformChartSeriesCommand(Command):
         raise if none is allowed (e.g. a pure histogram chart).
         """
         if not (0 <= self.source_index < len(chart.data_series)):
-            raise ValueError("Selected series no longer exists.")
+            raise UserFacingError("Selected series no longer exists.")
         if not chart.data_series[self.source_index].is_fit:
             return chart.data_series[self.source_index].series_type
         allowed = CHART_TYPE_SPECS[chart.chart_type].allowed_series_types
         for candidate in SeriesType:
             if candidate in allowed and SERIES_TYPE_SPECS[candidate].supports_curve_analysis:
                 return candidate
-        raise ValueError(
+        raise UserFacingError(
             f"'{chart.chart_type.value}' charts can't take a new series from a fit-derived transform."
         )
 
@@ -280,13 +283,9 @@ class TransformChartSeriesCommand(Command):
             )
             return CommandResult.SUCCESS
 
-        except ValueError as e:
-            self.logger.warning("Transform-chart-series failed: %s", e)
-            self.ui_controller.show_error_message("Chart Transform Error", str(e))
-            return CommandResult.FAILURE
         except Exception as e:
             self.logger.exception("Transform-chart-series failed")
-            self.ui_controller.show_error_message("Chart Transform Error", str(e))
+            self.ui_controller.show_error_message("Chart Transform Error", "Couldn't transform the chart series.", error=e)
             return CommandResult.FAILURE
 
     @override

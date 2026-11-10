@@ -57,9 +57,8 @@ class RenameProjectCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to rename project: {e}"
-            self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Rename Project Error", error_msg)
+            self.logger.exception("Failed to rename project")
+            self.ui_controller.show_error_message("Rename Project Error", "Couldn't rename the project.", error=e)
             return CommandResult.FAILURE
 
     def _apply_rename(self, name: str) -> None:

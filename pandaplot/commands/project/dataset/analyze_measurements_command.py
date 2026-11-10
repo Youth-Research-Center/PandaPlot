@@ -95,7 +95,7 @@ class AnalyzeMeasurementsCommand(Command):
             return CommandResult.SUCCESS
         except Exception as error:
             self.logger.exception("Failed to analyze measurements")
-            self.ui_controller.show_error_message("Measurement Analysis Error", str(error))
+            self.ui_controller.show_error_message("Measurement Analysis Error", "Couldn't analyze the measurements.", error=error)
             return CommandResult.FAILURE
 
     @override
@@ -164,7 +164,7 @@ class AnalyzeMeasurementsCommand(Command):
             return CommandResult.SUCCESS
         except Exception as error:
             self.logger.exception("Failed to redo measurement analysis")
-            self.ui_controller.show_error_message("Measurement Analysis Error", str(error))
+            self.ui_controller.show_error_message("Measurement Analysis Error", "Couldn't redo the measurement analysis.", error=error)
             return CommandResult.FAILURE
 
     def _add_result(

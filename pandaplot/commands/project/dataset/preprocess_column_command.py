@@ -112,9 +112,9 @@ class PreprocessColumnCommand(Command):
             )
             return CommandResult.SUCCESS
 
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            self.logger.error("Preprocessing execution failed: %s", e)
-            self.ui_controller.show_error_message("Preprocessing Error", str(e))
+        except Exception as e:
+            self.logger.exception("Preprocessing execution failed")
+            self.ui_controller.show_error_message("Preprocessing Error", "Couldn't preprocess the selected columns.", error=e)
             return CommandResult.FAILURE
 
     @override

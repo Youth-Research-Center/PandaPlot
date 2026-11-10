@@ -7,6 +7,7 @@ from typing import Any
 from PySide6.QtWidgets import QFormLayout, QGroupBox, QLabel
 
 from pandaplot.analysis import AnalysisEngine, AnalysisType
+from pandaplot.utils.error_messages import describe_error
 
 from .base_analysis_dialog import BaseAnalysisDialog
 
@@ -77,8 +78,9 @@ class IntegralDialog(BaseAnalysisDialog):
             
             self.preview_text.setText(preview_text)
             
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self.preview_text.setText(f"Preview error: {e!s}")
+        except Exception as e:
+            self.logger.exception("Integral preview failed")
+            self.preview_text.setText(f"Preview error: {describe_error(e).inline_text}")
     
     def get_analysis_config(self) -> dict[str, Any]:
         """Get integral analysis configuration."""

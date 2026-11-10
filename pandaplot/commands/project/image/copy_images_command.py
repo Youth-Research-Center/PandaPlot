@@ -94,9 +94,9 @@ class CopyImagesCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to copy images: {e!s}"
+            error_msg = "Couldn't copy images."
             self.logger.exception("CopyImagesCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message("Copy Images Error", error_msg)
+            self.ui_controller.show_error_message("Copy Images Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def _build_copy(self, original: Image) -> Image:
@@ -140,9 +140,9 @@ class CopyImagesCommand(Command):
                 return CommandResult.NOOP
 
         except Exception as e:
-            error_msg = f"Failed to undo image copy: {e!s}"
+            error_msg = "Couldn't undo image copy."
             self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.ui_controller.show_error_message("Undo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
@@ -153,9 +153,9 @@ class CopyImagesCommand(Command):
                 return self.execute()
             return CommandResult.FAILURE
         except Exception as e:
-            error_msg = f"Failed to redo image copy: {e!s}"
+            error_msg = "Couldn't redo image copy."
             self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Redo Error", error_msg)
+            self.ui_controller.show_error_message("Redo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override

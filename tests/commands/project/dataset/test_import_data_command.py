@@ -333,3 +333,56 @@ class TestImportDataCommandUndoStackIntegrity:
         assert executor.undo() is True
         assert project.find_item(dataset.id) is None
         assert len(executor.redo_stack) == 1
+
+
+class TestImportFailureMessages:
+    """The import worker sends a plain-language ErrorDescription, never raw exception text (#595)."""
+
+    def test_ragged_csv_gives_a_described_failure(self, tmp_path):
+        from pandaplot.utils.error_messages import ErrorDescription
+
+        path = tmp_path / "ragged.csv"
+        path.write_text("a,b\n1,2\n3,4,5,6\n7,8\n", encoding="utf-8")
+        command = _make_command(str(path), ImportOptions(file_format=CSV_FORMAT, delimiter=",", has_header=True), "ragged")
+
+        result = command._import_data_task(None)
+
+        assert result["success"] is False
+        description = result["error_description"]
+        assert isinstance(description, ErrorDescription)
+        assert description.reason == "The rows in the file do not match its columns."
+        assert "ParserError" in description.details
+
+    def test_empty_file_keeps_its_plain_reason(self, tmp_path):
+        path = tmp_path / "header_only.csv"
+        path.write_text("a,b\n", encoding="utf-8")
+        command = _make_command(str(path), ImportOptions(file_format=CSV_FORMAT, delimiter=",", has_header=True), "header_only")
+
+        result = command._import_data_task(None)
+
+        assert result["success"] is False
+        assert result["error_description"].reason == "The selected file is empty."
+        assert result["error_description"].details == ""
+
+    def test_failed_import_dialog_shows_the_description_not_the_raw_text(self):
+        from pandaplot.utils.error_messages import describe_error
+
+        app_context = Mock()
+        command = ImportDataCommand(app_context)
+        description = describe_error(UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"))
+
+        command._on_import_result({"success": False, "error": "Failed to read file: raw", "error_description": description})
+
+        command.ui_controller.show_error_message.assert_called_once_with(
+            "Import Failed", "Couldn't import the data.", error=description
+        )
+
+    def test_worker_error_signal_passes_the_exception(self):
+        command = ImportDataCommand(Mock())
+        error = MemoryError()
+
+        command._on_import_error((MemoryError, error, "traceback"))
+
+        command.ui_controller.show_error_message.assert_called_once_with(
+            "Import Data Error", "Couldn't import the data.", error=error
+        )

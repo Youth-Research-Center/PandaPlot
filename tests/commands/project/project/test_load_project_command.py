@@ -9,6 +9,7 @@ import pytest
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.project.load_project_command import LoadProjectCommand
 from pandaplot.models.project.project import Project
+from pandaplot.utils.error_messages import ErrorDescription, describe_error
 
 
 def _make_app_context():
@@ -539,3 +540,55 @@ def test_on_load_result_does_not_warn_when_no_items_failed(env):
 
     ui_controller = env.get_ui_controller.return_value
     ui_controller.show_warning_message.assert_not_called()
+
+
+class TestLoadFailureMessages:
+    """The load worker sends a plain-language ErrorDescription, never raw exception text (#595)."""
+
+    def test_garbage_project_file_gives_a_described_failure(self, tmp_path):
+        from pandaplot.services.data_managers.project_manager import ProjectManager
+        from pandaplot.storage.project_data_manager import ProjectDataManager
+
+        bad_file = tmp_path / "broken.pplot"
+        bad_file.write_text("this is not a zip archive", encoding="utf-8")
+        app_context = _make_app_context()
+        app_context.get_manager.return_value = ProjectManager(ProjectDataManager(Mock()))
+        command = LoadProjectCommand(app_context, str(bad_file))
+
+        result = command._load_project_task(None)
+
+        assert result["success"] is False
+        description = result["error_description"]
+        assert isinstance(description, ErrorDescription)
+        assert description.reason == "This file is damaged or is not the type its name suggests."
+        assert "BadZipFile" in description.details
+
+    def test_failed_load_dialog_shows_the_description_not_the_raw_text(self):
+        app_context = _make_app_context()
+        command = LoadProjectCommand(app_context, "/p.pplot")
+        description = describe_error(FileNotFoundError("/p.pplot"))
+
+        command._on_load_result({"success": False, "error": "Error during project load: raw", "error_description": description})
+
+        command.ui_controller.show_error_message.assert_called_once_with(
+            "Load Failed", "Couldn't open the project.", error=description
+        )
+
+    def test_non_exception_failure_keeps_its_plain_reason(self):
+        command = LoadProjectCommand(_make_app_context(), "")
+
+        result = command._load_project_task(None)
+
+        assert result["success"] is False
+        assert result["error_description"].reason == "No file was chosen to open."
+        assert result["error_description"].details == ""
+
+    def test_worker_error_signal_passes_the_exception(self):
+        command = LoadProjectCommand(_make_app_context(), "/p.pplot")
+        error = PermissionError("denied")
+
+        command._on_load_error((PermissionError, error, "traceback"))
+
+        command.ui_controller.show_error_message.assert_called_once_with(
+            "Load Project Error", "Couldn't open the project.", error=error
+        )

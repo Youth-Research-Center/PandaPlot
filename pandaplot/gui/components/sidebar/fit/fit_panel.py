@@ -448,6 +448,14 @@ class FitPanel(SidebarPanel):
         if hasattr(self, "custom_group"):
             self._on_fit_type_changed()
 
+    @staticmethod
+    def _fit_failure_text(command: PerformFitCommand) -> str:
+        """Return the plain-language reason (and next step) a fit failed, for the results box."""
+        description = command.error_description
+        if description is None:
+            return "The fit could not be calculated."
+        return description.text
+
     def _set_results_text_style(self, color: str | None = None):
         if color is None:
             palette = self.app_context.get_manager(ThemeManager).get_surface_palette()
@@ -1315,7 +1323,7 @@ class FitPanel(SidebarPanel):
             if result is not CommandResult.SUCCESS:
                 self.logger.error("PerformFitCommand failed: %s", command.error_message)
                 self._clear_results()
-                self.results_text.setPlainText(command.error_message or "Fit failed.")
+                self.results_text.setPlainText(self._fit_failure_text(command))
                 self._set_results_text_style("red")
                 return
 

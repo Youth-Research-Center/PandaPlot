@@ -89,10 +89,9 @@ class OpenProjectCommand(Command):
 
             return CommandResult.SUCCESS
 
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            error_msg = f"Failed to open project: {e!s}"
-            self.logger.error(error_msg)
-            self.app_context.ui_controller.show_error_message("Open Project Error", error_msg)
+        except Exception as e:
+            self.logger.exception("Failed to open project")
+            self.app_context.ui_controller.show_error_message("Open Project Error", "Couldn't open the project.", error=e)
             self.was_executed = False
             return CommandResult.FAILURE
 

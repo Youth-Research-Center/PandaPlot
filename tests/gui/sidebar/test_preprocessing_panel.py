@@ -11,6 +11,7 @@ from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.preprocessing.preprocessing_panel import PreprocessingPanel
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.utils.errors import UserFacingError
 from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 
@@ -82,7 +83,7 @@ def test_preview_error_shows_the_exception_as_an_error_status(panel, monkeypatch
     _select_first_column(panel)
     monkeypatch.setattr(
         "pandaplot.gui.components.sidebar.preprocessing.preprocessing_panel.PreprocessingEngine.transform",
-        Mock(side_effect=ValueError("<b>bad</b>")),
+        Mock(side_effect=UserFacingError("<b>bad</b>")),
     )
 
     panel.preview()
@@ -131,7 +132,7 @@ def test_apply_exception_is_an_error_status(panel, app_context):
     panel.apply()
 
     assert panel.status_message.kind() is StatusKind.ERROR
-    assert panel.status_message.message() == "Error applying preprocessing: boom"
+    assert panel.status_message.message() == "Couldn't apply the preprocessing: Something went wrong that PandaPlot did not expect. If it keeps happening, please report it."
 
 
 def test_apply_without_a_dataset_id_is_an_error_status(panel):

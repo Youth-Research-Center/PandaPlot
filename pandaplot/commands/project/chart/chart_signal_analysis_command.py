@@ -41,6 +41,7 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.error_messages import describe_error, describe_failure
 
 
 class ChartSignalAnalysisCommand(BackgroundTaskCommand):
@@ -211,7 +212,8 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
                 return
             y_segment = self._resolve_segment(chart)
         except ValueError as e:
-            on_complete(None, str(e))
+            self.logger.exception("Chart signal analysis preview could not resolve the series")
+            on_complete(None, describe_error(e).inline_text)
             return
 
         def _on_result(outcome: dict) -> None:
@@ -220,12 +222,12 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
                 on_complete(self.result, None)
             else:
                 self.result = None
-                on_complete(None, outcome["error"])
+                on_complete(None, (outcome.get("error_description") or describe_failure("The analysis could not be completed.")).inline_text)
 
         def _on_error(error_info) -> None:
             _, value, _ = error_info
             self.result = None
-            on_complete(None, str(value))
+            on_complete(None, describe_error(value).inline_text)
 
         self.task_scheduler.run_task(
             task=self._compute_signal_task,
@@ -262,9 +264,10 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
             try:
                 y_segment = self._resolve_segment(chart)
             except ValueError as e:
-                message = str(e)
-                self.logger.warning(message)
-                self.ui_controller.show_error_message("Chart Signal Analysis Error", message)
+                self.logger.exception("Chart signal analysis could not resolve the series")
+                self.ui_controller.show_error_message(
+                    "Chart Signal Analysis Error", "Couldn't run the signal analysis on this series.", error=e,
+                )
                 return CommandResult.FAILURE
 
             self._capture_dispatch_project(self.app_context)
@@ -279,14 +282,14 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
 
         except Exception as e:
             self.logger.exception("Chart signal analysis failed")
-            self.ui_controller.show_error_message("Chart Signal Analysis Error", str(e))
+            self.ui_controller.show_error_message("Chart Signal Analysis Error", "Couldn't run the signal analysis.", error=e)
             self._is_running = False
             return CommandResult.FAILURE
 
     def _on_commit_computed(self, outcome: dict) -> None:
         if not outcome["success"]:
             self.ui_controller.show_error_message(
-                "Chart Signal Analysis Error", outcome["error"] or "Chart signal analysis failed",
+                "Chart Signal Analysis Error", "Couldn't run the signal analysis.", error=outcome.get("error_description"),
             )
             self._notify_complete(CommandResult.FAILURE)
             return
@@ -328,10 +331,9 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
 
     def _on_commit_error(self, error_info) -> None:
         error_type, error_value, error_traceback = error_info
-        message = f"Chart signal analysis failed with {error_type.__name__}: {error_value}"
-        self.logger.error(message)
-        self.logger.error(error_traceback)
-        self.ui_controller.show_error_message("Chart Signal Analysis Error", message)
+        # error_traceback is the worker's formatted text, not a traceback object, so it cannot go in exc_info.
+        self.logger.error("Chart signal analysis failed with %s: %s\n%s", error_type.__name__, error_value, error_traceback)
+        self.ui_controller.show_error_message("Chart Signal Analysis Error", "Couldn't run the signal analysis.", error=error_value)
         self._notify_complete(CommandResult.FAILURE)
 
     @override

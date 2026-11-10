@@ -20,6 +20,7 @@ from pandaplot.services.data_import.import_options import (
     JSON_FORMAT,
     ImportOptions,
 )
+from pandaplot.utils.errors import UserFacingError
 
 # File extensions mapped to their logical format family.
 CSV_EXTENSIONS = {".csv", ".txt", ".tsv", ".tab", ".dat"}
@@ -38,7 +39,7 @@ _SNIFF_DELIMITERS = ",\t;|"
 _SNIFF_SAMPLE_BYTES = 64 * 1024
 
 
-class UnsupportedFileError(ValueError):
+class UnsupportedFileError(UserFacingError):
     """Raised when a file's extension maps to no known format."""
 
 

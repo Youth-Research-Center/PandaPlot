@@ -143,3 +143,6 @@ def test_invalid_fixed_column_fails_without_persisting_roles():
     assert len(project.root.items) == 2
     app_context_ui = command.ui_controller
     app_context_ui.show_error_message.assert_called_once()
+    call = app_context_ui.show_error_message.call_args
+    assert call.args == ("Measurement Analysis Error", "Couldn't analyze the measurements.")
+    assert isinstance(call.kwargs["error"], Exception)

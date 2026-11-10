@@ -122,10 +122,8 @@ class CreateEmptyDatasetCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to create empty dataset: {e!s}"
-            self.logger.exception(error_msg)
-            self.ui_controller.show_error_message(
-                "Create Dataset Error", error_msg)
+            self.logger.exception("Failed to create empty dataset")
+            self.ui_controller.show_error_message("Create Dataset Error", "Couldn't create the dataset.", error=e)
             return CommandResult.FAILURE
 
     def undo(self) -> CommandResult:
@@ -156,9 +154,8 @@ class CreateEmptyDatasetCommand(Command):
             return CommandResult.FAILURE
 
         except Exception as e:
-            error_msg = f"Failed to undo dataset creation: {e!s}"
-            self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.logger.exception("Failed to undo dataset creation")
+            self.ui_controller.show_error_message("Undo Error", "Couldn't undo creating the dataset.", error=e)
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
@@ -171,9 +168,8 @@ class CreateEmptyDatasetCommand(Command):
             )
             return CommandResult.FAILURE
         except Exception as e:
-            error_msg = f"Failed to redo dataset creation: {e!s}"
-            self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Redo Error", error_msg)
+            self.logger.exception("Failed to redo dataset creation")
+            self.ui_controller.show_error_message("Redo Error", "Couldn't redo creating the dataset.", error=e)
             return CommandResult.FAILURE
 
     @override

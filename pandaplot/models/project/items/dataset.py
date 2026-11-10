@@ -13,6 +13,7 @@ import pandas as pd
 from pandaplot.models.project.items.column_role import ColumnRole
 from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.project.items.item import Item
+from pandaplot.utils.errors import UserFacingError
 
 
 class Dataset(Item):
@@ -249,7 +250,7 @@ class Dataset(Item):
                 raise ValueError(f"Column id '{column_id}' is not assigned the measured role.")
             normalized_group = group.strip()
             if not normalized_group:
-                raise ValueError(f"Measured column '{self.column_name(column_id)}' needs a variable name.")
+                raise UserFacingError(f"Measured column '{self.column_name(column_id)}' needs a variable name.")
             restored[column_id] = normalized_group
         if restored == self.column_measurement_groups:
             return

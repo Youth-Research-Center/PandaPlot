@@ -7,6 +7,8 @@ discard edits. This is the single implementation; callers that need it
 (CloseProjectCommand, ExitCommand, PandaMainWindow.closeEvent) all go
 through it rather than each re-implementing the confirmation dialog.
 """
+import logging
+
 from pandaplot.models.state import AppState, UnsavedChangesRegistry
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.data_managers.project_manager import ProjectManager
@@ -46,11 +48,12 @@ def _save_now(app_context: AppContext, app_state: AppState, project_name: str) -
     try:
         project_manager = app_context.get_manager(ProjectManager)
         project_manager.save_project(app_state.current_project, app_state.project_file_path)
-    except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
+    except Exception as e:
+        logging.getLogger(__name__).exception("Autosave of project '%s' failed", project_name)
         ui_controller.show_error_message(
             "Save Failed",
-            f"Project '{project_name}' could not be saved:\n{e}\n\n"
-            "The application will stay open so these changes aren't lost.",
+            f"Couldn't save project '{project_name}'.\n\nThe application will stay open so these changes aren't lost.",
+            error=e,
         )
         return False
 

@@ -13,6 +13,7 @@ from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import DatasetEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.errors import UserFacingError
 
 
 class StatisticalTestCommand(Command):
@@ -61,11 +62,11 @@ class StatisticalTestCommand(Command):
         """
         source = self._get_source_dataset()
         if source is None or source.data is None:
-            raise ValueError("Source dataset is not available.")
+            raise UserFacingError("Source dataset is not available.")
 
         missing = [c for c in self.column_names if c not in source.data.columns]
         if missing:
-            raise ValueError(f"Columns not found in dataset: {', '.join(missing)}")
+            raise UserFacingError(f"Columns not found in dataset: {', '.join(missing)}")
 
         columns = [source.data[c] for c in self.column_names]
         return StatsEngine.run_test(
@@ -115,7 +116,7 @@ class StatisticalTestCommand(Command):
 
         except Exception as e:
             self.logger.exception("Statistical test failed")
-            self.ui_controller.show_error_message("Statistical Test Error", str(e))
+            self.ui_controller.show_error_message("Statistical Test Error", "Couldn't run the statistical test.", error=e)
             return CommandResult.FAILURE
 
     @override

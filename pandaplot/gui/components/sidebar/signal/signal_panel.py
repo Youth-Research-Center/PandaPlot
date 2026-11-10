@@ -29,6 +29,7 @@ from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import PANEL_TOPIC_SIGNAL
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.error_messages import describe_error
 
 STALE_RUN_MESSAGE = "Inputs changed while the analysis was running. Click Run to analyse the current settings."
 
@@ -403,11 +404,12 @@ class SignalPanel(SidebarPanel):
                 self.results_text.setPlainText(self._format_result(result))
                 self.status_message.clear()
                 self.add_btn.setEnabled(True)
-            except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            except Exception as e:
+                self.logger.exception("Failed to display the signal analysis result")
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
-                self._show_error(f"Analysis failed: {e}")
+                self._show_error(f"Analysis failed: {describe_error(e).inline_text}")
 
         try:
             command.run_analysis_async(_on_complete)
@@ -419,7 +421,7 @@ class SignalPanel(SidebarPanel):
             self.last_result = None
             self._last_run_params = None
             self.add_btn.setEnabled(False)
-            self._show_error(f"Analysis failed: {e}")
+            self._show_error(f"Analysis failed: {describe_error(e).inline_text}")
 
 
     @staticmethod

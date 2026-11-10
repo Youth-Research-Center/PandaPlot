@@ -36,6 +36,7 @@ from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import PANEL_TOPIC_TRANSFORM
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.error_messages import describe_error
 
 
 class TransformPanel(SidebarPanel):
@@ -677,8 +678,9 @@ class TransformPanel(SidebarPanel):
 
             # Preview updated - could publish preview event if needed
 
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self._set_preview_message(f"Preview error: {e!s}", is_error=True)
+        except Exception as e:
+            self.logger.exception("TransformPanel: preview failed")
+            self._set_preview_message(f"Preview error: {describe_error(e).inline_text}", is_error=True)
     
     def apply_transform(self):
         """Apply the transformation to the dataset.
@@ -756,7 +758,7 @@ class TransformPanel(SidebarPanel):
 
         except Exception as e:
             self.logger.exception("TransformPanel: transform failed")
-            self._set_preview_message(f"Transform failed: {e}", is_error=True)
+            self._set_preview_message(f"Transform failed: {describe_error(e).inline_text}", is_error=True)
     
     def clear_panel(self):
         """Reset panel to initial state."""

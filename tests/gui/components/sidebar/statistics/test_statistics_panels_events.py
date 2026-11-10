@@ -18,6 +18,7 @@ from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_data import DatasetColumnRenamedData
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Dataset
+from pandaplot.utils.errors import UserFacingError
 from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 
@@ -318,7 +319,7 @@ def test_descriptive_panel_computation_failure_shows_the_exception_as_plain_text
     panel.column_list.item(0).setSelected(True)
     monkeypatch.setattr(
         "pandaplot.gui.components.sidebar.statistics.descriptive_panel.DescriptiveStatsCommand.compute",
-        Mock(side_effect=ValueError("<b>bad</b>")),
+        Mock(side_effect=UserFacingError("<b>bad</b>")),
     )
 
     panel.compute()
@@ -345,7 +346,7 @@ def test_statistics_panel_test_failure_shows_the_exception_as_an_error_status(qt
     panel = _open(StatisticsPanel, context, qtbot)
     monkeypatch.setattr(
         "pandaplot.gui.components.sidebar.statistics.statistics_panel.StatisticalTestCommand.run_test",
-        Mock(side_effect=ValueError("<b>bad</b>")),
+        Mock(side_effect=UserFacingError("<b>bad</b>")),
     )
 
     panel.run_test()

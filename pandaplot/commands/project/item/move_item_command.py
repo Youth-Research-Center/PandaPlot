@@ -195,9 +195,9 @@ class MoveItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to move item '{item_name}': {e!s}"
-            self.logger.error(error_msg)
-            self.ui_controller.show_error_message("Move Item Error", error_msg)
+            error_msg = f"Couldn't move '{item_name}'."
+            self.logger.exception(error_msg)
+            self.ui_controller.show_error_message("Move Item Error", error_msg, error=e)
             raise
 
     def undo(self) -> CommandResult:
@@ -282,9 +282,9 @@ class MoveItemCommand(Command):
                     if item is not None:
                         item_name = getattr(item, "name", self.item_id)
 
-            error_msg = f"Failed to undo move of '{item_name}': {e!s}"
-            self.logger.error(error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            error_msg = f"Couldn't undo the move of '{item_name}'."
+            self.logger.exception(error_msg)
+            self.ui_controller.show_error_message("Undo Error", error_msg, error=e)
             if self._rolled_back:
                 # Re-adding to the source folder failed, but the item was
                 # successfully put back where undo() found it (the target

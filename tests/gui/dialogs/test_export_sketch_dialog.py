@@ -5,7 +5,7 @@ from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QWidget
 
 from pandaplot.app import build_app_context, create_tab_factory
-from pandaplot.gui.components.tabs.sketch.sketch_export import ExportFormat, ExportRegion, SketchExportOptions
+from pandaplot.gui.components.tabs.sketch.sketch_export import ExportFormat, ExportRegion, SketchExportError, SketchExportOptions
 from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
 from pandaplot.gui.dialogs.sketch.export_sketch_dialog import ExportSketchDialog
 from pandaplot.models.project import Project
@@ -192,10 +192,13 @@ class TestTabExport:
     def test_a_failed_export_shows_an_error(self, tab, app_context, monkeypatch, out_dir, asked):
         errors = []
         monkeypatch.setattr(app_context.get_ui_controller(), "get_save_file_path", lambda *_args: str(out_dir / "missing" / "plan.png"))
-        monkeypatch.setattr(app_context.get_ui_controller(), "show_error_message", lambda title, message: errors.append((title, message)))
+        monkeypatch.setattr(app_context.get_ui_controller(), "show_error_message", lambda title, message, **kwargs: errors.append((title, message, kwargs)))
 
         tab.export_action.trigger()
 
         assert len(errors) == 1
         assert errors[0][0] == "Export Failed"
-        assert "Could not write" in errors[0][1]
+        assert errors[0][1] == "Couldn't export the sketch."
+        error = errors[0][2]["error"]
+        assert isinstance(error, SketchExportError)
+        assert "Could not write" in str(error)

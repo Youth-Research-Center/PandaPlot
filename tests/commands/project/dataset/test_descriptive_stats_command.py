@@ -11,6 +11,7 @@ from unittest.mock import Mock
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.descriptive_stats_command import DescriptiveStatsCommand
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.errors import UserFacingError
 
 
 def _make_app_context(*, has_project=True, current_project=None):
@@ -51,8 +52,10 @@ def test_execute_surfaces_compute_failure_to_the_user():
 
     assert command.execute() is CommandResult.FAILURE
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
-    _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
-    assert "not available" in message
+    call = app_context.get_ui_controller.return_value.show_error_message.call_args
+    assert call.args == ("Descriptive Statistics Error", "Couldn't calculate the descriptive statistics.")
+    assert isinstance(call.kwargs["error"], UserFacingError)
+    assert "not available" in str(call.kwargs["error"])
 
 
 def test_cleanup_releases_the_result_ids_and_result_snapshot():

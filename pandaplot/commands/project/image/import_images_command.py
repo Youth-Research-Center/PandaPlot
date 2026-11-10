@@ -19,6 +19,7 @@ from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Image, ImageGallery
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.errors import UserFacingError
 
 
 def _is_url(source: str) -> bool:
@@ -102,14 +103,10 @@ class ImportImagesCommand(Command):
             )
             return CommandResult.SUCCESS
 
-        except (FileNotFoundError, ValueError) as e:
-            self.ui_controller.show_error_message("Import Images Error", str(e))
-            self.logger.error("ImportImagesCommand Error: %s", e)
-            return CommandResult.FAILURE
         except Exception as e:
-            error_msg = f"Failed to import images: {e!s}"
+            error_msg = "Couldn't import images."
             self.logger.exception("ImportImagesCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message("Import Images Error", error_msg)
+            self.ui_controller.show_error_message("Import Images Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def _build_image(self, source: str) -> Image:
@@ -186,14 +183,14 @@ class ImportImagesCommand(Command):
             return self._read_url_bytes_and_size(source)
 
         if not os.path.isfile(source):
-            raise FileNotFoundError(f"Image file not found: {source}")
+            raise UserFacingError(f"The image file '{source}' could not be found.")
 
         ext = os.path.splitext(source)[1].lstrip(".").lower()
         reader = QImageReader(source)
         size = reader.size()
         width, height = size.width(), size.height()
         if width <= 0 or height <= 0:
-            raise ValueError(f"'{source}' is not a readable image file")
+            raise UserFacingError(f"'{source}' is not a readable image file.")
 
         with open(source, "rb") as f:
             data = f.read()
@@ -206,7 +203,7 @@ class ImportImagesCommand(Command):
             response = requests.get(url, timeout=10)
             response.raise_for_status()
         except requests.RequestException as e:
-            raise ValueError(f"Failed to download image from '{url}': {e}") from e
+            raise UserFacingError(f"Couldn't download an image from '{url}'. Check the address and your internet connection.") from e
 
         data = response.content
         ext = os.path.splitext(url.split("?")[0].rstrip("/"))[1].lstrip(".").lower() or "jpg"
@@ -218,7 +215,7 @@ class ImportImagesCommand(Command):
         size = reader.size()
         width, height = size.width(), size.height()
         if width <= 0 or height <= 0:
-            raise ValueError(f"URL '{url}' did not return a readable image")
+            raise UserFacingError(f"The address '{url}' did not return a readable image.")
 
         return data, ext, width, height
 
@@ -252,9 +249,9 @@ class ImportImagesCommand(Command):
                 return CommandResult.NOOP
 
         except Exception as e:
-            error_msg = f"Failed to undo image import: {e!s}"
+            error_msg = "Couldn't undo image import."
             self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.ui_controller.show_error_message("Undo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
@@ -265,9 +262,9 @@ class ImportImagesCommand(Command):
                 return self.execute()
             return CommandResult.FAILURE
         except Exception as e:
-            error_msg = f"Failed to redo image import: {e!s}"
+            error_msg = "Couldn't redo image import."
             self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Redo Error", error_msg)
+            self.ui_controller.show_error_message("Redo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override

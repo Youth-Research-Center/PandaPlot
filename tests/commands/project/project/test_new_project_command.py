@@ -349,3 +349,17 @@ def test_cleanup_releases_the_previous_project_reference(env):
 
     assert command.previous_project is None
     assert command.created_project is None
+
+
+def test_execute_failure_passes_the_exception_to_the_dialog():
+    app_context = _make_app_context()
+    error = RuntimeError("boom")
+    app_context.get_ui_controller.return_value.show_new_project_dialog.side_effect = error
+
+    command = NewProjectCommand(app_context)
+    with pytest.raises(RuntimeError):
+        command.execute()
+
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once_with(
+        "New Project Error", "Couldn't create the project.", error=error
+    )
