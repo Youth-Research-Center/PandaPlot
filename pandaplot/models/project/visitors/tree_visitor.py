@@ -5,7 +5,6 @@ Visitor pattern implementation for traversing project item hierarchies.
 from typing import Any, Protocol
 
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Item, ItemCollection, Note, Sketch
-from pandaplot.utils.item_labels import item_label
 
 
 class ItemVisitor(Protocol):
@@ -59,7 +58,8 @@ class ProjectTreeBuilder:
         Initialize with a factory function that creates tree items.
         
         Args:
-            tree_item_factory: Function that takes (name, item_type, item_data) and returns a tree item
+            tree_item_factory: Function that takes (display_text, item_type, item_data), where display_text is the plain item name,
+                and returns a tree item
         """
         self.tree_item_factory = tree_item_factory
     
@@ -77,7 +77,7 @@ class ProjectTreeBuilder:
         # Create tree item for root if not provided
         if parent_tree_item is None:
             parent_tree_item = self.tree_item_factory(
-                item_label("project", root_collection.name),
+                root_collection.name,
                 "project", 
                 {"type": "project", "id": root_collection.id, "data": root_collection}
             )
@@ -116,7 +116,7 @@ class ProjectTreeBuilder:
     def visit_folder(self, folder: Folder, parent_context: Any = None) -> Any:
         """Visit a folder and recursively build its children."""
         tree_item = self.tree_item_factory(
-            item_label("folder", folder.name),
+            folder.name,
             "folder",
             {"type": "folder", "id": folder.id, "data": folder}
         )
@@ -131,7 +131,7 @@ class ProjectTreeBuilder:
     def visit_note(self, note: Note, parent_context: Any = None) -> Any:
         """Visit a note item."""
         return self.tree_item_factory(
-            item_label("note", note.name),
+            note.name,
             "note",
             {"type": "note", "id": note.id, "data": note}
         )
@@ -139,7 +139,7 @@ class ProjectTreeBuilder:
     def visit_dataset(self, dataset: Dataset, parent_context: Any = None) -> Any:
         """Visit a dataset item."""
         return self.tree_item_factory(
-            item_label("dataset", dataset.name),
+            dataset.name,
             "dataset",
             {"type": "dataset", "id": dataset.id, "data": dataset}
         )
@@ -147,7 +147,7 @@ class ProjectTreeBuilder:
     def visit_chart(self, chart: Chart, parent_context: Any = None) -> Any:
         """Visit a chart item."""
         return self.tree_item_factory(
-            item_label("chart", chart.name),
+            chart.name,
             "chart",
             {"type": "chart", "id": chart.id, "data": chart}
         )
@@ -160,7 +160,7 @@ class ProjectTreeBuilder:
         gallery's own tab (breadcrumb navigation), not the sidebar tree.
         """
         return self.tree_item_factory(
-            item_label("imagegallery", gallery.name),
+            gallery.name,
             "imagegallery",
             {"type": "imagegallery", "id": gallery.id, "data": gallery}
         )
@@ -168,7 +168,7 @@ class ProjectTreeBuilder:
     def visit_image(self, image: Image, parent_context: Any = None) -> Any:
         """Visit an image item."""
         return self.tree_item_factory(
-            item_label("image", image.name),
+            image.name,
             "image",
             {"type": "image", "id": image.id, "data": image}
         )
@@ -176,7 +176,7 @@ class ProjectTreeBuilder:
     def visit_sketch(self, sketch: Sketch, parent_context: Any = None) -> Any:
         """Visit a sketch item."""
         return self.tree_item_factory(
-            item_label("sketch", sketch.name),
+            sketch.name,
             "sketch",
             {"type": "sketch", "id": sketch.id, "data": sketch}
         )
@@ -184,7 +184,7 @@ class ProjectTreeBuilder:
     def visit_item_collection(self, collection: ItemCollection, parent_context: Any = None) -> Any:
         """Visit a generic item collection."""
         tree_item = self.tree_item_factory(
-            item_label("collection", collection.name),
+            collection.name,
             "collection",
             {"type": "collection", "id": collection.id, "data": collection}
         )
@@ -199,7 +199,7 @@ class ProjectTreeBuilder:
     def visit_item(self, item: Item, parent_context: Any = None) -> Any:
         """Visit a generic item (fallback)."""
         return self.tree_item_factory(
-            item_label("item", item.name),
+            item.name,
             "item",
             {"type": "item", "id": item.id, "data": item}
         )

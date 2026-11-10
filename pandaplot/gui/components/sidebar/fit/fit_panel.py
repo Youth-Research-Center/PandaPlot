@@ -23,9 +23,11 @@ from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.gui.resources.themed_icons import IconRole
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, get_chart_type_spec
 from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items import Dataset
@@ -151,6 +153,7 @@ class FitPanel(SidebarPanel):
 
         # Title label with shared styling
         self._apply_title_theme(base_fg, card_border)
+        self.data_points_warning_icon.retint()
 
         self.equation_label.setStyleSheet(
             f"font-family: monospace; background-color: {card_bg}; "
@@ -237,8 +240,7 @@ class FitPanel(SidebarPanel):
         self.data_points_label = QLabel("No data selected")
         points_layout.addWidget(self.data_points_label)
 
-        self.data_points_warning_icon = QLabel("⚠")
-        self.data_points_warning_icon.setStyleSheet("color: red;")
+        self.data_points_warning_icon = IconLabel(self.app_context, "warning", role=IconRole.WARNING)
         self.data_points_warning_icon.setVisible(False)
         points_layout.addWidget(self.data_points_warning_icon)
         points_layout.addStretch()

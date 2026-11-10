@@ -537,6 +537,8 @@ class ThemeManager:
         accent_active_text = c.darker(115).name() if c.isValid() else accent
         accent_disabled = c.lighter(140).name() if c.isValid() else "#AAB1E3"
         accent_selected_bg = "#2E3350" if is_dark else "#EEF0FB"
+        # Foreground drawn on an accent background (the primary button's text colour, selected menu rows)
+        text_on_accent = self._contrasting_text_color(c).name() if c.isValid() else "#FFFFFF"
         if c.isValid():
             icon_start = c if is_dark else QColor(accent_active_text)
             accent_icon_active = self._accent_icon_color(icon_start, QColor(accent_selected_bg), lighten=is_dark).name()
@@ -551,7 +553,7 @@ class ThemeManager:
                 "border_subtle": "#33363A",
                 "surface_white": "#2A2C2E", "surface_chrome": "#232527",
                 "surface_inset": "#26282B",
-                "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active,
+                "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active, "text_on_accent": text_on_accent,
                 "accent_selected_bg": accent_selected_bg, "accent_disabled": accent_disabled,
                 "status_modified_dot": "#E09A1F", "status_modified_text": "#E0A94A",
                 "status_success": "#3FA46A", "status_danger": "#C24141",
@@ -567,7 +569,7 @@ class ThemeManager:
             "border_subtle": "#ECEEF2",
             "surface_white": "#FFFFFF", "surface_chrome": "#FBFBFC",
             "surface_inset": "#F4F5F8",
-            "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active,
+            "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active, "text_on_accent": text_on_accent,
             "accent_selected_bg": accent_selected_bg, "accent_disabled": accent_disabled,
             "status_modified_dot": "#E09A1F", "status_modified_text": "#B06A00",
             "status_success": "#3FA46A", "status_danger": "#DC3545",

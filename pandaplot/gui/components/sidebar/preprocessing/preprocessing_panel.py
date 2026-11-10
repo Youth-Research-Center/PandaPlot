@@ -26,6 +26,7 @@ from pandaplot.commands.project.dataset.preprocess_column_command import (
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.number_input import DecimalInput
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import DatasetEvents, DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
@@ -162,7 +163,10 @@ class PreprocessingPanel(SidebarPanel):
         self.preview_text.setMaximumHeight(140)
         self.preview_text.setPlaceholderText("Preview results will appear here...")
 
+        self.status_message = StatusMessage(self.app_context)
+
         group_layout.addWidget(self.preview_btn)
+        group_layout.addWidget(self.status_message)
         group_layout.addWidget(self.preview_text)
         group.setLayout(group_layout)
         layout.addWidget(group)
@@ -248,21 +252,27 @@ class PreprocessingPanel(SidebarPanel):
     def validate_inputs(self) -> bool:
         """Validate that inputs are ready to apply/preview."""
         if self.current_dataset is None or self.current_dataset.data is None:
-            self.preview_text.setText("❌ No dataset selected.")
+            self._show_status(StatusKind.ERROR, "No dataset selected.")
             return False
         if not self.selected_columns():
-            self.preview_text.setText("❌ Please select at least one column.")
+            self._show_status(StatusKind.ERROR, "Please select at least one column.")
             return False
         info = PREPROCESSING_METHODS[self.selected_method()]
         if info.uses_feature_range and self.range_max_spin.value() <= self.range_min_spin.value():
-            self.preview_text.setText("❌ Output max must be greater than output min.")
+            self._show_status(StatusKind.ERROR, "Output max must be greater than output min.")
             return False
         return True
 
     # -- actions ----------------------------------------------------------
 
+    def _show_status(self, kind: StatusKind, text: str) -> None:
+        """Show `text` as a status message in place of any preview text."""
+        self.preview_text.clear()
+        self.status_message.set_message(kind, text)
+
     def preview(self):
         """Preview the transformation on the first selected column."""
+        self.status_message.clear()
         try:
             if not self.validate_inputs():
                 return
@@ -299,9 +309,9 @@ class PreprocessingPanel(SidebarPanel):
                     f"(+{len(self.selected_columns()) - 1} more column(s) will be transformed the same way)"
                 )
 
-            self.preview_text.setText("\n".join(lines))
+            self.preview_text.setPlainText("\n".join(lines))
         except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self.preview_text.setText(f"❌ Preview error: {e}")
+            self._show_status(StatusKind.ERROR, f"Preview error: {e}")
 
     def apply(self):
         """Apply the transformation through the command system."""
@@ -309,7 +319,7 @@ class PreprocessingPanel(SidebarPanel):
             if not self.validate_inputs():
                 return
             if not self.current_dataset_id:
-                self.preview_text.setText("❌ No dataset selected.")
+                self._show_status(StatusKind.ERROR, "No dataset selected.")
                 return
 
             config = self._get_config()
@@ -322,15 +332,11 @@ class PreprocessingPanel(SidebarPanel):
                 # The command emits the structured column-added / data-changed
                 # events that refresh the data tab and column-source selectors.
                 count = len(config["source_columns"])
-                self.preview_text.setText(
-                    f"✅ Preprocessing applied to {count} column(s)."
-                )
+                self._show_status(StatusKind.SUCCESS, f"Preprocessing applied to {count} column(s).")
             else:
-                self.preview_text.setText(
-                    "❌ Failed to apply. Check that the columns are numeric."
-                )
+                self._show_status(StatusKind.ERROR, "Failed to apply. Check that the columns are numeric.")
         except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self.preview_text.setText(f"❌ Error applying preprocessing: {e}")
+            self._show_status(StatusKind.ERROR, f"Error applying preprocessing: {e}")
 
     def clear_inputs(self):
         """Reset the panel to its default state."""
@@ -338,6 +344,7 @@ class PreprocessingPanel(SidebarPanel):
         self.replace_check.setChecked(False)
         self.method_combo.setCurrentIndex(0)
         self.preview_text.clear()
+        self.status_message.clear()
         self.on_method_changed()
 
     # -- dataset context --------------------------------------------------
@@ -419,6 +426,7 @@ class PreprocessingPanel(SidebarPanel):
         """)
 
         self._apply_title_theme(base_fg, card_border)
+        self.status_message.retint()
 
         for label in (self.description_label, self.naming_hint):
             label.setStyleSheet(f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}")

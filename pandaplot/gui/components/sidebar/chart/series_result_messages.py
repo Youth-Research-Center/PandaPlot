@@ -16,9 +16,9 @@ def format_series_result_preview(header_lines: list[str], df: pd.DataFrame) -> s
 
 def format_preview_error(exc: Exception) -> str:
     """Shared preview-exception message."""
-    return f"❌ Preview error: {exc}"
+    return f"Preview error: {exc}"
 
 
 def format_apply_failure(verb: str) -> str:
     """Shared apply-failure message, e.g. verb="analyze" or "transform"."""
-    return f"❌ Could not {verb} the series. See the log for details."
+    return f"Could not {verb} the series. See the log for details."

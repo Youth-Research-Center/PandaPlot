@@ -12,7 +12,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.gui.resources.themed_icons import IconRole
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 # Public action identifiers returned via `selected_action`.
@@ -55,13 +57,13 @@ class CreateOrOpenProjectDialog(PDialog):
         options_layout = QVBoxLayout()
         options_layout.setSpacing(10)
         options_layout.addWidget(self._create_option_item(
-            "📊  New Project", "Start a fresh, empty project", ACTION_NEW_PROJECT
+            "New Project", "Start a fresh, empty project", ACTION_NEW_PROJECT, icon_name="plus-circle"
         ))
         options_layout.addWidget(self._create_option_item(
-            "📂  Open Project", "Open an existing project file from disk", ACTION_OPEN_PROJECT
+            "Open Project", "Open an existing project file from disk", ACTION_OPEN_PROJECT, icon_name="folder-open"
         ))
         options_layout.addWidget(self._create_option_item(
-            "📚  Browse Examples", "Explore a bundled sample project", ACTION_BROWSE_EXAMPLES
+            "Browse Examples", "Explore a bundled sample project", ACTION_BROWSE_EXAMPLES, icon_name="books"
         ))
         layout.addLayout(options_layout)
 
@@ -76,8 +78,8 @@ class CreateOrOpenProjectDialog(PDialog):
         button_layout.addWidget(self.cancel_btn)
         layout.addLayout(button_layout)
 
-    def _create_option_item(self, title: str, description: str, action: str) -> QPushButton:
-        """Create a clickable card for one option."""
+    def _create_option_item(self, title: str, description: str, action: str, *, icon_name: str) -> QPushButton:
+        """Create a clickable card for one option, with its themed icon beside the title."""
         button = QPushButton()
         button.setObjectName("OptionItemButton")
         button.setMinimumHeight(60)
@@ -92,13 +94,18 @@ class CreateOrOpenProjectDialog(PDialog):
         item_layout.setContentsMargins(14, 10, 14, 10)
         item_layout.setSpacing(4)
 
+        title_row = QHBoxLayout()
+        title_row.setSpacing(8)
+        title_row.addWidget(IconLabel(self.app_context, icon_name, role=IconRole.ACTIVE))
         title_label = QLabel(title)
         title_font = title_label.font()
         title_font.setBold(True)
         title_label.setFont(title_font)
         title_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         title_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        item_layout.addWidget(title_label)
+        title_row.addWidget(title_label)
+        title_row.addStretch()
+        item_layout.addLayout(title_row)
 
         desc_label = QLabel(description)
         desc_label.setProperty("secondary", True)  # noqa: FBT003 - Qt method, no keyword args

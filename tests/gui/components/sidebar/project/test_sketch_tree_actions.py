@@ -51,7 +51,7 @@ def test_add_sketch_creates_it_in_the_selected_folder(panel):
     assert isinstance(folder, Folder)
     created = [item for item in folder.get_items() if isinstance(item, Sketch) and item.id != "sketch"]
     assert [sketch.name for sketch in created] == ["New Sketch 2"]
-    assert _tree_item(tree_panel, created[0].id).text(0) == "✏️ New Sketch 2"
+    assert _tree_item(tree_panel, created[0].id).text(0) == "New Sketch 2"
 
 
 def test_double_clicking_a_sketch_requests_its_tab(panel):

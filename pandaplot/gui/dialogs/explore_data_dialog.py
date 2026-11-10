@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.project.items import Dataset
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -58,10 +59,7 @@ class ExploreDataDialog(PDialog):
 
         header_layout = QHBoxLayout()
         header_layout.setSpacing(10)
-        self.icon_label = QLabel("📈")
-        icon_font = self.icon_label.font()
-        icon_font.setPointSize(22)
-        self.icon_label.setFont(icon_font)
+        self.icon_label = IconLabel(self.app_context, "table", size=28)
         header_layout.addWidget(self.icon_label)
 
         self.title_label = QLabel("Explore Data")

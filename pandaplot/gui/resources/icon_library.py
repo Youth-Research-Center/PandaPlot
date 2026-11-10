@@ -67,7 +67,15 @@ def _render_pixmap(name: str, color: str, size: int, weight: str) -> QPixmap:
     return pixmap
 
 
-def build_icon(name: str, color: str, *, size: int = 20, weight: str = "regular", disabled_color: str | None = None) -> QIcon:
+def build_icon(
+    name: str,
+    color: str,
+    *,
+    size: int = 20,
+    weight: str = "regular",
+    disabled_color: str | None = None,
+    selected_color: str | None = None,
+) -> QIcon:
     """Render a bundled icon tinted with ``color`` (and optionally a different colour when disabled).
 
     Args:
@@ -76,6 +84,7 @@ def build_icon(name: str, color: str, *, size: int = 20, weight: str = "regular"
         size: Logical pixel size of the square icon.
         weight: Icon weight.
         disabled_color: Colour used for ``QIcon.Mode.Disabled``; Qt greys the icon itself when omitted.
+        selected_color: Colour used for ``QIcon.Mode.Selected`` (icons on a selected row); Qt derives it when omitted.
 
     Raises:
         KeyError: If the icon or weight is not bundled.
@@ -85,4 +94,6 @@ def build_icon(name: str, color: str, *, size: int = 20, weight: str = "regular"
     icon.addPixmap(_render_pixmap(name, color, size, weight), QIcon.Mode.Normal)
     if disabled_color is not None:
         icon.addPixmap(_render_pixmap(name, disabled_color, size, weight), QIcon.Mode.Disabled)
+    if selected_color is not None:
+        icon.addPixmap(_render_pixmap(name, selected_color, size, weight), QIcon.Mode.Selected)
     return icon

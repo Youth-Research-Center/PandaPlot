@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QPushButton
 
 from pandaplot.gui.resources.themed_icons import ActionIcons, IconRole, themed_icon
 from pandaplot.models.state.app_context import AppContext
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 LIGHT = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
 DARK = {"text_primary": "#E2E2E2", "text_muted": "#9AA0AB", "accent_icon_active": "#8995FF", "text_disabled": "#5B6270"}
@@ -41,6 +42,23 @@ def test_themed_icon_uses_the_text_token_by_default(qapp, app_context):
 @pytest.mark.parametrize(("role", "token"), [(IconRole.MUTED, "text_muted"), (IconRole.ACTIVE, "accent_icon_active")])
 def test_themed_icon_roles_map_to_their_tokens(qapp, app_context, role, token):
     _assert_close(_strongest(themed_icon(app_context, "folder", role=role, size=32)), LIGHT[token])
+
+
+@pytest.mark.parametrize(
+    ("role", "value"),
+    [
+        (IconRole.SUCCESS, "status_success"),
+        (IconRole.ERROR, "status_danger"),
+        (IconRole.WARNING, "status_modified_text"),
+        (IconRole.INFO, "accent"),
+    ],
+)
+def test_status_roles_map_to_their_tokens(qapp, role, value):
+    ctx = Mock(spec=AppContext)
+    ctx.get_manager.return_value.get_design_tokens.return_value = ICON_TOKENS
+
+    assert role.value == value
+    assert_tinted(strongest_pixel(themed_icon(ctx, "folder", role=role, size=32)), ICON_TOKENS[value])
 
 
 def test_themed_icon_has_a_distinct_disabled_colour(qapp, app_context):
@@ -93,3 +111,9 @@ def test_action_icons_retint_skips_deleted_targets(qapp, app_context):
     icons.retint()
 
     assert not keep.icon().isNull()
+
+
+def test_on_accent_role_maps_to_the_on_accent_token(qapp, app_context):
+    app_context.get_manager.return_value.get_design_tokens.return_value = {**LIGHT, "text_on_accent": "#FFFFFF"}
+
+    _assert_close(_strongest(themed_icon(app_context, "folder", role=IconRole.ON_ACCENT, size=32)), "#FFFFFF")

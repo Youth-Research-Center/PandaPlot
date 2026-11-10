@@ -31,6 +31,7 @@ from pandaplot.commands.project.chart.create_chart_with_analysis_series_command 
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
 )
@@ -43,6 +44,7 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_chart_target_combo,
     populate_series_fit_sources,
     refresh_chart_target_combo_preserving_selection,
+    retint_combo_icons,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -167,6 +169,8 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self.preview_text.setMaximumHeight(140)
         self.preview_text.setPlaceholderText("Preview results will appear here...")
         vbox.addWidget(self.preview_btn)
+        self.status_message = StatusMessage(self.app_context)
+        vbox.addWidget(self.status_message)
         vbox.addWidget(self.preview_text)
         layout.addWidget(group)
 
@@ -307,10 +311,16 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- actions ----------------------------------------------------------
 
+    def _show_status(self, kind: StatusKind, text: str) -> None:
+        """Show `text` as a status message in place of any preview text."""
+        self.preview_text.clear()
+        self.status_message.set_message(kind, text)
+
     def preview(self):
+        self.status_message.clear()
         command = self._make_command()
         if command is None:
-            self.preview_text.setText("❌ Select a series to analyze.")
+            self._show_status(StatusKind.ERROR, "Select a series to analyze.")
             return
         try:
             df, default_name = command.run_analysis()
@@ -319,14 +329,14 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 f"Series: {self.source_combo.currentText()}",
                 f"Result: {len(df)} points → dataset '{self.result_name.text().strip() or default_name}'",
             ]
-            self.preview_text.setText(format_series_result_preview(header_lines, df))
+            self.preview_text.setPlainText(format_series_result_preview(header_lines, df))
         except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self.preview_text.setText(format_preview_error(e))
+            self._show_status(StatusKind.ERROR, format_preview_error(e))
 
     def apply(self):
         command = self._make_command()
         if command is None:
-            self.preview_text.setText("❌ Select a series to analyze.")
+            self._show_status(StatusKind.ERROR, "Select a series to analyze.")
             return
 
         executor = self.app_context.get_command_executor()
@@ -345,15 +355,14 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             success = executor.execute_command(command)
 
         if success:
-            message = "✅ Created a new dataset from the analysis. Find it in the project explorer."
+            self._show_status(StatusKind.SUCCESS, "Created a new dataset from the analysis. Find it in the project explorer.")
             if plot_result:
                 if target_chart_id is None:
-                    message += " Plotted on a new chart."
+                    self.preview_text.setPlainText("Plotted on a new chart.")
                 else:
-                    message += f" Plotted on '{target_chart_name}'."
-            self.preview_text.setText(message)
+                    self.preview_text.setPlainText(f"Plotted on '{target_chart_name}'.")
         else:
-            self.preview_text.setText(format_apply_failure("analyze"))
+            self._show_status(StatusKind.ERROR, format_apply_failure("analyze"))
 
     def clear_inputs(self):
         self.result_name.clear()
@@ -361,6 +370,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self.end_index.setValue(self.end_index.maximum())
         self.operation_combo.setCurrentIndex(0)
         self.preview_text.clear()
+        self.status_message.clear()
         self._update_range_labels()
 
     # -- chart context ----------------------------------------------------
@@ -433,14 +443,14 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self._update_plot_target_visibility()
 
     def _populate_sources(self):
-        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
+        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart, app_context=self.app_context)
         self.apply_btn.setEnabled(has_sources)
         self.preview_btn.setEnabled(has_sources)
         self.source_hint.setText(
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
         project = self.app_context.get_app_state().current_project
-        populate_chart_target_combo(self.plot_target_combo, project)
+        populate_chart_target_combo(self.plot_target_combo, project, app_context=self.app_context)
         self._update_quick_plot_compatibility(has_sources=has_sources)
         self._on_source_changed()
 
@@ -450,10 +460,15 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _refresh_chart_references(self):
         project = self.app_context.get_app_state().current_project
-        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
+        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project, app_context=self.app_context)
+
+    def _retint_source_combos(self) -> None:
+        retint_combo_icons(self.source_combo, self.app_context)
+        retint_combo_icons(self.plot_target_combo, self.app_context)
 
     @override
     def _apply_theme(self):
+        self._retint_source_combos()
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         tokens = theme_manager.get_design_tokens()
@@ -486,6 +501,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             }}
         """)
         self._apply_title_theme(base_fg, card_border)
+        self.status_message.retint()
         self.source_hint.setStyleSheet(
             f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
         )

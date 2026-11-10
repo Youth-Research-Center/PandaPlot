@@ -25,6 +25,11 @@ class IconRole(Enum):
     TEXT = "text_primary"
     MUTED = "text_muted"
     ACTIVE = "accent_icon_active"
+    SUCCESS = "status_success"
+    ERROR = "status_danger"
+    WARNING = "status_modified_text"
+    INFO = "accent"
+    ON_ACCENT = "text_on_accent"
 
 
 def themed_icon(
@@ -33,6 +38,7 @@ def themed_icon(
     *,
     role: IconRole = IconRole.TEXT,
     size: int = DEFAULT_ICON_SIZE,
+    selected_color: str | None = None,
 ) -> QIcon:
     """Render a bundled icon tinted for the current theme.
 
@@ -41,12 +47,13 @@ def themed_icon(
         name: Icon name from `icon_manifest.toml`.
         role: Token that tints the icon in its normal state (the disabled state uses `text_disabled`).
         size: Logical pixel size of the square icon.
+        selected_color: Colour of the icon on a selected row; Qt derives it from the normal state when omitted.
 
     Raises:
         KeyError: If the icon is not bundled.
     """
     tokens = app_context.get_manager(ThemeManager).get_design_tokens()
-    return build_icon(name, tokens[role.value], size=size, disabled_color=tokens["text_disabled"])
+    return build_icon(name, tokens[role.value], size=size, disabled_color=tokens["text_disabled"], selected_color=selected_color)
 
 
 class ActionIcons:

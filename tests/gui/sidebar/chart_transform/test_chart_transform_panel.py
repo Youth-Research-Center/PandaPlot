@@ -5,12 +5,16 @@ from unittest.mock import Mock
 import numpy as np
 import pandas as pd
 import pytest
+from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.gui.components.common.icon_label import IconLabel
+from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.chart_transform.chart_transform_panel import (
     ChartTransformPanel,
 )
+from pandaplot.gui.resources.item_icons import item_icon
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -18,9 +22,12 @@ from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
-# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
-ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+
+def same_pixels(first, second) -> bool:
+    size = QSize(16, 16)
+    return first.pixmap(size).toImage() == second.pixmap(size).toImage()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -132,25 +139,47 @@ class TestChartTransformPanelInsertFunctionCode:
 class TestChartTransformPanelApply:
     def test_apply_with_no_expression_shows_error(self, panel):
         panel.apply()
-        assert "Select a series" in panel.preview_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Select a series and enter an expression to transform."
+        assert panel.preview_text.toPlainText() == ""
 
     def test_preview_shows_the_result(self, panel):
         panel.expression_text.setPlainText("y * 2")
         panel.preview()
         assert "Result:" in panel.preview_text.toPlainText()
 
+    def test_source_entries_are_plain_labels_with_the_series_icon_and_feed_the_preview(self, panel, app_context):
+        combo = panel.source_combo
+        assert combo.itemText(0) == "Squared"
+        assert same_pixels(combo.itemIcon(0), item_icon(app_context, "chart"))
+
+        panel.expression_text.setPlainText("y * 2")
+        panel.preview()
+
+        assert "Series: Squared" in panel.preview_text.toPlainText()
+
+    def test_apply_theme_retints_the_source_combo_icons(self, panel, app_context):
+        app_context.get_manager.return_value.get_design_tokens.return_value["text_primary"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.source_combo.itemIcon(0)), "#00AA00")
+
     def test_preview_shows_an_error_for_an_unsafe_expression(self, panel):
         panel.expression_text.setPlainText("__import__('os')")
         panel.preview()
-        assert "Preview error" in panel.preview_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message().startswith("Preview error: ")
+        assert panel.preview_text.toPlainText() == ""
 
     def test_apply_creates_a_new_dataset_and_adds_it_as_a_series(self, panel, project):
         chart = project.find_item("chart-1")
         series_count_before = len(chart.data_series)
         panel.expression_text.setPlainText("y * 2")
         panel.apply()
-        assert "Created a new dataset" in panel.preview_text.toPlainText()
-        assert "added it to the chart as a series" in panel.preview_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Created a new dataset and added it to the chart as a series."
+        assert panel.preview_text.toPlainText() == ""
         datasets = [item for item in project.get_all_items() if isinstance(item, Dataset)]
         assert len(datasets) == 2
         assert len(chart.data_series) == series_count_before + 1
@@ -180,6 +209,57 @@ class TestChartTransformPanelApply:
         panel.clear_inputs()
         assert panel.expression_text.toPlainText() == ""
         assert panel.result_name.text() == ""
+
+
+class TestChartTransformPanelStatusMessage:
+    def test_status_message_sits_directly_above_the_preview_text(self, panel):
+        layout = panel.preview_text.parentWidget().layout()
+
+        assert layout.indexOf(panel.status_message) == layout.indexOf(panel.preview_text) - 1
+        assert panel.status_message.isHidden()
+
+    def test_preview_without_an_expression_is_an_error_status(self, panel):
+        panel.preview()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Select a series and enter an expression to transform."
+
+    def test_a_successful_preview_clears_an_earlier_status(self, panel):
+        panel.preview()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        panel.expression_text.setPlainText("y * 2")
+
+        panel.preview()
+
+        assert panel.status_message.message() == ""
+        assert "Result:" in panel.preview_text.toPlainText()
+
+    def test_apply_failure_is_an_error_status(self, panel, app_context):
+        app_context.get_command_executor.return_value.execute_command.side_effect = None
+        app_context.get_command_executor.return_value.execute_command.return_value = False
+        panel.expression_text.setPlainText("y * 2")
+
+        panel.apply()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Could not transform the series. See the log for details."
+
+    def test_clear_inputs_clears_the_status_message(self, panel):
+        panel.preview()
+        assert panel.status_message.kind() is StatusKind.ERROR
+
+        panel.clear_inputs()
+
+        assert panel.status_message.message() == ""
+        assert panel.status_message.kind() is None
+
+    def test_theme_change_retints_the_status_icon(self, panel, app_context):
+        panel.preview()
+        app_context.get_manager.return_value.get_design_tokens.return_value["status_danger"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.status_message.findChild(IconLabel).pixmap()), "#00AA00")
 
 
 class TestChartTransformPanelButtons:

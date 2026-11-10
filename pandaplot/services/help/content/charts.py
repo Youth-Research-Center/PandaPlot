@@ -405,7 +405,7 @@ def topics() -> list[HelpTopic]:
                 'The "Size" card offers ready-made sizes, "Custom" (type a width and height) and "Use app default". '
                 'The "DPI" card offers 100, 150 and 300 dpi, "Custom" and "Use app default". A higher DPI gives more detail and a larger file. '
                 'The hint on the Size card reads "Size affects export & default fonts".\n\n'
-                'To put a chart into a note, open the note, click "Artefacts" on the note toolbar, click "📊 Insert Chart...", pick the chart, '
+                'To put a chart into a note, open the note, click "Artefacts" on the note toolbar, click "Insert Chart...", pick the chart, '
                 'choose a "Snapshot DPI:" and click "Insert Chart". The note gets a picture of the chart as it looks at that moment. '
                 'The Artefacts window has a "Refresh" button to update the picture later.'
             ),

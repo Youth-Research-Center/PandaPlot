@@ -12,9 +12,7 @@ from pandaplot.models.events import UIEvents
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.project.project import Project
-
-# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
-ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+from tests.gui.icon_testing import ICON_TOKENS
 
 
 class _ChartContextTab(QWidget):

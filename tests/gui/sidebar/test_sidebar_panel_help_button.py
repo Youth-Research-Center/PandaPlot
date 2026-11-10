@@ -30,9 +30,7 @@ from pandaplot.services.help.help_types import (
     PANEL_TOPIC_STATISTICS,
     PANEL_TOPIC_TRANSFORM,
 )
-
-# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
-ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+from tests.gui.icon_testing import ICON_TOKENS
 
 
 @pytest.fixture(scope="module", autouse=True)
