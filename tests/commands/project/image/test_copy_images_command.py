@@ -177,3 +177,19 @@ class TestCopyImagesCommandUndo:
         assert project.find_item(copy_id) is None
         assert project.find_item(original.id) is not None, "original must survive undo"
         assert _removed_item_ids(app_context_with_project) == [copy_id]
+
+
+def test_a_failed_copy_shows_a_plain_message_with_the_cause(app_context_with_project, gallery_id):
+    project = app_context_with_project.get_app_state().current_project
+    original = Image(name="Beach", storage_mode="copied", image_ext="png", width=10, height=10, size_bytes=100)
+    original.set_bytes(b"original-bytes")
+    project.add_item(original, parent_id=gallery_id)
+    failure = RuntimeError("subscriber failed")
+    app_context_with_project.get_app_state().event_bus.emit.side_effect = failure
+
+    command = CopyImagesCommand(app_context_with_project, image_ids=[original.id], target_gallery_id=gallery_id)
+
+    assert command.execute() is CommandResult.FAILURE
+    app_context_with_project.get_ui_controller().show_error_message.assert_called_once_with(
+        "Copy Images Error", "Couldn't copy images.", error=failure
+    )

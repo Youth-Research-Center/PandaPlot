@@ -220,10 +220,10 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to delete item: {e!s}"
+            error_msg = "Couldn't delete item."
             self.logger.exception("DeleteItemCommand Error: %s", error_msg)
             self.ui_controller.show_error_message(
-                "Delete Item Error", error_msg)
+                "Delete Item Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def undo(self) -> CommandResult:
@@ -284,9 +284,9 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to undo delete item: {e!s}"
+            error_msg = "Couldn't undo delete item."
             self.logger.exception("DeleteItemCommand Undo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.ui_controller.show_error_message("Undo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
@@ -335,7 +335,7 @@ class DeleteItemCommand(Command):
                 # ABORTED: the command stays on the redo stack instead of
                 # moving to the undo stack and replaying over a live item.
                 self.logger.exception("DeleteItemCommand: redo aborted, removal failed (id=%s)", self.item_id)
-                self.ui_controller.show_error_message("Redo Error", f"Failed to redo delete item: {remove_error!s}")
+                self.ui_controller.show_error_message("Redo Error", "Couldn't redo delete item.", error=remove_error)
                 return CommandResult.ABORTED
             self.deleted_item_data = item_data
             self._deleted_index = sibling_index
@@ -361,9 +361,9 @@ class DeleteItemCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to redo delete item: {e!s}"
+            error_msg = "Couldn't redo delete item."
             self.logger.exception("DeleteItemCommand Redo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Redo Error", error_msg)
+            self.ui_controller.show_error_message("Redo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override

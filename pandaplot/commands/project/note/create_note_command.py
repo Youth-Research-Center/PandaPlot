@@ -89,10 +89,10 @@ class CreateNoteCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to create note: {e!s}"
+            error_msg = "Couldn't create note."
             self.logger.exception("CreateNoteCommand Error: %s", error_msg)
             self.ui_controller.show_error_message(
-                "Create Note Error", error_msg)
+                "Create Note Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def undo(self) -> CommandResult:
@@ -134,9 +134,9 @@ class CreateNoteCommand(Command):
                 return CommandResult.NOOP
 
         except Exception as e:
-            error_msg = f"Failed to undo create note: {e!s}"
+            error_msg = "Couldn't undo create note."
             self.logger.exception("CreateNoteCommand Undo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.ui_controller.show_error_message("Undo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
@@ -173,9 +173,9 @@ class CreateNoteCommand(Command):
                 return CommandResult.FAILURE
 
         except Exception as e:
-            error_msg = f"Failed to redo create note: {e!s}"
+            error_msg = "Couldn't redo create note."
             self.logger.exception("CreateNoteCommand Redo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Redo Error", error_msg)
+            self.ui_controller.show_error_message("Redo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override

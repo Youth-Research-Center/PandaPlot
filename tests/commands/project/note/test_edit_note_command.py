@@ -197,7 +197,8 @@ class TestEditNoteCommand:
 
         assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
-        assert "Failed to edit note: Test error" in ui_controller.show_error_message.call_args[0][1]
+        assert ui_controller.show_error_message.call_args[0][1] == "Couldn't edit note."
+        assert str(ui_controller.show_error_message.call_args.kwargs["error"]) == "Test error"
 
     def test_undo_successful(self, mock_app_context, sample_project, sample_note):
         """Test successful undo operation."""
@@ -318,7 +319,8 @@ class TestEditNoteCommand:
         
         assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
-        assert "Failed to undo edit note: Test error" in ui_controller.show_error_message.call_args[0][1]
+        assert ui_controller.show_error_message.call_args[0][1] == "Couldn't undo edit note."
+        assert str(ui_controller.show_error_message.call_args.kwargs["error"]) == "Test error"
 
     def test_undo_logs_warning_when_current_project_none(self, mock_app_context, caplog):
         """Test undo logs a warning when current_project is None despite has_project."""
@@ -456,7 +458,8 @@ class TestEditNoteCommand:
         
         assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
-        assert "Failed to redo edit note: Test error" in ui_controller.show_error_message.call_args[0][1]
+        assert ui_controller.show_error_message.call_args[0][1] == "Couldn't redo edit note."
+        assert str(ui_controller.show_error_message.call_args.kwargs["error"]) == "Test error"
 
     def test_redo_logs_warning_when_current_project_none(self, mock_app_context, caplog):
         """Test redo logs a warning when current_project is None despite has_project."""

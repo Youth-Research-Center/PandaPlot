@@ -5,7 +5,7 @@ import pytest
 import shiboken6
 from PySide6.QtCore import QBuffer, QCoreApplication, QEvent, QIODevice, QMimeData, Qt
 from PySide6.QtGui import QColor, QImage, QPixmap
-from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
+from PySide6.QtWidgets import QApplication, QDialog, QLabel, QMessageBox
 
 from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.gui.components.common.p_button import PButton
@@ -1437,11 +1437,46 @@ class TestImageGalleryTabEditImage:
         with patch.object(QMessageBox, "warning") as mock_warning:
             tab._on_edit_image_clicked()
 
-        mock_warning.assert_called_once()
-        assert "Beach" in mock_warning.call_args.args[2]
+        mock_warning.assert_not_called()
+        show_error = tab.app_context.get_ui_controller.return_value.show_error_message
+        show_error.assert_called_once()
+        title, message = show_error.call_args.args
+        assert title == "Edit Image Error"
+        assert message == "Couldn't load the image data for 'Beach'."
+        assert isinstance(show_error.call_args.kwargs["error"], ConnectionError)
 
         executor = tab.app_context.get_command_executor.return_value
         assert executor.execute_command.call_count == 0
+
+    def test_edit_image_reports_a_failed_save_of_the_edited_image(self, app_context, monkeypatch):
+        gallery = ImageGallery(name="Trip")
+        image = Image(name="Beach")
+        image.set_bytes(b"placeholder image bytes")
+        gallery.add_item(image)
+        tab = ImageGalleryTab(app_context=app_context, gallery=gallery, parent=None)
+        failure = OSError("disk full")
+
+        class _Dialog:
+            def __init__(self, *_a, **_kw):
+                pass
+
+            def exec(self):
+                return QDialog.DialogCode.Accepted
+
+            def has_edits(self):
+                return True
+
+            def get_result_bytes(self):
+                raise failure
+
+        monkeypatch.setattr("pandaplot.gui.components.tabs.image.image_gallery_tab.ImageEditorDialog", _Dialog)
+        monkeypatch.setattr("pandaplot.gui.components.tabs.image.image_gallery_tab.QImage", lambda: Mock(loadFromData=lambda _d: True))
+
+        tab._edit_image(image)
+
+        show_error = tab.app_context.get_ui_controller.return_value.show_error_message
+        show_error.assert_called_once_with("Edit Image Error", "Couldn't save the edited image for 'Beach'.", error=failure)
+        assert tab.app_context.get_command_executor.return_value.execute_command.call_count == 0
 
     def test_edit_image_warns_instead_of_opening_dialog_on_undecodable_data(
         self, app_context, monkeypatch
