@@ -150,13 +150,16 @@ class TestImageLightboxDialogFixedSize:
         assert dialog.size().height() <= 650
 
     def test_long_title_is_elided(self):
-        long_name = "vacation_photo_from_the_summer_trip_final_edited_version_2026_extra_long_suffix"
+        # The title is elided to a fixed pixel width, so the name must be wider than that in
+        # *any* font: a ~80-character name fits in some environments' narrower default fonts.
+        long_name = "vacation_photo_from_the_summer_trip_final_edited_version_2026_extra_long_suffix_" * 4
         images = [Image(name=long_name)]
 
         dialog = _dialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"))
 
         assert dialog.windowTitle() != long_name
         assert len(dialog.windowTitle()) < len(long_name)
+        assert dialog.windowTitle().endswith("…")
 
 
 class TestImageLightboxDialogEdit:
