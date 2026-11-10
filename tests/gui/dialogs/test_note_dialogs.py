@@ -3,9 +3,11 @@
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
-from PySide6.QtWidgets import QDialog, QTextEdit, QWidget
+from PySide6.QtCore import QSize
+from PySide6.QtWidgets import QDialog, QLabel, QTextEdit, QWidget
 
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.dialogs.note.note_artefacts_dialog import NoteArtefactsDialog
 from pandaplot.gui.dialogs.note.note_chart_picker_dialog import NoteChartPickerDialog
@@ -15,8 +17,11 @@ from pandaplot.gui.dialogs.note.note_table_picker_dialog import (
     dataset_to_markdown_table,
 )
 from pandaplot.gui.dialogs.note.snapshot_dpi_dialog import SnapshotDpiDialog
+from pandaplot.gui.resources.item_icons import item_icon
+from pandaplot.gui.resources.themed_icons import IconRole, themed_icon
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note
 from pandaplot.models.project.project import Project
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 
 def _create_mock_app_context(project=None):
@@ -25,7 +30,7 @@ def _create_mock_app_context(project=None):
     app_state.current_project = project
     app_context.get_app_state.return_value = app_state
     app_context.get_manager.return_value.get_surface_palette.return_value = {}
-    app_context.get_manager.return_value.get_design_tokens.return_value = {}
+    app_context.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
     return app_context
 
 
@@ -68,6 +73,45 @@ def test_note_chart_picker_dialog_tree_and_selection(qapp):
 
     dialog._on_ok_clicked()
     assert dialog.get_selected_chart() == chart1
+
+
+def _same_pixels(first, second, *, size_px: int = 16) -> bool:
+    size = QSize(size_px, size_px)
+    return first.pixmap(size).toImage() == second.pixmap(size).toImage()
+
+
+def test_note_chart_picker_dialog_chart_rows_are_plain_names_with_the_chart_icon(qapp):
+    project = Project(name="Test Project")
+    folder = Folder(name="Plots")
+    project.add_item(folder)
+    project.add_item(Chart(name="Line Plot"), parent_id=folder.id)
+    app_context = _create_mock_app_context(project)
+
+    dialog = NoteChartPickerDialog(app_context, project)
+
+    chart_row = dialog.tree.topLevelItem(0).child(0)
+    assert chart_row.text(0) == "Line Plot"
+    assert _same_pixels(chart_row.icon(0), item_icon(app_context, "chart", size=24), size_px=24)
+
+
+def test_note_chart_picker_dialog_folder_rows_have_the_folder_icon(qapp):
+    project = Project(name="Test Project")
+    outer = Folder(name="Plots")
+    inner = Folder(name="Archive")
+    project.add_item(outer)
+    project.add_item(inner, parent_id=outer.id)
+    project.add_item(Chart(name="Line Plot"), parent_id=inner.id)
+    app_context = _create_mock_app_context(project)
+
+    dialog = NoteChartPickerDialog(app_context, project)
+
+    outer_row = dialog.tree.topLevelItem(0)
+    inner_row = outer_row.child(0)
+    folder_icon = item_icon(app_context, "folder", size=24)
+    assert outer_row.text(0) == "Plots"
+    assert _same_pixels(outer_row.icon(0), folder_icon, size_px=24)
+    assert _same_pixels(inner_row.icon(0), folder_icon, size_px=24)
+    assert not _same_pixels(inner_row.icon(0), inner_row.child(0).icon(0), size_px=24)
 
 
 def test_note_chart_picker_dialog_empty_state(qapp):
@@ -334,6 +378,20 @@ def test_note_artefacts_dialog_rebuilds_rows_when_note_text_changes_while_open(q
     assert dialog.table.rowCount() == 1  # no longer listening once closed
 
 
+def test_note_table_picker_dataset_combo_items_are_plain_names_with_the_table_icon(qapp):
+    project = Project(name="Dataset Project")
+    dataset = Dataset(name="Sales")
+    dataset.data = pd.DataFrame({"X": [1]})
+    project.add_item(dataset)
+    app_context = _create_mock_app_context(project)
+
+    dialog = NoteTablePickerDialog(app_context, project)
+
+    assert dialog.dataset_combo.itemText(0) == "Sales"
+    assert dialog.dataset_combo.itemData(0) == dataset.id
+    assert _same_pixels(dialog.dataset_combo.itemIcon(0), item_icon(app_context, "dataset"))
+
+
 def test_note_table_picker_dataset_combo_disambiguates_same_named_datasets(qapp):
     project = Project(name="Dataset Project")
     folder_a, folder_b = Folder(name="A"), Folder(name="B")
@@ -368,6 +426,47 @@ def test_note_artefacts_dialog_empty_state_replaces_table_and_promotes_insert_ch
     assert not dialog.empty_widget.isVisible()
     assert dialog.table.isVisible()
     assert dialog.insert_chart_button.property("primary") is False
+
+
+def test_note_artefacts_dialog_empty_state_uses_a_muted_paperclip_icon(qapp):
+    dialog = NoteArtefactsDialog(_create_mock_app_context_with_executor(Project(name="Test Project")), Note(name="Note 1"), QTextEdit())
+
+    (icon,) = dialog.empty_widget.findChildren(IconLabel)
+
+    assert icon.icon_name == "paperclip"
+    assert icon.width() == 36
+    assert_tinted(strongest_pixel(icon.pixmap().toImage()), ICON_TOKENS["text_muted"])
+    assert all(label.text() != "📎" for label in dialog.empty_widget.findChildren(QLabel))
+
+
+def test_note_artefacts_dialog_insert_buttons_have_plain_text_and_icons_that_follow_role_changes(qapp):
+    text_edit = QTextEdit()
+    dialog = NoteArtefactsDialog(_create_mock_app_context_with_executor(Project(name="Test Project")), Note(name="Note 1"), text_edit)
+
+    def pixels(button) -> object:
+        return button.icon().pixmap(QSize(16, 16)).toImage()
+
+    def expected(name: str, role: IconRole) -> object:
+        return themed_icon(dialog.app_context, name, role=role).pixmap(QSize(16, 16)).toImage()
+
+    assert dialog.insert_chart_button.text() == "Insert Chart..."
+    assert dialog.insert_table_button.text() == "Insert Table..."
+    assert pixels(dialog.insert_table_button) == expected("table", IconRole.TEXT)
+    # With nothing listed the chart button is the primary action: its icon uses the primary button's foreground, not text_primary.
+    assert dialog.insert_chart_button.property("primary") is True
+    assert pixels(dialog.insert_chart_button) == expected("chart-line", IconRole.ON_ACCENT)
+    assert_tinted(strongest_pixel(dialog.insert_chart_button.icon()), ICON_TOKENS["text_on_accent"])
+
+    text_edit.setPlainText("![Gone](missing-id =500x)")  # refresh_rows switches the chart button to the secondary role
+
+    assert dialog.insert_chart_button.property("primary") is False
+    assert pixels(dialog.insert_chart_button) == expected("chart-line", IconRole.TEXT)
+    assert pixels(dialog.insert_table_button) == expected("table", IconRole.TEXT)
+
+    text_edit.setPlainText("")  # back to nothing listed: promoted again
+
+    assert dialog.insert_chart_button.property("primary") is True
+    assert pixels(dialog.insert_chart_button) == expected("chart-line", IconRole.ON_ACCENT)
 
 
 def test_note_artefacts_dialog_offers_refresh_only_for_snapshots_with_a_source_chart(qapp):

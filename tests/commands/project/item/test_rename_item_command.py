@@ -163,3 +163,18 @@ def test_execute_returns_failure_when_the_rename_raises():
     command = RenameItemCommand(app_context, item_id="note-1", new_name="New")
 
     assert command.execute() is CommandResult.FAILURE
+
+
+def test_a_failed_rename_shows_a_plain_message_with_the_cause():
+    from pandaplot.models.project.items import Note
+
+    note = Note(id="note-1", name="Old")
+    app_context, app_state = _rename_setup(note)
+    failure = RuntimeError("subscriber failed")
+    app_state.event_bus.emit.side_effect = failure
+    command = RenameItemCommand(app_context, item_id="note-1", new_name="New")
+
+    assert command.execute() is CommandResult.FAILURE
+    app_context.get_ui_controller().show_error_message.assert_called_once_with(
+        "Rename Item Error", "Couldn't rename item.", error=failure
+    )

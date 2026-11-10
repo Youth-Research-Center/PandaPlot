@@ -19,8 +19,13 @@ from PySide6.QtWidgets import (
 from pandaplot.gui.components.common.card import Card
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.resources.icon_library import build_icon
+from pandaplot.gui.resources.themed_icons import DEFAULT_ICON_SIZE
 from pandaplot.models.chart.chart_role_labels import ROLE_LABELS
 from pandaplot.models.chart.chart_type_spec import ChartTypeSpec
+
+_FALLBACK_ICON_COLOR = "#6B7280"
+_FALLBACK_DISABLED_ICON_COLOR = "#AEB2BC"
 
 _ROLE_TO_FIELD = {
     "x": "x_column_id", "y": "y_column_id", "values": "y_column_id",
@@ -36,8 +41,19 @@ class SeriesConfigCard(Card):
     configChanged = Signal()
     datasetChanged = Signal(str)
 
-    def __init__(self, role_spec: ChartTypeSpec, parent: QWidget | None = None, index: int = 0):
+    def __init__(self, role_spec: ChartTypeSpec, parent: QWidget | None = None, index: int = 0, *, standalone: bool = False):
+        """Build the card.
+
+        Args:
+            role_spec: Chart type spec that determines the role pickers.
+            parent: Optional parent widget.
+            index: Position of the card, used to pick its summary swatch color.
+            standalone: When true the card is used on its own (outside the wizard's
+                accordion): the remove button, collapse button and summary row are
+                hidden and `set_collapsed` does nothing.
+        """
         super().__init__(parent)
+        self._standalone = standalone
         self._role_spec = role_spec
         self._role_combos: dict[str, QComboBox] = {}
         self.error_bars_check: QCheckBox | None = None
@@ -50,6 +66,7 @@ class SeriesConfigCard(Card):
         self._tokens: dict = {}
         self._index = index
         self._build_ui()
+        self._refresh_chevron_icons()
 
     def set_index(self, index: int) -> None:
         self._index = index
@@ -70,9 +87,7 @@ class SeriesConfigCard(Card):
         summary_layout.addWidget(self.summary_label, 1)
         self._error_status_label = QLabel()
         summary_layout.addWidget(self._error_status_label)
-        self._expand_button = PButton(
-            "▸", role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=False)
-        )
+        self._expand_button = PButton(role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=False))
         self._expand_button.setAccessibleName("Expand series")
         self._expand_button.setToolTip("Expand series")
         summary_layout.addWidget(self._expand_button)
@@ -85,24 +100,26 @@ class SeriesConfigCard(Card):
 
         collapse_row = QHBoxLayout()
         collapse_row.addStretch(1)
-        self._collapse_button = PButton(
-            "▾", role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=True)
-        )
+        self._collapse_button = PButton(role="secondary", icon=True, on_click=lambda: self.set_collapsed(collapsed=True))
         self._collapse_button.setAccessibleName("Collapse series")
         self._collapse_button.setToolTip("Collapse series")
         collapse_row.addWidget(self._collapse_button)
         grid.addLayout(collapse_row, row, 0, 1, 2)
         row += 1
 
-        grid.addWidget(QLabel("Dataset:"), row, 0)
+        dataset_label = QLabel("Dataset:")
+        grid.addWidget(dataset_label, row, 0)
         self.dataset_combo = DropDownComboBox()
+        dataset_label.setBuddy(self.dataset_combo)
         self.dataset_combo.currentIndexChanged.connect(self._on_dataset_changed)
         grid.addWidget(self.dataset_combo, row, 1)
         row += 1
 
         for role in self._role_spec.roles:
-            grid.addWidget(QLabel(f"{ROLE_LABELS[role]}:"), row, 0)
+            role_label = QLabel(f"{ROLE_LABELS[role]}:")
+            grid.addWidget(role_label, row, 0)
             combo = DropDownComboBox()
+            role_label.setBuddy(combo)
             combo.currentIndexChanged.connect(lambda _index=None: self.configChanged.emit())
             self._role_combos[role] = combo
             setattr(self, f"{role}_column_combo", combo)
@@ -126,6 +143,7 @@ class SeriesConfigCard(Card):
             ):
                 error_label = QLabel(f"{label}:")
                 combo = DropDownComboBox()
+                error_label.setBuddy(combo)
                 combo.currentIndexChanged.connect(lambda _index=None: self.configChanged.emit())
                 self._role_combos[error_role] = combo
                 setattr(self, f"{error_role}_column_combo", combo)
@@ -150,6 +168,8 @@ class SeriesConfigCard(Card):
         return self._collapsed
 
     def set_collapsed(self, *, collapsed: bool) -> None:
+        if self._standalone:
+            return
         self._collapsed = collapsed
         self._update_visibility()
         if collapsed:
@@ -158,6 +178,8 @@ class SeriesConfigCard(Card):
     def _update_visibility(self):
         self._summary_row.setVisible(self._collapsed)
         self._form_widget.setVisible(not self._collapsed)
+        self._collapse_button.setVisible(not self._standalone)
+        self.remove_button.setVisible(not self._standalone)
 
     def _refresh_summary(self):
         names = self.get_display_names()
@@ -184,8 +206,19 @@ class SeriesConfigCard(Card):
     def set_tokens(self, tokens: dict) -> None:
         super().set_tokens(tokens)
         self._tokens = tokens
+        self._refresh_chevron_icons()
         if self._collapsed:
             self._refresh_summary()
+
+    def _refresh_chevron_icons(self) -> None:
+        """Render the expand/collapse chevrons in the theme's muted and disabled text colours.
+
+        The card has no `AppContext`, so the icons come from the tokens handed to `set_tokens` and use the fallback colours until then.
+        """
+        muted = self._tokens.get("text_muted", _FALLBACK_ICON_COLOR)
+        disabled = self._tokens.get("text_disabled", _FALLBACK_DISABLED_ICON_COLOR)
+        self._expand_button.setIcon(build_icon("caret-right", muted, size=DEFAULT_ICON_SIZE, disabled_color=disabled))
+        self._collapse_button.setIcon(build_icon("caret-down", muted, size=DEFAULT_ICON_SIZE, disabled_color=disabled))
 
     # -- Everything below is unchanged from the pre-redesign implementation --
 
@@ -294,13 +327,12 @@ class SeriesConfigCard(Card):
                 names[role] = combo.currentText()
         return names
 
+    def missing_required_roles(self) -> list[str]:
+        """Required roles that have no column chosen yet, in the chart type's order."""
+        return [role for role in self._role_spec.required_roles if not self._role_combos[role].currentData()]
+
     def is_complete(self) -> bool:
-        if not self.dataset_combo.currentData():
-            return False
-        for role in self._role_spec.required_roles:
-            if not self._role_combos[role].currentData():
-                return False
-        return True
+        return bool(self.dataset_combo.currentData()) and not self.missing_required_roles()
 
     def apply_picked_columns(self, role: str, column_ids: list[str]) -> None:
         if not column_ids or role not in self._role_combos:

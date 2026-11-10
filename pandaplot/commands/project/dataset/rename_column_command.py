@@ -94,9 +94,8 @@ class RenameColumnCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to rename column: {e}"
-            self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Rename Column Error", error_msg)
+            self.logger.exception("Failed to rename column")
+            self.ui_controller.show_error_message("Rename Column Error", "Couldn't rename the column.", error=e)
             return CommandResult.FAILURE
 
     def _apply_rename(self, from_name: str, to_name: str) -> None:

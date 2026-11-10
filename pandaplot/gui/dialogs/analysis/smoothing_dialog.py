@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QFormLayout, QGroupBox
 from pandaplot.analysis import AnalysisEngine, AnalysisType
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.number_input import IntegerInput
+from pandaplot.utils.error_messages import describe_error
 
 from .base_analysis_dialog import BaseAnalysisDialog
 
@@ -129,8 +130,9 @@ class SmoothingDialog(BaseAnalysisDialog):
             
             self.preview_text.setText(preview_text)
             
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self.preview_text.setText(f"Preview error: {e!s}")
+        except Exception as e:
+            self.logger.exception("Smoothing preview failed")
+            self.preview_text.setText(f"Preview error: {describe_error(e).inline_text}")
     
     def get_analysis_config(self) -> dict[str, Any]:
         """Get smoothing analysis configuration."""

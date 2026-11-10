@@ -51,13 +51,17 @@ def _device_pixel_ratio() -> float:
     return screen.devicePixelRatio() if screen is not None else 1.0
 
 
-def _render_pixmap(name: str, color: str, size: int, weight: str) -> QPixmap:
+@lru_cache(maxsize=512)
+def _render_pixmap(name: str, color: str, size: int, weight: str, ratio: float) -> QPixmap:
+    """Render one tinted icon pixmap; results are cached by every argument, so a new colour or pixel ratio renders again.
+
+    The cached pixmap is shared between icons (``QPixmap`` is implicitly shared) and must not be painted on by callers.
+    """
     tint = QColor(color)
     if not tint.isValid():
         raise ValueError(f"Invalid icon colour: {color!r}")
     svg = icon_svg(name, weight=weight).replace("currentColor", tint.name())
     renderer = QSvgRenderer(QByteArray(svg.encode("utf-8")))
-    ratio = _device_pixel_ratio()
     pixmap = QPixmap(round(size * ratio), round(size * ratio))
     pixmap.setDevicePixelRatio(ratio)
     pixmap.fill(QColor(0, 0, 0, 0))
@@ -67,8 +71,23 @@ def _render_pixmap(name: str, color: str, size: int, weight: str) -> QPixmap:
     return pixmap
 
 
-def build_icon(name: str, color: str, *, size: int = 20, weight: str = "regular", disabled_color: str | None = None) -> QIcon:
+def clear_icon_cache() -> None:
+    """Drop every cached icon render, e.g. after the primary screen's pixel ratio changed or between tests."""
+    _render_pixmap.cache_clear()
+
+
+def build_icon(
+    name: str,
+    color: str,
+    *,
+    size: int = 20,
+    weight: str = "regular",
+    disabled_color: str | None = None,
+    selected_color: str | None = None,
+) -> QIcon:
     """Render a bundled icon tinted with ``color`` (and optionally a different colour when disabled).
+
+    Every call returns a new ``QIcon``; the pixmaps behind it come from a cache keyed by name, colour, size, weight and pixel ratio.
 
     Args:
         name: Icon name as listed in ``icon_manifest.toml``.
@@ -76,13 +95,17 @@ def build_icon(name: str, color: str, *, size: int = 20, weight: str = "regular"
         size: Logical pixel size of the square icon.
         weight: Icon weight.
         disabled_color: Colour used for ``QIcon.Mode.Disabled``; Qt greys the icon itself when omitted.
+        selected_color: Colour used for ``QIcon.Mode.Selected`` (icons on a selected row); Qt derives it when omitted.
 
     Raises:
         KeyError: If the icon or weight is not bundled.
         ValueError: If a colour is invalid.
     """
+    ratio = _device_pixel_ratio()
     icon = QIcon()
-    icon.addPixmap(_render_pixmap(name, color, size, weight), QIcon.Mode.Normal)
+    icon.addPixmap(_render_pixmap(name, color, size, weight, ratio), QIcon.Mode.Normal)
     if disabled_color is not None:
-        icon.addPixmap(_render_pixmap(name, disabled_color, size, weight), QIcon.Mode.Disabled)
+        icon.addPixmap(_render_pixmap(name, disabled_color, size, weight, ratio), QIcon.Mode.Disabled)
+    if selected_color is not None:
+        icon.addPixmap(_render_pixmap(name, selected_color, size, weight, ratio), QIcon.Mode.Selected)
     return icon

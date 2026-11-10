@@ -7,6 +7,7 @@ multi-select rename/delete/group-into-album and a double-click lightbox.
 from collections.abc import Callable
 from typing import ClassVar, override
 
+import shiboken6
 from PySide6.QtCore import QMimeData, QSize, Qt
 from PySide6.QtGui import QAction, QDrag, QImage, QPixmap
 from PySide6.QtWidgets import (
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QStackedWidget,
     QTreeWidget,
@@ -37,7 +39,7 @@ from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.gui.components.tabs.image.image_lightbox_dialog import ImageLightboxDialog
 from pandaplot.gui.core.widget_extension import PWidget, unsubscribe_widget_tree
 from pandaplot.gui.dialogs.image.image_editor_dialog import ImageEditorDialog
-from pandaplot.gui.resources.themed_icons import ActionIcons, themed_icon
+from pandaplot.gui.resources.themed_icons import ActionIcons, IconRole, themed_icon
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Image, ImageGallery
 from pandaplot.models.state.app_context import AppContext
@@ -229,7 +231,10 @@ class ImageGalleryTab(PWidget):
             (self.move_button, "folder-simple"),
             (self.copy_button, "copy"),
         ):
-            self._icons.bind(button, icon_name)
+            if button is self.delete_button:
+                self._icons.bind(button, icon_name, role=IconRole.ERROR, hover_role=IconRole.ON_DANGER)
+            else:
+                self._icons.bind(button, icon_name)
             toolbar.addWidget(button)
 
         from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
@@ -685,7 +690,8 @@ class ImageGalleryTab(PWidget):
         try:
             menu.exec(self.grid.viewport().mapToGlobal(position))
         finally:
-            menu.deleteLater()
+            if shiboken6.isValid(menu):
+                menu.deleteLater()
 
     def _on_list_context_menu(self, position) -> None:
         item = self.list_view.itemAt(position)
@@ -698,7 +704,8 @@ class ImageGalleryTab(PWidget):
         try:
             menu.exec(self.list_view.viewport().mapToGlobal(position))
         finally:
-            menu.deleteLater()
+            if shiboken6.isValid(menu):
+                menu.deleteLater()
 
     def _child_id_for_item(self, item) -> str:
         """Read the stored child id from either a grid tile (QListWidgetItem)
@@ -708,8 +715,6 @@ class ImageGalleryTab(PWidget):
         return item.data(Qt.ItemDataRole.UserRole)
 
     def _build_context_menu(self, item):
-        from PySide6.QtWidgets import QMenu
-
         menu = QMenu(self)
         selected = self._selected_children()
         has_image = any(isinstance(c, Image) for c in selected)
@@ -781,14 +786,15 @@ class ImageGalleryTab(PWidget):
     def _edit_image(self, image: Image, parent: QWidget | None = None):
         try:
             data = image.get_bytes() or self._load_external_bytes(image.source_file)
-        except Exception as exc:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+        except Exception as exc:
             # _load_external_bytes can raise (a network error for a URL
             # source, an unreadable/removed local file) -- without this
             # guard that exception would escape this Qt slot instead of
             # showing the same load-error message a missing/empty result
             # already gets below.
-            QMessageBox.warning(
-                self, "Edit Image Error", f"Unable to load image data for '{image.name}': {exc}"
+            self.logger.exception("Failed to load image data for '%s' (id=%s)", image.name, image.id)
+            self.app_context.get_ui_controller().show_error_message(
+                "Edit Image Error", f"Couldn't load the image data for '{image.name}'.", error=exc
             )
             return
         if not data:
@@ -817,9 +823,10 @@ class ImageGalleryTab(PWidget):
 
         try:
             new_bytes = dialog.get_result_bytes()
-        except Exception as exc:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            QMessageBox.warning(
-                self, "Edit Image Error", f"Failed to save the edited image for '{image.name}': {exc}"
+        except Exception as exc:
+            self.logger.exception("Failed to encode the edited image '%s' (id=%s)", image.name, image.id)
+            self.app_context.get_ui_controller().show_error_message(
+                "Edit Image Error", f"Couldn't save the edited image for '{image.name}'.", error=exc
             )
             return
         new_w = dialog.get_result_width()

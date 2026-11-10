@@ -1,3 +1,4 @@
+import errno
 import os
 import uuid
 from collections.abc import Callable
@@ -19,6 +20,7 @@ from pandaplot.services.data_import.data_importer import (
     SUPPORTED_EXTENSIONS,
 )
 from pandaplot.services.qtasks import TaskScheduler
+from pandaplot.utils.error_messages import describe_error, describe_failure
 
 
 class ImportDataCommand(Command):
@@ -148,9 +150,8 @@ class ImportDataCommand(Command):
             return CommandResult.SUCCESS  # Command initiated successfully
 
         except Exception as e:
-            error_msg = f"Failed to initiate data import: {e}"
-            self.logger.exception("ImportDataCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message("Import Data Error", error_msg)
+            self.logger.exception("Failed to initiate data import")
+            self.ui_controller.show_error_message("Import Data Error", "Couldn't import the data.", error=e)
             self.is_importing = False  # Reset flag on error
             return CommandResult.FAILURE
 
@@ -227,7 +228,12 @@ class ImportDataCommand(Command):
                 progress_callback(0.1)  # Starting import
 
             if not self.file_path or not os.path.exists(self.file_path):
-                return {"success": False, "error": f"File not found: {self.file_path}", "datasets": []}
+                return {
+                    "success": False,
+                    "error": f"File not found: {self.file_path}",
+                    "error_description": describe_error(FileNotFoundError(errno.ENOENT, "File not found", self.file_path)),
+                    "datasets": [],
+                }
 
             if progress_callback:
                 progress_callback(0.2)  # File validation complete
@@ -235,8 +241,9 @@ class ImportDataCommand(Command):
             # Read the data file into one or more (name, dataframe) pairs
             try:
                 frames = self._read_frames()
-            except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-                return {"success": False, "error": f"Failed to read file: {e!s}", "datasets": []}
+            except Exception as e:
+                self.logger.exception("Failed to read the import file")
+                return {"success": False, "error": f"Failed to read file: {e!s}", "error_description": describe_error(e), "datasets": []}
 
             if progress_callback:
                 progress_callback(0.6)  # File read successfully
@@ -245,7 +252,7 @@ class ImportDataCommand(Command):
             non_empty = [(name, df) for name, df in frames if not df.empty]
             if not non_empty:
                 error_msg = "The selected file is empty." if len(frames) == 1 else "The selected sheet(s) contain no data."
-                return {"success": False, "error": error_msg, "datasets": []}
+                return {"success": False, "error": error_msg, "error_description": describe_failure(error_msg), "datasets": []}
 
             datasets = []
             for name, df in non_empty:
@@ -275,7 +282,7 @@ class ImportDataCommand(Command):
         except Exception as e:
             error_msg = f"Error during data import: {e!s}"
             self.logger.exception(error_msg)
-            return {"success": False, "error": error_msg, "datasets": []}
+            return {"success": False, "error": error_msg, "error_description": describe_error(e), "datasets": []}
 
     def _on_import_result(self, result: dict):
         """Handle successful completion of import task."""
@@ -350,25 +357,26 @@ class ImportDataCommand(Command):
                     self.ui_controller.show_error_message("Import Failed", error_msg)
                     self.logger.error(error_msg)
             else:
-                error_msg = result.get("error", "Unknown import error")
-                self.ui_controller.show_error_message("Import Failed", error_msg)
-                self.logger.error(f"Import failed: {error_msg}")
+                self.logger.error("Import failed: %s", result.get("error", "Unknown import error"))
+                self.ui_controller.show_error_message(
+                    "Import Failed",
+                    "Couldn't import the data.",
+                    error=result.get("error_description") or describe_failure("The data could not be imported."),
+                )
 
         except Exception as e:
             self.logger.exception("Error handling import result")
-            self.ui_controller.show_error_message("Import Error", f"Error processing import result: {e!s}")
+            self.ui_controller.show_error_message("Import Error", "Couldn't import the data.", error=e)
 
     def _on_import_error(self, error_info: tuple[Any, Any, str]):
         """Handle error during import task."""
         try:
             self.is_importing = False
             error_type, error_value, error_traceback = error_info
-            error_msg = f"Import failed with {error_type.__name__}: {error_value!s}"
+            self.logger.error("Import task error: %s: %s", error_type.__name__, error_value)
+            self.logger.error("Traceback: %s", error_traceback)
 
-            self.logger.error(f"Import task error: {error_msg}")
-            self.logger.error(f"Traceback: {error_traceback}")
-
-            self.ui_controller.show_error_message("Import Data Error", error_msg)
+            self.ui_controller.show_error_message("Import Data Error", "Couldn't import the data.", error=error_value)
 
         except Exception:
             self.logger.exception("Error handling import error")

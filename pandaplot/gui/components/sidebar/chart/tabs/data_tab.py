@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 
 from pandaplot.commands.project.chart import (
     AddSeriesCommand,
+    AddSeriesFromDialogCommand,
     ConvertSeriesToFitCommand,
     RemoveSeriesCommand,
     ReorderSeriesCommand,
@@ -28,9 +29,10 @@ from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
+from pandaplot.gui.resources.themed_icons import IconRole, themed_icon
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
-from pandaplot.models.chart.series_style_builder import DEFAULT_SERIES_COLORS, build_series_style
+from pandaplot.models.chart.series_style_builder import build_series_style, default_series_color
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS, SeriesTypeSpec
 from pandaplot.models.project.items import Dataset
@@ -381,6 +383,9 @@ class DataTab(QWidget):
             self.axesRefreshRequested.emit()
             return
 
+        if not self.current_chart.data_series:
+            self._series_cards_layout.addWidget(self._build_empty_hint(tokens))
+
         for index, series in enumerate(self.current_chart.data_series):
             if index == self._expanded_series_index:
                 card = self._build_expanded_series_card(index, tokens)
@@ -394,6 +399,14 @@ class DataTab(QWidget):
         self.axesRefreshRequested.emit()
 
     # -- Card-building helpers --------------------------------------------
+
+    def _build_empty_hint(self, tokens: dict) -> QLabel:
+        """Muted hint shown in place of cards while the chart has no series."""
+        hint = QLabel("No series yet. Click + Add series to plot data from a dataset.")
+        hint.setObjectName("emptySeriesHint")
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"color: {tokens.get('text_muted', '#888')};")
+        return hint
 
     def _make_swatch(self, color: str, tokens: dict) -> QFrame:
         swatch = QFrame()
@@ -410,9 +423,11 @@ class DataTab(QWidget):
         so a specific series/fit can be removed regardless of which entry
         is selected/expanded)."""
         button = PButton(
-            "\U0001f5d1", role="destructive", icon=True,  # wastebasket emoji
+            role="destructive", icon=True,
             on_click=lambda _checked=False, i=index: self._remove_series_at(i)
         )
+        button.setIcon(themed_icon(self.app_context, "trash", role=IconRole.ERROR))
+        button.set_hover_icon(themed_icon(self.app_context, "trash", role=IconRole.ON_DANGER))
         button.setAccessibleName("Remove series")
         button.setFixedWidth(24)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -427,9 +442,10 @@ class DataTab(QWidget):
         other series (#304), not always last, so it needs the same
         reorder affordance."""
         button = PButton(
-            "▲", role="secondary", icon=True,  # ▲
+            role="secondary", icon=True,
             on_click=lambda _checked=False, i=index: self._move_series(i, i - 1)
         )
+        button.setIcon(themed_icon(self.app_context, "caret-up"))
         button.setAccessibleName("Move series up")
         button.setFixedWidth(24)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -441,9 +457,10 @@ class DataTab(QWidget):
         """Move this series one position later in the plotting order --
         drawn *over* the series that used to be right after it (#189)."""
         button = PButton(
-            "▼", role="secondary", icon=True,  # ▼
+            role="secondary", icon=True,
             on_click=lambda _checked=False, i=index: self._move_series(i, i + 1)
         )
+        button.setIcon(themed_icon(self.app_context, "caret-down"))
         button.setAccessibleName("Move series down")
         button.setFixedWidth(24)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -455,9 +472,10 @@ class DataTab(QWidget):
         """Accordion toggle: purely visual expand/collapse, independent of
         selection (see `_toggle_card_expanded`)."""
         chevron = PButton(
-            "▾" if expanded else "▸", role="secondary", icon=True,
+            role="secondary", icon=True,
             on_click=lambda _checked=False, i=index: self._toggle_card_expanded(i)
         )
+        chevron.setIcon(themed_icon(self.app_context, "caret-down" if expanded else "caret-right"))
         label = "Collapse series details" if expanded else "Expand series details"
         chevron.setAccessibleName(label)
         chevron.setToolTip(label)
@@ -509,11 +527,10 @@ class DataTab(QWidget):
         return dataset_id
 
     def _series_display_name(self, series: DataSeries) -> str:
-        """Card/row title for `series`: a FIT entry shows its label behind a
-        wrench marker, every other type its label (or dataset:Y column when
-        unlabeled)."""
+        """Card/row title for `series`: its label, or dataset:Y column when
+        unlabeled (a FIT entry always shows its label)."""
         if series.is_fit:
-            return f"\U0001f527 {series.label}"
+            return series.label
         return series.label or (
             f"{series.dataset_id}:{self._column_display_name(series.dataset_id, series.y_column_id, series.y_column)}"
         )
@@ -624,9 +641,8 @@ class DataTab(QWidget):
         header.addWidget(self._build_move_up_button(index))
         header.addWidget(self._build_move_down_button(index, total_series))
         header.addWidget(self._build_trash_button(index))
-        chevron = PButton(
-            "▾", role="secondary", icon=True, enabled=False
-        )  # ▾, indicates "currently expanded"
+        chevron = PButton(role="secondary", icon=True, enabled=False)
+        chevron.setIcon(themed_icon(self.app_context, "caret-down"))  # indicates "currently expanded"
         chevron.setAccessibleName("Series details expanded")
         chevron.setToolTip("Series details expanded")
         chevron.setFixedWidth(24)
@@ -643,8 +659,19 @@ class DataTab(QWidget):
     # -- Add / remove -------------------------------------------------------
 
     def _add_series(self):
-        """Add a new data series."""
+        """Add a new data series.
+
+        On a chart with no series this opens the Add Series dialog, which never
+        reads the form combos (they may still hold another chart's columns). On a
+        chart that already has series, it copies the selected series' configuration.
+        """
         if not self.current_chart:
+            return
+
+        if not self.current_chart.data_series:
+            self.command_executor.execute_command(
+                AddSeriesFromDialogCommand(self.app_context, self.current_chart.id, parent=self.window())
+            )
             return
 
         # Create a new series with default values. Combos carry the column id
@@ -679,8 +706,7 @@ class DataTab(QWidget):
         # series with whatever U/V values happen to be available (often
         # empty) -- an incomplete Vector series already renders a graceful
         # "no U/V column configured" message, recoverable by selecting the
-        # new series and filling in U/V via its own now-visible combos,
-        # exactly matching apply_to's already-established bootstrap path.
+        # new series and filling in U/V via its own now-visible combos.
         if dataset_id and x_column_id and y_column_id:
             style = build_series_style(
                 new_series_type,
@@ -1417,10 +1443,7 @@ class DataTab(QWidget):
 
     def _get_next_series_color(self) -> str:
         """Get the next color for a new series."""
-        if not self.current_chart or not self.current_chart.data_series:
-            return DEFAULT_SERIES_COLORS[0]
-
-        return DEFAULT_SERIES_COLORS[len(self.current_chart.data_series) % len(DEFAULT_SERIES_COLORS)]
+        return default_series_color(len(self.current_chart.data_series) if self.current_chart else 0)
 
     # -- Dataset / column combos ------------------------------------------
 
@@ -1914,59 +1937,16 @@ class DataTab(QWidget):
             self.clear()
 
     def apply_to(self, chart):
-        """Apply the currently selected series/fit's non-style fields
-        (dataset/x/y are already live-written to the model by
+        """Re-assert the selected series' ``y_axis`` on ``chart``.
+
+        Dataset, x and y columns are live-written to the model by
         `_on_series_config_changed`, and `y_axis` by `_on_series_y_axis_changed`;
-        this only re-asserts `y_axis`, matching the previous behavior) and
-        create a default series if none exist yet.
+        this only re-asserts `y_axis`. It never creates a series: a chart with no
+        series gets one through "+ Add series".
         """
         current_row = self._expanded_series_index
         if 0 <= current_row < len(chart.data_series):
             chart.data_series[current_row].y_axis = self._current_y_axis()
-
-        # An empty data_series list means "uninitialized chart, bootstrap a
-        # default series from whatever the form currently shows". Since FIT
-        # entries live inline in data_series (#304), a chart converted to be
-        # all-fit (e.g. its only series was just turned into a manual fit
-        # via #298) is no longer "empty" here -- data_series still holds the
-        # fit -- so this check alone (with no separate fit_data emptiness
-        # check needed) already avoids silently recreating a duplicate
-        # series alongside it.
-        if not chart.data_series:
-            dataset_id = self.dataset_combo.currentData()
-            dataset_name = self.dataset_combo.currentText()
-            x_column_id = self.x_column_combo.currentData()
-            y_column_id = self.y_column_combo.currentData()
-            y_column_name = self.y_column_combo.currentText()
-            # Same reasoning as _add_series: a brand-new series always gets
-            # the chart's own default type, not whatever the combo happens
-            # to show (which tracks the selected existing series).
-            new_series_type = CHART_TYPE_SPECS[chart.chart_type].default_series_type
-            if dataset_id and x_column_id and y_column_id:
-                chart.add_data_series(
-                    dataset_id,
-                    x_column_id=x_column_id,
-                    y_column_id=y_column_id,
-                    label=f"{dataset_name}:{y_column_name}",
-                    y_axis=YAxis.PRIMARY if new_series_type == SeriesType.BOX else self.series_y_axis_control.currentValue(),
-                    series_type=new_series_type,
-                    style=build_series_style(
-                        new_series_type,
-                        error_bars=ErrorBarConfig(
-                            x_error_column_id=self.x_error_column_combo.currentData() or "",
-                            y_error_column_id=self.y_error_column_combo.currentData() or "",
-                            x_error_minus_column_id=self.x_error_minus_column_combo.currentData() or "",
-                            y_error_minus_column_id=self.y_error_minus_column_combo.currentData() or "",
-                            error_symmetric=not self.error_asymmetric_check.isChecked(),
-                        ),
-                        u_column_id=self.u_column_combo.currentData() or "",
-                        v_column_id=self.v_column_combo.currentData() or "",
-                        w_column_id=self.w_column_combo.currentData() or "",
-                        magnitude_column_id=self.magnitude_column_combo.currentData() or "",
-                        z_column_id=self.z_column_combo.currentData() or "",
-                        label_column_id=self.label_column_combo.currentData() or "",
-                    ),
-                )
 
     def clear(self):
         """Reset controls to neutral defaults without touching any chart."""

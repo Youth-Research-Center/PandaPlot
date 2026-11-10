@@ -7,6 +7,7 @@ with Excel-like keyboard navigation, editing behavior, and user interactions.
 
 import logging
 
+import shiboken6
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication, QHeaderView, QTableView
@@ -173,7 +174,8 @@ class DatasetTableView(QTableView):
         try:
             menu.exec(self.viewport().mapToGlobal(position))
         finally:
-            menu.deleteLater()
+            if shiboken6.isValid(menu):
+                menu.deleteLater()
     
     def _on_column_header_context_menu(self, position):
         """Handle right-click context menu on column headers."""
@@ -206,7 +208,8 @@ class DatasetTableView(QTableView):
         try:
             menu.exec(global_position)
         finally:
-            menu.deleteLater()
+            if shiboken6.isValid(menu):
+                menu.deleteLater()
     
     def _on_row_header_context_menu(self, position):
         """Handle right-click context menu on row headers."""
@@ -239,4 +242,5 @@ class DatasetTableView(QTableView):
         try:
             menu.exec(global_position)
         finally:
-            menu.deleteLater()
+            if shiboken6.isValid(menu):
+                menu.deleteLater()

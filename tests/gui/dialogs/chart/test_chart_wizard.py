@@ -2,7 +2,7 @@
 from unittest.mock import Mock
 
 import pytest
-from PySide6.QtWidgets import QApplication, QWizard
+from PySide6.QtWidgets import QApplication, QDialog, QPushButton, QWizard
 
 from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
 from pandaplot.models.events.event_types import DatasetEvents
@@ -395,21 +395,46 @@ def test_clicking_the_current_step_in_the_rail_does_nothing():
 
 def test_entering_the_labels_page_renders_a_preview():
     wizard = _make_wizard()
+    assert wizard.labels_page.preview_canvas is None
     wizard.next()
     wizard.next()  # Data -> Labels: triggers the initial preview render
 
-    assert wizard.labels_page.preview_canvas is not None
+    # No dataset can be resolved here, so the preview shows the chart type's sample line.
+    axes = wizard.labels_page.preview_canvas.axes
+    assert len(axes.lines) == 1
+    assert list(axes.lines[0].get_ydata()) == [2, 3, 1, 4, 3]
+
+    first_canvas = wizard.labels_page.preview_canvas
+    wizard.back()
+    wizard.next()  # re-entering the page re-renders into a fresh canvas
+
+    assert wizard.labels_page.preview_canvas is not first_canvas
+    assert len(wizard.labels_page.preview_canvas.axes.lines) == 1
 
 
-def test_cancelling_the_wizard_does_not_raise():
+def test_cancelling_the_wizard_rejects_it_and_leaves_the_step_rails_alone(qtbot):
     """Regression: QWizard's internal reset() (Cancel/Esc/window-close) emits
     currentIdChanged(-1); _on_page_changed used to key a dict on page_id
-    without guarding for -1, raising KeyError."""
+    without guarding for -1, raising KeyError.
+
+    qtbot makes pytest-qt fail the test for an exception raised inside a Qt
+    slot, which would otherwise only be printed, not propagated."""
     wizard = _make_wizard()
+    qtbot.addWidget(wizard)
+    wizard.next()
+    wizard.next()  # Data -> Labels: the rails show Type and Data as completed
+    rail_states = [(button.text(), button.property("stepState")) for button in wizard.labels_page.step_rail.findChildren(QPushButton)]
+    assert [state for _text, state in rail_states] == ["completed", "completed", "current"]
 
     wizard._on_page_changed(-1)  # exercises the real guard directly
 
+    assert [(button.text(), button.property("stepState")) for button in wizard.labels_page.step_rail.findChildren(QPushButton)] == rail_states
+
     wizard.reject()  # also exercise it via the actual Cancel/reset path
+
+    assert wizard.result() == QDialog.DialogCode.Rejected
+    assert wizard.currentId() == -1
+    assert [(button.text(), button.property("stepState")) for button in wizard.labels_page.step_rail.findChildren(QPushButton)] == rail_states
 
 
 def test_editing_title_live_updates_the_preview():

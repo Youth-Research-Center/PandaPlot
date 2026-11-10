@@ -45,6 +45,7 @@ from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
 )
@@ -64,10 +65,13 @@ from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import PANEL_TOPIC_CHART_SIGNAL
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.error_messages import describe_error
 
 
 class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     """Side panel for signal analysis operations on chart data/fit series."""
+
+    ICON_NAME = "waveform"
 
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
@@ -123,7 +127,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     @override
     def _init_ui(self):
         self._init_panel_layout()
-        self._set_title("📡 Chart Signal Analysis", help_topic=PANEL_TOPIC_CHART_SIGNAL)
+        self._set_title("Chart Signal Analysis", help_topic=PANEL_TOPIC_CHART_SIGNAL)
 
         content_widget = QWidget()
         layout = QVBoxLayout(content_widget)
@@ -212,6 +216,8 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         self.results_text = QTextEdit()
         self.results_text.setReadOnly(True)
         self.results_text.setPlaceholderText("Run analysis to see results...")
+        self.status_message = StatusMessage(self.app_context)
+        vbox.addWidget(self.status_message)
         vbox.addWidget(self.results_text)
 
         layout.addWidget(group)
@@ -452,19 +458,21 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
-                self.results_text.setText(f"❌ Analysis failed:\n{error}")
+                self._show_error(f"Analysis failed: {error}")
                 return
 
             self.last_result = result
             self._last_run_params = dispatch_params
             try:
-                self.results_text.setText(SignalPanel._format_result(result))
+                self.results_text.setPlainText(SignalPanel._format_result(result))
+                self.status_message.clear()
                 self.add_btn.setEnabled(True)
-            except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            except Exception as e:
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
-                self.results_text.setText(f"❌ Analysis failed:\n{e}")
+                self.logger.exception("Chart signal analysis panel failed to show the result")
+                self._show_error(f"Analysis failed: {describe_error(e).inline_text}")
 
         command.run_analysis_async(_on_complete)
 
@@ -503,7 +511,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 success = executor.execute_command(apply_command)
 
             if success:
-                self.results_text.append("\n\n✅ Results added to project")
+                self.status_message.set_message(StatusKind.SUCCESS, "Results added to project")
                 self.add_btn.setEnabled(False)
             else:
                 self.add_btn.setEnabled(True)
@@ -547,7 +555,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             elif result is CommandResult.SUCCESS:
                 self.last_result = command.result
                 self._last_run_params = current_params
-                self.results_text.append("\n\n✅ Results added to project")
+                self.status_message.set_message(StatusKind.SUCCESS, "Results added to project")
             else:
                 self.add_btn.setEnabled(True)  # let the user retry
 
@@ -597,9 +605,16 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 self._deferred_tab_change = None
                 self._on_tab_changed(deferred)
 
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.results_text
+
     def clear(self):
         if hasattr(self, "results_text"):
             self.results_text.clear()
+        if hasattr(self, "status_message"):
+            self.status_message.clear()
 
         self.last_result = None
         self._last_run_params = None
@@ -733,7 +748,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self._generation += 1
             if hasattr(self, "add_btn"):
                 self.add_btn.setEnabled(False)
-        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
+        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart, app_context=self.app_context)
         # A tab switch while a Run/Add-to-Project computation is still in
         # flight (for whatever chart/source was previously selected) must
         # not re-enable the Run button -- _pending_command's own guard would
@@ -744,7 +759,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             series_source_hint(has_sources=has_sources, any_series_excluded=any_series_excluded)
         )
         project = self.app_context.get_app_state().current_project
-        populate_chart_target_combo(self.plot_target_combo, project)
+        populate_chart_target_combo(self.plot_target_combo, project, app_context=self.app_context)
         self._update_quick_plot_compatibility(has_sources=has_sources)
         self._on_source_changed()
 
@@ -761,7 +776,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     def _refresh_chart_references(self):
         project = self.app_context.get_app_state().current_project
-        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project)
+        refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project, app_context=self.app_context)
 
     def _on_tab_changed(self, event_data):
         if self._pending_quick_plot:
@@ -840,6 +855,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     @override
     def _apply_theme(self):
+        self._retint_source_combos()
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         tokens = theme_manager.get_design_tokens()
@@ -873,6 +889,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         """)
 
         self._apply_title_theme(base_fg, card_border)
+        self.status_message.retint()
 
         self.source_hint.setStyleSheet(
             f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"

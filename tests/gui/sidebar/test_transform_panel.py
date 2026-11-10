@@ -8,12 +8,16 @@ go unnoticed. These tests just build the panel and check the buttons exist.
 from unittest.mock import Mock
 
 import pytest
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtWidgets import QApplication, QToolButton
 
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.transform.transform_panel import TransformPanel
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.state.app_context import AppContext
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -26,7 +30,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     return ctx
 
 
@@ -36,9 +40,18 @@ def transform_panel(app_context):
 
 
 def test_transform_panel_constructs_with_expected_buttons(transform_panel):
-    assert isinstance(transform_panel.apply_btn, PButton)
-    assert isinstance(transform_panel.clear_btn, PButton)
-    assert isinstance(transform_panel.preview_btn, PButton)
+    # Apply needs a dataset and a column, so it starts disabled; Preview stays clickable and reports that no data is available.
+    expected = [
+        (transform_panel.apply_btn, "Apply", "primary", False),
+        (transform_panel.clear_btn, "Clear", "secondary", True),
+        (transform_panel.preview_btn, "Preview", "secondary", True),
+    ]
+    for button, text, role, enabled in expected:
+        assert isinstance(button, PButton)
+        assert button.text() == text
+        assert button.property(role) is True
+        assert button.isEnabled() is enabled
+        assert button.receivers("2clicked(bool)") == 1
 
 
 def test_preview_button_click_invokes_update_preview(transform_panel):
@@ -54,9 +67,11 @@ def test_controller_transform_failed_surfaces_message_in_preview(transform_panel
         "dataset-1", "Column 'a_x2' already exists. Choose a different name or enable replace option."
     )
 
-    assert transform_panel.preview_text.toPlainText() == (
-        "⚠ Transform failed: Column 'a_x2' already exists. Choose a different name or enable replace option."
+    assert transform_panel.status_message.message() == (
+        "Transform failed: Column 'a_x2' already exists. Choose a different name or enable replace option."
     )
+    assert transform_panel.status_message.kind() is StatusKind.ERROR
+    assert transform_panel.preview_text.toPlainText() == ""
 
 
 def test_on_dataset_renamed_refreshes_label_for_active_dataset(transform_panel):
@@ -93,7 +108,43 @@ def test_apply_transform_generic_failure_surfaces_message_when_no_signal_fired(t
 
     transform_panel.apply_transform()
 
-    assert transform_panel.preview_text.toPlainText() == "⚠ Transform failed - see logs for details"
+    assert transform_panel.status_message.message() == "Transform failed - see logs for details"
+
+    assert transform_panel.status_message.kind() is StatusKind.ERROR
+
+    assert transform_panel.preview_text.toPlainText() == ""
+
+
+def test_preview_failure_from_the_controller_is_shown_in_plain_language(transform_panel):
+    transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+    transform_panel._populate_column_list(["a"])
+    transform_panel.source_column_list.item(0).setSelected(True)
+    transform_panel.function_text.setPlainText("x * 2")
+    transform_panel.transform_controller.create_preview = Mock(side_effect=ZeroDivisionError("division by zero"))
+
+    transform_panel.update_preview()
+
+    assert transform_panel.status_message.kind() is StatusKind.ERROR
+    text = transform_panel.status_message.message()
+    assert text.startswith("Preview error: The calculation produced a value that is too large or undefined for this data.")
+    assert "ZeroDivisionError" not in text
+    assert "division by zero" not in text
+
+
+def test_apply_transform_exception_is_shown_in_plain_language(transform_panel):
+    transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+    transform_panel._populate_column_list(["a"])
+    transform_panel.source_column_list.item(0).setSelected(True)
+    transform_panel.new_column_name.setText("b")
+    transform_panel.function_text.setPlainText("x * 2")
+    transform_panel.transform_controller.apply_transformation = Mock(side_effect=MemoryError("boom"))
+
+    transform_panel.apply_transform()
+
+    assert transform_panel.status_message.kind() is StatusKind.ERROR
+    text = transform_panel.status_message.message()
+    assert text.startswith("Transform failed: There is not enough memory for this.")
+    assert "boom" not in text
 
 
 class TestApplyValidationFeedback:
@@ -109,7 +160,11 @@ class TestApplyValidationFeedback:
 
         transform_panel.apply_transform()
 
-        assert transform_panel.preview_text.toPlainText() == "⚠ No dataset selected."
+        assert transform_panel.status_message.message() == "No dataset selected."
+
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
+
+        assert transform_panel.preview_text.toPlainText() == ""
 
     def test_no_source_column_selected_writes_a_visible_message(self, transform_panel):
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
@@ -118,7 +173,11 @@ class TestApplyValidationFeedback:
 
         transform_panel.apply_transform()
 
-        assert transform_panel.preview_text.toPlainText() == "⚠ Select a source column before applying."
+        assert transform_panel.status_message.message() == "Select a source column before applying."
+
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
+
+        assert transform_panel.preview_text.toPlainText() == ""
 
     def test_empty_new_column_name_writes_a_visible_message(self, transform_panel):
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
@@ -131,7 +190,11 @@ class TestApplyValidationFeedback:
 
         transform_panel.apply_transform()
 
-        assert transform_panel.preview_text.toPlainText() == "⚠ Enter a name for the new column before applying."
+        assert transform_panel.status_message.message() == "Enter a name for the new column before applying."
+
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
+
+        assert transform_panel.preview_text.toPlainText() == ""
 
     def test_empty_function_writes_a_visible_message(self, transform_panel):
         transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
@@ -142,7 +205,11 @@ class TestApplyValidationFeedback:
 
         transform_panel.apply_transform()
 
-        assert transform_panel.preview_text.toPlainText() == "⚠ Enter a function before applying."
+        assert transform_panel.status_message.message() == "Enter a function before applying."
+
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
+
+        assert transform_panel.preview_text.toPlainText() == ""
 
     def test_missing_dataset_id_writes_a_visible_message(self, transform_panel):
         transform_panel.current_dataset = Mock(id=None, data=Mock(columns=["a"]))
@@ -153,7 +220,11 @@ class TestApplyValidationFeedback:
 
         transform_panel.apply_transform()
 
-        assert transform_panel.preview_text.toPlainText() == "⚠ Selected dataset is unavailable. Try reselecting it."
+        assert transform_panel.status_message.message() == "Selected dataset is unavailable. Try reselecting it."
+
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
+
+        assert transform_panel.preview_text.toPlainText() == ""
 
     def test_preview_with_missing_dataset_id_writes_the_same_message(self, transform_panel):
         transform_panel.current_dataset = Mock(id=None, data=Mock(columns=["a"]))
@@ -163,7 +234,11 @@ class TestApplyValidationFeedback:
 
         transform_panel.update_preview()
 
-        assert transform_panel.preview_text.toPlainText() == "⚠ Selected dataset is unavailable. Try reselecting it."
+        assert transform_panel.status_message.message() == "Selected dataset is unavailable. Try reselecting it."
+
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
+
+        assert transform_panel.preview_text.toPlainText() == ""
         assert transform_panel._preview_has_error is True
 
 
@@ -236,6 +311,57 @@ class TestPreviewErrorStyling:
 
         assert transform_panel._preview_has_error is False
         assert transform_panel.preview_text.toPlainText() == ""
+        assert transform_panel.status_message.message() == ""
+
+
+class TestPreviewStatusMessage:
+    """Errors show through the panel's status_message (icon + text); ordinary previews stay in the text area."""
+
+    def test_status_message_sits_directly_above_the_preview_text(self, transform_panel):
+        layout = transform_panel.preview_text.parentWidget().layout()
+
+        assert layout.indexOf(transform_panel.status_message) == layout.indexOf(transform_panel.preview_text) - 1
+
+    def test_an_error_message_replaces_the_preview_text(self, transform_panel):
+        transform_panel.preview_text.setPlainText("old preview")
+
+        transform_panel._set_preview_message("Something broke", is_error=True)
+
+        assert transform_panel.status_message.message() == "Something broke"
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
+        assert transform_panel.preview_text.toPlainText() == ""
+
+    def test_an_ordinary_message_goes_to_the_text_area_and_clears_the_status(self, transform_panel):
+        transform_panel._set_preview_message("Something broke", is_error=True)
+
+        transform_panel._set_preview_message("Enter a function to preview")
+
+        assert transform_panel.status_message.message() == ""
+        assert transform_panel.status_message.kind() is None
+        assert transform_panel.preview_text.toPlainText() == "Enter a function to preview"
+        assert transform_panel._preview_has_error is False
+
+    def test_error_text_is_not_recoloured(self, transform_panel):
+        transform_panel._set_preview_message("Something broke", is_error=True)
+
+        assert "status_danger" not in transform_panel.preview_text.styleSheet()
+        assert "#DC3545" not in transform_panel.preview_text.styleSheet()
+
+    def test_clear_panel_clears_the_status_message(self, transform_panel):
+        transform_panel._set_preview_message("Something broke", is_error=True)
+
+        transform_panel.clear_panel()
+
+        assert transform_panel.status_message.message() == ""
+
+    def test_theme_change_retints_the_status_icon(self, transform_panel, app_context):
+        transform_panel._set_preview_message("Something broke", is_error=True)
+        app_context.get_manager.return_value.get_design_tokens.return_value["status_danger"] = "#00AA00"
+
+        transform_panel._apply_theme()
+
+        icon = transform_panel.status_message.findChild(IconLabel)
+        assert_tinted(strongest_pixel(icon.pixmap()), "#00AA00")
 
 
 class TestApplyButtonEnablement:
@@ -533,3 +659,37 @@ def test_int_column_labels_are_listed_and_follow_renames(transform_panel, app_co
     dataset.data.rename(columns={"y2020": 2020}, inplace=True)  # undo
     handler({"dataset_id": "dataset-1", "old_name": "y2020", "new_name": 2020})
     assert transform_panel.get_selected_columns() == [2020]
+
+
+def _function_icon_image(app_context):
+    return themed_icon(app_context, "function").pixmap(QSize(16, 16)).toImage()
+
+
+def test_insert_function_button_is_text_with_a_function_icon_and_still_opens_its_menu(transform_panel, app_context):
+    button = transform_panel.insert_function_btn
+
+    assert button.text() == "Insert function"
+    assert button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+    assert button.popupMode() == QToolButton.ToolButtonPopupMode.InstantPopup
+    assert button.icon().pixmap(QSize(16, 16)).toImage() == _function_icon_image(app_context)
+    assert button.menu() is not None
+    assert any(action.menu() for action in button.menu().actions())
+
+
+def test_insert_function_icon_retints_when_the_theme_changes(transform_panel, app_context):
+    tokens = app_context.get_manager.return_value.get_design_tokens.return_value
+    before = transform_panel.insert_function_btn.icon().pixmap(QSize(16, 16)).toImage()
+    app_context.get_manager.return_value.get_design_tokens.return_value = {**tokens, "text_primary": "#E2E2E2", "text_disabled": "#5B6270"}
+
+    transform_panel._apply_theme()
+
+    after = transform_panel.insert_function_btn.icon().pixmap(QSize(16, 16)).toImage()
+    assert after != before
+    assert after == _function_icon_image(app_context)
+
+
+def test_function_placeholder_points_to_the_insert_function_button_without_its_glyphs(transform_panel):
+    placeholder = transform_panel.function_text.placeholderText()
+
+    assert "Or pick one from 'Insert function' above." in placeholder
+    assert "▾" not in placeholder

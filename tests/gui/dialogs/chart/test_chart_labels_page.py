@@ -2,7 +2,7 @@
 from unittest.mock import Mock
 
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 from pandaplot.gui.dialogs.chart.chart_labels_page import ChartLabelsPage
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -144,17 +144,40 @@ def test_legend_and_grid_toggles_are_independent():
     assert page.get_show_grid() is True
 
 
-def test_page_exposes_a_step_rail_and_footer_with_no_empty_link():
+def test_page_shows_the_wizard_step_rail_and_the_step_3_footer():
     page = ChartLabelsPage(app_context=_fake_app_context())
 
-    assert page.step_rail is not None
-    assert page.footer is not None
-    assert page.footer.empty_link is None  # step 3: no "Create empty plot" link
+    assert [button.text() for button in page.step_rail.findChildren(QPushButton)] == ["Type", "Data", "Labels"]
+    footer = page.footer
+    assert footer.step_label.text() == "Step 3 of 3"
+    assert footer.empty_link is None  # step 3: no "Create empty plot" link
+    assert footer.back_button.isVisibleTo(page) is True
+    assert footer.next_button.isVisibleTo(page) is False  # the last step finishes instead
+    assert footer.finish_button.isVisibleTo(page) is True
 
 
-def test_refresh_preview_does_not_raise_with_no_project_or_series():
+def test_refresh_preview_with_no_project_or_series_falls_back_to_the_sample_chart():
     page = ChartLabelsPage(app_context=_fake_app_context())
+    page.set_defaults("My title", "Date", "Revenue")
+    assert page.preview_canvas is None
 
-    page.refresh_preview(project=None, chart_type="line", series_configs=[])  # must not raise
+    page.refresh_preview(project=None, chart_type="line", series_configs=[])
 
-    assert page.preview_canvas is not None
+    axes = page.preview_canvas.axes
+    # One sample line, drawn from the same sample data the Type step previews.
+    assert len(axes.lines) == 1
+    assert list(axes.lines[0].get_xdata()) == [1, 2, 3, 4, 5]
+    assert list(axes.lines[0].get_ydata()) == [2, 3, 1, 4, 3]
+    assert axes.get_title() == "My title"
+    assert axes.get_xlabel() == "Date"
+    assert axes.get_ylabel() == "Revenue"
+    assert axes.get_legend() is None  # the sample line carries no label
+    assert axes.xaxis.get_gridlines()[0].get_visible() is True
+
+    previous_canvas = page.preview_canvas
+    page.show_grid_toggle.setChecked(checked=False)  # re-renders from the cached arguments
+
+    assert page.preview_canvas is not previous_canvas
+    assert len(page.preview_canvas.axes.lines) == 1
+    assert page.preview_canvas.axes.get_title() == "My title"
+    assert page.preview_canvas.axes.xaxis.get_gridlines()[0].get_visible() is False

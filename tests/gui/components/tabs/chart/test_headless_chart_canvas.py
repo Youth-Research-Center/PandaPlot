@@ -1,6 +1,8 @@
 """HeadlessChartCanvas must expose the same narrow interface
 ChartCanvas does for everything render_chart() touches, without any Qt
 widget -- so it's safe to construct and use on a background thread."""
+import struct
+
 from pandaplot.gui.components.tabs.chart.headless_chart_canvas import HeadlessChartCanvas
 
 
@@ -38,12 +40,15 @@ def test_set_size_and_set_dpi_do_not_raise():
 
 def test_savefig_produces_png_bytes():
     import io
-    canvas = HeadlessChartCanvas()
+    canvas = HeadlessChartCanvas(width=6, height=4)
     canvas.axes.plot([1, 2, 3], [1, 4, 9])
     canvas.draw()
     buf = io.BytesIO()
     canvas.fig.savefig(buf, format="png", dpi=100)
-    assert len(buf.getvalue()) > 0
+    png = buf.getvalue()
+    assert png.startswith(b"\x89PNG\r\n\x1a\n")
+    # The IHDR chunk follows the signature and records the pixel size: figsize * dpi.
+    assert struct.unpack(">II", png[16:24]) == (600, 400)
 
 
 def test_axes2_branch_in_store_original_limits_and_set_projection():

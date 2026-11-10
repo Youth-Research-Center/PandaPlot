@@ -51,7 +51,7 @@ def test_load_project_raises_on_unsupported_extension(manager, data_manager, tmp
     wrong_ext = tmp_path / "sample.txt"
     wrong_ext.write_text("hello")
 
-    with pytest.raises(ValueError, match="Unsupported file format"):
+    with pytest.raises(ValueError, match="Unsupported project file type"):
         manager.load_project(str(wrong_ext))
     data_manager.load.assert_not_called()
 
@@ -79,7 +79,7 @@ def test_save_project_raises_on_unsupported_extension(manager, data_manager, tmp
     project = Project(name="P")
     file_path = tmp_path / "out.json"
 
-    with pytest.raises(ValueError, match="Unsupported file format"):
+    with pytest.raises(ValueError, match="Unsupported project file type"):
         manager.save_project(project, str(file_path))
     data_manager.save.assert_not_called()
 

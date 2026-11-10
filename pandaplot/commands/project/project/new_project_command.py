@@ -96,10 +96,8 @@ class NewProjectCommand(Command):
             )
             return CommandResult.SUCCESS
         except Exception as e:
-            error_msg = f"Failed to create new project: {e}"
-            self.logger.exception("NewProjectCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message(
-                "New Project Error", error_msg)
+            self.logger.exception("Failed to create new project")
+            self.ui_controller.show_error_message("New Project Error", "Couldn't create the project.", error=e)
             raise
 
     def undo(self) -> CommandResult:
@@ -147,9 +145,8 @@ class NewProjectCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to undo new project: {e}"
-            self.logger.exception("NewProjectCommand Undo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.logger.exception("Failed to undo new project")
+            self.ui_controller.show_error_message("Undo Error", "Couldn't undo creating the project.", error=e)
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
@@ -205,9 +202,8 @@ class NewProjectCommand(Command):
             )
             return CommandResult.SUCCESS
         except Exception as e:
-            error_msg = f"Failed to redo new project: {e}"
-            self.logger.exception("NewProjectCommand Redo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Redo Error", error_msg)
+            self.logger.exception("Failed to redo new project")
+            self.ui_controller.show_error_message("Redo Error", "Couldn't redo creating the project.", error=e)
             return CommandResult.FAILURE
 
     @override

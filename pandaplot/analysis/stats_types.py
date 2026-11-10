@@ -57,7 +57,7 @@ class StatTestInfo:
     uses_equal_var: bool = False
     description: str = ""
     assumptions: str = ""
-    # Learning-oriented content surfaced by the "ℹ️" info button.
+    # Learning-oriented content surfaced by the info button.
     explanation: str = ""  # A fuller, plain-language explanation of the test.
     formula: str = ""  # The test statistic, written in simple notation with a legend.
     example: str = ""  # A concrete worked scenario and how to read the result.

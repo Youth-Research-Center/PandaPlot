@@ -58,7 +58,7 @@ Hierarchical tree view of all project items. Subscribes to:
 
 Double-clicking an item opens it in a tab.
 
-Each label is the item type's emoji prefix plus the name (e.g. `✏️ Diagram` for a sketch). The prefixes live in one map, `utils/item_labels.py` (`ITEM_TYPE_PREFIXES`); build labels with `item_label(item_type, name)` and remove the prefix with `strip_item_prefix(label)`, never by slicing, because some prefixes are two characters (an emoji plus a variation selector).
+Each label is the plain item name; the item type is shown by an icon from the bundled set. The type-to-icon map lives in `gui/resources/item_icons.py` (`ITEM_TYPE_ICON_NAMES`); build the icon with `item_icon(app_context, item_type)`. `ProjectTreeManager.retint_icons()` re-renders the icons when the theme changes.
 
 ## TabContainer (`gui/components/tabs/`)
 

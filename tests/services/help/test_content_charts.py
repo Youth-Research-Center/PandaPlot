@@ -59,7 +59,7 @@ def test_view_topic_warns_reset_cannot_be_undone(catalog: HelpCatalog) -> None:
     text = _all_text(catalog.get(CHART_TOPIC_VIEW)).lower()
 
     assert "cannot be undone" in text or "can't be undone" in text
-    assert "🔄 Reset" in _all_text(catalog.get(CHART_TOPIC_VIEW))
+    assert '"Reset" puts all chart-level settings back to their defaults' in _all_text(catalog.get(CHART_TOPIC_VIEW))
 
 
 def test_save_image_topic_names_save_dpi_and_size_without_export_command(catalog: HelpCatalog) -> None:

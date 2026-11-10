@@ -27,14 +27,17 @@ from PySide6.QtWidgets import (
 
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.gui.components.sidebar.transform.transform_controller import TransformController
+from pandaplot.gui.resources.themed_icons import ActionIcons
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import PANEL_TOPIC_TRANSFORM
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.error_messages import describe_error
 
 
 class TransformPanel(SidebarPanel):
@@ -43,12 +46,15 @@ class TransformPanel(SidebarPanel):
     Designed for sidebar integration with conditional visibility.
     """
 
+    ICON_NAME = "wrench"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None=None):
-        # Set before self._initialize() below -- that call runs _init_ui()
-        # then _apply_theme(), and _apply_theme() needs this to style
-        # preview_text correctly on the very first render.
+        # Set before self._initialize() below, whose _init_ui() can reach
+        # _update_apply_enabled(), which reads it.
         self._preview_has_error = False
         super().__init__(app_context=app_context, parent=parent)
+        # Must exist before _initialize() builds the toolbar, which binds its icon.
+        self._icons = ActionIcons(app_context)
         self.current_dataset_tab = None
         self.current_dataset = None
         self._last_transform_error: str | None = None
@@ -77,7 +83,7 @@ class TransformPanel(SidebarPanel):
         self._init_panel_layout()
 
         # Panel title
-        self._set_title("🔧 Transform Operations", help_topic=PANEL_TOPIC_TRANSFORM)
+        self._set_title("Transform Operations", help_topic=PANEL_TOPIC_TRANSFORM)
 
         # Content widget
         content_widget = QWidget()
@@ -112,6 +118,7 @@ class TransformPanel(SidebarPanel):
     @override
     def _apply_theme(self):
         """Apply current theme to transform panel components."""
+        self._icons.retint()
         # Get theme colors
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
@@ -166,10 +173,8 @@ class TransformPanel(SidebarPanel):
             }}
         """)
         
-        # Style preview text area, preserving whatever error state it's
-        # currently in (see _style_preview_text) so a theme switch doesn't
-        # wipe a validation error's color along with the rest of the QSS.
-        self._style_preview_text(is_error=self._preview_has_error)
+        self._style_preview_text()
+        self.status_message.retint()
 
     def create_header_section(self, layout):
         """Create header section showing current dataset info."""
@@ -260,7 +265,9 @@ class TransformPanel(SidebarPanel):
         toolbar_layout = QHBoxLayout()
 
         self.insert_function_btn = QToolButton()
-        self.insert_function_btn.setText("ƒ  Insert function ▾")
+        self.insert_function_btn.setText("Insert function")
+        self.insert_function_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._icons.bind(self.insert_function_btn, "function")
         self.insert_function_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.insert_function_btn.setMenu(self._build_function_menu())
 
@@ -283,7 +290,7 @@ class TransformPanel(SidebarPanel):
             "  x * 2            (double the values)\n"
             "  (x - x.mean()) / x.std()   (z-score)\n"
             "  np.sqrt(x)       (square root)\n"
-            "Or pick one from 'Insert function ▾' above."
+            "Or pick one from 'Insert function' above."
         )
         function_layout.addWidget(self.function_text)
 
@@ -348,7 +355,10 @@ class TransformPanel(SidebarPanel):
         preview_controls.addWidget(self.preview_rows_combo)
         preview_controls.addStretch()
         
+        self.status_message = StatusMessage(self.app_context)
+
         preview_layout.addLayout(preview_controls)
+        preview_layout.addWidget(self.status_message)
         preview_layout.addWidget(self.preview_text)
         
         layout.addWidget(preview_group)
@@ -511,33 +521,33 @@ class TransformPanel(SidebarPanel):
             and bool(self.function_text.toPlainText().strip())
         )
         self.apply_btn.setEnabled(ready)
-        # A prior validation/transform error should not linger, un-styled but
-        # still displayed and now potentially inaccurate (e.g. "select a
+        # A prior validation/transform error should not linger, still
+        # displayed and now potentially inaccurate (e.g. "select a
         # source column" after one has just been selected), once the user
         # has actually changed one of the fields it complained about. Guard
-        # on _preview_has_error so an unrelated keystroke doesn't re-style
-        # and clear a message that was never an error to begin with.
+        # on _preview_has_error so an unrelated keystroke doesn't clear
+        # a preview that was never an error to begin with.
         if self._preview_has_error:
-            self.preview_text.clear()
-            self._style_preview_text(is_error=False)
+            self._clear_preview_message()
 
-    def _style_preview_text(self, *, is_error: bool):
-        """(Re)apply preview_text's themed QSS -- background, border, font,
-        padding -- swapping only the foreground color for the danger token
-        when `is_error`. A bare setStyleSheet("") or a color-only rule would
-        instead replace the whole stylesheet _apply_theme() installs,
-        dropping the border/background/padding along with it."""
-        self._preview_has_error = is_error
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.preview_text
+
+    def _clear_preview_message(self):
+        """Empty the preview text and the status message above it, and forget any error."""
+        self._preview_has_error = False
+        self.preview_text.clear()
+        self.status_message.clear()
+
+    def _style_preview_text(self):
+        """(Re)apply preview_text's themed QSS -- background, border, font and padding."""
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         card_bg = palette.get("card_bg", "#ffffff")
         card_border = palette.get("card_border", "#dee2e6")
-        base_fg = palette.get("base_fg", "#333333")
-        if is_error:
-            tokens = theme_manager.get_design_tokens()
-            color = tokens.get("status_danger", "#DC3545")
-        else:
-            color = base_fg
+        color = palette.get("base_fg", "#333333")
         self.preview_text.setStyleSheet(f"""
             QTextEdit {{
                 background-color: {card_bg};
@@ -550,16 +560,22 @@ class TransformPanel(SidebarPanel):
         """)
 
     def _set_preview_message(self, message: str, *, is_error: bool = False):
-        """Write a message to preview_text, visually marking error states
-        (#227) so a validation failure or transform error is obvious at a
-        glance rather than looking like any other preview text -- errors get
-        a leading warning icon and the theme's danger color, mirroring the
-        red-text treatment fit_panel.py already uses for its own validation
-        errors."""
-        self._style_preview_text(is_error=is_error)
+        """Show a message in the panel's preview area.
+
+        A validation failure or transform error (#227) is shown through `status_message` as an
+        error, so it is obvious at a glance rather than looking like any other preview text.
+        Anything else is written to preview_text.
+
+        Args:
+            message: The text to show.
+            is_error: Whether the message reports a validation failure or a failed preview or transform.
+        """
+        self._preview_has_error = is_error
         if is_error:
-            message = f"⚠ {message}"
-        self.preview_text.setPlainText(message)
+            self._show_status(StatusKind.ERROR, message)
+        else:
+            self.status_message.clear()
+            self.preview_text.setPlainText(message)
 
     def on_transform_type_changed(self, transform_type: str):
         """Handle transform type selection change."""
@@ -676,14 +692,15 @@ class TransformPanel(SidebarPanel):
 
             # Preview updated - could publish preview event if needed
 
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self._set_preview_message(f"Preview error: {e!s}", is_error=True)
+        except Exception as e:
+            self.logger.exception("TransformPanel: preview failed")
+            self._set_preview_message(f"Preview error: {describe_error(e).inline_text}", is_error=True)
     
     def apply_transform(self):
         """Apply the transformation to the dataset.
 
-        Each early-return validation branch also writes a clear message to
-        preview_text (#227), mirroring update_preview()'s existing pattern --
+        Each early-return validation branch also shows a clear message through
+        status_message (#227), mirroring update_preview()'s existing pattern --
         previously these only logged a warning, so clicking Apply without
         first clicking Preview (e.g. an empty function box) silently did
         nothing visible at all. With the Apply button now disabled until
@@ -748,20 +765,20 @@ class TransformPanel(SidebarPanel):
             else:
                 self.logger.error("TransformPanel: transform failed - see logs for details")
                 # transform_controller.transform_failed is emitted synchronously and
-                # already wrote the specific message to preview_text; fall back to a
+                # already showed the specific message in status_message; fall back to a
                 # generic one only if that signal wasn't the source of the failure.
                 if not self._last_transform_error:
                     self._set_preview_message("Transform failed - see logs for details", is_error=True)
 
         except Exception as e:
             self.logger.exception("TransformPanel: transform failed")
-            self._set_preview_message(f"Transform failed: {e}", is_error=True)
+            self._set_preview_message(f"Transform failed: {describe_error(e).inline_text}", is_error=True)
     
     def clear_panel(self):
         """Reset panel to initial state."""
         self.function_text.clear()
         self.new_column_name.clear()
-        self.preview_text.clear()
+        self._clear_preview_message()
         self.replace_column_check.setChecked(False)
         self.formula_column_check.setChecked(False)
         self.live_recompute_check.setChecked(False)
@@ -809,8 +826,7 @@ class TransformPanel(SidebarPanel):
             # The `x` column is gone. Deselect rather than let a "(not used)" column
             # silently become `x`, and drop the preview, which described the old source.
             self.source_column_list.clearSelection()
-            self.preview_text.clear()
-            self._style_preview_text(is_error=False)
+            self._clear_preview_message()
 
     def on_dataset_renamed(self, event_data):
         """Refresh the dataset name label when the active dataset is renamed."""

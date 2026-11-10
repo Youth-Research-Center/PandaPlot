@@ -4,6 +4,7 @@ from unittest.mock import Mock
 import numpy as np
 import pandas as pd
 import pytest
+from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.composite_command import CompositeCommand
@@ -11,9 +12,13 @@ from pandaplot.commands.project.chart import AddAnalysisSeriesCommand, CreateCha
 from pandaplot.commands.project.chart.analyze_chart_series_command import (
     AnalyzeChartSeriesCommand,
 )
+from pandaplot.gui.components.common.icon_label import IconLabel
+from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.chart_analysis.chart_analysis_panel import (
     ChartAnalysisPanel,
 )
+from pandaplot.gui.resources.item_icons import item_icon
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.chart.chart_type import ChartType
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_type import SeriesType
@@ -22,6 +27,12 @@ from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+
+
+def same_pixels(first, second) -> bool:
+    size = QSize(16, 16)
+    return first.pixmap(size).toImage() == second.pixmap(size).toImage()
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -50,7 +61,7 @@ def project():
 def app_context(project):
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     app_state = Mock(spec=AppState)
     app_state.current_project = project
     ctx.get_app_state.return_value = app_state
@@ -213,8 +224,52 @@ class TestChartAnalysisPanelQuickPlot:
         assert panel.plot_result_cb.isEnabled() is True
 
     def test_destination_combo_defaults_to_new_chart(self, panel):
-        assert panel.plot_target_combo.itemText(0) == "➕ New chart"
+        assert panel.plot_target_combo.itemText(0) == "New chart"
         assert panel.plot_target_combo.currentData() is None
+
+    def test_new_chart_destination_has_the_plus_icon(self, panel, app_context):
+        assert same_pixels(panel.plot_target_combo.itemIcon(0), themed_icon(app_context, "plus"))
+
+    def test_source_entries_are_plain_labels_with_the_series_and_fit_icons(self, panel, app_context):
+        panel.current_chart.add_fit_series(
+            "ds-1", x_data=np.array([1.0, 2.0, 3.0]), y_data=np.array([1.0, 2.0, 3.0]),
+            label="Fit 1", style=FitStyle(fit_type="linear"),
+        )
+        panel._populate_sources()
+
+        combo = panel.source_combo
+        assert [combo.itemText(i) for i in range(combo.count())] == ["Squared", "Fit 1  (fit)"]
+        assert same_pixels(combo.itemIcon(0), item_icon(app_context, "chart"))
+        assert same_pixels(combo.itemIcon(1), themed_icon(app_context, "waveform"))
+
+    def test_preview_header_and_placeholder_use_the_plain_source_label(self, panel):
+        panel.preview()
+
+        assert "Series: Squared" in panel.preview_text.toPlainText()
+        assert panel.result_name.placeholderText().endswith("— Squared")
+
+    def test_apply_theme_retints_the_combo_icons(self, panel, app_context):
+        tokens = app_context.get_manager.return_value.get_design_tokens.return_value
+        tokens["text_primary"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.plot_target_combo.itemIcon(0)), "#00AA00")
+        assert_tinted(strongest_pixel(panel.source_combo.itemIcon(0)), "#00AA00")
+
+    def test_apply_theme_keeps_the_combo_selection_and_emits_no_index_change(self, panel):
+        combos = [panel.source_combo, panel.plot_target_combo]
+        for combo in combos:
+            combo.setCurrentIndex(combo.count() - 1)
+        selection = [(combo.currentIndex(), combo.currentData()) for combo in combos]
+        changes = []
+        for combo in combos:
+            combo.currentIndexChanged.connect(changes.append)
+
+        panel._apply_theme()
+
+        assert [(combo.currentIndex(), combo.currentData()) for combo in combos] == selection
+        assert changes == []
 
     def test_plot_target_row_hides_when_checkbox_unchecked(self, panel):
         assert panel.plot_target_row.isVisibleTo(panel) is True
@@ -237,7 +292,7 @@ class TestChartAnalysisPanelQuickPlot:
         panel._populate_sources()
 
         labels = [panel.plot_target_combo.itemText(i) for i in range(panel.plot_target_combo.count())]
-        assert labels == ["➕ New chart"]
+        assert labels == ["New chart"]
 
     def test_compatible_other_chart_is_offered_in_the_destination_combo(self, panel, project):
         other_chart = Chart(id="chart-2", name="Other", chart_type=ChartType.LINE)
@@ -373,8 +428,114 @@ class TestChartAnalysisPanelQuickPlot:
         executor.execute_command.return_value = True
 
         panel.plot_result_cb.setChecked(False)
+        panel.result_name.setText("  My result  ")
         panel.apply()
 
-        assert executor.execute_command.called
+        executor.execute_command.assert_called_once()
         cmd = executor.execute_command.call_args[0][0]
-        assert isinstance(cmd, AnalyzeChartSeriesCommand)
+        assert type(cmd) is AnalyzeChartSeriesCommand
+        assert cmd.chart_id == "chart-1"
+        assert cmd.source_index == panel._selected_source()
+        assert cmd.analysis_type == panel.operation_combo.currentData()
+        assert cmd.parameters == panel._build_parameters()
+        assert cmd.result_name == "My result"
+        assert cmd.folder_id == panel.current_chart.parent_id
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+
+
+class TestChartAnalysisPanelStatusMessage:
+    def test_status_message_sits_directly_above_the_preview_text(self, panel):
+        layout = panel.preview_text.parentWidget().layout()
+
+        assert layout.indexOf(panel.status_message) == layout.indexOf(panel.preview_text) - 1
+        assert panel.status_message.isHidden()
+
+    def test_preview_without_a_series_is_an_error_status(self, app_context):
+        panel = ChartAnalysisPanel(app_context)
+
+        panel.preview()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Select a series to analyze."
+        assert panel.preview_text.toPlainText() == ""
+
+    def test_apply_without_a_series_is_an_error_status(self, app_context):
+        panel = ChartAnalysisPanel(app_context)
+
+        panel.apply()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Select a series to analyze."
+
+    def test_preview_error_is_an_error_status(self, panel, monkeypatch):
+        monkeypatch.setattr(AnalyzeChartSeriesCommand, "run_analysis", Mock(side_effect=ValueError("bad <b>input</b>")))
+
+        panel.preview()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Preview error: bad <b>input</b>"
+        assert panel.preview_text.toPlainText() == ""
+
+    def test_a_successful_preview_clears_an_earlier_status(self, panel):
+        panel.status_message.set_message(StatusKind.ERROR, "old")
+
+        panel.preview()
+
+        assert panel.status_message.message() == ""
+        assert "Series: Squared" in panel.preview_text.toPlainText()
+
+    def test_apply_failure_is_an_error_status(self, panel, app_context):
+        app_context.get_command_executor.return_value.execute_command.return_value = False
+
+        panel.apply()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Could not analyze the series. See the log for details."
+
+    def test_apply_success_on_a_new_chart_keeps_the_plot_note_in_the_text_area(self, panel, app_context):
+        app_context.get_command_executor.return_value.execute_command.return_value = True
+
+        panel.apply()
+
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Created a new dataset from the analysis. Find it in the project explorer."
+        assert panel.preview_text.toPlainText() == "Plotted on a new chart."
+
+    def test_apply_success_on_an_existing_chart_names_it_in_the_text_area(self, panel, app_context, project):
+        project.add_item(Chart(id="chart-2", name="Other", chart_type=ChartType.LINE))
+        panel._populate_sources()
+        panel.plot_target_combo.setCurrentIndex(panel.plot_target_combo.findData("chart-2"))
+        app_context.get_command_executor.return_value.execute_command.return_value = True
+
+        panel.apply()
+
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.preview_text.toPlainText() == "Plotted on 'Other'."
+
+    def test_apply_success_without_quick_plot_leaves_the_text_area_empty(self, panel, app_context):
+        app_context.get_command_executor.return_value.execute_command.return_value = True
+        panel.plot_result_cb.setChecked(False)
+
+        panel.apply()
+
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.preview_text.toPlainText() == ""
+
+    def test_clear_inputs_clears_the_status_message(self, app_context):
+        panel = ChartAnalysisPanel(app_context)
+        panel.preview()
+        assert panel.status_message.kind() is StatusKind.ERROR
+
+        panel.clear_inputs()
+
+        assert panel.status_message.message() == ""
+        assert panel.status_message.kind() is None
+
+    def test_theme_change_retints_the_status_icon(self, app_context):
+        panel = ChartAnalysisPanel(app_context)
+        panel.preview()
+        app_context.get_manager.return_value.get_design_tokens.return_value["status_danger"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.status_message.findChild(IconLabel).pixmap()), "#00AA00")

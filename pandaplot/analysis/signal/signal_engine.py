@@ -13,6 +13,8 @@ from typing import Any
 
 import pandas as pd
 
+from pandaplot.utils.errors import UserFacingError
+
 from .signal_types import (
     SIGNAL_ANALYSES,
     SignalAnalysisResult,
@@ -89,18 +91,18 @@ class SignalEngine:
         ).dropna()
 
         if len(values) < 2:
-            raise ValueError(
+            raise UserFacingError(
                 "Signal must contain at least two valid samples."
             )
 
         if requires_sampling_rate:
             if sampling_rate is None:
-                raise ValueError(
-                    "This analysis requires sampling_rate."
+                raise UserFacingError(
+                    "This analysis needs a sampling rate."
                 )
 
             if sampling_rate <= 0:
-                raise ValueError(
+                raise UserFacingError(
                     "Sampling rate must be greater than zero."
                 )
 

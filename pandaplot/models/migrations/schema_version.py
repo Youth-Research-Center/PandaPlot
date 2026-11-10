@@ -16,6 +16,7 @@ previous version load as they are.
 
 Version 5: twin Y columns on line/scatter series (#491).
 Version 6: sketch items, which an older build cannot load at all.
+Version 7: example settings and the project cover image (#608, #598).
 """
 
-CURRENT_SCHEMA_VERSION = 6
+CURRENT_SCHEMA_VERSION = 7

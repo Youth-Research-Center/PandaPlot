@@ -1,6 +1,7 @@
 from typing import override
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QSplitter, QVBoxLayout, QWidget
 
 from pandaplot.gui.components.tabs.floating_tab_window import FloatingTabWindow
@@ -9,6 +10,8 @@ from pandaplot.gui.components.tabs.tab_container_command_manager import TabConta
 from pandaplot.gui.components.tabs.tab_factory import TabFactory
 from pandaplot.gui.components.tabs.welcome_tab import WelcomeTab
 from pandaplot.gui.core.widget_extension import PWidget, unsubscribe_widget_tree
+from pandaplot.gui.resources.item_icons import item_icon_name
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.events import (
     AnalysisEvents,
     ChartEvents,
@@ -70,7 +73,17 @@ class TabContainer(PWidget):
 
     @override
     def _apply_theme(self):
-        pass
+        for pane in self.panes:
+            for index in range(pane.count()):
+                pane.setTabIcon(index, self._tab_icon(pane.widget(index)))
+
+    def _tab_icon(self, widget: QWidget) -> QIcon:
+        """Return the item-kind icon for a tab widget, tinted for the current theme.
+
+        The Welcome placeholder gets the house icon and a tab that cannot say what it holds gets the default file icon.
+        """
+        icon_name = "house" if isinstance(widget, WelcomeTab) else item_icon_name(str(self.get_tab_data(widget).get("type")))
+        return themed_icon(self.app_context, icon_name)
 
     # ------------------------------------------------------------------
     # Pane management
@@ -175,11 +188,12 @@ class TabContainer(PWidget):
 
         widget = source_pane.widget(source_index)
         title = source_pane.tabText(source_index)
+        icon = source_pane.tabIcon(source_index)
         source_pane.removeTab(source_index)
 
         insert_at = target_pane.count() if target_index is None else target_index
         insert_at = max(0, min(insert_at, target_pane.count()))
-        target_pane.insertTab(insert_at, widget, title)
+        target_pane.insertTab(insert_at, widget, icon, title)
         target_pane.setCurrentIndex(insert_at)
 
         self._activate_pane(target_pane)
@@ -365,7 +379,9 @@ class TabContainer(PWidget):
         # Detach from the pane without deleting the widget.
         pane.removeTab(index)
 
-        window = FloatingTabWindow(self.app_context, item_id, widget, title)
+        window = FloatingTabWindow(
+            self.app_context, item_id, widget, title, icon_name=item_icon_name(str(self.get_tab_data(widget).get("type")))
+        )
         window.redock_requested.connect(self.redock_tab)
         window.activated.connect(self._on_floating_tab_activated)
         self.floating_windows[item_id] = window
@@ -400,7 +416,7 @@ class TabContainer(PWidget):
         self._remove_welcome_placeholder(target_pane)
 
         title = content.get_tab_title() if hasattr(content, "get_tab_title") else item_id
-        index = target_pane.addTab(content, title)
+        index = target_pane.addTab(content, self._tab_icon(content), title)
         self.tabs[item_id] = content
         target_pane.setCurrentIndex(index)
         self._activate_pane(target_pane)
@@ -438,7 +454,7 @@ class TabContainer(PWidget):
 
         try:
             new_tab = self._create_tab(item)
-            tab_index = target_pane.addTab(new_tab, new_tab.get_tab_title())
+            tab_index = target_pane.addTab(new_tab, self._tab_icon(new_tab), new_tab.get_tab_title())
             self.tabs[item_id] = new_tab
             target_pane.setCurrentIndex(tab_index)
             return True
@@ -606,7 +622,7 @@ class TabContainer(PWidget):
         welcome_tab.create_dataset_requested.connect(self.command_manager.handle_create_dataset)
         welcome_tab.create_chart_requested.connect(self.command_manager.handle_create_chart)
 
-        target_pane.addTab(welcome_tab, welcome_tab.get_tab_title())
+        target_pane.addTab(welcome_tab, self._tab_icon(welcome_tab), welcome_tab.get_tab_title())
         return welcome_tab
 
     def show_welcome_tab(self):

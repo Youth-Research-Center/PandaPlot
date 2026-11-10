@@ -80,15 +80,15 @@ def topics() -> list[HelpTopic]:
                 'The Labels step is the last one. Pie charts have no axes, so for a pie the axis-label fields and the "Show grid lines" switch are '
                 "hidden. A title, subtitle or label can contain math such as $x^2$ (see the math topic).\n\n"
                 'Not ready to choose data? Click "Create empty plot instead" on the Type or Data step to get a blank chart with no series. '
-                'To plot data, create the chart with the wizard: the Data tab of Chart Properties can only add a series to a chart that '
-                'already has one.\n\n'
+                'An empty chart shows "This chart has no data yet" with an "Add Series" button. Click it, choose a dataset and the columns '
+                'the chart type needs, and click Add. You can also click "+ Add series" on the Data tab of Chart Properties.\n\n'
                 'If the project has no datasets yet, the Data step is replaced by a page that says "This project has no datasets yet". '
                 'Click "Import Dataset" to bring in a file and carry on, or "Create Empty Chart" for a blank chart. '
                 'Click Cancel at any step to close the wizard without creating anything. '
                 'Use the ? button at the bottom left of a step, or press F1 (on a Mac, Cmd+?), to open help for that step.'
             ),
             keywords=(
-                "graph", "plot", "new chart", "create chart", "make a graph", "make a plot", "wizard", "visualization", "empty chart", "import",
+                "graph", "plot", "new chart", "create chart", "make a graph", "make a plot", "wizard", "visualization", "empty chart", "first series", "import",
                 "title", "axis label",
             ),
             related=(
@@ -139,8 +139,8 @@ def topics() -> list[HelpTopic]:
                  'or "Values column" for a Histogram. The first entry in each drop-down is blank.'),
                 'Columns marked "(optional)" can be left blank. Next stays greyed out until each series card has a dataset and all its required columns. On Line, Scatter, Bar and Stacked Bar, "X column" is also optional even though its label does not say so.',
                 'To plot another data set on the same chart, click "+ Add series" and fill in the new card.',
-                ('To tidy a long list, click the ▾ button on a card (tooltip "Collapse series") to fold it into a one-line summary. '
-                 'Click ▸ ("Expand series") to open it again.'),
+                ('To tidy a long list, click the down-arrow button on a card (tooltip "Collapse series") to fold it into a one-line summary. '
+                 'Click the right-arrow button ("Expand series") to open it again.'),
                 'To drop a series, click "Remove" on its card.',
                 'On a Line, Scatter, Bar or Stacked Bar card, tick "Add error bars" to choose columns for the error bars.',
                 "Click Next to go on to the Labels step.",
@@ -171,17 +171,18 @@ def topics() -> list[HelpTopic]:
             steps=(
                 ('Open a chart tab, click the line-chart icon in the sidebar (its tooltip reads "Chart Properties panel") '
                  "and open the Data tab."),
-                ('Click "+ Add series" to add one. It is a copy of the selected series, with the same dataset and columns, so change them afterwards. '
-                 "This needs at least one series to copy from. Adding a series is recorded as its own undo step."),
-                ('Click a series card to select it. Its settings open in that card and you can edit them. On the other cards, ▸ (tooltip '
-                 '"Expand series details") shows a read-only summary and ▾ hides it again. On the selected card ▾ is greyed out '
+                ('Click "+ Add series" to add one. On a chart with no series it opens the Add Series dialog: choose a dataset and columns and click Add. '
+                 "On a chart that already has series it adds a copy of the selected series, with the same dataset and columns, so change them "
+                 "afterwards. Each add is its own undo step."),
+                ('Click a series card to select it. Its settings open in that card and you can edit them. On the other cards, the right-arrow button (tooltip '
+                 '"Expand series details") shows a read-only summary and the down-arrow button hides it again. On the selected card the down arrow is greyed out '
                  '(tooltip "Series details expanded").'),
                 'Choose the "Dataset:" and the columns. The column boxes that appear depend on the series type.',
                 ('Type a name in "Label:". This is the text shown for the series in the legend. On a Pie chart the legend lists the '
                  'wedges instead, named by the values in the "Labels Column (optional):", so change those values in the dataset to rename them.'),
                 ('Use "Series Type:" to change how this series is drawn. The list shows the types the chart type allows. '
                  'Use "Y Axis:" (Y₁ left or Y₂ right) to put it on the left or the right axis.'),
-                ('Use the ▲ and ▼ buttons on a card to change the plotting order (tooltips "Move up (draw earlier, further back)" and '
+                ('Use the up-arrow and down-arrow buttons on a card to change the plotting order (tooltips "Move up (draw earlier, further back)" and '
                  '"Move down (draw later, further to front)"). A series lower in the list is drawn in front.'),
                 'Click the wastebasket button (tooltip "Remove") to delete a series. Removing and reordering are also single undo steps.',
             ),
@@ -197,7 +198,7 @@ def topics() -> list[HelpTopic]:
                 "The Data tab cannot clear an X column once one is chosen.\n\n"
                 "You can also click a line, point, bar or legend entry on the chart to select that series in the panel. "
                 "Clicking does not select a series while the Pan or Zoom tool is active. "
-                'Fits made with the "📐 Curve Fitting" panel, or by choosing "Series Type:" > "Fit", also appear in this list.'
+                'Fits made with the "Curve Fitting" panel, or by choosing "Series Type:" > "Fit", also appear in this list.'
             ),
             keywords=(
                 "series", "add series", "remove series", "delete series", "reorder", "order", "z order", "data tab", "second y axis", "y2",
@@ -363,18 +364,18 @@ def topics() -> list[HelpTopic]:
             summary="What the buttons above the chart do: Refresh, Reset, Reset Zoom, Swap X/Y, and matplotlib's pan, zoom and save tools.",
             steps=(),
             explanation=(
-                'Our buttons: "♻️ Refresh" reloads the data from your datasets and redraws the chart. '
-                '"🔍 Reset Zoom" zooms back out to show all the data. '
-                f'"⇄ Swap X/Y" exchanges the X and Y axes, including their titles, scales and ranges. It appears only for {_SWAP_CHART_TYPES} '
+                'Our buttons: "Refresh" reloads the data from your datasets and redraws the chart. '
+                '"Reset Zoom" zooms back out to show all the data. '
+                f'"Swap X/Y" exchanges the X and Y axes, including their titles, scales and ranges. It appears only for {_SWAP_CHART_TYPES} '
                 "charts. When it cannot run, the line under the chart says why, but only briefly. The reasons include: there are no series yet, a series is on "
                 "the secondary Y axis, a series is plotted against the row index (it has no X column), a series has no Y column, "
                 "or a series is of a type that cannot be swapped. You can undo a swap with Edit > Undo.\n\n"
-                '"🔄 Reset" puts all chart-level settings back to their defaults: the title (back to the chart name), subtitle, axes, legend, '
+                '"Reset" puts all chart-level settings back to their defaults: the title (back to the chart name), subtitle, axes, legend, '
                 "grid, size, DPI, fonts, backgrounds and the histogram bin count. Your series and their styles are kept, and so is the chart "
                 "type. There is no confirmation, and Reset cannot be undone: Edit > Undo will not bring the old settings back. "
                 "Think twice before you click it.\n\n"
                 "Next to them are matplotlib's own tools. Pan and Zoom let you move around and zoom in with the mouse; "
-                'use "🔍 Reset Zoom" to zoom back out. "Subplots" and "Customize" are there too, but what you change with them is not saved and is '
+                'use "Reset Zoom" to zoom back out. "Subplots" and "Customize" are there too, but what you change with them is not saved and is '
                 "replaced the next time the chart redraws, so use the Style and Axes tabs instead. The Save button saves an image "
                 "(see the save-image topic). As you move the mouse over the chart, the (x, y) readout in the toolbar shows the position.\n\n"
                 "On a 3-D chart, drag the chart with the mouse to rotate it. The rotation is not saved; set Elevation and Azimuth on the Axes tab "
@@ -404,7 +405,7 @@ def topics() -> list[HelpTopic]:
                 'The "Size" card offers ready-made sizes, "Custom" (type a width and height) and "Use app default". '
                 'The "DPI" card offers 100, 150 and 300 dpi, "Custom" and "Use app default". A higher DPI gives more detail and a larger file. '
                 'The hint on the Size card reads "Size affects export & default fonts".\n\n'
-                'To put a chart into a note, open the note, click "📎 Artefacts" on the note toolbar, click "📊 Insert Chart...", pick the chart, '
+                'To put a chart into a note, open the note, click "Artefacts" on the note toolbar, click "Insert Chart...", pick the chart, '
                 'choose a "Snapshot DPI:" and click "Insert Chart". The note gets a picture of the chart as it looks at that moment. '
                 'The Artefacts window has a "Refresh" button to update the picture later.'
             ),

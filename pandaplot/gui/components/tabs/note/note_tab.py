@@ -83,7 +83,7 @@ class NoteTab(PWidget):
     def get_tab_title(self) -> str:
         """Get the title for this tab."""
         modified_indicator = " *" if self.note_editor.has_unsaved_changes() else ""
-        return f"📝 {self.note.name}{modified_indicator}"
+        return f"{self.note.name}{modified_indicator}"
 
     def get_tab_data(self) -> dict:
         """Identify this tab to TabContainer for session/event bookkeeping."""

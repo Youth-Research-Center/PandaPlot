@@ -9,6 +9,7 @@ import pandas as pd
 
 from pandaplot.models.project.items.column_role import ColumnRole
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.utils.errors import UserFacingError
 
 
 @dataclass
@@ -54,7 +55,7 @@ class MeasurementAnalysisService:
                 rows remain with valid controlled values.
         """
         if dataset.data is None:
-            raise ValueError("Dataset data is not available.")
+            raise UserFacingError("Dataset data is not available.")
 
         selected_roles = roles if roles is not None else dataset.column_roles
         resolved_roles = MeasurementAnalysisService._resolve_roles(dataset, selected_roles)
@@ -63,9 +64,9 @@ class MeasurementAnalysisService:
         measured = [name for name, role in resolved_roles if role is ColumnRole.MEASURED]
 
         if not controlled:
-            raise ValueError("Assign at least one controlled column before generating a summary.")
+            raise UserFacingError("Assign at least one controlled column before generating a summary.")
         if not measured:
-            raise ValueError("Assign at least one measured column before generating a summary.")
+            raise UserFacingError("Assign at least one measured column before generating a summary.")
 
         selected_groups = measurement_groups if measurement_groups is not None else dataset.column_measurement_groups
         group_name_by_column = MeasurementAnalysisService._resolve_measurement_groups(
@@ -85,11 +86,11 @@ class MeasurementAnalysisService:
             observed = frame[name].dropna()
             distinct = observed.drop_duplicates()
             if distinct.empty:
-                raise ValueError(
+                raise UserFacingError(
                     f"Fixed column '{name}' has no observed values, so its constant value cannot be verified."
                 )
             if len(distinct) > 1:
-                raise ValueError(
+                raise UserFacingError(
                     f"Fixed column '{name}' has multiple observed values. "
                     "Correct its values or assign it another role."
                 )
@@ -101,7 +102,7 @@ class MeasurementAnalysisService:
         control_mask = frame[controlled].notna().all(axis=1)
         valid_control_frame = frame.loc[control_mask]
         if valid_control_frame.empty:
-            raise ValueError("No rows have values for every controlled column.")
+            raise UserFacingError("No rows have values for every controlled column.")
 
         result_columns = MeasurementAnalysisService._result_column_names(
             [*controlled, *fixed, "Measured variable", "Count", "Mean", "Standard deviation", "Standard error"]
@@ -188,7 +189,7 @@ class MeasurementAnalysisService:
                 group_name = column
             normalized_group = group_name.strip()
             if not normalized_group:
-                raise ValueError(f"Measured column '{column}' needs a variable name.")
+                raise UserFacingError(f"Measured column '{column}' needs a variable name.")
             resolved[column] = normalized_group
         return resolved
 

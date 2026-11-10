@@ -102,5 +102,6 @@ def test_resolve_bar_footprint_falls_back_when_there_is_no_spacing_to_measure():
 def test_resolve_bar_footprint_never_returns_zero_width():
     """A zero-width box draws nothing at all, so a 0 (or negative) fraction
     clamps to a small positive width instead of silently hiding the series."""
-    assert resolve_bar_footprint([0.0, 1.0, 2.0], 0.0) > 0
-    assert resolve_bar_footprint([0.0, 1.0, 2.0], -1.0) > 0
+    for fraction in (0.0, -1.0):
+        width = resolve_bar_footprint([0.0, 1.0, 2.0], fraction)
+        assert 0 < width < 1e-6, f"fraction {fraction} gave width {width}"

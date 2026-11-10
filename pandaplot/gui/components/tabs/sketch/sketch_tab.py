@@ -17,7 +17,6 @@ from pandaplot.models.events import ProjectEvents
 from pandaplot.models.project.items.sketch import Sketch
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
-from pandaplot.utils.item_labels import item_label
 
 # Tool -> (button label, shortcut, tooltip).
 TOOL_BUTTONS: dict[ToolMode, tuple[str, str, str]] = {
@@ -141,7 +140,8 @@ class SketchTab(PWidget):
         try:
             export_sketch(self.sketch, Path(path), options)
         except SketchExportError as error:
-            ui_controller.show_error_message("Export Failed", str(error))
+            self.logger.exception("Sketch export to %s failed", path)
+            ui_controller.show_error_message("Export Failed", "Couldn't export the sketch.", error=error)
             return
         self.status_label.setText(f"Exported to {Path(path).name}")
 
@@ -208,7 +208,7 @@ class SketchTab(PWidget):
             self.canvas.fit_to_canvas()
 
     def get_tab_title(self) -> str:
-        return item_label("sketch", self.sketch.name)
+        return self.sketch.name
 
     def get_tab_data(self) -> dict:
         """Identify this tab to TabContainer for session/event bookkeeping."""

@@ -8,7 +8,7 @@ to the matched text.
 from typing import override
 
 from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QTextDocument, QTextOption
+from PySide6.QtGui import QIcon, QTextDocument, QTextOption
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.gui.resources.item_icons import SELECTED_ROW_FOREGROUND, item_icon
 from pandaplot.models.events.event_types import ProjectEvents, UIEvents
 from pandaplot.models.project.items.note import Note
 from pandaplot.models.state.app_context import AppContext
@@ -126,6 +127,8 @@ def _is_dark(hex_color: str) -> bool:
 class SearchPanel(SidebarPanel):
     """Search-across-notes panel shown in the sidebar."""
 
+    ICON_NAME = "magnifying-glass"
+
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.app_state = app_context.get_app_state()
@@ -154,7 +157,7 @@ class SearchPanel(SidebarPanel):
     def _init_ui(self):
         self._init_panel_layout()
 
-        self._set_title("🔍 Search Notes")
+        self._set_title("Search Notes")
 
         # Search box
         self.search_input = QLineEdit()
@@ -204,8 +207,14 @@ class SearchPanel(SidebarPanel):
         button.style().unpolish(button)
         button.style().polish(button)
 
+    def _note_icon(self) -> QIcon:
+        return item_icon(self.app_context, "note", selected_color=SELECTED_ROW_FOREGROUND)
+
     @override
     def _apply_theme(self):
+        note_icon = self._note_icon()
+        for row in range(self.results.topLevelItemCount()):
+            self.results.topLevelItem(row).setIcon(0, note_icon)
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         card_bg = palette.get("card_bg", "#ffffff")
@@ -240,17 +249,21 @@ class SearchPanel(SidebarPanel):
                 color: {base_fg};
                 background-color: {card_bg};
                 selection-background-color: {accent};
-                selection-color: white;
+                selection-color: {SELECTED_ROW_FOREGROUND};
                 border: 1px solid {card_border};
                 border-radius: 4px;
             }}
             QTreeWidget::item:selected {{
                 background-color: {accent};
-                color: white;
+                color: {SELECTED_ROW_FOREGROUND};
             }}
             QTreeWidget::item:hover {{
                 background-color: {card_hover};
                 color: {base_fg};
+            }}
+            QTreeWidget::item:selected:hover {{
+                background-color: {accent};
+                color: {SELECTED_ROW_FOREGROUND};
             }}
         """)
 
@@ -301,7 +314,7 @@ class SearchPanel(SidebarPanel):
                 use_regex=self.regex_button.isChecked(),
             )
         except QueryError as exc:
-            self.summary_label.setText(f"Invalid regex: {exc}")
+            self.summary_label.setText(str(exc))
             return
 
         self._populate(results)
@@ -318,7 +331,8 @@ class SearchPanel(SidebarPanel):
 
         for result in results:
             count = f" ({result.match_count}{'+' if result.truncated else ''})"
-            note_item = QTreeWidgetItem([f"📝 {result.note_name}{count}"])
+            note_item = QTreeWidgetItem([f"{result.note_name}{count}"])
+            note_item.setIcon(0, self._note_icon())
             note_item.setData(0, _ROLE_NOTE_ID, result.note_id)
             # Store the first match so activating the note row still jumps somewhere.
             note_item.setData(0, _ROLE_MATCH, result.matches[0])

@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from pandaplot.services.transform import formula_engine
+from pandaplot.utils.errors import UserFacingError
 
 
 class TestEvaluateFormula:
@@ -47,7 +48,7 @@ class TestEvaluateFormula:
 
     def test_missing_source_column_is_rejected(self):
         df = pd.DataFrame({"a": [1.0]})
-        with pytest.raises(ValueError, match="Source columns not found"):
+        with pytest.raises(UserFacingError, match="not in the dataset: nope"):
             formula_engine.evaluate_formula(
                 df, expression="x", transform_type="column", source_columns=["nope"],
             )

@@ -6,6 +6,7 @@ import pytest
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
+from pandaplot.utils.errors import UserFacingError
 from tests.commands.project.conftest import SyncTaskScheduler
 
 
@@ -187,3 +188,59 @@ def test_on_complete_reports_failure_on_exception(fit_service, task_scheduler):
     assert command.execute() is CommandResult.SUCCESS  # dispatched
     assert outcomes == [CommandResult.FAILURE]
     assert command.error_message == "bad params"
+
+
+def _failing_command(fit_service, task_scheduler, exception, *, fit_type="linear"):
+    fit_service.perform_fit.side_effect = exception
+    outcomes = []
+    command = PerformFitCommand(
+        fit_service=fit_service, fit_type=fit_type, x_data=[1, 2, 3], y_data=[2, 4, 6],
+        task_scheduler=task_scheduler, on_complete=outcomes.append,
+    )
+    assert command.execute() is CommandResult.SUCCESS  # dispatched
+    assert outcomes == [CommandResult.FAILURE]
+    return command
+
+
+def test_user_facing_fit_errors_pass_through_unchanged(fit_service, task_scheduler):
+    command = _failing_command(fit_service, task_scheduler, UserFacingError("The fit did not converge for this data."))
+
+    assert command.error_description is not None
+    assert command.error_description.reason == "The fit did not converge for this data."
+    assert command.error_description.details == ""
+
+
+def test_other_errors_are_described_by_the_shared_rules(fit_service, task_scheduler):
+    command = _failing_command(fit_service, task_scheduler, ValueError("bad params"))
+
+    assert command.error_description is not None
+    assert command.error_description.reason == "PandaPlot could not process this data with these settings."
+    assert command.error_description.details == "ValueError: bad params"
+    assert command.error_message == "bad params"
+
+
+def test_error_description_is_cleared_after_a_successful_fit(fit_service, fit_result, task_scheduler):
+    command = _failing_command(fit_service, task_scheduler, RuntimeError("Optimal parameters not found"))
+    assert command.error_description is not None
+
+    fit_service.perform_fit.side_effect = None
+    fit_service.perform_fit.return_value = fit_result
+    assert command.redo() is CommandResult.SUCCESS
+
+    assert command.error_description is None
+    assert command.error_message is None
+
+
+def test_worker_error_signal_sets_a_description(fit_service, task_scheduler):
+    outcomes = []
+    command = PerformFitCommand(
+        fit_service=fit_service, fit_type="linear", x_data=[1, 2, 3], y_data=[2, 4, 6],
+        task_scheduler=task_scheduler, on_complete=outcomes.append,
+    )
+
+    command._on_fit_error((UserFacingError, UserFacingError("The fit did not converge for this data."), None))
+
+    assert outcomes == [CommandResult.FAILURE]
+    assert command.error_description is not None
+    assert command.error_description.reason == "The fit did not converge for this data."
+    assert command.result is None

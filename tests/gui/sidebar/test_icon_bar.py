@@ -10,9 +10,10 @@ previous selection) would have gone unnoticed.
 from unittest.mock import Mock
 
 import pytest
-from PySide6.QtCore import QSize
-from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QApplication, QWidget
+import shiboken6
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QSize
+from PySide6.QtGui import QColor, QContextMenuEvent
+from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
 from pandaplot.gui.components.sidebar.icon_bar import IconBar
 from pandaplot.models.state.app_context import AppContext
@@ -25,12 +26,14 @@ def qapp():
 
 
 DESIGN_TOKENS = {
+    "text_primary": "#111827",
     "text_muted": "#6B7280",
     "accent_icon_active": "#3A45A8",
     "text_disabled": "#AEB2BC",
 }
 
 DARK_DESIGN_TOKENS = {
+    "text_primary": "#111827",
     "text_muted": "#C0392B",
     "accent_icon_active": "#2ECC71",
     "text_disabled": "#555555",
@@ -57,8 +60,8 @@ def icon_bar(app_context):
 
 
 def test_set_active_button_marks_only_the_named_button_selected(icon_bar):
-    button_a = icon_bar.add_panel_button("panel_a", "A")
-    button_b = icon_bar.add_panel_button("panel_b", "B")
+    button_a = icon_bar.add_panel_button("panel_a", icon_name="folder")
+    button_b = icon_bar.add_panel_button("panel_b", icon_name="table")
 
     icon_bar.set_active_button("panel_a")
 
@@ -69,8 +72,8 @@ def test_set_active_button_marks_only_the_named_button_selected(icon_bar):
 
 
 def test_set_active_button_switches_between_buttons(icon_bar):
-    button_a = icon_bar.add_panel_button("panel_a", "A")
-    button_b = icon_bar.add_panel_button("panel_b", "B")
+    button_a = icon_bar.add_panel_button("panel_a", icon_name="folder")
+    button_b = icon_bar.add_panel_button("panel_b", icon_name="table")
 
     icon_bar.set_active_button("panel_a")
     icon_bar.set_active_button("panel_b")
@@ -82,7 +85,7 @@ def test_set_active_button_switches_between_buttons(icon_bar):
 
 
 def test_icon_only_buttons_have_accessible_names(icon_bar):
-    button = icon_bar.add_panel_button("chart_properties", "📈")
+    button = icon_bar.add_panel_button("chart_properties", icon_name="chart-line")
 
     assert button.accessibleName() == "Chart Properties panel"
     assert button.toolTip() == "Chart Properties panel"
@@ -90,7 +93,7 @@ def test_icon_only_buttons_have_accessible_names(icon_bar):
 
 
 def test_panel_button_label_uses_given_panel_title(icon_bar):
-    button = icon_bar.add_panel_button("fit", "📐", label="Curve Fitting")
+    button = icon_bar.add_panel_button("fit", label="Curve Fitting", icon_name="function")
 
     assert button.accessibleName() == "Curve Fitting panel"
     assert button.toolTip() == "Curve Fitting panel"
@@ -105,33 +108,52 @@ def test_sidebar_labels_panel_buttons_with_the_panel_title(app_context, qtbot):
     sidebar = CollapsibleSidebar(app_context=app_context, parent=None)
     qtbot.addWidget(sidebar)
     titled = QWidget()
-    titled.title_label = QLabel("📐 Curve Fitting")
+    titled.title_label = QLabel("  Curve Fitting ")
     untitled = QWidget()
 
-    sidebar.add_panel("fit", "📐", titled)
-    sidebar.add_panel("chart_properties", "📈", untitled)
+    sidebar.add_panel("fit", titled, icon_name="function")
+    sidebar.add_panel("chart_properties", untitled, icon_name="chart-line")
 
     assert sidebar.icon_bar.panels["fit"].accessibleName() == "Curve Fitting panel"
     assert sidebar.icon_bar.panels["chart_properties"].accessibleName() == "Chart Properties panel"
 
 
-def test_panel_button_with_icon_name_shows_a_bundled_icon_instead_of_text(icon_bar):
-    button = icon_bar.add_panel_button("fit", "📐", label="Curve Fitting", icon_name="function")
+def test_sidebar_does_not_strip_any_prefix_from_the_panel_title(app_context, qtbot):
+    from PySide6.QtWidgets import QLabel
+
+    from pandaplot.gui.components.sidebar.sidebar import CollapsibleSidebar
+
+    app_context.get_manager.return_value.get_surface_palette.return_value = {}
+    sidebar = CollapsibleSidebar(app_context=app_context, parent=None)
+    qtbot.addWidget(sidebar)
+    titled = QWidget()
+    titled.title_label = QLabel("Fit Curve Fitting")
+
+    sidebar.add_panel("fit", titled, icon_name="function")
+
+    assert sidebar.icon_bar.panels["fit"].accessibleName() == "Fit Curve Fitting panel"
+
+
+def test_panel_button_shows_a_bundled_icon_and_no_text(icon_bar):
+    button = icon_bar.add_panel_button("fit", label="Curve Fitting", icon_name="function")
 
     assert button.text() == ""
     assert not button.icon().isNull()
     assert button.accessibleName() == "Curve Fitting panel"
 
 
-def test_panel_button_without_icon_name_keeps_its_text_icon(icon_bar):
-    button = icon_bar.add_panel_button("panel_a", "A")
+def test_panel_button_requires_an_icon_name(icon_bar):
+    with pytest.raises(TypeError):
+        icon_bar.add_panel_button("panel_a")
 
-    assert button.text() == "A"
-    assert button.icon().isNull()
+
+def test_panel_button_takes_no_positional_icon_text(icon_bar):
+    with pytest.raises(TypeError):
+        icon_bar.add_panel_button("panel_a", "A", icon_name="folder")
 
 
 def test_active_panel_button_icon_is_retinted_with_the_active_colour(icon_bar):
-    button = icon_bar.add_panel_button("fit", "📐", icon_name="function")
+    button = icon_bar.add_panel_button("fit", icon_name="function")
 
     _assert_tinted(button, DESIGN_TOKENS["text_muted"])
 
@@ -165,8 +187,8 @@ def test_settings_button_gear_is_tinted_with_the_muted_text_colour(icon_bar):
 
 
 def test_theme_change_keeps_the_active_panel_state_and_retints_every_icon(icon_bar, app_context):
-    active = icon_bar.add_panel_button("fit", "📐", icon_name="function")
-    inactive = icon_bar.add_panel_button("explorer", "📁", icon_name="folder")
+    active = icon_bar.add_panel_button("fit", icon_name="function")
+    inactive = icon_bar.add_panel_button("explorer", icon_name="folder")
     icon_bar.set_active_button("fit")
 
     app_context.get_manager.return_value.get_design_tokens.return_value = DARK_DESIGN_TOKENS
@@ -182,11 +204,11 @@ def test_theme_change_keeps_the_active_panel_state_and_retints_every_icon(icon_b
 
 
 def test_removing_the_active_panel_clears_the_stored_active_state(icon_bar):
-    icon_bar.add_panel_button("fit", "📐", icon_name="function")
+    icon_bar.add_panel_button("fit", icon_name="function")
     icon_bar.set_active_button("fit")
 
     icon_bar.remove_panel_button("fit")
-    readded = icon_bar.add_panel_button("fit", "📐", icon_name="function")
+    readded = icon_bar.add_panel_button("fit", icon_name="function")
     icon_bar._apply_theme()
 
     assert readded.property("selected") is False
@@ -203,9 +225,9 @@ def test_sidebar_passes_icon_name_to_the_icon_bar(app_context, qtbot):
     sidebar = CollapsibleSidebar(app_context=app_context, parent=None)
     qtbot.addWidget(sidebar)
     titled = QWidget()
-    titled.title_label = QLabel("📐 Curve Fitting")
+    titled.title_label = QLabel("Curve Fitting")
 
-    sidebar.add_panel("fit", "📐", titled, icon_name="function")
+    sidebar.add_panel("fit", titled, icon_name="function")
 
     button = sidebar.icon_bar.panels["fit"]
     assert not button.icon().isNull()
@@ -213,11 +235,6 @@ def test_sidebar_passes_icon_name_to_the_icon_bar(app_context, qtbot):
 
 
 def test_context_menu_is_deleted_after_closing(icon_bar, monkeypatch):
-    import shiboken6
-    from PySide6.QtCore import QCoreApplication, QEvent, QPoint
-    from PySide6.QtGui import QContextMenuEvent
-    from PySide6.QtWidgets import QMenu
-
     opened: list[QMenu] = []
 
     def _make_nonblocking_menu(parent) -> QMenu:

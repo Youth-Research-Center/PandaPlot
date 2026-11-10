@@ -6,17 +6,40 @@ excluding series types with no meaningful ordered (x, y) curve (bar/hist/
 vector/colormap/heatmap/3-D) -- and want the same combo item shape.
 """
 
-
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox
 
+from pandaplot.gui.resources.item_icons import item_icon_name
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec, quick_plot_compatible
 from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.project import Project
+from pandaplot.models.state.app_context import AppContext
 from pandaplot.utils.item_display_options import disambiguated_display_options
 
+# Item data role holding the bundled icon name of a combo item, so `retint_combo_icons` can re-render the icon after a theme change.
+ICON_NAME_ROLE = Qt.ItemDataRole.UserRole + 1
+SERIES_ICON_NAME = item_icon_name("chart")
+FIT_ICON_NAME = "waveform"
+NEW_CHART_ICON_NAME = "plus"
 
-def populate_series_fit_sources(combo: QComboBox, chart: Chart | None) -> tuple[bool, bool]:
+
+def add_icon_item(combo: QComboBox, app_context: AppContext, icon_name: str, text: str, data: object) -> None:
+    """Append an item with a themed bundled icon and remember the icon name for `retint_combo_icons`."""
+    combo.addItem(themed_icon(app_context, icon_name), text, data)
+    combo.setItemData(combo.count() - 1, icon_name, ICON_NAME_ROLE)
+
+
+def retint_combo_icons(combo: QComboBox, app_context: AppContext) -> None:
+    """Re-render the icons of the items that `populate_*` gave an icon, for the current theme."""
+    for row in range(combo.count()):
+        icon_name = combo.itemData(row, ICON_NAME_ROLE)
+        if icon_name is not None:
+            combo.setItemIcon(row, themed_icon(app_context, icon_name))
+
+
+def populate_series_fit_sources(combo: QComboBox, chart: Chart | None, *, app_context: AppContext) -> tuple[bool, bool]:
     """(Re)fill `combo` with the chart's eligible series/fit entries.
 
     Each item's data is the entry's real ``chart.data_series`` index --
@@ -37,14 +60,14 @@ def populate_series_fit_sources(combo: QComboBox, chart: Chart | None) -> tuple[
                 any_series_excluded = True
                 continue
             label = series.label or f"Series {i + 1}"
-            combo.addItem(f"📈 {label}", i)
+            add_icon_item(combo, app_context, SERIES_ICON_NAME, label, i)
         fit_number = 0
         for i, series in enumerate(chart.data_series):
             if not series.is_fit:
                 continue
             fit_number += 1
             label = series.label or f"Fit {fit_number}"
-            combo.addItem(f"〰 {label}  (fit)", i)
+            add_icon_item(combo, app_context, FIT_ICON_NAME, f"{label}  (fit)", i)
     combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
     return combo.count() > 0, any_series_excluded
 
@@ -61,9 +84,9 @@ def find_series_fit_combo_index(combo: QComboBox, index: int) -> int:
     return -1
 
 
-def populate_chart_target_combo(combo: QComboBox, project: "Project | None") -> None:
+def populate_chart_target_combo(combo: QComboBox, project: "Project | None", *, app_context: AppContext) -> None:
     """(Re)fill `combo` with the "Plot result" destination choices:
-    "➕ New chart" (data=None, always first and selected by default) followed
+    "New chart" (plus icon, data=None, always first and selected by default) followed
     by every chart in the project whose type allows a plotted analysis
     result (quick_plot_compatible) -- including the chart the analyzed
     series came from, now just one entry among others rather than an
@@ -72,10 +95,10 @@ def populate_chart_target_combo(combo: QComboBox, project: "Project | None") -> 
     """
     combo.blockSignals(True)  # noqa: FBT003 - Qt method rejects keyword args
     combo.clear()
-    # "➕" distinguishes this as an action (create a chart), not the name of
+    # The plus icon distinguishes this as an action (create a chart), not the name of
     # an existing chart called "New chart" -- easy to misread as the latter
     # sitting plainly alongside real chart names below it.
-    combo.addItem("➕ New chart", None)
+    add_icon_item(combo, app_context, NEW_CHART_ICON_NAME, "New chart", None)
     if project is not None:
         compatible_charts = [
             item for item in project.get_all_items()
@@ -87,7 +110,7 @@ def populate_chart_target_combo(combo: QComboBox, project: "Project | None") -> 
     combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
 
 
-def refresh_chart_target_combo_preserving_selection(combo: QComboBox, project: "Project | None") -> None:
+def refresh_chart_target_combo_preserving_selection(combo: QComboBox, project: "Project | None", *, app_context: AppContext) -> None:
     """Like populate_chart_target_combo(), but keeps the current selection
     if it's still a valid entry afterward, instead of always resetting to
     "New chart". Use this for a refresh triggered by an unrelated
@@ -98,7 +121,7 @@ def refresh_chart_target_combo_preserving_selection(combo: QComboBox, project: "
     deliberate behavior (see the design spec).
     """
     previous = combo.currentData()
-    populate_chart_target_combo(combo, project)
+    populate_chart_target_combo(combo, project, app_context=app_context)
     if previous is not None:
         index = combo.findData(previous)
         if index >= 0:

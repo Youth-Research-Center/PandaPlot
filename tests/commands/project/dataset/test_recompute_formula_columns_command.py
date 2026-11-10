@@ -142,7 +142,11 @@ class TestRecomputeFormulaColumnsCommand:
         command = RecomputeFormulaColumnsCommand(app_context, "ds-1", positions)
         assert command.execute() is CommandResult.FAILURE
         pd.testing.assert_frame_equal(dataset.data, before)
-        app_context.get_ui_controller().show_warning_message.assert_called_once()
+        show_error = app_context.get_ui_controller().show_error_message
+        show_error.assert_called_once()
+        assert show_error.call_args.args == ("Recompute Formula", "Couldn't recompute the formula column 'c'.")
+        assert isinstance(show_error.call_args.kwargs["error"], Exception)
+        app_context.get_ui_controller().show_warning_message.assert_not_called()
         assert command.undo() is CommandResult.FAILURE
 
     def test_missing_source_column_is_refused(self, ctx):

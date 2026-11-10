@@ -60,15 +60,15 @@ class TestTreeVisitor(unittest.TestCase):
         
         # Verify the structure
         self.assertIsNotNone(root_tree_item)
-        self.assertEqual(root_tree_item.display_text, f"📁 {project.root.name}")
+        self.assertEqual(root_tree_item.display_text, project.root.name)
         
         # Should have created tree items for folder and dataset at root level
         # Plus the note inside the folder
         expected_items = [
-            "📁 Test Project Root",  # Root
-            "📁 Documents",          # Folder
-            "📝 Meeting Notes",      # Note (child of folder)
-            "📊 Sales Data"          # Dataset (child of root)
+            "Test Project Root",  # Root
+            "Documents",          # Folder
+            "Meeting Notes",      # Note (child of folder)
+            "Sales Data"          # Dataset (child of root)
         ]
         
         actual_display_texts = [item.display_text for item in self.tree_items]
@@ -76,11 +76,6 @@ class TestTreeVisitor(unittest.TestCase):
         # Check that all expected items were created
         for expected in expected_items:
             self.assertIn(expected, actual_display_texts)
-        
-        print("✅ Visitor test passed - all items created correctly")
-        print(f"Created {len(self.tree_items)} tree items:")
-        for item in self.tree_items:
-            print(f"  - {item.display_text} ({item.item_type})")
     
     def test_visitor_with_nested_folders(self):
         """Test visitor with nested folder structure."""
@@ -105,12 +100,11 @@ class TestTreeVisitor(unittest.TestCase):
         # Find the root item and verify hierarchy
         root_item = None
         for item in self.tree_items:
-            if item.display_text == f"📁 {project.root.name}":
+            if item.display_text == project.root.name:
                 root_item = item
                 break
         
         self.assertIsNotNone(root_item)
-        print("✅ Nested folder test passed")
 
     def test_visitor_creates_image_gallery_item(self):
         from pandaplot.models.project.items import ImageGallery
@@ -123,9 +117,9 @@ class TestTreeVisitor(unittest.TestCase):
         self.tree_builder.build_tree(project.root)
 
         display_texts = [item.display_text for item in self.tree_items]
-        assert "🖼️ Trip Photos" in display_texts
+        assert "Trip Photos" in display_texts
 
-        gallery_item = next(i for i in self.tree_items if i.display_text == "🖼️ Trip Photos")
+        gallery_item = next(i for i in self.tree_items if i.display_text == "Trip Photos")
         assert gallery_item.item_type == "imagegallery"
 
     def test_visitor_does_not_recurse_into_gallery_children(self):
@@ -145,13 +139,44 @@ class TestTreeVisitor(unittest.TestCase):
         self.tree_builder.build_tree(project.root)
 
         display_texts = [item.display_text for item in self.tree_items]
-        assert "🖼️ Trip" in display_texts
-        assert "🖼️ Day 1" not in display_texts
-        assert "🎞️ Beach" not in display_texts
+        assert "Trip" in display_texts
+        assert "Day 1" not in display_texts
+        assert "Beach" not in display_texts
 
-        gallery_item = next(i for i in self.tree_items if i.display_text == "🖼️ Trip")
+        gallery_item = next(i for i in self.tree_items if i.display_text == "Trip")
         assert gallery_item.children == []
 
+    def test_visitor_passes_the_plain_name_for_every_item_type(self):
+        from pandaplot.models.project.items import Chart, Image, ImageGallery, Item, ItemCollection, Sketch
 
-if __name__ == "__main__":
-    unittest.main()
+        project = Project("Names")
+        items = [
+            Folder(name="Folder name"),
+            ItemCollection(name="Collection name"),
+            Note(name="Note name"),
+            Dataset(name="Dataset name"),
+            Chart(name="Chart name"),
+            ImageGallery(name="Gallery name"),
+            Image(name="Image name"),
+            Sketch(name="Sketch name"),
+        ]
+        for item in items:
+            project.add_item(item)
+
+        self.tree_builder.build_tree(project.root)
+        generic = self.tree_builder.visit_item(Item(name="Generic name"))
+
+        recorded = {item.item_type: item.display_text for item in self.tree_items}
+        assert recorded == {
+            "project": project.root.name,
+            "folder": "Folder name",
+            "collection": "Collection name",
+            "note": "Note name",
+            "dataset": "Dataset name",
+            "chart": "Chart name",
+            "imagegallery": "Gallery name",
+            "image": "Image name",
+            "sketch": "Sketch name",
+            "item": "Generic name",
+        }
+        assert generic.display_text == "Generic name"

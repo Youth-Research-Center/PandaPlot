@@ -83,9 +83,8 @@ def test_editing_z_column_updates_the_series():
     assert chart.data_series[0].style.z_column_id == dataset.column_id("x")
 
 
-def test_apply_to_writes_z_column_id_for_a_new_colormap_series():
-    """apply_to's "create a default series if none exist yet" path must
-    include the Z column, or the created series can never render."""
+def test_apply_to_does_not_create_a_colormap_series_on_an_empty_chart():
+    """apply_to only re-asserts existing series fields; a series comes from + Add series."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="Colormap Chart", chart_type="colormap")
     project.add_item(chart)
@@ -98,8 +97,7 @@ def test_apply_to_writes_z_column_id_for_a_new_colormap_series():
 
     tab.apply_to(chart)
 
-    assert len(chart.data_series) == 1
-    assert chart.data_series[0].style.z_column_id == dataset.column_id("z")
+    assert chart.data_series == []
 
 
 def test_z_column_hidden_for_a_non_z_series_on_a_vector_typed_chart():

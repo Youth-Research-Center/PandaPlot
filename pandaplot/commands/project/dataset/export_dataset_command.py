@@ -9,6 +9,7 @@ from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.services.qtasks import TaskScheduler
+from pandaplot.utils.error_messages import describe_error, describe_failure
 
 
 class ExportDatasetCommand(Command):
@@ -169,9 +170,8 @@ class ExportDatasetCommand(Command):
             return CommandResult.SUCCESS  # Command initiated successfully
             
         except Exception as e:
-            error_msg = f"Failed to export dataset: {e!s}"
-            self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Export Dataset Error", error_msg)
+            self.logger.exception("Failed to export dataset")
+            self.ui_controller.show_error_message("Export Dataset Error", "Couldn't export the dataset.", error=e)
             return CommandResult.FAILURE
 
 
@@ -195,10 +195,20 @@ class ExportDatasetCommand(Command):
             if not self.export_format or self.export_format not in self.SUPPORTED_FORMATS:
                 error_msg = f"Unsupported export format: {self.export_format}"
                 self.logger.error(error_msg)
-                return {"success": False, "error": error_msg, "path": None}
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "error_description": describe_failure("PandaPlot cannot export to this file format."),
+                    "path": None,
+                }
             
             if not self.dataset or self.dataset.data is None or not self.export_path:
-                return {"success": False, "error": "Missing dataset or export path", "path": None}
+                return {
+                    "success": False,
+                    "error": "Missing dataset or export path",
+                    "error_description": describe_failure("There is no data or file location to export to."),
+                    "path": None,
+                }
                 
             if progress_callback:
                 progress_callback(0.2)  # Validation complete
@@ -214,7 +224,12 @@ class ExportDatasetCommand(Command):
             if not hasattr(self.dataset.data, method_name):
                 error_msg = f"DataFrame does not have method: {method_name}"
                 self.logger.error(error_msg)
-                return {"success": False, "error": f"Export format '{self.export_format}' is not supported in this pandas version.", "path": None}
+                return {
+                    "success": False,
+                    "error": f"Export format '{self.export_format}' is not supported in this pandas version.",
+                    "error_description": describe_failure("This export format is not available in this version of PandaPlot."),
+                    "path": None,
+                }
             
             export_method = getattr(self.dataset.data, method_name)
             
@@ -236,7 +251,12 @@ class ExportDatasetCommand(Command):
                     export_method(self.export_path, **method_kwargs)
                 except ImportError as e:
                     if "openpyxl" in str(e):
-                        return {"success": False, "error": "Excel export requires openpyxl. Please install it with:\npip install openpyxl", "path": None}
+                        return {
+                            "success": False,
+                            "error": "Excel export requires openpyxl. Please install it with:\npip install openpyxl",
+                            "error_description": describe_error(e),
+                            "path": None,
+                        }
                     raise
             elif method_name == "to_parquet":
                 # For Parquet, we might need to install pyarrow or fastparquet
@@ -244,7 +264,12 @@ class ExportDatasetCommand(Command):
                     export_method(self.export_path, **method_kwargs)
                 except ImportError as e:
                     if any(lib in str(e) for lib in ["pyarrow", "fastparquet"]):
-                        return {"success": False, "error": "Parquet export requires pyarrow or fastparquet. Please install with:\npip install pyarrow", "path": None}
+                        return {
+                            "success": False,
+                            "error": "Parquet export requires pyarrow or fastparquet. Please install with:\npip install pyarrow",
+                            "error_description": describe_error(e),
+                            "path": None,
+                        }
                     raise
             else:
                 # Standard export
@@ -263,7 +288,7 @@ class ExportDatasetCommand(Command):
         except Exception as e:
             error_msg = f"Error during data export: {e!s}"
             self.logger.exception(error_msg)
-            return {"success": False, "error": error_msg, "path": None}
+            return {"success": False, "error": error_msg, "error_description": describe_error(e), "path": None}
 
     def _on_export_result(self, result: dict):
         """Handle successful completion of export task."""
@@ -278,25 +303,26 @@ class ExportDatasetCommand(Command):
                 )
                 self.logger.info(f"Export completed successfully: {result['path']}")
             else:
-                error_msg = result.get("error", "Unknown export error")
-                self.ui_controller.show_error_message("Export Failed", error_msg)
-                self.logger.error(f"Export failed: {error_msg}")
+                self.logger.error("Export failed: %s", result.get("error", "Unknown export error"))
+                self.ui_controller.show_error_message(
+                    "Export Failed",
+                    "Couldn't export the dataset.",
+                    error=result.get("error_description") or describe_failure("The dataset could not be exported."),
+                )
                 
         except Exception as e:
             self.logger.exception("Error handling export result")
-            self.ui_controller.show_error_message("Export Error", f"Error processing export result: {e!s}")
+            self.ui_controller.show_error_message("Export Error", "Couldn't export the dataset.", error=e)
 
     def _on_export_error(self, error_info: tuple[Any, Any, str]):
         """Handle error during export task."""
         try:
             self.is_exporting = False
             error_type, error_value, error_traceback = error_info
-            error_msg = f"Export failed with {error_type.__name__}: {error_value!s}"
-            
-            self.logger.error(f"Export task error: {error_msg}")
-            self.logger.error(f"Traceback: {error_traceback}")
-            
-            self.ui_controller.show_error_message("Export Error", error_msg)
+            self.logger.error("Export task error: %s: %s", error_type.__name__, error_value)
+            self.logger.error("Traceback: %s", error_traceback)
+
+            self.ui_controller.show_error_message("Export Error", "Couldn't export the dataset.", error=error_value)
             
         except Exception:
             self.logger.exception("Error handling export error")

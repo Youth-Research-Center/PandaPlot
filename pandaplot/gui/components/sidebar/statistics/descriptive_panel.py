@@ -22,16 +22,20 @@ from pandaplot.analysis import DescriptiveStatsResult
 from pandaplot.commands.project.dataset.descriptive_stats_command import DescriptiveStatsCommand
 from pandaplot.gui.components.common.number_input import IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import PANEL_TOPIC_DESCRIPTIVE
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.error_messages import describe_error
 
 
 class DescriptiveStatsPanel(SidebarPanel):
     """Side panel for computing descriptive statistics on dataset columns."""
+
+    ICON_NAME = "table"
 
     def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
@@ -49,7 +53,7 @@ class DescriptiveStatsPanel(SidebarPanel):
     def _init_ui(self):
         self._init_panel_layout()
 
-        self._set_title("📋 Descriptive Statistics", help_topic=PANEL_TOPIC_DESCRIPTIVE)
+        self._set_title("Descriptive Statistics", help_topic=PANEL_TOPIC_DESCRIPTIVE)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
@@ -117,6 +121,8 @@ class DescriptiveStatsPanel(SidebarPanel):
         self.results_text.setReadOnly(True)
         self.results_text.setMinimumHeight(180)
         self.results_text.setPlaceholderText("Compute statistics to see a preview here...")
+        self.status_message = StatusMessage(self.app_context)
+        group_layout.addWidget(self.status_message)
         group_layout.addWidget(self.results_text)
 
         group.setLayout(group_layout)
@@ -144,12 +150,12 @@ class DescriptiveStatsPanel(SidebarPanel):
 
     def _build_command(self) -> DescriptiveStatsCommand | None:
         if not self.current_dataset_id:
-            self.results_text.setText("❌ No dataset selected.")
+            self._show_status(StatusKind.ERROR, "No dataset selected.")
             return None
 
         columns = self._selected_columns()
         if not columns:
-            self.results_text.setText("❌ Please select at least one column.")
+            self._show_status(StatusKind.ERROR, "Please select at least one column.")
             return None
 
         return DescriptiveStatsCommand(
@@ -160,6 +166,11 @@ class DescriptiveStatsPanel(SidebarPanel):
             include_report=self.report_check.isChecked(),
         )
 
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.results_text
+
     def compute(self):
         """Compute statistics and preview them (without adding to the project)."""
         command = self._build_command()
@@ -167,14 +178,16 @@ class DescriptiveStatsPanel(SidebarPanel):
             return
         try:
             result = command.compute()
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+        except Exception as e:
+            self.logger.exception("Descriptive statistics failed")
             self.last_result = None
             self.add_btn.setEnabled(False)
-            self.results_text.setText(f"❌ Computation failed: {e}")
+            self._show_status(StatusKind.ERROR, f"Computation failed: {describe_error(e).inline_text}")
             return
 
         self.last_result = result
         self.add_btn.setEnabled(True)
+        self.status_message.clear()
         self.results_text.setPlainText(result.report())
 
     def add_results_to_project(self):
@@ -187,14 +200,14 @@ class DescriptiveStatsPanel(SidebarPanel):
             self.last_result = command.result
             name = command.result.result_name() if command.result else "results"
             report = command.result.report() if command.result else ""
-            self.results_text.setPlainText(
-                f"✅ Results added to project as dataset:\n'{name}'\n\n{report}"
-            )
+            self.results_text.setPlainText(report)
+            self.status_message.set_message(StatusKind.SUCCESS, f"Results added to project as dataset: '{name}'")
         else:
-            self.results_text.setText("❌ Failed to add results. Please check your selection.")
+            self._show_status(StatusKind.ERROR, "Failed to add results. Please check your selection.")
 
     def clear(self):
         self.results_text.clear()
+        self.status_message.clear()
         self.last_result = None
         self.add_btn.setEnabled(False)
 
@@ -322,3 +335,4 @@ class DescriptiveStatsPanel(SidebarPanel):
         """)
 
         self._apply_title_theme(base_fg, card_border)
+        self.status_message.retint()

@@ -141,8 +141,9 @@ def test_dataset_with_no_data_round_trips_without_error(tmp_path):
     # Dataset.__init__ treats a None `data` argument as "start with an
     # empty DataFrame" (see Dataset.__init__), so that's what a "no data"
     # save/load round trip is expected to produce too.
-    assert loaded.data is not None
-    assert loaded.data.empty
+    assert loaded.id == "ds"
+    assert loaded.name == "Empty"
+    pd.testing.assert_frame_equal(loaded.data, pd.DataFrame())
 
 
 def test_round_trip_preserves_formula_columns(tmp_path):

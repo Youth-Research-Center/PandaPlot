@@ -11,12 +11,23 @@ from pandaplot.gui.dialogs.explore_data_dialog import ExploreDataDialog
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.folder import Folder
+from pandaplot.models.state.app_context import AppContext
+from tests.gui.icon_testing import ICON_TOKENS
 
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():
     app = QApplication.instance() or QApplication([])
     yield app
+
+
+def _context() -> Mock:
+    """A spec'd context whose theme manager serves real design tokens, as the dialog header icon needs."""
+    context = Mock(spec=AppContext)
+    context.event_bus = Mock()
+    context.get_manager.return_value.get_surface_palette.return_value = {}
+    context.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
+    return context
 
 
 def _make_dialog(app_context, on_import_data=None, on_create_dataset=None):
@@ -34,7 +45,7 @@ def _dataset(name="Sales", rows=3, cols=2):
 
 
 def test_get_datasets_empty_when_no_project_open():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = False
 
     dialog = _make_dialog(app_context)
@@ -43,7 +54,7 @@ def test_get_datasets_empty_when_no_project_open():
 
 
 def test_get_datasets_empty_when_project_has_no_datasets():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = True
     project = Mock()
     project.get_all_items.return_value = []
@@ -55,7 +66,7 @@ def test_get_datasets_empty_when_project_has_no_datasets():
 
 
 def test_get_datasets_filters_to_dataset_items_only():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = True
     ds1, ds2 = _dataset("A"), _dataset("B")
     non_dataset_item = Mock()
@@ -69,22 +80,32 @@ def test_get_datasets_filters_to_dataset_items_only():
 
 
 def test_dialog_builds_empty_state_actions_when_no_datasets():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = False
 
-    dialog = _make_dialog(app_context)
+    on_import_data, on_create_dataset = Mock(), Mock()
 
-    assert hasattr(dialog, "import_btn")
-    assert hasattr(dialog, "create_btn")
+    dialog = _make_dialog(app_context, on_import_data=on_import_data, on_create_dataset=on_create_dataset)
+
+    assert dialog.import_btn.text() == "Import Data"
+    assert dialog.create_btn.text() == "Create Dataset"
+    assert dialog.import_btn.isEnabled()
+    assert dialog.create_btn.isEnabled()
+    dialog.import_btn.click()
+    on_import_data.assert_called_once_with()
+    on_create_dataset.assert_not_called()
+    dialog.create_btn.click()
+    on_create_dataset.assert_called_once_with()
+    on_import_data.assert_called_once_with()
 
 
 def test_dialog_shows_an_intro_explanation_regardless_of_branch():
-    empty_context = Mock()
+    empty_context = _context()
     empty_context.get_app_state.return_value.has_project = False
     empty_dialog = _make_dialog(empty_context)
     assert empty_dialog.intro_label.text().strip()
 
-    populated_context = Mock()
+    populated_context = _context()
     populated_context.get_app_state.return_value.has_project = True
     project = Mock()
     project.get_all_items.return_value = [_dataset("A")]
@@ -94,7 +115,7 @@ def test_dialog_shows_an_intro_explanation_regardless_of_branch():
 
 
 def test_dialog_builds_dataset_list_when_datasets_exist():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = True
     project = Mock()
     project.get_all_items.return_value = [_dataset("A")]
@@ -120,7 +141,7 @@ def test_dataset_list_disambiguates_duplicate_dataset_names():
     project.add_item(root_dataset)
     project.add_item(nested_dataset, runs.id)
 
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = True
     app_context.get_app_state.return_value.current_project = project
 
@@ -133,7 +154,7 @@ def test_dataset_list_disambiguates_duplicate_dataset_names():
 
 
 def test_open_dataset_emits_tab_open_requested_and_accepts():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = False
     dialog = _make_dialog(app_context)
     dataset = _dataset("Sales")
@@ -149,7 +170,7 @@ def test_open_dataset_emits_tab_open_requested_and_accepts():
 
 
 def test_handle_import_data_invokes_callback_and_accepts():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = False
     on_import_data = Mock()
     dialog = _make_dialog(app_context, on_import_data=on_import_data)
@@ -161,7 +182,7 @@ def test_handle_import_data_invokes_callback_and_accepts():
 
 
 def test_handle_create_dataset_invokes_callback_and_accepts():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = False
     on_create_dataset = Mock()
     dialog = _make_dialog(app_context, on_create_dataset=on_create_dataset)

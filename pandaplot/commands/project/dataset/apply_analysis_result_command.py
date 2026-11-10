@@ -102,9 +102,9 @@ class ApplyAnalysisResultCommand(Command):
             )
             return CommandResult.SUCCESS
 
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            self.logger.error(f"ApplyAnalysisResultCommand execution failed: {e}")
-            self.ui_controller.show_error_message("Analysis Error", str(e))
+        except Exception as e:
+            self.logger.exception("ApplyAnalysisResultCommand execution failed")
+            self.ui_controller.show_error_message("Analysis Error", "Couldn't add the analysis result to the dataset.", error=e)
             return CommandResult.FAILURE
 
     @override

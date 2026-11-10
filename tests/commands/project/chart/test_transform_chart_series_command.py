@@ -20,6 +20,7 @@ from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.errors import UserFacingError
 
 
 @pytest.fixture
@@ -154,8 +155,10 @@ class TestTransformChartSeriesCommand:
         command = _cmd(ctx, source_index=9)
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
-        _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
-        assert "no longer exists" in message
+        call = app_context.get_ui_controller.return_value.show_error_message.call_args
+        assert call.args[1] == "Couldn't transform the chart series."
+        assert isinstance(call.kwargs["error"], UserFacingError)
+        assert "no longer exists" in str(call.kwargs["error"])
 
     def test_expression_returning_a_wrong_length_array_fails_with_the_friendly_message(self, ctx):
         """A raw array/list result (not a pd.Series) of the wrong length
@@ -165,8 +168,9 @@ class TestTransformChartSeriesCommand:
         app_context, _ = ctx
         command = _cmd(ctx, expression="np.array([1.0, 2.0, 3.0])")
         assert command.execute() is CommandResult.FAILURE
-        _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
-        assert "Expression returned 3 values" in message
+        error = app_context.get_ui_controller.return_value.show_error_message.call_args.kwargs["error"]
+        assert isinstance(error, UserFacingError)
+        assert "Expression returned 3 values" in str(error)
 
     def test_unsafe_expression_fails(self, ctx):
         app_context, _ = ctx
@@ -184,6 +188,18 @@ class TestTransformChartSeriesCommand:
         command = _cmd(ctx, expression="not_a_real_variable")
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+
+    def test_expression_failure_is_reported_in_plain_language(self, ctx):
+        app_context, _ = ctx
+        command = _cmd(ctx, expression="not_a_real_variable")
+        assert command.execute() is CommandResult.FAILURE
+        call = app_context.get_ui_controller.return_value.show_error_message.call_args
+        assert call.args[1] == "Couldn't transform the chart series."
+        error = call.kwargs["error"]
+        assert isinstance(error, UserFacingError)
+        assert str(error).startswith("The expression could not be calculated for this data.")
+        assert "not_a_real_variable" not in str(error)
+        assert isinstance(error.__cause__, NameError)
 
     def test_expression_that_changes_result_length_fails(self, ctx):
         app_context, _ = ctx

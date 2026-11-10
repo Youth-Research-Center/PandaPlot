@@ -2,9 +2,10 @@
 import sys
 
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QComboBox, QLabel
 
 from pandaplot.gui.dialogs.chart.series_config_card import SeriesConfigCard
+from pandaplot.models.chart.chart_role_labels import ROLE_LABELS
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
 
 
@@ -14,9 +15,16 @@ def qapp():
 
 
 @pytest.mark.parametrize("chart_type", ["colormap", "heatmap"])
-def test_card_exposes_z_column_combo(chart_type):
+def test_card_exposes_a_labelled_z_column_combo_filled_from_the_dataset_columns(chart_type):
     card = SeriesConfigCard(role_spec=get_chart_type_spec(chart_type))
-    assert hasattr(card, "z_column_combo")
+    card.set_datasets([("ds-1", "Dataset 1")])
+    card.set_dataset_columns("ds-1", [("col-x", "X"), ("col-y", "Y"), ("col-z", "Z")])
+
+    assert isinstance(card.z_column_combo, QComboBox)
+    # A blank "nothing chosen" entry first, then one entry per dataset column.
+    assert [card.z_column_combo.itemData(index) for index in range(card.z_column_combo.count())] == ["", "col-x", "col-y", "col-z"]
+    assert card.z_column_combo.currentData() == ""
+    assert any(label.buddy() is card.z_column_combo and label.text() == f"{ROLE_LABELS['z']}:" for label in card.findChildren(QLabel))
 
 
 @pytest.mark.parametrize("chart_type", ["colormap", "heatmap"])

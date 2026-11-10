@@ -23,9 +23,11 @@ from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
 from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.number_input import DecimalInput, IntegerInput
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
+from pandaplot.gui.resources.themed_icons import IconRole
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS, get_chart_type_spec
 from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items import Dataset
@@ -49,6 +51,8 @@ CUSTOM_SERIES_SENTINEL = "__custom__"
 
 class FitPanel(SidebarPanel):
     """Side panel for performing curve fitting on chart data."""
+
+    ICON_NAME = "function"
 
     fit_completed = Signal(dict)  # Emitted when fit is completed with results
     fit_applied = Signal(dict)   # Emitted when fit should be applied to chart
@@ -90,7 +94,7 @@ class FitPanel(SidebarPanel):
         self._init_panel_layout()
 
         # Title
-        self._set_title("📐 Curve Fitting", help_topic=PANEL_TOPIC_FIT)
+        self._set_title("Curve Fitting", help_topic=PANEL_TOPIC_FIT)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
@@ -149,6 +153,7 @@ class FitPanel(SidebarPanel):
 
         # Title label with shared styling
         self._apply_title_theme(base_fg, card_border)
+        self.data_points_warning_icon.retint()
 
         self.equation_label.setStyleSheet(
             f"font-family: monospace; background-color: {card_bg}; "
@@ -158,6 +163,7 @@ class FitPanel(SidebarPanel):
 
         warning_fg = tokens.get("status_modified_text", "#B06A00")
         self.fit_availability_label.setStyleSheet(f"color: {warning_fg};")
+        self.range_warning_label.setStyleSheet(f"color: {warning_fg};")
 
         self.update_data_points_display()
 
@@ -235,8 +241,7 @@ class FitPanel(SidebarPanel):
         self.data_points_label = QLabel("No data selected")
         points_layout.addWidget(self.data_points_label)
 
-        self.data_points_warning_icon = QLabel("⚠")
-        self.data_points_warning_icon.setStyleSheet("color: red;")
+        self.data_points_warning_icon = IconLabel(self.app_context, "warning", role=IconRole.WARNING)
         self.data_points_warning_icon.setVisible(False)
         points_layout.addWidget(self.data_points_warning_icon)
         points_layout.addStretch()
@@ -364,7 +369,6 @@ class FitPanel(SidebarPanel):
         range_layout.addWidget(self.range_max_value_label, 2, 1)
 
         self.range_warning_label = QLabel("Max must be greater than Min.")
-        self.range_warning_label.setStyleSheet("color: red;")
         self.range_warning_label.setVisible(False)
         range_layout.addWidget(self.range_warning_label, 3, 0, 1, 2)
 
@@ -443,6 +447,14 @@ class FitPanel(SidebarPanel):
         self.fit_type_combo.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
         if hasattr(self, "custom_group"):
             self._on_fit_type_changed()
+
+    @staticmethod
+    def _fit_failure_text(command: PerformFitCommand) -> str:
+        """Return the plain-language reason (and next step) a fit failed, for the results box."""
+        description = command.error_description
+        if description is None:
+            return "The fit could not be calculated."
+        return description.text
 
     def _set_results_text_style(self, color: str | None = None):
         if color is None:
@@ -811,6 +823,7 @@ class FitPanel(SidebarPanel):
         palette = theme_manager.get_surface_palette()
         base_fg = palette.get("base_fg", "#333333")
         secondary_fg = palette.get("secondary_fg", "#555555")
+        warning_fg = theme_manager.get_design_tokens().get("status_modified_text", "#B06A00")
 
         unavailable_reason = self._fit_unavailable_reason()
         self.fit_availability_label.setText(unavailable_reason or "")
@@ -850,7 +863,7 @@ class FitPanel(SidebarPanel):
             minimum_points = self._minimum_fit_points()
             if len(x_data) < minimum_points:
                 tooltip = f"At least {minimum_points} valid (x, y) data points are required for this fit."
-                self.data_points_label.setStyleSheet("color: red;")
+                self.data_points_label.setStyleSheet(f"color: {warning_fg};")
                 self.data_points_label.setToolTip(tooltip)
                 self.data_points_warning_icon.setToolTip(tooltip)
                 self.data_points_warning_icon.setVisible(True)
@@ -1311,7 +1324,7 @@ class FitPanel(SidebarPanel):
             if result is not CommandResult.SUCCESS:
                 self.logger.error("PerformFitCommand failed: %s", command.error_message)
                 self._clear_results()
-                self.results_text.setPlainText(command.error_message or "Fit failed.")
+                self.results_text.setPlainText(self._fit_failure_text(command))
                 self._set_results_text_style("red")
                 return
 

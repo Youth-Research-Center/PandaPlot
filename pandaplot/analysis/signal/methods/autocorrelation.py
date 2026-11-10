@@ -7,6 +7,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from pandaplot.utils.errors import UserFacingError
+
 from ..signal_types import SignalAnalysisResult, SignalAnalysisType
 
 
@@ -24,7 +26,7 @@ def run(
     )
 
     if signal.size < 2:
-        raise ValueError(
+        raise UserFacingError(
             "Signal must contain at least two valid samples."
         )
 

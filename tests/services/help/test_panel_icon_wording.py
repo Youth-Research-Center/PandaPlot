@@ -33,3 +33,25 @@ def test_chart_properties_topic_describes_apply_and_undo_correctly() -> None:
     assert "undo" in text.lower()
     assert "only take effect" not in text
     assert "until you click Apply" not in text
+
+
+_OLD_BUTTON_AND_PANEL_NAMES = ("📐 Curve Fitting", "♻️ Refresh", "🔍 Reset Zoom", "⇄ Swap X/Y", "🔄 Reset", "📎 Artefacts", "ℹ️ button", "📊 Insert Chart...")
+
+
+def test_no_topic_names_a_button_or_panel_with_its_old_emoji() -> None:
+    """Panels and toolbar buttons are named by their text; their icons are bundled SVGs, not emoji."""
+    for topic in build_help_catalog().topics():
+        text = _text(topic)
+        for old_name in _OLD_BUTTON_AND_PANEL_NAMES:
+            assert old_name not in text, f"{topic.id} still says {old_name!r}"
+
+
+_OLD_GLYPH_BUTTON_NAMES = ("▾", "▸", "▲", "▼", "↺", "↻")
+
+
+def test_no_topic_names_a_button_by_its_old_glyph() -> None:
+    """Icon buttons are described in words: the glyphs they used to show are not quoted in the help."""
+    for topic in build_help_catalog().topics():
+        text = _text(topic)
+        for glyph in _OLD_GLYPH_BUTTON_NAMES:
+            assert glyph not in text, f"{topic.id} still quotes {glyph!r}"

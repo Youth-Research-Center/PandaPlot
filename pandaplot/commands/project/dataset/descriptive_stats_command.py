@@ -14,6 +14,7 @@ from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import DatasetEvents, ProjectEvents
 from pandaplot.models.project.items import Dataset, Note
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.errors import UserFacingError
 
 
 class DescriptiveStatsCommand(Command):
@@ -58,11 +59,11 @@ class DescriptiveStatsCommand(Command):
         """
         source = self._get_source_dataset()
         if source is None or source.data is None:
-            raise ValueError("Source dataset is not available.")
+            raise UserFacingError("Source dataset is not available.")
 
         missing = [c for c in self.column_names if c not in source.data.columns]
         if missing:
-            raise ValueError(f"Columns not found in dataset: {', '.join(missing)}")
+            raise UserFacingError(f"Columns not found in dataset: {', '.join(missing)}")
 
         columns = [source.data[c] for c in self.column_names]
         return DescriptiveStatsEngine.describe(columns, digits=self.digits)
@@ -127,7 +128,7 @@ class DescriptiveStatsCommand(Command):
 
         except Exception as e:
             self.logger.exception("Descriptive statistics failed")
-            self.ui_controller.show_error_message("Descriptive Statistics Error", str(e))
+            self.ui_controller.show_error_message("Descriptive Statistics Error", "Couldn't calculate the descriptive statistics.", error=e)
             return CommandResult.FAILURE
 
     @override

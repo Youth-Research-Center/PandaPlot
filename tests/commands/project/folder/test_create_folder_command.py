@@ -235,7 +235,8 @@ class TestCreateFolderCommand:
         ui_controller.show_error_message.assert_called_once()
         error_call = ui_controller.show_error_message.call_args
         assert error_call[0][0] == "Create Folder Error"
-        assert "Failed to create folder: Test exception" in error_call[0][1]
+        assert error_call[0][1] == "Couldn't create folder."
+        assert str(error_call.kwargs["error"]) == "Test exception"
 
     def test_undo_successful(self, mock_app_context, sample_project):
         """Test successful undo operation."""
@@ -272,11 +273,15 @@ class TestCreateFolderCommand:
         app_state.has_project = True
         app_state.current_project = sample_project
         
+        items_before = list(sample_project.items_index)
+
         command = CreateFolderCommand(app_context)
         # Don't execute, just try to undo
-        command.undo()
-        
-        # Should complete without error (no folder to remove)
+        result = command.undo()
+
+        assert result is CommandResult.NOOP
+        assert list(sample_project.items_index) == items_before
+        app_state.event_bus.emit.assert_not_called()
 
     def test_undo_no_project(self, mock_app_context):
         """Test undo when no project is loaded."""
@@ -285,9 +290,10 @@ class TestCreateFolderCommand:
         
         command = CreateFolderCommand(app_context)
         command.created_folder_id = "test-id"  # Set manually
-        command.undo()
-        
-        # Should complete without error
+        result = command.undo()
+
+        assert result is CommandResult.NOOP
+        app_state.event_bus.emit.assert_not_called()
 
     def test_undo_with_exception(self, mock_app_context, sample_project):
         """Test undo when an exception occurs."""
@@ -309,7 +315,8 @@ class TestCreateFolderCommand:
         ui_controller.show_error_message.assert_called()
         error_call = ui_controller.show_error_message.call_args
         assert error_call[0][0] == "Undo Error"
-        assert "Failed to undo create folder: Undo test exception" in error_call[0][1]
+        assert error_call[0][1] == "Couldn't undo create folder."
+        assert str(error_call.kwargs["error"]) == "Undo test exception"
 
     def test_redo_successful(self, mock_app_context, sample_project):
         """Test successful redo operation."""
@@ -404,7 +411,8 @@ class TestCreateFolderCommand:
         ui_controller.show_error_message.assert_called()
         error_call = ui_controller.show_error_message.call_args
         assert error_call[0][0] == "Redo Error"
-        assert "Failed to redo create folder: Redo test exception" in error_call[0][1]
+        assert error_call[0][1] == "Couldn't redo create folder."
+        assert str(error_call.kwargs["error"]) == "Redo test exception"
 
     def test_folder_properties(self, mock_app_context, sample_project):
         """Test that the created Folder object has correct properties."""

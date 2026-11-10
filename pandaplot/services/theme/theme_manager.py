@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
@@ -410,11 +411,11 @@ class ThemeManager:
             }}
             QPushButton[destructive="true"]:hover {{
                 background-color: {danger};
-                color: #FFFFFF;
+                color: {tokens['text_on_danger']};
             }}
             QPushButton[destructive="true"]:pressed {{
                 background-color: {danger_pressed};
-                color: #FFFFFF;
+                color: {tokens['text_on_danger']};
             }}
             QPushButton[destructive="true"]:disabled {{
                 border-color: {tokens['border_subtle']};
@@ -431,7 +432,7 @@ class ThemeManager:
             }}
             QPushButton[iconButton="true"][destructive="true"]:hover {{
                 background-color: {danger};
-                color: #FFFFFF;
+                color: {tokens['text_on_danger']};
             }}
         """
 
@@ -471,6 +472,9 @@ class ThemeManager:
         else:
             bg = QColor(255, 255, 255)
             fg = QColor(0, 0, 0)
+        # Controls the platform style draws itself (e.g. QWizard buttons on the Windows 11 style) follow Qt's colour scheme, which
+        # defaults to the operating system's. Without this, a light app theme on a dark OS drew white text on white buttons.
+        self._app.styleHints().setColorScheme(Qt.ColorScheme.Dark if ctx.theme == Theme.DARK else Qt.ColorScheme.Light)
         accent = QColor(ctx.accent)
         if not accent.isValid():
             accent = QColor(74, 86, 198)
@@ -537,6 +541,8 @@ class ThemeManager:
         accent_active_text = c.darker(115).name() if c.isValid() else accent
         accent_disabled = c.lighter(140).name() if c.isValid() else "#AAB1E3"
         accent_selected_bg = "#2E3350" if is_dark else "#EEF0FB"
+        # Foreground drawn on an accent background (the primary button's text colour, selected menu rows)
+        text_on_accent = self._contrasting_text_color(c).name() if c.isValid() else "#FFFFFF"
         if c.isValid():
             icon_start = c if is_dark else QColor(accent_active_text)
             accent_icon_active = self._accent_icon_color(icon_start, QColor(accent_selected_bg), lighten=is_dark).name()
@@ -551,7 +557,8 @@ class ThemeManager:
                 "border_subtle": "#33363A",
                 "surface_white": "#2A2C2E", "surface_chrome": "#232527",
                 "surface_inset": "#26282B",
-                "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active,
+                "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active, "text_on_accent": text_on_accent,
+                "text_on_danger": "#FFFFFF",
                 "accent_selected_bg": accent_selected_bg, "accent_disabled": accent_disabled,
                 "status_modified_dot": "#E09A1F", "status_modified_text": "#E0A94A",
                 "status_success": "#3FA46A", "status_danger": "#C24141",
@@ -567,7 +574,8 @@ class ThemeManager:
             "border_subtle": "#ECEEF2",
             "surface_white": "#FFFFFF", "surface_chrome": "#FBFBFC",
             "surface_inset": "#F4F5F8",
-            "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active,
+            "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active, "text_on_accent": text_on_accent,
+            "text_on_danger": "#FFFFFF",
             "accent_selected_bg": accent_selected_bg, "accent_disabled": accent_disabled,
             "status_modified_dot": "#E09A1F", "status_modified_text": "#B06A00",
             "status_success": "#3FA46A", "status_danger": "#DC3545",

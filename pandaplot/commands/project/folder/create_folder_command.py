@@ -95,10 +95,10 @@ class CreateFolderCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to create folder: {e!s}"
+            error_msg = "Couldn't create folder."
             self.logger.exception("CreateFolderCommand Error: %s", error_msg)
             self.ui_controller.show_error_message(
-                "Create Folder Error", error_msg)
+                "Create Folder Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override
@@ -141,9 +141,9 @@ class CreateFolderCommand(Command):
                 return CommandResult.NOOP
 
         except Exception as e:
-            error_msg = f"Failed to undo create folder: {e!s}"
+            error_msg = "Couldn't undo create folder."
             self.logger.exception("CreateFolderCommand Undo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.ui_controller.show_error_message("Undo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override
@@ -181,9 +181,9 @@ class CreateFolderCommand(Command):
                 return CommandResult.FAILURE
 
         except Exception as e:
-            error_msg = f"Failed to redo create folder: {e!s}"
+            error_msg = "Couldn't redo create folder."
             self.logger.exception("CreateFolderCommand Redo Error: %s", error_msg)
-            self.ui_controller.show_error_message("Redo Error", error_msg)
+            self.ui_controller.show_error_message("Redo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override

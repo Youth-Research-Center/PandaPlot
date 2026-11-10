@@ -299,10 +299,9 @@ class DeleteColumnsCommand(Command):
             self.logger.info(f"Deleted {len(self.column_names)} columns from dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return CommandResult.SUCCESS
 
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            error_msg = f"Failed to delete {len(self.column_specs) if self.column_specs else 0} columns: {e!s}"
-            self.logger.error(error_msg)
-            self.ui_controller.show_error_message("Delete Columns Error", error_msg)
+        except Exception as e:
+            self.logger.exception("Failed to delete %d columns", len(self.column_specs) if self.column_specs else 0)
+            self.ui_controller.show_error_message("Delete Columns Error", "Couldn't delete the selected columns.", error=e)
             return CommandResult.FAILURE
 
     def _find_chart_references(
@@ -621,8 +620,8 @@ class DeleteColumnsCommand(Command):
                 self.dataset_id, self.dataset is not None, self.original_data is not None, bool(self.column_positions),
             )
             return CommandResult.FAILURE
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            self.logger.error(f"DeleteColumnsCommand Undo Error: {e}")
+        except Exception:
+            self.logger.exception("DeleteColumnsCommand Undo Error")
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:
@@ -634,10 +633,9 @@ class DeleteColumnsCommand(Command):
             self._perform_deletion(references)
             self.logger.info(f"Redid deleting {len(self.column_names)} columns from dataset '{self.dataset.name}'")
             return CommandResult.SUCCESS
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            error_msg = f"Failed to redo deleting {len(self.column_names)} columns: {e}"
-            self.logger.error(f"DeleteColumnsCommand Redo Error: {error_msg}")
-            self.ui_controller.show_error_message("Delete Columns Error", error_msg)
+        except Exception as e:
+            self.logger.exception("DeleteColumnsCommand Redo Error")
+            self.ui_controller.show_error_message("Delete Columns Error", "Couldn't redo deleting the columns.", error=e)
             return CommandResult.FAILURE
 
     @override

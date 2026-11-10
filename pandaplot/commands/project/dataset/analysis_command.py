@@ -132,9 +132,9 @@ class AnalysisCommand(BackgroundTaskCommand):
             )
             return CommandResult.SUCCESS
 
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            self.logger.error(f"Analysis execution failed: {e}")
-            self.ui_controller.show_error_message("Analysis Error", str(e))
+        except Exception as e:
+            self.logger.exception("Analysis execution failed")
+            self.ui_controller.show_error_message("Analysis Error", "Couldn't run the analysis.", error=e)
             self._is_running = False
             return CommandResult.FAILURE
 
@@ -151,7 +151,9 @@ class AnalysisCommand(BackgroundTaskCommand):
         """Runs on the main thread (Worker signals are queued back to it)."""
         try:
             if not outcome["success"]:
-                self.ui_controller.show_error_message("Analysis Error", outcome["error"] or "Analysis failed")
+                self.ui_controller.show_error_message(
+                    "Analysis Error", "Couldn't run the analysis.", error=outcome.get("error_description")
+                )
                 self._notify_complete(CommandResult.FAILURE)
                 return
 
@@ -191,9 +193,9 @@ class AnalysisCommand(BackgroundTaskCommand):
             else:
                 self._notify_complete(CommandResult.FAILURE)
 
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            self.logger.error(f"Error applying analysis result: {e}")
-            self.ui_controller.show_error_message("Analysis Error", str(e))
+        except Exception as e:
+            self.logger.exception("Error applying analysis result")
+            self.ui_controller.show_error_message("Analysis Error", "Couldn't add the analysis result to the dataset.", error=e)
             self._notify_complete(CommandResult.FAILURE)
 
     def _on_analysis_error(self, error_info) -> None:
@@ -201,10 +203,8 @@ class AnalysisCommand(BackgroundTaskCommand):
         computation failures are caught inside _compute_analysis_task and
         reported through _on_analysis_computed instead."""
         error_type, error_value, error_traceback = error_info
-        message = f"Analysis failed with {error_type.__name__}: {error_value}"
-        self.logger.error(message)
-        self.logger.error(error_traceback)
-        self.ui_controller.show_error_message("Analysis Error", message)
+        self.logger.error("Analysis failed with %s: %s\n%s", error_type.__name__, error_value, error_traceback)
+        self.ui_controller.show_error_message("Analysis Error", "Couldn't run the analysis.", error=error_value)
         self._notify_complete(CommandResult.FAILURE)
 
     def _get_dataset(self) -> Dataset | None:

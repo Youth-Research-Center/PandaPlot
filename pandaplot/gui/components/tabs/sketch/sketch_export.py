@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QGraphicsScene
 
 from pandaplot.gui.components.tabs.sketch.graphics_items import add_layer_items
 from pandaplot.models.project.items.sketch import Sketch, SketchLayer
+from pandaplot.utils.errors import UserFacingError
 
 # Raster images larger than this many pixels are refused, well below what
 # QImage can allocate, so a mistyped scale fails with a message, not a crash.
@@ -55,7 +56,7 @@ class ExportRegion(StrEnum):
     ELEMENTS = "elements"
 
 
-class SketchExportError(Exception):
+class SketchExportError(UserFacingError):
     """The sketch can't be exported with the given options; the message is for the user."""
 
 

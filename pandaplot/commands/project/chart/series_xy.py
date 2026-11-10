@@ -16,6 +16,7 @@ from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart, resolve_series_column
 from pandaplot.models.state import AppState
+from pandaplot.utils.errors import UserFacingError
 
 
 def resolve_series_xy(
@@ -44,7 +45,7 @@ def resolve_series_xy(
     applied.
     """
     if not (0 <= source_index < len(chart.data_series)):
-        raise ValueError("Selected series no longer exists.")
+        raise UserFacingError("Selected series no longer exists.")
     series = chart.data_series[source_index]
 
     if series.is_fit:
@@ -54,7 +55,7 @@ def resolve_series_xy(
             # x_data/y_data) would otherwise silently pass None into
             # np.asarray/pd.Series below, producing a bogus 1-element NaN
             # series instead of a clear error.
-            raise ValueError("Fit has no stored curve data.")
+            raise UserFacingError("Fit has no stored curve data.")
         dataset = app_state.current_project.find_item(series.dataset_id)
         if not isinstance(dataset, Dataset):
             dataset = None
@@ -67,19 +68,19 @@ def resolve_series_xy(
         # Operation-neutral wording: this resolver backs both analysis
         # (AnalyzeChartSeriesCommand) and transform (TransformChartSeriesCommand)
         # requests, so it can't say "analysis" without being wrong half the time.
-        raise ValueError(
+        raise UserFacingError(
             f"'{series.series_type.value}' series aren't supported here "
             "(only line, scatter, and fitted curves have an ordered (x, y) curve)."
         )
     dataset = app_state.current_project.find_item(series.dataset_id)
     if not isinstance(dataset, Dataset) or dataset.data is None:
-        raise ValueError("Series dataset is not available.")
+        raise UserFacingError("Series dataset is not available.")
 
     x_name = resolve_series_column(dataset, series.x_column_id, series.x_column)
     y_name = resolve_series_column(dataset, series.y_column_id, series.y_column)
     df = dataset.data
     if y_name is None or y_name not in df.columns:
-        raise ValueError("Series y column not found.")
+        raise UserFacingError("Series y column not found.")
 
     if x_name and x_name in df.columns:
         x_full = df[x_name]

@@ -230,3 +230,14 @@ def test_failed_edit_does_not_change_the_render_dpi(app_context_with_project):
 
     assert command.execute() is CommandResult.FAILURE
     assert image.render_dpi == 150
+
+
+def test_a_failed_edit_shows_a_plain_message_with_the_cause(app_context_with_project):
+    _snapshot_image(app_context_with_project, render_dpi=150)
+    failure = RuntimeError("subscriber failed")
+    app_context_with_project.get_app_state().event_bus.emit.side_effect = failure
+
+    assert _edit(app_context_with_project).execute() is CommandResult.FAILURE
+    app_context_with_project.get_ui_controller().show_error_message.assert_called_once_with(
+        "Edit Image Error", "Couldn't edit image.", error=failure
+    )

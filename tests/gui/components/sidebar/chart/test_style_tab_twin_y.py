@@ -78,7 +78,12 @@ def test_picking_a_twin_color_emits_a_config_change():
     _select(tab, series)
     emitted = []
     tab.configChanged.connect(lambda: emitted.append(True))
+    picked = tab.twin_y_color_row._palette[-1]
+    assert picked.lower() != series.style.twin_y_color.lower()
+    swatch = next(button for button in tab.twin_y_color_row._swatch_buttons if button.toolTip() == picked)
 
-    tab.twin_y_color_row.colorChanged.emit("#123456")
+    swatch.click()
 
-    assert emitted
+    assert emitted == [True]
+    assert tab.twin_y_color_row.currentColor() == picked
+    assert series.style.twin_y_color == picked

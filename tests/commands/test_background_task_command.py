@@ -140,3 +140,24 @@ def test_dispatch_task_resets_is_running_on_synchronous_dispatch_failure():
         cmd._dispatch_task(scheduler, task=task, task_arguments={"cancellation_token": None})
 
     assert cmd._is_running is False
+
+
+def test_run_task_safely_returns_a_description_for_an_exception():
+    outcome = BackgroundTaskCommand._run_task_safely(lambda: (_ for _ in ()).throw(FileNotFoundError("/x")))
+    assert outcome["success"] is False
+    assert outcome["error"] == "/x"
+    description = outcome["error_description"]
+    assert "could not be found" in description.reason
+    assert description.details == "FileNotFoundError: /x"
+
+
+def test_run_task_safely_returns_a_description_for_a_none_result():
+    outcome = BackgroundTaskCommand._run_task_safely(lambda: None)
+    assert outcome["success"] is False
+    assert outcome["error_description"].reason == "The calculation returned no result."
+    assert outcome["error_description"].details == ""
+
+
+def test_run_task_safely_success_has_no_description_key():
+    outcome = BackgroundTaskCommand._run_task_safely(lambda: 5)
+    assert outcome == {"success": True, "result": 5, "error": None}

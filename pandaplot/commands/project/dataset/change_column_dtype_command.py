@@ -172,9 +172,8 @@ class ChangeColumnDtypeCommand(Command):
             return CommandResult.SUCCESS
             
         except Exception as e:
-            error_msg = f"Failed to change column type for column {self.column_index}: {e!s}"
-            self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Change Column Type Error", error_msg)
+            self.logger.exception("Failed to change column type for column %s", self.column_index)
+            self.ui_controller.show_error_message("Change Column Type Error", "Couldn't change the column type.", error=e)
             return CommandResult.FAILURE
 
     def _convert_column_dtype(self, column_name: Hashable) -> dict[str, Any] | None:
@@ -253,8 +252,9 @@ class ChangeColumnDtypeCommand(Command):
                 "target_dtype": self.target_dtype
             }
             
-        except Exception:
+        except Exception as e:
             self.logger.exception("Error converting column data")
+            self.ui_controller.show_error_message("Change Column Type Error", "Couldn't change the column type.", error=e)
             return None
 
     def undo(self) -> CommandResult:

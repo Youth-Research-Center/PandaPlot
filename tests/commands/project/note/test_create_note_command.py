@@ -237,7 +237,8 @@ class TestCreateNoteCommand:
         
         assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
-        assert "Failed to create note: Test error" in ui_controller.show_error_message.call_args[0][1]
+        assert ui_controller.show_error_message.call_args[0][1] == "Couldn't create note."
+        assert str(ui_controller.show_error_message.call_args.kwargs["error"]) == "Test error"
 
     def test_undo_successful(self, mock_app_context, sample_project):
         """Test successful undo operation."""
@@ -265,12 +266,13 @@ class TestCreateNoteCommand:
 
     def test_undo_no_note_id(self, mock_app_context):
         """Test undo when no note ID is set."""
-        app_context, _app_state, _ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         
         command = CreateNoteCommand(app_context)
-        command.undo()  # Should not crash
-        
-        # No assertions needed - just verify it doesn't crash
+        result = command.undo()
+
+        assert result is CommandResult.NOOP
+        app_state.event_bus.emit.assert_not_called()
 
     def test_undo_no_project(self, mock_app_context):
         """Test undo when no project is loaded."""
@@ -279,7 +281,10 @@ class TestCreateNoteCommand:
         
         command = CreateNoteCommand(app_context)
         command.created_note_id = "test-id"
-        command.undo()  # Should not crash
+        result = command.undo()
+
+        assert result is CommandResult.NOOP
+        app_state.event_bus.emit.assert_not_called()
 
     def test_undo_note_not_found(self, mock_app_context, sample_project):
         """Test undo when note is not found in project."""
@@ -314,7 +319,8 @@ class TestCreateNoteCommand:
         command.undo()
         
         ui_controller.show_error_message.assert_called_once()
-        assert "Failed to undo create note: Test error" in ui_controller.show_error_message.call_args[0][1]
+        assert ui_controller.show_error_message.call_args[0][1] == "Couldn't undo create note."
+        assert str(ui_controller.show_error_message.call_args.kwargs["error"]) == "Test error"
 
     def test_redo_successful(self, mock_app_context, sample_project):
         """Test successful redo operation."""
@@ -385,7 +391,8 @@ class TestCreateNoteCommand:
         
         assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
-        assert "Failed to redo create note: Test error" in ui_controller.show_error_message.call_args[0][1]
+        assert ui_controller.show_error_message.call_args[0][1] == "Couldn't redo create note."
+        assert str(ui_controller.show_error_message.call_args.kwargs["error"]) == "Test error"
 
     def test_note_properties(self, mock_app_context, sample_project):
         """Test that created note has correct properties."""

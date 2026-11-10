@@ -21,9 +21,12 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
 )
+from pandaplot.gui.components.common.icon_label import IconLabel
+from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.signal.signal_panel import SignalPanel
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -36,7 +39,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9}
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     return ctx
 
 
@@ -117,7 +120,27 @@ class TestRunAnalysisAsyncDispatch:
         assert panel.run_btn.isEnabled() is True
         assert panel.add_btn.isEnabled() is False
         assert panel.last_result is None
-        assert "Analysis failed" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        message = panel.status_message.message()
+        assert message.startswith("Analysis failed: ")
+        assert "PandaPlot could not process this data with these settings." in message
+        assert "TypeError" not in message
+        assert "has no len()" not in message
+        assert "Analysis failed" not in panel.results_text.toPlainText()
+
+    def test_dispatch_failure_shows_plain_language_reason(self, app_context):
+        panel = _build_panel_with_column(app_context)
+
+        fake_command = Mock()
+        fake_command.run_analysis_async = Mock(side_effect=OSError(13, "Permission denied"))
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        message = panel.status_message.message()
+        assert "PandaPlot is not allowed to open or change this file." in message
+        assert "Errno" not in message
+        assert panel.busy_spinner.is_running is False
 
     def test_discards_stale_result_after_dataset_switch(self, app_context):
         """Regression test (PR review): tab/dataset navigation stays enabled
@@ -164,7 +187,9 @@ class TestRunAnalysisAsyncDispatch:
         assert panel.run_btn.isEnabled() is True
         assert panel.add_btn.isEnabled() is False
         assert panel.last_result is None
-        assert "Analysis blew up" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Analysis failed: Analysis blew up"
+        assert panel.results_text.toPlainText() == ""
 
     def test_sync_dispatch_failure_stops_spinner_without_leftover_busy_state(self, app_context):
         """run_analysis_async() can call on_complete synchronously (e.g. the
@@ -185,7 +210,8 @@ class TestRunAnalysisAsyncDispatch:
         assert panel.run_btn.isEnabled() is True
         assert panel.add_btn.isEnabled() is False
         assert panel.last_result is None
-        assert "Column not found: signal" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Analysis failed: Column not found: signal"
 
 
 class TestAddResultsToProjectAsyncDispatch:
@@ -234,7 +260,9 @@ class TestAddResultsToProjectAsyncDispatch:
         # Should execute ApplySignalAnalysisResultCommand directly instead of re-building SignalAnalysisCommand
         assert isinstance(executed["command"], ApplySignalAnalysisResultCommand)
         assert executed["command"].result is result
-        assert "added to project" in panel.results_text.toPlainText().lower()
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Results added to project"
+        assert "FFT" in panel.results_text.toPlainText()
         assert panel.add_btn.isEnabled() is False
 
     def test_invalidates_cached_result_on_dataset_data_changed(self, app_context):
@@ -348,7 +376,8 @@ class TestAddResultsToProjectAsyncDispatch:
 
         assert panel.busy_spinner.is_running is False
         assert panel.last_result is fake_command.result
-        assert "added to project" in panel.results_text.toPlainText().lower()
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Results added to project"
         # Not re-enabled on success -- matches add_results_to_project()'s
         # real behavior of only re-enabling the button to let the user retry
         # after a failure.
@@ -368,7 +397,7 @@ class TestAddResultsToProjectAsyncDispatch:
         fake_command.on_complete(CommandResult.SUCCESS)
 
         assert panel.last_result is None
-        assert "added to project" not in panel.results_text.toPlainText().lower()
+        assert panel.status_message.message() == ""
         assert panel.busy_spinner.is_running is False
         assert panel.run_btn.isEnabled() is True
 
@@ -599,7 +628,10 @@ class TestRunDispatchRaises:
         assert panel.busy_spinner.is_running is False
         assert panel.run_btn.isEnabled() is True
         assert panel.add_btn.isEnabled() is False
-        assert "thread pool shut down" in panel.results_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        message = panel.status_message.message()
+        assert message.startswith("Analysis failed: Something went wrong that PandaPlot did not expect.")
+        assert "thread pool shut down" not in message
 
 
 class TestStaleRunIsReported:
@@ -724,3 +756,54 @@ def test_completion_after_leaving_the_dataset_does_not_prompt_for_run(app_contex
 
     assert panel.run_btn.isEnabled() is False
     assert panel.results_text.toPlainText() == ""
+
+
+class TestSignalPanelStatusMessage:
+    def test_status_message_sits_directly_above_the_results_text(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        layout = panel.results_text.parentWidget().layout()
+
+        assert layout.indexOf(panel.status_message) == layout.indexOf(panel.results_text) - 1
+        assert panel.status_message.isHidden()
+
+    def test_an_error_replaces_the_previous_report(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        panel.results_text.setPlainText("old report")
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: on_complete(None, "<b>bad</b>")
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        assert panel.status_message.message() == "Analysis failed: <b>bad</b>"
+        assert panel.results_text.toPlainText() == ""
+
+    def test_a_new_result_clears_the_earlier_success_status(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        panel.status_message.set_message(StatusKind.SUCCESS, "Results added to project")
+        fake_command = Mock()
+        fake_command.run_analysis_async = lambda on_complete: on_complete(_fake_result(), None)
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        assert panel.status_message.message() == ""
+        assert "FFT" in panel.results_text.toPlainText()
+
+    def test_clear_clears_the_status_message(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        panel.status_message.set_message(StatusKind.ERROR, "boom")
+
+        panel.clear()
+
+        assert panel.status_message.message() == ""
+        assert panel.status_message.kind() is None
+
+    def test_theme_change_retints_the_status_icon(self, app_context):
+        panel = _build_panel_with_column(app_context)
+        panel.status_message.set_message(StatusKind.ERROR, "boom")
+        app_context.get_manager.return_value.get_design_tokens.return_value["status_danger"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.status_message.findChild(IconLabel).pixmap()), "#00AA00")
