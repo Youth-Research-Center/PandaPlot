@@ -82,6 +82,8 @@ from pandaplot.utils.length_units import (
 )
 
 # Preset swatch palette offered by the Style tab's line/marker color pickers.
+# Text colour of the combo icons before the theme tokens are applied (the light theme's primary text colour).
+DEFAULT_ICON_COLOR = "#1C1E26"
 STYLE_SWATCH_PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
 
 # Common matplotlib colormaps offered for vector-plot magnitude coloring.
@@ -467,7 +469,7 @@ class StyleTab(QWidget):
             ("Dash-Dot", LineStyleType.DASHDOT),
             ("None", LineStyleType.NONE),
         ]
-        _default_tokens = {"text_primary": "#1C1E26"}
+        _default_tokens = {"text_primary": DEFAULT_ICON_COLOR}
         self.line_style_control = ValueComboBox(
             _line_style_items,
             icons=[build_line_style_icon(style, _default_tokens) for _, style in _line_style_items],
@@ -656,7 +658,7 @@ class StyleTab(QWidget):
         marker_layout.addWidget(self.marker_shape_label, 1, 0)
         self.marker_shape_control = ValueComboBox(
             [(label, marker) for label, marker, _icon_name in _MARKER_SHAPE_OPTIONS],
-            icons=[build_icon(icon_name, "#1C1E26", size=_MARKER_ICON_SIZE) for _label, _marker, icon_name in _MARKER_SHAPE_OPTIONS],
+            icons=[build_icon(icon_name, DEFAULT_ICON_COLOR, size=_MARKER_ICON_SIZE) for _label, _marker, icon_name in _MARKER_SHAPE_OPTIONS],
         )
         marker_layout.addWidget(self.marker_shape_control, 1, 1)
 
@@ -3063,7 +3065,7 @@ class StyleTab(QWidget):
         self.line_color_row.set_tokens(tokens)
         self.line_style_control.set_tokens(tokens)
         for _index, (_label, _marker, _icon_name) in enumerate(_MARKER_SHAPE_OPTIONS):
-            self.marker_shape_control.setItemIcon(_index, build_icon(_icon_name, tokens.get("text_primary", "#1C1E26"), size=_MARKER_ICON_SIZE))
+            self.marker_shape_control.setItemIcon(_index, build_icon(_icon_name, tokens.get("text_primary", DEFAULT_ICON_COLOR), size=_MARKER_ICON_SIZE))
         for _index in range(self.line_style_control.count()):
             _style = self.line_style_control.itemData(_index)
             self.line_style_control.setItemIcon(_index, build_line_style_icon(_style, tokens))

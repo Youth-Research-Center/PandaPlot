@@ -165,6 +165,18 @@ class TestChartTransformPanelApply:
 
         assert_tinted(strongest_pixel(panel.source_combo.itemIcon(0)), "#00AA00")
 
+    def test_apply_theme_keeps_the_source_selection_and_emits_no_index_change(self, panel):
+        combo = panel.source_combo
+        combo.setCurrentIndex(combo.count() - 1)
+        selection = (combo.currentIndex(), combo.currentData())
+        changes = []
+        combo.currentIndexChanged.connect(changes.append)
+
+        panel._apply_theme()
+
+        assert (combo.currentIndex(), combo.currentData()) == selection
+        assert changes == []
+
     def test_preview_shows_an_error_for_an_unsafe_expression(self, panel):
         panel.expression_text.setPlainText("__import__('os')")
         panel.preview()

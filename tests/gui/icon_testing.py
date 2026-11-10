@@ -1,5 +1,8 @@
 """Shared helpers for tests that check bundled, theme-tinted icons."""
 
+from collections.abc import Mapping
+from types import MappingProxyType
+
 from PySide6.QtCore import QRect, QSize
 from PySide6.QtGui import QColor, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QStyle, QStyleOptionViewItem, QTreeWidget, QTreeWidgetItem
@@ -27,8 +30,16 @@ def _light_theme_tokens() -> dict[str, str]:
     return {key: tokens[key] for key in _TOKEN_KEYS}
 
 
-ICON_TOKENS: dict[str, str] = _light_theme_tokens()
-"""Light-theme design tokens that icons and status roles read, taken from the real `ThemeManager`."""
+ICON_TOKENS: Mapping[str, str] = MappingProxyType(_light_theme_tokens())
+"""Read-only light-theme design tokens that icons and status roles read, taken from the real `ThemeManager`.
+
+Hand a mock a `fresh_icon_tokens()` copy instead of this mapping, so a test that edits its tokens cannot change the shared ones.
+"""
+
+
+def fresh_icon_tokens() -> dict[str, str]:
+    """Return a new, mutable copy of `ICON_TOKENS`."""
+    return dict(ICON_TOKENS)
 
 
 def strongest_pixel(source: QImage | QPixmap | QIcon, size: int = 32) -> QColor:

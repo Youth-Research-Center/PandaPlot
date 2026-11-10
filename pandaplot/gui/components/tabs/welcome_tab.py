@@ -190,9 +190,14 @@ class WelcomeTab(PWidget):
             self.logger.warning("Failed building local WelcomeTab stylesheet: %s", e)
     
     def _make_icon(self, icon_name: str, *, size: int, role: IconRole) -> IconLabel:
-        """Create an icon label that `_apply_theme` re-tints for as long as the label exists."""
+        """Create an icon label that `_apply_theme` re-tints for as long as the label exists.
+
+        Labels whose widgets were deleted (for example by rebuilding the recent projects list) are dropped here, so the tracked
+        list does not grow while the tab is open.
+        """
         icon = IconLabel(self.app_context, icon_name, size=size, role=role)
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._icon_labels = [label for label in self._icon_labels if isValid(label)]
         self._icon_labels.append(icon)
         return icon
 

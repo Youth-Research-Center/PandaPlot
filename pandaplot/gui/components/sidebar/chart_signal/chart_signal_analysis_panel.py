@@ -53,7 +53,6 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_chart_target_combo,
     populate_series_fit_sources,
     refresh_chart_target_combo_preserving_selection,
-    retint_combo_icons,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -851,10 +850,6 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self._populate_sources()
 
     # -- theme ------------------------------------------------------------------
-
-    def _retint_source_combos(self) -> None:
-        retint_combo_icons(self.source_combo, self.app_context)
-        retint_combo_icons(self.plot_target_combo, self.app_context)
 
     @override
     def _apply_theme(self):

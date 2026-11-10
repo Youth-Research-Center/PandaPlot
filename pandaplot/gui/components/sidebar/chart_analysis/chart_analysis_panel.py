@@ -44,7 +44,6 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_chart_target_combo,
     populate_series_fit_sources,
     refresh_chart_target_combo_preserving_selection,
-    retint_combo_icons,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -461,10 +460,6 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
     def _refresh_chart_references(self):
         project = self.app_context.get_app_state().current_project
         refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project, app_context=self.app_context)
-
-    def _retint_source_combos(self) -> None:
-        retint_combo_icons(self.source_combo, self.app_context)
-        retint_combo_icons(self.plot_target_combo, self.app_context)
 
     @override
     def _apply_theme(self):

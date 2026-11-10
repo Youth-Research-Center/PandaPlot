@@ -40,7 +40,6 @@ from pandaplot.gui.components.sidebar.chart.series_result_messages import (
 )
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_series_fit_sources,
-    retint_combo_icons,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -312,9 +311,6 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     @override
     def setup_event_subscriptions(self):
         self.setup_chart_series_context_subscriptions()
-
-    def _retint_source_combos(self) -> None:
-        retint_combo_icons(self.source_combo, self.app_context)
 
     @override
     def _apply_theme(self):

@@ -4,12 +4,13 @@ from unittest.mock import Mock
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QLabel
 
 from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, fresh_icon_tokens, strongest_pixel
 
 KIND_TOKENS = {
     StatusKind.SUCCESS: "status_success",
@@ -22,7 +23,7 @@ KIND_TOKENS = {
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
+    ctx.get_manager.return_value.get_design_tokens.return_value = fresh_icon_tokens()
     return ctx
 
 
@@ -91,6 +92,19 @@ def test_icon_is_tinted_with_the_kind_token(qapp, app_context, kind):
     assert_tinted(strongest_pixel(_icon(widget).pixmap()), ICON_TOKENS[KIND_TOKENS[kind]])
 
 
+@pytest.mark.parametrize(
+    ("kind", "icon_name"),
+    [(StatusKind.SUCCESS, "check-circle"), (StatusKind.ERROR, "x-circle"), (StatusKind.WARNING, "warning"), (StatusKind.INFO, "info")],
+)
+def test_each_kind_shows_its_own_icon(qapp, app_context, kind, icon_name):
+    widget = StatusMessage(app_context)
+
+    widget.set_message(kind, "Message")
+
+    assert kind.icon_name == icon_name
+    assert _icon(widget).icon_name == icon_name
+
+
 def test_icon_changes_when_the_kind_changes(qapp, app_context):
     widget = StatusMessage(app_context)
     widget.set_message(StatusKind.ERROR, "Bad")
@@ -129,6 +143,17 @@ def test_retint_follows_changed_tokens(qapp, app_context):
     widget.retint()
 
     assert_tinted(strongest_pixel(_icon(widget).pixmap()), "#00AA00")
+
+
+def test_retint_recolours_the_text_with_the_primary_text_token(qapp, app_context):
+    widget = StatusMessage(app_context)
+    widget.set_message(StatusKind.INFO, "Hello")
+    app_context.get_manager.return_value.get_design_tokens.return_value = {**ICON_TOKENS, "text_primary": "#00AA00"}
+
+    widget.retint()
+
+    assert _text(widget).palette().color(QPalette.ColorRole.WindowText).name().lower() == "#00aa00"
+    assert not _text(widget).styleSheet()
 
 
 def test_retint_on_an_empty_widget_is_a_no_op(qapp, app_context):

@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QPushButton
 
 from pandaplot.gui.resources.themed_icons import ActionIcons, IconRole, themed_icon
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, fresh_icon_tokens, strongest_pixel
 
 LIGHT = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
 DARK = {"text_primary": "#E2E2E2", "text_muted": "#9AA0AB", "accent_icon_active": "#8995FF", "text_disabled": "#5B6270"}
@@ -55,7 +55,7 @@ def test_themed_icon_roles_map_to_their_tokens(qapp, app_context, role, token):
 )
 def test_status_roles_map_to_their_tokens(qapp, role, value):
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = ICON_TOKENS
+    ctx.get_manager.return_value.get_design_tokens.return_value = fresh_icon_tokens()
 
     assert role.value == value
     assert_tinted(strongest_pixel(themed_icon(ctx, "folder", role=role, size=32)), ICON_TOKENS[value])
