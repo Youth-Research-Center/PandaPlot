@@ -165,10 +165,10 @@ class DescriptiveStatsPanel(SidebarPanel):
             include_report=self.report_check.isChecked(),
         )
 
-    def _show_status(self, kind: StatusKind, text: str) -> None:
-        """Show `text` as a status message in place of any report."""
-        self.results_text.clear()
-        self.status_message.set_message(kind, text)
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.results_text
 
     def compute(self):
         """Compute statistics and preview them (without adding to the project)."""

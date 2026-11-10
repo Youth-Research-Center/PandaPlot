@@ -529,10 +529,10 @@ class SignalPanel(SidebarPanel):
             self._update_run_enabled()
             self.add_btn.setEnabled(True)
 
-    def _show_error(self, text: str) -> None:
-        """Show `text` as an error status in place of any report."""
-        self.results_text.clear()
-        self.status_message.set_message(StatusKind.ERROR, text)
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.results_text
 
     def clear(self):
         if hasattr(self, "results_text"):

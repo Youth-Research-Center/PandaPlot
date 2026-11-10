@@ -265,10 +265,10 @@ class PreprocessingPanel(SidebarPanel):
 
     # -- actions ----------------------------------------------------------
 
-    def _show_status(self, kind: StatusKind, text: str) -> None:
-        """Show `text` as a status message in place of any preview text."""
-        self.preview_text.clear()
-        self.status_message.set_message(kind, text)
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.preview_text
 
     def preview(self):
         """Preview the transformation on the first selected column."""

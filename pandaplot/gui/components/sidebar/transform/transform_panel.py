@@ -523,6 +523,11 @@ class TransformPanel(SidebarPanel):
         if self._preview_has_error:
             self._clear_preview_message()
 
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.preview_text
+
     def _clear_preview_message(self):
         """Empty the preview text and the status message above it, and forget any error."""
         self._preview_has_error = False
@@ -550,14 +555,17 @@ class TransformPanel(SidebarPanel):
     def _set_preview_message(self, message: str, *, is_error: bool = False):
         """Show a message in the panel's preview area.
 
-        A validation failure or transform error (#227) is shown through `status_message` as a
-        warning, so it is obvious at a glance rather than looking like any other preview text.
+        A validation failure or transform error (#227) is shown through `status_message` as an
+        error, so it is obvious at a glance rather than looking like any other preview text.
         Anything else is written to preview_text.
+
+        Args:
+            message: The text to show.
+            is_error: Whether the message reports a validation failure or a failed preview or transform.
         """
         self._preview_has_error = is_error
         if is_error:
-            self.preview_text.clear()
-            self.status_message.set_message(StatusKind.WARNING, message)
+            self._show_status(StatusKind.ERROR, message)
         else:
             self.status_message.clear()
             self.preview_text.setPlainText(message)

@@ -60,7 +60,7 @@ def test_controller_transform_failed_surfaces_message_in_preview(transform_panel
     assert transform_panel.status_message.message() == (
         "Transform failed: Column 'a_x2' already exists. Choose a different name or enable replace option."
     )
-    assert transform_panel.status_message.kind() is StatusKind.WARNING
+    assert transform_panel.status_message.kind() is StatusKind.ERROR
     assert transform_panel.preview_text.toPlainText() == ""
 
 
@@ -100,7 +100,7 @@ def test_apply_transform_generic_failure_surfaces_message_when_no_signal_fired(t
 
     assert transform_panel.status_message.message() == "Transform failed - see logs for details"
 
-    assert transform_panel.status_message.kind() is StatusKind.WARNING
+    assert transform_panel.status_message.kind() is StatusKind.ERROR
 
     assert transform_panel.preview_text.toPlainText() == ""
 
@@ -120,7 +120,7 @@ class TestApplyValidationFeedback:
 
         assert transform_panel.status_message.message() == "No dataset selected."
 
-        assert transform_panel.status_message.kind() is StatusKind.WARNING
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
 
         assert transform_panel.preview_text.toPlainText() == ""
 
@@ -133,7 +133,7 @@ class TestApplyValidationFeedback:
 
         assert transform_panel.status_message.message() == "Select a source column before applying."
 
-        assert transform_panel.status_message.kind() is StatusKind.WARNING
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
 
         assert transform_panel.preview_text.toPlainText() == ""
 
@@ -150,7 +150,7 @@ class TestApplyValidationFeedback:
 
         assert transform_panel.status_message.message() == "Enter a name for the new column before applying."
 
-        assert transform_panel.status_message.kind() is StatusKind.WARNING
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
 
         assert transform_panel.preview_text.toPlainText() == ""
 
@@ -165,7 +165,7 @@ class TestApplyValidationFeedback:
 
         assert transform_panel.status_message.message() == "Enter a function before applying."
 
-        assert transform_panel.status_message.kind() is StatusKind.WARNING
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
 
         assert transform_panel.preview_text.toPlainText() == ""
 
@@ -180,7 +180,7 @@ class TestApplyValidationFeedback:
 
         assert transform_panel.status_message.message() == "Selected dataset is unavailable. Try reselecting it."
 
-        assert transform_panel.status_message.kind() is StatusKind.WARNING
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
 
         assert transform_panel.preview_text.toPlainText() == ""
 
@@ -194,7 +194,7 @@ class TestApplyValidationFeedback:
 
         assert transform_panel.status_message.message() == "Selected dataset is unavailable. Try reselecting it."
 
-        assert transform_panel.status_message.kind() is StatusKind.WARNING
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
 
         assert transform_panel.preview_text.toPlainText() == ""
         assert transform_panel._preview_has_error is True
@@ -286,7 +286,7 @@ class TestPreviewStatusMessage:
         transform_panel._set_preview_message("Something broke", is_error=True)
 
         assert transform_panel.status_message.message() == "Something broke"
-        assert transform_panel.status_message.kind() is StatusKind.WARNING
+        assert transform_panel.status_message.kind() is StatusKind.ERROR
         assert transform_panel.preview_text.toPlainText() == ""
 
     def test_an_ordinary_message_goes_to_the_text_area_and_clears_the_status(self, transform_panel):
@@ -314,7 +314,7 @@ class TestPreviewStatusMessage:
 
     def test_theme_change_retints_the_status_icon(self, transform_panel, app_context):
         transform_panel._set_preview_message("Something broke", is_error=True)
-        app_context.get_manager.return_value.get_design_tokens.return_value["status_modified_text"] = "#00AA00"
+        app_context.get_manager.return_value.get_design_tokens.return_value["status_danger"] = "#00AA00"
 
         transform_panel._apply_theme()
 

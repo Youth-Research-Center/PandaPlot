@@ -163,6 +163,7 @@ class FitPanel(SidebarPanel):
 
         warning_fg = tokens.get("status_modified_text", "#B06A00")
         self.fit_availability_label.setStyleSheet(f"color: {warning_fg};")
+        self.range_warning_label.setStyleSheet(f"color: {warning_fg};")
 
         self.update_data_points_display()
 
@@ -368,7 +369,6 @@ class FitPanel(SidebarPanel):
         range_layout.addWidget(self.range_max_value_label, 2, 1)
 
         self.range_warning_label = QLabel("Max must be greater than Min.")
-        self.range_warning_label.setStyleSheet("color: red;")
         self.range_warning_label.setVisible(False)
         range_layout.addWidget(self.range_warning_label, 3, 0, 1, 2)
 
@@ -815,6 +815,7 @@ class FitPanel(SidebarPanel):
         palette = theme_manager.get_surface_palette()
         base_fg = palette.get("base_fg", "#333333")
         secondary_fg = palette.get("secondary_fg", "#555555")
+        warning_fg = theme_manager.get_design_tokens().get("status_modified_text", "#B06A00")
 
         unavailable_reason = self._fit_unavailable_reason()
         self.fit_availability_label.setText(unavailable_reason or "")
@@ -854,7 +855,7 @@ class FitPanel(SidebarPanel):
             minimum_points = self._minimum_fit_points()
             if len(x_data) < minimum_points:
                 tooltip = f"At least {minimum_points} valid (x, y) data points are required for this fit."
-                self.data_points_label.setStyleSheet("color: red;")
+                self.data_points_label.setStyleSheet(f"color: {warning_fg};")
                 self.data_points_label.setToolTip(tooltip)
                 self.data_points_warning_icon.setToolTip(tooltip)
                 self.data_points_warning_icon.setVisible(True)
