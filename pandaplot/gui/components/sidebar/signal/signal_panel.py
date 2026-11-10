@@ -15,7 +15,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
 )
-from pandaplot.commands.project.dataset.signal_analysis_command import SignalAnalysisCommand
+from pandaplot.commands.project.dataset.signal_analysis_command import SignalAnalysisCommand, preview_error_text
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
@@ -28,6 +28,7 @@ from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import PANEL_TOPIC_SIGNAL
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.error_messages import describe_error
 
 STALE_RUN_MESSAGE = "Inputs changed while the analysis was running. Click Run to analyse the current settings."
 
@@ -398,11 +399,12 @@ class SignalPanel(SidebarPanel):
             try:
                 self.results_text.setText(self._format_result(result))
                 self.add_btn.setEnabled(True)
-            except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            except Exception as e:
+                self.logger.exception("Failed to display the signal analysis result")
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
-                self.results_text.setText(f"❌ Analysis failed:\n{e}")
+                self.results_text.setText(f"❌ Analysis failed:\n{preview_error_text(describe_error(e))}")
 
         try:
             command.run_analysis_async(_on_complete)
@@ -414,7 +416,7 @@ class SignalPanel(SidebarPanel):
             self.last_result = None
             self._last_run_params = None
             self.add_btn.setEnabled(False)
-            self.results_text.setText(f"❌ Analysis failed:\n{e}")
+            self.results_text.setText(f"❌ Analysis failed:\n{preview_error_text(describe_error(e))}")
 
 
     @staticmethod

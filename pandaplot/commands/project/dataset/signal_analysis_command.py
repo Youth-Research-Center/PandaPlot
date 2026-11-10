@@ -25,6 +25,13 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.error_messages import ErrorDescription, describe_error, describe_failure
+
+
+def preview_error_text(description: ErrorDescription | None) -> str:
+    """Join a failure's reason and next step into one inline-friendly message."""
+    description = description or describe_failure("The calculation returned no result.")
+    return f"{description.reason} {description.next_step}".strip()
 
 
 class SignalAnalysisCommand(BackgroundTaskCommand):
@@ -86,7 +93,8 @@ class SignalAnalysisCommand(BackgroundTaskCommand):
     def run_analysis_async(self, on_complete: Callable[[SignalAnalysisResult | None, str | None], None]) -> None:
         """Non-undoable preview path: computes a SignalAnalysisResult on a
         background thread and reports it (or an error message) via
-        on_complete(result, error). Does not touch the project."""
+        on_complete(result, error), where error is a plain-language reason and next step.
+        Does not touch the project."""
         source = self._get_source_dataset()
         if source is None or source.data is None:
             on_complete(None, "Source dataset is not available.")
@@ -102,12 +110,12 @@ class SignalAnalysisCommand(BackgroundTaskCommand):
                 on_complete(self.result, None)
             else:
                 self.result = None
-                on_complete(None, outcome["error"])
+                on_complete(None, preview_error_text(outcome.get("error_description")))
 
         def _on_error(error_info) -> None:
             _, value, _ = error_info
             self.result = None
-            on_complete(None, str(value))
+            on_complete(None, preview_error_text(describe_error(value)))
 
         self.task_scheduler.run_task(
             task=self._compute_signal_task,
@@ -161,13 +169,15 @@ class SignalAnalysisCommand(BackgroundTaskCommand):
 
         except Exception as e:
             self.logger.exception("Signal analysis failed")
-            self.ui_controller.show_error_message("Signal Analysis Error", str(e))
+            self.ui_controller.show_error_message("Signal Analysis Error", "Couldn't run the signal analysis.", error=e)
             self._is_running = False
             return CommandResult.FAILURE
 
     def _on_commit_computed(self, outcome: dict) -> None:
         if not outcome["success"]:
-            self.ui_controller.show_error_message("Signal Analysis Error", outcome["error"] or "Signal analysis failed")
+            self.ui_controller.show_error_message(
+                "Signal Analysis Error", "Couldn't run the signal analysis.", error=outcome.get("error_description")
+            )
             self._notify_complete(CommandResult.FAILURE)
             return
 
@@ -195,10 +205,8 @@ class SignalAnalysisCommand(BackgroundTaskCommand):
 
     def _on_commit_error(self, error_info) -> None:
         error_type, error_value, error_traceback = error_info
-        message = f"Signal analysis failed with {error_type.__name__}: {error_value}"
-        self.logger.error(message)
-        self.logger.error(error_traceback)
-        self.ui_controller.show_error_message("Signal Analysis Error", message)
+        self.logger.error("Signal analysis failed with %s: %s\n%s", error_type.__name__, error_value, error_traceback)
+        self.ui_controller.show_error_message("Signal Analysis Error", "Couldn't run the signal analysis.", error=error_value)
         self._notify_complete(CommandResult.FAILURE)
 
     @override

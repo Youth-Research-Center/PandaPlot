@@ -85,6 +85,20 @@ class TestSignalAnalysisCommandCommitPath:
         assert command.result_dataset_id is None
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
 
+    def test_commit_failure_shows_plain_message_with_description(self, app_context_with_project, monkeypatch):
+        app_context, _ = app_context_with_project
+        monkeypatch.setattr(
+            "pandaplot.commands.project.dataset.signal_analysis_command.SignalEngine.run_analysis",
+            Mock(side_effect=ZeroDivisionError("division by zero")),
+        )
+        command = SignalAnalysisCommand(app_context, "ds-1", SignalAnalysisType.FFT, "signal", sampling_rate=1000)
+        command.execute()
+
+        call = app_context.get_ui_controller.return_value.show_error_message.call_args
+        assert call.args == ("Signal Analysis Error", "Couldn't run the signal analysis.")
+        assert "division by zero" not in call.args[1]
+        assert call.kwargs["error"].details == "ZeroDivisionError: division by zero"
+
     def test_execute_surfaces_no_project_loaded_to_the_user(self):
         app_context = Mock(spec=AppContext)
         app_state = Mock(spec=AppState)
@@ -205,6 +219,22 @@ class TestSignalAnalysisCommandPreviewPath:
 
         assert results == [None]
         assert "missing" in errors[0]
+
+    def test_run_analysis_async_reports_plain_language_error(self, app_context_with_project, monkeypatch):
+        app_context, _ = app_context_with_project
+        monkeypatch.setattr(
+            "pandaplot.commands.project.dataset.signal_analysis_command.SignalEngine.run_analysis",
+            Mock(side_effect=np.linalg.LinAlgError("Singular matrix")),
+        )
+        command = SignalAnalysisCommand(app_context, "ds-1", SignalAnalysisType.FFT, "signal", sampling_rate=1000)
+
+        errors = []
+        command.run_analysis_async(lambda _result, error: errors.append(error))
+
+        assert len(errors) == 1
+        assert "Singular matrix" not in errors[0]
+        assert errors[0].startswith("The calculation cannot be solved for this data")
+        assert errors[0].endswith("Check the selected columns, or try with more varied data.")
 
     def test_run_analysis_async_does_not_touch_the_project(self, app_context_with_project):
         app_context, project = app_context_with_project

@@ -120,7 +120,25 @@ class TestRunAnalysisAsyncDispatch:
         assert panel.run_btn.isEnabled() is True
         assert panel.add_btn.isEnabled() is False
         assert panel.last_result is None
-        assert "Analysis failed" in panel.results_text.toPlainText()
+        text = panel.results_text.toPlainText()
+        assert "Analysis failed" in text
+        assert "PandaPlot could not process this data with these settings." in text
+        assert "TypeError" not in text
+        assert "has no len()" not in text
+
+    def test_dispatch_failure_shows_plain_language_reason(self, app_context):
+        panel = _build_panel_with_column(app_context)
+
+        fake_command = Mock()
+        fake_command.run_analysis_async = Mock(side_effect=OSError(13, "Permission denied"))
+        panel._build_command = lambda: fake_command
+
+        panel.run_analysis()
+
+        text = panel.results_text.toPlainText()
+        assert "PandaPlot is not allowed to open or change this file." in text
+        assert "Errno" not in text
+        assert panel.busy_spinner.is_running is False
 
     def test_discards_stale_result_after_dataset_switch(self, app_context):
         """Regression test (PR review): tab/dataset navigation stays enabled
@@ -602,7 +620,9 @@ class TestRunDispatchRaises:
         assert panel.busy_spinner.is_running is False
         assert panel.run_btn.isEnabled() is True
         assert panel.add_btn.isEnabled() is False
-        assert "thread pool shut down" in panel.results_text.toPlainText()
+        text = panel.results_text.toPlainText()
+        assert "Something went wrong that PandaPlot did not expect." in text
+        assert "thread pool shut down" not in text
 
 
 class TestStaleRunIsReported:
