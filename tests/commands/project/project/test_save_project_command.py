@@ -290,3 +290,50 @@ def test_redo_is_a_documented_noop():
     command = SaveProjectCommand(app_context)
 
     assert command.redo() is CommandResult.NOOP
+
+
+def test_save_task_failure_carries_an_error_description(tmp_path):
+    from pandaplot.utils.error_messages import ErrorDescription
+
+    app_context, _app_state = _make_app_context()
+    project_manager = Mock()
+    project_manager.save_project.side_effect = PermissionError("[Errno 13] Permission denied: '/x.pplot'")
+    app_context.get_manager.return_value = project_manager
+    project = Mock()
+    project.project_file_path = "/x.pplot"
+    command = SaveProjectCommand(app_context)
+
+    result = command._save_project_task(None, project=project, save_path="/x.pplot")
+
+    assert result["success"] is False
+    description = result["error_description"]
+    assert isinstance(description, ErrorDescription)
+    assert description.reason == "PandaPlot is not allowed to open or change this file."
+    assert "Permission denied" in description.details
+
+
+def test_failed_save_dialog_shows_the_description_not_the_raw_text():
+    from pandaplot.utils.error_messages import describe_error
+
+    app_context, _app_state = _make_app_context()
+    command = SaveProjectCommand(app_context)
+    command._dispatch_project = _app_state.current_project
+    description = describe_error(OSError(28, "No space left on device"))
+
+    command._on_save_result({"success": False, "error": "Error during project save: raw", "error_description": description})
+
+    app_context.get_ui_controller.return_value.show_error_message.assert_called_once_with(
+        "Save Failed", "Couldn't save the project.", error=description
+    )
+
+
+def test_failed_save_without_a_description_falls_back_to_a_plain_reason():
+    app_context, _app_state = _make_app_context()
+    command = SaveProjectCommand(app_context)
+    command._dispatch_project = _app_state.current_project
+
+    command._on_save_result({"success": False, "error": "disk full"})
+
+    kwargs = app_context.get_ui_controller.return_value.show_error_message.call_args.kwargs
+    assert kwargs["error"].reason == "The project could not be saved."
+    assert kwargs["error"].details == ""

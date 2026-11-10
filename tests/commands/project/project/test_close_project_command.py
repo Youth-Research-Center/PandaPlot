@@ -34,7 +34,8 @@ def test_execute_surfaces_unexpected_failure_to_the_user():
     assert command.execute() is CommandResult.FAILURE
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
     _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
-    assert "disk error" in message
+    assert message == "Couldn't close the project."
+    assert app_context.get_ui_controller.return_value.show_error_message.call_args.kwargs["error"] is app_state.close_project.side_effect
 
 
 def test_execute_closes_without_asking_when_unmodified():

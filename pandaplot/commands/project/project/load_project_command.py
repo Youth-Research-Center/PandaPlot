@@ -11,6 +11,7 @@ from pandaplot.models.state.app_state import AppState
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.session import SessionPersistenceManager
+from pandaplot.utils.error_messages import describe_error, describe_failure
 
 
 def _same_path(a: str | None, b: str | None) -> bool:
@@ -140,9 +141,8 @@ class LoadProjectCommand(Command):
             return CommandResult.SUCCESS  # Command initiated successfully
 
         except Exception as e:
-            error_msg = f"Failed to initiate project load: {e}"
-            self.logger.exception("LoadProjectCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message("Load Project Error", error_msg)
+            self.logger.exception("Failed to initiate project load")
+            self.ui_controller.show_error_message("Load Project Error", "Couldn't open the project.", error=e)
             self.is_loading = False  # Reset flag on error
             return CommandResult.FAILURE
 
@@ -163,7 +163,13 @@ class LoadProjectCommand(Command):
                 progress_callback(0.1)  # Starting load
 
             if not self.file_path:
-                return {"success": False, "error": "No file path provided for loading.", "project": None, "file_path": None}
+                return {
+                    "success": False,
+                    "error": "No file path provided for loading.",
+                    "error_description": describe_failure("No file was chosen to open."),
+                    "project": None,
+                    "file_path": None,
+                }
 
             if progress_callback:
                 progress_callback(0.2)  # File path validated
@@ -181,7 +187,13 @@ class LoadProjectCommand(Command):
                 progress_callback(0.7)  # Project loaded from file
 
             if not loaded_project:
-                return {"success": False, "error": f"Failed to load project from {self.file_path}", "project": None, "file_path": self.file_path}
+                return {
+                    "success": False,
+                    "error": f"Failed to load project from {self.file_path}",
+                    "error_description": describe_failure("The project could not be loaded from this file."),
+                    "project": None,
+                    "file_path": self.file_path,
+                }
 
             if progress_callback:
                 progress_callback(0.9)  # Load validation complete
@@ -196,7 +208,13 @@ class LoadProjectCommand(Command):
         except Exception as e:
             error_msg = f"Error during project load: {e!s}"
             self.logger.exception(error_msg)
-            return {"success": False, "error": error_msg, "project": None, "file_path": self.file_path}
+            return {
+                "success": False,
+                "error": error_msg,
+                "error_description": describe_error(e),
+                "project": None,
+                "file_path": self.file_path,
+            }
 
     def _on_load_result(self, result: dict):
         """Handle successful completion of load task."""
@@ -299,29 +317,33 @@ class LoadProjectCommand(Command):
                         except Exception:
                             self.logger.exception("on_loaded callback failed")
                 else:
-                    error_msg = "Missing project or file path in load result"
-                    self.ui_controller.show_error_message("Load Failed", error_msg)
-                    self.logger.error(error_msg)
+                    self.logger.error("Missing project or file path in load result")
+                    self.ui_controller.show_error_message(
+                        "Load Failed",
+                        "Couldn't open the project.",
+                        error=describe_failure("The project could not be loaded from this file."),
+                    )
             else:
-                error_msg = result.get("error", "Unknown load error")
-                self.ui_controller.show_error_message("Load Failed", error_msg)
-                self.logger.error(f"Load failed: {error_msg}")
+                self.logger.error("Load failed: %s", result.get("error", "Unknown load error"))
+                self.ui_controller.show_error_message(
+                    "Load Failed",
+                    "Couldn't open the project.",
+                    error=result.get("error_description") or describe_failure("The project could not be loaded."),
+                )
 
         except Exception as e:
             self.logger.exception("Error handling load result")
-            self.ui_controller.show_error_message("Load Error", f"Error processing load result: {e!s}")
+            self.ui_controller.show_error_message("Load Error", "Couldn't open the project.", error=e)
 
     def _on_load_error(self, error_info: tuple[Any, Any, str]):
         """Handle error during load task."""
         try:
             self.is_loading = False
             error_type, error_value, error_traceback = error_info
-            error_msg = f"Load failed with {error_type.__name__}: {error_value!s}"
+            self.logger.error("Load task error: %s: %s", error_type.__name__, error_value)
+            self.logger.error("Traceback: %s", error_traceback)
 
-            self.logger.error(f"Load task error: {error_msg}")
-            self.logger.error(f"Traceback: {error_traceback}")
-
-            self.ui_controller.show_error_message("Load Project Error", error_msg)
+            self.ui_controller.show_error_message("Load Project Error", "Couldn't open the project.", error=error_value)
 
         except Exception:
             self.logger.exception("Error handling load error")

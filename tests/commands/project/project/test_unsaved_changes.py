@@ -192,3 +192,18 @@ def test_confirm_discard_cancels_and_reports_an_error_when_flush_fails(monkeypat
     assert result is False
     app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
     app_context.get_ui_controller.return_value.show_question.assert_not_called()
+
+
+def test_autosave_failure_dialog_passes_the_exception_not_its_text():
+    app_context, app_state = _make_app_context(is_modified=True)
+    app_state.project_file_path = "/tmp/p.pplot"
+    error = OSError("disk full")
+    project_manager = Mock()
+    project_manager.save_project.side_effect = error
+    app_context.get_manager.return_value = project_manager
+
+    assert confirm_discard_unsaved_changes(app_context, will_autosave=True) is False
+
+    _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
+    assert "disk full" not in message
+    assert app_context.get_ui_controller.return_value.show_error_message.call_args.kwargs["error"] is error
