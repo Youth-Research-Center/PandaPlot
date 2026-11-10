@@ -139,7 +139,12 @@ class UIController:
             QMessageBox.critical(self.parent_widget, title, message)
             return
         description = error if isinstance(error, ErrorDescription) else describe_error(error)
-        build_error_box(self.parent_widget, title, message, description).exec()
+        box = build_error_box(self.parent_widget, title, message, description)
+        try:
+            box.exec()
+        finally:
+            # exec() only closes the box; it stays a child of the parent window until deleted.
+            box.deleteLater()
 
     def show_warning_message(self, title: str, message: str) -> None:
         """

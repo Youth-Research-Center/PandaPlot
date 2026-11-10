@@ -33,6 +33,7 @@ from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import PANEL_TOPIC_PREPROCESSING
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.error_messages import describe_error
 
 
 class PreprocessingPanel(SidebarPanel):
@@ -310,8 +311,9 @@ class PreprocessingPanel(SidebarPanel):
                 )
 
             self.preview_text.setPlainText("\n".join(lines))
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self._show_status(StatusKind.ERROR, f"Preview error: {e}")
+        except Exception as e:
+            self.logger.exception("Preprocessing preview failed")
+            self._show_status(StatusKind.ERROR, f"Preview error: {describe_error(e).inline_text}")
 
     def apply(self):
         """Apply the transformation through the command system."""
@@ -335,8 +337,9 @@ class PreprocessingPanel(SidebarPanel):
                 self._show_status(StatusKind.SUCCESS, f"Preprocessing applied to {count} column(s).")
             else:
                 self._show_status(StatusKind.ERROR, "Failed to apply. Check that the columns are numeric.")
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self._show_status(StatusKind.ERROR, f"Error applying preprocessing: {e}")
+        except Exception as e:
+            self.logger.exception("Applying preprocessing failed")
+            self._show_status(StatusKind.ERROR, f"Couldn't apply the preprocessing: {describe_error(e).inline_text}")
 
     def clear_inputs(self):
         """Reset the panel to its default state."""

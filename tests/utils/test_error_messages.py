@@ -187,3 +187,17 @@ def test_name_errors_in_our_own_code_are_not_blamed_on_a_formula():
 
     assert unbound.reason == "Something went wrong that PandaPlot did not expect."
     assert undefined.reason == "Something went wrong that PandaPlot did not expect."
+
+
+def test_user_facing_error_keeps_its_chained_cause_in_details():
+    try:
+        try:
+            raise ConnectionError("Max retries exceeded")
+        except ConnectionError as cause:
+            raise UserFacingError("Couldn't download an image from that address.") from cause
+    except UserFacingError as exc:
+        chained = describe_error(exc)
+
+    assert chained.reason == "Couldn't download an image from that address."
+    assert chained.details == "ConnectionError: Max retries exceeded"
+    assert describe_error(UserFacingError("Pick a column.")).details == ""

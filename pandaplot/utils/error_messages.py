@@ -200,7 +200,7 @@ _RULES: tuple[_Rule, ...] = (
 )
 
 _FALLBACK_REASON = "Something went wrong that PandaPlot did not expect."
-_FALLBACK_NEXT_STEP = "If it keeps happening, report it with the details below."
+_FALLBACK_NEXT_STEP = "If it keeps happening, please report it."
 
 
 def _details(exc: BaseException) -> str:
@@ -215,12 +215,14 @@ def describe_error(exc: BaseException) -> ErrorDescription:
         exc: The exception to describe.
 
     Returns:
-        An ErrorDescription. A UserFacingError's message is used unchanged as the reason (with
-        no details); every other exception is matched against an ordered rule table and its
-        original text is kept in ``details``.
+        An ErrorDescription. A UserFacingError's message is used unchanged as the reason; its
+        details hold the chained cause (``raise ... from e``) when there is one, and are empty
+        for a standalone validation error. Every other exception is matched against an ordered
+        rule table and its original text is kept in ``details``.
     """
     if isinstance(exc, UserFacingError):
-        return ErrorDescription(reason=str(exc), next_step="", details="")
+        cause = exc.__cause__
+        return ErrorDescription(reason=str(exc), next_step="", details=_details(cause) if cause is not None else "")
     for matches, reason, next_step in _RULES:
         if matches(exc):
             return ErrorDescription(reason=reason, next_step=next_step, details=_details(exc))

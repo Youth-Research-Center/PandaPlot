@@ -154,3 +154,14 @@ def test_show_error_message_accepts_a_ready_description(mock_message_box_cls):
     box.setInformativeText.assert_called_once_with("Because.\n\nTry again.")
     box.setDetailedText.assert_not_called()
     box.exec.assert_called_once_with()
+
+
+@patch("pandaplot.gui.controllers.ui_controller.QMessageBox")
+def test_show_error_message_deletes_the_box_after_it_closes(mock_message_box_cls):
+    box = mock_message_box_cls.return_value
+    box.exec.side_effect = RuntimeError("closed abnormally")
+
+    with pytest.raises(RuntimeError):
+        UIController(None).show_error_message("Title", "Couldn't.", error=_description())
+
+    box.deleteLater.assert_called_once_with()

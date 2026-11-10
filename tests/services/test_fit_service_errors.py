@@ -28,11 +28,14 @@ def test_non_convergence_becomes_a_plain_user_facing_message(monkeypatch):
     assert info.value.__cause__ is raw
 
 
-def test_custom_fit_non_convergence_mentions_starting_values(monkeypatch):
+def test_custom_fit_non_convergence_does_not_suggest_starting_values(monkeypatch):
+    # Custom fits have no starting-value setting: their parameter values are fixed, not initial guesses.
     monkeypatch.setattr(scipy.optimize, "curve_fit", Mock(side_effect=RuntimeError("Optimal parameters not found: maxfev")))
 
-    with pytest.raises(UserFacingError, match="Try other starting values"):
+    with pytest.raises(UserFacingError) as info:
         _fit(CUSTOM_FUNCTION_FIT, custom_function="a*x + b", custom_parameters="a, b")
+
+    assert str(info.value) == "The fit did not converge for this data. Try another model or a narrower X range."
 
 
 def test_other_runtime_errors_keep_their_type(monkeypatch):
@@ -50,3 +53,24 @@ def test_nan_or_inf_data_is_rejected_with_a_plain_message():
 
     with pytest.raises(UserFacingError, match="empty or infinite values"):
         _fit(y=y)
+
+
+def test_numeric_object_arrays_are_fitted_like_float_arrays():
+    result = _fit(x=X.astype(object), y=Y.astype(object))
+
+    assert result is not None
+    assert result.params["a"] == pytest.approx(2.0)
+    assert result.params["b"] == pytest.approx(1.0)
+
+
+def test_infinite_x_is_reported_before_the_initial_guess_runs():
+    x = X.copy()
+    x[0] = np.inf
+
+    with pytest.raises(UserFacingError, match="empty or infinite values"):
+        _fit("Quadratic", x=x)
+
+
+def test_non_numeric_values_get_a_plain_message():
+    with pytest.raises(UserFacingError, match="must contain numbers"):
+        _fit(x=np.array(["a"] * len(X), dtype=object))

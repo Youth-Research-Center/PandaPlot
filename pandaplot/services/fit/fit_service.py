@@ -7,7 +7,7 @@ import numpy as np
 from pandaplot.utils.errors import UserFacingError
 
 MIN_FIT_POINTS = 2
-# Name of the user-defined fit model (the only one that takes starting values).
+# Name of the user-defined fit model.
 CUSTOM_FUNCTION_FIT = "Custom Function"
 _MAX_EXP_ARGUMENT = 700
 
@@ -341,11 +341,24 @@ class FitService:
         self.logger = logging.getLogger(self.__class__.__name__)
         self.fixed_params = {}
 
-    def _non_convergence_message(self, fit_type: str) -> str:
-        """Plain message for a fit whose optimiser did not converge."""
-        if self._get_fit_name(fit_type) == CUSTOM_FUNCTION_FIT:
-            return "The fit did not converge for this data. Try other starting values, another model or a narrower X range."
-        return "The fit did not converge for this data. Try another model or a narrower X range."
+    @staticmethod
+    def _as_finite_float_arrays(x_data: np.ndarray, y_data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Return the fit inputs as float arrays, checked before any initial guess is computed.
+
+        Column ``.values`` can be object arrays of numbers, which curve_fit converts; do the same
+        here so the finiteness check sees numbers, not objects.
+
+        Raises:
+            UserFacingError: When a value is not a number, or is empty (NaN) or infinite.
+        """
+        try:
+            x = np.asarray(x_data, dtype=float)
+            y = np.asarray(y_data, dtype=float)
+        except (TypeError, ValueError) as e:
+            raise UserFacingError("The selected columns must contain numbers to fit.") from e
+        if not (np.all(np.isfinite(x)) and np.all(np.isfinite(y))):
+            raise UserFacingError("The selected data contains empty or infinite values that the fit cannot use.")
+        return x, y
 
     def _get_fit_name(self, fit_type: str) -> str:
         if fit_type in FIT_DEFINITIONS or fit_type == CUSTOM_FUNCTION_FIT:
@@ -441,6 +454,7 @@ class FitService:
 
         if len(x_data) < MIN_FIT_POINTS:
             raise UserFacingError(f"At least {MIN_FIT_POINTS} data points are required for fitting.")
+        x_data, y_data = self._as_finite_float_arrays(x_data, y_data)
 
         try:
             fit_func, param_names = self._get_fit_func(
@@ -510,8 +524,6 @@ class FitService:
                 fit_options["sigma"] = sigma_y
                 fit_options["absolute_sigma"] = True
 
-            if not (np.all(np.isfinite(x_data)) and np.all(np.isfinite(y_data))):
-                raise UserFacingError("The selected data contains empty or infinite values that the fit cannot use.")
             try:
                 popt, pcov = curve_fit(
                     fit_func,
@@ -524,7 +536,7 @@ class FitService:
                 # else is unexpected and keeps its own type for the error dialog's details.
                 if not str(e).startswith("Optimal parameters not found"):
                     raise
-                raise UserFacingError(self._non_convergence_message(fit_type)) from e
+                raise UserFacingError("The fit did not converge for this data. Try another model or a narrower X range.") from e
 
             perr = np.sqrt(np.diag(pcov))
 
