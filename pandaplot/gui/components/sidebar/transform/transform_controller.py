@@ -13,6 +13,12 @@ from PySide6.QtCore import QObject, Signal
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.transform import expression_engine
+from pandaplot.utils.error_messages import ErrorDescription, describe_error
+
+
+def plain_error_text(description: ErrorDescription) -> str:
+    """Join a description's reason and next step into one line of user-facing text."""
+    return f"{description.reason} {description.next_step}".strip()
 
 
 class TransformController(QObject):
@@ -96,9 +102,9 @@ class TransformController(QObject):
             self.preview_ready.emit(dataset_id, preview_result)
             return preview_result
             
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            error_msg = f"Preview generation failed: {e!s}"
-            return {"error": error_msg}
+        except Exception as e:
+            self.logger.exception("Preview generation failed")
+            return {"error": plain_error_text(describe_error(e))}
     
     def apply_transformation(self, dataset_id: str, source_column: str,
                            new_column_name: str, function_code: str,
@@ -171,14 +177,16 @@ class TransformController(QObject):
                 self.transform_completed.emit(dataset_id, new_column_name, None)
                 return True
             else:
-                self.transform_failed.emit(
-                    dataset_id, command.error_message or "Failed to execute transformation command"
-                )
+                if command.error_description is not None:
+                    message = plain_error_text(command.error_description)
+                else:
+                    message = command.error_message or "The transformation could not be applied."
+                self.transform_failed.emit(dataset_id, message)
                 return False
                 
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            error_msg = f"Transformation failed: {e!s}"
-            self.transform_failed.emit(dataset_id, error_msg)
+        except Exception as e:
+            self.logger.exception("Transformation failed")
+            self.transform_failed.emit(dataset_id, plain_error_text(describe_error(e)))
             return False
     
     def get_transformation_templates(self) -> dict[str, list[dict[str, str]]]:

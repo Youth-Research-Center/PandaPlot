@@ -64,6 +64,7 @@ from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import PANEL_TOPIC_CHART_SIGNAL
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.error_messages import describe_error
 
 
 class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
@@ -462,11 +463,12 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             try:
                 self.results_text.setText(SignalPanel._format_result(result))
                 self.add_btn.setEnabled(True)
-            except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+            except Exception as e:
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
-                self.results_text.setText(f"❌ Analysis failed:\n{e}")
+                self.logger.exception("Chart signal analysis panel failed to show the result")
+                self.results_text.setText(f"❌ Analysis failed:\n{describe_error(e).reason}")
 
         command.run_analysis_async(_on_complete)
 

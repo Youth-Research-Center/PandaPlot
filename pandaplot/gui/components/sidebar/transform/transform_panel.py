@@ -29,12 +29,13 @@ from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
-from pandaplot.gui.components.sidebar.transform.transform_controller import TransformController
+from pandaplot.gui.components.sidebar.transform.transform_controller import TransformController, plain_error_text
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.help.help_types import PANEL_TOPIC_TRANSFORM
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.error_messages import describe_error
 
 
 class TransformPanel(SidebarPanel):
@@ -678,8 +679,9 @@ class TransformPanel(SidebarPanel):
 
             # Preview updated - could publish preview event if needed
 
-        except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self._set_preview_message(f"Preview error: {e!s}", is_error=True)
+        except Exception as e:
+            self.logger.exception("TransformPanel: preview failed")
+            self._set_preview_message(f"Preview error: {plain_error_text(describe_error(e))}", is_error=True)
     
     def apply_transform(self):
         """Apply the transformation to the dataset.
@@ -757,7 +759,7 @@ class TransformPanel(SidebarPanel):
 
         except Exception as e:
             self.logger.exception("TransformPanel: transform failed")
-            self._set_preview_message(f"Transform failed: {e}", is_error=True)
+            self._set_preview_message(f"Transform failed: {plain_error_text(describe_error(e))}", is_error=True)
     
     def clear_panel(self):
         """Reset panel to initial state."""

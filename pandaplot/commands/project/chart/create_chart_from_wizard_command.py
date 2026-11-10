@@ -182,10 +182,9 @@ class CreateChartFromWizardCommand(Command):
             dialog.activateWindow()
             return CommandResult.SUCCESS
 
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            error_msg = f"Failed to open chart wizard: {e!s}"
-            self.logger.error(f"CreateChartFromWizardCommand Error: {error_msg}")
-            self.ui_controller.show_error_message("Create Chart Error", error_msg)
+        except Exception as e:
+            self.logger.exception("CreateChartFromWizardCommand failed to open the chart wizard")
+            self.ui_controller.show_error_message("Create Chart Error", "Couldn't open the chart wizard.", error=e)
             return CommandResult.FAILURE
 
     def _on_wizard_finished(self, result: int, dialog: QDialog | None = None) -> None:
@@ -301,10 +300,9 @@ class CreateChartFromWizardCommand(Command):
                 error_msg = f"Failed to create chart '{chart.name}'."
                 self.logger.error(f"CreateChartFromWizardCommand Error: {error_msg}")
                 self.ui_controller.show_error_message("Create Chart Error", error_msg)
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            error_msg = f"Failed to create chart: {e!s}"
-            self.logger.error(f"CreateChartFromWizardCommand Error: {error_msg}")
-            self.ui_controller.show_error_message("Create Chart Error", error_msg)
+        except Exception as e:
+            self.logger.exception("CreateChartFromWizardCommand failed to create the chart")
+            self.ui_controller.show_error_message("Create Chart Error", "Couldn't create the chart.", error=e)
         finally:
             # Drop the reference now that the wizard has finished; this command
             # is never on the undo/redo stacks, so nothing else would release it.

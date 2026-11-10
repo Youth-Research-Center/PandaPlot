@@ -6,6 +6,7 @@ import pytest
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.fit.perform_fit_command import PerformFitCommand
+from pandaplot.utils.errors import UserFacingError
 from tests.commands.project.conftest import SyncTaskScheduler
 
 
@@ -187,3 +188,82 @@ def test_on_complete_reports_failure_on_exception(fit_service, task_scheduler):
     assert command.execute() is CommandResult.SUCCESS  # dispatched
     assert outcomes == [CommandResult.FAILURE]
     assert command.error_message == "bad params"
+
+
+def _failing_command(fit_service, task_scheduler, exception, *, fit_type="linear"):
+    fit_service.perform_fit.side_effect = exception
+    outcomes = []
+    command = PerformFitCommand(
+        fit_service=fit_service, fit_type=fit_type, x_data=[1, 2, 3], y_data=[2, 4, 6],
+        task_scheduler=task_scheduler, on_complete=outcomes.append,
+    )
+    assert command.execute() is CommandResult.SUCCESS  # dispatched
+    assert outcomes == [CommandResult.FAILURE]
+    return command
+
+
+def test_scipy_non_convergence_becomes_a_plain_reason(fit_service, task_scheduler):
+    command = _failing_command(
+        fit_service, task_scheduler, RuntimeError("Optimal parameters not found: Number of calls to function has reached maxfev = 800."),
+    )
+
+    description = command.error_description
+    assert description is not None
+    assert description.reason == "The fit did not converge for this data. Try another model or a narrower X range."
+    assert description.details == ""
+    assert "Optimal parameters" not in description.reason
+    assert "starting values" not in description.reason
+
+
+def test_custom_fit_non_convergence_mentions_starting_values(fit_service, task_scheduler):
+    command = _failing_command(
+        fit_service, task_scheduler, RuntimeError("Optimal parameters not found: maxfev"), fit_type="Custom Function",
+    )
+
+    assert command.error_description is not None
+    assert command.error_description.reason == (
+        "The fit did not converge for this data. Try other starting values, another model or a narrower X range."
+    )
+
+
+def test_nan_or_inf_data_becomes_a_plain_reason(fit_service, task_scheduler):
+    command = _failing_command(fit_service, task_scheduler, ValueError("array must not contain infs or NaNs"))
+
+    assert command.error_description is not None
+    assert command.error_description.reason == "The selected data contains empty or infinite values that the fit cannot use."
+
+
+def test_other_errors_are_described_by_the_shared_rules(fit_service, task_scheduler):
+    command = _failing_command(fit_service, task_scheduler, ValueError("bad params"))
+
+    assert command.error_description is not None
+    assert command.error_description.reason == "PandaPlot could not process this data with these settings."
+    assert command.error_description.details == "ValueError: bad params"
+    assert command.error_message == "bad params"
+
+
+def test_error_description_is_cleared_after_a_successful_fit(fit_service, fit_result, task_scheduler):
+    command = _failing_command(fit_service, task_scheduler, RuntimeError("Optimal parameters not found"))
+    assert command.error_description is not None
+
+    fit_service.perform_fit.side_effect = None
+    fit_service.perform_fit.return_value = fit_result
+    assert command.redo() is CommandResult.SUCCESS
+
+    assert command.error_description is None
+    assert command.error_message is None
+
+
+def test_worker_error_signal_sets_a_description(fit_service, task_scheduler):
+    outcomes = []
+    command = PerformFitCommand(
+        fit_service=fit_service, fit_type="linear", x_data=[1, 2, 3], y_data=[2, 4, 6],
+        task_scheduler=task_scheduler, on_complete=outcomes.append,
+    )
+
+    command._on_fit_error((UserFacingError, UserFacingError("The fit did not converge for this data."), None))
+
+    assert outcomes == [CommandResult.FAILURE]
+    assert command.error_description is not None
+    assert command.error_description.reason == "The fit did not converge for this data."
+    assert command.result is None

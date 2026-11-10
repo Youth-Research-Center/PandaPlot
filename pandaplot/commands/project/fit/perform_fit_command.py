@@ -17,6 +17,10 @@ from pandaplot.commands.background_task_command import BackgroundTaskCommand
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.services.fit.fit_service import FitResult, FitService
 from pandaplot.services.qtasks.task_scheduler import TaskScheduler
+from pandaplot.utils.error_messages import ErrorDescription, describe_error
+from pandaplot.utils.errors import UserFacingError
+
+CUSTOM_FIT_TYPE = "Custom Function"
 
 
 class PerformFitCommand(BackgroundTaskCommand):
@@ -61,6 +65,7 @@ class PerformFitCommand(BackgroundTaskCommand):
 
         self.result: FitResult | None = None
         self.error_message: str | None = None
+        self.error_description: ErrorDescription | None = None
 
     @override
     def execute(self) -> CommandResult:
@@ -82,7 +87,7 @@ class PerformFitCommand(BackgroundTaskCommand):
         """Runs on a background thread. Never raises for an expected fit
         failure; returns a plain dict instead."""
         return self._run_task_safely(
-            self.fit_service.perform_fit,
+            self._perform_fit_with_plain_errors,
             fit_type=self.fit_type,
             x_data=self.x_data,
             y_data=self.y_data,
@@ -97,10 +102,36 @@ class PerformFitCommand(BackgroundTaskCommand):
             x_max=self.x_max,
         )
 
+    def _perform_fit_with_plain_errors(self, **fit_arguments) -> FitResult | None:
+        """Run the fit, turning scipy's raw failures into messages written for the user.
+
+        Args:
+            **fit_arguments: Keyword arguments forwarded to ``FitService.perform_fit``.
+
+        Returns:
+            The fit result.
+
+        Raises:
+            UserFacingError: When the optimiser did not converge or the data holds NaN/inf values.
+        """
+        try:
+            return self.fit_service.perform_fit(**fit_arguments)
+        except RuntimeError as e:
+            if self.fit_type == CUSTOM_FIT_TYPE:
+                advice = "Try other starting values, another model or a narrower X range."
+            else:
+                advice = "Try another model or a narrower X range."
+            raise UserFacingError(f"The fit did not converge for this data. {advice}") from e
+        except ValueError as e:
+            if not isinstance(e, UserFacingError) and "infs or NaNs" in str(e):
+                raise UserFacingError("The selected data contains empty or infinite values that the fit cannot use.") from e
+            raise
+
     def _on_fit_computed(self, outcome: dict) -> None:
         if outcome["success"]:
             self.result = outcome["result"]
             self.error_message = None
+            self.error_description = None
             self._notify_complete(CommandResult.SUCCESS)
         else:
             self.logger.warning(
@@ -109,12 +140,14 @@ class PerformFitCommand(BackgroundTaskCommand):
             )
             self.result = None
             self.error_message = outcome["error"]
+            self.error_description = outcome.get("error_description")
             self._notify_complete(CommandResult.FAILURE)
 
     def _on_fit_error(self, error_info) -> None:
         _, value, _ = error_info
         self.result = None
         self.error_message = str(value)
+        self.error_description = describe_error(value) if isinstance(value, BaseException) else None
         self._notify_complete(CommandResult.FAILURE)
 
     @override

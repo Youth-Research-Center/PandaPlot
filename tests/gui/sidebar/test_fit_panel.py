@@ -28,6 +28,8 @@ from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.fit.fit_service import FitResult
+from pandaplot.utils.error_messages import ErrorDescription
+from tests.commands.project.conftest import SyncTaskScheduler
 
 # Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
 ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
@@ -1767,15 +1769,47 @@ def test_perform_fit_failure_path_shows_error_and_stops_spinner(app_context):
 
     command = executed["command"]
     command.error_message = "Fit did not converge"
+    command.error_description = ErrorDescription(reason="The fit did not converge.", next_step="Try another model.", details="")
     command.on_complete(CommandResult.FAILURE)
 
     assert panel.busy_spinner.is_running is False
     assert panel.fit_button.isEnabled() is True
     assert panel.apply_button.isEnabled() is False
     assert panel.fit_results is None
-    assert panel.results_text.toPlainText() == "Fit did not converge"
+    assert panel.results_text.toPlainText() == "The fit did not converge.\n\nTry another model."
     assert "color: red;" in panel.results_text.styleSheet()
     assert "background-color: transparent;" in panel.results_text.styleSheet()
+
+
+def test_scipy_non_convergence_shows_plain_text_without_library_wording(app_context):
+    panel, executed = _build_panel_ready_to_fit(app_context)
+    panel._perform_fit()
+
+    command = executed["command"]
+    command.task_scheduler = SyncTaskScheduler()
+    command.fit_service = Mock()
+    command.fit_service.perform_fit.side_effect = RuntimeError(
+        "Optimal parameters not found: Number of calls to function has reached maxfev = 800."
+    )
+    command.execute()
+
+    text = panel.results_text.toPlainText()
+    assert text == "The fit did not converge for this data. Try another model or a narrower X range."
+    assert "RuntimeError" not in text
+    assert "Optimal parameters" not in text
+    assert "maxfev" not in text
+
+
+def test_failed_fit_without_a_description_shows_a_generic_plain_text(app_context):
+    panel, executed = _build_panel_ready_to_fit(app_context)
+    panel._perform_fit()
+
+    command = executed["command"]
+    command.error_message = "raw text"
+    command.error_description = None
+    command.on_complete(CommandResult.FAILURE)
+
+    assert panel.results_text.toPlainText() == "The fit could not be calculated."
 
 
 def test_perform_fit_sync_dispatch_failure_stops_spinner_without_on_complete(app_context):

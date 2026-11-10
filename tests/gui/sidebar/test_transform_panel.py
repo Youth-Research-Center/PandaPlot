@@ -99,6 +99,36 @@ def test_apply_transform_generic_failure_surfaces_message_when_no_signal_fired(t
     assert transform_panel.preview_text.toPlainText() == "⚠ Transform failed - see logs for details"
 
 
+def test_preview_failure_from_the_controller_is_shown_in_plain_language(transform_panel):
+    transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+    transform_panel._populate_column_list(["a"])
+    transform_panel.source_column_list.item(0).setSelected(True)
+    transform_panel.function_text.setPlainText("x * 2")
+    transform_panel.transform_controller.create_preview = Mock(side_effect=ZeroDivisionError("division by zero"))
+
+    transform_panel.update_preview()
+
+    text = transform_panel.preview_text.toPlainText()
+    assert text.startswith("⚠ Preview error: The calculation produced a value that is too large or undefined for this data.")
+    assert "ZeroDivisionError" not in text
+    assert "division by zero" not in text
+
+
+def test_apply_transform_exception_is_shown_in_plain_language(transform_panel):
+    transform_panel.current_dataset = Mock(id="dataset-1", data=Mock(columns=["a"]))
+    transform_panel._populate_column_list(["a"])
+    transform_panel.source_column_list.item(0).setSelected(True)
+    transform_panel.new_column_name.setText("b")
+    transform_panel.function_text.setPlainText("x * 2")
+    transform_panel.transform_controller.apply_transformation = Mock(side_effect=MemoryError("boom"))
+
+    transform_panel.apply_transform()
+
+    text = transform_panel.preview_text.toPlainText()
+    assert text.startswith("⚠ Transform failed: There is not enough memory for this.")
+    assert "boom" not in text
+
+
 class TestApplyValidationFeedback:
     """Regression (#227): clicking Apply without first clicking Preview
     used to silently do nothing on a validation failure -- only a
