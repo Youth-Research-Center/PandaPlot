@@ -12,6 +12,14 @@ class DummyFont:
     def setPointSize(self, pt):
         self._pt = pt
 
+class DummyStyleHints:
+    def __init__(self):
+        self.color_scheme = None
+
+    def setColorScheme(self, scheme):
+        self.color_scheme = scheme
+
+
 class DummyApp:
     """Minimal stub of QApplication for stylesheet & palette testing."""
     def __init__(self):
@@ -19,6 +27,10 @@ class DummyApp:
         self._stylesheet = ""
         self._palette = QPalette()
         self._font = DummyFont()
+        self._style_hints = DummyStyleHints()
+
+    def styleHints(self):
+        return self._style_hints
 
     def palette(self):
         return self._palette
@@ -143,3 +155,54 @@ def test_idempotent_apply(tmp_path: Path):
     cm.update({"appearance": {"theme": "dark"}}, save=False)
     second_qss = app.styleSheet()
     assert first_qss == second_qss, "Applying same theme twice should produce same stylesheet"
+
+
+def _real_app_theme_manager(tmp_path: Path, qapp):
+    bus = EventBus()
+    cm = ConfigManager(bus, config_path=tmp_path / "c.json", auto_save=False)
+    tm = ThemeManager(bus, cm)
+    tm.set_qt_app(qapp)
+    return cm, tm
+
+
+def test_qt_color_scheme_follows_the_app_theme(tmp_path: Path):
+    """Platform-drawn controls (e.g. QWizard buttons on the Windows 11 style) follow Qt's colour scheme, not the app palette.
+
+    With the OS in dark mode and the app theme light, they drew white text on the app's white button background. (A stub app
+    is used because the offscreen platform ignores colour scheme requests.)
+    """
+    from PySide6.QtCore import Qt
+
+    bus = EventBus()
+    cm = ConfigManager(bus, config_path=tmp_path / "c.json", auto_save=False)
+    tm = ThemeManager(bus, cm)
+    app = DummyApp()
+    tm.set_qt_app(app)
+
+    cm.update({"appearance": {"theme": "light"}}, save=False)
+    assert app.styleHints().color_scheme == Qt.ColorScheme.Light
+
+    cm.update({"appearance": {"theme": "dark"}}, save=False)
+    assert app.styleHints().color_scheme == Qt.ColorScheme.Dark
+
+    cm.update({"appearance": {"theme": "light"}}, save=False)
+    assert app.styleHints().color_scheme == Qt.ColorScheme.Light
+
+
+def test_app_palette_survives_the_color_scheme_change(qapp, tmp_path: Path):
+    from PySide6.QtGui import QColor, QPalette
+
+    original_palette = qapp.palette()
+    original_sheet = qapp.styleSheet()
+    cm, _tm = _real_app_theme_manager(tmp_path, qapp)
+    try:
+        cm.update({"appearance": {"theme": "dark"}}, save=False)
+        cm.update({"appearance": {"theme": "light"}}, save=False)
+
+        palette = qapp.palette()
+        assert palette.color(QPalette.ColorRole.ButtonText) == QColor(0, 0, 0)
+        assert palette.color(QPalette.ColorRole.Button) == QColor(255, 255, 255)
+    finally:
+        qapp.styleHints().unsetColorScheme()
+        qapp.setPalette(original_palette)
+        qapp.setStyleSheet(original_sheet)
