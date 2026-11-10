@@ -45,7 +45,7 @@ def app_window(qtbot: QtBot, qapp: QApplication) -> Iterator[PandaMainWindow]:
                 messages.append((dialog.windowTitle(), dialog.text()))
                 qtbot.mouseClick(dialog.button(QMessageBox.StandardButton.Ok), Qt.MouseButton.LeftButton)
             else:
-                window.test_dialog_errors.append((dialog.windowTitle(), dialog.text()))
+                window.test_dialog_errors.append((dialog.windowTitle(), dialog.text(), dialog.informativeText()))
                 dialog.reject()
 
     notice_timer.timeout.connect(acknowledge_notice)

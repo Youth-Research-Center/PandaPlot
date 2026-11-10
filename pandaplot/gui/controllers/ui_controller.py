@@ -4,9 +4,40 @@ from typing import Literal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QColorDialog, QFileDialog, QInputDialog, QMessageBox, QWidget
 
+from pandaplot.utils.error_messages import ErrorDescription, describe_error
+
 # TODO(#220): ui controller should be a facade for all UI-related interactions
 # This allows us to keep UI logic separate from business logic in the MVC pattern.
 # It can handle dialogs, notifications, and other user interactions.
+
+
+def build_error_box(parent: QWidget | None, title: str, message: str, description: ErrorDescription) -> QMessageBox:
+    """Build (without showing) an error box with the reason, next step and technical details.
+
+    Args:
+        parent: Parent widget of the box.
+        title: Window title.
+        message: What failed, as a short plain sentence.
+        description: The reason, next step and details to show.
+
+    Returns:
+        The configured message box; the caller runs ``exec()``.
+    """
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.Critical)
+    box.setWindowTitle(title)
+    box.setText(message)
+    informative = description.reason
+    if description.next_step:
+        informative = f"{informative}\n\n{description.next_step}"
+    box.setInformativeText(informative)
+    if description.details:
+        box.setDetailedText(description.details)
+    box.setStandardButtons(QMessageBox.StandardButton.Ok)
+    # Show Details changes Qt's implicit default choice, so name Ok as default and escape.
+    box.setDefaultButton(QMessageBox.StandardButton.Ok)
+    box.setEscapeButton(QMessageBox.StandardButton.Ok)
+    return box
 
 
 class UIController:
@@ -92,16 +123,27 @@ class UIController:
 
         return file_path if file_path else None
 
-    def show_error_message(self, title: str, message: str) -> None:
+    def show_error_message(self, title: str, message: str, *, error: BaseException | ErrorDescription | None = None) -> None:
         """
         Show an error message dialog.
-        
+
+        Caller convention: ``message`` is a short "Couldn't <do X>." with no exception text,
+        the cause is passed as ``error`` (the exception, or an ErrorDescription from a
+        background task), and the handler logs the failure itself (``logger.exception``);
+        this method does not log. Without ``error`` the message is shown as given.
+
         Args:
             title (str): Dialog title
             message (str): Error message
+            error: The cause. The dialog then adds a plain-language reason and next step, and
+                the technical text under Show Details.
         """
-        QMessageBox.critical(self.parent_widget, title, message)
-    
+        if error is None:
+            QMessageBox.critical(self.parent_widget, title, message)
+            return
+        description = error if isinstance(error, ErrorDescription) else describe_error(error)
+        build_error_box(self.parent_widget, title, message, description).exec()
+
     def show_warning_message(self, title: str, message: str) -> None:
         """
         Show a warning message dialog.

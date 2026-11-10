@@ -34,6 +34,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - `Build Release Installer` GitHub Actions workflow: builds installers for Linux, Windows, and macOS, and publishes them to a GitHub Release with SHA256 checksums under a user-supplied version tag.
 
 ### Changed
+- Error dialogs explain in plain language what went wrong and what to try next; the technical text is under **Show Details** (#595).
 - Sidebar panel titles show the panel's bundled icon, the same one as on the icon bar, instead of an emoji in the title text, and the help text names buttons and panels by their text only (#573).
 - The chart and note editor toolbars, the image gallery buttons and the image lightbox show bundled Phosphor icons that follow the theme colours instead of emoji or arrow glyphs; menus are unchanged and stay text only (#572). The gallery's back/forward/sort buttons are now icon buttons with accessible names, and the image lightbox is released when it closes.
 - The sidebar icon bar and its settings button show bundled Phosphor vector icons that follow the theme colours (muted normally, accent for the open panel) instead of emoji, and the About dialog credits the icon library (#520). Maintainers add icons by editing `icon_manifest.toml` and running `scripts/icons/build_icon_bundle.py`, which regenerates the committed bundle, licence files and `THIRD_PARTY_NOTICES.md` (`--check` verifies they are in sync).

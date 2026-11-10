@@ -147,6 +147,8 @@ These come from review comments (mostly Copilot's) on previous merged PRs. Each 
   - Do not clear a whole stylesheet to remove one color; restore the themed stylesheet and clear stale error text and icons too.
   - Do not rely on private attributes of third-party widgets (e.g. the Matplotlib toolbar's `_actions`) without a guard.
   - Reuse existing base classes and helpers (`SidebarPanel._set_content`, `PButton`, `WidgetExtension`) instead of ad hoc containers.
+- Error dialogs: call `show_error_message(title, "Couldn't X.", error=e)` (or `error=` a background result's `error_description`); never put exception text in `message`, and log the failure with `logger.exception` in the handler (`show_error_message` does not log).
+- Raise `UserFacingError` (`pandaplot.utils.errors`) for messages written for the user, which dialogs show unchanged; keep plain `ValueError` for internal checks.
 - Accessibility: every icon-only, custom-painted, or card-style (`QPushButton` with child labels) control needs `setAccessibleName`/`setAccessibleDescription` and must be keyboard-focusable and activatable. Use a native checkable control instead of a bare `QWidget` toggle, and expose busy/status indicators to assistive technology.
 - Add new constructor or function parameters as keyword-only and **after** existing ones so positional callers do not break.
 - Units and wording must be consistent (do not mix cm and inches), and a setting shown in a dialog must actually be persisted and applied.
