@@ -28,7 +28,7 @@ from pandaplot.gui.components.common.value_combo_box import ValueComboBox
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     FIT_ICON_NAME,
     SERIES_ICON_NAME,
-    _add_icon_item,
+    add_icon_item,
     retint_combo_icons,
 )
 from pandaplot.gui.components.sidebar.chart.tabs.axes_tab import AXES_SWATCH_PALETTE
@@ -87,9 +87,9 @@ from pandaplot.utils.length_units import (
     unit_suffix,
 )
 
-# Preset swatch palette offered by the Style tab's line/marker color pickers.
 # Text colour of the combo icons before the theme tokens are applied (the light theme's primary text colour).
 DEFAULT_ICON_COLOR = "#1C1E26"
+# Preset swatch palette offered by the Style tab's line/marker color pickers.
 STYLE_SWATCH_PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
 
 # Common matplotlib colormaps offered for vector-plot magnitude coloring.
@@ -1899,7 +1899,7 @@ class StyleTab(QWidget):
             if self.app_context is None:
                 self.fill_to_control.addItem(label, idx)
             else:
-                _add_icon_item(self.fill_to_control, self.app_context, FIT_ICON_NAME if other.is_fit else SERIES_ICON_NAME, label, idx)
+                add_icon_item(self.fill_to_control, self.app_context, FIT_ICON_NAME if other.is_fit else SERIES_ICON_NAME, label, idx)
         self.fill_to_control.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
     def _on_fill_enabled_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally

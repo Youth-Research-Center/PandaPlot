@@ -66,6 +66,7 @@ class SeriesConfigCard(Card):
         self._tokens: dict = {}
         self._index = index
         self._build_ui()
+        self._refresh_chevron_icons()
 
     def set_index(self, index: int) -> None:
         self._index = index
@@ -212,7 +213,7 @@ class SeriesConfigCard(Card):
     def _refresh_chevron_icons(self) -> None:
         """Render the expand/collapse chevrons in the theme's muted and disabled text colours.
 
-        The card has no `AppContext`, so the icons come from the tokens handed to `set_tokens` and are absent until then.
+        The card has no `AppContext`, so the icons come from the tokens handed to `set_tokens` and use the fallback colours until then.
         """
         muted = self._tokens.get("text_muted", _FALLBACK_ICON_COLOR)
         disabled = self._tokens.get("text_disabled", _FALLBACK_DISABLED_ICON_COLOR)

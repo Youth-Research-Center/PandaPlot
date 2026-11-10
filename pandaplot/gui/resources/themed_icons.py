@@ -8,17 +8,25 @@ Widgets that are rebuilt on demand can call `themed_icon` directly when they are
 import logging
 from dataclasses import dataclass
 from enum import Enum
+from typing import Protocol, runtime_checkable
 
 import shiboken6
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QAbstractButton
 
-from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
 
 DEFAULT_ICON_SIZE = 16
+
+
+@runtime_checkable
+class SupportsHoverIcon(Protocol):
+    """A button that can show a different icon while the mouse is over it (`PButton`)."""
+
+    def set_hover_icon(self, icon: QIcon | None) -> None:
+        """Show `icon` instead of the normal icon while hovered; `None` goes back to a single icon."""
 
 
 class IconRole(Enum):
@@ -74,7 +82,7 @@ class ActionIcons:
 
     Args:
         app_context: Provides the `ThemeManager` whose design tokens supply the colours.
-        role: Token that tints the icons in their normal state.
+        role: Default token that tints the icons in their normal state; `bind(role=...)` overrides it per icon.
         size: Logical pixel size of the square icons.
     """
 
@@ -122,5 +130,9 @@ class ActionIcons:
 
     def _apply(self, binding: "_Binding") -> None:
         binding.target.setIcon(themed_icon(self._app_context, binding.name, role=binding.role or self._role, size=self._size))
-        if binding.hover_role is not None and isinstance(binding.target, PButton):
+        if binding.hover_role is None:
+            return
+        if isinstance(binding.target, SupportsHoverIcon):
             binding.target.set_hover_icon(themed_icon(self._app_context, binding.name, role=binding.hover_role, size=self._size))
+        else:
+            self.logger.debug("hover_role ignored for %s: it does not support hover icons", type(binding.target).__name__)

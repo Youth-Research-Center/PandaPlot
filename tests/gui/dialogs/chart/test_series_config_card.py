@@ -3,7 +3,11 @@ import pytest
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
-from pandaplot.gui.dialogs.chart.series_config_card import SeriesConfigCard
+from pandaplot.gui.dialogs.chart.series_config_card import (
+    _FALLBACK_DISABLED_ICON_COLOR,
+    _FALLBACK_ICON_COLOR,
+    SeriesConfigCard,
+)
 from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
 from tests.gui.icon_testing import ICON_TOKENS, fresh_icon_tokens
@@ -401,8 +405,12 @@ def test_chevron_icons_follow_a_token_change():
 def test_card_without_tokens_has_buttons_with_no_glyph_text_and_works():
     card = _line_card()
 
-    assert card._expand_button.text() == ""
-    assert card._collapse_button.text() == ""
+    fallback = {"text_muted": _FALLBACK_ICON_COLOR, "text_disabled": _FALLBACK_DISABLED_ICON_COLOR}
+    for button, icon_name in ((card._expand_button, "caret-right"), (card._collapse_button, "caret-down")):
+        assert button.text() == ""
+        assert not button.icon().isNull()
+        assert _icon_image(button.icon()) == _icon_image(_expected_chevron(icon_name, fallback))
+        assert _icon_image(button.icon(), QIcon.Mode.Disabled) == _icon_image(_expected_chevron(icon_name, fallback), QIcon.Mode.Disabled)
     card._collapse_button.click()
     assert card.is_collapsed()
     card._expand_button.click()

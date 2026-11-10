@@ -79,12 +79,14 @@ def test_no_datasets_shows_info_and_opens_no_dialog(app_context, chart):
     project.add_item(chart)
     app_context.get_app_state().load_project(project)
     command = AddSeriesFromDialogCommand(app_context, chart.id)
+    dialogs_before = [w for w in QApplication.topLevelWidgets() if isinstance(w, AddSeriesDialog)]
 
     assert command.execute() is CommandResult.NOOP
 
     assert command._dialog is None
     app_context.get_ui_controller().show_info_message.assert_called_once()
-    assert not any(isinstance(w, AddSeriesDialog) for w in QApplication.topLevelWidgets())
+    dialogs_after = [w for w in QApplication.topLevelWidgets() if isinstance(w, AddSeriesDialog)]
+    assert [d for d in dialogs_after if d not in dialogs_before] == []
 
 
 def test_missing_chart_fails(app_context, project):

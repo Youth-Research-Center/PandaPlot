@@ -10,14 +10,14 @@ from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.project.items import Image
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
+from tests.gui.icon_testing import ICON_TOKENS, fresh_icon_tokens
 
-ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
 ICON_SIZE = 16
 
 
 def _app_context(tokens: dict[str, str] | None = None) -> Mock:
     """An AppContext stand-in whose theme manager serves design tokens (the dict is read on every call, so tests can mutate it)."""
-    token_values = ICON_TOKENS if tokens is None else tokens
+    token_values = fresh_icon_tokens() if tokens is None else tokens
     theme_manager = Mock()
     theme_manager.get_design_tokens.side_effect = lambda: dict(token_values)
     context = Mock(spec=AppContext)
@@ -263,7 +263,7 @@ class TestImageLightboxDialogIcons:
             assert _icon_image(button) == _expected_icon_image(icon_name, ICON_TOKENS), attribute
 
     def test_icons_retint_when_the_theme_changes(self):
-        tokens = dict(ICON_TOKENS)
+        tokens = fresh_icon_tokens()
         images = [Image(name="First"), Image(name="Second")]
         dialog = _dialog(images, 0, load_pixmap=lambda img: _colored_pixmap("red"), on_edit=lambda img: None, app_context=_app_context(tokens))
         before = _icon_image(dialog.previous_button)
