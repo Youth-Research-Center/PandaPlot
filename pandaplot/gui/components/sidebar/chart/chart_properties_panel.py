@@ -517,10 +517,6 @@ class ChartPropertiesPanel(SidebarPanel):
         self.legend_tab.apply_to(chart)
 
         # Apply style updates to the currently selected series or fit data.
-        # Runs *before* DataTab may bootstrap a default series below, so this
-        # only ever touches a series/fit that already existed prior to this
-        # apply -- a freshly-bootstrapped series is never touched by
-        # `apply_series_style_to` here.
         current_row = self.data_tab.selected_index
         if 0 <= current_row < len(chart.data_series):
             series = chart.data_series[current_row]
@@ -541,28 +537,8 @@ class ChartPropertiesPanel(SidebarPanel):
                     getattr(getattr(series.style, "marker", None), "marker_color", None),
                 )
 
-        # Data-tab-owned fields: re-asserts the selected series' y_axis, and
-        # creates a default series (dataset/x/y/label/y_axis) if none exist
-        # yet.
-        had_series_before_apply = bool(chart.data_series)
+        # Data-tab-owned fields: re-asserts the selected series' y_axis.
         self.data_tab.apply_to(chart)
-
-        if not had_series_before_apply and chart.data_series:
-            # DataTab just bootstrapped a default series from zero. Seed
-            # only color/line_width/marker_size directly from the Style
-            # tab's currently-shown values at creation time -- *not* the
-            # full `apply_series_style_to` above (which already ran, before
-            # this series existed, so never touched it), so line_style/
-            # alpha/marker_style/marker_color/marker_edge_color stay at the
-            # DataSeries dataclass defaults rather than being overwritten
-            # from whatever the Style tab happens to be showing.
-            new_series = chart.data_series[-1]
-            if hasattr(new_series.style, "color"):
-                new_series.style.color = self.style_tab.line_color_row.currentColor()
-            if hasattr(new_series.style, "line_width"):
-                new_series.style.line_width = self.style_tab.line_width_slider.value()
-            if hasattr(new_series.style, "marker"):
-                new_series.style.marker.marker_size = self.style_tab.marker_size_slider.value()
 
         chart.update_modified_time()
     

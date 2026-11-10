@@ -180,10 +180,8 @@ def test_the_data_tab_offers_a_z_column_for_every_3d_series(series_type):
     assert tab.z_column_combo.currentData() == dataset.column_id("z")
 
 
-def test_adding_a_series_to_a_3d_chart_carries_the_picked_z_column():
-    """The bootstrap path used to build a Colormap/Heatmap style with only
-    a z_column_id via a hardcoded type check; a 3-D type not in that tuple
-    would have silently lost its Z column."""
+def test_apply_to_does_not_create_a_series_on_an_empty_3d_chart():
+    """Applying an empty 3-D chart never invents a series, even with a Z column picked."""
     app_context, project, dataset = _app_context_with_project()
     chart = Chart(name="3D Chart", chart_type=ChartType.SCATTER3D)
     project.add_item(chart)
@@ -195,10 +193,7 @@ def test_adding_a_series_to_a_3d_chart_carries_the_picked_z_column():
     tab.z_column_combo.setCurrentIndex(tab.z_column_combo.findData(dataset.column_id("z")))
     tab.apply_to(chart)
 
-    assert len(chart.data_series) == 1
-    series = chart.data_series[0]
-    assert series.series_type == SeriesType.SCATTER3D
-    assert series.style.z_column_id == dataset.column_id("z")
+    assert chart.data_series == []
 
 
 # -- Vector3D (#175) ---------------------------------------------------------
@@ -272,7 +267,7 @@ def test_w_column_is_hidden_for_a_2d_vector_series():
     assert tab.magnitude_column_combo.isVisible() is True
 
 
-def test_adding_a_series_to_a_vector3d_chart_carries_the_picked_u_v_w_z_columns():
+def test_apply_to_does_not_create_a_series_on_an_empty_vector3d_chart():
     app_context, project, dataset = _app_context_with_vector3d_project()
     chart = Chart(name="Vector3D Chart", chart_type=ChartType.VECTOR3D)
     project.add_item(chart)
@@ -287,10 +282,4 @@ def test_adding_a_series_to_a_vector3d_chart_carries_the_picked_u_v_w_z_columns(
     tab.w_column_combo.setCurrentIndex(tab.w_column_combo.findData(dataset.column_id("w")))
     tab.apply_to(chart)
 
-    assert len(chart.data_series) == 1
-    series = chart.data_series[0]
-    assert series.series_type == SeriesType.VECTOR3D
-    assert series.style.z_column_id == dataset.column_id("z")
-    assert series.style.u_column_id == dataset.column_id("u")
-    assert series.style.v_column_id == dataset.column_id("v")
-    assert series.style.w_column_id == dataset.column_id("w")
+    assert chart.data_series == []

@@ -7,15 +7,17 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import QDialog, QWizard
 
+from pandaplot.commands.project.chart.series_from_config import dataset_columns
 from pandaplot.gui.core.widget_extension import PWizard
 from pandaplot.gui.dialogs.chart.chart_data_page import ChartDataPage
 from pandaplot.gui.dialogs.chart.chart_labels_page import ChartLabelsPage
 from pandaplot.gui.dialogs.chart.chart_no_dataset_page import ChartNoDatasetPage
 from pandaplot.gui.dialogs.chart.chart_type_page import ChartTypePage
+from pandaplot.gui.dialogs.chart.series_form_style import series_form_stylesheet
 from pandaplot.models.events.event_types import DatasetEvents, UIEvents
-from pandaplot.models.project.items import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.item_display_options import dataset_display_options
 
 
 class ChartWizard(PWizard):
@@ -112,14 +114,9 @@ class ChartWizard(PWizard):
         palette = theme_manager.get_surface_palette()
 
         card_bg = palette.get("card_bg", "#f8f9fa")
-        card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#000000")
-        secondary_fg = palette.get("secondary_fg", "#555555")
-        accent = palette.get("accent", "#4A90E2")
-        # Inputs sit one shade off the surface so fields read as distinct wells.
-        input_bg = palette.get("card_hover", "#e9ecef")
 
-        self.setStyleSheet(f"""
+        background_rules = f"""
             QWizard {{
                 background-color: {card_bg};
                 color: {base_fg};
@@ -127,55 +124,8 @@ class ChartWizard(PWizard):
             QWizardPage {{
                 background-color: {card_bg};
                 color: {base_fg};
-            }}
-            QWizardPage QLabel, QWizardPage QCheckBox {{
-                color: {base_fg};
-            }}
-            QWizardPage QCheckBox::indicator {{
-                width: 14px;
-                height: 14px;
-                border: 1px solid {card_border};
-                border-radius: 3px;
-                background-color: {input_bg};
-            }}
-            QWizardPage QCheckBox::indicator:checked {{
-                background-color: {accent};
-                border-color: {accent};
-            }}
-            QWizardPage QLineEdit {{
-                background-color: {input_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-                padding: 4px 8px;
-                min-height: 22px;
-                color: {base_fg};
-            }}
-            QWizardPage QLineEdit:focus {{
-                border-color: {accent};
-            }}
-            QWizardPage QLineEdit:hover {{
-                border-color: {accent};
-            }}
-            QWizardPage QLineEdit:disabled {{
-                color: {secondary_fg};
-                background-color: {card_bg};
-                border-color: {card_border};
-            }}
-            QWizardPage QListWidget {{
-                background-color: {input_bg};
-                border: 1px solid {card_border};
-                border-radius: 4px;
-                color: {base_fg};
-                outline: none;
-            }}
-            QWizardPage QListWidget::item {{
-                padding: 4px 6px;
-            }}
-            QWizardPage QListWidget::item:selected {{
-                background-color: {accent};
-                color: white;
-            }}
-        """)
+            }}"""
+        self.setStyleSheet(background_rules + series_form_stylesheet(palette, scope="QWizardPage"))
 
     def _on_page_changed(self, page_id: int) -> None:
         if page_id not in (
@@ -307,16 +257,15 @@ class ChartWizard(PWizard):
     def _current_dataset_options(self) -> list[tuple[str, str]]:
         if self._project is None:
             return []
-        return [(item.id, item.name) for item in self._project.get_all_items() if isinstance(item, Dataset)]
+        return dataset_display_options(self._project)
 
     def _current_columns_provider(self) -> Callable[[str], list[tuple[str, str]]]:
+        project = self._project
+
         def provider(dataset_id: str) -> list[tuple[str, str]]:
-            if self._project is None:
+            if project is None:
                 return []
-            dataset = self._project.find_item(dataset_id)
-            if not isinstance(dataset, Dataset) or dataset.data is None:
-                return []
-            return [(dataset.column_id(name) or "", name) for name in dataset.data.columns]
+            return dataset_columns(project, dataset_id)
         return provider
 
     def _finish_empty(self) -> None:

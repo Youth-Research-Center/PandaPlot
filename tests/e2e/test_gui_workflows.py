@@ -13,6 +13,7 @@ from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectV
 from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
 from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
 from pandaplot.gui.components.tabs.tab_container import TabContainer
+from pandaplot.gui.dialogs.chart.add_series_dialog import AddSeriesDialog
 from pandaplot.gui.dialogs.chart.chart_wizard import ChartWizard
 from pandaplot.gui.dialogs.import_wizard_dialog import ImportWizardDialog
 from pandaplot.gui.dialogs.sketch.export_sketch_dialog import ExportSketchDialog
@@ -283,3 +284,63 @@ def test_create_draw_save_and_reopen_a_sketch(app_window: PandaMainWindow, qtbot
     assert isinstance(restored, Sketch)
     assert restored.to_dict() == sketch.to_dict()
     assert [(layer.name, layer.locked) for layer in restored.layers] == [("Layer 1", False), ("Layer 2", True)]
+
+
+def test_empty_chart_gets_first_series_from_empty_state(
+    app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    new_project(qtbot, app_window)
+    dataset = import_csv(qtbot, app_window, monkeypatch, tmp_path)
+    click_menu(qtbot, app_window, "Chart", "Create New")
+    qtbot.waitUntil(lambda: any(isinstance(w, ChartWizard) and w.isVisible() for w in QApplication.topLevelWidgets()))
+    wizard = next(w for w in QApplication.topLevelWidgets() if isinstance(w, ChartWizard) and w.isVisible())
+    qtbot.mouseClick(wizard.type_page.footer.empty_link, Qt.MouseButton.LeftButton)
+    project = app_window.app_context.app_state.current_project
+    qtbot.waitUntil(lambda: any(isinstance(item, Chart) for item in project.get_all_items()))
+    chart = next(item for item in project.get_all_items() if isinstance(item, Chart))
+    assert chart.data_series == []
+    tabs = app_window.app_context.get_manager(TabContainer)
+    qtbot.waitUntil(lambda: tabs.get_tab_widget(chart.id) is not None)
+    editor = tabs.get_tab_widget(chart.id).chart_editor
+    qtbot.waitUntil(lambda: editor.preview_stack.currentWidget() is editor.empty_state_panel)
+
+    add_series_button = next(button for button in editor.empty_state_panel.action_buttons if button.text() == "Add Series")
+    clicked_dialogs: list[AddSeriesDialog] = []
+
+    def complete_dialog() -> None:
+        dialog = QApplication.activeModalWidget()
+        if not isinstance(dialog, AddSeriesDialog) or dialog in clicked_dialogs:
+            return
+        try:
+            assert dialog.card.dataset_combo.currentData() == dataset.id
+            for role, column in (("x", "x"), ("y", "y")):
+                combo = dialog.card._role_combos[role]
+                index = combo.findData(dataset.column_id(column))
+                assert index >= 0
+                combo.setCurrentIndex(index)
+            assert dialog.add_button.isEnabled()
+            clicked_dialogs.append(dialog)
+            qtbot.mouseClick(dialog.add_button, Qt.MouseButton.LeftButton)
+        except AssertionError:
+            dialog.reject()
+            raise
+
+    dialog_timer = QTimer()
+    dialog_timer.timeout.connect(complete_dialog)
+    dialog_timer.start(10)
+    try:
+        qtbot.mouseClick(add_series_button, Qt.MouseButton.LeftButton)
+        qtbot.waitUntil(lambda: len(chart.data_series) == 1, timeout=10000)
+    finally:
+        dialog_timer.stop()
+    assert len(clicked_dialogs) == 1
+    assert chart.data_series[0].dataset_id == dataset.id
+    assert chart.data_series[0].x_column_id == dataset.column_id("x")
+    assert chart.data_series[0].y_column_id == dataset.column_id("y")
+    qtbot.waitUntil(lambda: editor.preview_stack.currentWidget() is editor.canvas_scroll)
+    qtbot.waitUntil(lambda: len(editor.chart_canvas.axes.lines) > 0)
+
+    assert app_window.main_menu.undo_action.isEnabled()
+    app_window.main_menu.undo_action.trigger()
+    qtbot.waitUntil(lambda: chart.data_series == [])
+    qtbot.waitUntil(lambda: editor.preview_stack.currentWidget() is editor.empty_state_panel)
