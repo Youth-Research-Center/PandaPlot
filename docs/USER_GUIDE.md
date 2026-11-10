@@ -139,6 +139,7 @@ PandaPlot supports multiple data formats:
 ### Tabular Spreadsheet Editor
 Double-clicking a Dataset opens the spreadsheet view powered by `QTableView`:
 - **Cell Editing**: Double-click any cell or press `Enter` to modify values.
+- **Empty Datasets**: A dataset with no rows or no columns shows a hint above the table with an **Add Rows / Columns...** button.
 - **Adding / Deleting Rows**: Use toolbar buttons to append rows or delete selected rows.
 - **Adding / Deleting Columns**: Append new columns with custom names and types, or remove selected columns.
 - **Data Types (dtypes)**: Convert columns between integer, floating-point, text, and datetime types via right-click column header context menus.
@@ -191,7 +192,7 @@ Click the line-chart icon in the sidebar (tooltip "Chart Properties panel") whil
 - **Axes**: Each axis's label, range, scale, ticks and grid.
 - **Legend**: Show or hide the legend and set its position, font and background.
 
-Edits on the Chart, Style, Axes and Legend tabs appear on the chart immediately. The footer at the bottom of the panel shows **Modified** once you have edited something: click **Apply** to keep the changes as one undo step (**Edit > Undo**), or **Revert** to go back to how the chart was when you opened it or last applied. Edits to a series' dataset, columns, label or Y axis on the Data tab only mark the panel **Modified** and show on the chart when you click **Apply**. Apply or Revert before switching to any other tab (a dataset or note tab as well); otherwise the changes can no longer be reverted and have no undo step. Adding, removing and reordering series on the Data tab take effect at once, and each is its own undo step. **+ Add series** copies the selected series, so a chart with no series cannot get its first series there: create the chart with the wizard.
+Edits on the Chart, Style, Axes and Legend tabs appear on the chart immediately. The footer at the bottom of the panel shows **Modified** once you have edited something: click **Apply** to keep the changes as one undo step (**Edit > Undo**), or **Revert** to go back to how the chart was when you opened it or last applied. Edits to a series' dataset, columns, label or Y axis on the Data tab only mark the panel **Modified** and show on the chart when you click **Apply**. Apply or Revert before switching to any other tab (a dataset or note tab as well); otherwise the changes can no longer be reverted and have no undo step. Adding, removing and reordering series on the Data tab take effect at once, and each is its own undo step. On a chart with no series, the chart area shows "This chart has no data yet" with **Add Series** and **Import Data** buttons; **Add Series** and **+ Add series** open a dialog where you choose a dataset and the columns the chart type needs, and **Add** puts the series on the chart. On a chart that already has series, **+ Add series** adds a copy of the selected series with the same dataset and columns, so change them afterwards. Each add is its own undo step.
 
 ### Saving a Chart as an Image
 Click the **Save** button (floppy-disk icon, tooltip "Save the figure") in the toolbar above the chart and choose a file name and format such as PNG, PDF or SVG. To set the picture size and sharpness first, use the **Size** and **DPI** cards on the Style tab (with **Chart** selected in the drop-down).

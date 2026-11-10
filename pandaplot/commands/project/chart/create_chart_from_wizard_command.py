@@ -13,12 +13,11 @@ from PySide6.QtWidgets import QDialog
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.chart.create_chart_command import CreateChartCommand
+from pandaplot.commands.project.chart.series_from_config import build_series_from_config, dataset_columns
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.require_project import ensure_project_or_offer_create
 from pandaplot.gui.controllers.ui_controller import UIController
-from pandaplot.models.chart.error_bar_config import ErrorBarConfig
-from pandaplot.models.chart.series_style_builder import DEFAULT_SERIES_COLORS, build_series_style
-from pandaplot.models.chart.series_type import SeriesType
+from pandaplot.models.chart.series_style_builder import default_series_color
 from pandaplot.models.project.items import Chart, Dataset
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.config.config_manager import ConfigManager
@@ -56,31 +55,8 @@ class CreateChartFromWizardCommand(Command):
 
     def _columns_provider(self, project):
         def provider(dataset_id: str) -> list[tuple[str, str]]:
-            dataset = project.find_item(dataset_id)
-            if not isinstance(dataset, Dataset) or dataset.data is None:
-                return []
-            return [(dataset.column_id(name) or "", name) for name in dataset.data.columns]
+            return dataset_columns(project, dataset_id)
         return provider
-
-    def _default_series_label(self, project, series_config: dict) -> str:
-        """Default label for a wizard-created series: "{dataset name}:{Y column name}".
-
-        Matches the convention already used elsewhere in the app (e.g. the
-        dataset properties panel). Histogram series need no special case:
-        their picked "Values" column already lands in `y_column_id` via the
-        wizard's own role mapping. Falls back to just the dataset name if the
-        Y column can't be resolved (shouldn't normally happen for a complete
-        series).
-        """
-        dataset = project.find_item(series_config["dataset_id"])
-        dataset_name = dataset.name if isinstance(dataset, Dataset) else series_config["dataset_id"]
-        y_column_name = ""
-        y_column_id = series_config["y_column_id"]
-        if isinstance(dataset, Dataset) and y_column_id:
-            y_column_name = dataset.column_name(y_column_id) or ""
-        if y_column_name:
-            return f"{dataset_name}:{y_column_name}"
-        return dataset_name
 
     def _resolve_parent_id(self, project, series_configs: list[dict]) -> str | None:
         """Folder for the new chart: the shared folder of every dataset its
@@ -249,37 +225,14 @@ class CreateChartFromWizardCommand(Command):
                 chart.config.show_legend = dialog.get_show_legend()
                 chart.config.x.show_grid = dialog.get_show_grid()
                 chart.config.y.show_grid = dialog.get_show_grid()
-                series_type = SeriesType(chart.chart_type)
                 for index, series_config in enumerate(series_configs):
                     # Cycle through the same default palette data_tab.py's
                     # "+Add series" uses, so multiple wizard-created series
                     # aren't all left on the style class's own single
                     # hardcoded default color.
-                    color = DEFAULT_SERIES_COLORS[index % len(DEFAULT_SERIES_COLORS)]
-                    style = build_series_style(
-                        series_type,
-                        color=color,
-                        error_bars=ErrorBarConfig(
-                            x_error_column_id=series_config["x_error_column_id"],
-                            y_error_column_id=series_config["y_error_column_id"],
-                            x_error_minus_column_id=series_config.get("x_error_minus_column_id", ""),
-                            y_error_minus_column_id=series_config.get("y_error_minus_column_id", ""),
-                            error_symmetric=series_config["error_symmetric"],
-                        ),
-                        u_column_id=series_config.get("u_column_id", ""),
-                        v_column_id=series_config.get("v_column_id", ""),
-                        w_column_id=series_config.get("w_column_id", ""),
-                        magnitude_column_id=series_config.get("magnitude_column_id", ""),
-                        z_column_id=series_config.get("z_column_id", ""),
-                        label_column_id=series_config.get("label_column_id", ""),
-                    )
-                    chart.add_data_series(
-                        series_config["dataset_id"],
-                        x_column_id=series_config["x_column_id"],
-                        y_column_id=series_config["y_column_id"],
-                        style=style,
-                        label=self._default_series_label(project, series_config),
-                    )
+                    color = default_series_color(index)
+                    chart.data_series.append(build_series_from_config(project, chart.chart_type, series_config, color=color))
+                chart.update_modified_time()
 
             self._resolved_parent_id = self._resolve_parent_id(project, series_configs)
             self.created_chart_id = chart.id

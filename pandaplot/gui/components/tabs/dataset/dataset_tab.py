@@ -8,12 +8,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from pandaplot.gui.components.common.empty_state_panel import EmptyStatePanel
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.tabs.dataset.dataset_table_view import DatasetTableView
 from pandaplot.gui.components.tabs.dataset.pandas_table_model import PandasTableModel
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events import DatasetOperationEvents
-from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.events.event_types import DatasetEvents, ProjectEvents
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -37,6 +38,7 @@ class DatasetTab(PWidget):
 
         self._initialize()
         self.load_dataset_data()
+        self._update_empty_state()
 
     def setup_event_subscriptions(self):
         """Set up event subscriptions for dataset updates."""
@@ -49,6 +51,34 @@ class DatasetTab(PWidget):
             DatasetOperationEvents.DATASET_BULK_UPDATE, self.on_dataset_bulk_update)
         self.subscribe_to_event(
             ProjectEvents.PROJECT_ITEM_RENAMED, self.on_dataset_renamed)
+        # DATASET_CHANGED is the parent of every row, column, data, bulk and import event (including undo's
+        # re-emitted events), so one subscription keeps the empty state current.
+        self.subscribe_to_event(
+            DatasetEvents.DATASET_CHANGED, self.on_dataset_changed)
+
+    def on_dataset_changed(self, event_data: dict) -> None:
+        """Re-check the empty state when this dataset changes."""
+        if event_data.get("dataset_id") == self.dataset.id:
+            self._update_empty_state()
+
+    def _update_empty_state(self) -> None:
+        """Show the empty-state panel above the table when the dataset has no columns or no rows."""
+        df = self.dataset.data
+        if df is None or df.shape[1] == 0:
+            self.empty_state_panel.set_heading("This dataset has no columns")
+        elif df.shape[0] == 0:
+            self.empty_state_panel.set_heading("This dataset has no rows")
+        else:
+            self.empty_state_panel.setVisible(False)
+            return
+        self.empty_state_panel.setVisible(True)
+
+    def _add_rows_columns(self) -> None:
+        """Open the Add Rows / Columns command for this dataset."""
+        from pandaplot.commands.project.dataset import AddRowsColumnsCommand
+
+        self.app_context.get_command_executor().execute_command(
+            AddRowsColumnsCommand(self.app_context, dataset_id=self.dataset.id))
 
     def on_dataset_renamed(self, event_data: dict):
         """Update the tab title when the underlying dataset item is renamed."""
@@ -80,6 +110,8 @@ class DatasetTab(PWidget):
         card_border = palette.get("card_border", "#dee2e6")
         base_fg = palette.get("base_fg", "#000000")
         accent = palette.get("accent", "#4A90E2")
+
+        self.empty_state_panel.set_tokens(theme_manager.get_design_tokens())
 
         # Apply styling to table view
         self.table_view.setStyleSheet(f"""
@@ -149,6 +181,17 @@ class DatasetTab(PWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(10)
+
+        self.empty_state_panel = EmptyStatePanel(
+            self.app_context,
+            heading="This dataset has no rows",
+            description="Add rows and columns, then type or paste values.",
+            icon_name="table",
+            actions=[("Add Rows / Columns...", self._add_rows_columns)],
+            parent=self,
+        )
+        self.empty_state_panel.setVisible(False)
+        main_layout.addWidget(self.empty_state_panel)
 
         # Add the table view directly - no edit mode toggle needed
         main_layout.addWidget(self.table_view)
