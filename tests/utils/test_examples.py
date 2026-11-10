@@ -166,6 +166,23 @@ class TestDiscoverExampleProjects:
         assert example.summary == "Old text."
         assert example.section is ExampleSection.GETTING_STARTED
 
+    @pytest.mark.parametrize("cover", [b"\x89PNG\r\n", b"not an image at all"])
+    def test_invalid_cover_is_none(self, tmp_path, cover):
+        project = _project("Bad cover")
+        project.cover_image = cover
+        _save(tmp_path / "bad.pplot", project)
+
+        (example,) = discover_example_projects(tmp_path)
+
+        assert example.cover_image is None
+
+    def test_whitespace_summary_falls_back_to_description(self, tmp_path):
+        _save(tmp_path / "w.pplot", _project("W", "From description. More.", info=ExampleInfo(summary="  \n ")))
+
+        (example,) = discover_example_projects(tmp_path)
+
+        assert example.summary == "From description."
+
     def test_unknown_featured_and_start_note_ids_are_filtered(self, tmp_path):
         info = ExampleInfo(featured_chart_ids=("c0", "gone", "n0"), start_note_id="c0")
         _save(tmp_path / "f.pplot", _project("F", info=info, charts=1, notes=1))

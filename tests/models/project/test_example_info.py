@@ -156,3 +156,48 @@ class TestSummaryFromDescription:
 
     def test_nested_emphasis_and_strikethrough(self):
         assert summary_from_description("A **bold _and italic_** and ~~old~~ note.") == "A bold and italic and old note."
+
+    def test_code_span_with_period_is_not_split(self):
+        assert summary_from_description("Use `a. b` in code. Then.") == "Use a. b in code."
+
+    def test_code_span_with_link_syntax_survives(self):
+        assert summary_from_description("Use `arr[0](x)` to index.") == "Use arr[0](x) to index."
+
+    def test_first_paragraph_after_heading_paragraph(self):
+        assert summary_from_description("Overview\n\nThis example fits data. More.") == "Overview"
+
+    def test_heading_paragraph_is_skipped_for_body(self):
+        assert summary_from_description("# Overview\n\nThis example fits data. More.") == "This example fits data."
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [("- First item. x\n- Second", "First item."), ("* Star\n* Two", "Star"), ("1. Numbered one\n2. Two", "Numbered one"),
+         ("Intro text\n\n- later list", "Intro text")],
+    )
+    def test_list_markers_removed_and_first_item_used(self, text, expected):
+        assert summary_from_description(text) == expected
+
+    def test_second_paragraph_is_not_merged(self):
+        assert summary_from_description("No period here\n\nSecond paragraph.") == "No period here"
+
+    @pytest.mark.parametrize("abbrev", ["e.g.", "i.e.", "etc."])
+    def test_abbreviation_does_not_end_sentence(self, abbrev):
+        assert summary_from_description(f"Fit curves {abbrev} Gaussians to data. Next.") == f"Fit curves {abbrev} Gaussians to data."
+
+
+class TestDuplicateIds:
+    def test_from_dict_dedupes_featured_before_truncating(self):
+        info = ExampleInfo.from_dict({"featured_chart_ids": ["a", "a", "b", "c", "d"]})
+        assert info.featured_chart_ids == ("a", "b", "c")
+
+    def test_duplicate_tags_rejected(self):
+        with pytest.raises(ValueError, match="Duplicate example tag"):
+            ExampleInfo(tag_ids=("physics", "physics"))
+
+    def test_duplicate_featured_rejected(self):
+        with pytest.raises(ValueError, match="Duplicate featured"):
+            ExampleInfo(featured_chart_ids=("a", "a"))
+
+    def test_dirty_dict_round_trips_exactly(self):
+        info = ExampleInfo.from_dict({"tags": ["physics", "physics"], "featured_chart_ids": ["a", "a", "b"]})
+        assert ExampleInfo.from_dict(info.to_dict()) == info

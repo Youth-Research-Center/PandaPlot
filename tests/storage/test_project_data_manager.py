@@ -314,3 +314,22 @@ def test_damaged_other_entry_still_fails_loading(tmp_path, manager):
 
     with pytest.raises(zipfile.BadZipFile):
         manager.load(str(path))
+
+
+def test_cover_png_is_stored_not_deflated(tmp_path, manager):
+    project = Project(name="Stored")
+    project.cover_image = _png_bytes()
+    path = str(tmp_path / "stored.pplot")
+    manager.save(project, path)
+
+    with zipfile.ZipFile(path) as zf:
+        assert zf.getinfo("cover.png").compress_type == zipfile.ZIP_STORED
+
+
+def test_truncated_png_cover_loads_as_none(tmp_path, manager):
+    project = Project(name="Truncated")
+    project.cover_image = _png_bytes()[:6]
+    path = str(tmp_path / "trunc.pplot")
+    manager.save(project, path)
+
+    assert manager.load(path).cover_image is None
