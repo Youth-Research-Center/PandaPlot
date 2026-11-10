@@ -47,6 +47,23 @@ def test_build_stylesheet_includes_secondary_destructive_icon_selectors():
     assert 'QPushButton[iconButton="true"][destructive="true"]:hover' in qss
 
 
+def test_destructive_hover_and_pressed_text_use_the_text_on_danger_token():
+    manager = _manager_with_context(Theme.LIGHT)
+    tokens = {**manager.get_design_tokens(), "text_on_danger": "#123456"}
+    manager.get_design_tokens = lambda: tokens
+
+    qss = manager.build_stylesheet(manager._current)
+
+    for selector in (
+        'QPushButton[destructive="true"]:hover',
+        'QPushButton[destructive="true"]:pressed',
+        'QPushButton[iconButton="true"][destructive="true"]:hover',
+    ):
+        block = qss.split(selector + " {", 1)[1].split("}", 1)[0]
+        assert "color: #123456;" in block, selector
+        assert "#FFFFFF" not in block, selector
+
+
 def test_build_stylesheet_includes_navactive_and_hover_selectors():
     manager = _manager_with_context(Theme.LIGHT)
     ctx = manager._current

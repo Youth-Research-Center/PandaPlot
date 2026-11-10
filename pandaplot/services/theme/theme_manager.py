@@ -410,11 +410,11 @@ class ThemeManager:
             }}
             QPushButton[destructive="true"]:hover {{
                 background-color: {danger};
-                color: #FFFFFF;
+                color: {tokens['text_on_danger']};
             }}
             QPushButton[destructive="true"]:pressed {{
                 background-color: {danger_pressed};
-                color: #FFFFFF;
+                color: {tokens['text_on_danger']};
             }}
             QPushButton[destructive="true"]:disabled {{
                 border-color: {tokens['border_subtle']};
@@ -431,7 +431,7 @@ class ThemeManager:
             }}
             QPushButton[iconButton="true"][destructive="true"]:hover {{
                 background-color: {danger};
-                color: #FFFFFF;
+                color: {tokens['text_on_danger']};
             }}
         """
 
@@ -554,6 +554,7 @@ class ThemeManager:
                 "surface_white": "#2A2C2E", "surface_chrome": "#232527",
                 "surface_inset": "#26282B",
                 "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active, "text_on_accent": text_on_accent,
+                "text_on_danger": "#FFFFFF",
                 "accent_selected_bg": accent_selected_bg, "accent_disabled": accent_disabled,
                 "status_modified_dot": "#E09A1F", "status_modified_text": "#E0A94A",
                 "status_success": "#3FA46A", "status_danger": "#C24141",
@@ -570,6 +571,7 @@ class ThemeManager:
             "surface_white": "#FFFFFF", "surface_chrome": "#FBFBFC",
             "surface_inset": "#F4F5F8",
             "accent": accent, "accent_active_text": accent_active_text, "accent_icon_active": accent_icon_active, "text_on_accent": text_on_accent,
+            "text_on_danger": "#FFFFFF",
             "accent_selected_bg": accent_selected_bg, "accent_disabled": accent_disabled,
             "status_modified_dot": "#E09A1F", "status_modified_text": "#B06A00",
             "status_success": "#3FA46A", "status_danger": "#DC3545",

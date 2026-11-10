@@ -772,6 +772,20 @@ class TestChartSignalAnalysisPanelQuickPlot:
         assert_tinted(strongest_pixel(panel.plot_target_combo.itemIcon(0)), "#00AA00")
         assert_tinted(strongest_pixel(panel.source_combo.itemIcon(0)), "#00AA00")
 
+    def test_apply_theme_keeps_the_combo_selection_and_emits_no_index_change(self, panel):
+        combos = [panel.source_combo, panel.plot_target_combo]
+        for combo in combos:
+            combo.setCurrentIndex(combo.count() - 1)
+        selection = [(combo.currentIndex(), combo.currentData()) for combo in combos]
+        changes = []
+        for combo in combos:
+            combo.currentIndexChanged.connect(changes.append)
+
+        panel._apply_theme()
+
+        assert [(combo.currentIndex(), combo.currentData()) for combo in combos] == selection
+        assert changes == []
+
     def test_plot_target_row_hides_when_checkbox_unchecked(self, panel):
         assert panel.plot_target_row.isVisibleTo(panel) is True
         panel.plot_result_cb.setChecked(False)

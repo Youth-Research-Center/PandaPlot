@@ -25,7 +25,7 @@ FIT_ICON_NAME = "waveform"
 NEW_CHART_ICON_NAME = "plus"
 
 
-def _add_icon_item(combo: QComboBox, app_context: AppContext, icon_name: str, text: str, data: object) -> None:
+def add_icon_item(combo: QComboBox, app_context: AppContext, icon_name: str, text: str, data: object) -> None:
     """Append an item with a themed bundled icon and remember the icon name for `retint_combo_icons`."""
     combo.addItem(themed_icon(app_context, icon_name), text, data)
     combo.setItemData(combo.count() - 1, icon_name, ICON_NAME_ROLE)
@@ -60,14 +60,14 @@ def populate_series_fit_sources(combo: QComboBox, chart: Chart | None, *, app_co
                 any_series_excluded = True
                 continue
             label = series.label or f"Series {i + 1}"
-            _add_icon_item(combo, app_context, SERIES_ICON_NAME, label, i)
+            add_icon_item(combo, app_context, SERIES_ICON_NAME, label, i)
         fit_number = 0
         for i, series in enumerate(chart.data_series):
             if not series.is_fit:
                 continue
             fit_number += 1
             label = series.label or f"Fit {fit_number}"
-            _add_icon_item(combo, app_context, FIT_ICON_NAME, f"{label}  (fit)", i)
+            add_icon_item(combo, app_context, FIT_ICON_NAME, f"{label}  (fit)", i)
     combo.blockSignals(False)  # noqa: FBT003 - Qt method rejects keyword args
     return combo.count() > 0, any_series_excluded
 
@@ -98,7 +98,7 @@ def populate_chart_target_combo(combo: QComboBox, project: "Project | None", *, 
     # The plus icon distinguishes this as an action (create a chart), not the name of
     # an existing chart called "New chart" -- easy to misread as the latter
     # sitting plainly alongside real chart names below it.
-    _add_icon_item(combo, app_context, NEW_CHART_ICON_NAME, "New chart", None)
+    add_icon_item(combo, app_context, NEW_CHART_ICON_NAME, "New chart", None)
     if project is not None:
         compatible_charts = [
             item for item in project.get_all_items()

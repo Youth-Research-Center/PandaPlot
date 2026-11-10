@@ -377,7 +377,7 @@ def test_a_column_with_some_unconvertible_values_still_succeeds(app_context_with
 def test_empty_series_label_falls_back_to_custom_fit(app_context_with_chart, dataset):
     """Regression test for final-review Fix 3 (#298): an empty (but
     normal/supported) series label must not produce an unlabeled fit --
-    fit cards render f"\U0001f527 {fit.label}" with no fallback, unlike
+    fit cards render `fit.label` with no fallback, unlike
     series cards.
     """
     app_context, chart = app_context_with_chart

@@ -106,8 +106,10 @@ class NoteChartPickerDialog(PDialog):
         items_by_id: dict[str, Item] = {i.id: i for i in all_items}
 
         # Build folder nodes
+        folder_icon = item_icon(self.app_context, "folder", size=_ICON_SIZE.width())
         for folder in folders:
             tree_item = QTreeWidgetItem([folder.name])
+            tree_item.setIcon(0, folder_icon)
             tree_item.setData(0, Qt.ItemDataRole.UserRole, folder.id)
             by_id[folder.id] = tree_item
 

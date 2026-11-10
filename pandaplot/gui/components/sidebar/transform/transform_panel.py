@@ -31,6 +31,7 @@ from pandaplot.gui.components.common.status_message import StatusKind, StatusMes
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.transform.function_menu import build_function_menu
 from pandaplot.gui.components.sidebar.transform.transform_controller import TransformController
+from pandaplot.gui.resources.themed_icons import ActionIcons
 from pandaplot.models.events import DatasetOperationEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.state.app_context import AppContext
@@ -52,6 +53,8 @@ class TransformPanel(SidebarPanel):
         # _update_apply_enabled(), which reads it.
         self._preview_has_error = False
         super().__init__(app_context=app_context, parent=parent)
+        # Must exist before _initialize() builds the toolbar, which binds its icon.
+        self._icons = ActionIcons(app_context)
         self.current_dataset_tab = None
         self.current_dataset = None
         self._last_transform_error: str | None = None
@@ -115,6 +118,7 @@ class TransformPanel(SidebarPanel):
     @override
     def _apply_theme(self):
         """Apply current theme to transform panel components."""
+        self._icons.retint()
         # Get theme colors
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
@@ -261,7 +265,9 @@ class TransformPanel(SidebarPanel):
         toolbar_layout = QHBoxLayout()
 
         self.insert_function_btn = QToolButton()
-        self.insert_function_btn.setText("ƒ  Insert function ▾")
+        self.insert_function_btn.setText("Insert function")
+        self.insert_function_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._icons.bind(self.insert_function_btn, "function")
         self.insert_function_btn.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.insert_function_btn.setMenu(self._build_function_menu())
 
@@ -284,7 +290,7 @@ class TransformPanel(SidebarPanel):
             "  x * 2            (double the values)\n"
             "  (x - x.mean()) / x.std()   (z-score)\n"
             "  np.sqrt(x)       (square root)\n"
-            "Or pick one from 'Insert function ▾' above."
+            "Or pick one from 'Insert function' above."
         )
         function_layout.addWidget(self.function_text)
 
@@ -524,6 +530,11 @@ class TransformPanel(SidebarPanel):
         if self._preview_has_error:
             self._clear_preview_message()
 
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.preview_text
+
     def _clear_preview_message(self):
         """Empty the preview text and the status message above it, and forget any error."""
         self._preview_has_error = False
@@ -551,14 +562,17 @@ class TransformPanel(SidebarPanel):
     def _set_preview_message(self, message: str, *, is_error: bool = False):
         """Show a message in the panel's preview area.
 
-        A validation failure or transform error (#227) is shown through `status_message` as a
-        warning, so it is obvious at a glance rather than looking like any other preview text.
+        A validation failure or transform error (#227) is shown through `status_message` as an
+        error, so it is obvious at a glance rather than looking like any other preview text.
         Anything else is written to preview_text.
+
+        Args:
+            message: The text to show.
+            is_error: Whether the message reports a validation failure or a failed preview or transform.
         """
         self._preview_has_error = is_error
         if is_error:
-            self.preview_text.clear()
-            self.status_message.set_message(StatusKind.WARNING, message)
+            self._show_status(StatusKind.ERROR, message)
         else:
             self.status_message.clear()
             self.preview_text.setPlainText(message)

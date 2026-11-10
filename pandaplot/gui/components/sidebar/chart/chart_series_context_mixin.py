@@ -7,6 +7,7 @@ to centralize current-chart and selected-source event handling (see #284).
 
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     find_series_fit_combo_index,
+    retint_combo_icons,
 )
 from pandaplot.models.events import ChartEvents, ProjectEvents, UIEvents
 from pandaplot.models.project.items.chart import Chart
@@ -53,6 +54,16 @@ class ChartSeriesContextMixin:
 
     def _refresh_chart_references(self) -> None:
         pass
+
+    def _retint_source_combos(self) -> None:
+        """Re-render the combo item icons for the current theme, for call from the panel's `_apply_theme`.
+
+        Covers `source_combo` and, on panels that have one, `plot_target_combo`. Selections are left untouched.
+        """
+        retint_combo_icons(self.source_combo, self.app_context)
+        plot_target_combo = getattr(self, "plot_target_combo", None)
+        if plot_target_combo is not None:
+            retint_combo_icons(plot_target_combo, self.app_context)
 
     def _resolve_updated_chart(self, event_data: dict) -> Chart | None:
         """Resolve the chart a CHART_UPDATED event refers to, or None if it

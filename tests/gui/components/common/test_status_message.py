@@ -4,12 +4,14 @@ from unittest.mock import Mock
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QAccessible, QAccessibleEvent, QPalette
 from PySide6.QtWidgets import QLabel
 
+from pandaplot.gui.components.common import status_message
 from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, fresh_icon_tokens, strongest_pixel
 
 KIND_TOKENS = {
     StatusKind.SUCCESS: "status_success",
@@ -22,7 +24,7 @@ KIND_TOKENS = {
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
+    ctx.get_manager.return_value.get_design_tokens.return_value = fresh_icon_tokens()
     return ctx
 
 
@@ -91,6 +93,19 @@ def test_icon_is_tinted_with_the_kind_token(qapp, app_context, kind):
     assert_tinted(strongest_pixel(_icon(widget).pixmap()), ICON_TOKENS[KIND_TOKENS[kind]])
 
 
+@pytest.mark.parametrize(
+    ("kind", "icon_name"),
+    [(StatusKind.SUCCESS, "check-circle"), (StatusKind.ERROR, "x-circle"), (StatusKind.WARNING, "warning"), (StatusKind.INFO, "info")],
+)
+def test_each_kind_shows_its_own_icon(qapp, app_context, kind, icon_name):
+    widget = StatusMessage(app_context)
+
+    widget.set_message(kind, "Message")
+
+    assert kind.icon_name == icon_name
+    assert _icon(widget).icon_name == icon_name
+
+
 def test_icon_changes_when_the_kind_changes(qapp, app_context):
     widget = StatusMessage(app_context)
     widget.set_message(StatusKind.ERROR, "Bad")
@@ -131,6 +146,17 @@ def test_retint_follows_changed_tokens(qapp, app_context):
     assert_tinted(strongest_pixel(_icon(widget).pixmap()), "#00AA00")
 
 
+def test_retint_recolours_the_text_with_the_primary_text_token(qapp, app_context):
+    widget = StatusMessage(app_context)
+    widget.set_message(StatusKind.INFO, "Hello")
+    app_context.get_manager.return_value.get_design_tokens.return_value = {**ICON_TOKENS, "text_primary": "#00AA00"}
+
+    widget.retint()
+
+    assert _text(widget).palette().color(QPalette.ColorRole.WindowText).name().lower() == "#00aa00"
+    assert not _text(widget).styleSheet()
+
+
 def test_retint_on_an_empty_widget_is_a_no_op(qapp, app_context):
     StatusMessage(app_context).retint()
 
@@ -145,3 +171,105 @@ def test_accessible_description_names_the_kind(qapp, app_context, kind, word):
     widget.set_message(kind, "Boom")
 
     assert widget.accessibleDescription() == f"{word}: Boom"
+
+
+def _accessible_name(widget: StatusMessage) -> str:
+    return QAccessible.queryAccessibleInterface(widget._text).text(QAccessible.Text.Name)
+
+
+@pytest.mark.parametrize(
+    ("kind", "word"),
+    [(StatusKind.SUCCESS, "Success"), (StatusKind.ERROR, "Error"), (StatusKind.WARNING, "Warning"), (StatusKind.INFO, "Information")],
+)
+def test_text_label_accessible_name_is_kind_and_text(qapp, app_context, kind, word):
+    widget = StatusMessage(app_context)
+
+    widget.set_message(kind, "Boom")
+
+    assert _accessible_name(widget) == f"{word}: Boom"
+
+
+def test_text_label_accessible_name_follows_the_message_and_is_cleared(qapp, app_context):
+    widget = StatusMessage(app_context)
+    widget.set_message(StatusKind.ERROR, "Boom")
+    assert _accessible_name(widget) == "Error: Boom"
+
+    widget.set_message(StatusKind.INFO, "Fine")
+    assert _accessible_name(widget) == "Information: Fine"
+
+    widget.clear()
+    assert _accessible_name(widget) == ""
+
+
+@pytest.fixture
+def alerts(monkeypatch):
+    """Record every accessibility event the widget sends."""
+    sent: list[QAccessibleEvent] = []
+    monkeypatch.setattr(status_message.QAccessible, "updateAccessibility", sent.append)
+    return sent
+
+
+@pytest.mark.parametrize("kind", [StatusKind.ERROR, StatusKind.WARNING])
+def test_error_and_warning_send_an_alert_event_from_the_text_label(qapp, app_context, alerts, kind):
+    widget = StatusMessage(app_context)
+
+    widget.set_message(kind, "Boom")
+
+    assert len(alerts) == 1
+    assert alerts[0].type() == QAccessible.Event.Alert
+    assert alerts[0].object() is widget._text
+
+
+@pytest.mark.parametrize("kind", [StatusKind.SUCCESS, StatusKind.INFO])
+def test_success_and_information_send_no_alert(qapp, app_context, alerts, kind):
+    widget = StatusMessage(app_context)
+
+    widget.set_message(kind, "Done")
+
+    assert alerts == []
+
+
+def test_clear_sends_no_alert(qapp, app_context, alerts):
+    widget = StatusMessage(app_context)
+    widget.set_message(StatusKind.ERROR, "Boom")
+    alerts.clear()
+
+    widget.clear()
+
+    assert alerts == []
+
+
+def test_an_unchanged_message_sends_the_alert_once(qapp, app_context, alerts):
+    widget = StatusMessage(app_context)
+
+    widget.set_message(StatusKind.ERROR, "Boom")
+    widget.set_message(StatusKind.ERROR, "Boom")
+
+    assert len(alerts) == 1
+
+
+def test_a_changed_text_or_kind_sends_a_new_alert(qapp, app_context, alerts):
+    widget = StatusMessage(app_context)
+    widget.set_message(StatusKind.ERROR, "Boom")
+
+    widget.set_message(StatusKind.ERROR, "Bang")
+    widget.set_message(StatusKind.WARNING, "Bang")
+
+    assert len(alerts) == 3
+
+
+def test_the_same_message_after_a_clear_alerts_again(qapp, app_context, alerts):
+    widget = StatusMessage(app_context)
+    widget.set_message(StatusKind.ERROR, "Boom")
+    widget.clear()
+
+    widget.set_message(StatusKind.ERROR, "Boom")
+
+    assert len(alerts) == 2
+
+
+def test_sending_alerts_does_not_raise_without_an_accessibility_client(qapp, app_context):
+    widget = StatusMessage(app_context)
+
+    widget.set_message(StatusKind.ERROR, "Boom")
+    widget.set_message(StatusKind.WARNING, "Careful")

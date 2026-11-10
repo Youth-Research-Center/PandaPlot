@@ -408,6 +408,21 @@ def test_theme_change_skips_icons_of_removed_recent_items(monkeypatch):
     assert len(tab._icon_labels) == len(CARDS) + 1
 
 
+def test_rebuilding_the_recent_list_does_not_grow_the_tracked_icons(monkeypatch):
+    tab = _make_welcome_tab()
+    entries = [{"name": "A", "path": "/a.ppp", "last_opened": "x"}]
+    monkeypatch.setattr(welcome_tab_module, "get_recent_projects", lambda _ctx: entries)
+    tab.update_recent_projects()
+    tracked_after_first_build = len(tab._icon_labels)
+
+    for index in range(10):
+        entries[0] = {"name": f"P{index}", "path": f"/p{index}.ppp", "last_opened": "y"}
+        tab.update_recent_projects()
+
+    assert len(tab._icon_labels) <= tracked_after_first_build + 1
+    assert len([label for label in tab._icon_labels if isValid(label)]) == len(CARDS) + 1
+
+
 def test_accent_icon_rule_is_gone_from_the_stylesheet():
     tab = _make_welcome_tab()
 
