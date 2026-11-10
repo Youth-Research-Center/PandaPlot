@@ -20,6 +20,7 @@ from pandaplot.services.help.content import panel_defaults as defaults
 from pandaplot.services.help.content.panel_defaults import SpinRange
 from pandaplot.services.help.help_catalog import get_help_catalog
 from pandaplot.services.help.help_types import PANEL_TOPIC_FIT
+from tests.gui.icon_testing import ICON_TOKENS
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -32,13 +33,7 @@ def qapp():
 def app_context():
     ctx = Mock(spec=AppContext)
     ctx.event_bus = Mock()
-    ctx.get_manager.return_value.get_design_tokens.return_value = {
-        "font_size_group_title": 9,
-        "text_primary": "#1C1E26",
-        "text_muted": "#6B7280",
-        "accent_icon_active": "#404BAC",
-        "text_disabled": "#AEB2BC",
-    }
+    ctx.get_manager.return_value.get_design_tokens.return_value = {"font_size_group_title": 9, **ICON_TOKENS}
     return ctx
 
 

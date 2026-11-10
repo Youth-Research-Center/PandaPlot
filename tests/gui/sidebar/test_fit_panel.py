@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QApplication, QFrame, QPlainTextEdit
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.chart.apply_fit_command import ApplyFitCommand
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.sidebar.fit.fit_panel import CUSTOM_SERIES_SENTINEL, FitPanel
 from pandaplot.models.chart.chart_type import ChartType
@@ -30,9 +31,7 @@ from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.fit.fit_service import FitResult
 from pandaplot.utils.error_messages import ErrorDescription
 from tests.commands.project.conftest import SyncTaskScheduler
-
-# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
-ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -2185,6 +2184,43 @@ def test_switching_to_unsupported_chart_clears_stale_points_and_range_warning(ap
     assert panel.range_max_value_label.text() == "—"
     assert panel.range_warning_label.isHidden() is True
     assert panel.data_points_warning_icon.isHidden() is True
+
+
+def test_data_points_warning_is_a_warning_icon_without_emoji(app_context):
+    panel = FitPanel(app_context)
+
+    icon = panel.data_points_warning_icon
+    assert isinstance(icon, IconLabel)
+    assert icon.icon_name == "warning"
+    assert icon.text() == ""
+    assert_tinted(strongest_pixel(icon.pixmap()), ICON_TOKENS["status_modified_text"])
+
+
+def test_data_points_warning_icon_shows_with_its_tooltip_when_no_data_is_selected(app_context):
+    panel = FitPanel(app_context)
+
+    panel.update_data_points_display()
+
+    icon = panel.data_points_warning_icon
+    assert icon.isHidden() is False
+    assert icon.toolTip() == "Select a chart series with valid data to perform a fit."
+
+
+def test_data_points_warning_icon_hides_again_once_data_is_available(app_context):
+    panel, _executed = _build_panel_ready_to_fit(app_context)
+
+    panel.update_data_points_display()
+
+    assert panel.data_points_warning_icon.isHidden() is True
+
+
+def test_data_points_warning_icon_follows_the_theme(app_context):
+    panel = FitPanel(app_context)
+    app_context.get_manager.return_value.get_design_tokens.return_value["status_modified_text"] = "#00AA00"
+
+    panel._apply_theme()
+
+    assert_tinted(strongest_pixel(panel.data_points_warning_icon.pixmap()), "#00AA00")
 
 
 def test_availability_label_uses_theme_warning_color(app_context):

@@ -60,7 +60,7 @@ def tab(app_context, sketch, container):
 
 
 def test_tab_identifies_its_sketch(tab):
-    assert tab.get_tab_title() == "✏️ Diagram"
+    assert tab.get_tab_title() == "Diagram"
     assert tab.get_tab_data() == {"type": "sketch", "id": "sketch-1"}
 
 
@@ -87,7 +87,7 @@ def test_renaming_the_sketch_updates_the_tab_title(app_context, sketch, tab, con
 
     app_context.event_bus.emit(ProjectEvents.PROJECT_ITEM_RENAMED, {"item_id": "sketch-1", "new_name": "Circuit"})
 
-    assert container.titles == ["✏️ Circuit"]
+    assert container.titles == ["Circuit"]
 
 
 def test_renaming_another_item_leaves_the_title_alone(app_context, tab, container):

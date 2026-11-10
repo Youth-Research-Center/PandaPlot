@@ -116,3 +116,15 @@ def test_accent_icon_active_matches_active_text_in_the_light_theme(tmp_path):
     tokens = _make_manager(tmp_path, theme=Theme.LIGHT).get_design_tokens()
 
     assert tokens["accent_icon_active"] == tokens["accent_active_text"]
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("accent", ["#4A56C6", "#1F2A8C", "#FF0000", "#00AA55", "#FFFFFF", "#000000"])
+def test_text_on_accent_is_readable_on_the_accent(tmp_path, theme, accent):
+    tokens = _make_manager(tmp_path, theme=theme, accent=accent).get_design_tokens()
+
+    assert _contrast_ratio(tokens["text_on_accent"], accent) >= 4.5
+
+
+def test_text_on_accent_is_white_for_the_default_accent(tmp_path):
+    assert _make_manager(tmp_path).get_design_tokens()["text_on_accent"].upper() == "#FFFFFF"

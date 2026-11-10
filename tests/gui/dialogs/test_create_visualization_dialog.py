@@ -13,12 +13,23 @@ from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Chart
 from pandaplot.models.project.items.folder import Folder
+from pandaplot.models.state.app_context import AppContext
+from tests.gui.icon_testing import ICON_TOKENS
 
 
 @pytest.fixture(scope="module", autouse=True)
 def qapp():
     app = QApplication.instance() or QApplication([])
     yield app
+
+
+def _context() -> Mock:
+    """A spec'd context whose theme manager serves real design tokens, as the dialog header icon needs."""
+    context = Mock(spec=AppContext)
+    context.event_bus = Mock()
+    context.get_manager.return_value.get_surface_palette.return_value = {}
+    context.get_manager.return_value.get_design_tokens.return_value = dict(ICON_TOKENS)
+    return context
 
 
 def _make_dialog(app_context, on_create_chart=None):
@@ -34,7 +45,7 @@ def _chart(name="Sales Trend", chart_type="line", series=0):
 
 
 def test_get_charts_empty_when_no_project_open():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = False
 
     dialog = _make_dialog(app_context)
@@ -43,7 +54,7 @@ def test_get_charts_empty_when_no_project_open():
 
 
 def test_get_charts_empty_when_project_has_no_charts():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = True
     project = Mock()
     project.get_all_items.return_value = []
@@ -55,7 +66,7 @@ def test_get_charts_empty_when_project_has_no_charts():
 
 
 def test_get_charts_filters_to_chart_items_only():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = True
     c1, c2 = _chart("A"), _chart("B")
     non_chart_item = Mock()
@@ -69,7 +80,7 @@ def test_get_charts_filters_to_chart_items_only():
 
 
 def test_create_chart_button_always_present_with_no_charts():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = False
 
     dialog = _make_dialog(app_context)
@@ -78,7 +89,7 @@ def test_create_chart_button_always_present_with_no_charts():
 
 
 def test_create_chart_button_always_present_with_charts():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = True
     project = Mock()
     project.get_all_items.return_value = [_chart("A")]
@@ -90,12 +101,12 @@ def test_create_chart_button_always_present_with_charts():
 
 
 def test_dialog_shows_an_intro_explanation_regardless_of_branch():
-    empty_context = Mock()
+    empty_context = _context()
     empty_context.get_app_state.return_value.has_project = False
     empty_dialog = _make_dialog(empty_context)
     assert empty_dialog.intro_label.text().strip()
 
-    populated_context = Mock()
+    populated_context = _context()
     populated_context.get_app_state.return_value.has_project = True
     project = Mock()
     project.get_all_items.return_value = [_chart("A")]
@@ -105,7 +116,7 @@ def test_dialog_shows_an_intro_explanation_regardless_of_branch():
 
 
 def test_open_chart_emits_tab_open_requested_and_accepts():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = False
     dialog = _make_dialog(app_context)
     chart = _chart("Sales Trend")
@@ -134,7 +145,7 @@ def test_chart_list_disambiguates_duplicate_chart_names():
     project.add_item(root_chart)
     project.add_item(nested_chart, runs.id)
 
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = True
     app_context.get_app_state.return_value.current_project = project
 
@@ -149,7 +160,7 @@ def test_chart_list_disambiguates_duplicate_chart_names():
 def test_chart_item_uses_canonical_chart_type_display_names():
     # chart_type.value.capitalize() would mangle these: "hist" -> "Hist"
     # (not "Histogram"), "colormap" -> "Colormap" (not "Color Map").
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = True
     project = Mock()
     project.get_all_items.return_value = [
@@ -173,7 +184,7 @@ def test_chart_item_description_counts_fits_separately_from_series():
         chart.add_data_series("ds", x_column="x", y_column="y")
     for _ in range(3):
         chart.add_fit_series("ds", x_data=np.array([1.0]), y_data=np.array([1.0]), label="Fit", style=FitStyle())
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = True
     project = Mock()
     project.get_all_items.return_value = [chart]
@@ -186,7 +197,7 @@ def test_chart_item_description_counts_fits_separately_from_series():
 
 
 def test_handle_create_chart_invokes_callback_and_accepts():
-    app_context = Mock()
+    app_context = _context()
     app_context.get_app_state.return_value.has_project = False
     on_create_chart = Mock()
     dialog = _make_dialog(app_context, on_create_chart=on_create_chart)

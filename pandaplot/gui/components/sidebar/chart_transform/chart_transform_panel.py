@@ -29,6 +29,7 @@ from pandaplot.commands.project.chart.transform_chart_series_command import (
 )
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.chart.chart_series_context_mixin import (
     ChartSeriesContextMixin,
 )
@@ -39,6 +40,7 @@ from pandaplot.gui.components.sidebar.chart.series_result_messages import (
 )
 from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_series_fit_sources,
+    retint_combo_icons,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -207,6 +209,8 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
         self.preview_text.setMaximumHeight(140)
         self.preview_text.setPlaceholderText("Preview results will appear here...")
         vbox.addWidget(self.preview_btn)
+        self.status_message = StatusMessage(self.app_context)
+        vbox.addWidget(self.status_message)
         vbox.addWidget(self.preview_text)
         layout.addWidget(group)
 
@@ -249,10 +253,16 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- actions -------------------------------------------------------
 
+    def _show_status(self, kind: StatusKind, text: str) -> None:
+        """Show `text` as a status message in place of any preview text."""
+        self.preview_text.clear()
+        self.status_message.set_message(kind, text)
+
     def preview(self):
+        self.status_message.clear()
         command = self._make_command()
         if command is None:
-            self.preview_text.setText("❌ Select a series and enter an expression to transform.")
+            self._show_status(StatusKind.ERROR, "Select a series and enter an expression to transform.")
             return
         try:
             df, default_name = command.run_transform()
@@ -261,27 +271,26 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
                 f"Series: {self.source_combo.currentText()}",
                 f"Result: {len(df)} points → dataset '{self.result_name.text().strip() or default_name}'",
             ]
-            self.preview_text.setText(format_series_result_preview(header_lines, df))
+            self.preview_text.setPlainText(format_series_result_preview(header_lines, df))
         except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self.preview_text.setText(format_preview_error(e))
+            self._show_status(StatusKind.ERROR, format_preview_error(e))
 
     def apply(self):
         command = self._make_command()
         if command is None:
-            self.preview_text.setText("❌ Select a series and enter an expression to transform.")
+            self._show_status(StatusKind.ERROR, "Select a series and enter an expression to transform.")
             return
         if self.app_context.get_command_executor().execute_command(command):
-            self.preview_text.setText(
-                "✅ Created a new dataset and added it to the chart as a series."
-            )
+            self._show_status(StatusKind.SUCCESS, "Created a new dataset and added it to the chart as a series.")
         else:
-            self.preview_text.setText(format_apply_failure("transform"))
+            self._show_status(StatusKind.ERROR, format_apply_failure("transform"))
 
     def clear_inputs(self):
         self.result_name.clear()
         self.expression_text.clear()
         self.target_combo.setCurrentIndex(0)
         self.preview_text.clear()
+        self.status_message.clear()
 
     # -- chart context ---------------------------------------------------
 
@@ -292,7 +301,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
         self.result_name.setPlaceholderText(f"{self.source_combo.currentText()} ({target} transformed)")
 
     def _populate_sources(self):
-        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart)
+        has_sources, any_series_excluded = populate_series_fit_sources(self.source_combo, self.current_chart, app_context=self.app_context)
         self.apply_btn.setEnabled(has_sources)
         self.preview_btn.setEnabled(has_sources)
         self.source_hint.setText(
@@ -304,8 +313,12 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     def setup_event_subscriptions(self):
         self.setup_chart_series_context_subscriptions()
 
+    def _retint_source_combos(self) -> None:
+        retint_combo_icons(self.source_combo, self.app_context)
+
     @override
     def _apply_theme(self):
+        self._retint_source_combos()
         theme_manager = self.app_context.get_manager(ThemeManager)
         palette = theme_manager.get_surface_palette()
         tokens = theme_manager.get_design_tokens()
@@ -338,6 +351,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
             }}
         """)
         self._apply_title_theme(base_fg, card_border)
+        self.status_message.retint()
         self.source_hint.setStyleSheet(
             f"QLabel {{ color: {secondary_fg}; background-color: transparent; }}"
         )

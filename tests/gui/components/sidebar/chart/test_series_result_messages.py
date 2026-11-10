@@ -23,13 +23,13 @@ def test_format_series_result_preview_joins_headers_and_dataframe_head():
 
 
 def test_format_preview_error_includes_the_exception_message():
-    assert format_preview_error(ValueError("bad input")) == "❌ Preview error: bad input"
+    assert format_preview_error(ValueError("bad input")) == "Preview error: bad input"
 
 
 def test_format_apply_failure_includes_the_verb():
     assert format_apply_failure("analyze") == (
-        "❌ Could not analyze the series. See the log for details."
+        "Could not analyze the series. See the log for details."
     )
     assert format_apply_failure("transform") == (
-        "❌ Could not transform the series. See the log for details."
+        "Could not transform the series. See the log for details."
     )

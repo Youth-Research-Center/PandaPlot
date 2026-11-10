@@ -80,15 +80,15 @@ def topics() -> list[HelpTopic]:
                 'The Labels step is the last one. Pie charts have no axes, so for a pie the axis-label fields and the "Show grid lines" switch are '
                 "hidden. A title, subtitle or label can contain math such as $x^2$ (see the math topic).\n\n"
                 'Not ready to choose data? Click "Create empty plot instead" on the Type or Data step to get a blank chart with no series. '
-                'To plot data, create the chart with the wizard: the Data tab of Chart Properties can only add a series to a chart that '
-                'already has one.\n\n'
+                'An empty chart shows "This chart has no data yet" with an "Add Series" button. Click it, choose a dataset and the columns '
+                'the chart type needs, and click Add. You can also click "+ Add series" on the Data tab of Chart Properties.\n\n'
                 'If the project has no datasets yet, the Data step is replaced by a page that says "This project has no datasets yet". '
                 'Click "Import Dataset" to bring in a file and carry on, or "Create Empty Chart" for a blank chart. '
                 'Click Cancel at any step to close the wizard without creating anything. '
                 'Use the ? button at the bottom left of a step, or press F1 (on a Mac, Cmd+?), to open help for that step.'
             ),
             keywords=(
-                "graph", "plot", "new chart", "create chart", "make a graph", "make a plot", "wizard", "visualization", "empty chart", "import",
+                "graph", "plot", "new chart", "create chart", "make a graph", "make a plot", "wizard", "visualization", "empty chart", "first series", "import",
                 "title", "axis label",
             ),
             related=(
@@ -171,8 +171,9 @@ def topics() -> list[HelpTopic]:
             steps=(
                 ('Open a chart tab, click the line-chart icon in the sidebar (its tooltip reads "Chart Properties panel") '
                  "and open the Data tab."),
-                ('Click "+ Add series" to add one. It is a copy of the selected series, with the same dataset and columns, so change them afterwards. '
-                 "This needs at least one series to copy from. Adding a series is recorded as its own undo step."),
+                ('Click "+ Add series" to add one. On a chart with no series it opens the Add Series dialog: choose a dataset and columns and click Add. '
+                 "On a chart that already has series it adds a copy of the selected series, with the same dataset and columns, so change them "
+                 "afterwards. Each add is its own undo step."),
                 ('Click a series card to select it. Its settings open in that card and you can edit them. On the other cards, ▸ (tooltip '
                  '"Expand series details") shows a read-only summary and ▾ hides it again. On the selected card ▾ is greyed out '
                  '(tooltip "Series details expanded").'),
@@ -404,7 +405,7 @@ def topics() -> list[HelpTopic]:
                 'The "Size" card offers ready-made sizes, "Custom" (type a width and height) and "Use app default". '
                 'The "DPI" card offers 100, 150 and 300 dpi, "Custom" and "Use app default". A higher DPI gives more detail and a larger file. '
                 'The hint on the Size card reads "Size affects export & default fonts".\n\n'
-                'To put a chart into a note, open the note, click "Artefacts" on the note toolbar, click "📊 Insert Chart...", pick the chart, '
+                'To put a chart into a note, open the note, click "Artefacts" on the note toolbar, click "Insert Chart...", pick the chart, '
                 'choose a "Snapshot DPI:" and click "Insert Chart". The note gets a picture of the chart as it looks at that moment. '
                 'The Artefacts window has a "Refresh" button to update the picture later.'
             ),

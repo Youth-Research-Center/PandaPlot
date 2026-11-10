@@ -104,7 +104,7 @@ class ChartTab(PWidget):
 
     def get_tab_title(self) -> str:
         """Get the tab title."""
-        return f"📈 {self.chart.name}"
+        return self.chart.name
 
     def get_tab_data(self) -> dict:
         """Identify this tab to TabContainer for session/event bookkeeping."""

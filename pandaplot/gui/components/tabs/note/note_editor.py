@@ -33,9 +33,10 @@ from shiboken6 import isValid
 from pandaplot.commands.base_command import Command
 from pandaplot.commands.composite_command import CompositeCommand
 from pandaplot.commands.project.note import EditNoteCommand
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.gui.dialogs.image.note_image_picker_dialog import NoteImagePickerDialog
-from pandaplot.gui.resources.themed_icons import DEFAULT_ICON_SIZE, ActionIcons
+from pandaplot.gui.resources.themed_icons import DEFAULT_ICON_SIZE, ActionIcons, IconRole
 from pandaplot.models.events import NoteEvents, UIEvents
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Chart, Image, ImageGallery, ItemCollection, Note
@@ -767,6 +768,7 @@ class NoteEditorWidget(PWidget):
 
         # Update status label with current status
         self._update_status_label_style()
+        self.status_icon.retint()
 
         # Re-render the preview so equation image colours track the new theme
         # (equations are rasterised with the foreground colour baked in).
@@ -935,7 +937,7 @@ class NoteEditorWidget(PWidget):
             writer.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter)
             document.print_(writer)
 
-            self.update_status("PDF exported ✓")
+            self.update_status("PDF exported", success=True)
             QTimer.singleShot(2000, self._reset_status)
         except Exception as e:
             self.logger.exception("Failed to export note to PDF")
@@ -1098,7 +1100,7 @@ class NoteEditorWidget(PWidget):
             # The command committed the whole text, so nothing is pending.
             self.auto_save_timer.stop()
             self.is_modified = False
-            self.update_status("Saved ✓")
+            self.update_status("Saved", success=True)
             QTimer.singleShot(2000, self._reset_status)
             self.text_edit.setTextCursor(cursor)
             if self.stack.currentIndex() == 1:
@@ -1316,6 +1318,12 @@ class NoteEditorWidget(PWidget):
         status_layout.addWidget(self.char_count_label)
 
         status_layout.addStretch()
+
+        self.status_icon = IconLabel(self.app_context, "check", role=IconRole.SUCCESS)
+        # The status frame's QFrame rule would otherwise draw its border and padding around the icon.
+        self.status_icon.setStyleSheet("border: none; padding: 0; background: transparent;")
+        self.status_icon.hide()
+        status_layout.addWidget(self.status_icon)
 
         self.status_label = QLabel("Ready")
         status_layout.addWidget(self.status_label)
@@ -1572,9 +1580,15 @@ class NoteEditorWidget(PWidget):
 
         self.status_label.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: bold;")
 
-    def update_status(self, status: str):
-        """Update the status label."""
+    def update_status(self, status: str, *, success: bool = False) -> None:
+        """Update the status label.
+
+        Args:
+            status: The plain status text.
+            success: Show the check icon beside the text; any other status hides it again.
+        """
         self.status_label.setText(status)
+        self.status_icon.setVisible(success)
         self._update_status_label_style()
 
     def _reset_status(self) -> None:
@@ -1619,7 +1633,7 @@ class NoteEditorWidget(PWidget):
 
             # Update UI
             self.is_modified = False
-            self.update_status("Saved ✓")
+            self.update_status("Saved", success=True)
 
             # Reset status after 2 seconds
             QTimer.singleShot(2000, self._reset_status)
@@ -1652,7 +1666,7 @@ class NoteEditorWidget(PWidget):
             # while signals were blocked.
             self._schedule_artefacts_badge_refresh()
             self.is_modified = False
-            self.update_status("Synced ✓")
+            self.update_status("Synced", success=True)
 
     def clear_content(self):
         """Clear all content."""

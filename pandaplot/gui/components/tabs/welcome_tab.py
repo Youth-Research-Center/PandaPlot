@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import override
 
 from PySide6.QtCore import Qt, Signal
@@ -13,7 +14,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
+from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.gui.dialogs.create_or_open_project_dialog import (
     ACTION_BROWSE_EXAMPLES,
@@ -25,6 +28,7 @@ from pandaplot.gui.dialogs.create_visualization_dialog import CreateVisualizatio
 from pandaplot.gui.dialogs.examples_dialog import ExamplesDialog
 from pandaplot.gui.dialogs.explore_data_dialog import ExploreDataDialog
 from pandaplot.gui.dialogs.getting_started_step_dialog import GettingStartedStepDialog
+from pandaplot.gui.resources.themed_icons import IconRole
 from pandaplot.models.events.event_types import ConfigEvents
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.session.recent_projects import get_recent_projects
@@ -49,6 +53,8 @@ class WelcomeTab(PWidget):
         super().__init__(app_context=app_context, parent=parent)
         # Object name for scoped styling (border reset)
         self.setObjectName("WelcomeTabRoot")
+        # Card and recent-project icons; recent items are rebuilt on demand, so entries can be deleted.
+        self._icon_labels: list[IconLabel] = []
         self._initialize()
         self.update_recent_projects()
 
@@ -112,6 +118,7 @@ class WelcomeTab(PWidget):
         This keeps WelcomeTab styling self-contained while sourcing colors from
         ThemeManager, avoiding global stylesheet bloat.
         """
+        self._retint_icons()
         try:
             tm = self.app_context.get_manager(ThemeManager)
             palette = tm.get_surface_palette()
@@ -132,9 +139,6 @@ class WelcomeTab(PWidget):
                 }}
                 QWidget#WelcomeTabRoot QLabel[secondary="true"] {{
                     color: {secondary_fg};
-                }}
-                QWidget#WelcomeTabRoot QLabel#accentIcon {{
-                    color: {accent};
                 }}
                 /* Card style buttons */
                 QWidget#WelcomeTabRoot #WelcomeCardButton,
@@ -185,6 +189,19 @@ class WelcomeTab(PWidget):
         except Exception as e:  # noqa: BLE001
             self.logger.warning("Failed building local WelcomeTab stylesheet: %s", e)
     
+    def _make_icon(self, icon_name: str, *, size: int, role: IconRole) -> IconLabel:
+        """Create an icon label that `_apply_theme` re-tints for as long as the label exists."""
+        icon = IconLabel(self.app_context, icon_name, size=size, role=role)
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._icon_labels.append(icon)
+        return icon
+
+    def _retint_icons(self) -> None:
+        """Re-render every tracked icon from the current theme tokens, dropping the ones whose widgets were deleted."""
+        self._icon_labels = [icon for icon in self._icon_labels if isValid(icon)]
+        for icon in self._icon_labels:
+            icon.retint()
+
     def create_header_section(self, layout):
         """Create the header section with app title and description."""
         header_layout = QVBoxLayout()
@@ -235,33 +252,37 @@ class WelcomeTab(PWidget):
 
         # New Project button
         new_project_btn = self.create_action_button(
-            "📊 New Project",
+            "New Project",
             "Create a new data visualization project",
-            self.new_project_requested.emit
+            self.new_project_requested.emit,
+            icon_name="plus-circle",
         )
         actions_layout.addWidget(new_project_btn, 0, 0)
 
         # Open Project button
         open_project_btn = self.create_action_button(
-            "📂 Open Project",
+            "Open Project",
             "Open an existing project file",
-            self.open_project_requested.emit
+            self.open_project_requested.emit,
+            icon_name="folder-open",
         )
         actions_layout.addWidget(open_project_btn, 0, 1)
 
         # Import Data button
         import_data_btn = self.create_action_button(
-            "📈 Import Data",
+            "Import Data",
             "Import CSV or Excel data files",
-            self.import_data_requested.emit
+            self.import_data_requested.emit,
+            icon_name="download-simple",
         )
         actions_layout.addWidget(import_data_btn, 1, 0)
 
         # Examples button
         examples_btn = self.create_action_button(
-            "📚 Examples",
+            "Examples",
             "Browse sample projects and tutorials",
-            self.show_examples_dialog
+            self.show_examples_dialog,
+            icon_name="books",
         )
         actions_layout.addWidget(examples_btn, 1, 1)
 
@@ -365,7 +386,7 @@ class WelcomeTab(PWidget):
                 "5. Customize and Export",
                 "Customize your plots and export them for presentations",
                 lambda: self.show_step_info(
-                    "🎨",
+                    "palette",
                     "Customize and Export",
                     "Polish a chart once it's created, then share it.",
                     [
@@ -420,14 +441,24 @@ class WelcomeTab(PWidget):
         )
         dialog.exec()
 
-    def show_step_info(self, icon: str, title: str, intro: str, tips: list[str]):
-        """Show a richer informational dialog for a getting-started step."""
-        dialog = GettingStartedStepDialog(self.app_context, icon, title, intro, tips, self)
+    def show_step_info(self, icon_name: str, title: str, intro: str, tips: list[str]) -> None:
+        """Show a richer informational dialog for a getting-started step.
+
+        Args:
+            icon_name: Name of the bundled icon shown in the dialog header.
+            title: Step title.
+            intro: Introductory paragraph.
+            tips: Bullet points shown below the intro.
+        """
+        dialog = GettingStartedStepDialog(self.app_context, icon_name, title, intro, tips, self)
         dialog.exec()
 
-    def create_action_button(self, title, description, callback):
-        """Create a styled action button."""
+    def create_action_button(self, title: str, description: str, callback: Callable[[], object], *, icon_name: str) -> QPushButton:
+        """Create a styled action button with a themed icon above its title."""
         button = QPushButton()
+        # Visible text lives in child QLabels, which leaves the button itself unnamed for assistive tech.
+        button.setAccessibleName(title)
+        button.setAccessibleDescription(description)
         button.setMinimumHeight(100)
         button.setMinimumWidth(220)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -461,6 +492,7 @@ class WelcomeTab(PWidget):
         desc_label.setProperty("secondary", True)  # noqa: FBT003 - Qt method rejects keyword args
         desc_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)  # Prevent text selection
         
+        button_layout.addWidget(self._make_icon(icon_name, size=24, role=IconRole.ACTIVE), alignment=Qt.AlignmentFlag.AlignHCenter)
         button_layout.addWidget(title_label)
         button_layout.addWidget(desc_label)
         # No inline stylesheet; themed globally
@@ -477,6 +509,9 @@ class WelcomeTab(PWidget):
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         button.setObjectName("WelcomeListButton")
+        # Visible text lives in child QLabels, which leaves the button itself unnamed for assistive tech.
+        button.setAccessibleName(title)
+        button.setAccessibleDescription(description)
         
         # Create layout for button content
         button_layout = QVBoxLayout(button)
@@ -517,6 +552,9 @@ class WelcomeTab(PWidget):
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         button.setObjectName("WelcomeProjectButton")
+        # Visible text lives in child QLabels, which leaves the button itself unnamed for assistive tech.
+        button.setAccessibleName(str(project_name))
+        button.setAccessibleDescription(str(project_path))
 
         # Create layout for button content
         button_layout = QHBoxLayout(button)
@@ -545,6 +583,7 @@ class WelcomeTab(PWidget):
 
         # Project path (optionally slightly indented to the right)
         path_label = QLabel(project_path)
+        path_label.setObjectName("recentProjectPath")
         path_font = QFont()
         path_font.setPointSize(8)
         path_label.setFont(path_font)
@@ -569,13 +608,8 @@ class WelcomeTab(PWidget):
         button_layout.addLayout(info_layout)
         button_layout.addStretch()
 
-        # Project type icon
-        icon_label = QLabel("📊")
-        icon_label.setStyleSheet("font-size: 20px;")
-        icon_label.setProperty("accentIcon", True)  # noqa: FBT003 - Qt method rejects keyword args
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        button_layout.addWidget(icon_label)
+        # Project type icon (kept last in the layout)
+        button_layout.addWidget(self._make_icon("folder-simple", size=24, role=IconRole.ACTIVE))
 
         # Connect to the signal
         button.clicked.connect(lambda: self._on_recent_project_clicked(project_path))
@@ -605,11 +639,9 @@ class WelcomeTab(PWidget):
             w = self.recent_projects_layout.itemAt(i).widget()
             if not w:
                 continue
-            # Heuristic: second QLabel inside the button layout holds the path (see create_recent_project_item)
-            labels = w.findChildren(QLabel)
-            if len(labels) >= 2:
-                path_text = labels[1].text()
-                current_paths.append(path_text)
+            path_label = w.findChild(QLabel, "recentProjectPath")
+            if path_label is not None:
+                current_paths.append(path_label.text())
 
         desired_paths = [rp.get("path","") for rp in deduped[:5]] if deduped else []
         if current_paths == desired_paths:
@@ -640,4 +672,4 @@ class WelcomeTab(PWidget):
 
     def get_tab_title(self):
         """Get the title for this tab."""
-        return "🏠 Welcome"
+        return "Welcome"

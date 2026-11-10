@@ -19,6 +19,7 @@ from pandaplot.commands.project.dataset.signal_analysis_command import SignalAna
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
 from pandaplot.gui.components.sidebar.signal.signal_parameter_widgets import (
     build_signal_parameter_widgets,
@@ -126,6 +127,9 @@ class SignalPanel(SidebarPanel):
         self.results_text.setReadOnly(True)
         self.results_text.setPlaceholderText("Run analysis to see results...")
 
+        self.status_message = StatusMessage(self.app_context)
+
+        results_layout.addWidget(self.status_message)
         results_layout.addWidget(self.results_text)
         results_group.setLayout(results_layout)
         layout.addWidget(results_group)
@@ -384,27 +388,28 @@ class SignalPanel(SidebarPanel):
                 # Replace the previous result too: it no longer describes the current inputs.
                 self.clear()
                 if self._get_dispatch_params() is not None:  # there is something to re-run
-                    self.results_text.setText(STALE_RUN_MESSAGE)
+                    self.results_text.setPlainText(STALE_RUN_MESSAGE)
                 return
 
             if error is not None:
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
-                self.results_text.setText(f"❌ Analysis failed:\n{error}")
+                self._show_error(f"Analysis failed: {error}")
                 return
 
             self.last_result = result
             self._last_run_params = dispatch_params
             try:
-                self.results_text.setText(self._format_result(result))
+                self.results_text.setPlainText(self._format_result(result))
+                self.status_message.clear()
                 self.add_btn.setEnabled(True)
             except Exception as e:
                 self.logger.exception("Failed to display the signal analysis result")
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
-                self.results_text.setText(f"❌ Analysis failed:\n{describe_error(e).inline_text}")
+                self._show_error(f"Analysis failed: {describe_error(e).inline_text}")
 
         try:
             command.run_analysis_async(_on_complete)
@@ -416,7 +421,7 @@ class SignalPanel(SidebarPanel):
             self.last_result = None
             self._last_run_params = None
             self.add_btn.setEnabled(False)
-            self.results_text.setText(f"❌ Analysis failed:\n{describe_error(e).inline_text}")
+            self._show_error(f"Analysis failed: {describe_error(e).inline_text}")
 
 
     @staticmethod
@@ -478,7 +483,7 @@ class SignalPanel(SidebarPanel):
             )
             executor = self.app_context.get_command_executor()
             if executor.execute_command(apply_command):
-                self.results_text.append("\n\n✅ Results added to project")
+                self.status_message.set_message(StatusKind.SUCCESS, "Results added to project")
                 self.add_btn.setEnabled(False)
             else:
                 self.add_btn.setEnabled(True)
@@ -513,7 +518,7 @@ class SignalPanel(SidebarPanel):
             if result is CommandResult.SUCCESS:
                 self.last_result = command.result
                 self._last_run_params = current_params
-                self.results_text.append("\n\n✅ Results added to project")
+                self.status_message.set_message(StatusKind.SUCCESS, "Results added to project")
             else:
                 self.add_btn.setEnabled(True)  # let the user retry
 
@@ -526,9 +531,16 @@ class SignalPanel(SidebarPanel):
             self._update_run_enabled()
             self.add_btn.setEnabled(True)
 
+    def _show_error(self, text: str) -> None:
+        """Show `text` as an error status in place of any report."""
+        self.results_text.clear()
+        self.status_message.set_message(StatusKind.ERROR, text)
+
     def clear(self):
         if hasattr(self, "results_text"):
             self.results_text.clear()
+        if hasattr(self, "status_message"):
+            self.status_message.clear()
 
         self.last_result = None
         self._last_run_params = None
@@ -571,6 +583,7 @@ class SignalPanel(SidebarPanel):
         """)
 
         self._apply_title_theme(base_fg, card_border)
+        self.status_message.retint()
 
         self.results_text.setStyleSheet(f"""
             QTextEdit {{

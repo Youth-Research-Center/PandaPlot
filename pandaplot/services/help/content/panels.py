@@ -173,7 +173,7 @@ def topics() -> list[HelpTopic]:
             steps=(
                 'Open a dataset tab and click the flask icon in the sidebar (its tooltip reads "Statistical Tests panel").',
                 ("Under Test, choose a test. Its description and assumptions appear below. "
-                "Click the ℹ️ button for a longer explanation, the formula and an example."),
+                'Click the info button (the "i" icon) for a longer explanation, the formula and an example.'),
                 ("Under Data Selection, choose the data. Depending on the test this is one Sample column, "
                 "Column A and Column B (they must be different columns), or a list of Groups where you select two or more columns."),
                 (f"Under Parameters, set Significance (α), {SIGNIFICANCE_ALPHA.default} by default. Some tests also show Expected mean (μ₀), "

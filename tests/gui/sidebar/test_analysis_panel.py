@@ -10,12 +10,12 @@ import pytest
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.gui.components.common.icon_label import IconLabel
+from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.analysis.analysis_panel import AnalysisPanel
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
-
-# Sidebar panels draw a title icon from these design tokens, so a mocked theme manager must provide them.
-ICON_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -134,8 +134,9 @@ class TestApplyAnalysisAsyncDispatch:
 
         assert panel.busy_spinner.is_running is False
         assert panel.apply_btn.isEnabled() is True
-        assert "successfully" in panel.preview_text.toPlainText()
-        assert "result_col" in panel.preview_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == "Analysis applied successfully!\nColumn 'result_col' added to dataset."
+        assert panel.preview_text.toPlainText() == ""
 
     def test_success_path_clears_the_pending_command_reference(self, panel):
         """Regression test (PR review): unlike FitPanel's/SignalPanel's
@@ -166,7 +167,8 @@ class TestApplyAnalysisAsyncDispatch:
         assert panel.busy_spinner.is_running is False
         assert panel.apply_btn.isEnabled() is True
         assert panel._pending_analysis_command is None
-        assert "boom" in panel.preview_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Error applying analysis: boom"
 
     def test_failure_path_shows_error_and_stops_spinner(self, panel):
         executed = _ready_to_apply(panel)
@@ -178,7 +180,8 @@ class TestApplyAnalysisAsyncDispatch:
 
         assert panel.busy_spinner.is_running is False
         assert panel.apply_btn.isEnabled() is True
-        assert "failed" in panel.preview_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Command execution failed. Please check your inputs."
 
     def test_sync_dispatch_failure_stops_spinner_without_on_complete(self, panel):
         """When execute_command() returns False (e.g. an analysis already in
@@ -191,4 +194,97 @@ class TestApplyAnalysisAsyncDispatch:
         assert "command" in executed  # dispatch was attempted
         assert panel.busy_spinner.is_running is False
         assert panel.apply_btn.isEnabled() is True
-        assert "failed" in panel.preview_text.toPlainText()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Command execution failed. Please check your inputs."
+
+
+class TestAnalysisPanelStatusMessage:
+    def test_status_message_sits_directly_above_the_preview_text(self, panel):
+        layout = panel.preview_text.parentWidget().layout()
+
+        assert layout.indexOf(panel.status_message) == layout.indexOf(panel.preview_text) - 1
+        assert panel.status_message.isHidden()
+
+    @pytest.mark.parametrize(
+        ("setup", "expected"),
+        [
+            (lambda p: setattr(p, "current_dataset", None), "No dataset selected."),
+            (lambda p: setattr(p.current_dataset, "data", None), "Dataset data is not available."),
+            (lambda p: p.result_column_name.clear(), "Please enter a result column name."),
+        ],
+    )
+    def test_validation_failures_show_an_error_without_an_emoji(self, panel, setup, expected):
+        panel.result_column_name.setText("result_col")
+        panel.preview_text.setPlainText("stale preview")
+        setup(panel)
+
+        assert panel.validate_inputs() is False
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == expected
+        assert panel.preview_text.toPlainText() == ""
+
+    def test_apply_without_a_dataset_id_shows_an_error(self, panel):
+        panel.result_column_name.setText("result_col")
+        panel.current_dataset_id = None
+
+        panel.apply_analysis()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Failed to apply analysis. Please check your inputs."
+
+    def test_a_successful_preview_replaces_an_earlier_status(self, panel):
+        panel.result_column_name.clear()
+        panel.apply_analysis()
+        assert panel.status_message.kind() is StatusKind.ERROR
+        panel.result_column_name.setText("result_col")
+
+        panel.preview_analysis()
+
+        assert panel.status_message.message() == ""
+        assert "Analysis Preview" in panel.preview_text.toPlainText()
+
+    def test_a_preview_without_a_result_shows_an_error_status(self, panel, monkeypatch):
+        panel.result_column_name.setText("result_col")
+        panel.preview_text.setPlainText("stale preview")
+        monkeypatch.setattr(panel, "execute_analysis_preview", lambda *_args: None)
+
+        panel.preview_analysis()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Preview failed. Please check your parameters."
+        assert panel.preview_text.toPlainText() == ""
+
+    def test_a_preview_exception_shows_an_error_status(self, panel, monkeypatch):
+        panel.result_column_name.setText("result_col")
+        panel.preview_text.setPlainText("stale preview")
+
+        def explode(*_args):
+            raise ValueError("bad window")
+
+        monkeypatch.setattr(panel, "execute_analysis_preview", explode)
+
+        panel.preview_analysis()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Preview error: bad window"
+        assert panel.preview_text.toPlainText() == ""
+
+    def test_clear_inputs_clears_the_status_message(self, panel):
+        panel.result_column_name.clear()
+        panel.apply_analysis()
+        assert panel.status_message.kind() is StatusKind.ERROR
+
+        panel.clear_inputs()
+
+        assert panel.status_message.message() == ""
+        assert panel.status_message.kind() is None
+
+    def test_theme_change_retints_the_status_icon(self, panel, app_context):
+        panel.result_column_name.clear()
+        panel.apply_analysis()
+        app_context.get_manager.return_value.get_design_tokens.return_value["status_danger"] = "#00AA00"
+
+        panel._apply_theme()
+
+        assert_tinted(strongest_pixel(panel.status_message.findChild(IconLabel).pixmap()), "#00AA00")

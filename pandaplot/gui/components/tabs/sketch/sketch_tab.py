@@ -17,7 +17,6 @@ from pandaplot.models.events import ProjectEvents
 from pandaplot.models.project.items.sketch import Sketch
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
-from pandaplot.utils.item_labels import item_label
 
 # Tool -> (button label, shortcut, tooltip).
 TOOL_BUTTONS: dict[ToolMode, tuple[str, str, str]] = {
@@ -209,7 +208,7 @@ class SketchTab(PWidget):
             self.canvas.fit_to_canvas()
 
     def get_tab_title(self) -> str:
-        return item_label("sketch", self.sketch.name)
+        return self.sketch.name
 
     def get_tab_data(self) -> dict:
         """Identify this tab to TabContainer for session/event bookkeeping."""

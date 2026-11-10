@@ -151,7 +151,7 @@ def draw_chart_type_sample(canvas: ChartCanvas, chart_type: str) -> None:
 def _series_label(project, config: dict) -> str:
     """Readable legend label for a series, e.g. "{dataset name}:{Y column name}".
 
-    Mirrors `CreateChartFromWizardCommand._default_series_label` so the
+    Mirrors the default label rule in `build_series_from_config` (`series_from_config.py`) so the
     preview's legend matches what the actually-created chart shows. Degrades
     gracefully to the raw dataset id if the project or dataset can't resolve
     it -- this is only a preview, never worth crashing over.

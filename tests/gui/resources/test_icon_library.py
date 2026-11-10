@@ -6,6 +6,7 @@ from PySide6.QtGui import QColor, QIcon
 from PySide6.QtSvg import QSvgRenderer
 
 from pandaplot.gui.resources import icon_library
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
 
 
 def test_icon_svg_returns_a_tintable_svg():
@@ -74,3 +75,12 @@ def test_build_icon_uses_disabled_colour_for_disabled_mode(qapp):
 def test_build_icon_rejects_an_invalid_colour(qapp):
     with pytest.raises(ValueError, match="colour"):
         icon_library.build_icon("folder", "not-a-colour")
+
+
+def test_build_icon_uses_selected_colour_for_selected_mode(qapp):
+    icon = icon_library.build_icon("folder", "#2255aa", size=48, selected_color="#ffffff")
+
+    selected = strongest_pixel(icon.pixmap(QSize(48, 48), QIcon.Mode.Selected))
+    normal = strongest_pixel(icon.pixmap(QSize(48, 48), QIcon.Mode.Normal))
+    assert_tinted(selected, "#ffffff")
+    assert_tinted(normal, "#2255aa")
