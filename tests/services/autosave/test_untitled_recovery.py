@@ -141,3 +141,60 @@ def test_delete_recovery_copy_removes_both_files_and_tolerates_missing(context) 
 
     assert not recovery_file_path().exists()
     assert not recovery_temp_path().exists()
+
+
+def _write_pending_copy() -> None:
+    recovery_file_path().parent.mkdir(parents=True, exist_ok=True)
+    recovery_file_path().write_bytes(b"copy")
+
+
+def test_closing_an_unmodified_untitled_project_deletes_the_copy(context) -> None:
+    _open_untitled(context, modified=True)
+    context.get_manager(AutoSaveManager)._on_timer()
+    context.app_state.mark_saved()  # e.g. the edits were undone
+    assert recovery_file_path().exists()
+
+    context.app_state.close_project()
+
+    assert not recovery_file_path().exists()
+
+
+def test_closed_project_is_rewritten_after_the_stamp_reset(context) -> None:
+    project = _open_untitled(context, modified=True)
+    manager = context.get_manager(AutoSaveManager)
+    manager._on_timer()
+    context.app_state.close_project()
+    context.app_state.load_project(project)
+    context.app_state.mark_modified()
+
+    manager._on_timer()
+
+    assert recovery_file_path().is_file()
+
+
+def test_replacing_an_untitled_project_deletes_the_copy(context) -> None:
+    _open_untitled(context, modified=True)
+    _write_pending_copy()
+
+    context.app_state.load_project(Project(name="Other"))
+
+    assert not recovery_file_path().exists()
+
+
+def test_loading_a_project_when_none_is_open_keeps_a_pending_copy(context) -> None:
+    _write_pending_copy()
+
+    context.app_state.load_project(Project(name="First"))
+
+    assert recovery_file_path().exists()
+
+
+def test_replacing_a_titled_project_keeps_a_pending_copy(context, tmp_path: Path) -> None:
+    titled = Project(name="Titled")
+    titled.project_file_path = str(tmp_path / "t.pplot")
+    context.app_state.load_project(titled)
+    _write_pending_copy()
+
+    context.app_state.load_project(Project(name="Other"))
+
+    assert recovery_file_path().exists()

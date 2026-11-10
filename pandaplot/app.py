@@ -215,17 +215,22 @@ def _flush_save_on_quit(app_context: AppContext) -> None:
     lost if it hasn't ticked yet. This runs the save directly on the main
     thread instead of through SaveProjectCommand's background-task path, so
     it's guaranteed to finish before the process actually exits rather than
-    racing shutdown.
+    racing shutdown. It also deletes the untitled-project recovery copy when
+    there is nothing left to recover (no project, or an unmodified untitled one).
     """
     app_state = app_context.get_app_state()
-    if not app_state.has_project:
-        return
-    project = app_state.current_project
+    project = app_state.current_project if app_state.has_project else None
     if project is None:
+        # Nothing is open, so a leftover untitled recovery copy is stale.
+        delete_recovery_copy()
         return
     file_path = app_state.project_file_path
     if not file_path:
-        # Never-saved project: nothing to silently write to.
+        # Never-saved project: nothing to silently write to. Its recovery copy is stale once
+        # it has no unsaved changes; while it is still modified (the unsaved-changes guard was
+        # bypassed, e.g. by an OS session end) the copy is all that is left, so keep it.
+        if not app_state.is_modified:
+            delete_recovery_copy()
         return
     try:
         project_manager = app_context.get_manager(ProjectManager)
@@ -239,8 +244,10 @@ def offer_recovered_untitled_project(app_context: AppContext) -> None:
     """Offer to restore the untitled project saved by the auto-save manager before a crash.
 
     Restore opens the recovery copy as an untitled project and marks it
-    modified, so closing it prompts for Save As. Discard deletes the copy.
-    Does nothing when no recovery copy exists.
+    modified, so closing it prompts for Save As. Only an explicit Discard click
+    deletes the copy; dismissing the dialog (Esc, title-bar close) loads nothing
+    and keeps it, so it is offered again on the next launch. Does nothing when
+    no recovery copy exists.
     """
     recovery_path = recovery_file_path()
     if not recovery_path.is_file():
@@ -251,6 +258,8 @@ def offer_recovered_untitled_project(app_context: AppContext) -> None:
         "Restore",
         "Discard",
     )
+    if restore is None:
+        return
     if not restore:
         delete_recovery_copy()
         return

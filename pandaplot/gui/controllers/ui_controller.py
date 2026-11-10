@@ -257,7 +257,7 @@ class UIController:
             return "discard"
         return "cancel"
 
-    def show_choice(self, title: str, message: str, accept_label: str, reject_label: str) -> bool:
+    def show_choice(self, title: str, message: str, accept_label: str, reject_label: str) -> bool | None:
         """
         Show a two-button question with custom labels.
 
@@ -268,14 +268,21 @@ class UIController:
             reject_label (str): Label of the button that returns False
 
         Returns:
-            bool: True if the accept button was clicked, False for the other button or Esc.
+            bool | None: True if the accept button was clicked, False if the reject button was
+                clicked, None if the dialog was dismissed (Esc or the title-bar close) without
+                choosing either, so callers can tell a deliberate rejection from a dismissal.
         """
         box = QMessageBox(QMessageBox.Icon.Question, title, message, parent=self.parent_widget)
         accept_button = box.addButton(accept_label, QMessageBox.ButtonRole.AcceptRole)
-        box.addButton(reject_label, QMessageBox.ButtonRole.RejectRole)
+        reject_button = box.addButton(reject_label, QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(accept_button)
         box.exec()
-        return box.clickedButton() is accept_button
+        clicked = box.clickedButton()
+        if clicked is accept_button:
+            return True
+        if clicked is reject_button:
+            return False
+        return None
 
     def show_save_as_discard_cancel(self, title: str, message: str) -> Literal["save_as", "discard", "cancel"]:
         """

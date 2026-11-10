@@ -5,8 +5,9 @@ from unittest.mock import Mock
 import pytest
 from pytestqt.qtbot import QtBot
 
-from pandaplot.app import build_app_context, offer_recovered_untitled_project, restore_last_session
+from pandaplot.app import _flush_save_on_quit, build_app_context, offer_recovered_untitled_project, restore_last_session
 from pandaplot.models.project.project import Project
+from pandaplot.services.autosave import AutoSaveManager
 from pandaplot.services.autosave.recovery import recovery_file_path
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.session import SessionPersistenceManager
@@ -58,6 +59,16 @@ def test_discard_deletes_the_copy_and_opens_nothing(context) -> None:
     assert not context.app_state.has_project
 
 
+def test_dismissing_the_prompt_keeps_the_copy_and_opens_nothing(context) -> None:
+    _write_recovery(context)
+    context.ui_controller.show_choice.return_value = None
+
+    offer_recovered_untitled_project(context)
+
+    assert recovery_file_path().is_file()
+    assert not context.app_state.has_project
+
+
 def test_launch_without_a_remembered_project_offers_the_copy_straight_away(context) -> None:
     _write_recovery(context)
     context.ui_controller.show_choice.return_value = False
@@ -82,3 +93,52 @@ def test_remembered_titled_project_is_restored_first_then_the_copy_is_offered(co
     assert context.app_state.project_file_path == str(titled)
     window.tab_container.restore_tab_session.assert_called_once()
     assert not recovery_file_path().exists()
+
+
+def test_restore_replacing_a_titled_project_keeps_the_copy_and_rewrites_it_on_the_next_tick(
+    context, qtbot: QtBot, tmp_path: Path
+) -> None:
+    titled = tmp_path / "titled.pplot"
+    context.get_manager(ProjectManager).save_project(Project(name="Titled"), str(titled))
+    context.get_manager(SessionPersistenceManager).update_project(str(titled))
+    _write_recovery(context)
+    context.ui_controller.show_choice.return_value = True
+    window = Mock()
+    restore_last_session(context, window)
+    qtbot.waitUntil(
+        lambda: context.app_state.has_project and context.app_state.current_project.name == "Recovered" and context.app_state.is_modified,
+        timeout=10000,
+    )
+
+    assert recovery_file_path().is_file()
+    recovery_file_path().unlink()
+    context.get_manager(AutoSaveManager)._on_timer()
+    assert recovery_file_path().is_file()
+    context.get_manager(AutoSaveManager).stop()
+
+
+def test_clean_quit_without_a_project_deletes_the_copy(context) -> None:
+    _write_recovery(context)
+
+    _flush_save_on_quit(context)
+
+    assert not recovery_file_path().exists()
+
+
+def test_clean_quit_with_an_unmodified_untitled_project_deletes_the_copy(context) -> None:
+    _write_recovery(context)
+    context.app_state.load_project(Project(name="Untitled"))
+
+    _flush_save_on_quit(context)
+
+    assert not recovery_file_path().exists()
+
+
+def test_quit_with_a_modified_untitled_project_keeps_the_copy(context) -> None:
+    _write_recovery(context)
+    context.app_state.load_project(Project(name="Untitled"))
+    context.app_state.mark_modified()
+
+    _flush_save_on_quit(context)
+
+    assert recovery_file_path().is_file()

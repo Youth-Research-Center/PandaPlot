@@ -44,10 +44,23 @@ def test_save_as_discard_cancel_returns_the_clicked_choice(
     assert {"Save As...", "Discard"} <= set(seen[0])
 
 
-@pytest.mark.parametrize(("clicked", "accepted"), [("Restore", True), ("Discard", False), (None, False)])
-def test_show_choice_returns_true_only_for_the_accept_button(
-    controller: UIController, monkeypatch: pytest.MonkeyPatch, clicked: str | None, accepted: object
+@pytest.mark.parametrize(("clicked", "expected"), [("Restore", True), ("Discard", False), (None, None)])
+def test_show_choice_distinguishes_each_button_from_dismissal(
+    controller: UIController, monkeypatch: pytest.MonkeyPatch, clicked: str | None, *, expected: bool | None
 ) -> None:
     _click_on_exec(monkeypatch, clicked)
 
-    assert controller.show_choice("Restore Project", "Message", "Restore", "Discard") is accepted
+    assert controller.show_choice("Restore Project", "Message", "Restore", "Discard") is expected
+
+
+@pytest.mark.parametrize("dismissal", ["reject", "close"])
+def test_show_choice_returns_none_when_the_dialog_is_dismissed(
+    controller: UIController, monkeypatch: pytest.MonkeyPatch, dismissal: str
+) -> None:
+    def fake_exec(box: QMessageBox) -> int:
+        getattr(box, dismissal)()
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", fake_exec)
+
+    assert controller.show_choice("Restore Project", "Message", "Restore", "Discard") is None

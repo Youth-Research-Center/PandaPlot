@@ -10,7 +10,10 @@ A project that already has a file path is saved in place. An untitled project
 "Save As" dialog from a timer would be jarring, so while it has unsaved changes
 a recovery copy is written to the app data folder instead (see
 ``pandaplot.services.autosave.recovery``). The project itself is left untitled
-and modified; the copy is offered for restore on the next launch.
+and modified; the copy is offered for restore on the next launch. The copy is
+deleted once there is nothing left to recover: when the project is saved to a
+file, closed (which only happens after the unsaved-changes guard), or replaced
+by another project.
 """
 from __future__ import annotations
 
@@ -48,10 +51,29 @@ class AutoSaveManager:
         from pandaplot.models.events.event_types import AppEvents
         event_bus.subscribe(AppEvents.APP_CLOSING, self._on_app_closing)
         event_bus.subscribe(ProjectEvents.PROJECT_SAVED, self._on_project_saved)
+        event_bus.subscribe(ProjectEvents.PROJECT_CLOSED, self._on_project_closed)
+        event_bus.subscribe(ProjectEvents.PROJECT_LOADED, self._on_project_loaded)
 
     def _on_project_saved(self, event_data: dict) -> None:
         """An untitled project that was just given a file has nothing left to recover."""
         if not event_data.get("previous_path"):
+            self._last_recovery_write = None
+            delete_recovery_copy()
+
+    def _on_project_closed(self, _event_data: dict) -> None:
+        """A closed project was saved, discarded, or unmodified, so its recovery copy is stale."""
+        self._last_recovery_write = None
+        delete_recovery_copy()
+
+    def _on_project_loaded(self, event_data: dict) -> None:
+        """Replacing an untitled project (after the unsaved-changes guard) makes its recovery copy stale.
+
+        Loading the recovery copy itself never reaches this: it is only offered when no
+        untitled project is open, and the restored project is marked modified, so the next
+        tick writes a fresh copy.
+        """
+        previous = event_data.get("previous_project")
+        if previous is not None and not previous.project_file_path:
             self._last_recovery_write = None
             delete_recovery_copy()
 

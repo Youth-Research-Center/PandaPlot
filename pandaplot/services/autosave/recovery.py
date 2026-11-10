@@ -3,7 +3,9 @@
 An untitled project (one with no file path) has nowhere to be auto-saved, so
 the auto-save manager keeps a recovery copy in the app data folder next to the
 config and session files. It is offered for restore on the next launch and
-deleted as soon as there is nothing left to recover.
+deleted as soon as there is nothing left to recover: after a Save As, an
+explicit Discard, when the project is closed or replaced, and on a clean exit
+with no modified untitled project. Dismissing the launch prompt keeps it.
 """
 from __future__ import annotations
 
