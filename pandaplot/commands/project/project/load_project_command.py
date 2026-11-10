@@ -300,11 +300,7 @@ class LoadProjectCommand(Command):
                     # untitled copy has no file to restore from, so record "no project",
                     # as NewProjectCommand does; keeping the previous path would reopen a
                     # project the user had already replaced.
-                    try:
-                        session_manager = self.app_context.get_manager(SessionPersistenceManager)
-                        session_manager.update_project(None if self.as_untitled_copy else file_path)
-                    except Exception as e:  # noqa: BLE001
-                        self.logger.warning("Failed to persist last_project_path: %s", e)
+                    self._remember_project(None if self.as_untitled_copy else file_path)
 
                     self.logger.info(f"Project '{project.name}' loaded successfully from '{file_path}'")
 
@@ -349,6 +345,18 @@ class LoadProjectCommand(Command):
         except Exception as e:
             self.logger.exception("Error handling load result")
             self.ui_controller.show_error_message("Load Error", "Couldn't open the project.", error=e)
+
+    def _remember_project(self, project_path: str | None) -> None:
+        """Record ``project_path`` as the project to restore on the next launch.
+
+        Args:
+            project_path: Path of the installed project, or None when it has no file.
+        """
+        try:
+            session_manager = self.app_context.get_manager(SessionPersistenceManager)
+            session_manager.update_project(project_path)
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning("Failed to persist last_project_path: %s", e)
 
     def _on_load_error(self, error_info: tuple[Any, Any, str]):
         """Handle error during load task."""
@@ -447,6 +455,11 @@ class LoadProjectCommand(Command):
             self.app_state.load_project(self.loaded_project)
             if self.loaded_project_was_modified:
                 self.app_state.mark_modified()
+            # Saving the project restored by undo() records its path in the session
+            # without clearing the redo history, so put the session back on the
+            # project that is installed now. Use its current path: an untitled copy
+            # has none, unless it was saved to a file since it was loaded.
+            self._remember_project(self.loaded_project.project_file_path)
             return CommandResult.SUCCESS
         else:
             # Re-execute if we don't have the loaded project cached

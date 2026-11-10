@@ -661,3 +661,62 @@ class TestAsUntitledCopy:
         assert command.redo() is CommandResult.SUCCESS
         assert app_state.current_project is copy
         assert app_state.project_file_path is None
+
+    @staticmethod
+    def _open_then_undo(command_path: str, *, as_untitled_copy: bool):
+        """Open ``command_path``, then undo it, returning the pieces the redo tests need."""
+        from pandaplot.models.events import EventBus
+        from pandaplot.models.state.app_state import AppState
+
+        app_state = AppState(EventBus())
+        previous = Mock()
+        previous.name = "Previous"
+        previous.project_file_path = "/p/current.pplot"
+        app_state.load_project(previous)
+
+        session_manager = Mock()
+        app_context = Mock()
+        app_context.get_app_state.return_value = app_state
+        app_context.get_manager.return_value = session_manager
+        command = LoadProjectCommand(app_context, command_path, as_untitled_copy=as_untitled_copy)
+        assert command.execute() is CommandResult.SUCCESS
+
+        loaded = Mock()
+        loaded.name = "Loaded"
+        loaded.project_file_path = command_path
+        loaded.failed_item_ids = []
+        command._on_load_result({"success": True, "project": loaded, "file_path": command_path})
+
+        assert command.undo() is CommandResult.SUCCESS
+        return command, loaded, previous, session_manager
+
+    def test_cached_redo_of_an_untitled_copy_records_no_project_in_the_session(self):
+        """Regression (PR #616 review): open an example, undo, Save the restored
+        project (which records its path in the session without clearing redo
+        history), then redo. The session must go back to "no project" instead of
+        keeping the replaced project's path, which the next launch would reopen."""
+        command, loaded, previous, session_manager = self._open_then_undo("/examples/demo.pplot", as_untitled_copy=True)
+        session_manager.update_project.reset_mock()
+
+        assert command.redo() is CommandResult.SUCCESS
+
+        assert command.app_state.current_project is loaded
+        session_manager.update_project.assert_called_once_with(None)
+        assert previous.project_file_path == "/p/current.pplot"
+
+    def test_cached_redo_records_the_path_the_loaded_project_has_since_been_saved_to(self):
+        command, loaded, _, session_manager = self._open_then_undo("/examples/demo.pplot", as_untitled_copy=True)
+        loaded.project_file_path = "/saved/copy.pplot"
+        session_manager.update_project.reset_mock()
+
+        assert command.redo() is CommandResult.SUCCESS
+
+        session_manager.update_project.assert_called_once_with("/saved/copy.pplot")
+
+    def test_cached_redo_of_a_normal_load_records_its_path_in_the_session(self):
+        command, _, _, session_manager = self._open_then_undo("/p/a.pplot", as_untitled_copy=False)
+        session_manager.update_project.reset_mock()
+
+        assert command.redo() is CommandResult.SUCCESS
+
+        session_manager.update_project.assert_called_once_with("/p/a.pplot")
