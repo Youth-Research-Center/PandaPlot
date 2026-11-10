@@ -118,5 +118,10 @@ class TestBuildCatalog:
     def test_content_modules_match_the_modules_the_builder_uses(self):
         assert tuple(module.__name__ for module in _content_modules()) == CONTENT_MODULES
 
-    def test_build_returns_catalog(self):
-        assert isinstance(build_help_catalog(), HelpCatalog)
+    def test_build_returns_a_catalog_holding_every_content_modules_topics_in_order(self):
+        catalog = build_help_catalog()
+
+        expected_ids = [topic.id for module in _content_modules() for topic in module.topics()]
+        assert isinstance(catalog, HelpCatalog)
+        assert expected_ids
+        assert [topic.id for topic in catalog.topics()] == expected_ids

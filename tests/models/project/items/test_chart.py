@@ -194,11 +194,13 @@ class TestChartSeriesTypeAndStyleRoundTrip:
         # round-tripping it must preserve that derived style, not lose it.
         chart = Chart(name="C", chart_type="line")
         chart.data_series.append(DataSeries(dataset_id="ds1", x_column="x", y_column="y"))
+        derived_style = chart.data_series[0].style
 
         data = chart.to_dict()
         restored = Chart.from_dict(data)
 
-        assert isinstance(restored.data_series[0].style, LineSeriesStyle)
+        assert derived_style == LineSeriesStyle()
+        assert restored.data_series[0].style == derived_style
 
     def test_heatmap_series_round_trips_through_to_dict_from_dict(self):
         chart = Chart(name="C", chart_type="heatmap")
@@ -314,11 +316,14 @@ class TestSnapshotRestorePreservesStyleType:
         # restore must preserve that derived style, not lose it.
         chart = Chart(name="C", chart_type="line")
         chart.data_series.append(DataSeries(dataset_id="ds1", x_column="x", y_column="y"))
+        derived_style = chart.data_series[0].style
 
         snapshot = snapshot_chart_state(chart)
+        chart.data_series[0].style = LineSeriesStyle(color="#ffffff")  # simulate an in-progress edit
         restore_chart_state(chart, snapshot)
 
-        assert isinstance(chart.data_series[0].style, LineSeriesStyle)
+        assert derived_style == LineSeriesStyle()
+        assert chart.data_series[0].style == derived_style
 
 
 class TestDataSeriesAutoDerivesStyle:

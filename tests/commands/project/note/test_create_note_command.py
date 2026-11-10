@@ -266,12 +266,13 @@ class TestCreateNoteCommand:
 
     def test_undo_no_note_id(self, mock_app_context):
         """Test undo when no note ID is set."""
-        app_context, _app_state, _ui_controller = mock_app_context
+        app_context, app_state, _ui_controller = mock_app_context
         
         command = CreateNoteCommand(app_context)
-        command.undo()  # Should not crash
-        
-        # No assertions needed - just verify it doesn't crash
+        result = command.undo()
+
+        assert result is CommandResult.NOOP
+        app_state.event_bus.emit.assert_not_called()
 
     def test_undo_no_project(self, mock_app_context):
         """Test undo when no project is loaded."""
@@ -280,7 +281,10 @@ class TestCreateNoteCommand:
         
         command = CreateNoteCommand(app_context)
         command.created_note_id = "test-id"
-        command.undo()  # Should not crash
+        result = command.undo()
+
+        assert result is CommandResult.NOOP
+        app_state.event_bus.emit.assert_not_called()
 
     def test_undo_note_not_found(self, mock_app_context, sample_project):
         """Test undo when note is not found in project."""

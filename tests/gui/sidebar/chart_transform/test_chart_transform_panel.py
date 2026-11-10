@@ -340,11 +340,21 @@ class TestChartTransformPanelChartContextRefresh:
 
         assert calls == [1]
 
-    def test_chart_list_changed_does_not_raise(self, panel):
-        """ChartTransformPanel has no destination combo to refresh, so this
-        is a no-op -- just confirm the now-subscribed PROJECT_ITEM_* events
-        don't error when they arrive."""
+    def test_chart_list_changed_leaves_the_chart_context_and_sources_untouched(self, panel):
+        """ChartTransformPanel has no destination combo to refresh, so a
+        PROJECT_ITEM_* event is a no-op: no repopulate, same chart, same
+        source selection."""
+        panel.source_combo.setCurrentIndex(0)
+        sources_before = [(panel.source_combo.itemText(i), panel.source_combo.itemData(i)) for i in range(panel.source_combo.count())]
+        populate_calls = []
+        panel._populate_sources = lambda: populate_calls.append(1)
+
         panel._on_chart_list_changed({"item_id": "some-other-chart"})
+
+        assert populate_calls == []
+        assert panel.current_chart_id == "chart-1"
+        assert panel.source_combo.currentIndex() == 0
+        assert [(panel.source_combo.itemText(i), panel.source_combo.itemData(i)) for i in range(panel.source_combo.count())] == sources_before
 
 
 def _function_icon_image(app_context):

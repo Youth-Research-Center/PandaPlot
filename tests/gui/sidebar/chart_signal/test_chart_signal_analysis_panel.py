@@ -859,12 +859,17 @@ class TestChartSignalAnalysisPanelQuickPlot:
         panel.last_result = Mock()
         panel._last_run_params = panel._get_dispatch_params()
         panel.plot_result_cb.setChecked(False)
+        panel.add_btn.setEnabled(True)
 
         panel.add_results_to_project()
 
-        assert executor.execute_command.called
+        executor.execute_command.assert_called_once()
         cmd = executor.execute_command.call_args[0][0]
-        assert isinstance(cmd, ApplySignalAnalysisResultCommand)
+        assert type(cmd) is ApplySignalAnalysisResultCommand
+        assert cmd.result is panel.last_result
+        assert cmd.result_name is None
+        assert cmd.folder_id == panel.current_chart.parent_id
+        assert panel.add_btn.isEnabled() is False
 
     def test_async_add_completes_when_its_own_quick_plot_fires_chart_updated(self, panel):
         """Regression: the composite command an in-flight (non-cached)

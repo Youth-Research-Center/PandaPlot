@@ -82,10 +82,15 @@ def test_get_charts_filters_to_chart_items_only():
 def test_create_chart_button_always_present_with_no_charts():
     app_context = _context()
     app_context.get_app_state.return_value.has_project = False
+    on_create_chart = Mock()
 
-    dialog = _make_dialog(app_context)
+    dialog = _make_dialog(app_context, on_create_chart=on_create_chart)
 
-    assert hasattr(dialog, "create_btn")
+    assert dialog.create_btn.text() == "Create Chart"
+    assert dialog.create_btn.isEnabled()
+    dialog.create_btn.click()
+    on_create_chart.assert_called_once_with()
+    assert dialog.result() == QDialog.DialogCode.Accepted
 
 
 def test_create_chart_button_always_present_with_charts():
@@ -94,10 +99,15 @@ def test_create_chart_button_always_present_with_charts():
     project = Mock()
     project.get_all_items.return_value = [_chart("A")]
     app_context.get_app_state.return_value.current_project = project
+    on_create_chart = Mock()
 
-    dialog = _make_dialog(app_context)
+    dialog = _make_dialog(app_context, on_create_chart=on_create_chart)
 
-    assert hasattr(dialog, "create_btn")
+    assert dialog.create_btn.text() == "Create Chart"
+    assert dialog.create_btn.isEnabled()
+    dialog.create_btn.click()
+    on_create_chart.assert_called_once_with()
+    assert dialog.result() == QDialog.DialogCode.Accepted
 
 
 def test_dialog_shows_an_intro_explanation_regardless_of_branch():

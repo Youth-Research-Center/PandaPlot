@@ -40,9 +40,18 @@ def transform_panel(app_context):
 
 
 def test_transform_panel_constructs_with_expected_buttons(transform_panel):
-    assert isinstance(transform_panel.apply_btn, PButton)
-    assert isinstance(transform_panel.clear_btn, PButton)
-    assert isinstance(transform_panel.preview_btn, PButton)
+    # Apply needs a dataset and a column, so it starts disabled; Preview stays clickable and reports that no data is available.
+    expected = [
+        (transform_panel.apply_btn, "Apply", "primary", False),
+        (transform_panel.clear_btn, "Clear", "secondary", True),
+        (transform_panel.preview_btn, "Preview", "secondary", True),
+    ]
+    for button, text, role, enabled in expected:
+        assert isinstance(button, PButton)
+        assert button.text() == text
+        assert button.property(role) is True
+        assert button.isEnabled() is enabled
+        assert button.receivers("2clicked(bool)") == 1
 
 
 def test_preview_button_click_invokes_update_preview(transform_panel):

@@ -4,7 +4,7 @@ from unittest.mock import Mock
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 from pandaplot.gui.dialogs.chart.chart_type_page import ChartTypePage
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -170,12 +170,17 @@ def test_keyboard_navigation_moves_within_the_listed_category():
     page.close()
 
 
-def test_page_exposes_a_step_rail_and_footer():
+def test_page_shows_the_wizard_step_rail_and_the_step_1_footer():
     page = ChartTypePage(app_context=_fake_app_context())
 
-    assert page.step_rail is not None
-    assert page.footer is not None
-    assert page.footer.empty_link is not None  # step 1: empty-plot link is shown
+    assert [button.text() for button in page.step_rail.findChildren(QPushButton)] == ["Type", "Data", "Labels"]
+    footer = page.footer
+    assert footer.step_label.text() == "Step 1 of 3"
+    assert footer.back_button.isVisibleTo(page) is False  # nothing to go back to on the first step
+    assert footer.next_button.isVisibleTo(page) is True
+    assert footer.finish_button.isVisibleTo(page) is False
+    assert footer.empty_link is not None  # step 1: empty-plot link is shown
+    assert footer.empty_link.text() == "Create empty plot instead"
 
 
 def test_empty_button_is_the_footers_link():

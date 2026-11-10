@@ -65,8 +65,12 @@ def test_on_click_connects_handler():
 
 
 def test_omitting_on_click_makes_no_connection():
+    connected = PButton("Apply", role="primary", on_click=lambda: None)
     button = PButton("Apply", role="primary")
-    button.click()  # must not raise with no handler attached
+
+    assert connected.receivers("2clicked(bool)") == 1
+    assert button.receivers("2clicked(bool)") == 0
+    button.click()
 
 
 def test_enabled_false_disables_button_at_construction():

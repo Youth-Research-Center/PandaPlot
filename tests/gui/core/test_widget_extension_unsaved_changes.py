@@ -82,5 +82,11 @@ def test_unsubscribe_widget_tree_deregisters_it_too():
 def test_unsubscribe_all_is_a_noop_when_never_registered():
     app_context = _FakeAppContext()
     widget = _widget(app_context)
+    other = _widget(app_context)
+    other.register_unsaved_changes_source()
 
-    widget.unsubscribe_all()  # must not raise
+    widget.unsubscribe_all()
+    app_context.registry.flush_all()
+
+    other.save.assert_called_once()
+    widget.save.assert_not_called()

@@ -370,13 +370,17 @@ class TestMoveItemCommandLogging:
 
         assert command.redo() is CommandResult.ABORTED
 
-    def test_cleanup_does_not_raise(self, mock_app_context):
+    def test_cleanup_is_a_noop_that_keeps_move_state(self, mock_app_context):
         app_context, _app_state, _ui_controller = mock_app_context
 
         command = MoveItemCommand(app_context, item_id="item-123", target_folder_id="root")
         command.move_performed = True
+        state_before = dict(vars(command))
 
-        command.cleanup()
+        assert command.cleanup() is None
+
+        assert vars(command) == state_before
+        assert command.move_performed is True
 
 
 class TestMoveItemCommandSubtreePreservation:

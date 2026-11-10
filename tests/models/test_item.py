@@ -19,7 +19,7 @@ from pandaplot.models.project.items import Item, ItemCollection
 
 # Fixtures
 @pytest.fixture
-def test_item_data():
+def item_data():
     """Fixture providing test data for items."""
     return {
         "id": "test-item-123",
@@ -50,15 +50,15 @@ def collection_data():
 class TestItem:
     """Test cases for Item class."""
 
-    def test_item_creation_with_all_params(self, test_item_data):
+    def test_item_creation_with_all_params(self, item_data):
         """Test creating an item with all parameters specified."""
         item = Item(
-            id=test_item_data["id"],
-            name=test_item_data["name"],
+            id=item_data["id"],
+            name=item_data["name"],
         )
 
-        assert item.id == test_item_data["id"]
-        assert item.name == test_item_data["name"]
+        assert item.id == item_data["id"]
+        assert item.name == item_data["name"]
         assert item.parent_id is None
         assert isinstance(item.created_at, str)
         assert item.modified_at == item.created_at
@@ -80,16 +80,16 @@ class TestItem:
         assert item.modified_at == item.created_at
         assert item.metadata == {}
 
-    def test_item_creation_partial_params(self, test_item_data):
+    def test_item_creation_partial_params(self, item_data):
         """Test creating an item with some parameters."""
-        item = Item(name=test_item_data["name"])
+        item = Item(name=item_data["name"])
 
         assert isinstance(item.id, str)
-        assert item.name == test_item_data["name"]
+        assert item.name == item_data["name"]
 
-    def test_update_modified_time(self, test_item_data):
+    def test_update_modified_time(self, item_data):
         """Test that update_modified_time changes the timestamp."""
-        item = Item(name=test_item_data["name"])
+        item = Item(name=item_data["name"])
         original_time = item.modified_at
 
         # Sleep briefly to ensure time difference
@@ -99,9 +99,9 @@ class TestItem:
         assert item.modified_at != original_time
         assert item.modified_at > original_time
 
-    def test_update_name(self, test_item_data):
+    def test_update_name(self, item_data):
         """Test updating item name also updates modified time."""
-        item = Item(name=test_item_data["name"])
+        item = Item(name=item_data["name"])
         original_time = item.modified_at
         new_name = "Updated Name"
 
@@ -113,11 +113,11 @@ class TestItem:
         assert item.modified_at != original_time
         assert item.modified_at > original_time
 
-    def test_to_dict(self, test_item_data):
+    def test_to_dict(self, item_data):
         """Test serialization to dictionary."""
         item = Item(
-            id=test_item_data["id"],
-            name=test_item_data["name"],
+            id=item_data["id"],
+            name=item_data["name"],
         )
         item.parent_id = "parent-123"
         item.metadata = {"key": "value", "number": 42}
@@ -125,8 +125,8 @@ class TestItem:
         result = item.to_dict()
 
         expected = {
-            "id": test_item_data["id"],
-            "name": test_item_data["name"],
+            "id": item_data["id"],
+            "name": item_data["name"],
             "parent_id": "parent-123",
             "created_at": item.created_at,
             "modified_at": item.modified_at,
@@ -135,11 +135,11 @@ class TestItem:
 
         assert result == expected
 
-    def test_from_dict_complete_data(self, test_item_data):
+    def test_from_dict_complete_data(self, item_data):
         """Test deserialization from complete dictionary."""
         data = {
-            "id": test_item_data["id"],
-            "name": test_item_data["name"],
+            "id": item_data["id"],
+            "name": item_data["name"],
             "parent_id": "parent-123",
             "created_at": "2023-01-01T12:00:00",
             "modified_at": "2023-01-01T13:00:00",
@@ -148,8 +148,8 @@ class TestItem:
 
         item = Item.from_dict(data)
 
-        assert item.id == test_item_data["id"]
-        assert item.name == test_item_data["name"]
+        assert item.id == item_data["id"]
+        assert item.name == item_data["name"]
         assert item.parent_id == "parent-123"
         assert item.created_at == "2023-01-01T12:00:00"
         assert item.modified_at == "2023-01-01T13:00:00"
@@ -173,15 +173,15 @@ class TestItem:
         assert item.modified_at == item.created_at
         assert item.metadata == {}
 
-    def test_str_representation(self, test_item_data):
+    def test_str_representation(self, item_data):
         """Test string representation of item."""
-        item = Item(id=test_item_data["id"], name=test_item_data["name"])
-        expected = f"Item(id='{test_item_data['id']}', name='{test_item_data['name']}')"
+        item = Item(id=item_data["id"], name=item_data["name"])
+        expected = f"Item(id='{item_data['id']}', name='{item_data['name']}')"
         assert str(item) == expected
 
-    def test_repr_representation(self, test_item_data):
+    def test_repr_representation(self, item_data):
         """Test repr representation equals str representation."""
-        item = Item(id=test_item_data["id"], name=test_item_data["name"])
+        item = Item(id=item_data["id"], name=item_data["name"])
         assert repr(item) == str(item)
 
 

@@ -645,6 +645,11 @@ class TestImageGalleryTabListViewIconScaling:
             "list-view row icon is a single uniform color -- looks like a "
             "center-crop of the thumbnail rather than a genuine downscale"
         )
+        # The whole bordered image is visible: a red frame around a green interior.
+        last = icon_image.width() - 1
+        red, green = (255, 0, 0, 255), (0, 128, 0, 255)
+        assert [icon_image.pixelColor(x, y).getRgb() for x, y in ((0, 0), (last, 0), (0, last), (last, last))] == [red] * 4
+        assert icon_image.pixelColor(last // 2, last // 2).getRgb() == green
 
 
 class TestImageGalleryTabMoveCopy:

@@ -231,19 +231,31 @@ def test_colormap_scatter_produces_colorbar_mappable():
     z = [1.0, 2.0, 3.0]
     vmin, vmax = resolve_color_limits(z, auto=True, vmin=0.0, vmax=0.0)
     mappable = axes.scatter([0, 1, 2], [0, 1, 0], c=z, cmap="viridis", vmin=vmin, vmax=vmax)
+    np.testing.assert_array_equal(mappable.get_array(), z)
+    assert mappable.get_clim() == (1.0, 3.0)
     # A colorbar can be built from the returned mappable, as update_chart does.
     cbar = fig.colorbar(mappable, ax=axes)
-    assert cbar is not None
+    assert cbar.mappable is mappable
+    assert cbar.ax in fig.axes
+    assert (cbar.vmin, cbar.vmax) == (1.0, 3.0)
     cbar.remove()
+    assert fig.axes == [axes]
 
 
 def test_heatmap_pcolormesh_produces_colorbar_mappable():
+    from matplotlib.collections import QuadMesh
     from matplotlib.figure import Figure
 
     fig = Figure()
     axes = fig.add_subplot(111)
     xs, ys, grid = pivot_to_grid([0, 1, 0, 1], [0, 0, 1, 1], [10, 20, 30, 40])
     mappable = axes.pcolormesh(xs, ys, grid, cmap="viridis", shading="nearest")
+    assert isinstance(mappable, QuadMesh)
+    np.testing.assert_array_equal(np.asarray(mappable.get_array()), [[10, 20], [30, 40]])
+    assert mappable.get_clim() == (10, 40)
     cbar = fig.colorbar(mappable, ax=axes)
-    assert cbar is not None
+    assert cbar.mappable is mappable
+    assert cbar.ax in fig.axes
+    assert (cbar.vmin, cbar.vmax) == (10, 40)
     cbar.remove()
+    assert fig.axes == [axes]
