@@ -235,6 +235,11 @@ class MainMenu(PMenuBar):
         ).execute_command(SaveProjectAsCommand(self.app_context)))
         file_menu.addAction(save_as_action)
 
+        self.project_details_action = QAction("Project Details...", self)
+        self.project_details_action.triggered.connect(self.show_project_details_dialog)
+        file_menu.addAction(self.project_details_action)
+        self._update_project_dependent_actions()
+
         file_menu.addSeparator()
 
         exit_action = QAction("Exit", self)
@@ -406,6 +411,11 @@ class MainMenu(PMenuBar):
         self._update_dataset_dependent_actions()
         return chart_menu
 
+    def _update_project_dependent_actions(self):
+        """Enable File > Project Details... only while a project is open."""
+        app_state = self.app_context.get_app_state()
+        self.project_details_action.setEnabled(bool(app_state.has_project and app_state.current_project))
+
     def _update_dataset_dependent_actions(self):
         """Enable the action that needs an existing dataset (row/column
         insertion) to act on. Chart creation is always enabled -- it now
@@ -419,6 +429,7 @@ class MainMenu(PMenuBar):
                 isinstance(item, Dataset) for item in app_state.current_project.get_all_items()
             )
         self.add_rows_columns_action.setEnabled(has_datasets)
+        self._update_project_dependent_actions()
 
     def _on_tab_changed(self, event_data: dict):
         """Track the active tab's dataset so menu dialogs can preselect it."""
@@ -445,6 +456,11 @@ class MainMenu(PMenuBar):
         from pandaplot.gui.dialogs.settings_dialog import SettingsDialog
         dialog = SettingsDialog(self.app_context, self.parent())
         dialog.exec()
+
+    def show_project_details_dialog(self):
+        """Open the Project Details dialog for the current project."""
+        from pandaplot.gui.dialogs.project.project_details_dialog import edit_project_details
+        edit_project_details(self.app_context, self.window())
 
     def show_examples_dialog(self):
         """Open the examples dialog and load the chosen example project, if any."""
