@@ -3,14 +3,15 @@ from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
+from pandaplot.commands.project.project.unsaved_changes import remember_session_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.qtasks import TaskScheduler
-from pandaplot.services.session import SessionPersistenceManager
 from pandaplot.utils.error_messages import describe_error, describe_failure
+from pandaplot.utils.examples import is_in_examples_dir
 
 
 class SaveProjectCommand(Command):
@@ -82,6 +83,10 @@ class SaveProjectCommand(Command):
                 return CommandResult.FAILURE
 
             current_path = self.app_state.project_file_path
+            if is_in_examples_dir(current_path):
+                # Bundled examples are never written back to; ask where to save a copy.
+                self.logger.info("Project path '%s' is inside the examples directory; saving as a new file", current_path)
+                current_path = None
 
             # Determine the save path
             if self.save_as_path:
@@ -250,11 +255,7 @@ class SaveProjectCommand(Command):
                     )
 
                     # Remember this project so it can be restored on next launch
-                    try:
-                        session_manager = self.app_context.get_manager(SessionPersistenceManager)
-                        session_manager.update_project(save_path)
-                    except Exception as e:  # noqa: BLE001
-                        self.logger.warning("Failed to persist last_project_path: %s", e)
+                    remember_session_project(self.app_context, save_path)
 
                     self.logger.info("Project '%s' saved successfully to '%s'", project.name, save_path)
 

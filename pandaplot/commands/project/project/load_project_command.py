@@ -3,15 +3,15 @@ from collections.abc import Callable
 from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
-from pandaplot.commands.project.project.unsaved_changes import flush_pending_edits
+from pandaplot.commands.project.project.unsaved_changes import flush_pending_edits, remember_session_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.qtasks import TaskScheduler
-from pandaplot.services.session import SessionPersistenceManager
 from pandaplot.utils.error_messages import describe_error, describe_failure
+from pandaplot.utils.examples import is_in_examples_dir
 
 
 def _same_path(a: str | None, b: str | None) -> bool:
@@ -49,9 +49,11 @@ class LoadProjectCommand(Command):
         self.on_loaded = on_loaded
         # Open the file's contents as an unsaved, untitled project: no file
         # path (so Save asks where to save), no "already open" shortcut, and
-        # not remembered as the session's last project. Used for bundled
-        # examples, which must never be written back to (#607).
-        self.as_untitled_copy = as_untitled_copy
+        # not remembered as the session's last project. Files inside the
+        # bundled examples directory always open this way, however they were
+        # reached (File > Open, Recent Projects, session restore), because
+        # bundled examples must never be written back to (#607).
+        self.as_untitled_copy = as_untitled_copy or is_in_examples_dir(file_path)
         self.previous_project: Project | None = None
         self.previous_file_path: str | None = None
         # Whether the previous project had unsaved changes, so undo() can
@@ -90,14 +92,11 @@ class LoadProjectCommand(Command):
                 self.ui_controller.show_info_message("Load In Progress", "A project load is already in progress.")
                 return CommandResult.FAILURE
 
-            # Centralized guards for every load path (the file-dialog flow
-            # via OpenProjectCommand, recent/example projects from the
-            # welcome tab, and the Examples dialog) -- previously only
-            # OpenProjectCommand checked these, so the other entry points
-            # could silently replace a modified project or reload the
-            # current file from disk, discarding undo history. Living here
-            # means every caller gets the same protection with nothing
-            # extra to remember at the call site.
+            # Guards shared by every load path (File > Open, recent projects,
+            # example projects, session restore): reloading the file that is
+            # already open is skipped so its undo history is not discarded,
+            # and replacing a modified project is confirmed below. An
+            # untitled copy is a new project, so it is never "already open".
             if (
                 not self.as_untitled_copy
                 and self.app_state.has_project
@@ -300,7 +299,7 @@ class LoadProjectCommand(Command):
                     # untitled copy has no file to restore from, so record "no project",
                     # as NewProjectCommand does; keeping the previous path would reopen a
                     # project the user had already replaced.
-                    self._remember_project(None if self.as_untitled_copy else file_path)
+                    remember_session_project(self.app_context, None if self.as_untitled_copy else file_path)
 
                     self.logger.info(f"Project '{project.name}' loaded successfully from '{file_path}'")
 
@@ -345,18 +344,6 @@ class LoadProjectCommand(Command):
         except Exception as e:
             self.logger.exception("Error handling load result")
             self.ui_controller.show_error_message("Load Error", "Couldn't open the project.", error=e)
-
-    def _remember_project(self, project_path: str | None) -> None:
-        """Record ``project_path`` as the project to restore on the next launch.
-
-        Args:
-            project_path: Path of the installed project, or None when it has no file.
-        """
-        try:
-            session_manager = self.app_context.get_manager(SessionPersistenceManager)
-            session_manager.update_project(project_path)
-        except Exception as e:  # noqa: BLE001
-            self.logger.warning("Failed to persist last_project_path: %s", e)
 
     def _on_load_error(self, error_info: tuple[Any, Any, str]):
         """Handle error during load task."""
@@ -423,8 +410,10 @@ class LoadProjectCommand(Command):
             self.app_state.load_project(self.previous_project)
             if self.previous_was_modified:
                 self.app_state.mark_modified()
+            remember_session_project(self.app_context, self.previous_project.project_file_path)
         else:
             self.app_state.close_project()
+            remember_session_project(self.app_context, None)
         return CommandResult.SUCCESS
 
     def redo(self) -> CommandResult:
@@ -459,7 +448,7 @@ class LoadProjectCommand(Command):
             # without clearing the redo history, so put the session back on the
             # project that is installed now. Use its current path: an untitled copy
             # has none, unless it was saved to a file since it was loaded.
-            self._remember_project(self.loaded_project.project_file_path)
+            remember_session_project(self.app_context, self.loaded_project.project_file_path)
             return CommandResult.SUCCESS
         else:
             # Re-execute if we don't have the loaded project cached

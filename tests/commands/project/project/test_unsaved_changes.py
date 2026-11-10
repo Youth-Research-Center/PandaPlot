@@ -207,3 +207,26 @@ def test_autosave_failure_dialog_passes_the_exception_not_its_text():
     _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
     assert "disk full" not in message
     assert app_context.get_ui_controller.return_value.show_error_message.call_args.kwargs["error"] is error
+
+
+def test_remember_session_project_records_the_path():
+    from unittest.mock import Mock
+
+    from pandaplot.commands.project.project.unsaved_changes import remember_session_project
+
+    app_context = Mock()
+    remember_session_project(app_context, "/p/a.pplot")
+    app_context.get_manager.return_value.update_project.assert_called_once_with("/p/a.pplot")
+
+
+def test_remember_session_project_logs_a_failure_with_traceback_and_does_not_raise(caplog):
+    from unittest.mock import Mock
+
+    from pandaplot.commands.project.project.unsaved_changes import remember_session_project
+
+    app_context = Mock()
+    app_context.get_manager.return_value.update_project.side_effect = OSError("disk full")
+    remember_session_project(app_context, None)
+
+    record = next(r for r in caplog.records if "last_project_path" in r.getMessage())
+    assert record.exc_info is not None

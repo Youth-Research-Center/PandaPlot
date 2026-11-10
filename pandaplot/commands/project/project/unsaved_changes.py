@@ -12,6 +12,7 @@ import logging
 from pandaplot.models.state import AppState, UnsavedChangesRegistry
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.data_managers.project_manager import ProjectManager
+from pandaplot.services.session import SessionPersistenceManager
 
 
 def flush_pending_edits(app_context: AppContext) -> bool:
@@ -21,6 +22,22 @@ def flush_pending_edits(app_context: AppContext) -> bool:
     UnsavedChangesRegistry.flush_all for the aggregate success/failure
     contract this delegates to)."""
     return app_context.get_manager(UnsavedChangesRegistry).flush_all()
+
+
+def remember_session_project(app_context: AppContext, project_path: str | None) -> None:
+    """Record ``project_path`` as the project to restore on the next launch.
+
+    A failure to persist is logged as a warning and never raised, since the
+    project change itself has already succeeded.
+
+    Args:
+        app_context: Application context providing the SessionPersistenceManager.
+        project_path: Path of the project now open, or None when it has no file.
+    """
+    try:
+        app_context.get_manager(SessionPersistenceManager).update_project(project_path)
+    except Exception:
+        logging.getLogger(__name__).warning("Failed to persist last_project_path", exc_info=True)
 
 
 def _save_now(app_context: AppContext, app_state: AppState, project_name: str) -> bool:
