@@ -14,6 +14,7 @@ from pandaplot.commands.project.image.create_image_gallery_command import (
 from pandaplot.commands.project.image.import_images_command import ImportImagesCommand
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Image
+from pandaplot.utils.errors import UserFacingError
 
 
 def _removed_item_ids(app_context) -> list[str | None]:
@@ -160,6 +161,12 @@ class TestImportImagesCommandErrors:
         )
 
         assert command.execute() is CommandResult.FAILURE
+        show_error = app_context_with_project.get_ui_controller().show_error_message
+        show_error.assert_called_once()
+        assert show_error.call_args.args == ("Import Images Error", "Couldn't import images.")
+        error = show_error.call_args.kwargs["error"]
+        assert isinstance(error, UserFacingError)
+        assert str(error) == "The image file '/no/such/file.png' could not be found."
 
 
 class TestImportImagesCommandLogging:
@@ -363,3 +370,7 @@ class TestImportImagesCommandUrlSource:
         )
 
         assert command.execute() is CommandResult.FAILURE
+        error = app_context_with_project.get_ui_controller().show_error_message.call_args.kwargs["error"]
+        assert isinstance(error, UserFacingError)
+        assert "boom" not in str(error)
+        assert isinstance(error.__cause__, requests.RequestException)

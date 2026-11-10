@@ -74,10 +74,10 @@ class RenameItemCommand(Command):
             )
             return CommandResult.SUCCESS
         except Exception as e:
-            error_msg = f"Failed to rename item: {e}"
+            error_msg = "Couldn't rename item."
             self.logger.exception(error_msg)
             self.ui_controller.show_error_message(
-                "Rename Item Error", error_msg)
+                "Rename Item Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def undo(self) -> CommandResult:
@@ -121,9 +121,9 @@ class RenameItemCommand(Command):
                 return CommandResult.NOOP
 
         except Exception as e:
-            error_msg = f"Failed to undo rename item: {e}"
+            error_msg = "Couldn't undo rename item."
             self.logger.exception(error_msg)
-            self.ui_controller.show_error_message("Undo Error", error_msg)
+            self.ui_controller.show_error_message("Undo Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:

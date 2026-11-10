@@ -90,9 +90,9 @@ class CreateImageFromBytesCommand(Command):
             return CommandResult.SUCCESS
 
         except Exception as e:
-            error_msg = f"Failed to create image: {e!s}"
+            error_msg = "Couldn't create image."
             self.logger.exception("CreateImageFromBytesCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message("Insert Chart Error", error_msg)
+            self.ui_controller.show_error_message("Insert Chart Error", error_msg, error=e)
             return CommandResult.FAILURE
 
     @override
@@ -114,7 +114,7 @@ class CreateImageFromBytesCommand(Command):
             return CommandResult.SUCCESS
         except Exception as e:
             self.logger.exception("CreateImageFromBytesCommand Undo Error")
-            self.ui_controller.show_error_message("Undo Error", f"Failed to undo: {e!s}")
+            self.ui_controller.show_error_message("Undo Error", "Couldn't undo inserting the chart image.", error=e)
             return CommandResult.FAILURE
 
     @override
@@ -133,7 +133,7 @@ class CreateImageFromBytesCommand(Command):
             return CommandResult.SUCCESS
         except Exception as e:
             self.logger.exception("CreateImageFromBytesCommand Redo Error")
-            self.ui_controller.show_error_message("Redo Error", f"Failed to redo: {e!s}")
+            self.ui_controller.show_error_message("Redo Error", "Couldn't redo inserting the chart image.", error=e)
             return CommandResult.FAILURE
 
     @override

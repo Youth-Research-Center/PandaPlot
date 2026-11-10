@@ -207,6 +207,10 @@ class TestMoveItemCommandLogging:
         with pytest.raises(RuntimeError):
             command.execute()
 
+        show_error = _ui_controller.show_error_message
+        show_error.assert_called_once()
+        assert show_error.call_args.args == ("Move Item Error", "Couldn't move 'Some Item'.")
+        assert str(show_error.call_args.kwargs["error"]) == "boom"
         assert command.move_performed is False
         sample_project.detach_item.assert_called_once_with(item)
         assert sample_project.add_item.call_args_list == [

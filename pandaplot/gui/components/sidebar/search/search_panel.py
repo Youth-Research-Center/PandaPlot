@@ -314,7 +314,7 @@ class SearchPanel(SidebarPanel):
                 use_regex=self.regex_button.isChecked(),
             )
         except QueryError as exc:
-            self.summary_label.setText(f"Invalid regex: {exc}")
+            self.summary_label.setText(str(exc))
             return
 
         self._populate(results)

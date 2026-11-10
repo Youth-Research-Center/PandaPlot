@@ -34,6 +34,7 @@ from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.errors import UserFacingError
 
 
 class AnalyzeChartSeriesCommand(Command):
@@ -165,16 +166,16 @@ class AnalyzeChartSeriesCommand(Command):
     def run_analysis(self) -> tuple[pd.DataFrame, str]:
         """Compute the analysis and return (result dataframe, default name).
 
-        Raises ``ValueError`` if the chart/series is unavailable. Does not touch
+        Raises ``UserFacingError`` if the chart/series is unavailable. Does not touch
         the project so the UI can call it for a preview.
         """
         chart = self._get_chart()
         if chart is None:
-            raise ValueError("Chart is not available.")
+            raise UserFacingError("Chart is not available.")
 
         x, y, x_label, y_label = self._resolve_xy(chart)
         if len(x) < 2:
-            raise ValueError("Series has too few points to analyze.")
+            raise UserFacingError("Series has too few points to analyze.")
 
         result = self._run_engine(x, y)
         value_label = self._value_label(x_label, y_label)
@@ -234,7 +235,7 @@ class AnalyzeChartSeriesCommand(Command):
 
         except Exception as e:
             self.logger.exception("Analyze-chart-series failed")
-            self.ui_controller.show_error_message("Chart Analysis Error", str(e))
+            self.ui_controller.show_error_message("Chart Analysis Error", "Couldn't analyze the chart series.", error=e)
             return CommandResult.FAILURE
 
     @override

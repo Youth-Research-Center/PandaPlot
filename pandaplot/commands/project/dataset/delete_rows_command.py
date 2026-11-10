@@ -146,10 +146,9 @@ class DeleteRowsCommand(Command):
             self.logger.info(f"Deleted {len(self.row_positions)} rows from dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return CommandResult.SUCCESS
             
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            error_msg = f"Failed to delete {len(self.row_positions) if self.row_positions else 0} rows: {e!s}"
-            self.logger.error(error_msg)
-            self.ui_controller.show_error_message("Delete Rows Error", error_msg)
+        except Exception as e:
+            self.logger.exception("Failed to delete %d rows", len(self.row_positions) if self.row_positions else 0)
+            self.ui_controller.show_error_message("Delete Rows Error", "Couldn't delete the selected rows.", error=e)
             return CommandResult.FAILURE
 
     def undo(self) -> CommandResult:
@@ -173,8 +172,8 @@ class DeleteRowsCommand(Command):
                 self.dataset_id, self.dataset is not None, self.original_data is not None,
             )
             return CommandResult.FAILURE
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            self.logger.error(f"DeleteRowsCommand Undo Error: {e}")
+        except Exception:
+            self.logger.exception("DeleteRowsCommand Undo Error")
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:

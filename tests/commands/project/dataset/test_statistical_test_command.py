@@ -13,6 +13,7 @@ from pandaplot.commands.project.dataset.statistical_test_command import Statisti
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.errors import UserFacingError
 
 
 @pytest.fixture
@@ -70,8 +71,10 @@ class TestStatisticalTestCommand:
         assert command.execute() is CommandResult.FAILURE
         assert command.result_dataset_id is None
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
-        _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
-        assert "Missing" in message
+        call = app_context.get_ui_controller.return_value.show_error_message.call_args
+        assert call.args == ("Statistical Test Error", "Couldn't run the statistical test.")
+        assert isinstance(call.kwargs["error"], UserFacingError)
+        assert "Missing" in str(call.kwargs["error"])
 
     def test_undo_logs_warning_when_nothing_to_undo(self, app_context_with_project, caplog):
         app_context, _ = app_context_with_project

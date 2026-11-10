@@ -1,7 +1,7 @@
 """Tests for RenameProjectCommand (renames the Project itself, not a tree item)."""
 
 import logging
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -104,3 +104,14 @@ def test_event_emitted_on_rename(env):
              if c.args[0] == ProjectEvents.PROJECT_CHANGED]
     assert len(calls) == 1
     assert calls[0].args[1]["project"] is project
+
+
+def test_execute_failure_passes_the_exception_to_the_dialog():
+    app_context = Mock()
+    app_context.get_ui_controller.return_value = Mock()
+    error = RuntimeError("boom")
+    with patch("pandaplot.commands.project.project.rename_project_command.get_current_project", side_effect=error):
+        command = RenameProjectCommand(app_context, "New")
+        assert command.execute() is CommandResult.FAILURE
+    show = app_context.get_ui_controller.return_value.show_error_message
+    show.assert_called_once_with("Rename Project Error", "Couldn't rename the project.", error=error)

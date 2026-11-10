@@ -27,6 +27,7 @@ from pandaplot.models.chart.series_type_spec import SERIES_TYPE_SPECS
 from pandaplot.models.events.event_data import ChartUpdatedData
 from pandaplot.models.events.event_types import ChartEvents
 from pandaplot.models.project.items.item import Item
+from pandaplot.utils.errors import UserFacingError
 
 
 class YAxis(StrEnum):
@@ -563,7 +564,7 @@ class Chart(Item):
             # still *stay* on such a chart after a chart-type switch (see
             # Chart.set_chart_type) -- it just can't be created there.
             display_name = CHART_TYPE_SPECS[self.chart_type].display_name
-            raise ValueError(f"Fits aren't available on {display_name} charts.")
+            raise UserFacingError(f"Fits aren't available on {display_name} charts.")
         return self.add_data_series(
             dataset_id=source_dataset_id,
             x_column_id=source_x_column_id, y_column_id=source_y_column_id,
@@ -632,7 +633,7 @@ class Chart(Item):
         """
         blocker = self.swap_axes_blocker()
         if blocker is not None:
-            raise ValueError(blocker)
+            raise UserFacingError(blocker)
         for series in self.data_series:
             _swap_attrs(series, "x_column_id", series, "y_column_id")
             _swap_attrs(series, "x_column", series, "y_column")

@@ -264,7 +264,8 @@ class TestDeleteItemCommand:
         
         assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
-        assert "Failed to delete item: Test error" in ui_controller.show_error_message.call_args[0][1]
+        assert ui_controller.show_error_message.call_args[0][1] == "Couldn't delete item."
+        assert str(ui_controller.show_error_message.call_args.kwargs["error"]) == "Test error"
 
     def test_undo_successful(self, mock_app_context, sample_project, sample_note):
         """Test successful undo operation."""
@@ -375,7 +376,8 @@ class TestDeleteItemCommand:
 
         assert result is CommandResult.FAILURE
         ui_controller.show_error_message.assert_called_once()
-        assert "Failed to undo delete item: Test error" in ui_controller.show_error_message.call_args[0][1]
+        assert ui_controller.show_error_message.call_args[0][1] == "Couldn't undo delete item."
+        assert str(ui_controller.show_error_message.call_args.kwargs["error"]) == "Test error"
 
     def test_redo_successful(self, mock_app_context, sample_project, sample_note):
         """Test successful redo operation."""
@@ -483,7 +485,8 @@ class TestDeleteItemCommand:
         # the redo is ABORTED (the command stays on the redo stack).
         assert result is CommandResult.ABORTED
         ui_controller.show_error_message.assert_called_once()
-        assert "Failed to redo delete item: Test error" in ui_controller.show_error_message.call_args[0][1]
+        assert ui_controller.show_error_message.call_args[0][1] == "Couldn't redo delete item."
+        assert str(ui_controller.show_error_message.call_args.kwargs["error"]) == "Test error"
 
     def test_different_item_types(self, mock_app_context, sample_project):
         """Test deletion of different item types."""

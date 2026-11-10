@@ -18,6 +18,7 @@ from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.errors import UserFacingError
 
 
 @pytest.fixture
@@ -200,8 +201,10 @@ class TestAnalyzeChartSeriesCommand:
 
         assert command.execute() is CommandResult.FAILURE
         app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
-        _title, message = app_context.get_ui_controller.return_value.show_error_message.call_args.args
-        assert "bar" in message
+        call = app_context.get_ui_controller.return_value.show_error_message.call_args
+        assert call.args[1] == "Couldn't analyze the chart series."
+        assert isinstance(call.kwargs["error"], UserFacingError)
+        assert "bar" in str(call.kwargs["error"])
 
     def test_execute_surfaces_no_project_loaded_to_the_user(self, ctx):
         app_context, _ = ctx

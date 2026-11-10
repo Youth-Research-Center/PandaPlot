@@ -91,3 +91,77 @@ def test_get_color_hides_the_alpha_channel_by_default(mock_get_color):
     UIController().get_color("Stroke Colour", "#000000")
 
     assert not mock_get_color.call_args.args[3] & QColorDialog.ColorDialogOption.ShowAlphaChannel
+
+
+def _description(*, next_step: str = "Try again.", details: str = "KeyError: x"):
+    from pandaplot.utils.error_messages import ErrorDescription
+
+    return ErrorDescription(reason="Because.", next_step=next_step, details=details)
+
+
+def test_build_error_box_sets_text_informative_text_details_icon_and_escape_button():
+    from PySide6.QtWidgets import QMessageBox
+
+    from pandaplot.gui.controllers.ui_controller import build_error_box
+
+    box = build_error_box(None, "Save Failed", "Couldn't save.", _description())
+    try:
+        assert box.windowTitle() == "Save Failed"
+        assert box.text() == "Couldn't save."
+        assert box.informativeText() == "Because.\n\nTry again."
+        assert box.detailedText() == "KeyError: x"
+        assert box.icon() == QMessageBox.Icon.Critical
+        assert box.escapeButton() is box.button(QMessageBox.StandardButton.Ok)
+        assert box.defaultButton() is box.button(QMessageBox.StandardButton.Ok)
+    finally:
+        box.deleteLater()
+
+
+def test_build_error_box_without_next_step_or_details():
+    from pandaplot.gui.controllers.ui_controller import build_error_box
+
+    box = build_error_box(None, "T", "Couldn't.", _description(next_step="", details=""))
+    try:
+        assert box.informativeText() == "Because."
+        assert box.detailedText() == ""
+    finally:
+        box.deleteLater()
+
+
+@patch("pandaplot.gui.controllers.ui_controller.QMessageBox")
+def test_show_error_message_without_error_calls_critical(mock_message_box_cls):
+    parent = Mock()
+    UIController(parent).show_error_message("Title", "Message")
+    mock_message_box_cls.critical.assert_called_once_with(parent, "Title", "Message")
+    mock_message_box_cls.assert_not_called()
+
+
+@patch("pandaplot.gui.controllers.ui_controller.QMessageBox")
+def test_show_error_message_with_exception_describes_it_and_executes_the_box(mock_message_box_cls):
+    UIController(None).show_error_message("Title", "Couldn't open.", error=FileNotFoundError("/x"))
+    mock_message_box_cls.critical.assert_not_called()
+    box = mock_message_box_cls.return_value
+    box.setText.assert_called_once_with("Couldn't open.")
+    assert "could not be found" in box.setInformativeText.call_args.args[0]
+    box.setDetailedText.assert_called_once_with("FileNotFoundError: /x")
+    box.exec.assert_called_once_with()
+
+
+@patch("pandaplot.gui.controllers.ui_controller.QMessageBox")
+def test_show_error_message_accepts_a_ready_description(mock_message_box_cls):
+    UIController(None).show_error_message("Title", "Couldn't.", error=_description(details=""))
+    box = mock_message_box_cls.return_value
+    box.setInformativeText.assert_called_once_with("Because.\n\nTry again.")
+    box.setDetailedText.assert_not_called()
+    box.exec.assert_called_once_with()
+
+
+@patch("pandaplot.gui.controllers.ui_controller.QMessageBox")
+def test_show_error_message_deletes_the_box_after_it_closes(mock_message_box_cls):
+    box = mock_message_box_cls.return_value
+    box.exec.side_effect = RuntimeError("closed abnormally")
+
+    with pytest.raises(RuntimeError):
+        UIController(None).show_error_message("Title", "Couldn't.", error=_description())
+
+    box.deleteLater.assert_called_once_with()

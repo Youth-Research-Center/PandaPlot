@@ -76,7 +76,7 @@ class RecomputeFormulaColumnsCommand(Command):
         except Exception as e:
             self.logger.exception("RecomputeFormulaColumnsCommand.execute failed")
             self.dataset = None
-            self.ui_controller.show_error_message(_TITLE, f"Failed to recompute formula columns: {e}")
+            self.ui_controller.show_error_message(_TITLE, "Couldn't recompute the formula columns.", error=e)
             return CommandResult.FAILURE
 
     @override
@@ -165,9 +165,9 @@ class RecomputeFormulaColumnsCommand(Command):
                     safe_globals=safe_globals,
                     row_sources_only=True,
                 )
-            except Exception as e:  # noqa: BLE001 -- a user-authored expression can raise anything; report it instead of crashing
-                self.logger.error("Recompute of column '%s' failed: %s", name, e)
-                self.ui_controller.show_warning_message(_TITLE, f"Could not recompute '{name}': {e}")
+            except Exception as e:
+                self.logger.exception("Recompute of column '%s' failed", name)
+                self.ui_controller.show_error_message(_TITLE, f"Couldn't recompute the formula column '{name}'.", error=e)
                 return None
             df[name] = series
             results[column_id] = df[name].copy()

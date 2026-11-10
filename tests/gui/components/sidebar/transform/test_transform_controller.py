@@ -10,6 +10,7 @@ from pandaplot.gui.components.sidebar.transform.transform_controller import Tran
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
+from pandaplot.utils.error_messages import ErrorDescription
 
 
 @pytest.fixture
@@ -57,6 +58,54 @@ def test_command_execution_failure_surfaces_the_commands_specific_reason(ctx):
 
     assert result is False
     assert received == ["Expression referenced an out-of-range index"]
+
+
+def test_command_failure_with_a_description_emits_its_plain_reason_and_next_step(ctx):
+    app_context, _ = ctx
+    controller = TransformController(app_context)
+
+    def fake_execute(command):
+        command.error_message = "unsupported operand type(s) for +: 'int' and 'str'"
+        command.error_description = ErrorDescription(
+            reason="PandaPlot could not process this data with these settings.",
+            next_step="Check that the selected columns contain numbers.",
+            details="TypeError: unsupported operand type(s) for +: 'int' and 'str'",
+        )
+        return False
+
+    app_context.get_command_executor.return_value.execute_command.side_effect = fake_execute
+    received = []
+    controller.transform_failed.connect(lambda dataset_id, message: received.append(message))
+
+    assert controller.apply_transformation("ds-1", "a", "a_new", "x * 2") is False
+
+    assert received == ["PandaPlot could not process this data with these settings. Check that the selected columns contain numbers."]
+    assert "unsupported operand" not in received[0]
+
+
+def test_unexpected_exception_in_apply_emits_plain_text_without_type_names(ctx):
+    app_context, _ = ctx
+    controller = TransformController(app_context)
+    app_context.get_command_executor.side_effect = TypeError("unsupported operand type(s) for +: 'int' and 'str'")
+    received = []
+    controller.transform_failed.connect(lambda dataset_id, message: received.append(message))
+
+    assert controller.apply_transformation("ds-1", "a", "a_new", "x * 2") is False
+
+    assert received == ["PandaPlot could not process this data with these settings. Check that the selected columns contain the kind of values this needs, for example numbers."]
+
+
+def test_preview_failure_returns_plain_text_without_library_wording(ctx):
+    app_context, _ = ctx
+    controller = TransformController(app_context)
+
+    preview = controller.create_preview("ds-1", "a", "x + 'text'")
+
+    assert preview is not None
+    assert preview["error"].startswith("PandaPlot could not process this data with these settings.")
+    assert "Preview generation failed" not in preview["error"]
+    assert "operand" not in preview["error"]
+    assert "TypeError" not in preview["error"]
 
 
 def test_formula_flags_are_threaded_into_the_transform_config(ctx):

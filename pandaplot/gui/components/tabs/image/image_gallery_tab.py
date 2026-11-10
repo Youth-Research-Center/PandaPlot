@@ -778,14 +778,15 @@ class ImageGalleryTab(PWidget):
     def _edit_image(self, image: Image, parent: QWidget | None = None):
         try:
             data = image.get_bytes() or self._load_external_bytes(image.source_file)
-        except Exception as exc:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
+        except Exception as exc:
             # _load_external_bytes can raise (a network error for a URL
             # source, an unreadable/removed local file) -- without this
             # guard that exception would escape this Qt slot instead of
             # showing the same load-error message a missing/empty result
             # already gets below.
-            QMessageBox.warning(
-                self, "Edit Image Error", f"Unable to load image data for '{image.name}': {exc}"
+            self.logger.exception("Failed to load image data for '%s' (id=%s)", image.name, image.id)
+            self.app_context.get_ui_controller().show_error_message(
+                "Edit Image Error", f"Couldn't load the image data for '{image.name}'.", error=exc
             )
             return
         if not data:
@@ -814,9 +815,10 @@ class ImageGalleryTab(PWidget):
 
         try:
             new_bytes = dialog.get_result_bytes()
-        except Exception as exc:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            QMessageBox.warning(
-                self, "Edit Image Error", f"Failed to save the edited image for '{image.name}': {exc}"
+        except Exception as exc:
+            self.logger.exception("Failed to encode the edited image '%s' (id=%s)", image.name, image.id)
+            self.app_context.get_ui_controller().show_error_message(
+                "Edit Image Error", f"Couldn't save the edited image for '{image.name}'.", error=exc
             )
             return
         new_w = dialog.get_result_width()

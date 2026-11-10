@@ -6,6 +6,8 @@ Core analysis engine providing mathematical analysis operations.
 import numpy as np
 import pandas as pd
 
+from pandaplot.utils.errors import UserFacingError
+
 from .analysis_types import AnalysisParameters, AnalysisResult, AnalysisType, DerivativeMethod, InterpolationMethod, SmoothingMethod
 
 
@@ -48,7 +50,7 @@ class AnalysisEngine:
         # it below (derivative[-1]/derivative[0]) raises an opaque IndexError
         # instead of a message that explains what's actually wrong.
         if len(x_slice) < 2:
-            raise ValueError(
+            raise UserFacingError(
                 f"Derivative calculation requires at least 2 data points, got {len(x_slice)}."
             )
 

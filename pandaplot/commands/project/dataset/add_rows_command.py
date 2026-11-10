@@ -166,10 +166,9 @@ class AddRowsCommand(Command):
             self.logger.info(f"Added {len(self.reference_positions)} rows to dataset '{self.dataset.name}' (ID: {self.dataset_id})")
             return CommandResult.SUCCESS
             
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            error_msg = f"Failed to add rows: {e!s}"
-            self.logger.error(f"AddRowsCommand Error: {error_msg}")
-            self.ui_controller.show_error_message("Add Rows Error", error_msg)
+        except Exception as e:
+            self.logger.exception("AddRowsCommand Error")
+            self.ui_controller.show_error_message("Add Rows Error", "Couldn't add the rows.", error=e)
             return CommandResult.FAILURE
 
     def _insert_rows_with_new_logic(self, data: pd.DataFrame) -> pd.DataFrame:
@@ -316,8 +315,8 @@ class AddRowsCommand(Command):
                 self.dataset_id, self.dataset is not None, self.original_data is not None,
             )
             return CommandResult.FAILURE
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            self.logger.error(f"AddRowsCommand Undo Error: {e}")
+        except Exception:
+            self.logger.exception("AddRowsCommand Undo Error")
             return CommandResult.FAILURE
 
     def redo(self) -> CommandResult:

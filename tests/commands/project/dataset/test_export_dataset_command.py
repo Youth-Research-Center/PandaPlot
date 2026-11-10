@@ -133,3 +133,59 @@ def test_cleanup_releases_the_project_and_dataset_references(mock_app_context, s
 
     assert command.project is None
     assert command.dataset is None
+
+
+class TestExportFailureMessages:
+    """The export worker sends a plain-language ErrorDescription, never raw exception text (#595)."""
+
+    def _command(self, mock_app_context, export_path, export_format="CSV (Comma Separated Values)"):
+        app_context, _app_state, _ui_controller = mock_app_context
+        command = ExportDatasetCommand(app_context, "ds-1")
+        command.dataset = Dataset(name="ds", data=pd.DataFrame({"a": [1, 2]}))
+        command.export_path = export_path
+        command.export_format = export_format
+        return command
+
+    def test_unwritable_path_gives_a_described_failure(self, mock_app_context, tmp_path):
+        from pandaplot.utils.error_messages import ErrorDescription
+
+        blocker = tmp_path / "blocker"
+        blocker.write_text("a file, not a folder", encoding="utf-8")
+        command = self._command(mock_app_context, str(blocker / "out.csv"))
+
+        result = command._export_data_task(None)
+
+        assert result["success"] is False
+        description = result["error_description"]
+        assert isinstance(description, ErrorDescription)
+        assert description.reason == "The computer could not read or write the file."
+        assert description.details
+
+    def test_non_exception_failure_keeps_its_plain_reason(self, mock_app_context):
+        command = self._command(mock_app_context, "/tmp/out.xyz", export_format="Bogus")
+
+        result = command._export_data_task(None)
+
+        assert result["success"] is False
+        assert result["error_description"].reason == "PandaPlot cannot export to this file format."
+        assert result["error_description"].details == ""
+
+    def test_failed_export_dialog_shows_the_description_not_the_raw_text(self, mock_app_context):
+        from pandaplot.utils.error_messages import describe_error
+
+        _app_context, _app_state, ui_controller = mock_app_context
+        command = self._command(mock_app_context, "/tmp/out.csv")
+        description = describe_error(PermissionError("denied"))
+
+        command._on_export_result({"success": False, "error": "Error during data export: raw", "error_description": description})
+
+        ui_controller.show_error_message.assert_called_once_with("Export Failed", "Couldn't export the dataset.", error=description)
+
+    def test_worker_error_signal_passes_the_exception(self, mock_app_context):
+        _app_context, _app_state, ui_controller = mock_app_context
+        command = self._command(mock_app_context, "/tmp/out.csv")
+        error = OSError("disk full")
+
+        command._on_export_error((OSError, error, "traceback"))
+
+        ui_controller.show_error_message.assert_called_once_with("Export Error", "Couldn't export the dataset.", error=error)

@@ -10,6 +10,7 @@ from pandaplot.models.state import AppContext, AppState
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.qtasks import TaskScheduler
 from pandaplot.services.session import SessionPersistenceManager
+from pandaplot.utils.error_messages import describe_error, describe_failure
 
 
 class SaveProjectCommand(Command):
@@ -136,9 +137,8 @@ class SaveProjectCommand(Command):
             return CommandResult.SUCCESS  # Command initiated successfully
 
         except Exception as e:
-            error_msg = f"Failed to initiate project save: {e}"
-            self.logger.exception("SaveProjectCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message("Save Project Error", error_msg)
+            self.logger.exception("Failed to initiate project save")
+            self.ui_controller.show_error_message("Save Project Error", "Couldn't save the project.", error=e)
             self.is_saving = False  # Reset flag on error
             # Safe even if begin_save() was never reached (a no-op flip):
             # covers the case where run_task() itself raised after
@@ -198,7 +198,7 @@ class SaveProjectCommand(Command):
         except Exception as e:
             error_msg = f"Error during project save: {e!s}"
             self.logger.exception(error_msg)
-            return {"success": False, "error": error_msg, "path": None, "project": None}
+            return {"success": False, "error": error_msg, "error_description": describe_error(e), "path": None, "project": None}
 
     def _on_save_result(self, result: dict):
         """Handle successful completion of save task."""
@@ -264,25 +264,26 @@ class SaveProjectCommand(Command):
                 else:
                     self.logger.warning("Save completed but missing project or path information")
             else:
-                error_msg = result.get("error", "Unknown save error")
-                self.ui_controller.show_error_message("Save Failed", error_msg)
-                self.logger.error(f"Save failed: {error_msg}")
+                self.logger.error("Save failed: %s", result.get("error", "Unknown save error"))
+                self.ui_controller.show_error_message(
+                    "Save Failed",
+                    "Couldn't save the project.",
+                    error=result.get("error_description") or describe_failure("The project could not be saved."),
+                )
 
         except Exception as e:
             self.logger.exception("Error handling save result")
-            self.ui_controller.show_error_message("Save Error", f"Error processing save result: {e!s}")
+            self.ui_controller.show_error_message("Save Error", "Couldn't save the project.", error=e)
 
     def _on_save_error(self, error_info: tuple[Any, Any, str]):
         """Handle error during save task."""
         try:
             self.is_saving = False
             error_type, error_value, error_traceback = error_info
-            error_msg = f"Save failed with {error_type.__name__}: {error_value!s}"
+            self.logger.error("Save task error: %s: %s", error_type.__name__, error_value)
+            self.logger.error("Traceback: %s", error_traceback)
 
-            self.logger.error(f"Save task error: {error_msg}")
-            self.logger.error(f"Traceback: {error_traceback}")
-
-            self.ui_controller.show_error_message("Save Project Error", error_msg)
+            self.ui_controller.show_error_message("Save Project Error", "Couldn't save the project.", error=error_value)
 
         except Exception:
             self.logger.exception("Error handling save error")
@@ -363,7 +364,6 @@ class SaveProjectAsCommand(SaveProjectCommand):
             return super().execute()
 
         except Exception as e:
-            error_msg = f"Failed to save project as: {e}"
-            self.logger.exception("SaveProjectAsCommand Error: %s", error_msg)
-            self.ui_controller.show_error_message("Save Project As Error", error_msg)
+            self.logger.exception("Failed to save project as")
+            self.ui_controller.show_error_message("Save Project As Error", "Couldn't save the project.", error=e)
             raise

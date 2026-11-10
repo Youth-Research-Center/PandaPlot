@@ -20,9 +20,10 @@ from typing import Any
 import pandas as pd
 
 from pandaplot.services.transform import expression_engine
+from pandaplot.utils.errors import UserFacingError
 
 
-class CircularFormulaDependencyError(ValueError):
+class CircularFormulaDependencyError(UserFacingError):
     """Raised when formula columns would depend on each other in a cycle."""
 
     def __init__(self, cycle: Sequence[str]):
@@ -89,7 +90,7 @@ def evaluate_formula(
 
     missing = [name for name in names if name not in df.columns]
     if missing:
-        raise ValueError(f"Source columns not found: {missing}")
+        raise UserFacingError(f"These source columns are not in the dataset: {', '.join(map(str, missing))}.")
 
     if transform_type == "column":
         return _evaluate_column(df, expression, names, aliases, safe_globals)
@@ -111,7 +112,7 @@ def _as_series(result: Any, index: pd.Index) -> pd.Series:
 def _evaluate_column(df: pd.DataFrame, expression: str, source_columns: Sequence[str],
                      aliases: Sequence[str], safe_globals: dict[str, Any]) -> pd.Series:
     if not source_columns:
-        raise ValueError("A column transform needs a source column")
+        raise UserFacingError("Choose at least one source column for this transform.")
     source_data = df[source_columns[0]]
     local_vars = {
         "value": source_data,

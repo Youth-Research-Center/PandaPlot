@@ -251,10 +251,9 @@ class EditBatchCommand(Command):
 
             return CommandResult.SUCCESS
             
-        except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-            error_msg = f"Failed to perform batch edit at starting position ({self.start_row}, {self.start_column}): {e!s}"
-            self.logger.error(error_msg)
-            self.ui_controller.show_error_message("Batch Edit Error", error_msg)
+        except Exception as e:
+            self.logger.exception("Failed to perform batch edit at starting position (%s, %s)", self.start_row, self.start_column)
+            self.ui_controller.show_error_message("Batch Edit Error", "Couldn't apply the pasted or edited cells.", error=e)
             self.dataset = None
             self.project = None
             return CommandResult.FAILURE
@@ -270,8 +269,8 @@ class EditBatchCommand(Command):
             for command in reversed(self.executed_commands):
                 try:
                     command.undo()
-                except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-                    self.logger.error(f"Failed to undo expansion command: {e}")
+                except Exception:
+                    self.logger.exception("Failed to undo expansion command")
 
             self.dataset.set_data(self.dataset.data)
 
@@ -307,8 +306,8 @@ class EditBatchCommand(Command):
         for command in self.executed_commands:
             try:
                 command.redo()
-            except Exception as e:  # noqa: BLE001 -- Command-pattern boundary -- any failure (pandas/numpy/scipy/business-logic error) must become CommandResult.FAILURE instead of crashing the app
-                self.logger.error(f"Failed to redo expansion command: {e}")
+            except Exception:
+                self.logger.exception("Failed to redo expansion command")
 
         # Then reapply the cell changes
         for i, row_data in enumerate(self.new_data):

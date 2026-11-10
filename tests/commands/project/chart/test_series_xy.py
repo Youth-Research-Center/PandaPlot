@@ -13,6 +13,7 @@ from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppState
+from pandaplot.utils.errors import UserFacingError
 
 
 @pytest.fixture
@@ -60,7 +61,7 @@ class TestResolveSeriesXY:
 
     def test_missing_series_index_raises(self, app_state):
         state, chart = app_state
-        with pytest.raises(ValueError, match="no longer exists"):
+        with pytest.raises(UserFacingError, match="no longer exists"):
             resolve_series_xy(state, chart, 9)
 
     def test_negative_index_raises(self, app_state):
@@ -71,7 +72,7 @@ class TestResolveSeriesXY:
     def test_series_type_without_curve_support_raises(self, app_state):
         state, chart = app_state
         chart.data_series[0].series_type = SeriesType.BAR
-        with pytest.raises(ValueError, match="bar"):
+        with pytest.raises(UserFacingError, match="bar"):
             resolve_series_xy(state, chart, 0)
 
     def test_coerce_numeric_defaults_to_true(self, app_state):
