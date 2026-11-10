@@ -344,3 +344,41 @@ def test_empty_chart_gets_first_series_from_empty_state(
     app_window.main_menu.undo_action.trigger()
     qtbot.waitUntil(lambda: chart.data_series == [])
     qtbot.waitUntil(lambda: editor.preview_stack.currentWidget() is editor.empty_state_panel)
+
+
+def test_example_opens_as_untitled_copy_and_save_never_overwrites_it(
+    app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from pandaplot.services.session.recent_projects import get_recent_projects
+    from pandaplot.utils.examples import discover_example_projects
+
+    example = Path(discover_example_projects()[0]["path"])
+    original_bytes = example.read_bytes()
+    state = app_window.app_context.app_state
+
+    app_window.tab_container.command_manager.handle_example_project(str(example))
+    qtbot.waitUntil(lambda: state.has_project, timeout=10000)
+    project = state.current_project
+    assert project.project_file_path is None
+    assert project.name
+    assert not state.is_modified
+    assert str(example) not in [entry["path"] for entry in get_recent_projects(app_window.app_context)]
+
+    project.add_item(Sketch(name="Edit after opening"))
+    state.mark_modified()
+    saved_path = tmp_path / "my_copy.pplot"
+    dialog_calls = []
+
+    def pick_path(*args, **kwargs):
+        dialog_calls.append(args)
+        return str(saved_path), "Project files"
+
+    monkeypatch.setattr("pandaplot.gui.controllers.ui_controller.QFileDialog.getSaveFileName", pick_path)
+
+    click_menu(qtbot, app_window, "File", "Save")
+    qtbot.waitUntil(lambda: any(title == "Project Saved" for title, _ in app_window.test_messages), timeout=10000)
+
+    assert len(dialog_calls) == 1
+    assert saved_path.exists()
+    assert state.project_file_path == str(saved_path)
+    assert example.read_bytes() == original_bytes
