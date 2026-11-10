@@ -30,6 +30,19 @@ def test_line_spec_matches_former_chart_role_spec_values():
     assert spec.supports_error_bars is True
 
 
+def test_scatter_requires_only_y():
+    spec = CHART_TYPE_SPECS[ChartType.SCATTER]
+    assert spec.required_roles == ("y",)
+    assert spec.supports_error_bars is True
+
+
+def test_bar_requires_only_y():
+    spec = CHART_TYPE_SPECS[ChartType.BAR]
+    assert spec.roles == ("x", "y")
+    assert spec.required_roles == ("y",)
+    assert spec.supports_error_bars is True
+
+
 def test_hist_spec_matches_former_chart_role_spec_values():
     spec = CHART_TYPE_SPECS[ChartType.HIST]
     assert spec.display_name == "Histogram"
