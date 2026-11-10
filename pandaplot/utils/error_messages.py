@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+import requests
 
 from pandaplot.utils.errors import UserFacingError
 
@@ -30,6 +31,11 @@ class ErrorDescription:
     reason: str
     next_step: str
     details: str
+
+    @property
+    def text(self) -> str:
+        """The reason, then a blank line and the next step if there is one: for dialogs and result boxes."""
+        return f"{self.reason}\n\n{self.next_step}" if self.next_step else self.reason
 
     @property
     def inline_text(self) -> str:
@@ -64,6 +70,30 @@ def _is_pandas_key_error(exc: BaseException) -> bool:
     return isinstance(exc, KeyError) and _innermost_module(exc).startswith("pandas.")
 
 
+def _is_network_error(exc: BaseException) -> bool:
+    return isinstance(exc, requests.RequestException)
+
+
+def _raised_in_evaluated_code(exc: BaseException) -> bool:
+    """True when the innermost frame runs code compiled from a string (a user formula), not a source file."""
+    tb: types.TracebackType | None = exc.__traceback__
+    if tb is None:
+        return False
+    while tb.tb_next is not None:
+        tb = tb.tb_next
+    return tb.tb_frame.f_code.co_filename.startswith("<")
+
+
+def _is_formula_syntax_error(exc: BaseException) -> bool:
+    # A formula compiled from a string has a pseudo file name such as "<string>" or "<unknown>".
+    return isinstance(exc, SyntaxError) and (exc.filename or "<").startswith("<")
+
+
+def _is_formula_name_error(exc: BaseException) -> bool:
+    # UnboundLocalError and undefined names in PandaPlot's own code are bugs, not formula typos.
+    return isinstance(exc, NameError) and not isinstance(exc, UnboundLocalError) and _raised_in_evaluated_code(exc)
+
+
 def _is_disk_full(exc: BaseException) -> bool:
     return isinstance(exc, OSError) and exc.errno == errno.ENOSPC
 
@@ -90,6 +120,12 @@ _RULES: tuple[_Rule, ...] = (
         _is_disk_full,
         "There is not enough free disk space.",
         "Free some space, then try again.",
+    ),
+    (
+        # requests' exceptions subclass OSError, so this must come before the generic file rule.
+        _is_network_error,
+        "PandaPlot could not download this from the internet.",
+        "Check the address and your internet connection, then try again.",
     ),
     (
         lambda e: isinstance(e, OSError),
@@ -137,12 +173,12 @@ _RULES: tuple[_Rule, ...] = (
         "Check the selected columns, or try with more varied data.",
     ),
     (
-        lambda e: isinstance(e, SyntaxError),
+        _is_formula_syntax_error,
         "The formula has a typo, for example a missing bracket, quote or operator.",
         "Check the formula and try again.",
     ),
     (
-        lambda e: isinstance(e, NameError),
+        _is_formula_name_error,
         "The formula uses a name that PandaPlot does not know.",
         "Check the spelling of column names and functions in the formula.",
     ),

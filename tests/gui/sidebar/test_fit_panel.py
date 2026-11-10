@@ -1781,16 +1781,20 @@ def test_perform_fit_failure_path_shows_error_and_stops_spinner(app_context):
     assert "background-color: transparent;" in panel.results_text.styleSheet()
 
 
-def test_scipy_non_convergence_shows_plain_text_without_library_wording(app_context):
+def test_scipy_non_convergence_shows_plain_text_without_library_wording(app_context, monkeypatch):
+    import scipy.optimize
+
+    from pandaplot.services.fit.fit_service import FitService
+
     panel, executed = _build_panel_ready_to_fit(app_context)
     panel._perform_fit()
 
     command = executed["command"]
     command.task_scheduler = SyncTaskScheduler()
-    command.fit_service = Mock()
-    command.fit_service.perform_fit.side_effect = RuntimeError(
+    command.fit_service = FitService()
+    monkeypatch.setattr(scipy.optimize, "curve_fit", Mock(side_effect=RuntimeError(
         "Optimal parameters not found: Number of calls to function has reached maxfev = 800."
-    )
+    )))
     command.execute()
 
     text = panel.results_text.toPlainText()

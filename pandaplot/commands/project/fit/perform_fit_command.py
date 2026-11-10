@@ -18,9 +18,6 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.services.fit.fit_service import FitResult, FitService
 from pandaplot.services.qtasks.task_scheduler import TaskScheduler
 from pandaplot.utils.error_messages import ErrorDescription, describe_error
-from pandaplot.utils.errors import UserFacingError
-
-CUSTOM_FIT_TYPE = "Custom Function"
 
 
 class PerformFitCommand(BackgroundTaskCommand):
@@ -87,7 +84,7 @@ class PerformFitCommand(BackgroundTaskCommand):
         """Runs on a background thread. Never raises for an expected fit
         failure; returns a plain dict instead."""
         return self._run_task_safely(
-            self._perform_fit_with_plain_errors,
+            self.fit_service.perform_fit,
             fit_type=self.fit_type,
             x_data=self.x_data,
             y_data=self.y_data,
@@ -101,31 +98,6 @@ class PerformFitCommand(BackgroundTaskCommand):
             x_min=self.x_min,
             x_max=self.x_max,
         )
-
-    def _perform_fit_with_plain_errors(self, **fit_arguments) -> FitResult | None:
-        """Run the fit, turning scipy's raw failures into messages written for the user.
-
-        Args:
-            **fit_arguments: Keyword arguments forwarded to ``FitService.perform_fit``.
-
-        Returns:
-            The fit result.
-
-        Raises:
-            UserFacingError: When the optimiser did not converge or the data holds NaN/inf values.
-        """
-        try:
-            return self.fit_service.perform_fit(**fit_arguments)
-        except RuntimeError as e:
-            if self.fit_type == CUSTOM_FIT_TYPE:
-                advice = "Try other starting values, another model or a narrower X range."
-            else:
-                advice = "Try another model or a narrower X range."
-            raise UserFacingError(f"The fit did not converge for this data. {advice}") from e
-        except ValueError as e:
-            if not isinstance(e, UserFacingError) and "infs or NaNs" in str(e):
-                raise UserFacingError("The selected data contains empty or infinite values that the fit cannot use.") from e
-            raise
 
     def _on_fit_computed(self, outcome: dict) -> None:
         if outcome["success"]:

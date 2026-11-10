@@ -468,7 +468,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
                 self.logger.exception("Chart signal analysis panel failed to show the result")
-                self.results_text.setText(f"❌ Analysis failed:\n{describe_error(e).reason}")
+                self.results_text.setText(f"❌ Analysis failed:\n{describe_error(e).inline_text}")
 
         command.run_analysis_async(_on_complete)
 

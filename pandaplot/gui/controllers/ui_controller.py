@@ -27,10 +27,7 @@ def build_error_box(parent: QWidget | None, title: str, message: str, descriptio
     box.setIcon(QMessageBox.Icon.Critical)
     box.setWindowTitle(title)
     box.setText(message)
-    informative = description.reason
-    if description.next_step:
-        informative = f"{informative}\n\n{description.next_step}"
-    box.setInformativeText(informative)
+    box.setInformativeText(description.text)
     if description.details:
         box.setDetailedText(description.details)
     box.setStandardButtons(QMessageBox.StandardButton.Ok)

@@ -202,35 +202,12 @@ def _failing_command(fit_service, task_scheduler, exception, *, fit_type="linear
     return command
 
 
-def test_scipy_non_convergence_becomes_a_plain_reason(fit_service, task_scheduler):
-    command = _failing_command(
-        fit_service, task_scheduler, RuntimeError("Optimal parameters not found: Number of calls to function has reached maxfev = 800."),
-    )
-
-    description = command.error_description
-    assert description is not None
-    assert description.reason == "The fit did not converge for this data. Try another model or a narrower X range."
-    assert description.details == ""
-    assert "Optimal parameters" not in description.reason
-    assert "starting values" not in description.reason
-
-
-def test_custom_fit_non_convergence_mentions_starting_values(fit_service, task_scheduler):
-    command = _failing_command(
-        fit_service, task_scheduler, RuntimeError("Optimal parameters not found: maxfev"), fit_type="Custom Function",
-    )
+def test_user_facing_fit_errors_pass_through_unchanged(fit_service, task_scheduler):
+    command = _failing_command(fit_service, task_scheduler, UserFacingError("The fit did not converge for this data."))
 
     assert command.error_description is not None
-    assert command.error_description.reason == (
-        "The fit did not converge for this data. Try other starting values, another model or a narrower X range."
-    )
-
-
-def test_nan_or_inf_data_becomes_a_plain_reason(fit_service, task_scheduler):
-    command = _failing_command(fit_service, task_scheduler, ValueError("array must not contain infs or NaNs"))
-
-    assert command.error_description is not None
-    assert command.error_description.reason == "The selected data contains empty or infinite values that the fit cannot use."
+    assert command.error_description.reason == "The fit did not converge for this data."
+    assert command.error_description.details == ""
 
 
 def test_other_errors_are_described_by_the_shared_rules(fit_service, task_scheduler):

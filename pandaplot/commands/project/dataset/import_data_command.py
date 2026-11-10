@@ -1,3 +1,4 @@
+import errno
 import os
 import uuid
 from collections.abc import Callable
@@ -230,10 +231,7 @@ class ImportDataCommand(Command):
                 return {
                     "success": False,
                     "error": f"File not found: {self.file_path}",
-                    "error_description": describe_failure(
-                        "The file could not be found. It may have been moved, renamed or deleted.",
-                        "Check that the file is still there, then try again.",
-                    ),
+                    "error_description": describe_error(FileNotFoundError(errno.ENOENT, "File not found", self.file_path)),
                     "datasets": [],
                 }
 

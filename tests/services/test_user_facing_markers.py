@@ -43,3 +43,21 @@ def test_internal_unknown_fit_type_stays_a_plain_value_error():
     with pytest.raises(ValueError, match="Unknown fit type") as info:
         FitService()._get_fit_func("nope")
     assert not isinstance(info.value, UserFacingError)
+
+
+def test_invalid_regex_message_is_plain_and_points_at_the_problem():
+    with pytest.raises(QueryError) as info:
+        compile_query("(", use_regex=True)
+
+    message = str(info.value)
+    assert message.startswith("The search text is not a valid regular expression (near character 1).")
+    assert "unterminated" not in message
+
+
+def test_disallowed_formula_constructs_are_named_in_plain_words():
+    from pandaplot.services.transform.expression_engine import compile_expression
+
+    with pytest.raises(UnsafeExpressionError) as info:
+        compile_expression("(y := x)")
+
+    assert str(info.value) == "Formulas cannot use assignments with :=."

@@ -223,10 +223,18 @@ def _is_private(name: str) -> bool:
     return name.startswith("_") and name != "_"
 
 
+# Plain names for the Python constructs users most often type that expressions do not allow.
+_NODE_LABELS: dict[type[ast.AST], str] = {
+    ast.NamedExpr: "assignments with :=", ast.GeneratorExp: "generator expressions",
+    ast.Await: "await", ast.Yield: "yield", ast.YieldFrom: "yield", ast.Starred: "* unpacking",
+}
+
+
 def _check_node(node: ast.AST) -> None:
     """Raise UnsafeExpressionError if ``node`` is outside the allowed dialect."""
     if not isinstance(node, _ALLOWED_NODES):
-        raise UnsafeExpressionError(f"{type(node).__name__} is not allowed in an expression")
+        label = _NODE_LABELS.get(type(node), "this kind of expression")
+        raise UnsafeExpressionError(f"Formulas cannot use {label}.")
 
     if isinstance(node, ast.Name) and _is_private(node.id):
         raise UnsafeExpressionError(f"The name '{node.id}' is not allowed in an expression")

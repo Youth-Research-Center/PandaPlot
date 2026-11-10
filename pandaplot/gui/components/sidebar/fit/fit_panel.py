@@ -452,9 +452,7 @@ class FitPanel(SidebarPanel):
         description = command.error_description
         if description is None:
             return "The fit could not be calculated."
-        if description.next_step:
-            return f"{description.reason}\n\n{description.next_step}"
-        return description.reason
+        return description.text
 
     def _set_results_text_style(self, color: str | None = None):
         if color is None:

@@ -155,3 +155,35 @@ def test_formula_typo_and_unknown_name_get_formula_wording():
 def test_inline_text_joins_reason_and_next_step():
     assert describe_failure("It failed.", "Try again.").inline_text == "It failed. Try again."
     assert describe_failure("It failed.").inline_text == "It failed."
+
+
+def test_download_failures_are_not_described_as_local_file_problems():
+    import requests
+
+    try:
+        raise requests.ConnectionError("Max retries exceeded with url: /x.png")
+    except requests.ConnectionError as exc:
+        description = describe_error(exc)
+
+    assert description.reason == "PandaPlot could not download this from the internet."
+    assert description.next_step == "Check the address and your internet connection, then try again."
+
+
+def _uses_a_local_before_assignment() -> int:
+    if False:
+        value = 1
+    return value
+
+
+def test_name_errors_in_our_own_code_are_not_blamed_on_a_formula():
+    try:
+        _uses_a_local_before_assignment()
+    except UnboundLocalError as exc:
+        unbound = describe_error(exc)
+    try:
+        undefined_in_source()
+    except NameError as exc:
+        undefined = describe_error(exc)
+
+    assert unbound.reason == "Something went wrong that PandaPlot did not expect."
+    assert undefined.reason == "Something went wrong that PandaPlot did not expect."

@@ -65,7 +65,11 @@ def compile_query(
     try:
         return re.compile(pattern, flags)
     except re.error as exc:
-        raise QueryError(str(exc)) from exc
+        where = f" (near character {exc.pos + 1})" if exc.pos is not None else ""
+        raise QueryError(
+            f"The search text is not a valid regular expression{where}. Check brackets and special characters, "
+            "or turn off regular expressions."
+        ) from exc
 
 
 def _find_in_line(

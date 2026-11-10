@@ -141,6 +141,7 @@ class SketchTab(PWidget):
         try:
             export_sketch(self.sketch, Path(path), options)
         except SketchExportError as error:
+            self.logger.exception("Sketch export to %s failed", path)
             ui_controller.show_error_message("Export Failed", "Couldn't export the sketch.", error=error)
             return
         self.status_label.setText(f"Exported to {Path(path).name}")

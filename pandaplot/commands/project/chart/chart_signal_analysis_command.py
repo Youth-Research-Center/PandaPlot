@@ -331,7 +331,8 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
 
     def _on_commit_error(self, error_info) -> None:
         error_type, error_value, error_traceback = error_info
-        self.logger.error("Chart signal analysis failed", exc_info=(error_type, error_value, error_traceback))
+        # error_traceback is the worker's formatted text, not a traceback object, so it cannot go in exc_info.
+        self.logger.error("Chart signal analysis failed with %s: %s\n%s", error_type.__name__, error_value, error_traceback)
         self.ui_controller.show_error_message("Chart Signal Analysis Error", "Couldn't run the signal analysis.", error=error_value)
         self._notify_complete(CommandResult.FAILURE)
 
