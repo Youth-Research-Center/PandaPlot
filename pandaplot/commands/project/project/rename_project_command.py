@@ -97,6 +97,8 @@ class RenameProjectCommand(Command):
 
     @override
     def cleanup(self) -> None:
-        """Drop the project reference; old_name is needed by both undo() and
-        redo() (rename is symmetric via _apply_rename)."""
-        self._project = None
+        """No undo-only resource to release -- old_name and the renamed
+        project are needed by both undo() and redo() (rename is symmetric via
+        _apply_rename), and the project reference is small and goes away with
+        the command."""
+        return
