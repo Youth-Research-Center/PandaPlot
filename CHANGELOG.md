@@ -14,9 +14,11 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 ## [Unreleased]
 
 ### Fixed
+- Buttons and other controls drawn by the platform style (for example the Back, Next and Cancel buttons of the Analyze Measurements wizard) were unreadable white-on-white when the app used the light theme while Windows was in dark mode (or the reverse): the app now tells Qt which colour scheme its theme uses.
 - The (x, y) mouse readout on the chart toolbar reserves a fixed amount of space, so moving the cursor over the chart or leaving it no longer resizes the toolbar and makes the chart area flicker; readouts too long for the space, such as two Y values, are shortened with an ellipsis (#511).
 - Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
 - A chart with no series (made with "Create empty plot instead" or "Create Empty Chart") can now get data: **+ Add series** on the Data tab, or **Add Series** on the empty chart, opens a dialog to choose a dataset and the columns the chart type needs (#589). **Apply** on a chart with no series no longer silently adds a series from hidden settings.
+- Opening an example opens an untitled copy, so Save asks where to save it and the bundled example is never overwritten (#607).
 
 ### Added
 - **File → Project Details...** edits a project's name, its notes ("About this project", Markdown), a cover image, and, for projects marked **Use this project as an example**, the example's short description, section, level, tags, featured charts, start note and data credit (#597, #598, #613).
@@ -38,6 +40,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 
 ### Changed
 - Error dialogs explain in plain language what went wrong and what to try next; the technical text is under **Show Details** (#595).
+- The last glyph buttons are bundled icons (#586): the image editor's rotate buttons, the sketch layer manager's add/delete/up/down buttons, the data tab's move, expand/collapse and remove-series buttons, the chart wizard series card's expand/collapse chevrons, the "Insert function" button and the style tab's "Fill to" list; destructive buttons show a red icon that turns white on hover; FIT series are shown with plain names. Status messages are announced to assistive technology (accessible name and an alert for errors and warnings), the transform panel shows failures as errors like the other panels, and the fit panel's "too few points" text follows the warning colour (#601). Icons are rendered once and cached, which makes rebuilding the project tree faster (#602).
 - The remaining emoji in the interface are replaced by bundled icons that follow the theme (#573): item kinds on tabs, in the project tree, search results and the series/note pickers; success, error, warning and info messages in the analysis, preprocessing, signal, statistics, transform and fit panels (an icon beside plain text, above the result area); the check marks in the chart and note status bars and in the chart wizard step rail; marker shapes in the style tab; the welcome tab cards and recent projects; and the headers and buttons of the start, Create Visualization, Explore Data, Import and note artefacts dialogs. The About dialog shows the real panda icon. Labels are plain names, so renaming an item no longer involves an emoji prefix.
 - Sidebar panel titles show the panel's bundled icon, the same one as on the icon bar, instead of an emoji in the title text, and the help text names buttons and panels by their text only (#573).
 - The chart and note editor toolbars, the image gallery buttons and the image lightbox show bundled Phosphor icons that follow the theme colours instead of emoji or arrow glyphs; menus are unchanged and stay text only (#572). The gallery's back/forward/sort buttons are now icon buttons with accessible names, and the image lightbox is released when it closes.

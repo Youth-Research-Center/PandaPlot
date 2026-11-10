@@ -46,7 +46,10 @@ class TestPanelTopics:
         topic = catalog.get(topic_id)
 
         assert topic is not None
-        assert topic.related
+        operation_links = [related_id for related_id in topic.related if related_id not in PANEL_TOPIC_IDS]
+        assert operation_links, topic_id
+        assert topic_id not in topic.related
+        assert len(set(topic.related)) == len(topic.related)
 
 
 class TestAnalysisTopics:
@@ -72,8 +75,12 @@ class TestAnalysisTopics:
         ],
     )
     def test_mapped_ids_exist_in_the_catalog(self, catalog: HelpCatalog, mapping: dict) -> None:
-        for member, topic_id in mapping.items():
-            assert catalog.get(topic_id) is not None, f"{member} maps to unknown topic {topic_id}"
+        unknown = {member: topic_id for member, topic_id in mapping.items() if catalog.get(topic_id) is None}
+
+        assert mapping
+        assert unknown == {}
+        categories = {topic.id: topic.category for topic in catalog.topics()}
+        assert {categories[topic_id] for topic_id in mapping.values()} == {HelpCategory.ANALYSIS}
 
     @pytest.mark.parametrize(
         "mapping",
@@ -198,10 +205,16 @@ class TestAllModules:
 
     def test_related_ids_within_these_modules_resolve(self, catalog: HelpCatalog) -> None:
         own_prefixes = ("analysis.", "transforms.", "measurements.", "panel.")
-        for topic in catalog.topics():
-            for related_id in topic.related:
-                if related_id.startswith(own_prefixes):
-                    assert catalog.get(related_id) is not None, f"{topic.id} links to unknown {related_id}"
+        own_links = {
+            (topic.id, related_id)
+            for topic in catalog.topics()
+            for related_id in topic.related
+            if related_id.startswith(own_prefixes)
+        }
+        unresolved = sorted(link for link in own_links if catalog.get(link[1]) is None)
+
+        assert own_links
+        assert unresolved == []
 
     def test_related_ids_to_other_modules_follow_the_agreed_naming(self, catalog: HelpCatalog) -> None:
         agreed_prefixes = ("stats.", "preprocessing.", "signal.", "fit.", "descriptive.", "charts.")

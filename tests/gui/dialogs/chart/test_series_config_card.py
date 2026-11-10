@@ -1,9 +1,16 @@
 """Tests for SeriesConfigCard."""
 import pytest
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
-from pandaplot.gui.dialogs.chart.series_config_card import SeriesConfigCard
+from pandaplot.gui.dialogs.chart.series_config_card import (
+    _FALLBACK_DISABLED_ICON_COLOR,
+    _FALLBACK_ICON_COLOR,
+    SeriesConfigCard,
+)
+from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.chart.chart_type_spec import get_chart_type_spec
+from tests.gui.icon_testing import ICON_TOKENS, fresh_icon_tokens
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -363,3 +370,48 @@ def test_missing_required_roles_lists_roles_without_a_column():
 
     assert card.missing_required_roles() == []
     assert card.is_complete()
+
+
+def _icon_image(icon: QIcon, mode: QIcon.Mode = QIcon.Mode.Normal):
+    return icon.pixmap(16, 16, mode).toImage()
+
+
+def _expected_chevron(name: str, tokens: dict[str, str]) -> QIcon:
+    return build_icon(name, tokens["text_muted"], size=16, disabled_color=tokens["text_disabled"])
+
+
+def test_expand_and_collapse_buttons_show_chevron_icons_without_glyph_text_once_tokens_are_set():
+    card = _line_card()
+
+    card.set_tokens(fresh_icon_tokens())
+
+    for button, icon_name in ((card._expand_button, "caret-right"), (card._collapse_button, "caret-down")):
+        assert button.text() == ""
+        assert _icon_image(button.icon()) == _icon_image(_expected_chevron(icon_name, ICON_TOKENS))
+        assert _icon_image(button.icon(), QIcon.Mode.Disabled) == _icon_image(_expected_chevron(icon_name, ICON_TOKENS), QIcon.Mode.Disabled)
+
+
+def test_chevron_icons_follow_a_token_change():
+    card = _line_card()
+    card.set_tokens(fresh_icon_tokens())
+    dark = {**ICON_TOKENS, "text_muted": "#9AA0AB", "text_disabled": "#5B6270"}
+
+    card.set_tokens(dark)
+
+    assert _icon_image(card._expand_button.icon()) == _icon_image(_expected_chevron("caret-right", dark))
+    assert _icon_image(card._collapse_button.icon()) == _icon_image(_expected_chevron("caret-down", dark))
+
+
+def test_card_without_tokens_has_buttons_with_no_glyph_text_and_works():
+    card = _line_card()
+
+    fallback = {"text_muted": _FALLBACK_ICON_COLOR, "text_disabled": _FALLBACK_DISABLED_ICON_COLOR}
+    for button, icon_name in ((card._expand_button, "caret-right"), (card._collapse_button, "caret-down")):
+        assert button.text() == ""
+        assert not button.icon().isNull()
+        assert _icon_image(button.icon()) == _icon_image(_expected_chevron(icon_name, fallback))
+        assert _icon_image(button.icon(), QIcon.Mode.Disabled) == _icon_image(_expected_chevron(icon_name, fallback), QIcon.Mode.Disabled)
+    card._collapse_button.click()
+    assert card.is_collapsed()
+    card._expand_button.click()
+    assert not card.is_collapsed()

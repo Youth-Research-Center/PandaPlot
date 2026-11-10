@@ -1,13 +1,16 @@
 """Tests for LayerManagerPanel, driven through its controls inside a real SketchTab."""
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QWidget
 
 from pandaplot.app import build_app_context, create_tab_factory
 from pandaplot.gui.components.tabs.sketch.layer_manager_panel import LAYER_ID_ROLE, LayerManagerPanel
 from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
+from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.project import Project
 from pandaplot.models.project.items.sketch import RectangleElement, Sketch, SketchLayer
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 @pytest.fixture
@@ -289,3 +292,41 @@ def test_layers_button_hides_and_shows_the_panel(tab):
 
     tab.layers_action.trigger()
     assert tab.layer_panel.isVisible()
+
+
+_LAYER_BUTTON_ICONS = {
+    "add_button": ("plus", "Add layer", "Add a layer above the selected one"),
+    "delete_button": ("minus", "Delete layer", "Delete the selected layer"),
+    "up_button": ("caret-up", "Move layer up", "Move the selected layer up"),
+    "down_button": ("caret-down", "Move layer down", "Move the selected layer down"),
+}
+
+
+def _icon_image(icon) -> QImage:
+    return icon.pixmap(16, 16).toImage()
+
+
+def _expected_icon_image(name: str, tokens: dict) -> QImage:
+    return _icon_image(build_icon(name, tokens["text_primary"], size=16, disabled_color=tokens["text_disabled"]))
+
+
+def test_layer_buttons_show_icons_instead_of_glyph_text(app_context, panel):
+    tokens = app_context.get_manager(ThemeManager).get_design_tokens()
+
+    for attribute, (icon_name, accessible_name, tooltip) in _LAYER_BUTTON_ICONS.items():
+        button = getattr(panel, attribute)
+        assert button.text() == "", attribute
+        assert _icon_image(button.icon()) == _expected_icon_image(icon_name, tokens), attribute
+        assert button.accessibleName() == accessible_name, attribute
+        assert button.toolTip() == tooltip, attribute
+
+
+def test_layer_button_icons_retint_when_the_theme_changes(app_context, panel, monkeypatch):
+    manager = app_context.get_manager(ThemeManager)
+    dark_tokens = {**manager.get_design_tokens(), "text_primary": "#E2E2E2", "text_disabled": "#5B6270"}
+    monkeypatch.setattr(manager, "get_design_tokens", lambda: dict(dark_tokens))
+
+    panel._apply_theme()
+
+    for attribute, (icon_name, _name, _tooltip) in _LAYER_BUTTON_ICONS.items():
+        assert _icon_image(getattr(panel, attribute).icon()) == _expected_icon_image(icon_name, dark_tokens), attribute

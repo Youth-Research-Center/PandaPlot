@@ -2,7 +2,7 @@
 
 import pytest
 from PySide6.QtCore import QByteArray, QSize
-from PySide6.QtGui import QColor, QIcon
+from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 
 from pandaplot.gui.resources import icon_library
@@ -84,3 +84,105 @@ def test_build_icon_uses_selected_colour_for_selected_mode(qapp):
     normal = strongest_pixel(icon.pixmap(QSize(48, 48), QIcon.Mode.Normal))
     assert_tinted(selected, "#ffffff")
     assert_tinted(normal, "#2255aa")
+
+
+class _RenderCounter:
+    """Counts `QSvgRenderer` instances created by the icon library (one per rendered pixmap)."""
+
+    def __init__(self) -> None:
+        self.count = 0
+
+
+@pytest.fixture
+def render_counter(monkeypatch):
+    """Start every test from an empty icon cache and count the SVG renders the library performs."""
+    icon_library.clear_icon_cache()
+    counter = _RenderCounter()
+
+    def counting_renderer(data):
+        counter.count += 1
+        return QSvgRenderer(data)
+
+    monkeypatch.setattr(icon_library, "QSvgRenderer", counting_renderer)
+    yield counter
+    icon_library.clear_icon_cache()
+
+
+def test_identical_icons_are_rendered_once(qapp, render_counter):
+    icon_library.build_icon("folder", "#2255aa", size=16)
+    icon_library.build_icon("folder", "#2255aa", size=16)
+
+    assert render_counter.count == 1
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [
+        ({"name": "folder", "color": "#2255aa"}, {"name": "table", "color": "#2255aa"}),
+        ({"name": "folder", "color": "#2255aa"}, {"name": "folder", "color": "#aa2222"}),
+        ({"name": "folder", "color": "#2255aa", "size": 16}, {"name": "folder", "color": "#2255aa", "size": 24}),
+    ],
+    ids=["name", "colour", "size"],
+)
+def test_a_different_name_colour_or_size_renders_again(qapp, render_counter, first, second):
+    icon_library.build_icon(**first)
+    icon_library.build_icon(**second)
+
+    assert render_counter.count == 2
+
+
+def test_a_different_weight_renders_again(qapp, render_counter, monkeypatch):
+    regular_svg = icon_library.icon_svg("folder")
+    # Only the regular weight is bundled, so another weight is simulated.
+    monkeypatch.setattr(icon_library, "icon_svg", lambda name, *, weight: regular_svg)
+
+    icon_library.build_icon("folder", "#2255aa", weight="regular")
+    icon_library.build_icon("folder", "#2255aa", weight="fill")
+
+    assert render_counter.count == 2
+
+
+def test_a_different_device_pixel_ratio_renders_again(qapp, render_counter, monkeypatch):
+    monkeypatch.setattr(icon_library, "_device_pixel_ratio", lambda: 1.0)
+    icon_library.build_icon("folder", "#2255aa")
+    monkeypatch.setattr(icon_library, "_device_pixel_ratio", lambda: 2.0)
+    icon = icon_library.build_icon("folder", "#2255aa")
+
+    assert render_counter.count == 2
+    assert icon.availableSizes() == [QSize(40, 40)]
+
+
+def test_each_icon_state_is_rendered_once_per_colour(qapp, render_counter):
+    for _ in range(3):
+        icon_library.build_icon("folder", "#2255aa", disabled_color="#aaaaaa", selected_color="#ffffff")
+
+    assert render_counter.count == 3
+
+
+def test_clear_icon_cache_forces_a_re_render(qapp, render_counter):
+    icon_library.build_icon("folder", "#2255aa")
+    icon_library.clear_icon_cache()
+    icon_library.build_icon("folder", "#2255aa")
+
+    assert render_counter.count == 2
+
+
+def test_cached_icons_are_independent_objects(qapp, render_counter):
+    first = icon_library.build_icon("folder", "#2255aa", size=48)
+    second = icon_library.build_icon("folder", "#2255aa", size=48)
+    assert first is not second
+
+    extra = QPixmap(48, 48)
+    extra.fill(QColor("#ff0000"))
+    first.addPixmap(extra, QIcon.Mode.Disabled)
+
+    third = icon_library.build_icon("folder", "#2255aa", size=48)
+    assert_tinted(strongest_pixel(third.pixmap(QSize(48, 48), QIcon.Mode.Normal)), "#2255aa")
+    assert strongest_pixel(third.pixmap(QSize(48, 48), QIcon.Mode.Disabled)).red() < 200
+    assert render_counter.count == 1
+
+
+def test_a_failed_render_is_not_cached(qapp, render_counter):
+    for _ in range(2):
+        with pytest.raises(ValueError, match="colour"):
+            icon_library.build_icon("folder", "not-a-colour")

@@ -37,7 +37,7 @@ from pandaplot.gui.components.common.segmented_control import SegmentedControl
 from pandaplot.gui.components.tabs.image.image_lightbox_dialog import ImageLightboxDialog
 from pandaplot.gui.core.widget_extension import PWidget, unsubscribe_widget_tree
 from pandaplot.gui.dialogs.image.image_editor_dialog import ImageEditorDialog
-from pandaplot.gui.resources.themed_icons import ActionIcons, themed_icon
+from pandaplot.gui.resources.themed_icons import ActionIcons, IconRole, themed_icon
 from pandaplot.models.events.event_types import ProjectEvents
 from pandaplot.models.project.items import Image, ImageGallery
 from pandaplot.models.state.app_context import AppContext
@@ -229,7 +229,10 @@ class ImageGalleryTab(PWidget):
             (self.move_button, "folder-simple"),
             (self.copy_button, "copy"),
         ):
-            self._icons.bind(button, icon_name)
+            if button is self.delete_button:
+                self._icons.bind(button, icon_name, role=IconRole.ERROR, hover_role=IconRole.ON_DANGER)
+            else:
+                self._icons.bind(button, icon_name)
             toolbar.addWidget(button)
 
         from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox

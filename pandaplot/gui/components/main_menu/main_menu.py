@@ -480,7 +480,7 @@ class MainMenu(PMenuBar):
         # project (and against reloading the one already open) -- no need
         # to duplicate that check here.
         self.app_context.get_command_executor().execute_command(
-            LoadProjectCommand(self.app_context, dialog.selected_path)
+            LoadProjectCommand(self.app_context, dialog.selected_path, as_untitled_copy=True)
         )
 
     def show_about_dialog(self):

@@ -3,10 +3,12 @@
 import pytest
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QIcon
+from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import QStyledItemDelegate, QTreeWidgetItem, QTreeWidgetItemIterator
 
 from pandaplot.app import build_app_context
 from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
+from pandaplot.gui.resources import icon_library
 from pandaplot.gui.resources.item_icons import item_icon
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, ItemCollection, Note, Sketch
@@ -223,3 +225,30 @@ def test_a_selected_row_keeps_the_accent_background_when_hovered(panel):
     background = hovered_selected_row_background(tree_panel.tree, _tree_item(tree_panel, "dataset"))
 
     assert_tinted(background, context.get_manager(ThemeManager).get_surface_palette()["accent"])
+
+
+def test_rebuilding_a_large_tree_renders_each_icon_state_once(qtbot, monkeypatch):
+    app_context = build_app_context()
+    project = Project(name="Large")
+    for index in range(34):
+        project.add_item(Dataset(id=f"dataset-{index}", name=f"Data {index}"))
+        project.add_item(Chart(id=f"chart-{index}", name=f"Chart {index}"))
+        project.add_item(Note(id=f"note-{index}", name=f"Note {index}"))
+    panel = ProjectViewPanel(app_context=app_context)
+    qtbot.addWidget(panel)
+    app_context.get_app_state().load_project(project)
+    icon_library.clear_icon_cache()
+    renders = []
+
+    def counting_renderer(data):
+        renders.append(data)
+        return QSvgRenderer(data)
+
+    monkeypatch.setattr(icon_library, "QSvgRenderer", counting_renderer)
+
+    panel.project_tree_manager.update_project_tree(project)
+    panel.project_tree_manager.update_project_tree(project)
+
+    # The project root plus the dataset, chart and note kinds, each as normal, disabled and selected (three colours).
+    assert len(renders) == 4 * 3
+    icon_library.clear_icon_cache()

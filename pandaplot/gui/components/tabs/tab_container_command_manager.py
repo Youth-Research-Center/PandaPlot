@@ -39,8 +39,8 @@ class TabContainerCommandManager:
         self.app_context.get_command_executor().execute_command(command)
 
     def handle_example_project(self, project_path: str):
-        """Handle example project selection from welcome tab."""
-        command = LoadProjectCommand(self.app_context, project_path)
+        """Handle example project selection from welcome tab (opens an untitled copy)."""
+        command = LoadProjectCommand(self.app_context, project_path, as_untitled_copy=True)
         self.app_context.get_command_executor().execute_command(command)
 
     def handle_import_data(self):

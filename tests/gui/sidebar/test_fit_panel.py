@@ -54,9 +54,18 @@ def fit_panel(app_context):
 
 
 def test_fit_panel_constructs_with_expected_buttons(fit_panel):
-    assert isinstance(fit_panel.fit_button, PButton)
-    assert isinstance(fit_panel.apply_button, PButton)
-    assert isinstance(fit_panel.clear_button, PButton)
+    expected = [
+        (fit_panel.fit_button, "Perform Fit", "primary"),
+        (fit_panel.apply_button, "Apply", "secondary"),
+        (fit_panel.clear_button, "Clear Results", "secondary"),
+    ]
+    for button, text, role in expected:
+        assert isinstance(button, PButton)
+        assert button.text() == text
+        assert button.property(role) is True
+        assert button.receivers("2clicked(bool)") == 1
+    assert fit_panel.apply_button.isEnabled() is False
+    assert fit_panel.clear_button.isEnabled() is True
 
 
 def test_fit_button_enabled_state_matches_scipy_availability(app_context):
@@ -1990,11 +1999,12 @@ class TestFitPanelSeriesSelectedEvent:
         panel.app_context.app_state = Mock()
         panel.app_context.app_state.current_project = project
         panel.load_chart_object(chart)
-        panel.fit_results = _make_fake_fit_result()
+        fit_result = _make_fake_fit_result()
+        panel.fit_results = fit_result
 
         panel._on_chart_updated({"chart_id": "chart-1"})
 
-        assert panel.fit_results is not None
+        assert panel.fit_results is fit_result
 
 
 def test_apply_stays_disabled_with_a_tooltip_on_a_chart_type_that_does_not_allow_fits(app_context):
@@ -2221,6 +2231,63 @@ def test_data_points_warning_icon_follows_the_theme(app_context):
     panel._apply_theme()
 
     assert_tinted(strongest_pixel(panel.data_points_warning_icon.pixmap()), "#00AA00")
+
+
+def _panel_with_too_few_points(app_context):
+    dataset, chart = _make_dataset_and_chart_with_id_only_series()
+    project = Mock()
+    project.find_item = Mock(return_value=dataset)
+    panel = FitPanel(app_context)
+    panel.app_context.app_state = Mock()
+    panel.app_context.app_state.current_project = project
+    panel.load_chart_object(chart)
+    panel.fit_type_combo.setCurrentText("Quintic (polynomial, degree 5)")
+    return panel
+
+
+@pytest.mark.parametrize("warning_colour", ["#B06A00", "#FFB74D"])
+def test_data_points_text_shares_the_warning_icon_colour(app_context, warning_colour):
+    app_context.get_manager.return_value.get_design_tokens.return_value = {
+        "font_size_group_title": 9,
+        **ICON_TOKENS,
+        "status_modified_text": warning_colour,
+    }
+
+    panel = _panel_with_too_few_points(app_context)
+
+    assert panel.data_points_label.text() == "4 points"
+    assert panel.data_points_warning_icon.isHidden() is False
+    assert f"color: {warning_colour}" in panel.data_points_label.styleSheet()
+    assert "red" not in panel.data_points_label.styleSheet()
+    assert_tinted(strongest_pixel(panel.data_points_warning_icon.pixmap()), warning_colour)
+
+
+def test_data_points_text_follows_a_theme_change(app_context):
+    panel = _panel_with_too_few_points(app_context)
+    app_context.get_manager.return_value.get_design_tokens.return_value["status_modified_text"] = "#00AA00"
+
+    panel._apply_theme()
+
+    assert "color: #00AA00" in panel.data_points_label.styleSheet()
+    assert_tinted(strongest_pixel(panel.data_points_warning_icon.pixmap()), "#00AA00")
+
+
+def test_range_warning_uses_the_theme_warning_colour(app_context):
+    app_context.get_manager.return_value.get_design_tokens.return_value = {
+        "font_size_group_title": 9,
+        **ICON_TOKENS,
+        "status_modified_text": "#123456",
+    }
+    panel = FitPanel(app_context)
+    panel._apply_theme()
+
+    assert "color: #123456" in panel.range_warning_label.styleSheet()
+    assert "red" not in panel.range_warning_label.styleSheet()
+
+    app_context.get_manager.return_value.get_design_tokens.return_value["status_modified_text"] = "#00AA00"
+    panel._apply_theme()
+
+    assert "color: #00AA00" in panel.range_warning_label.styleSheet()
 
 
 def test_availability_label_uses_theme_warning_color(app_context):

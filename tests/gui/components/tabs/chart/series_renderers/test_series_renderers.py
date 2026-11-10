@@ -12,6 +12,7 @@ matplotlib.use("Agg")  # no display needed for these pure-drawing tests
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from matplotlib.collections import QuadMesh
 from matplotlib.colors import to_hex
 from matplotlib.patches import Wedge
 from matplotlib.quiver import Quiver
@@ -669,7 +670,14 @@ def test_render_heatmap_series_returns_pcolormesh_mappable_for_grid_data():
     mappable = render_heatmap_series(ax, data, style, "S", 1.0, visible=True,
                                       extra={"colormap": "viridis", "color_limits": (None, None)})
 
-    assert mappable is not None
+    assert isinstance(mappable, QuadMesh)
+    assert mappable in ax.collections
+    # Pivoted onto the (y, x) lattice: grid[j, i] is the z at (xs[i], ys[j]).
+    np.testing.assert_array_equal(np.asarray(mappable.get_array()), [[1.0, 2.0], [3.0, 4.0]])
+    # One cell per input point, centred on it (shading="nearest").
+    assert mappable.get_coordinates().shape == (3, 3, 2)
+    assert mappable.get_coordinates()[0, 0].tolist() == [-0.5, -0.5]
+    assert mappable.get_coordinates()[-1, -1].tolist() == [1.5, 1.5]
     plt.close(fig)
 
 
@@ -717,6 +725,8 @@ _HEATMAP_XYZ = {
 @pytest.mark.parametrize("gridding", ["grid", "binned", "interpolated", "triangulated"])
 @pytest.mark.parametrize("render_mode", ["contour_lines", "contour_filled", "contour_filled_lines"])
 def test_render_heatmap_series_contour_modes_produce_a_mappable(gridding, render_mode):
+    from matplotlib.contour import ContourSet
+
     from pandaplot.gui.components.tabs.chart.series_renderers.heatmap import render_heatmap_series
 
     fig, ax = plt.subplots()
@@ -724,10 +734,29 @@ def test_render_heatmap_series_contour_modes_produce_a_mappable(gridding, render
     style = HeatmapSeriesStyle(heatmap_gridding=gridding, heatmap_resolution=6,
                                 render_mode=render_mode, contour_levels=4)
 
-    mappable = render_heatmap_series(ax, data, style, "S", 1.0, visible=True,
+    mappable = render_heatmap_series(ax, data, style, "S", 0.7, visible=True,
                                       extra={"colormap": "viridis", "color_limits": (None, None)})
 
-    assert mappable is not None
+    contour_sets = [artist for artist in ax.collections if isinstance(artist, ContourSet)]
+    assert isinstance(mappable, ContourSet)
+    assert mappable in contour_sets
+    assert mappable.get_cmap().name == "viridis"
+    assert mappable.get_alpha() == 0.7
+    # The levels span the data range (z runs 1..5) whichever gridding produced the field.
+    assert mappable.levels[0] <= 1.0
+    assert mappable.levels[-1] >= 5.0
+    if render_mode == "contour_lines":
+        assert not mappable.filled
+        assert len(contour_sets) == 1
+    elif render_mode == "contour_filled":
+        assert mappable.filled
+        assert len(contour_sets) == 1
+    else:
+        # The filled set is the colorbar mappable; the lines sit on top of it in a fixed colour.
+        assert mappable.filled
+        assert len(contour_sets) == 2
+        (line_set,) = [contour_set for contour_set in contour_sets if not contour_set.filled]
+        assert {tuple(color) for color in line_set.get_edgecolor()} == {(0.0, 0.0, 0.0, 0.7)}
     plt.close(fig)
 
 
@@ -761,6 +790,10 @@ def test_render_heatmap_series_contour_lines_only_returns_the_line_contour_set()
                                       extra={"colormap": "viridis", "color_limits": (None, None)})
 
     assert isinstance(mappable, ContourSet)
+    assert not mappable.filled
+    # The line set is the only contour artist, and it is coloured through the shared colormap.
+    assert [artist for artist in ax.collections if isinstance(artist, ContourSet)] == [mappable]
+    assert mappable.get_cmap().name == "viridis"
     plt.close(fig)
 
 
@@ -773,10 +806,16 @@ def test_render_heatmap_series_triangulated_mesh_returns_a_trimesh():
     data = _series_data(**_HEATMAP_XYZ)
     style = HeatmapSeriesStyle(heatmap_gridding="triangulated", render_mode="mesh")
 
-    mappable = render_heatmap_series(ax, data, style, "S", 1.0, visible=True,
-                                      extra={"colormap": "viridis", "color_limits": (None, None)})
+    mappable = render_heatmap_series(ax, data, style, "S", 0.5, visible=True,
+                                      extra={"colormap": "viridis", "color_limits": (0.0, 9.0)})
 
     assert isinstance(mappable, TriMesh)
+    assert mappable in ax.collections
+    # One value per scattered point (no gridding), drawn through the shared colour scale.
+    np.testing.assert_array_equal(np.asarray(mappable.get_array()), _HEATMAP_XYZ["z_data"])
+    assert mappable.get_alpha() == 0.5
+    assert mappable.get_clim() == (0.0, 9.0)
+    assert mappable.get_cmap().name == "viridis"
     plt.close(fig)
 
 
@@ -812,19 +851,31 @@ def test_render_heatmap_series_triangulated_returns_none_for_collinear_points():
     plt.close(fig)
 
 
-def test_render_heatmap_series_contour_line_labels_does_not_raise():
+def test_render_heatmap_series_contour_line_labels_are_drawn_on_the_axes():
+    from matplotlib.contour import ContourSet
+
     from pandaplot.gui.components.tabs.chart.series_renderers.heatmap import render_heatmap_series
 
-    fig, ax = plt.subplots()
-    data = _series_data(**_HEATMAP_XYZ)
-    style = HeatmapSeriesStyle(heatmap_gridding="grid", render_mode="contour_filled_lines",
-                                contour_levels=4, contour_line_labels=True)
+    def _render(*, labels: bool):
+        fig, ax = plt.subplots()
+        style = HeatmapSeriesStyle(heatmap_gridding="grid", render_mode="contour_filled_lines",
+                                    contour_levels=4, contour_line_labels=labels)
+        mappable = render_heatmap_series(ax, _series_data(**_HEATMAP_XYZ), style, "S", 1.0, visible=True,
+                                          extra={"colormap": "viridis", "color_limits": (None, None)})
+        return fig, ax, mappable
 
-    mappable = render_heatmap_series(ax, data, style, "S", 1.0, visible=True,
-                                      extra={"colormap": "viridis", "color_limits": (None, None)})
+    fig, ax, mappable = _render(labels=True)
+    unlabelled_fig, unlabelled_ax, _ = _render(labels=False)
 
-    assert mappable is not None
+    assert isinstance(mappable, ContourSet)
+    assert mappable.filled
+    assert len(unlabelled_ax.texts) == 0
+    assert len(ax.texts) > 0
+    # Each label is a contour level value, and the levels span the data range (z runs 1..5).
+    label_values = [float(text.get_text()) for text in ax.texts]
+    assert all(mappable.levels[0] <= value <= mappable.levels[-1] for value in label_values)
     plt.close(fig)
+    plt.close(unlabelled_fig)
 
 
 def test_render_heatmap_series_logs_a_failed_contour_label_placement(monkeypatch, caplog):

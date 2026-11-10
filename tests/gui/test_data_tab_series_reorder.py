@@ -9,16 +9,20 @@ import sys
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QPushButton
 
 from pandaplot.app import build_app_context
 from pandaplot.gui.components.sidebar.chart.tabs.data_tab import DataTab
+from pandaplot.gui.resources.icon_library import build_icon
+from pandaplot.gui.resources.themed_icons import IconRole
 from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.project import Project
+from pandaplot.services.theme.theme_manager import ThemeManager
 
 
 def _qapp():
@@ -103,7 +107,7 @@ def test_moving_the_selected_series_follows_it_to_the_new_index(data_tab_with_ch
 def test_move_up_button_disabled_for_first_series(data_tab_with_chart):
     data_tab, _chart, _ = data_tab_with_chart
 
-    up_buttons = [b for b in data_tab.findChildren(QPushButton) if b.text() == "▲"]
+    up_buttons = [b for b in data_tab.findChildren(QPushButton) if b.accessibleName() == "Move series up"]
     # One "up" button per series row (collapsed cards, since nothing is expanded beyond index 0).
     assert len(up_buttons) >= 3
     assert up_buttons[0].isEnabled() is False
@@ -113,7 +117,7 @@ def test_move_up_button_disabled_for_first_series(data_tab_with_chart):
 def test_move_down_button_disabled_for_last_series(data_tab_with_chart):
     data_tab, _chart, _ = data_tab_with_chart
 
-    down_buttons = [b for b in data_tab.findChildren(QPushButton) if b.text() == "▼"]
+    down_buttons = [b for b in data_tab.findChildren(QPushButton) if b.accessibleName() == "Move series down"]
     assert len(down_buttons) >= 3
     assert down_buttons[-1].isEnabled() is False
     assert all(b.isEnabled() for b in down_buttons[:-1])
@@ -122,7 +126,7 @@ def test_move_down_button_disabled_for_last_series(data_tab_with_chart):
 def test_clicking_move_down_button_reorders_series(data_tab_with_chart):
     data_tab, chart, _ = data_tab_with_chart
 
-    down_button = next(b for b in data_tab.findChildren(QPushButton) if b.text() == "▼" and b.isEnabled())
+    down_button = next(b for b in data_tab.findChildren(QPushButton) if b.accessibleName() == "Move series down" and b.isEnabled())
     QTest.mouseClick(down_button, Qt.MouseButton.LeftButton)
 
     assert _labels(chart) == ["B", "A", "C"]
@@ -144,7 +148,7 @@ def _current_generation_move_buttons(data_tab):
     for i in range(data_tab._series_cards_layout.count()):
         widget = data_tab._series_cards_layout.itemAt(i).widget()
         if widget is not None:
-            buttons.extend(b for b in widget.findChildren(QPushButton) if b.text() in ("▲", "▼"))
+            buttons.extend(b for b in widget.findChildren(QPushButton) if b.accessibleName() in ("Move series up", "Move series down"))
     return buttons
 
 
@@ -191,8 +195,92 @@ def test_clicking_a_fit_rows_move_up_button_reorders_it_earlier(data_tab_with_ch
     assert _labels(chart) == ["A", "B", "C", "Fit 1"]
 
     fit_card = data_tab._series_cards_layout.itemAt(3).widget()
-    up_button = next(b for b in fit_card.findChildren(QPushButton) if b.text() == "▲")
+    up_button = next(b for b in fit_card.findChildren(QPushButton) if b.accessibleName() == "Move series up")
     assert up_button.isEnabled()
     QTest.mouseClick(up_button, Qt.MouseButton.LeftButton)
 
     assert _labels(chart) == ["A", "B", "Fit 1", "C"]
+
+
+def _icon_image(icon, mode=QIcon.Mode.Normal):
+    return icon.pixmap(16, 16, mode).toImage()
+
+
+def _expected_icon(name, tokens, role=IconRole.TEXT):
+    return build_icon(name, tokens[role.value], size=16, disabled_color=tokens["text_disabled"])
+
+
+def _card_buttons(data_tab, accessible_name):
+    """Buttons with `accessible_name` in the currently laid-out cards, in card order."""
+    buttons = []
+    for i in range(data_tab._series_cards_layout.count()):
+        widget = data_tab._series_cards_layout.itemAt(i).widget()
+        if widget is not None:
+            buttons.extend(b for b in widget.findChildren(QPushButton) if b.accessibleName() == accessible_name)
+    return buttons
+
+
+def test_series_row_buttons_show_icons_instead_of_glyph_text(data_tab_with_chart):
+    data_tab, _chart, app_context = data_tab_with_chart
+    tokens = app_context.get_manager(ThemeManager).get_design_tokens()
+
+    expected = {
+        "Move series up": ("caret-up", IconRole.TEXT),
+        "Move series down": ("caret-down", IconRole.TEXT),
+        "Remove series": ("trash", IconRole.ERROR),
+        "Expand series details": ("caret-right", IconRole.TEXT),
+    }
+    for accessible_name, (icon_name, role) in expected.items():
+        buttons = _card_buttons(data_tab, accessible_name)
+        assert buttons, accessible_name
+        for button in buttons:
+            assert button.text() == "", accessible_name
+            assert _icon_image(button.icon()) == _icon_image(_expected_icon(icon_name, tokens, role)), accessible_name
+
+
+def test_remove_series_icon_turns_white_on_hover(data_tab_with_chart):
+    data_tab, _chart, app_context = data_tab_with_chart
+    tokens = app_context.get_manager(ThemeManager).get_design_tokens()
+    button = _card_buttons(data_tab, "Remove series")[0]
+
+    QApplication.sendEvent(button, QEvent(QEvent.Type.Enter))
+    assert _icon_image(button.icon()) == _icon_image(_expected_icon("trash", tokens, IconRole.ON_DANGER))
+
+    QApplication.sendEvent(button, QEvent(QEvent.Type.Leave))
+    assert _icon_image(button.icon()) == _icon_image(_expected_icon("trash", tokens, IconRole.ERROR))
+
+
+def test_chevron_icon_follows_the_expanded_state(data_tab_with_chart):
+    data_tab, _chart, app_context = data_tab_with_chart
+    tokens = app_context.get_manager(ThemeManager).get_design_tokens()
+    data_tab._toggle_card_expanded(1)
+
+    collapse = _card_buttons(data_tab, "Collapse series details")
+    assert len(collapse) == 1
+    assert collapse[0].text() == ""
+    assert _icon_image(collapse[0].icon()) == _icon_image(_expected_icon("caret-down", tokens))
+
+    expanded = _card_buttons(data_tab, "Series details expanded")
+    assert len(expanded) == 1
+    assert expanded[0].text() == ""
+    assert expanded[0].isEnabled() is False
+    assert _icon_image(expanded[0].icon()) == _icon_image(_expected_icon("caret-down", tokens))
+    assert _icon_image(expanded[0].icon(), QIcon.Mode.Disabled) == _icon_image(_expected_icon("caret-down", tokens), QIcon.Mode.Disabled)
+
+    expand = _card_buttons(data_tab, "Expand series details")
+    assert expand
+    assert all(_icon_image(b.icon()) == _icon_image(_expected_icon("caret-right", tokens)) for b in expand)
+
+
+def test_series_row_icons_retint_when_the_theme_changes(data_tab_with_chart, monkeypatch):
+    data_tab, _chart, app_context = data_tab_with_chart
+    manager = app_context.get_manager(ThemeManager)
+    dark_tokens = {**manager.get_design_tokens(), "text_primary": "#E2E2E2", "text_disabled": "#5B6270", "status_danger": "#C24141"}
+    monkeypatch.setattr(manager, "get_design_tokens", lambda: dict(dark_tokens))
+
+    data_tab.apply_theme(dark_tokens)
+
+    up = _card_buttons(data_tab, "Move series up")[0]
+    trash = _card_buttons(data_tab, "Remove series")[0]
+    assert _icon_image(up.icon()) == _icon_image(_expected_icon("caret-up", dark_tokens))
+    assert _icon_image(trash.icon()) == _icon_image(_expected_icon("trash", dark_tokens, IconRole.ERROR))

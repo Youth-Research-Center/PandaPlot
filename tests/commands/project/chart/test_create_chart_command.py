@@ -89,14 +89,19 @@ def test_redo_readds_the_same_chart_instance(app_context_with_project):
     assert project.add_item.call_args == ((chart,), {"parent_id": "folder-1"})
 
 
-def test_undo_without_project_does_not_raise(app_context_with_project):
-    app_context, _ = app_context_with_project
+def test_undo_without_project_fails_without_removing_or_emitting(app_context_with_project):
+    app_context, project = app_context_with_project
     chart = _chart()
     command = CreateChartCommand(app_context, chart)
     command.execute()
     app_context.get_app_state.return_value.has_project = False
+    app_context.event_bus.emit.reset_mock()
 
-    command.undo()  # must not raise
+    result = command.undo()
+
+    assert result is CommandResult.FAILURE
+    project.remove_item_by_id.assert_not_called()
+    app_context.event_bus.emit.assert_not_called()
 
 
 def test_execute_returns_false_when_add_item_raises(app_context_with_project):

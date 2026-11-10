@@ -837,7 +837,7 @@ def test_non_vector_series_config_leaves_u_v_magnitude_empty(mock_wizard_cls, ap
 
 
 @patch("pandaplot.gui.dialogs.chart.chart_wizard.ChartWizard")
-def test_cleanup_does_not_raise(mock_wizard_cls, app_context_with_project):
+def test_cleanup_is_a_documented_noop(mock_wizard_cls, app_context_with_project):
     """This command never occupies an undo slot, so CommandExecutor never
     calls cleanup() on it -- this only guards the documented no-op."""
     app_context, _ = app_context_with_project
@@ -845,5 +845,8 @@ def test_cleanup_does_not_raise(mock_wizard_cls, app_context_with_project):
 
     command = CreateChartFromWizardCommand(app_context)
     command.execute()
+    state_before = dict(vars(command))
 
-    command.cleanup()  # must not raise
+    assert command.cleanup() is None
+
+    assert vars(command) == state_before

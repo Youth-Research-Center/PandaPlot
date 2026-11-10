@@ -76,11 +76,6 @@ class TestTreeVisitor(unittest.TestCase):
         # Check that all expected items were created
         for expected in expected_items:
             self.assertIn(expected, actual_display_texts)
-        
-        print("✅ Visitor test passed - all items created correctly")
-        print(f"Created {len(self.tree_items)} tree items:")
-        for item in self.tree_items:
-            print(f"  - {item.display_text} ({item.item_type})")
     
     def test_visitor_with_nested_folders(self):
         """Test visitor with nested folder structure."""
@@ -110,7 +105,6 @@ class TestTreeVisitor(unittest.TestCase):
                 break
         
         self.assertIsNotNone(root_item)
-        print("✅ Nested folder test passed")
 
     def test_visitor_creates_image_gallery_item(self):
         from pandaplot.models.project.items import ImageGallery
@@ -152,7 +146,6 @@ class TestTreeVisitor(unittest.TestCase):
         gallery_item = next(i for i in self.tree_items if i.display_text == "Trip")
         assert gallery_item.children == []
 
-
     def test_visitor_passes_the_plain_name_for_every_item_type(self):
         from pandaplot.models.project.items import Chart, Image, ImageGallery, Item, ItemCollection, Sketch
 
@@ -187,7 +180,3 @@ class TestTreeVisitor(unittest.TestCase):
             "item": "Generic name",
         }
         assert generic.display_text == "Generic name"
-
-
-if __name__ == "__main__":
-    unittest.main()

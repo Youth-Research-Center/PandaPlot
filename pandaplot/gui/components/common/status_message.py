@@ -3,7 +3,7 @@
 from enum import Enum
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtGui import QAccessible, QAccessibleEvent, QColor, QPalette
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QSizePolicy, QWidget
 
 from pandaplot.gui.components.common.icon_label import IconLabel
@@ -36,11 +36,16 @@ class StatusKind(Enum):
         return self.value[2]
 
 
+_ALERT_KINDS = frozenset({StatusKind.ERROR, StatusKind.WARNING})  # kinds announced to assistive technology as an alert
+
+
 class StatusMessage(QWidget):
     """A status message: a kind-coloured icon beside word-wrapped plain text.
 
     The widget is hidden while it has no message. The icon is decorative; the whole widget exposes
-    ``"<Kind>: <text>"`` as its accessible description. The owner calls `retint()` from its theme handler.
+    ``"<Kind>: <text>"`` as its accessible description and the text label as its accessible name. An error or a
+    warning is also announced to assistive technology as an alert once per changed message. The owner calls
+    `retint()` from its theme handler.
 
     Args:
         app_context: Provides the `ThemeManager` whose design tokens supply the colours.
@@ -74,17 +79,22 @@ class StatusMessage(QWidget):
             return
         if kind is not self._kind or self._icon is None:
             self._replace_icon(kind)
+        changed = kind is not self._kind or text != self._message
         self._kind = kind
         self._message = text
         self._text.setText(text)
+        self._text.setAccessibleName(f"{kind.label}: {text}")
         self.setAccessibleDescription(f"{kind.label}: {text}")
         self.setVisible(True)
+        if changed and kind in _ALERT_KINDS:
+            QAccessible.updateAccessibility(QAccessibleEvent(self._text, QAccessible.Event.Alert))
 
     def clear(self) -> None:
         """Remove the message and hide the widget."""
         self._kind = None
         self._message = ""
         self._text.clear()
+        self._text.setAccessibleName("")
         self.setAccessibleDescription("")
         self.setVisible(False)
 

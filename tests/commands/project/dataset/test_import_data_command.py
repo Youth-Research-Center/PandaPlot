@@ -45,13 +45,16 @@ def test_read_frames_honors_delimiter_and_header(tmp_path):
     assert df.iloc[0].tolist() == [10, 20, 30]
 
 
-def test_cleanup_does_not_raise():
+def test_cleanup_is_a_documented_noop():
     """ImportDataCommand never occupies an undo slot (see #301), so
     CommandExecutor never calls cleanup() on it -- this only guards the
     documented no-op."""
     command = ImportDataCommand(Mock())
+    state_before = dict(vars(command))
 
-    command.cleanup()  # must not raise
+    assert command.cleanup() is None
+
+    assert vars(command) == state_before
 
 
 def test_occupies_undo_slot_is_false():
