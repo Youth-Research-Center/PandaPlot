@@ -65,7 +65,7 @@ START_NOTE_CONTENT = """\
 This project looks at a small shop's sales. Everything is organised in three folders.
 
 1. In **Raw Data**, open **Monthly Sales** to see the table, one row per month.
-2. In **Analysis**, open **Sales Trend**. Sales grow steadily from January to June.
+2. In **Analysis**, open **Sales Trend**. Sales grow from January to June, with a dip in March.
 3. Open **Customer Distribution** to see how much the 100 customers spent.
 4. In **Reports**, read **Analysis Summary** and **Methodology** to see how findings are written up.
 
@@ -187,7 +187,7 @@ def create_sample_project():
     analysis_content = f"""# Sales Analysis Summary
 
 ## Key Findings:
-- Monthly sales show steady growth from January to June
+- Monthly sales grow from January to June, with a dip in March
 - Total sales increased by 75% over the 6-month period
 - Customer satisfaction averages {customer_data['Satisfaction'].mean():.1f}/5.0
 - Strong correlation between units sold and total sales
