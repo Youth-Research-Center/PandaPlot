@@ -14,6 +14,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 ## [Unreleased]
 
 ### Fixed
+- Buttons and other controls drawn by the platform style (for example the Back, Next and Cancel buttons of the Analyze Measurements wizard) were unreadable white-on-white when the app used the light theme while Windows was in dark mode (or the reverse): the app now tells Qt which colour scheme its theme uses.
 - The (x, y) mouse readout on the chart toolbar reserves a fixed amount of space, so moving the cursor over the chart or leaving it no longer resizes the toolbar and makes the chart area flicker; readouts too long for the space, such as two Y values, are shortened with an ellipsis (#511).
 - Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
 - A chart with no series (made with "Create empty plot instead" or "Create Empty Chart") can now get data: **+ Add series** on the Data tab, or **Add Series** on the empty chart, opens a dialog to choose a dataset and the columns the chart type needs (#589). **Apply** on a chart with no series no longer silently adds a series from hidden settings.

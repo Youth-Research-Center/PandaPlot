@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QApplication
 
@@ -471,6 +472,9 @@ class ThemeManager:
         else:
             bg = QColor(255, 255, 255)
             fg = QColor(0, 0, 0)
+        # Controls the platform style draws itself (e.g. QWizard buttons on the Windows 11 style) follow Qt's colour scheme, which
+        # defaults to the operating system's. Without this, a light app theme on a dark OS drew white text on white buttons.
+        self._app.styleHints().setColorScheme(Qt.ColorScheme.Dark if ctx.theme == Theme.DARK else Qt.ColorScheme.Light)
         accent = QColor(ctx.accent)
         if not accent.isValid():
             accent = QColor(74, 86, 198)
