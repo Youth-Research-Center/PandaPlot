@@ -12,11 +12,13 @@ from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.tabs.image.image_gallery_tab import ImageGalleryTab
 from pandaplot.gui.components.tabs.image.image_lightbox_dialog import ImageLightboxDialog
 from pandaplot.gui.resources.icon_library import build_icon
+from pandaplot.gui.resources.themed_icons import IconRole
 from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ThemeEvents
 from pandaplot.models.project.items import Image, ImageGallery
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
+from tests.gui.icon_testing import fresh_icon_tokens
 
 
 def _project_stub(*items):
@@ -68,15 +70,10 @@ def _bordered_png_bytes(size: int = 120, border: int = 20) -> bytes:
     return bytes(buffer.data())
 
 
-_FAKE_TOKENS = {
-    "text_muted": "#6B7280",
+_EXTRA_TOKENS = {
     "border_subtle": "#ECEEF2",
     "surface_white": "#FFFFFF",
-    "accent": "#4A56C6",
     "accent_selected_bg": "#EEF0FB",
-    "text_primary": "#1C1E26",
-    "accent_icon_active": "#404BAC",
-    "text_disabled": "#AEB2BC",
 }
 
 
@@ -86,7 +83,7 @@ def app_context():
     ctx.event_bus = Mock()
     ctx.get_app_state.return_value = Mock()
 
-    ctx.theme_tokens = dict(_FAKE_TOKENS)
+    ctx.theme_tokens = {**fresh_icon_tokens(), **_EXTRA_TOKENS}
     theme_manager = Mock()
     theme_manager.get_design_tokens.side_effect = lambda: dict(ctx.theme_tokens)
 
@@ -1554,13 +1551,13 @@ class TestImageGalleryTabLightboxLifetime:
 _ICON_SIZE = 16
 
 _LABELLED_BUTTON_ICONS = {
-    "import_button": ("Import Images...", "image"),
-    "edit_image_button": ("Edit Image...", "pencil-simple"),
-    "rename_button": ("Rename", "textbox"),
-    "delete_button": ("Delete", "trash"),
-    "group_into_album_button": ("Group into Album", "stack"),
-    "move_button": ("Move...", "folder-simple"),
-    "copy_button": ("Copy to...", "copy"),
+    "import_button": ("Import Images...", "image", IconRole.TEXT),
+    "edit_image_button": ("Edit Image...", "pencil-simple", IconRole.TEXT),
+    "rename_button": ("Rename", "textbox", IconRole.TEXT),
+    "delete_button": ("Delete", "trash", IconRole.ERROR),
+    "group_into_album_button": ("Group into Album", "stack", IconRole.TEXT),
+    "move_button": ("Move...", "folder-simple", IconRole.TEXT),
+    "copy_button": ("Copy to...", "copy", IconRole.TEXT),
 }
 
 _ICON_ONLY_BUTTONS = {
@@ -1572,8 +1569,8 @@ def _icon_image(icon) -> QImage:
     return icon.pixmap(_ICON_SIZE, _ICON_SIZE).toImage()
 
 
-def _expected_icon_image(name: str, tokens: dict[str, str]) -> QImage:
-    icon = build_icon(name, tokens["text_primary"], size=_ICON_SIZE, disabled_color=tokens["text_disabled"])
+def _expected_icon_image(name: str, tokens: dict[str, str], role: IconRole = IconRole.TEXT) -> QImage:
+    icon = build_icon(name, tokens[role.value], size=_ICON_SIZE, disabled_color=tokens["text_disabled"])
     return _icon_image(icon)
 
 
@@ -1581,10 +1578,35 @@ class TestImageGalleryTabIcons:
     def test_labelled_buttons_show_their_icon_and_keep_their_text(self, app_context):
         tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
 
-        for attribute, (text, icon_name) in _LABELLED_BUTTON_ICONS.items():
+        for attribute, (text, icon_name, role) in _LABELLED_BUTTON_ICONS.items():
             button = getattr(tab, attribute)
             assert button.text() == text, attribute
-            assert _icon_image(button.icon()) == _expected_icon_image(icon_name, app_context.theme_tokens), attribute
+            assert _icon_image(button.icon()) == _expected_icon_image(icon_name, app_context.theme_tokens, role), attribute
+
+    def test_delete_button_icon_is_red_and_turns_white_on_hover(self, app_context):
+        tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
+        tab.delete_button.setEnabled(True)
+        tokens = app_context.theme_tokens
+
+        assert _icon_image(tab.delete_button.icon()) == _expected_icon_image("trash", tokens, IconRole.ERROR)
+
+        QApplication.sendEvent(tab.delete_button, QEvent(QEvent.Type.Enter))
+        assert _icon_image(tab.delete_button.icon()) == _expected_icon_image("trash", tokens, IconRole.ON_DANGER)
+
+        QApplication.sendEvent(tab.delete_button, QEvent(QEvent.Type.Leave))
+        assert _icon_image(tab.delete_button.icon()) == _expected_icon_image("trash", tokens, IconRole.ERROR)
+
+    def test_delete_button_hover_icon_retints_when_the_theme_changes(self, app_context):
+        tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
+        tab.delete_button.setEnabled(True)
+        app_context.theme_tokens.update(status_danger="#C24141", text_on_danger="#F0F0F0")
+
+        tab._apply_theme()
+
+        tokens = app_context.theme_tokens
+        assert _icon_image(tab.delete_button.icon()) == _expected_icon_image("trash", tokens, IconRole.ERROR)
+        QApplication.sendEvent(tab.delete_button, QEvent(QEvent.Type.Enter))
+        assert _icon_image(tab.delete_button.icon()) == _expected_icon_image("trash", tokens, IconRole.ON_DANGER)
 
     def test_icon_only_navigation_buttons_have_icon_name_tooltip_and_focus(self, app_context):
         tab = ImageGalleryTab(app_context=app_context, gallery=ImageGallery(name="Trip"), parent=None)
@@ -1645,8 +1667,8 @@ class TestImageGalleryTabIcons:
         tab._apply_theme()
 
         assert _icon_image(tab.import_button.icon()) != before
-        for attribute, (_text, icon_name) in _LABELLED_BUTTON_ICONS.items():
-            assert _icon_image(getattr(tab, attribute).icon()) == _expected_icon_image(icon_name, app_context.theme_tokens), attribute
+        for attribute, (_text, icon_name, role) in _LABELLED_BUTTON_ICONS.items():
+            assert _icon_image(getattr(tab, attribute).icon()) == _expected_icon_image(icon_name, app_context.theme_tokens, role), attribute
         for attribute, (icon_name, _name, _tooltip) in _ICON_ONLY_BUTTONS.items():
             assert _icon_image(getattr(tab, attribute).icon()) == _expected_icon_image(icon_name, app_context.theme_tokens), attribute
         assert _icon_image(tab.sort_direction_button.icon()) == _expected_icon_image("caret-up", app_context.theme_tokens)

@@ -1,4 +1,6 @@
 import pytest
+from PySide6.QtCore import QEvent
+from PySide6.QtGui import QColor, QIcon, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.components.common.p_button import PButton
@@ -98,3 +100,80 @@ def test_on_click_accepts_a_qt_signal():
     button = PButton("Apply", role="primary", on_click=emitter.fired)
     button.click()
     assert calls == [True]
+
+
+def _solid_icon(color: str) -> QIcon:
+    pixmap = QPixmap(8, 8)
+    pixmap.fill(QColor(color))
+    return QIcon(pixmap)
+
+
+def _icon_color(button: PButton) -> str:
+    return button.icon().pixmap(8, 8).toImage().pixelColor(4, 4).name()
+
+
+def _enter(button: PButton) -> None:
+    QApplication.sendEvent(button, QEvent(QEvent.Type.Enter))
+
+
+def _leave(button: PButton) -> None:
+    QApplication.sendEvent(button, QEvent(QEvent.Type.Leave))
+
+
+def test_hover_icon_replaces_the_icon_while_hovered_and_restores_it_after():
+    button = PButton("Delete", role="destructive")
+    button.setIcon(_solid_icon("#ff0000"))
+    button.set_hover_icon(_solid_icon("#ffffff"))
+
+    assert _icon_color(button) == "#ff0000"
+    _enter(button)
+    assert _icon_color(button) == "#ffffff"
+    _leave(button)
+    assert _icon_color(button) == "#ff0000"
+
+
+def test_disabled_button_never_shows_the_hover_icon():
+    button = PButton("Delete", role="destructive", enabled=False)
+    button.setIcon(_solid_icon("#ff0000"))
+    button.set_hover_icon(_solid_icon("#ffffff"))
+
+    _enter(button)
+
+    assert _icon_color(button) == "#ff0000"
+
+
+def test_disabling_a_hovered_button_restores_the_normal_icon():
+    button = PButton("Delete", role="destructive")
+    button.setIcon(_solid_icon("#ff0000"))
+    button.set_hover_icon(_solid_icon("#ffffff"))
+    _enter(button)
+
+    button.setEnabled(False)
+
+    assert _icon_color(button) == "#ff0000"
+
+
+def test_setting_a_new_icon_while_hovered_keeps_the_hover_icon_and_updates_the_normal_one():
+    button = PButton("Delete", role="destructive")
+    button.setIcon(_solid_icon("#ff0000"))
+    button.set_hover_icon(_solid_icon("#ffffff"))
+    _enter(button)
+
+    button.setIcon(_solid_icon("#00ff00"))
+    assert _icon_color(button) == "#ffffff"
+
+    _leave(button)
+    assert _icon_color(button) == "#00ff00"
+
+
+def test_clearing_the_hover_icon_restores_the_normal_icon():
+    button = PButton("Delete", role="destructive")
+    button.setIcon(_solid_icon("#ff0000"))
+    button.set_hover_icon(_solid_icon("#ffffff"))
+    _enter(button)
+
+    button.set_hover_icon(None)
+
+    assert _icon_color(button) == "#ff0000"
+    _enter(button)
+    assert _icon_color(button) == "#ff0000"

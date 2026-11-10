@@ -20,6 +20,7 @@ _TOKEN_KEYS = (
     "status_modified_text",
     "accent",
     "text_on_accent",
+    "text_on_danger",
 )
 
 

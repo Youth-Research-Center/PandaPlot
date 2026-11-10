@@ -6,12 +6,14 @@ Widgets that are rebuilt on demand can call `themed_icon` directly when they are
 """
 
 import logging
+from dataclasses import dataclass
 from enum import Enum
 
 import shiboken6
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QAbstractButton
 
+from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.theme.theme_manager import ThemeManager
@@ -30,6 +32,7 @@ class IconRole(Enum):
     WARNING = "status_modified_text"
     INFO = "accent"
     ON_ACCENT = "text_on_accent"
+    ON_DANGER = "text_on_danger"
 
 
 def themed_icon(
@@ -56,6 +59,16 @@ def themed_icon(
     return build_icon(name, tokens[role.value], size=size, disabled_color=tokens["text_disabled"], selected_color=selected_color)
 
 
+@dataclass(frozen=True)
+class _Binding:
+    """An action or button bound to a bundled icon, with optional per-binding roles."""
+
+    target: QAction | QAbstractButton
+    name: str
+    role: IconRole | None
+    hover_role: IconRole | None
+
+
 class ActionIcons:
     """Registry of actions and buttons whose bundled icons follow the theme.
 
@@ -76,18 +89,38 @@ class ActionIcons:
         self._app_context = app_context
         self._role = role
         self._size = size
-        self._bound: list[tuple[QAction | QAbstractButton, str]] = []
+        self._bound: list[_Binding] = []
 
-    def bind(self, target: QAction | QAbstractButton, name: str) -> None:
-        """Set `target`'s icon now and re-render it on every `retint()`."""
-        target.setIcon(themed_icon(self._app_context, name, role=self._role, size=self._size))
-        self._bound.append((target, name))
+    def bind(
+        self,
+        target: QAction | QAbstractButton,
+        name: str,
+        *,
+        role: IconRole | None = None,
+        hover_role: IconRole | None = None,
+    ) -> None:
+        """Set `target`'s icon now and re-render it on every `retint()`.
+
+        Args:
+            target: The action or button to give the icon.
+            name: Icon name from `icon_manifest.toml`.
+            role: Token that tints this icon; the registry's role when omitted.
+            hover_role: Token that tints the icon shown while a `PButton` is hovered; ignored for other targets.
+        """
+        binding = _Binding(target, name, role, hover_role)
+        self._apply(binding)
+        self._bound.append(binding)
 
     def retint(self) -> None:
         """Re-render every bound icon from the current theme tokens, dropping targets that no longer exist."""
-        alive = [(target, name) for target, name in self._bound if shiboken6.isValid(target)]
+        alive = [binding for binding in self._bound if shiboken6.isValid(binding.target)]
         if len(alive) != len(self._bound):
             self.logger.debug("Dropped %d deleted icon targets", len(self._bound) - len(alive))
         self._bound = alive
-        for target, name in alive:
-            target.setIcon(themed_icon(self._app_context, name, role=self._role, size=self._size))
+        for binding in alive:
+            self._apply(binding)
+
+    def _apply(self, binding: "_Binding") -> None:
+        binding.target.setIcon(themed_icon(self._app_context, binding.name, role=binding.role or self._role, size=self._size))
+        if binding.hover_role is not None and isinstance(binding.target, PButton):
+            binding.target.set_hover_icon(themed_icon(self._app_context, binding.name, role=binding.hover_role, size=self._size))
