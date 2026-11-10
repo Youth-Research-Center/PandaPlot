@@ -119,6 +119,7 @@ class TestMainMenuHelpMenu:
         command_executor.execute_command.assert_called_once()
         executed_command = command_executor.execute_command.call_args[0][0]
         assert executed_command.file_path == "/examples/sample.pplot"
+        dialog.deleteLater.assert_called_once_with()
 
     def test_open_example_project_does_nothing_when_dialog_cancelled(self, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
@@ -133,6 +134,7 @@ class TestMainMenuHelpMenu:
             menu.show_examples_dialog()
 
         command_executor.execute_command.assert_not_called()
+        dialog.deleteLater.assert_called_once_with()
 
     def test_open_example_project_delegates_the_unsaved_changes_guard(self, app_context):
         """Regression (PR #235 review): this used to ask its own "replace

@@ -3,7 +3,7 @@
 import sys
 
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QDialog
 
@@ -70,14 +70,23 @@ def make_dialog(qtbot, monkeypatch):
     return factory
 
 
-def _patch_renderer(monkeypatch, *, fail_for: frozenset[str] = frozenset()) -> list[str]:
+class _RenderLog(list):
+    """Names of the charts rendered; ``sizes`` holds the ``max_size_px`` each render was asked for."""
+
+    sizes: list
+
+
+def _patch_renderer(monkeypatch, *, fail_for: frozenset[str] = frozenset()) -> _RenderLog:
     """Replace the headless renderer with a fake that paints a blue image; returns the rendered chart names."""
     from pandaplot.gui.components.tabs.chart import chart_editor
 
-    rendered: list[str] = []
+    rendered = _RenderLog()
+    requested_sizes: list[tuple[int, int] | None] = []
+    rendered.sizes = requested_sizes
 
-    def fake_render(chart, _series, _defaults):
+    def fake_render(chart, _series, _defaults, *, max_size_px=None):
         rendered.append(chart.name)
+        requested_sizes.append(max_size_px)
         if chart.name in fail_for:
             return None
         image = QImage(80, 60, QImage.Format.Format_RGB32)
@@ -488,3 +497,162 @@ def test_the_bundled_examples_open_in_the_dialog_and_render_a_real_chart_preview
     pixmap = dialog.preview_images[0].pixmap()
     assert isinstance(pixmap, QPixmap)
     assert not pixmap.isNull()
+
+
+# ---------------------------------------------------------------------------------------------- review fixes
+
+
+def test_closing_releases_the_loaded_projects_pictures_and_covers(make_dialog, monkeypatch, qtbot):
+    _patch_renderer(monkeypatch)
+    charts = {"c1": Chart(id="c1", name="First")}
+    dialog = make_dialog([_example(featured_chart_ids=("c1",))], charts=charts)
+    qtbot.waitUntil(lambda: dialog.cards[0].cover_source is CoverSource.CHART_RENDER)
+    dialog._loader._projects["/examples/Demo.pplot"] = None
+    assert dialog._chart_pixmaps
+    assert dialog._loader._projects
+
+    dialog.reject()
+
+    assert dialog._chart_pixmaps == {}
+    assert dialog._loader._projects == {}
+    assert dialog.cards[0].cover.pixmap is None
+
+
+def test_a_render_scheduled_before_closing_does_not_reload_anything(make_dialog, monkeypatch, qtbot):
+    rendered = _patch_renderer(monkeypatch)
+    charts = {"c1": Chart(id="c1", name="First")}
+    dialog = make_dialog([_example(featured_chart_ids=("c1",))], charts=charts)
+
+    dialog.reject()  # before the cover's single-shot render has run
+    qtbot.wait(50)
+
+    assert rendered == []
+    assert dialog._chart_pixmaps == {}
+
+
+def test_covers_render_only_for_cards_in_view_and_the_rest_after_scrolling(make_dialog, monkeypatch, qtbot):
+    rendered = _patch_renderer(monkeypatch)
+    names = [f"Ex{number:02d}" for number in range(24)]
+    charts = {f"c{number}": Chart(id=f"c{number}", name=name) for number, name in enumerate(names)}
+    examples = [_example(name, featured_chart_ids=(f"c{number}",)) for number, name in enumerate(names)]
+    dialog = make_dialog(examples, charts=charts)
+    qtbot.waitUntil(lambda: len(rendered) > 0)
+    qtbot.wait(100)
+
+    assert 0 < len(rendered) < len(names)
+    assert dialog.cards[-1].cover_source is CoverSource.PLACEHOLDER
+    first_batch = list(rendered)
+
+    scrollbar = dialog.list_scroll.verticalScrollBar()
+    scrollbar.setValue(scrollbar.maximum())
+    qtbot.waitUntil(lambda: dialog.cards[-1].cover_source is CoverSource.CHART_RENDER)
+
+    assert rendered[: len(first_batch)] == first_batch  # nothing was rendered twice
+    assert len(set(rendered)) == len(rendered)
+    assert len(rendered) < len(names)  # the middle was never in view
+
+
+def test_renders_are_requested_at_thumbnail_size_times_the_device_pixel_ratio(make_dialog, monkeypatch, qtbot):
+    rendered = _patch_renderer(monkeypatch)
+    charts = {"c1": Chart(id="c1", name="First")}
+    dialog = make_dialog([_example(featured_chart_ids=("c1",))], charts=charts)
+    monkeypatch.setattr(dialog, "devicePixelRatioF", lambda: 2.0)
+
+    dialog.cards[0].details_button.click()
+    shown: list[QPixmap] = []
+    label = dialog.preview_images[0]
+    original = label.setPixmap
+    monkeypatch.setattr(label, "setPixmap", lambda pixmap: (shown.append(pixmap), original(pixmap))[1])
+    qtbot.waitUntil(lambda: bool(shown))
+
+    assert rendered.sizes[-1] == (examples_dialog_module.PREVIEW_WIDTH * 2, examples_dialog_module.PREVIEW_HEIGHT * 2)
+    pixmap = shown[0]
+    assert pixmap.devicePixelRatio() == 2.0
+    assert pixmap.width() <= examples_dialog_module.PREVIEW_WIDTH * 2
+    assert pixmap.height() <= examples_dialog_module.PREVIEW_HEIGHT * 2
+
+
+def test_enter_presses_the_focused_button_but_not_from_the_search_box(make_dialog, qtbot):
+    dialog = make_dialog([_example("Demo")])
+    card = dialog.cards[0]
+
+    card.open_button.setFocus()
+    qtbot.keyClick(card.open_button, Qt.Key.Key_Return)
+
+    assert dialog.selected_path == "/examples/Demo.pplot"
+    assert dialog.result() == QDialog.DialogCode.Accepted
+
+
+def test_enter_on_a_focused_see_details_button_opens_the_details(make_dialog, qtbot):
+    dialog = make_dialog([_example("Demo")])
+
+    qtbot.keyClick(dialog.cards[0].details_button, Qt.Key.Key_Enter)
+
+    assert dialog.stack.currentWidget() is dialog.details_page
+    assert dialog.selected_path is None
+
+
+def test_enter_on_the_cancel_button_closes_the_dialog(make_dialog, qtbot):
+    dialog = make_dialog([_example("Demo")])
+
+    qtbot.keyClick(dialog.close_btn, Qt.Key.Key_Return)
+
+    assert dialog.result() == QDialog.DialogCode.Rejected
+    assert not dialog.isVisible()
+
+
+def test_clicking_a_relative_link_in_the_description_keeps_the_document(make_dialog, qtbot):
+    dialog = make_dialog([_example("Demo", description="See [other](other.md) for more.")])
+    dialog.cards[0].details_button.click()
+    browser = dialog.description_browser
+    before = browser.toPlainText()
+    cursor = browser.document().find("other")
+    assert not cursor.isNull()
+    assert browser.anchorAt(browser.cursorRect(cursor).center()) == "other.md"
+
+    qtbot.mouseClick(browser.viewport(), Qt.MouseButton.LeftButton, pos=browser.cursorRect(cursor).center())
+
+    assert browser.toPlainText() == before
+    assert not browser.openLinks()
+
+
+def test_web_links_open_externally_and_others_are_ignored(make_dialog, monkeypatch):
+    opened: list[str] = []
+    monkeypatch.setattr(examples_dialog_module.QDesktopServices, "openUrl", lambda url: opened.append(url.toString()))
+    dialog = make_dialog([_example("Demo")])
+    browser = dialog.description_browser
+
+    for link in ("https://example.org/a", "mailto:a@example.org", "other.md", "file:///etc/passwd"):
+        browser.anchorClicked.emit(QUrl(link))
+
+    assert opened == ["https://example.org/a", "mailto:a@example.org"]
+
+
+def test_switching_examples_removes_the_old_meta_row_and_preview_tiles_from_view(make_dialog):
+    dialog = make_dialog([_example("A", featured_chart_ids=("c1", "c2"), tags=_tags("physics")), _example("B", featured_chart_ids=("c3",))])
+    dialog.cards[0].details_button.click()
+    old_meta = dialog.details_meta
+    old_tiles = list(dialog.preview_tiles)
+    assert len(old_tiles) == 2
+
+    dialog._show_list()
+    dialog.cards[1].details_button.click()
+
+    assert old_meta.parent() is None and not old_meta.isVisible()
+    assert all(tile.parent() is None and not tile.isVisible() for tile in old_tiles)
+    assert len(dialog.preview_tiles) == 1
+    assert dialog.details_meta.parent() is not None
+
+
+def test_unchanged_visible_set_does_not_rebuild_the_grids(make_dialog, monkeypatch):
+    dialog = make_dialog(_tagged_examples())
+    calls: list[int] = []
+    grid = dialog.section_grids[ExampleSection.GETTING_STARTED]
+    original = grid.takeAt
+    monkeypatch.setattr(grid, "takeAt", lambda index: calls.append(index) or original(index))
+
+    dialog._refresh()
+    assert calls == []
+
+    dialog.search_edit.setText("Spring")
+    assert calls

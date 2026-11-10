@@ -451,14 +451,21 @@ class MainMenu(PMenuBar):
         from pandaplot.gui.dialogs.examples_dialog import ExamplesDialog
 
         dialog = ExamplesDialog(self.app_context, self.parent())
-        if not dialog.exec() or not dialog.selected_path:
+        try:
+            accepted = bool(dialog.exec())
+            selected_path = dialog.selected_path
+        finally:
+            # The dialog has a parent, so without this every opening would stay alive (with its loaded projects and
+            # pictures) until the parent is destroyed.
+            dialog.deleteLater()
+        if not accepted or not selected_path:
             return
 
         # LoadProjectCommand itself guards against replacing a modified
         # project (and against reloading the one already open) -- no need
         # to duplicate that check here.
         self.app_context.get_command_executor().execute_command(
-            LoadProjectCommand(self.app_context, dialog.selected_path)
+            LoadProjectCommand(self.app_context, selected_path)
         )
 
     def show_about_dialog(self):

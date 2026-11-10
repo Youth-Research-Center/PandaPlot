@@ -62,6 +62,11 @@ class _CoverLabel(QWidget):
         self._fit = fit
         self.update()
 
+    def clear_pixmap(self) -> None:
+        """Drop the picture (and so its memory); the area paints only its background until a new one is set."""
+        self._pixmap = None
+        self.update()
+
     def set_background(self, color: str) -> None:
         self._background = QColor(color)
         self.update()
@@ -175,7 +180,8 @@ class ExampleCard(Card):
         self.details_button = PButton("See details", role="secondary", on_click=lambda: self.details_requested.emit(self.example))
         self.open_button = PButton("Open example", role="primary", on_click=lambda: self.open_requested.emit(self.example))
         for button in (self.details_button, self.open_button):
-            # A dialog would otherwise press the first auto-default button when Enter is pressed elsewhere.
+            # A dialog would otherwise press the first auto-default button when Enter is pressed elsewhere; the
+            # owning dialog gives the focused button its Enter activation instead.
             button.setAutoDefault(False)
             buttons.addWidget(button)
         self.details_button.setAccessibleName(f"See details of {example.name}")
@@ -199,6 +205,11 @@ class ExampleCard(Card):
         """
         self.cover_source = source
         self.cover.set_pixmap(pixmap, fit=True)
+
+    def release_cover(self) -> None:
+        """Drop the cover picture to free its memory; the card is not meant to show a cover again afterwards."""
+        self.cover_source = CoverSource.PLACEHOLDER
+        self.cover.clear_pixmap()
 
     def set_tokens(self, tokens: dict) -> None:
         """Apply theme tokens to the card, its texts and the placeholder icon."""

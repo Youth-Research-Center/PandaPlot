@@ -30,3 +30,7 @@ class ExampleProjectLoader:
                 self.logger.exception("Could not load example project '%s' for previews", example.path)
                 self._projects[example.path] = None
         return self._projects[example.path]
+
+    def clear(self) -> None:
+        """Forget every loaded project so they can be freed."""
+        self._projects.clear()

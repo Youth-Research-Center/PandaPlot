@@ -3,14 +3,16 @@
 from typing import TYPE_CHECKING, override
 
 import shiboken6
-from PySide6.QtCore import QSize, Qt, QTimer
-from PySide6.QtGui import QImage, QKeyEvent, QPixmap, QResizeEvent
+from PySide6.QtCore import QEvent, QObject, QPoint, QSize, Qt, QTimer, QUrl
+from PySide6.QtGui import QDesktopServices, QImage, QKeyEvent, QPixmap, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QScrollArea,
     QStackedWidget,
     QTextBrowser,
@@ -19,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.core.widget_extension import PDialog
-from pandaplot.models.project.example_info import EXAMPLE_TAGS, ExampleSection, TagGroup
+from pandaplot.models.project.example_info import EXAMPLE_TAGS, ExampleSection, TagGroup, example_tag
 from pandaplot.models.project.items import Chart
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.example_project_loader import ExampleProjectLoader
@@ -37,6 +39,8 @@ PREVIEW_WIDTH = 260
 PREVIEW_HEIGHT = 170
 DESCRIPTION_FONT_SIZE = 11
 SUBTITLE = "Browse what PandaPlot can do. Open an example to explore it; your copy won't change the original."
+_ENTER_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+_EXTERNAL_LINK_SCHEMES = frozenset({"http", "https", "mailto"})
 _GROUP_LABELS = {TagGroup.TOPIC: "Topic", TagGroup.TECHNIQUE: "Technique"}
 
 
@@ -46,10 +50,17 @@ class _AutoHeightTextBrowser(QTextBrowser):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setReadOnly(True)
-        self.setOpenExternalLinks(True)
+        self.setOpenLinks(False)
+        self.setOpenExternalLinks(False)
+        self.anchorClicked.connect(self._on_anchor_clicked)
         self.setFrameShape(QFrame.Shape.NoFrame)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+    def _on_anchor_clicked(self, url: QUrl) -> None:
+        """Open web and mail links in the system's handler; any other link (relative, file) is ignored so the text stays."""
+        if url.scheme().lower() in _EXTERNAL_LINK_SCHEMES:
+            QDesktopServices.openUrl(url)
 
     def fit_height(self) -> None:
         """Resize to the height of the document at the current width."""
@@ -74,7 +85,7 @@ class ExamplesDialog(PDialog):
         selected_path: File path of the example the user chose to open, or None.
     """
 
-    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None) -> None:
         super().__init__(app_context=app_context, parent=parent)
         self.selected_path: str | None = None
         self._examples: list[ExampleProject] = discover_example_projects()
@@ -87,6 +98,8 @@ class ExamplesDialog(PDialog):
         self._origin_card: ExampleCard | None = None
         self._list_scroll_value = 0
         self._columns = 0
+        self._laid_out_key: tuple[tuple[str, ...], int] | None = None
+        self._released = False
         self._initialize()
 
     # ------------------------------------------------------------------ construction
@@ -108,6 +121,7 @@ class ExamplesDialog(PDialog):
         self.stack.addWidget(self.list_page)
         self.stack.addWidget(self.details_page)
         self.search_edit.setFocus()
+        self.list_scroll.verticalScrollBar().valueChanged.connect(self._schedule_visible_covers)
         self._refresh()
 
     def _build_list_page(self) -> QWidget:
@@ -137,7 +151,7 @@ class ExamplesDialog(PDialog):
         self.search_edit.textChanged.connect(self._on_filters_changed)
         search_row.addWidget(self.search_edit, 1)
         self.clear_button = PButton("Clear filters", role="secondary", on_click=self._clear_filters)
-        self.clear_button.setAutoDefault(False)
+        self._enter_activates(self.clear_button)
         search_row.addWidget(self.clear_button)
         self.search_row = QWidget()
         self.search_row.setLayout(search_row)
@@ -184,6 +198,7 @@ class ExamplesDialog(PDialog):
                 card = ExampleCard(self.app_context, example)
                 card.details_requested.connect(self._show_details)
                 card.open_requested.connect(self._open_example)
+                self._enter_activates(card.details_button, card.open_button)
                 self._apply_cover_image(card)
                 self.cards.append(card)
 
@@ -194,7 +209,7 @@ class ExamplesDialog(PDialog):
             icon_name="magnifying-glass",
             actions=[("Clear filters", self._clear_filters)],
         )
-        self.empty_panel.action_buttons[0].setAutoDefault(False)
+        self._enter_activates(self.empty_panel.action_buttons[0])
         self.empty_panel.setMinimumHeight(160)
         content_layout.addWidget(self.empty_panel)
         content_layout.addStretch(1)
@@ -204,7 +219,7 @@ class ExamplesDialog(PDialog):
         footer = QHBoxLayout()
         footer.addStretch(1)
         self.close_btn = PButton("Cancel", role="secondary", on_click=self.reject)
-        self.close_btn.setAutoDefault(False)
+        self._enter_activates(self.close_btn)
         footer.addWidget(self.close_btn)
         layout.addLayout(footer)
         return page
@@ -238,7 +253,7 @@ class ExamplesDialog(PDialog):
                 chip = PButton(tag.label, role="secondary")
                 chip.setProperty("chip", True)  # noqa: FBT003 -- Qt bound method, positional-only
                 chip.setCheckable(True)
-                chip.setAutoDefault(False)
+                self._enter_activates(chip)
                 chip.setAccessibleName(f"{_GROUP_LABELS[group]}: {tag.label}")
                 chip.toggled.connect(lambda checked, tag_id=tag.id: self._on_chip_toggled(tag_id, checked=checked))
                 self.tag_chips[tag.id] = chip
@@ -260,7 +275,7 @@ class ExamplesDialog(PDialog):
 
         top = QHBoxLayout()
         self.back_button = PButton("Back", role="secondary", on_click=self._show_list)
-        self.back_button.setAutoDefault(False)
+        self._enter_activates(self.back_button)
         self.back_button.setAccessibleName("Back to the list of examples")
         top.addWidget(self.back_button)
         top.addStretch(1)
@@ -314,9 +329,9 @@ class ExamplesDialog(PDialog):
         bottom = QHBoxLayout()
         bottom.setSpacing(8)
         self.bottom_back_button = PButton("Back", role="secondary", on_click=self._show_list)
-        self.bottom_back_button.setAutoDefault(False)
+        self._enter_activates(self.bottom_back_button)
         self.details_open_button = PButton("Open example", role="primary", on_click=self._open_details_example)
-        self.details_open_button.setAutoDefault(False)
+        self._enter_activates(self.details_open_button)
         bottom.addStretch(1)
         bottom.addWidget(self.bottom_back_button)
         bottom.addWidget(self.details_open_button)
@@ -363,24 +378,31 @@ class ExamplesDialog(PDialog):
         """Update the chips, the Clear filters button and the visible cards from the current filters."""
         query = self.search_edit.text()
         counts = tag_counts(self._examples, query=query, selected_tag_ids=self._selected_tag_ids)
-        tags_by_id = {tag.id: tag for tag in EXAMPLE_TAGS}
         for tag_id, chip in self.tag_chips.items():
             selected = tag_id in self._selected_tag_ids
-            chip.setText(f"{tags_by_id[tag_id].label} ({counts[tag_id]})")
+            tag = example_tag(tag_id)
+            chip.setText(f"{tag.label if tag is not None else tag_id} ({counts[tag_id]})")
             chip.setEnabled(selected or counts[tag_id] > 0)
             chip.setProperty("selected", selected)
             chip.style().unpolish(chip)
             chip.style().polish(chip)
         self.clear_button.setEnabled(bool(query.strip()) or bool(self._selected_tag_ids))
-        self._layout_cards()
+        self._layout_cards(self._matching_examples())
 
     def _desired_columns(self) -> int:
         return 2 if self.width() >= TWO_COLUMN_MIN_WIDTH else 1
 
-    def _layout_cards(self) -> None:
-        """Place the matching cards in the section grids, hide the rest and show the empty state when none match."""
+    def _layout_cards(self, matching_examples: list[ExampleProject]) -> None:
+        """Place the matching cards in the section grids, hide the rest and show the empty state when none match.
+
+        Nothing is rebuilt when the matching set and the column count are the same as the last time.
+        """
         self._columns = self._desired_columns()
-        matching = {example.path for example in self._matching_examples()}
+        matching = {example.path for example in matching_examples}
+        key = (tuple(example.path for example in matching_examples), self._columns)
+        if key == self._laid_out_key:
+            return
+        self._laid_out_key = key
         for section, grid in self.section_grids.items():
             while grid.count():
                 grid.takeAt(0)
@@ -391,17 +413,45 @@ class ExamplesDialog(PDialog):
             for index, card in enumerate(visible):
                 grid.addWidget(card, index // self._columns, index % self._columns)
                 card.setVisible(True)
-                self._request_cover(card)
             for column in range(2):
                 grid.setColumnStretch(column, 1 if column < self._columns else 0)
             self.section_headers[section].setVisible(bool(visible))
         self.empty_panel.setVisible(bool(self._examples) and not matching)
+        self._schedule_visible_covers()
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         if self._columns and self._desired_columns() != self._columns:
-            self._layout_cards()
+            self._layout_cards(self._matching_examples())
+        self._schedule_visible_covers()
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        self._released = False
+        self._schedule_visible_covers()
+
+    def _schedule_visible_covers(self, _value: int = 0) -> None:
+        """Request covers for the cards in view once the layout has settled."""
+        QTimer.singleShot(0, self._request_visible_covers)
+
+    def _request_visible_covers(self) -> None:
+        """Request the live cover render of every shown card that intersects the scroll viewport."""
+        if not shiboken6.isValid(self) or not self.list_scroll.isVisible():
+            return
+        content = self.list_scroll.widget()
+        layout = content.layout() if content is not None else None
+        if layout is not None:
+            layout.activate()
+        viewport = self.list_scroll.viewport()
+        view_rect = viewport.rect()
+        for card in self.cards:
+            if card.isHidden() or card.example.path in self._cover_requested:
+                continue
+            top_left = card.mapTo(viewport, QPoint(0, 0))
+            if view_rect.intersects(card.rect().translated(top_left)):
+                self._request_cover(card)
 
     # ------------------------------------------------------------------ rendering
 
@@ -418,13 +468,16 @@ class ExamplesDialog(PDialog):
             project = self._loader.load(example)
             chart = project.find_item(chart_id) if project is not None else None
             if isinstance(chart, Chart):
+                ratio = self.devicePixelRatioF()
                 image = chart_editor.render_chart_to_qimage(
                     chart,
                     chart_editor.resolve_chart_series_data(project, chart),
                     chart_editor.resolve_chart_size_defaults(self.app_context),
+                    max_size_px=(round(PREVIEW_WIDTH * ratio), round(PREVIEW_HEIGHT * ratio)),
                 )
                 if isinstance(image, QImage) and not image.isNull():
                     pixmap = QPixmap.fromImage(image)
+                    pixmap.setDevicePixelRatio(ratio)
             if pixmap is None:
                 self.logger.warning("Chart '%s' of example '%s' could not be rendered", chart_id, example.path)
         except Exception:
@@ -458,7 +511,7 @@ class ExamplesDialog(PDialog):
     def _load_cover(self, card: "ExampleCard") -> None:
         from pandaplot.gui.dialogs.example_card import CoverSource
 
-        if not shiboken6.isValid(self) or not shiboken6.isValid(card):
+        if not shiboken6.isValid(self) or self._released or not shiboken6.isValid(card):
             return
         pixmap = self._render_chart_pixmap(card.example, card.example.featured_chart_ids[0])
         if pixmap is not None:
@@ -495,8 +548,7 @@ class ExamplesDialog(PDialog):
         self.details_title.setText(example.name)
         self.details_title.setAccessibleName(example.name)
         if self.details_meta is not None:
-            self.details_meta_slot.removeWidget(self.details_meta)
-            self.details_meta.deleteLater()
+            self._discard(self.details_meta)
         self.details_meta = ExampleMetaRow(example)
         self.details_meta_slot.addWidget(self.details_meta)
         contents = describe_contents(example)
@@ -506,7 +558,7 @@ class ExamplesDialog(PDialog):
 
         for tile in self.preview_tiles:
             self.previews_flow.removeWidget(tile)
-            tile.deleteLater()
+            self._discard(tile)
         self.preview_tiles.clear()
         self.preview_images.clear()
         self.preview_captions.clear()
@@ -564,7 +616,7 @@ class ExamplesDialog(PDialog):
             QTimer.singleShot(0, lambda index=index, chart_id=chart_id: self._load_preview(token, example, index, chart_id))
 
     def _load_preview(self, token: int, example: ExampleProject, index: int, chart_id: str) -> None:
-        if not shiboken6.isValid(self) or token != self._details_token or index >= len(self.preview_images):
+        if not shiboken6.isValid(self) or self._released or token != self._details_token or index >= len(self.preview_images):
             return
         image_label = self.preview_images[index]
         caption_label = self.preview_captions[index]
@@ -577,12 +629,60 @@ class ExamplesDialog(PDialog):
         if pixmap is None:
             image_label.setText("Preview not available")
             return
+        ratio = self.devicePixelRatioF()
         scaled = pixmap.scaled(
-            PREVIEW_WIDTH, PREVIEW_HEIGHT, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+            round(PREVIEW_WIDTH * ratio),
+            round(PREVIEW_HEIGHT * ratio),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
         )
+        scaled.setDevicePixelRatio(ratio)
         image_label.setPixmap(scaled)
 
+    @staticmethod
+    def _discard(widget: QWidget) -> None:
+        """Remove a widget from view at once (a plain deleteLater can still paint for a frame) and delete it."""
+        widget.hide()
+        widget.setParent(None)
+        widget.deleteLater()
+
     # ------------------------------------------------------------------ opening and keys
+
+    def _enter_activates(self, *buttons: QPushButton) -> None:
+        """Make Enter/Return press these buttons when they have focus.
+
+        They are not auto-default buttons, so Enter in the search box does not press the first one; this filter gives the
+        focused button the keyboard activation a default button would have had.
+        """
+        for button in buttons:
+            button.setAutoDefault(False)
+            button.installEventFilter(self)
+
+    @override
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if isinstance(event, QKeyEvent) and event.type() == QEvent.Type.KeyPress and event.key() in _ENTER_KEYS and isinstance(
+            watched, QAbstractButton
+        ):
+            watched.click()
+            return True
+        return super().eventFilter(watched, event)
+
+    @override
+    def done(self, result: int) -> None:
+        """Close, then release the cached projects and pictures; the dialog is not reused after it closes."""
+        super().done(result)
+        self._release_caches()
+        self._released = True
+
+    def _release_caches(self) -> None:
+        self._details_token += 1
+        self._loader.clear()
+        self._chart_pixmaps.clear()
+        self._cover_requested.clear()
+        for card in self.cards:
+            card.release_cover()
+        for label in self.preview_images:
+            label.clear()
 
     def _open_example(self, example: ExampleProject) -> None:
         self.selected_path = example.path

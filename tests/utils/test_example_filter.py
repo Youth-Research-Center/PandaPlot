@@ -76,3 +76,22 @@ def test_tag_counts_apply_the_query_and_cover_only_vocabulary_tags():
 def test_empty_inputs():
     assert filter_examples([], query="x", selected_tag_ids=frozenset({"physics"})) == []
     assert set(tag_counts([], query="", selected_tag_ids=NO_TAGS).values()) == {0}
+
+
+def test_search_text_is_built_once_per_example_across_repeated_filtering():
+    from pandaplot.utils import example_filter
+
+    example_filter._haystack.cache_clear()
+
+    for _ in range(3):
+        filter_examples(ALL, query="physics", selected_tag_ids=NO_TAGS)
+        tag_counts(ALL, query="physics", selected_tag_ids=NO_TAGS)
+
+    info = example_filter._haystack.cache_info()
+    assert info.misses == len(ALL)
+    assert info.hits > 0
+
+
+def test_tag_groups_come_from_the_tag_vocabulary():
+    assert not hasattr(__import__("pandaplot.utils.example_filter", fromlist=["x"]), "_TAG_GROUPS")
+    assert _names(filter_examples(ALL, query="", selected_tag_ids=frozenset({"physics", "not_a_tag"}))) == ["Pendulum", "Spring"]

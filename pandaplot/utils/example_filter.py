@@ -1,16 +1,21 @@
 """Search and tag filtering for the examples browser (no Qt)."""
 
 from collections.abc import Iterable
+from functools import lru_cache
 
-from pandaplot.models.project.example_info import EXAMPLE_TAGS, TagGroup
+from pandaplot.models.project.example_info import EXAMPLE_TAGS, TagGroup, example_tag
 from pandaplot.utils.examples import ExampleProject
 
-_TAG_GROUPS = {tag.id: tag.group for tag in EXAMPLE_TAGS}
+
+@lru_cache(maxsize=512)
+def _haystack(name: str, summary: str, description: str, tag_labels: tuple[str, ...]) -> str:
+    """The case-folded searchable text of an example, built once per distinct example."""
+    return " ".join([name, summary, description, *tag_labels]).casefold()
 
 
 def _matches_query(example: ExampleProject, words: list[str]) -> bool:
     """Whether every word occurs (case-insensitively) in the name, summary, description or a tag label."""
-    haystack = " ".join([example.name, example.summary, example.description, *(tag.label for tag in example.tags)]).casefold()
+    haystack = _haystack(example.name, example.summary, example.description, tuple(tag.label for tag in example.tags))
     return all(word in haystack for word in words)
 
 
@@ -19,9 +24,9 @@ def _matches_tags(example: ExampleProject, selected_tag_ids: frozenset[str]) -> 
     own_tag_ids = {tag.id for tag in example.tags}
     selected_by_group: dict[TagGroup, set[str]] = {}
     for tag_id in selected_tag_ids:
-        group = _TAG_GROUPS.get(tag_id)
-        if group is not None:
-            selected_by_group.setdefault(group, set()).add(tag_id)
+        tag = example_tag(tag_id)
+        if tag is not None:
+            selected_by_group.setdefault(tag.group, set()).add(tag_id)
     return all(own_tag_ids & group_ids for group_ids in selected_by_group.values())
 
 
@@ -57,7 +62,6 @@ def tag_counts(examples: Iterable[ExampleProject], *, query: str, selected_tag_i
     Returns:
         A mapping of every vocabulary tag id to its count.
     """
-    example_list = list(examples)
-    return {
-        tag.id: len(filter_examples(example_list, query=query, selected_tag_ids=selected_tag_ids | {tag.id})) for tag in EXAMPLE_TAGS
-    }
+    words = query.casefold().split()
+    query_matches = [example for example in examples if _matches_query(example, words)]
+    return {tag.id: sum(_matches_tags(example, selected_tag_ids | {tag.id}) for example in query_matches) for tag in EXAMPLE_TAGS}
