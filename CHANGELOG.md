@@ -17,6 +17,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - The (x, y) mouse readout on the chart toolbar reserves a fixed amount of space, so moving the cursor over the chart or leaving it no longer resizes the toolbar and makes the chart area flicker; readouts too long for the space, such as two Y values, are shortened with an ellipsis (#511).
 - Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
 - A chart with no series (made with "Create empty plot instead" or "Create Empty Chart") can now get data: **+ Add series** on the Data tab, or **Add Series** on the empty chart, opens a dialog to choose a dataset and the columns the chart type needs (#589). **Apply** on a chart with no series no longer silently adds a series from hidden settings.
+- Opening an example opens an untitled copy, so Save asks where to save it and the bundled example is never overwritten (#607).
 
 ### Added
 - Empty charts show "This chart has no data yet" with **Add Series** and **Import Data** buttons, and a dataset with no rows or columns shows a hint with **Add Rows / Columns...** (#596).

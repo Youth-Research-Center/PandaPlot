@@ -35,7 +35,8 @@ class LoadProjectCommand(Command):
     """
 
     def __init__(self, app_context: AppContext, file_path: str,
-                 on_loaded: Callable[[Project], None] | None = None):
+                 on_loaded: Callable[[Project], None] | None = None,
+                 *, as_untitled_copy: bool = False):
         super().__init__()
         self.app_context = app_context
         self.app_state: AppState = app_context.get_app_state()
@@ -46,6 +47,11 @@ class LoadProjectCommand(Command):
         # Called after the project has been loaded into app state (e.g. so the
         # caller can restore session tabs once the project is actually ready).
         self.on_loaded = on_loaded
+        # Open the file's contents as an unsaved, untitled project: no file
+        # path (so Save asks where to save), no "already open" shortcut, and
+        # not remembered as the session's last project. Used for bundled
+        # examples, which must never be written back to (#607).
+        self.as_untitled_copy = as_untitled_copy
         self.previous_project: Project | None = None
         self.previous_file_path: str | None = None
         # Whether the previous project had unsaved changes, so undo() can
@@ -92,7 +98,11 @@ class LoadProjectCommand(Command):
             # current file from disk, discarding undo history. Living here
             # means every caller gets the same protection with nothing
             # extra to remember at the call site.
-            if self.app_state.has_project and _same_path(self.app_state.project_file_path, self.file_path):
+            if (
+                not self.as_untitled_copy
+                and self.app_state.has_project
+                and _same_path(self.app_state.project_file_path, self.file_path)
+            ):
                 self.logger.info("'%s' is already open; skipping reload", self.file_path)
                 return CommandResult.NOOP
 
@@ -276,7 +286,9 @@ class LoadProjectCommand(Command):
                     # opened from -- stamp it with the path this command
                     # actually loaded from so later "already open"
                     # comparisons and Save target the right file.
-                    project.project_file_path = file_path
+                    # An untitled copy deliberately has no path, so Save
+                    # prompts for a location instead of writing to file_path.
+                    project.project_file_path = None if self.as_untitled_copy else file_path
 
                     # Store the loaded project for undo/redo
                     self.loaded_project = project
@@ -284,10 +296,13 @@ class LoadProjectCommand(Command):
                     # Update app state with the loaded project
                     self.app_state.load_project(project)
 
-                    # Remember this project so it can be restored on next launch
+                    # Remember this project so it can be restored on next launch. An
+                    # untitled copy has no file to restore from, so record "no project",
+                    # as NewProjectCommand does; keeping the previous path would reopen a
+                    # project the user had already replaced.
                     try:
                         session_manager = self.app_context.get_manager(SessionPersistenceManager)
-                        session_manager.update_project(file_path)
+                        session_manager.update_project(None if self.as_untitled_copy else file_path)
                     except Exception as e:  # noqa: BLE001
                         self.logger.warning("Failed to persist last_project_path: %s", e)
 
