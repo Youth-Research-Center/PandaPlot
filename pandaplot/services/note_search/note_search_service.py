@@ -9,6 +9,8 @@ the editor to a specific match.
 import re
 from dataclasses import dataclass, field
 
+from pandaplot.utils.errors import UserFacingError
+
 # Match-count guard so a broad query against a huge note can't produce an
 # unbounded results list (and freeze the UI building rows for it).
 _MAX_MATCHES_PER_NOTE = 200
@@ -39,7 +41,7 @@ class NoteSearchResult:
         return len(self.matches)
 
 
-class QueryError(ValueError):
+class QueryError(UserFacingError):
     """Raised when a user-supplied regular expression fails to compile."""
 
 

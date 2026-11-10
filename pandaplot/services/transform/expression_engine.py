@@ -29,8 +29,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from pandaplot.utils.errors import UserFacingError
 
-class UnsafeExpressionError(ValueError):
+
+class UnsafeExpressionError(UserFacingError):
     """Raised for an expression that uses syntax or names outside the supported dialect."""
 
 
@@ -202,16 +204,16 @@ def validate_expression(expression: str) -> tuple[bool, str]:
 
     for pattern in _DANGEROUS_PATTERNS:
         if re.search(pattern, expression, re.IGNORECASE):
-            return False, f"Potentially unsafe operation detected: {pattern}"
+            return False, "This formula uses an operation that is not allowed, such as importing modules or accessing files."
 
     try:
         compile_expression(expression)
-    except SyntaxError as e:
-        return False, f"Syntax error: {e}"
+    except SyntaxError:
+        return False, "The formula has a typo, for example a missing bracket, quote or operator."
     except UnsafeExpressionError as e:
         return False, str(e)
-    except Exception as e:  # noqa: BLE001 -- Validating an untrusted, user-authored expression -- arbitrary/unknown exceptions are expected here
-        return False, f"Code validation error: {e}"
+    except Exception:  # noqa: BLE001 -- Validating an untrusted, user-authored expression -- arbitrary/unknown exceptions are expected here
+        return False, "The formula could not be checked. Review it for mistakes."
 
     return True, ""
 

@@ -10,6 +10,8 @@ when fitting parameters and are passed through untransformed.
 
 import pandas as pd
 
+from pandaplot.utils.errors import UserFacingError
+
 from .preprocessing_types import PreprocessingMethod, PreprocessingResult
 
 
@@ -21,7 +23,7 @@ class PreprocessingEngine:
         """Coerce a series to float, raising on non-numeric data."""
         numeric = pd.to_numeric(series, errors="coerce")
         if numeric.notna().sum() == 0:
-            raise ValueError(
+            raise UserFacingError(
                 f"Column '{series.name}' has no numeric values to transform."
             )
         return numeric.astype(float)
@@ -70,7 +72,7 @@ class PreprocessingEngine:
     ) -> PreprocessingResult:
         """Linearly rescale the values into ``[range_min, range_max]``."""
         if range_max <= range_min:
-            raise ValueError(
+            raise UserFacingError(
                 "Min-Max range maximum must be greater than the minimum "
                 f"(got min={range_min}, max={range_max})."
             )

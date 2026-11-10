@@ -13,6 +13,8 @@ from collections.abc import Sequence
 import numpy as np
 import pandas as pd
 
+from pandaplot.utils.errors import UserFacingError
+
 from .descriptive_types import DESCRIPTIVE_STATS, DescriptiveStatsResult
 
 logger = logging.getLogger(__name__)
@@ -51,7 +53,7 @@ class DescriptiveStatsEngine:
                 reported with a zero count rather than raising.
         """
         if not columns:
-            raise ValueError("Descriptive statistics require at least one column.")
+            raise UserFacingError("Descriptive statistics require at least one column.")
 
         names = [str(c.name) for c in columns]
         per_column = {

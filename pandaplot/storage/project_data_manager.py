@@ -7,6 +7,7 @@ from pandaplot.models.migrations.schema_version import CURRENT_SCHEMA_VERSION
 from pandaplot.models.project import Project
 from pandaplot.models.project.items import Item
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
+from pandaplot.utils.errors import UserFacingError
 
 
 class _ZipBytesProxy:
@@ -55,7 +56,7 @@ class ProjectDataManager:
         with zipfile.ZipFile(filepath, "r") as zf:
             names = set(zf.namelist())
             if "project.json" not in names:
-                raise ValueError(f"Invalid project file: missing project.json in {filepath}")
+                raise UserFacingError("This is not a valid PandaPlot project file: it has no project data.")
             raw_data = {name: zf.read(name) for name in names}
         # ← zip closed here; Windows file lock released before any deserialization
 
@@ -76,11 +77,9 @@ class ProjectDataManager:
             # would open with items silently missing, and a later save
             # would overwrite the original file with that truncated
             # project. Refuse up front instead, before any item is loaded.
-            raise ValueError(
-                f"Project file {filepath!r} was saved with schema_version="
-                f"{schema_version}, newer than this app supports "
-                f"(CURRENT_SCHEMA_VERSION={CURRENT_SCHEMA_VERSION}). "
-                "Open it with a newer version of the app."
+            raise UserFacingError(
+                "This project was saved by a newer version of PandaPlot and cannot be opened by this one. "
+                "Update PandaPlot to open it."
             )
 
         items = {}

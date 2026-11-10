@@ -22,6 +22,7 @@ from pandaplot.storage.chart_data_manager import ChartDataManager
 from pandaplot.storage.dataset_data_manager import DatasetDataManager
 from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.storage.project_data_manager import ProjectDataManager
+from pandaplot.utils.errors import UserFacingError
 
 
 def _build_factory() -> ItemDataManagerFactory:
@@ -160,7 +161,7 @@ def test_a_schema_version_newer_than_current_is_rejected(tmp_path, manager):
     with zipfile.ZipFile(zip_path, "w") as zf:
         zf.writestr("project.json", json.dumps(project_dict))
 
-    with pytest.raises(ValueError, match="schema_version"):
+    with pytest.raises(UserFacingError, match="newer version of PandaPlot"):
         manager.load(str(zip_path))
 
 

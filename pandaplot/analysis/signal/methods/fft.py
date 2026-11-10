@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
 
+from pandaplot.utils.errors import UserFacingError
+
 from ..signal_types import SignalAnalysisResult, SignalAnalysisType
 
 
@@ -37,12 +39,12 @@ def run(
     """
 
     if sampling_rate <= 0:
-        raise ValueError("Sampling rate must be greater than zero.")
+        raise UserFacingError("Sampling rate must be greater than zero.")
 
     signal = pd.to_numeric(column, errors="coerce").dropna().to_numpy(dtype=float)
 
     if signal.size < 2:
-        raise ValueError("Signal must contain at least two valid samples.")
+        raise UserFacingError("Signal must contain at least two valid samples.")
 
     if nfft is None:
         nfft = signal.size

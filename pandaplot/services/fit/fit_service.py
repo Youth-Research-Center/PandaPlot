@@ -4,6 +4,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from pandaplot.utils.errors import UserFacingError
+
 MIN_FIT_POINTS = 2
 _MAX_EXP_ARGUMENT = 700
 
@@ -376,7 +378,7 @@ class FitService:
         initial_str = (initial_str or "").strip()
 
         if not function_str or not params_str:
-            raise ValueError("Custom function and parameters must be specified")
+            raise UserFacingError("Enter a custom function and its parameter names.")
 
         params = [p.strip() for p in params_str.split(",")]
 
@@ -430,7 +432,7 @@ class FitService:
         from scipy.optimize import curve_fit
 
         if len(x_data) < MIN_FIT_POINTS:
-            raise ValueError(f"At least {MIN_FIT_POINTS} data points are required for fitting.")
+            raise UserFacingError(f"At least {MIN_FIT_POINTS} data points are required for fitting.")
 
         try:
             fit_func, param_names = self._get_fit_func(
@@ -453,7 +455,7 @@ class FitService:
                 for name, value in fixed_params.items():
                     lower, upper = fit_definition.get("bounds", {}).get(name, (-np.inf, np.inf))
                     if not lower <= value <= upper:
-                        raise ValueError(f"Fixed parameter {name}={value:g} must be within [{lower:g}, {upper:g}] for a {fit_type} fit.")
+                        raise UserFacingError(f"Fixed parameter {name}={value:g} must be within [{lower:g}, {upper:g}] for a {fit_type} fit.")
             if fit_definition is not None and fixed_params:
                 original_fit_func = fit_func
 
@@ -462,9 +464,9 @@ class FitService:
                     parameter_values.update(fixed_params)
                     return original_fit_func(x, *(parameter_values[name] for name in param_names))
             if not free_param_names:
-                raise ValueError("At least one fit parameter must remain free.")
+                raise UserFacingError("At least one fit parameter must remain free.")
             if len(x_data) < max(MIN_FIT_POINTS, len(free_param_names)):
-                raise ValueError(
+                raise UserFacingError(
                     f"At least {len(free_param_names)} data points are required for a {fit_type} fit."
                 )
 
