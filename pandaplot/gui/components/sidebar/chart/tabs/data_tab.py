@@ -29,6 +29,7 @@ from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.segmented_control import SegmentedControl
+from pandaplot.gui.resources.themed_icons import IconRole, themed_icon
 from pandaplot.models.chart.chart_type_spec import CHART_TYPE_SPECS
 from pandaplot.models.chart.error_bar_config import ErrorBarConfig
 from pandaplot.models.chart.series_style_builder import build_series_style, default_series_color
@@ -422,9 +423,11 @@ class DataTab(QWidget):
         so a specific series/fit can be removed regardless of which entry
         is selected/expanded)."""
         button = PButton(
-            "\U0001f5d1", role="destructive", icon=True,  # wastebasket emoji
+            role="destructive", icon=True,
             on_click=lambda _checked=False, i=index: self._remove_series_at(i)
         )
+        button.setIcon(themed_icon(self.app_context, "trash", role=IconRole.ERROR))
+        button.set_hover_icon(themed_icon(self.app_context, "trash", role=IconRole.ON_DANGER))
         button.setAccessibleName("Remove series")
         button.setFixedWidth(24)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -439,9 +442,10 @@ class DataTab(QWidget):
         other series (#304), not always last, so it needs the same
         reorder affordance."""
         button = PButton(
-            "▲", role="secondary", icon=True,  # ▲
+            role="secondary", icon=True,
             on_click=lambda _checked=False, i=index: self._move_series(i, i - 1)
         )
+        button.setIcon(themed_icon(self.app_context, "caret-up"))
         button.setAccessibleName("Move series up")
         button.setFixedWidth(24)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -453,9 +457,10 @@ class DataTab(QWidget):
         """Move this series one position later in the plotting order --
         drawn *over* the series that used to be right after it (#189)."""
         button = PButton(
-            "▼", role="secondary", icon=True,  # ▼
+            role="secondary", icon=True,
             on_click=lambda _checked=False, i=index: self._move_series(i, i + 1)
         )
+        button.setIcon(themed_icon(self.app_context, "caret-down"))
         button.setAccessibleName("Move series down")
         button.setFixedWidth(24)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -467,9 +472,10 @@ class DataTab(QWidget):
         """Accordion toggle: purely visual expand/collapse, independent of
         selection (see `_toggle_card_expanded`)."""
         chevron = PButton(
-            "▾" if expanded else "▸", role="secondary", icon=True,
+            role="secondary", icon=True,
             on_click=lambda _checked=False, i=index: self._toggle_card_expanded(i)
         )
+        chevron.setIcon(themed_icon(self.app_context, "caret-down" if expanded else "caret-right"))
         label = "Collapse series details" if expanded else "Expand series details"
         chevron.setAccessibleName(label)
         chevron.setToolTip(label)
@@ -521,11 +527,10 @@ class DataTab(QWidget):
         return dataset_id
 
     def _series_display_name(self, series: DataSeries) -> str:
-        """Card/row title for `series`: a FIT entry shows its label behind a
-        wrench marker, every other type its label (or dataset:Y column when
-        unlabeled)."""
+        """Card/row title for `series`: its label, or dataset:Y column when
+        unlabeled (a FIT entry always shows its label)."""
         if series.is_fit:
-            return f"\U0001f527 {series.label}"
+            return series.label
         return series.label or (
             f"{series.dataset_id}:{self._column_display_name(series.dataset_id, series.y_column_id, series.y_column)}"
         )
@@ -636,9 +641,8 @@ class DataTab(QWidget):
         header.addWidget(self._build_move_up_button(index))
         header.addWidget(self._build_move_down_button(index, total_series))
         header.addWidget(self._build_trash_button(index))
-        chevron = PButton(
-            "▾", role="secondary", icon=True, enabled=False
-        )  # ▾, indicates "currently expanded"
+        chevron = PButton(role="secondary", icon=True, enabled=False)
+        chevron.setIcon(themed_icon(self.app_context, "caret-down"))  # indicates "currently expanded"
         chevron.setAccessibleName("Series details expanded")
         chevron.setToolTip("Series details expanded")
         chevron.setFixedWidth(24)

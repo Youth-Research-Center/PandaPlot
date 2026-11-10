@@ -44,3 +44,14 @@ def test_no_topic_names_a_button_or_panel_with_its_old_emoji() -> None:
         text = _text(topic)
         for old_name in _OLD_BUTTON_AND_PANEL_NAMES:
             assert old_name not in text, f"{topic.id} still says {old_name!r}"
+
+
+_OLD_GLYPH_BUTTON_NAMES = ("▾", "▸", "▲", "▼", "↺", "↻")
+
+
+def test_no_topic_names_a_button_by_its_old_glyph() -> None:
+    """Icon buttons are described in words: the glyphs they used to show are not quoted in the help."""
+    for topic in build_help_catalog().topics():
+        text = _text(topic)
+        for glyph in _OLD_GLYPH_BUTTON_NAMES:
+            assert glyph not in text, f"{topic.id} still quotes {glyph!r}"

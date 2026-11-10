@@ -27,6 +27,7 @@ from pandaplot.commands.project.sketch import (
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.core.widget_extension import PWidget
+from pandaplot.gui.resources.themed_icons import ActionIcons
 from pandaplot.models.events import SketchEvents
 from pandaplot.models.project.items.sketch import Sketch, SketchLayer
 from pandaplot.models.state.app_context import AppContext
@@ -166,6 +167,8 @@ class LayerManagerPanel(PWidget):
         self.sketch = sketch
         self.rows: dict[str, LayerRow] = {}
         self._icon_color = QColor("#4B5563")
+        # Must exist before _initialize() builds the buttons, which bind their icons.
+        self._icons = ActionIcons(app_context)
         self._initialize()
 
     @override
@@ -192,10 +195,10 @@ class LayerManagerPanel(PWidget):
 
         buttons = QHBoxLayout()
         buttons.setSpacing(4)
-        self.add_button = self._button("+", "Add layer", "Add a layer above the selected one", self.add_layer)
-        self.delete_button = self._button("−", "Delete layer", "Delete the selected layer", self.delete_active_layer)
-        self.up_button = self._button("▲", "Move layer up", "Move the selected layer up", lambda: self.move_active_layer(1))
-        self.down_button = self._button("▼", "Move layer down", "Move the selected layer down", lambda: self.move_active_layer(-1))
+        self.add_button = self._button("plus", "Add layer", "Add a layer above the selected one", self.add_layer)
+        self.delete_button = self._button("minus", "Delete layer", "Delete the selected layer", self.delete_active_layer)
+        self.up_button = self._button("caret-up", "Move layer up", "Move the selected layer up", lambda: self.move_active_layer(1))
+        self.down_button = self._button("caret-down", "Move layer down", "Move the selected layer down", lambda: self.move_active_layer(-1))
         for button in (self.add_button, self.delete_button, self.up_button, self.down_button):
             buttons.addWidget(button)
         buttons.addStretch(1)
@@ -222,8 +225,9 @@ class LayerManagerPanel(PWidget):
 
         self.refresh()
 
-    def _button(self, text: str, name: str, tooltip: str, on_click: Callable[[], object]) -> PButton:
-        button = PButton(text, icon=True, on_click=lambda _checked=False: on_click(), parent=self)
+    def _button(self, icon_name: str, name: str, tooltip: str, on_click: Callable[[], object]) -> PButton:
+        button = PButton(icon=True, on_click=lambda _checked=False: on_click(), parent=self)
+        self._icons.bind(button, icon_name)
         button.setAccessibleName(name)
         button.setToolTip(tooltip)
         return button
@@ -232,6 +236,7 @@ class LayerManagerPanel(PWidget):
     def _apply_theme(self):
         tokens = self.app_context.get_manager(ThemeManager).get_design_tokens()
         self.header.set_tokens(tokens)
+        self._icons.retint()
         self._icon_color = QColor(tokens["text_secondary"])
         for row in self.rows.values():
             row.set_icon_color(self._icon_color)

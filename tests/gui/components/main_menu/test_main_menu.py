@@ -119,6 +119,7 @@ class TestMainMenuHelpMenu:
         command_executor.execute_command.assert_called_once()
         executed_command = command_executor.execute_command.call_args[0][0]
         assert executed_command.file_path == "/examples/sample.pplot"
+        assert executed_command.as_untitled_copy is True
 
     def test_open_example_project_does_nothing_when_dialog_cancelled(self, app_context):
         menu = MainMenu(parent=None, app_context=app_context)

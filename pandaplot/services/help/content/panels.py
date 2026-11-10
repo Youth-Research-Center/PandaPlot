@@ -71,7 +71,7 @@ def topics() -> list[HelpTopic]:
                 ("Under Column Selection, click a column in Source Columns. If you select several, only the first one is used as x; "
                 'the list marks it with "→ x" and the others with "(not used)".'),
                 "Type a name in New Column. PandaPlot suggests <column>_transformed for you.",
-                ('Under Transform Function, type an expression, or choose a ready-made one from "ƒ  Insert function ▾". '
+                ('Under Transform Function, type an expression, or choose a ready-made one from "Insert function". '
                 "Click the ? button to see the names you can use."),
                 'Optional: tick "Replace existing column" to overwrite a column that already has the new name.',
                 ('Optional: tick "Save as formula column" to remember the expression on the new column. '
@@ -287,7 +287,7 @@ def topics() -> list[HelpTopic]:
                 'Open a chart tab and click the wrench icon in the sidebar (its tooltip reads "Chart Transform panel").',
                 "Under Series, choose which series or fitted curve to Transform.",
                 "Under Target, choose whether the result replaces Y or X. The other axis stays as it is.",
-                ('Under Transform Expression, type an expression using x and y, or choose a ready-made one from "ƒ  Insert function ▾". '
+                ('Under Transform Expression, type an expression using x and y, or choose a ready-made one from "Insert function". '
                 "Click the ? button to see the names you can use."),
                 "Under Result, type a Dataset name or leave it empty to use the suggested name.",
                 "Click Preview to see the number of points and the first values.",

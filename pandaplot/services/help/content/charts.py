@@ -139,8 +139,8 @@ def topics() -> list[HelpTopic]:
                  'or "Values column" for a Histogram. The first entry in each drop-down is blank.'),
                 'Columns marked "(optional)" can be left blank. Next stays greyed out until each series card has a dataset and all its required columns. On Line, Scatter, Bar and Stacked Bar, "X column" is also optional even though its label does not say so.',
                 'To plot another data set on the same chart, click "+ Add series" and fill in the new card.',
-                ('To tidy a long list, click the ▾ button on a card (tooltip "Collapse series") to fold it into a one-line summary. '
-                 'Click ▸ ("Expand series") to open it again.'),
+                ('To tidy a long list, click the down-arrow button on a card (tooltip "Collapse series") to fold it into a one-line summary. '
+                 'Click the right-arrow button ("Expand series") to open it again.'),
                 'To drop a series, click "Remove" on its card.',
                 'On a Line, Scatter, Bar or Stacked Bar card, tick "Add error bars" to choose columns for the error bars.',
                 "Click Next to go on to the Labels step.",
@@ -174,15 +174,15 @@ def topics() -> list[HelpTopic]:
                 ('Click "+ Add series" to add one. On a chart with no series it opens the Add Series dialog: choose a dataset and columns and click Add. '
                  "On a chart that already has series it adds a copy of the selected series, with the same dataset and columns, so change them "
                  "afterwards. Each add is its own undo step."),
-                ('Click a series card to select it. Its settings open in that card and you can edit them. On the other cards, ▸ (tooltip '
-                 '"Expand series details") shows a read-only summary and ▾ hides it again. On the selected card ▾ is greyed out '
+                ('Click a series card to select it. Its settings open in that card and you can edit them. On the other cards, the right-arrow button (tooltip '
+                 '"Expand series details") shows a read-only summary and the down-arrow button hides it again. On the selected card the down arrow is greyed out '
                  '(tooltip "Series details expanded").'),
                 'Choose the "Dataset:" and the columns. The column boxes that appear depend on the series type.',
                 ('Type a name in "Label:". This is the text shown for the series in the legend. On a Pie chart the legend lists the '
                  'wedges instead, named by the values in the "Labels Column (optional):", so change those values in the dataset to rename them.'),
                 ('Use "Series Type:" to change how this series is drawn. The list shows the types the chart type allows. '
                  'Use "Y Axis:" (Y₁ left or Y₂ right) to put it on the left or the right axis.'),
-                ('Use the ▲ and ▼ buttons on a card to change the plotting order (tooltips "Move up (draw earlier, further back)" and '
+                ('Use the up-arrow and down-arrow buttons on a card to change the plotting order (tooltips "Move up (draw earlier, further back)" and '
                  '"Move down (draw later, further to front)"). A series lower in the list is drawn in front.'),
                 'Click the wastebasket button (tooltip "Remove") to delete a series. Removing and reordering are also single undo steps.',
             ),
