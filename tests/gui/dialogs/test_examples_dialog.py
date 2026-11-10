@@ -5,6 +5,8 @@ from PySide6.QtWidgets import QApplication
 
 from pandaplot.app import build_app_context
 from pandaplot.gui.dialogs.examples_dialog import ExamplesDialog
+from pandaplot.models.project.example_info import ExampleLevel, ExampleSection
+from pandaplot.utils.examples import ExampleProject
 
 
 def _qapp():
@@ -18,7 +20,10 @@ def test_example_card_exposes_its_title_and_description_to_assistive_tech():
     dialog = ExamplesDialog(build_app_context())
     try:
         card = dialog._create_example_item(
-            {"name": "Damped Oscillator", "description": "A fitted decay curve.", "path": "/examples/demo.ppp"})
+            ExampleProject(
+                path="/examples/demo.ppp", name="Damped Oscillator", summary="A fitted decay curve.", description="A fitted decay curve.",
+                section=ExampleSection.GETTING_STARTED, level=ExampleLevel.BEGINNER, tags=(), featured_chart_ids=(), start_note_id=None,
+                data_credit="", cover_image=None, dataset_count=0, chart_count=0, note_count=0))
 
         assert card.accessibleName() == "Damped Oscillator"
         assert card.accessibleDescription() == "A fitted decay curve."

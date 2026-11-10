@@ -3,6 +3,7 @@ import logging
 from typing import Any
 
 from pandaplot.models.migrations.schema_version import CURRENT_SCHEMA_VERSION
+from pandaplot.models.project.example_info import ExampleInfo
 from pandaplot.models.project.items import Item, ItemCollection
 from pandaplot.utils.errors import UserFacingError
 
@@ -18,7 +19,12 @@ class Project:
     def __init__(self, name: str = "Untitled Project", description: str = ""):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.name = name
+        # The project's notes, as long Markdown text (#597).
         self.description = description
+        # Settings used when the project is listed as an example (#608).
+        self.example_info: ExampleInfo = ExampleInfo()
+        # PNG bytes. Not part of to_dict(): ProjectDataManager stores it as the reserved zip entry "cover.png" (#598).
+        self.cover_image: bytes | None = None
         
         # Main project hierarchy - root is an ItemCollection
         self.root: ItemCollection = ItemCollection(name=f"{name} Root")
@@ -253,6 +259,7 @@ class Project:
         return {
             "name": self.name,
             "description": self.description,
+            "example": self.example_info.to_dict(),
             "root": self.root.to_dict(),
             "metadata": self.metadata,
             "version": self.version,
@@ -267,6 +274,7 @@ class Project:
             name=data.get("name", "Untitled Project"),
             description=data.get("description", "")
         )
+        project.example_info = ExampleInfo.from_dict(data.get("example"))
         project.metadata = data.get("metadata", {})
         project.version = data.get("version", "1.0")
         project.schema_version = data.get("schema_version", 0)

@@ -352,7 +352,7 @@ def test_example_opens_as_untitled_copy_and_save_never_overwrites_it(
     from pandaplot.services.session.recent_projects import get_recent_projects
     from pandaplot.utils.examples import discover_example_projects
 
-    example = Path(discover_example_projects()[0]["path"])
+    example = Path(discover_example_projects()[0].path)
     original_bytes = example.read_bytes()
     state = app_window.app_context.app_state
 
