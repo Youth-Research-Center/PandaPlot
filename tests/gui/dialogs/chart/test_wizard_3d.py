@@ -3,6 +3,7 @@ switching the canvas to an mplot3d projection, and the sample-data
 preview being genuinely shared between the Type and Labels steps.
 """
 import sys
+from collections import Counter
 
 import pandas as pd
 import pytest
@@ -47,18 +48,50 @@ def _project_with_lattice():
     return project, dataset
 
 
+# What each chart type's sample preview draws: (number of lines, collection artists, patch artists).
+_SAMPLE_ARTISTS = {
+    ChartType.LINE: (1, {}, {}),
+    ChartType.SCATTER: (0, {"PathCollection": 1}, {}),
+    ChartType.BAR: (0, {}, {"Rectangle": 5}),
+    ChartType.STACKED_BAR: (0, {}, {"Rectangle": 10}),  # two stacked layers of five bars
+    ChartType.HIST: (0, {}, {"Rectangle": 10}),
+    ChartType.DENSITY: (1, {}, {}),
+    ChartType.VECTOR: (0, {"Quiver": 1}, {}),
+    ChartType.COLORMAP: (0, {"PathCollection": 1}, {}),
+    ChartType.HEATMAP: (0, {"QuadMesh": 1}, {}),
+    ChartType.PIE: (0, {}, {"Wedge": 5}),
+    ChartType.BOX: (6, {}, {"PathPatch": 1}),
+    ChartType.SCATTER3D: (0, {"Path3DCollection": 1}, {}),
+    ChartType.LINE3D: (1, {}, {}),
+    ChartType.SURFACE: (0, {"Poly3DCollection": 1}, {}),
+    ChartType.WIREFRAME: (0, {"Line3DCollection": 1}, {}),
+    ChartType.BAR3D: (0, {"Poly3DCollection": 1}, {}),
+    ChartType.TRISURF: (0, {"Poly3DCollection": 1}, {}),
+    ChartType.VECTOR3D: (0, {"Line3DCollection": 1}, {}),
+}
+
+
+def test_the_sample_artist_table_covers_every_chart_type():
+    assert set(_SAMPLE_ARTISTS) == set(ChartType)
+
+
 @pytest.mark.parametrize("chart_type", [chart_type.value for chart_type in ChartType])
 def test_the_sample_preview_draws_something_for_every_chart_type(chart_type):
     """The Type step must never show empty axes -- and since this is the
     shared sample renderer, that guarantee covers the Labels step's
-    fallback too."""
+    fallback too. Each type must also draw its own kind of artist, not
+    just any artist."""
     canvas = _canvas()
 
     draw_chart_type_sample(canvas, chart_type)
 
     axes = canvas.axes
-    drew_something = bool(axes.collections) or bool(axes.get_lines()) or bool(axes.patches)
-    assert drew_something, f"{chart_type} sample preview drew nothing"
+    lines, collections, patches = _SAMPLE_ARTISTS[ChartType(chart_type)]
+    assert (
+        len(axes.get_lines()),
+        dict(Counter(type(artist).__name__ for artist in axes.collections)),
+        dict(Counter(type(artist).__name__ for artist in axes.patches)),
+    ) == (lines, collections, patches), f"{chart_type} sample preview drew the wrong artists"
 
 
 @pytest.mark.parametrize("chart_type", [chart_type.value for chart_type in ChartType])

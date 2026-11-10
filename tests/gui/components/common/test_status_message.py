@@ -158,7 +158,15 @@ def test_retint_recolours_the_text_with_the_primary_text_token(qapp, app_context
 
 
 def test_retint_on_an_empty_widget_is_a_no_op(qapp, app_context):
-    StatusMessage(app_context).retint()
+    widget = StatusMessage(app_context)
+
+    widget.retint()
+
+    assert widget.isHidden()
+    assert widget.message() == ""
+    assert widget.kind() is None
+    assert _icon(widget) is None
+    assert _text(widget).text() == ""
 
 
 @pytest.mark.parametrize(
@@ -273,3 +281,8 @@ def test_sending_alerts_does_not_raise_without_an_accessibility_client(qapp, app
 
     widget.set_message(StatusKind.ERROR, "Boom")
     widget.set_message(StatusKind.WARNING, "Careful")
+
+    assert widget.kind() is StatusKind.WARNING
+    assert widget.message() == "Careful"
+    assert widget.accessibleDescription() == "Warning: Careful"
+    assert not widget.isHidden()

@@ -8,6 +8,7 @@ import matplotlib
 matplotlib.use("Agg")  # no display needed for these pure-drawing tests
 import matplotlib.pyplot as plt
 import pytest
+from matplotlib.colors import to_hex
 from mpl_toolkits.mplot3d.art3d import Line3DCollection, Path3DCollection, Poly3DCollection
 
 from pandaplot.gui.components.tabs.chart.series_data import SeriesData
@@ -125,7 +126,13 @@ def test_render_wireframe_series_draws_a_line_mesh_in_one_flat_color():
         axes, _lattice_data(), WireframeSeriesStyle(color="#123456", line_width=1.5),
         "mesh", 1.0, visible=True, extra=_extra())
 
+    axes.figure.canvas.draw()  # mplot3d only projects its segments on draw
     assert isinstance(rendered, Line3DCollection)
+    assert rendered in axes.collections
+    assert rendered.get_linewidth() == [1.5]
+    assert {to_hex(color) for color in rendered.get_color()} == {"#123456"}
+    # A 3 x 3 lattice: three mesh lines along each direction.
+    assert len(rendered.get_segments()) == 6
     plt.close(fig)
 
 
@@ -244,9 +251,16 @@ def test_render_trisurf_series_returns_a_mappable_for_the_colorbar():
     fig, axes = _axes3d()
 
     mappable = render_trisurf_series(
-        axes, _lattice_data(), TrisurfSeriesStyle(), "tri", 1.0, visible=True, extra=_extra())
+        axes, _lattice_data(), TrisurfSeriesStyle(), "tri", 0.6, visible=True, extra=_extra())
 
+    axes.figure.canvas.draw()  # mplot3d only projects its polygons on draw
     assert isinstance(mappable, Poly3DCollection)
+    assert mappable in axes.collections
+    assert mappable.get_cmap().name == "viridis"
+    assert mappable.get_clim() == (0.0, 4.0)
+    assert mappable.get_alpha() == 0.6
+    # A 3 x 3 lattice triangulates into 2 * (3 - 1) ** 2 triangles.
+    assert len(mappable.get_paths()) == 8
     plt.close(fig)
 
 
@@ -279,20 +293,43 @@ def test_renderers_that_report_no_data_return_none_for_empty_input(series_type):
     plt.close(fig)
 
 
-def test_3d_renderers_accept_scattered_data_via_the_gridding_modes():
+@pytest.mark.parametrize(("renderer", "style_cls", "expected_type"), [
+    (render_surface_series, SurfaceSeriesStyle, Poly3DCollection),
+    (render_wireframe_series, WireframeSeriesStyle, Line3DCollection),
+])
+@pytest.mark.parametrize("gridding", ["binned", "interpolated"])
+def test_3d_renderers_accept_scattered_data_via_the_gridding_modes(renderer, style_cls, expected_type, gridding):
     """Surface/Wireframe are the gridding types: non-lattice points can't be
-    pivoted exactly, and "binned" is what makes them renderable anyway."""
+    pivoted exactly, and "binned"/"interpolated" are what make them renderable anyway."""
     fig, axes = _axes3d()
     scattered = SeriesData(
         x_data=[0.0, 0.4, 1.3, 2.2, 2.9, 1.1], y_data=[0.1, 1.2, 0.3, 2.4, 1.5, 2.6],
         x_err=None, y_err=None, x_err_minus=None, y_err_minus=None, error=None,
         z_data=[1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
 
-    mappable = render_surface_series(
-        axes, scattered, SurfaceSeriesStyle(heatmap_gridding="binned", heatmap_resolution=4),
-        "surf", 1.0, visible=True, extra=_extra())
+    rendered = renderer(
+        axes, scattered, style_cls(heatmap_gridding=gridding, heatmap_resolution=4),
+        "s", 1.0, visible=True, extra=_extra())
 
-    assert isinstance(mappable, Poly3DCollection)
+    assert isinstance(rendered, expected_type)
+    assert rendered in axes.collections
+    # The gridded mesh stays within the extent of the samples that produced it.
+    x_lo, x_hi = axes.xaxis.get_data_interval()
+    y_lo, y_hi = axes.yaxis.get_data_interval()
+    z_lo, z_hi = axes.zaxis.get_data_interval()
+    assert 0.0 <= x_lo < x_hi <= 2.9
+    assert 0.1 <= y_lo < y_hi <= 2.6
+    assert 1.0 <= z_lo < z_hi <= 6.0
+    if gridding == "interpolated":
+        # The interpolation lattice spans the samples' bounding box exactly, and its nodes fall
+        # between samples, so the highest sample (6.0) is smoothed away.
+        assert (x_lo, x_hi) == pytest.approx((0.0, 2.9))
+        assert (y_lo, y_hi) == pytest.approx((0.1, 2.6))
+        assert z_hi < 6.0
+    else:
+        # Bin centres sit strictly inside the samples' bounding box (an exact pivot would hit its edges).
+        assert 0.0 < x_lo and x_hi < 2.9
+        assert 0.1 < y_lo and y_hi < 2.6
     plt.close(fig)
 
 

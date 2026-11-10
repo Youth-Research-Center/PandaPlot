@@ -88,11 +88,19 @@ def test_no_project_loaded_logs_a_warning(env, caplog):
     assert "New Name" in caplog.text
 
 
-def test_cleanup_does_not_raise(env):
-    app_context, _project = env
+def test_cleanup_keeps_the_command_able_to_undo_and_redo(env):
+    """cleanup() releases nothing: old_name is still needed by both undo()
+    and redo() afterwards."""
+    app_context, project = env
     command = RenameProjectCommand(app_context, "New Name")
     command.execute()
-    command.cleanup()
+
+    assert command.cleanup() is None
+
+    assert command.undo() is CommandResult.SUCCESS
+    assert project.name == "Original Name"
+    assert command.redo() is CommandResult.SUCCESS
+    assert project.name == "New Name"
 
 
 def test_event_emitted_on_rename(env):

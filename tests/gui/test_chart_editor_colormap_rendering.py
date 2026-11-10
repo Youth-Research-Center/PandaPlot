@@ -11,6 +11,8 @@ import sys
 
 import pandas as pd
 import pytest
+from matplotlib.contour import ContourSet
+from matplotlib.tri import TriContourSet
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.app import build_app_context
@@ -171,7 +173,18 @@ def test_heatmap_contour_render_mode_draws_a_colorbar():
 
     editor.update_chart()
 
+    axes = editor.chart_canvas.axes
+    contour_sets = [artist for artist in axes.collections if isinstance(artist, ContourSet)]
+    # A filled set plus the lines overlaid on it, both on the primary axes.
+    assert sorted(contour_set.filled for contour_set in contour_sets) == [False, True]
+    filled_set = next(contour_set for contour_set in contour_sets if contour_set.filled)
+    line_set = next(contour_set for contour_set in contour_sets if not contour_set.filled)
+    # Lines over a fill use a neutral colour, not the colormap the fill already uses.
+    assert {tuple(color[:3]) for color in line_set.get_edgecolor()} == {(0.0, 0.0, 0.0)}
     assert editor._colorbar is not None
+    assert editor._colorbar.mappable is filled_set
+    assert editor._colorbar.ax is not axes
+    assert editor._colorbar.ax.figure is editor.chart_canvas.fig
 
 
 def test_heatmap_triangulated_contour_handles_a_ragged_domain():
@@ -203,7 +216,15 @@ def test_heatmap_triangulated_contour_handles_a_ragged_domain():
 
     editor.update_chart()
 
+    contour_sets = [artist for artist in editor.chart_canvas.axes.collections if isinstance(artist, ContourSet)]
+    assert [type(contour_set) for contour_set in contour_sets] == [TriContourSet, TriContourSet]
+    assert sorted(contour_set.filled for contour_set in contour_sets) == [False, True]
+    filled_set = next(contour_set for contour_set in contour_sets if contour_set.filled)
     assert editor._colorbar is not None
+    assert editor._colorbar.mappable is filled_set
+    # The contour levels span the sample values (z = x + y runs 0..9) over the whole ragged domain.
+    assert filled_set.levels[0] <= 0.0
+    assert filled_set.levels[-1] >= 9.0
 
 
 def test_switching_away_from_heatmap_removes_colorbar():

@@ -24,22 +24,33 @@ def test_auto_mode_resets_to_default_locator_and_formatter():
     axis = _make_axis()
     apply_axis_ticks(axis, "count", count=8, step=1.0, fmt="integer", custom_fmt="")
     apply_axis_ticks(axis, "auto", count=5, step=1.0, fmt="auto", custom_fmt="")
-    assert isinstance(axis.get_major_locator(), AutoLocator)
-    assert isinstance(axis.get_major_formatter(), ScalarFormatter)
+    # Exact types: AutoLocator is itself a MaxNLocator and ScalarFormatter is not a FuncFormatter,
+    # so the "count"/"integer" settings applied first must really have been replaced.
+    assert type(axis.get_major_locator()) is AutoLocator
+    assert type(axis.get_major_formatter()) is ScalarFormatter
+    assert list(axis.get_major_locator().tick_values(0, 100)) == [0, 20, 40, 60, 80, 100]
 
 
 def test_count_mode_sets_max_n_locator():
     axis = _make_axis()
     apply_axis_ticks(axis, "count", count=8, step=1.0, fmt="auto", custom_fmt="")
     locator = axis.get_major_locator()
-    assert isinstance(locator, MaxNLocator)
+    assert type(locator) is MaxNLocator
+    ticks_8 = [tick for tick in locator.tick_values(0, 100) if 0 <= tick <= 100]
+    assert 4 <= len(ticks_8) <= 8 + 1
+
+    apply_axis_ticks(axis, "count", count=3, step=1.0, fmt="auto", custom_fmt="")
+    ticks_3 = [tick for tick in axis.get_major_locator().tick_values(0, 100) if 0 <= tick <= 100]
+    assert 2 <= len(ticks_3) <= 3 + 1
+    assert len(ticks_3) < len(ticks_8)
 
 
 def test_step_mode_sets_multiple_locator():
     axis = _make_axis()
     apply_axis_ticks(axis, "step", count=5, step=2.5, fmt="auto", custom_fmt="")
     locator = axis.get_major_locator()
-    assert isinstance(locator, MultipleLocator)
+    assert type(locator) is MultipleLocator
+    assert [tick for tick in locator.tick_values(0, 10) if 0 <= tick <= 10] == [0.0, 2.5, 5.0, 7.5, 10.0]
 
 
 def test_integer_format_renders_whole_numbers():

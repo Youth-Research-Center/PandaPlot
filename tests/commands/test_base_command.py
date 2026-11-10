@@ -17,17 +17,9 @@ class TestCommand:
             Command()
     
     def test_command_has_required_abstract_methods(self):
-        """Test that Command defines the required abstract methods."""
-        # Check that abstract methods are defined
-        assert hasattr(Command, "execute")
-        assert hasattr(Command, "undo")
-        assert hasattr(Command, "redo")
-        
-        # Check that they are abstract methods
-        assert Command.execute.__isabstractmethod__
-        assert Command.undo.__isabstractmethod__
-        assert Command.redo.__isabstractmethod__
-    
+        """Test that Command declares exactly execute/undo/redo as abstract."""
+        assert Command.__abstractmethods__ == frozenset({"execute", "undo", "redo"})
+
     def test_command_repr_method(self):
         """Test that Command has a __repr__ method."""
         assert hasattr(Command, "__repr__")
@@ -184,7 +176,11 @@ class TestConcreteCommand:
     def test_cleanup_is_a_no_op_by_default(self):
         """Test that cleanup() exists and does nothing unless overridden."""
         cmd = ConcreteCommand()
-        cmd.cleanup()  # must not raise
+        state_before = dict(vars(cmd))
+
+        assert cmd.cleanup() is None
+
+        assert vars(cmd) == state_before
 
     def test_marks_project_modified_defaults_to_true(self):
         cmd = ConcreteCommand()

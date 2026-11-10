@@ -428,11 +428,19 @@ class TestChartAnalysisPanelQuickPlot:
         executor.execute_command.return_value = True
 
         panel.plot_result_cb.setChecked(False)
+        panel.result_name.setText("  My result  ")
         panel.apply()
 
-        assert executor.execute_command.called
+        executor.execute_command.assert_called_once()
         cmd = executor.execute_command.call_args[0][0]
-        assert isinstance(cmd, AnalyzeChartSeriesCommand)
+        assert type(cmd) is AnalyzeChartSeriesCommand
+        assert cmd.chart_id == "chart-1"
+        assert cmd.source_index == panel._selected_source()
+        assert cmd.analysis_type == panel.operation_combo.currentData()
+        assert cmd.parameters == panel._build_parameters()
+        assert cmd.result_name == "My result"
+        assert cmd.folder_id == panel.current_chart.parent_id
+        assert panel.status_message.kind() is StatusKind.SUCCESS
 
 
 class TestChartAnalysisPanelStatusMessage:

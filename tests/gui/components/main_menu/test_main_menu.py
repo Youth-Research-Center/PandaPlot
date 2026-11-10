@@ -76,16 +76,42 @@ class TestMainMenuHelpMenu:
     def test_help_menu_has_open_example_project_action(self, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
 
+        command_executor = Mock()
+        app_context.get_command_executor.return_value = command_executor
         action = _find_help_action(menu, "Open Example Project...")
+        assert action.isEnabled()
 
-        assert action is not None
+        with patch("pandaplot.gui.dialogs.examples_dialog.ExamplesDialog") as dialog_cls:
+            dialog = dialog_cls.return_value
+            dialog.exec.return_value = True
+            dialog.selected_path = "/examples/sample.pplot"
+
+            action.trigger()
+
+        dialog_cls.assert_called_once()
+        command_executor.execute_command.assert_called_once()
+        assert command_executor.execute_command.call_args[0][0].file_path == "/examples/sample.pplot"
 
     def test_help_menu_has_welcome_action(self, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
+        tab_container = Mock()
+        original_side_effect = app_context.get_manager.side_effect
 
+        def _get_manager(manager_type, *args, **kwargs):
+            from pandaplot.gui.components.tabs.tab_container import TabContainer
+            if manager_type is TabContainer:
+                return tab_container
+            return original_side_effect(manager_type, *args, **kwargs)
+
+        app_context.get_manager.side_effect = _get_manager
         action = _find_help_action(menu, "Welcome")
+        assert action.isEnabled()
 
-        assert action is not None
+        with patch("pandaplot.gui.dialogs.examples_dialog.ExamplesDialog") as dialog_cls:
+            action.trigger()
+
+        tab_container.show_welcome_tab.assert_called_once_with()
+        dialog_cls.assert_not_called()
 
     def test_show_welcome_tab_delegates_to_the_tab_container_manager(self, app_context):
         menu = MainMenu(parent=None, app_context=app_context)
