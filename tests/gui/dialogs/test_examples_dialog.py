@@ -1,31 +1,490 @@
-"""Tests for ExamplesDialog's example cards."""
+"""Tests for ExamplesDialog: cards, search and tag filters, details page and opening."""
+
 import sys
 
-from PySide6.QtWidgets import QApplication
+import pytest
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QImage, QPixmap
+from PySide6.QtWidgets import QApplication, QDialog
 
 from pandaplot.app import build_app_context
+from pandaplot.gui.dialogs import examples_dialog as examples_dialog_module
+from pandaplot.gui.dialogs.example_card import CoverSource, describe_contents
 from pandaplot.gui.dialogs.examples_dialog import ExamplesDialog
-from pandaplot.models.project.example_info import ExampleLevel, ExampleSection
-from pandaplot.utils.examples import ExampleProject
+from pandaplot.models.project.example_info import ExampleLevel, ExampleSection, example_tag
+from pandaplot.models.project.items import Chart
+from pandaplot.services.example_project_loader import ExampleProjectLoader
+from pandaplot.utils.examples import ExampleProject, discover_example_projects
 
 
 def _qapp():
     return QApplication.instance() or QApplication(sys.argv)
 
 
-def test_example_card_exposes_its_title_and_description_to_assistive_tech():
-    """The visible text lives in child QLabels, which leaves the card
-    button itself unnamed unless it is set explicitly."""
-    _qapp()
-    dialog = ExamplesDialog(build_app_context())
-    try:
-        card = dialog._create_example_item(
-            ExampleProject(
-                path="/examples/demo.ppp", name="Damped Oscillator", summary="A fitted decay curve.", description="A fitted decay curve.",
-                section=ExampleSection.GETTING_STARTED, level=ExampleLevel.BEGINNER, tags=(), featured_chart_ids=(), start_note_id=None,
-                data_credit="", cover_image=None, dataset_count=0, chart_count=0, note_count=0))
+def _png(color: str) -> bytes:
+    image = QImage(40, 30, QImage.Format.Format_RGB32)
+    image.fill(QColor(color))
+    from PySide6.QtCore import QBuffer, QIODevice
 
-        assert card.accessibleName() == "Damped Oscillator"
-        assert card.accessibleDescription() == "A fitted decay curve."
-    finally:
-        dialog.deleteLater()
+    buffer = QBuffer()
+    buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    image.save(buffer, "PNG")
+    return bytes(buffer.data())
+
+
+def _example(name: str = "Demo", **overrides) -> ExampleProject:
+    fields = {
+        "path": f"/examples/{name}.pplot", "name": name, "summary": f"{name} summary.", "description": f"# {name}\n\nLong **text** for {name}.",
+        "section": ExampleSection.GETTING_STARTED, "level": ExampleLevel.BEGINNER, "tags": (), "featured_chart_ids": (), "start_note_id": None,
+        "data_credit": "", "cover_image": None, "dataset_count": 0, "chart_count": 0, "note_count": 0,
+    }
+    fields.update(overrides)
+    return ExampleProject(**fields)
+
+
+def _tags(*tag_ids: str):
+    return tuple(example_tag(tag_id) for tag_id in tag_ids)
+
+
+class _FakeProject:
+    def __init__(self, charts: dict[str, Chart]):
+        self._charts = charts
+
+    def find_item(self, item_id: str):
+        return self._charts.get(item_id)
+
+
+@pytest.fixture
+def make_dialog(qtbot, monkeypatch):
+    """Build a dialog over the given examples. Real ``exec()`` is never called: tests use show() and result()."""
+    _qapp()
+
+    def factory(examples: list[ExampleProject], *, charts: dict[str, Chart] | None = None) -> ExamplesDialog:
+        monkeypatch.setattr(examples_dialog_module, "discover_example_projects", lambda: examples)
+        monkeypatch.setattr(ExampleProjectLoader, "load", lambda _self, _example: _FakeProject(charts or {}))
+        dialog = ExamplesDialog(build_app_context())
+        qtbot.addWidget(dialog)
+        dialog.show()
+        return dialog
+
+    return factory
+
+
+def _patch_renderer(monkeypatch, *, fail_for: frozenset[str] = frozenset()) -> list[str]:
+    """Replace the headless renderer with a fake that paints a blue image; returns the rendered chart names."""
+    from pandaplot.gui.components.tabs.chart import chart_editor
+
+    rendered: list[str] = []
+
+    def fake_render(chart, _series, _defaults):
+        rendered.append(chart.name)
+        if chart.name in fail_for:
+            return None
+        image = QImage(80, 60, QImage.Format.Format_RGB32)
+        image.fill(QColor("#0000ff"))
+        return image
+
+    monkeypatch.setattr(chart_editor, "render_chart_to_qimage", fake_render)
+    return rendered
+
+
+def _tagged_examples() -> list[ExampleProject]:
+    return [
+        _example("Pendulum", tags=_tags("physics", "curve_fitting"), description="Damped oscillation."),
+        _example("Spring", tags=_tags("physics", "smoothing")),
+        _example("Survey", tags=_tags("statistics", "curve_fitting"), section=ExampleSection.ANALYSING_DATA),
+    ]
+
+
+def _names(dialog: ExamplesDialog) -> list[str]:
+    return [card.example.name for card in dialog.visible_cards]
+
+
+# ---------------------------------------------------------------------------------------------- list page
+
+
+def test_example_card_exposes_its_title_and_summary_to_assistive_tech(make_dialog):
+    dialog = make_dialog([_example("Damped Oscillator", summary="A fitted decay curve.")])
+
+    card = dialog.cards[0]
+
+    assert card.accessibleName() == "Damped Oscillator"
+    assert card.accessibleDescription() == "A fitted decay curve."
+    assert card.focusPolicy() == Qt.FocusPolicy.StrongFocus
+
+
+def test_header_search_box_and_focus(make_dialog):
+    dialog = make_dialog([_example()])
+
+    assert dialog.title_label.text() == "Examples"
+    assert "your copy won't change the original" in dialog.subtitle_label.text()
+    assert dialog.search_edit.placeholderText() == "Search examples"
+    assert dialog.focusWidget() is dialog.search_edit
+
+
+def test_cards_are_grouped_under_section_headers_in_section_order_skipping_empty_sections(make_dialog):
+    dialog = make_dialog([
+        _example("A", section=ExampleSection.GETTING_STARTED),
+        _example("B", section=ExampleSection.CHARTS),
+    ])
+
+    assert list(dialog.section_headers) == [ExampleSection.GETTING_STARTED, ExampleSection.CHARTS]
+    assert [header.text() for header in dialog.section_headers.values()] == ["GETTING STARTED", "CHARTS"]
+    assert ExampleSection.ANALYSING_DATA not in dialog.section_grids
+
+
+def test_card_shows_title_summary_level_tags_and_contents(make_dialog):
+    dialog = make_dialog([_example(
+        "Pendulum", level=ExampleLevel.INTERMEDIATE, tags=_tags("physics", "smoothing"), dataset_count=2, chart_count=4, note_count=1,
+    )])
+    card = dialog.cards[0]
+
+    assert card.title_label.text() == "Pendulum"
+    assert card.summary_label.text() == "Pendulum summary."
+    assert card.meta_row.level_label.text() == "Intermediate"
+    assert [label.text() for label in card.meta_row.tag_labels] == ["Physics", "Smoothing"]
+    assert card.contents_label.text() == "2 datasets · 4 charts · 1 note"
+    assert card.details_button.text() == "See details"
+    assert card.open_button.text() == "Open example"
+
+
+@pytest.mark.parametrize(
+    ("counts", "expected"),
+    [
+        ((1, 1, 1), "1 dataset · 1 chart · 1 note"),
+        ((2, 0, 3), "2 datasets · 3 notes"),
+        ((0, 1, 0), "1 chart"),
+        ((0, 0, 0), ""),
+    ],
+)
+def test_contents_wording_skips_zero_counts_and_pluralises(counts, expected):
+    example = _example(dataset_count=counts[0], chart_count=counts[1], note_count=counts[2])
+
+    assert describe_contents(example) == expected
+
+
+def test_cover_uses_the_cover_image_bytes(make_dialog):
+    dialog = make_dialog([_example(cover_image=_png("#ff0000"), featured_chart_ids=("c1",))])
+    card = dialog.cards[0]
+
+    assert card.cover_source is CoverSource.COVER_IMAGE
+    assert card.cover.pixmap.toImage().pixelColor(5, 5) == QColor("#ff0000")
+
+
+def test_cover_without_image_is_a_lazy_render_of_the_first_featured_chart(make_dialog, monkeypatch, qtbot):
+    rendered = _patch_renderer(monkeypatch)
+    charts = {"c1": Chart(id="c1", name="First"), "c2": Chart(id="c2", name="Second")}
+    dialog = make_dialog([_example(featured_chart_ids=("c1", "c2"))], charts=charts)
+    card = dialog.cards[0]
+
+    assert card.cover_source is CoverSource.PLACEHOLDER  # nothing is rendered before the event loop runs
+    qtbot.waitUntil(lambda: card.cover_source is CoverSource.CHART_RENDER)
+
+    assert rendered == ["First"]
+    assert card.cover.pixmap.toImage().pixelColor(5, 5) == QColor("#0000ff")
+
+
+def test_cover_is_a_placeholder_without_image_or_featured_chart_or_when_rendering_fails(make_dialog, monkeypatch, qtbot):
+    _patch_renderer(monkeypatch, fail_for=frozenset({"Broken"}))
+    charts = {"c1": Chart(id="c1", name="Broken")}
+    dialog = make_dialog([_example("Bare"), _example("Failing", featured_chart_ids=("c1",))], charts=charts)
+    qtbot.wait(50)
+
+    assert [card.cover_source for card in dialog.cards] == [CoverSource.PLACEHOLDER, CoverSource.PLACEHOLDER]
+    assert not dialog.cards[0].cover.pixmap.isNull()
+
+
+def test_chart_renders_are_cached_per_dialog(make_dialog, monkeypatch, qtbot):
+    rendered = _patch_renderer(monkeypatch)
+    charts = {"c1": Chart(id="c1", name="First")}
+    dialog = make_dialog([_example(featured_chart_ids=("c1",))], charts=charts)
+    qtbot.waitUntil(lambda: dialog.cards[0].cover_source is CoverSource.CHART_RENDER)
+
+    dialog._show_details(dialog.cards[0].example)
+    qtbot.waitUntil(lambda: dialog.preview_images[0].pixmap() is not None and not dialog.preview_images[0].pixmap().isNull())
+
+    assert rendered == ["First"]
+
+
+def test_chips_are_hidden_when_no_example_has_tags(make_dialog):
+    dialog = make_dialog([_example("A"), _example("B")])
+
+    assert dialog.tag_chips == {}
+    assert dialog.chips_widget.isHidden()
+
+
+def test_chips_show_only_used_tags_with_counts_in_two_labelled_rows(make_dialog):
+    dialog = make_dialog(_tagged_examples())
+
+    assert set(dialog.tag_chips) == {"physics", "statistics", "curve_fitting", "smoothing"}
+    assert {group.value: label.text() for group, label in dialog.group_labels.items()} == {"topic": "Topic", "technique": "Technique"}
+    assert dialog.tag_chips["physics"].text() == "Physics (2)"
+    assert dialog.tag_chips["curve_fitting"].text() == "Curve fitting (2)"
+    assert all(chip.isCheckable() for chip in dialog.tag_chips.values())
+
+
+def test_chip_counts_update_and_unavailable_tags_are_disabled(make_dialog):
+    dialog = make_dialog(_tagged_examples())
+
+    dialog.tag_chips["physics"].click()
+
+    assert _names(dialog) == ["Pendulum", "Spring"]
+    assert dialog.tag_chips["statistics"].text() == "Statistics (3)"  # OR within the group
+    assert dialog.tag_chips["curve_fitting"].text() == "Curve fitting (1)"  # AND across groups
+
+    dialog.search_edit.setText("damped")
+
+    assert dialog.tag_chips["smoothing"].text() == "Smoothing (0)"
+    assert not dialog.tag_chips["smoothing"].isEnabled()
+    assert dialog.tag_chips["physics"].isEnabled()  # selected, so it stays usable
+
+
+def test_search_filters_as_you_type_and_hides_empty_sections(make_dialog):
+    dialog = make_dialog(_tagged_examples())
+
+    dialog.search_edit.setText("survey")
+
+    assert _names(dialog) == ["Survey"]
+    assert dialog.section_headers[ExampleSection.GETTING_STARTED].isHidden()
+    assert not dialog.section_headers[ExampleSection.ANALYSING_DATA].isHidden()
+    assert dialog.empty_panel.isHidden()
+
+
+def test_clear_filters_is_enabled_only_when_something_is_set_and_resets_chips_and_search(make_dialog):
+    dialog = make_dialog(_tagged_examples())
+    assert not dialog.clear_button.isEnabled()
+
+    dialog.tag_chips["statistics"].click()
+    dialog.search_edit.setText("sur")
+    assert dialog.clear_button.isEnabled()
+    dialog.clear_button.click()
+
+    assert dialog.search_edit.text() == ""
+    assert dialog.selected_tag_ids == frozenset()
+    assert not any(chip.isChecked() for chip in dialog.tag_chips.values())
+    assert len(_names(dialog)) == 3
+    assert not dialog.clear_button.isEnabled()
+
+
+def test_no_results_shows_the_empty_state_whose_button_clears_the_filters(make_dialog):
+    dialog = make_dialog(_tagged_examples())
+
+    dialog.search_edit.setText("zzzz")
+
+    assert not dialog.empty_panel.isHidden()
+    assert dialog.empty_panel.heading_label.text() == "No examples match"
+    assert dialog.empty_panel.description_label.text() == "Try other words or fewer filters."
+    assert dialog.visible_cards == []
+    assert all(card.isHidden() for card in dialog.cards)
+
+    dialog.empty_panel.action_buttons[0].click()
+
+    assert dialog.empty_panel.isHidden()
+    assert len(_names(dialog)) == 3
+
+
+def test_no_examples_at_all_shows_the_not_found_message(make_dialog):
+    dialog = make_dialog([])
+
+    assert not dialog.no_examples_label.isHidden()
+    assert dialog.no_examples_label.text() == "No example projects were found."
+    assert dialog.empty_panel.isHidden()
+
+
+def test_cards_use_two_columns_when_wide_and_one_when_narrow(make_dialog, qtbot):
+    dialog = make_dialog([_example("A"), _example("B")])
+    grid = dialog.section_grids[ExampleSection.GETTING_STARTED]
+    assert grid.getItemPosition(1)[:2] == (0, 1)
+
+    dialog.resize(600, 640)
+    qtbot.waitUntil(lambda: grid.getItemPosition(1)[:2] == (1, 0))
+
+    dialog.resize(900, 640)
+    qtbot.waitUntil(lambda: grid.getItemPosition(1)[:2] == (0, 1))
+
+
+def test_enter_on_a_focused_card_opens_its_details(make_dialog, qtbot):
+    dialog = make_dialog([_example("Demo")])
+    card = dialog.cards[0]
+    card.setFocus()
+
+    qtbot.keyClick(card, Qt.Key.Key_Return)
+
+    assert dialog.stack.currentWidget() is dialog.details_page
+    assert dialog.details_title.text() == "Demo"
+
+
+# ---------------------------------------------------------------------------------------------- details page
+
+
+def test_details_show_the_rendered_description_level_contents_and_credit(make_dialog):
+    example = _example(
+        "Pendulum", level=ExampleLevel.INTERMEDIATE, tags=_tags("physics"), dataset_count=1, chart_count=2, data_credit="Data: Example Lab",
+    )
+    dialog = make_dialog([example])
+
+    dialog.cards[0].details_button.click()
+
+    assert dialog.stack.currentWidget() is dialog.details_page
+    assert dialog.details_title.text() == "Pendulum"
+    assert dialog.details_meta.level_label.text() == "Intermediate"
+    assert [label.text() for label in dialog.details_meta.tag_labels] == ["Physics"]
+    assert dialog.details_contents.text() == "What's inside: 1 dataset · 2 charts"
+    assert dialog.description_browser.isReadOnly()
+    assert "<strong>text</strong>" in dialog.description_browser.toHtml() or "text" in dialog.description_browser.toPlainText()
+    assert "Long text for Pendulum." in dialog.description_browser.toPlainText()
+    assert not dialog.credit_label.isHidden()
+    assert dialog.credit_label.text() == "Data: Example Lab"
+
+
+def test_details_fall_back_to_the_summary_and_hide_empty_credit_and_previews(make_dialog):
+    dialog = make_dialog([_example("Bare", description="", summary="Only a summary.")])
+
+    dialog.cards[0].details_button.click()
+
+    assert "Only a summary." in dialog.description_browser.toPlainText()
+    assert dialog.credit_label.isHidden()
+    assert dialog.credit_header.isHidden()
+    assert dialog.previews_host.isHidden()
+
+
+def test_details_render_featured_chart_previews_with_captions_and_a_placeholder_for_failures(make_dialog, monkeypatch, qtbot):
+    _patch_renderer(monkeypatch, fail_for=frozenset({"Broken chart"}))
+    charts = {"c1": Chart(id="c1", name="Decay"), "c2": Chart(id="c2", name="Broken chart"), "c3": Chart(id="c3", name="Fit")}
+    dialog = make_dialog([_example(featured_chart_ids=("c1", "c2", "c3"))], charts=charts)
+
+    dialog.cards[0].details_button.click()
+    qtbot.waitUntil(lambda: [label.text() for label in dialog.preview_captions] == ["Decay", "Broken chart", "Fit"])
+
+    images = dialog.preview_images
+    assert images[0].pixmap() is not None and not images[0].pixmap().isNull()
+    assert images[1].text() == "Preview not available"
+    assert images[1].pixmap() is None or images[1].pixmap().isNull()
+    assert not images[2].pixmap().isNull()
+    assert dialog.result() == QDialog.DialogCode.Rejected  # a failed render never opens or closes anything
+
+
+def test_preview_for_a_missing_chart_shows_the_placeholder(make_dialog, qtbot):
+    dialog = make_dialog([_example(featured_chart_ids=("gone",))], charts={})
+
+    dialog.cards[0].details_button.click()
+
+    qtbot.waitUntil(lambda: dialog.preview_images[0].text() == "Preview not available")
+
+
+def test_back_keeps_query_chips_and_scroll_position(make_dialog, qtbot):
+    examples = [_example(f"Ex{index:02d}", tags=_tags("physics")) for index in range(12)] + [_example("Other", tags=_tags("statistics"))]
+    dialog = make_dialog(examples)
+    dialog.resize(900, 300)
+    dialog.tag_chips["physics"].click()
+    dialog.search_edit.setText("ex")
+    scrollbar = dialog.list_scroll.verticalScrollBar()
+    qtbot.waitUntil(lambda: scrollbar.maximum() > 100)
+    scrollbar.setValue(120)
+    card = dialog.visible_cards[3]
+
+    card.details_button.click()
+    assert dialog.stack.currentWidget() is dialog.details_page
+    dialog.back_button.click()
+
+    assert dialog.stack.currentWidget() is dialog.list_page
+    assert dialog.search_edit.text() == "ex"
+    assert dialog.selected_tag_ids == frozenset({"physics"})
+    assert dialog.tag_chips["physics"].isChecked()
+    assert scrollbar.value() == 120
+    assert dialog.focusWidget() is card
+
+
+def test_bottom_back_button_also_returns_to_the_list(make_dialog):
+    dialog = make_dialog([_example()])
+    dialog.cards[0].details_button.click()
+
+    dialog.bottom_back_button.click()
+
+    assert dialog.stack.currentWidget() is dialog.list_page
+
+
+def test_escape_goes_back_on_details_and_rejects_on_the_list(make_dialog, qtbot):
+    dialog = make_dialog([_example()])
+    dialog.cards[0].details_button.click()
+
+    qtbot.keyClick(dialog, Qt.Key.Key_Escape)
+
+    assert dialog.stack.currentWidget() is dialog.list_page
+    assert dialog.isVisible()
+
+    qtbot.keyClick(dialog, Qt.Key.Key_Escape)
+
+    assert dialog.result() == QDialog.DialogCode.Rejected
+    assert not dialog.isVisible()
+
+
+# ---------------------------------------------------------------------------------------------- opening
+
+
+def test_open_example_on_a_card_sets_selected_path_and_accepts(make_dialog):
+    dialog = make_dialog([_example("A"), _example("B")])
+    accepted = []
+    dialog.accepted.connect(lambda: accepted.append(True))
+
+    dialog.cards[1].open_button.click()
+
+    assert dialog.selected_path == "/examples/B.pplot"
+    assert dialog.result() == QDialog.DialogCode.Accepted
+    assert accepted == [True]
+
+
+def test_open_example_on_the_details_page_sets_selected_path_and_accepts(make_dialog):
+    dialog = make_dialog([_example("A"), _example("B")])
+    dialog.cards[0].details_button.click()
+
+    dialog.details_open_button.click()
+
+    assert dialog.selected_path == "/examples/A.pplot"
+    assert dialog.result() == QDialog.DialogCode.Accepted
+
+
+def test_cancel_rejects_without_a_selection(make_dialog):
+    dialog = make_dialog([_example()])
+
+    dialog.close_btn.click()
+
+    assert dialog.selected_path is None
+    assert dialog.result() == QDialog.DialogCode.Rejected
+
+
+def test_enter_in_the_search_box_does_not_open_an_example(make_dialog, qtbot):
+    dialog = make_dialog([_example()])
+
+    qtbot.keyClick(dialog.search_edit, Qt.Key.Key_Return)
+
+    assert dialog.selected_path is None
+    assert dialog.result() != QDialog.DialogCode.Accepted
+
+
+# ---------------------------------------------------------------------------------------------- real examples
+
+
+def test_the_bundled_examples_open_in_the_dialog_and_render_a_real_chart_preview(qtbot):
+    _qapp()
+    examples = discover_example_projects()
+    assert examples
+    dialog = ExamplesDialog(build_app_context())
+    qtbot.addWidget(dialog)
+    dialog.show()
+    assert len(dialog.cards) == len(examples)
+    assert all(card.title_label.text() for card in dialog.cards)
+
+    context = build_app_context()
+    project = ExampleProjectLoader(context).load(examples[0])
+    chart = next(item for item in project.get_all_items() if isinstance(item, Chart) and item.data_series)
+    featured = ExampleProject(**{**examples[0].__dict__, "featured_chart_ids": (chart.id,)})
+    dialog._examples = [featured]
+    dialog.cards[0].example = featured
+
+    dialog._show_details(featured)
+    qtbot.waitUntil(lambda: dialog.preview_captions[0].text() == chart.name, timeout=20000)
+
+    pixmap = dialog.preview_images[0].pixmap()
+    assert isinstance(pixmap, QPixmap)
+    assert not pixmap.isNull()

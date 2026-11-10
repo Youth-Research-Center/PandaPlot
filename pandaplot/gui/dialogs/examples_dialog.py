@@ -1,169 +1,649 @@
-"""Dialog for browsing and opening bundled example projects."""
+"""Dialog for browsing the bundled example projects as cards, with search, tag filters and a details page."""
 
-from typing import override
+from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import Qt
+import shiboken6
+from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtGui import QImage, QKeyEvent, QPixmap, QResizeEvent
 from PySide6.QtWidgets import (
     QFrame,
+    QGridLayout,
+    QHBoxLayout,
     QLabel,
-    QPushButton,
+    QLineEdit,
     QScrollArea,
-    QSizePolicy,
+    QStackedWidget,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
 
 from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.models.project.example_info import EXAMPLE_TAGS, ExampleSection, TagGroup
+from pandaplot.models.project.items import Chart
+from pandaplot.models.state.app_context import AppContext
+from pandaplot.services.example_project_loader import ExampleProjectLoader
 from pandaplot.services.theme.theme_manager import ThemeManager
+from pandaplot.utils.example_filter import filter_examples, tag_counts
 from pandaplot.utils.examples import ExampleProject, discover_example_projects
+
+if TYPE_CHECKING:
+    from pandaplot.gui.dialogs.example_card import ExampleCard, ExampleMetaRow
+
+DEFAULT_SIZE = QSize(900, 640)
+MINIMUM_SIZE = QSize(480, 420)
+TWO_COLUMN_MIN_WIDTH = 820
+PREVIEW_WIDTH = 260
+PREVIEW_HEIGHT = 170
+DESCRIPTION_FONT_SIZE = 11
+SUBTITLE = "Browse what PandaPlot can do. Open an example to explore it; your copy won't change the original."
+_GROUP_LABELS = {TagGroup.TOPIC: "Topic", TagGroup.TECHNIQUE: "Technique"}
+
+
+class _AutoHeightTextBrowser(QTextBrowser):
+    """A read-only rich text view that is as tall as its text, so a surrounding scroll area does the scrolling."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setReadOnly(True)
+        self.setOpenExternalLinks(True)
+        self.setFrameShape(QFrame.Shape.NoFrame)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+    def fit_height(self) -> None:
+        """Resize to the height of the document at the current width."""
+        document = self.document()
+        document.setTextWidth(self.viewport().width())
+        self.setFixedHeight(int(document.size().height()) + 2 * self.frameWidth() + 4)
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.fit_height()
 
 
 class ExamplesDialog(PDialog):
     """Lets the user browse bundled example projects and pick one to open.
 
-    On acceptance, `selected_path` holds the chosen project's file path.
+    A list page shows the examples as cards grouped in sections, with a search box and tag filters. **See details**
+    switches to a details page with the full description and live previews of the featured charts. On acceptance,
+    `selected_path` holds the chosen project's file path.
+
+    Attributes:
+        selected_path: File path of the example the user chose to open, or None.
     """
 
-    def __init__(self, app_context, parent=None):
+    def __init__(self, app_context: AppContext, parent: QWidget | None = None):
         super().__init__(app_context=app_context, parent=parent)
         self.selected_path: str | None = None
+        self._examples: list[ExampleProject] = discover_example_projects()
+        self._loader = ExampleProjectLoader(app_context)
+        self._chart_pixmaps: dict[tuple[str, str], QPixmap | None] = {}
+        self._selected_tag_ids: frozenset[str] = frozenset()
+        self._cover_requested: set[str] = set()
+        self._details_example: ExampleProject | None = None
+        self._details_token = 0
+        self._origin_card: ExampleCard | None = None
+        self._list_scroll_value = 0
+        self._columns = 0
         self._initialize()
 
+    # ------------------------------------------------------------------ construction
+
     @override
-    def _init_ui(self):
+    def _init_ui(self) -> None:
+        self.setObjectName("ExamplesDialog")
         self.setWindowTitle("Examples")
         self.setModal(True)
-        self.resize(520, 420)
-        self.setMinimumSize(420, 320)
+        self.resize(DEFAULT_SIZE)
+        self.setMinimumSize(MINIMUM_SIZE)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        self.stack = QStackedWidget()
+        root.addWidget(self.stack)
+        self.list_page = self._build_list_page()
+        self.details_page = self._build_details_page()
+        self.stack.addWidget(self.list_page)
+        self.stack.addWidget(self.details_page)
+        self.search_edit.setFocus()
+        self._refresh()
 
-        self.title_label = QLabel("Example Projects")
-        title_font = self.title_label.font()
-        title_font.setPointSize(16)
-        title_font.setBold(True)
-        self.title_label.setFont(title_font)
+    def _build_list_page(self) -> QWidget:
+        from pandaplot.gui.components.common.empty_state_panel import EmptyStatePanel
+        from pandaplot.gui.components.common.p_button import PButton
+        from pandaplot.gui.components.common.section_header import SectionHeader
+        from pandaplot.gui.dialogs.example_card import ExampleCard
+
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 20, 20, 16)
+        layout.setSpacing(10)
+
+        self.title_label = QLabel("Examples")
+        self.title_label.setAccessibleName("Examples")
         layout.addWidget(self.title_label)
-
-        self.subtitle_label = QLabel("Open a bundled example to explore what PandaPlot can do.")
+        self.subtitle_label = QLabel(SUBTITLE)
+        self.subtitle_label.setWordWrap(True)
         layout.addWidget(self.subtitle_label)
 
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll_area.setStyleSheet("background: transparent;")
-        scroll_area.viewport().setStyleSheet("background: transparent;")
+        search_row = QHBoxLayout()
+        search_row.setSpacing(8)
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("Search examples")
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.setAccessibleName("Search examples")
+        self.search_edit.textChanged.connect(self._on_filters_changed)
+        search_row.addWidget(self.search_edit, 1)
+        self.clear_button = PButton("Clear filters", role="secondary", on_click=self._clear_filters)
+        self.clear_button.setAutoDefault(False)
+        search_row.addWidget(self.clear_button)
+        self.search_row = QWidget()
+        self.search_row.setLayout(search_row)
+        search_row.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.search_row)
 
-        list_widget = QWidget()
-        list_widget.setStyleSheet("background: transparent;")
-        self.list_layout = QVBoxLayout(list_widget)
-        self.list_layout.setContentsMargins(0, 0, 0, 0)
-        self.list_layout.setSpacing(10)
+        self.chips_widget = self._build_chips()
+        layout.addWidget(self.chips_widget)
 
-        examples = discover_example_projects()
-        if not examples:
-            placeholder = QLabel("No example projects were found.")
-            placeholder.setProperty("secondary", True)  # noqa: FBT003 - Qt method, no keyword args
-            placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.list_layout.addWidget(placeholder)
-        else:
-            for example in examples:
-                self.list_layout.addWidget(self._create_example_item(example))
-        self.list_layout.addStretch()
+        self.no_examples_label = QLabel("No example projects were found.")
+        self.no_examples_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.no_examples_label.setVisible(not self._examples)
+        layout.addWidget(self.no_examples_label)
 
-        scroll_area.setWidget(list_widget)
-        layout.addWidget(scroll_area)
+        self.list_scroll = QScrollArea()
+        self.list_scroll.setWidgetResizable(True)
+        self.list_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.list_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.list_scroll.viewport().setAutoFillBackground(False)
+        self.list_scroll.setVisible(bool(self._examples))
+        content = QWidget()
+        content.setObjectName("ExamplesListContent")
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 8, 0)
+        content_layout.setSpacing(8)
 
-        # Imported locally to avoid a circular import: pandaplot.gui.components.__init__
-        # imports TabContainer -> WelcomeTab -> ExamplesDialog (this module), so a
-        # top-level import of PButton (under gui.components.common) would fail.
+        self.section_headers: dict[ExampleSection, SectionHeader] = {}
+        self.section_grids: dict[ExampleSection, QGridLayout] = {}
+        self.cards: list[ExampleCard] = []
+        for section in ExampleSection:
+            section_examples = [example for example in self._examples if example.section is section]
+            if not section_examples:
+                continue
+            header = SectionHeader(section.label)
+            header.setAccessibleName(section.label)
+            content_layout.addWidget(header)
+            grid = QGridLayout()
+            grid.setHorizontalSpacing(12)
+            grid.setVerticalSpacing(12)
+            content_layout.addLayout(grid)
+            self.section_headers[section] = header
+            self.section_grids[section] = grid
+            for example in section_examples:
+                card = ExampleCard(self.app_context, example)
+                card.details_requested.connect(self._show_details)
+                card.open_requested.connect(self._open_example)
+                self._apply_cover_image(card)
+                self.cards.append(card)
+
+        self.empty_panel: EmptyStatePanel = EmptyStatePanel(
+            self.app_context,
+            heading="No examples match",
+            description="Try other words or fewer filters.",
+            icon_name="magnifying-glass",
+            actions=[("Clear filters", self._clear_filters)],
+        )
+        self.empty_panel.action_buttons[0].setAutoDefault(False)
+        self.empty_panel.setMinimumHeight(160)
+        content_layout.addWidget(self.empty_panel)
+        content_layout.addStretch(1)
+        self.list_scroll.setWidget(content)
+        layout.addWidget(self.list_scroll, 1)
+
+        footer = QHBoxLayout()
+        footer.addStretch(1)
+        self.close_btn = PButton("Cancel", role="secondary", on_click=self.reject)
+        self.close_btn.setAutoDefault(False)
+        footer.addWidget(self.close_btn)
+        layout.addLayout(footer)
+        return page
+
+    def _build_chips(self) -> QWidget:
+        from pandaplot.gui.components.common.flow_layout import FlowLayout
         from pandaplot.gui.components.common.p_button import PButton
 
-        self.close_btn = PButton("Cancel", role="secondary", on_click=self.reject)
-        layout.addWidget(self.close_btn, alignment=Qt.AlignmentFlag.AlignRight)
+        used_tag_ids = {tag.id for example in self._examples for tag in example.tags}
+        self.tag_chips: dict[str, PButton] = {}
+        self.group_labels: dict[TagGroup, QLabel] = {}
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        for group in TagGroup:
+            group_tags = [tag for tag in EXAMPLE_TAGS if tag.group is group and tag.id in used_tag_ids]
+            if not group_tags:
+                continue
+            row = QHBoxLayout()
+            row.setSpacing(8)
+            label = QLabel(_GROUP_LABELS[group])
+            label.setFixedWidth(80)
+            label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+            label.setContentsMargins(0, 5, 0, 0)
+            self.group_labels[group] = label
+            row.addWidget(label)
+            chips_host = QWidget()
+            flow = FlowLayout(chips_host, spacing=6)
+            for tag in group_tags:
+                chip = PButton(tag.label, role="secondary")
+                chip.setProperty("chip", True)  # noqa: FBT003 -- Qt bound method, positional-only
+                chip.setCheckable(True)
+                chip.setAutoDefault(False)
+                chip.setAccessibleName(f"{_GROUP_LABELS[group]}: {tag.label}")
+                chip.toggled.connect(lambda checked, tag_id=tag.id: self._on_chip_toggled(tag_id, checked=checked))
+                self.tag_chips[tag.id] = chip
+                flow.addWidget(chip)
+            row.addWidget(chips_host, 1)
+            layout.addLayout(row)
+        widget.setVisible(bool(self.tag_chips))
+        return widget
 
-    def _create_example_item(self, example: ExampleProject) -> QPushButton:
-        """Create a clickable card for one example project."""
-        button = QPushButton()
-        button.setObjectName("ExampleItemButton")
-        button.setMinimumHeight(64)
-        button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        button.setCursor(Qt.CursorShape.PointingHandCursor)
-        # Visible text lives in child QLabels, which leaves the button itself
-        # unnamed for assistive tech.
-        button.setAccessibleName(example.name)
-        button.setAccessibleDescription(example.description or "")
+    def _build_details_page(self) -> QWidget:
+        from pandaplot.gui.components.common.flow_layout import FlowLayout
+        from pandaplot.gui.components.common.p_button import PButton
+        from pandaplot.gui.components.common.section_header import SectionHeader
 
-        item_layout = QVBoxLayout(button)
-        item_layout.setContentsMargins(14, 10, 14, 10)
-        item_layout.setSpacing(4)
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(10)
 
-        name_label = QLabel(example.name)
-        name_font = name_label.font()
-        name_font.setBold(True)
-        name_label.setFont(name_font)
-        name_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        name_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-        item_layout.addWidget(name_label)
+        top = QHBoxLayout()
+        self.back_button = PButton("Back", role="secondary", on_click=self._show_list)
+        self.back_button.setAutoDefault(False)
+        self.back_button.setAccessibleName("Back to the list of examples")
+        top.addWidget(self.back_button)
+        top.addStretch(1)
+        layout.addLayout(top)
 
-        if example.description:
-            desc_label = QLabel(example.description)
-            desc_label.setProperty("secondary", True)  # noqa: FBT003 - Qt method, no keyword args
-            desc_label.setWordWrap(True)
-            desc_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
-            desc_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
-            item_layout.addWidget(desc_label)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.viewport().setAutoFillBackground(False)
+        self.details_scroll = scroll
+        content = QWidget()
+        content.setObjectName("ExampleDetailsContent")
+        self.details_layout = QVBoxLayout(content)
+        self.details_layout.setContentsMargins(0, 0, 8, 0)
+        self.details_layout.setSpacing(10)
 
-        button.clicked.connect(lambda: self._on_example_chosen(example.path))
-        return button
+        self.details_title = QLabel()
+        self.details_title.setWordWrap(True)
+        self.details_layout.addWidget(self.details_title)
+        self.details_meta_slot = QVBoxLayout()
+        self.details_meta_slot.setContentsMargins(0, 0, 0, 0)
+        self.details_layout.addLayout(self.details_meta_slot)
+        self.details_meta: ExampleMetaRow | None = None
+        self.details_contents = QLabel()
+        self.details_layout.addWidget(self.details_contents)
 
-    def _on_example_chosen(self, path: str):
-        self.selected_path = path
-        self.accept()
+        self.description_browser = _AutoHeightTextBrowser()
+        self.description_browser.setAccessibleName("Description")
+        self.details_layout.addWidget(self.description_browser)
+
+        self.previews_header = SectionHeader("Featured charts")
+        self.details_layout.addWidget(self.previews_header)
+        self.previews_host = QWidget()
+        self.previews_flow = FlowLayout(self.previews_host, spacing=12)
+        self.details_layout.addWidget(self.previews_host)
+        self.preview_tiles: list[QWidget] = []
+        self.preview_images: list[QLabel] = []
+        self.preview_captions: list[QLabel] = []
+
+        self.credit_header = SectionHeader("Data source and credit")
+        self.details_layout.addWidget(self.credit_header)
+        self.credit_label = QLabel()
+        self.credit_label.setWordWrap(True)
+        self.credit_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.details_layout.addWidget(self.credit_label)
+        self.details_layout.addStretch(1)
+        scroll.setWidget(content)
+        layout.addWidget(scroll, 1)
+
+        bottom = QHBoxLayout()
+        bottom.setSpacing(8)
+        self.bottom_back_button = PButton("Back", role="secondary", on_click=self._show_list)
+        self.bottom_back_button.setAutoDefault(False)
+        self.details_open_button = PButton("Open example", role="primary", on_click=self._open_details_example)
+        self.details_open_button.setAutoDefault(False)
+        bottom.addStretch(1)
+        bottom.addWidget(self.bottom_back_button)
+        bottom.addWidget(self.details_open_button)
+        layout.addLayout(bottom)
+        return page
+
+    # ------------------------------------------------------------------ list page
+
+    @property
+    def selected_tag_ids(self) -> frozenset[str]:
+        """Ids of the tags currently selected as filters."""
+        return self._selected_tag_ids
+
+    @property
+    def visible_cards(self) -> list["ExampleCard"]:
+        """The cards that match the current filters, in display order."""
+        matching = {example.path for example in self._matching_examples()}
+        return [card for card in self.cards if card.example.path in matching]
+
+    def _matching_examples(self) -> list[ExampleProject]:
+        return filter_examples(self._examples, query=self.search_edit.text(), selected_tag_ids=self._selected_tag_ids)
+
+    def _on_filters_changed(self, _text: str = "") -> None:
+        self._refresh()
+
+    def _on_chip_toggled(self, tag_id: str, *, checked: bool) -> None:
+        self._selected_tag_ids = self._selected_tag_ids | {tag_id} if checked else self._selected_tag_ids - {tag_id}
+        self._refresh()
+
+    def _clear_filters(self) -> None:
+        """Clear the search text and every tag chip."""
+        for chip in self.tag_chips.values():
+            chip.blockSignals(True)  # noqa: FBT003 -- Qt method, no keyword args
+            chip.setChecked(False)
+            chip.blockSignals(False)  # noqa: FBT003 -- Qt method, no keyword args
+        self._selected_tag_ids = frozenset()
+        self.search_edit.blockSignals(True)  # noqa: FBT003 -- Qt method, no keyword args
+        self.search_edit.clear()
+        self.search_edit.blockSignals(False)  # noqa: FBT003 -- Qt method, no keyword args
+        self._refresh()
+        self.search_edit.setFocus()
+
+    def _refresh(self) -> None:
+        """Update the chips, the Clear filters button and the visible cards from the current filters."""
+        query = self.search_edit.text()
+        counts = tag_counts(self._examples, query=query, selected_tag_ids=self._selected_tag_ids)
+        tags_by_id = {tag.id: tag for tag in EXAMPLE_TAGS}
+        for tag_id, chip in self.tag_chips.items():
+            selected = tag_id in self._selected_tag_ids
+            chip.setText(f"{tags_by_id[tag_id].label} ({counts[tag_id]})")
+            chip.setEnabled(selected or counts[tag_id] > 0)
+            chip.setProperty("selected", selected)
+            chip.style().unpolish(chip)
+            chip.style().polish(chip)
+        self.clear_button.setEnabled(bool(query.strip()) or bool(self._selected_tag_ids))
+        self._layout_cards()
+
+    def _desired_columns(self) -> int:
+        return 2 if self.width() >= TWO_COLUMN_MIN_WIDTH else 1
+
+    def _layout_cards(self) -> None:
+        """Place the matching cards in the section grids, hide the rest and show the empty state when none match."""
+        self._columns = self._desired_columns()
+        matching = {example.path for example in self._matching_examples()}
+        for section, grid in self.section_grids.items():
+            while grid.count():
+                grid.takeAt(0)
+            visible = [card for card in self.cards if card.example.section is section and card.example.path in matching]
+            for card in self.cards:
+                if card.example.section is section and card.example.path not in matching:
+                    card.setVisible(False)
+            for index, card in enumerate(visible):
+                grid.addWidget(card, index // self._columns, index % self._columns)
+                card.setVisible(True)
+                self._request_cover(card)
+            for column in range(2):
+                grid.setColumnStretch(column, 1 if column < self._columns else 0)
+            self.section_headers[section].setVisible(bool(visible))
+        self.empty_panel.setVisible(bool(self._examples) and not matching)
 
     @override
-    def _apply_theme(self):
-        theme_manager = self.app_context.get_manager(ThemeManager)
-        palette = theme_manager.get_surface_palette()
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        super().resizeEvent(event)
+        if self._columns and self._desired_columns() != self._columns:
+            self._layout_cards()
 
-        card_bg = palette.get("card_bg", "#f8f9fa")
-        card_hover = palette.get("card_hover", "#e9ecef")
-        card_pressed = palette.get("card_pressed", "#dee2e6")
-        card_border = palette.get("card_border", "#dee2e6")
-        base_fg = palette.get("base_fg", "#000000")
-        secondary_fg = palette.get("secondary_fg", "#555555")
-        accent = palette.get("accent", "#4A90E2")
+    # ------------------------------------------------------------------ rendering
 
-        self.setStyleSheet(f"""
-            QDialog {{
-                background-color: {card_bg};
-                color: {base_fg};
-            }}
-            QLabel {{
-                color: {base_fg};
-            }}
-            QLabel[secondary="true"] {{
-                color: {secondary_fg};
-            }}
-            QPushButton#ExampleItemButton {{
-                background-color: {card_bg};
-                border: 1px solid {card_border};
-                border-radius: 6px;
-                text-align: left;
-            }}
-            QPushButton#ExampleItemButton:hover {{
-                background-color: {card_hover};
-                border-color: {accent};
-            }}
-            QPushButton#ExampleItemButton:pressed {{
-                background-color: {card_pressed};
-            }}
-            QPushButton#ExampleItemButton QLabel {{
-                background: transparent;
-                border: 0px;
-            }}
-        """)
-        self.subtitle_label.setStyleSheet(f"color: {secondary_fg};")
+    def _render_chart_pixmap(self, example: ExampleProject, chart_id: str) -> QPixmap | None:
+        """Render one chart of an example live, or None when it cannot be rendered. Cached per dialog, failures included."""
+        key = (example.path, chart_id)
+        if key in self._chart_pixmaps:
+            return self._chart_pixmaps[key]
+        pixmap: QPixmap | None = None
+        try:
+            # Imported here: the chart editor module pulls in the whole chart stack, which is not needed until a preview is drawn.
+            from pandaplot.gui.components.tabs.chart import chart_editor
+
+            project = self._loader.load(example)
+            chart = project.find_item(chart_id) if project is not None else None
+            if isinstance(chart, Chart):
+                image = chart_editor.render_chart_to_qimage(
+                    chart,
+                    chart_editor.resolve_chart_series_data(project, chart),
+                    chart_editor.resolve_chart_size_defaults(self.app_context),
+                )
+                if isinstance(image, QImage) and not image.isNull():
+                    pixmap = QPixmap.fromImage(image)
+            if pixmap is None:
+                self.logger.warning("Chart '%s' of example '%s' could not be rendered", chart_id, example.path)
+        except Exception:
+            self.logger.exception("Rendering chart '%s' of example '%s' failed", chart_id, example.path)
+            pixmap = None
+        self._chart_pixmaps[key] = pixmap
+        return pixmap
+
+    def _apply_cover_image(self, card: "ExampleCard") -> None:
+        """Use the example's cover image for the card when it has one that can be decoded."""
+        from pandaplot.gui.dialogs.example_card import CoverSource
+
+        data = card.example.cover_image
+        if not data:
+            return
+        pixmap = QPixmap()
+        if pixmap.loadFromData(data):
+            card.set_cover_pixmap(pixmap, CoverSource.COVER_IMAGE)
+            self._cover_requested.add(card.example.path)
+        else:
+            self.logger.warning("Cover image of example '%s' could not be decoded", card.example.path)
+
+    def _request_cover(self, card: "ExampleCard") -> None:
+        """Schedule the live render of the first featured chart as the cover of a card that has no cover image."""
+        example = card.example
+        if example.path in self._cover_requested or not example.featured_chart_ids:
+            return
+        self._cover_requested.add(example.path)
+        QTimer.singleShot(0, lambda: self._load_cover(card))
+
+    def _load_cover(self, card: "ExampleCard") -> None:
+        from pandaplot.gui.dialogs.example_card import CoverSource
+
+        if not shiboken6.isValid(self) or not shiboken6.isValid(card):
+            return
+        pixmap = self._render_chart_pixmap(card.example, card.example.featured_chart_ids[0])
+        if pixmap is not None:
+            card.set_cover_pixmap(pixmap, CoverSource.CHART_RENDER)
+
+    # ------------------------------------------------------------------ details page
+
+    def _show_details(self, example: ExampleProject) -> None:
+        """Switch to the details page for an example."""
+        self._list_scroll_value = self.list_scroll.verticalScrollBar().value()
+        self._origin_card = next((card for card in self.cards if card.example.path == example.path), None)
+        self._details_example = example
+        self._populate_details(example)
+        self.stack.setCurrentWidget(self.details_page)
+        self.details_scroll.verticalScrollBar().setValue(0)
+        self.details_open_button.setFocus()
+        self._start_preview_renders()
+
+    def _show_list(self) -> None:
+        """Go back to the list with the same search, chips and scroll position."""
+        self._details_token += 1
+        self._details_example = None
+        self.stack.setCurrentWidget(self.list_page)
+        self.list_scroll.verticalScrollBar().setValue(self._list_scroll_value)
+        if self._origin_card is not None and shiboken6.isValid(self._origin_card) and self._origin_card.isVisible():
+            self._origin_card.setFocus()
+        else:
+            self.search_edit.setFocus()
+
+    def _populate_details(self, example: ExampleProject) -> None:
+        from pandaplot.gui.dialogs.example_card import ExampleMetaRow, describe_contents
+
+        self._details_token += 1
+        self.details_title.setText(example.name)
+        self.details_title.setAccessibleName(example.name)
+        if self.details_meta is not None:
+            self.details_meta_slot.removeWidget(self.details_meta)
+            self.details_meta.deleteLater()
+        self.details_meta = ExampleMetaRow(example)
+        self.details_meta_slot.addWidget(self.details_meta)
+        contents = describe_contents(example)
+        self.details_contents.setText(f"What's inside: {contents}" if contents else "")
+        self.details_contents.setVisible(bool(contents))
+        self._render_description(example)
+
+        for tile in self.preview_tiles:
+            self.previews_flow.removeWidget(tile)
+            tile.deleteLater()
+        self.preview_tiles.clear()
+        self.preview_images.clear()
+        self.preview_captions.clear()
+        for number, _chart_id in enumerate(example.featured_chart_ids, start=1):
+            self._add_preview_tile(f"Chart {number}")
+        self.previews_header.setVisible(bool(example.featured_chart_ids))
+        self.previews_host.setVisible(bool(example.featured_chart_ids))
+
+        self.credit_label.setText(example.data_credit)
+        self.credit_header.setVisible(bool(example.data_credit))
+        self.credit_label.setVisible(bool(example.data_credit))
+        self._apply_details_tokens(self._tokens())
+
+    def _render_description(self, example: ExampleProject) -> None:
+        # Imported here: the renderer pulls in the markdown package, which is only needed once details are shown.
+        from pandaplot.services.note_render.latex_markdown_renderer import render_body_html, wrap_document
+
+        tokens = self._tokens()
+        color = tokens.get("text_primary", "#1C1E26")
+        background = tokens.get("surface_chrome", "#FBFBFC")
+        body = render_body_html(example.description.strip() or example.summary, color=color, fontsize=DESCRIPTION_FONT_SIZE)
+        html = wrap_document(
+            body, color=color, background=background, border=tokens.get("border_control", "#DCDEE4"), fontsize=DESCRIPTION_FONT_SIZE
+        )
+        self.description_browser.setHtml(html)
+        self.description_browser.fit_height()
+
+    def _add_preview_tile(self, caption: str) -> None:
+        image = QLabel("Loading preview...")
+        image.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        image.setFixedSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
+        image.setProperty("previewImage", True)  # noqa: FBT003 -- Qt bound method, positional-only
+        caption_label = QLabel(caption)
+        caption_label.setWordWrap(True)
+        caption_label.setFixedWidth(PREVIEW_WIDTH)
+        tile = QWidget()
+        tile_layout = QVBoxLayout(tile)
+        tile_layout.setContentsMargins(0, 0, 0, 0)
+        tile_layout.setSpacing(4)
+        tile_layout.addWidget(image)
+        tile_layout.addWidget(caption_label)
+        tile.setAccessibleName(caption)
+        self.preview_tiles.append(tile)
+        self.preview_images.append(image)
+        self.preview_captions.append(caption_label)
+        self.previews_flow.addWidget(tile)
+
+    def _start_preview_renders(self) -> None:
+        """Render the previews one event-loop turn at a time, after the details page is shown."""
+        example = self._details_example
+        if example is None:
+            return
+        token = self._details_token
+        for index, chart_id in enumerate(example.featured_chart_ids):
+            QTimer.singleShot(0, lambda index=index, chart_id=chart_id: self._load_preview(token, example, index, chart_id))
+
+    def _load_preview(self, token: int, example: ExampleProject, index: int, chart_id: str) -> None:
+        if not shiboken6.isValid(self) or token != self._details_token or index >= len(self.preview_images):
+            return
+        image_label = self.preview_images[index]
+        caption_label = self.preview_captions[index]
+        pixmap = self._render_chart_pixmap(example, chart_id)
+        project = self._loader.load(example)
+        chart = project.find_item(chart_id) if project is not None else None
+        if chart is not None:
+            caption_label.setText(chart.name)
+            self.preview_tiles[index].setAccessibleName(chart.name)
+        if pixmap is None:
+            image_label.setText("Preview not available")
+            return
+        scaled = pixmap.scaled(
+            PREVIEW_WIDTH, PREVIEW_HEIGHT, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+        )
+        image_label.setPixmap(scaled)
+
+    # ------------------------------------------------------------------ opening and keys
+
+    def _open_example(self, example: ExampleProject) -> None:
+        self.selected_path = example.path
+        self.accept()
+
+    def _open_details_example(self) -> None:
+        if self._details_example is not None:
+            self._open_example(self._details_example)
+
+    @override
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() == Qt.Key.Key_Escape and self.stack.currentWidget() is self.details_page:
+            self._show_list()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    # ------------------------------------------------------------------ theme
+
+    def _tokens(self) -> dict:
+        return self.app_context.get_manager(ThemeManager).get_design_tokens()
+
+    @override
+    def _apply_theme(self) -> None:
+        tokens = self._tokens()
+        text_primary = tokens["text_primary"]
+        text_muted = tokens["text_muted"]
+        plain = "border: none; background: transparent;"
+        self.setStyleSheet(
+            f"QDialog#ExamplesDialog {{ background-color: {tokens['surface_chrome']}; }}"
+            f"QWidget#ExamplesListContent, QWidget#ExampleDetailsContent {{ background-color: transparent; }}"
+            f"QScrollArea {{ background: transparent; }}"
+            f'QPushButton[chip="true"]:disabled {{ color: {tokens['text_disabled']}; border-color: {tokens['border_subtle']}; }}'
+        )
+        self.title_label.setStyleSheet(f"{plain} font-size: 20px; font-weight: 700; color: {text_primary};")
+        self.subtitle_label.setStyleSheet(f"{plain} color: {text_muted};")
+        self.no_examples_label.setStyleSheet(f"{plain} color: {text_muted};")
+        for label in self.group_labels.values():
+            label.setStyleSheet(f"{plain} font-weight: 600; color: {tokens['text_secondary']};")
+        for header in self.section_headers.values():
+            header.set_tokens(tokens)
+        for card in self.cards:
+            card.set_tokens(tokens)
+        self.empty_panel.set_tokens(tokens)
+        self._apply_details_tokens(tokens)
+        if self._details_example is not None:
+            self._render_description(self._details_example)
+
+    def _apply_details_tokens(self, tokens: dict) -> None:
+        plain = "border: none; background: transparent;"
+        self.details_title.setStyleSheet(f"{plain} font-size: 20px; font-weight: 700; color: {tokens['text_primary']};")
+        self.details_contents.setStyleSheet(f"{plain} color: {tokens['text_muted']};")
+        self.credit_label.setStyleSheet(f"{plain} color: {tokens['text_muted']};")
+        self.previews_header.set_tokens(tokens)
+        self.credit_header.set_tokens(tokens)
+        if self.details_meta is not None:
+            self.details_meta.set_tokens(tokens)
+        for image in self.preview_images:
+            image.setStyleSheet(
+                f"background-color: {tokens['surface_white']}; color: {tokens['text_muted']};"
+                f" border: 1px solid {tokens['border_control']}; border-radius: 4px;"
+            )
+        for caption in self.preview_captions:
+            caption.setStyleSheet(f"{plain} color: {tokens['text_secondary']};")
