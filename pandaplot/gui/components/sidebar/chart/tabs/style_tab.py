@@ -25,6 +25,12 @@ from pandaplot.gui.components.common.section_header import SectionHeader
 from pandaplot.gui.components.common.slider_with_spinbox import SliderWithSpinbox
 from pandaplot.gui.components.common.toggle_switch import ToggleSwitch
 from pandaplot.gui.components.common.value_combo_box import ValueComboBox
+from pandaplot.gui.components.sidebar.chart.series_source_picker import (
+    FIT_ICON_NAME,
+    SERIES_ICON_NAME,
+    add_icon_item,
+    retint_combo_icons,
+)
 from pandaplot.gui.components.sidebar.chart.tabs.axes_tab import AXES_SWATCH_PALETTE
 from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.chart.chart_configuration import (
@@ -81,6 +87,8 @@ from pandaplot.utils.length_units import (
     unit_suffix,
 )
 
+# Text colour of the combo icons before the theme tokens are applied (the light theme's primary text colour).
+DEFAULT_ICON_COLOR = "#1C1E26"
 # Preset swatch palette offered by the Style tab's line/marker color pickers.
 STYLE_SWATCH_PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd"]
 
@@ -467,7 +475,7 @@ class StyleTab(QWidget):
             ("Dash-Dot", LineStyleType.DASHDOT),
             ("None", LineStyleType.NONE),
         ]
-        _default_tokens = {"text_primary": "#1C1E26"}
+        _default_tokens = {"text_primary": DEFAULT_ICON_COLOR}
         self.line_style_control = ValueComboBox(
             _line_style_items,
             icons=[build_line_style_icon(style, _default_tokens) for _, style in _line_style_items],
@@ -656,7 +664,7 @@ class StyleTab(QWidget):
         marker_layout.addWidget(self.marker_shape_label, 1, 0)
         self.marker_shape_control = ValueComboBox(
             [(label, marker) for label, marker, _icon_name in _MARKER_SHAPE_OPTIONS],
-            icons=[build_icon(icon_name, "#1C1E26", size=_MARKER_ICON_SIZE) for _label, _marker, icon_name in _MARKER_SHAPE_OPTIONS],
+            icons=[build_icon(icon_name, DEFAULT_ICON_COLOR, size=_MARKER_ICON_SIZE) for _label, _marker, icon_name in _MARKER_SHAPE_OPTIONS],
         )
         marker_layout.addWidget(self.marker_shape_control, 1, 1)
 
@@ -1670,7 +1678,7 @@ class StyleTab(QWidget):
         chip_items = [("Chart", "chart"), ("Axes", "axes")]
         for index, series in enumerate(data_series):
             if series.is_fit:
-                label = f"\U0001f527 {series.label}"
+                label = series.label
             else:
                 label = series.label or f"{series.dataset_id}:{self._series_y_name(series)}"
             chip_items.append((label, index))
@@ -1881,16 +1889,17 @@ class StyleTab(QWidget):
             if other is series:
                 current_index = idx
                 break
-        items = [("Baseline", -1)]
+        self.fill_to_control.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
+        self.fill_to_control.clear()
+        self.fill_to_control.addItem("Baseline", -1)
         for idx, other in enumerate(self._data_series):
             if idx == current_index:
                 continue
             label = other.label or f"Series {idx + 1}"
-            items.append((f"↕ {label}", idx))
-        self.fill_to_control.blockSignals(True)  # noqa: FBT003 - Qt bound method, positional-only
-        self.fill_to_control.clear()
-        for label, value in items:
-            self.fill_to_control.addItem(label, value)
+            if self.app_context is None:
+                self.fill_to_control.addItem(label, idx)
+            else:
+                add_icon_item(self.fill_to_control, self.app_context, FIT_ICON_NAME if other.is_fit else SERIES_ICON_NAME, label, idx)
         self.fill_to_control.blockSignals(False)  # noqa: FBT003 - Qt bound method, positional-only
 
     def _on_fill_enabled_toggled(self, _checked: bool):  # noqa: FBT001 - Qt signal-slot callback, called positionally
@@ -3056,6 +3065,8 @@ class StyleTab(QWidget):
     # -- Theme ----------------------------------------------------------------
 
     def apply_theme(self, tokens: dict):
+        if self.app_context is not None:
+            retint_combo_icons(self.fill_to_control, self.app_context)
         self.title_color_row.set_tokens(tokens)
         self.subtitle_color_row.set_tokens(tokens)
         self.subtitle_match_title_toggle.set_tokens(tokens)
@@ -3063,7 +3074,7 @@ class StyleTab(QWidget):
         self.line_color_row.set_tokens(tokens)
         self.line_style_control.set_tokens(tokens)
         for _index, (_label, _marker, _icon_name) in enumerate(_MARKER_SHAPE_OPTIONS):
-            self.marker_shape_control.setItemIcon(_index, build_icon(_icon_name, tokens.get("text_primary", "#1C1E26"), size=_MARKER_ICON_SIZE))
+            self.marker_shape_control.setItemIcon(_index, build_icon(_icon_name, tokens.get("text_primary", DEFAULT_ICON_COLOR), size=_MARKER_ICON_SIZE))
         for _index in range(self.line_style_control.count()):
             _style = self.line_style_control.itemData(_index)
             self.line_style_control.setItemIcon(_index, build_line_style_icon(_style, tokens))

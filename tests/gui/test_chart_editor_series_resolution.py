@@ -77,7 +77,9 @@ def test_resolves_z_label_from_z_column():
 def test_no_project_returns_error():
     series = DataSeries(dataset_id="ds", x_column="a", y_column="b")
     result = resolve_series_data(None, series)
-    assert result.error is not None
+    assert result.error == "no project loaded"
+    assert result.x_data is None
+    assert result.y_data is None
 
 
 def test_resolve_series_data_short_circuits_for_precomputed_data():

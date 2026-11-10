@@ -5,8 +5,8 @@ from unittest.mock import Mock
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtCore import QSize
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QSize, Qt
+from PySide6.QtWidgets import QApplication, QToolButton
 
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.gui.components.common.icon_label import IconLabel
@@ -15,6 +15,7 @@ from pandaplot.gui.components.sidebar.chart_transform.chart_transform_panel impo
     ChartTransformPanel,
 )
 from pandaplot.gui.resources.item_icons import item_icon
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.items.dataset import Dataset
@@ -164,6 +165,18 @@ class TestChartTransformPanelApply:
         panel._apply_theme()
 
         assert_tinted(strongest_pixel(panel.source_combo.itemIcon(0)), "#00AA00")
+
+    def test_apply_theme_keeps_the_source_selection_and_emits_no_index_change(self, panel):
+        combo = panel.source_combo
+        combo.setCurrentIndex(combo.count() - 1)
+        selection = (combo.currentIndex(), combo.currentData())
+        changes = []
+        combo.currentIndexChanged.connect(changes.append)
+
+        panel._apply_theme()
+
+        assert (combo.currentIndex(), combo.currentData()) == selection
+        assert changes == []
 
     def test_preview_shows_an_error_for_an_unsafe_expression(self, panel):
         panel.expression_text.setPlainText("__import__('os')")
@@ -327,8 +340,45 @@ class TestChartTransformPanelChartContextRefresh:
 
         assert calls == [1]
 
-    def test_chart_list_changed_does_not_raise(self, panel):
-        """ChartTransformPanel has no destination combo to refresh, so this
-        is a no-op -- just confirm the now-subscribed PROJECT_ITEM_* events
-        don't error when they arrive."""
+    def test_chart_list_changed_leaves_the_chart_context_and_sources_untouched(self, panel):
+        """ChartTransformPanel has no destination combo to refresh, so a
+        PROJECT_ITEM_* event is a no-op: no repopulate, same chart, same
+        source selection."""
+        panel.source_combo.setCurrentIndex(0)
+        sources_before = [(panel.source_combo.itemText(i), panel.source_combo.itemData(i)) for i in range(panel.source_combo.count())]
+        populate_calls = []
+        panel._populate_sources = lambda: populate_calls.append(1)
+
         panel._on_chart_list_changed({"item_id": "some-other-chart"})
+
+        assert populate_calls == []
+        assert panel.current_chart_id == "chart-1"
+        assert panel.source_combo.currentIndex() == 0
+        assert [(panel.source_combo.itemText(i), panel.source_combo.itemData(i)) for i in range(panel.source_combo.count())] == sources_before
+
+
+def _function_icon_image(app_context):
+    return themed_icon(app_context, "function").pixmap(QSize(16, 16)).toImage()
+
+
+def test_insert_function_button_is_text_with_a_function_icon_and_still_opens_its_menu(panel, app_context):
+    button = panel.insert_function_btn
+
+    assert button.text() == "Insert function"
+    assert button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+    assert button.popupMode() == QToolButton.ToolButtonPopupMode.InstantPopup
+    assert button.icon().pixmap(QSize(16, 16)).toImage() == _function_icon_image(app_context)
+    assert button.menu() is not None
+    assert any(action.menu() for action in button.menu().actions())
+
+
+def test_insert_function_icon_retints_when_the_theme_changes(panel, app_context):
+    tokens = app_context.get_manager.return_value.get_design_tokens.return_value
+    before = panel.insert_function_btn.icon().pixmap(QSize(16, 16)).toImage()
+    app_context.get_manager.return_value.get_design_tokens.return_value = {**tokens, "text_primary": "#E2E2E2", "text_disabled": "#5B6270"}
+
+    panel._apply_theme()
+
+    after = panel.insert_function_btn.icon().pixmap(QSize(16, 16)).toImage()
+    assert after != before
+    assert after == _function_icon_image(app_context)

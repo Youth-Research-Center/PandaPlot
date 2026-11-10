@@ -29,6 +29,7 @@ from pandaplot.gui.dialogs.image.image_transforms import (
     apply_transform,
     replay_transforms,
 )
+from pandaplot.gui.resources.themed_icons import ActionIcons
 from pandaplot.models.project.items import Image
 from pandaplot.models.state.app_context import AppContext
 
@@ -84,6 +85,8 @@ class ImageEditorDialog(PDialog):
         self._transforms: list[Transform] = []
         self._undo_stack: list[list[Transform]] = []
         self._redo_stack: list[list[Transform]] = []
+        # Must exist before _initialize() builds the buttons, which bind their icons.
+        self._icons = ActionIcons(app_context)
 
         self._initialize()
         self._update_info_label()
@@ -114,8 +117,15 @@ class ImageEditorDialog(PDialog):
         rotate_group = QGroupBox("Rotate")
         rotate_layout = QHBoxLayout(rotate_group)
 
-        self.btn_rotate_ccw = PButton("↺ 90°", role="secondary", on_click=lambda: self._rotate(-90))
-        self.btn_rotate_cw = PButton("↻ 90°", role="secondary", on_click=lambda: self._rotate(90))
+        self.btn_rotate_ccw = PButton("90°", role="secondary", on_click=lambda: self._rotate(-90))
+        self.btn_rotate_cw = PButton("90°", role="secondary", on_click=lambda: self._rotate(90))
+        for button, icon_name, description in (
+            (self.btn_rotate_ccw, "arrow-counter-clockwise", "Rotate 90° counter-clockwise"),
+            (self.btn_rotate_cw, "arrow-clockwise", "Rotate 90° clockwise"),
+        ):
+            self._icons.bind(button, icon_name)
+            button.setAccessibleName(description)
+            button.setToolTip(description)
         self.btn_rotate_180 = PButton("180°", role="secondary", on_click=lambda: self._rotate(180))
 
         rotate_layout.addWidget(self.btn_rotate_ccw)
@@ -236,7 +246,7 @@ class ImageEditorDialog(PDialog):
 
     @override
     def _apply_theme(self):
-        pass
+        self._icons.retint()
 
     def _sync_control_values(self):
         w = self.working_qimage.width()

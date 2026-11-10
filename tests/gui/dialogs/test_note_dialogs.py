@@ -94,6 +94,26 @@ def test_note_chart_picker_dialog_chart_rows_are_plain_names_with_the_chart_icon
     assert _same_pixels(chart_row.icon(0), item_icon(app_context, "chart", size=24), size_px=24)
 
 
+def test_note_chart_picker_dialog_folder_rows_have_the_folder_icon(qapp):
+    project = Project(name="Test Project")
+    outer = Folder(name="Plots")
+    inner = Folder(name="Archive")
+    project.add_item(outer)
+    project.add_item(inner, parent_id=outer.id)
+    project.add_item(Chart(name="Line Plot"), parent_id=inner.id)
+    app_context = _create_mock_app_context(project)
+
+    dialog = NoteChartPickerDialog(app_context, project)
+
+    outer_row = dialog.tree.topLevelItem(0)
+    inner_row = outer_row.child(0)
+    folder_icon = item_icon(app_context, "folder", size=24)
+    assert outer_row.text(0) == "Plots"
+    assert _same_pixels(outer_row.icon(0), folder_icon, size_px=24)
+    assert _same_pixels(inner_row.icon(0), folder_icon, size_px=24)
+    assert not _same_pixels(inner_row.icon(0), inner_row.child(0).icon(0), size_px=24)
+
+
 def test_note_chart_picker_dialog_empty_state(qapp):
     project = Project(name="Empty Project")
     app_context = _create_mock_app_context(project)

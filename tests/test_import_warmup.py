@@ -1,6 +1,8 @@
+import logging
 import os
 import subprocess
 import sys
+from unittest.mock import Mock
 
 
 def test_background_import_warmup_loads_heavy_deps_off_the_main_thread():
@@ -28,12 +30,21 @@ def test_background_import_warmup_loads_heavy_deps_off_the_main_thread():
     assert result.returncode == 0, result.stderr
 
 
-def test_warm_up_heavy_imports_does_not_raise_progress_callback_signature():
+def test_warm_up_heavy_imports_accepts_the_progress_callback_kwarg_without_using_or_failing(caplog):
     """Worker always injects progress_callback as a kwarg (see Worker.__init__);
-    the warm-up function must accept it even though it doesn't use it."""
+    the warm-up function must accept it even though it doesn't use it. It
+    swallows import errors by logging them, so no logged failure means every
+    import succeeded."""
     from pandaplot.app import _warm_up_heavy_imports
 
-    _warm_up_heavy_imports(progress_callback=lambda pct: None)
+    progress_callback = Mock()
+
+    with caplog.at_level(logging.ERROR):
+        result = _warm_up_heavy_imports(progress_callback=progress_callback)
+
+    assert result is None
+    progress_callback.assert_not_called()
+    assert "Background import warm-up failed" not in caplog.text
 
 
 def test_create_qt_application_schedules_warmup_without_signal_errors():

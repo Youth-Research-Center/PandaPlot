@@ -55,7 +55,7 @@ def test_handle_example_project_executes_load_project_command_with_the_path(mock
 
     manager.handle_example_project("/examples/demo.pplot")
 
-    mock_command_cls.assert_called_once_with(app_context, "/examples/demo.pplot")
+    mock_command_cls.assert_called_once_with(app_context, "/examples/demo.pplot", as_untitled_copy=True)
     app_context.get_command_executor.return_value.execute_command.assert_called_once_with(
         mock_command_cls.return_value
     )

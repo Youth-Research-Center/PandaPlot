@@ -7,7 +7,7 @@ import pytest
 from PySide6.QtCore import QSize
 from PySide6.QtWidgets import QApplication
 
-from pandaplot.gui.components.sidebar.chart.tabs.style_tab import StyleTab
+from pandaplot.gui.components.sidebar.chart.tabs.style_tab import DEFAULT_ICON_COLOR, StyleTab
 from pandaplot.gui.resources.icon_library import build_icon
 from pandaplot.models.chart.chart_configuration import MarkerType
 
@@ -42,7 +42,7 @@ def test_marker_options_have_plain_names_enum_values_and_shape_icons():
         assert re.fullmatch(r"[A-Za-z ]+", label)
         assert combo.itemData(index) is value
         assert not combo.itemIcon(index).isNull()
-        assert _pixels(combo.itemIcon(index)) == _pixels(build_icon(icon_name, "#1C1E26", size=ICON_SIZE))
+        assert _pixels(combo.itemIcon(index)) == _pixels(build_icon(icon_name, DEFAULT_ICON_COLOR, size=ICON_SIZE))
 
 
 def test_marker_icons_follow_the_theme():

@@ -8,6 +8,7 @@
 weights = ["regular"]
 
 icons = [
+    "arrow-clockwise",
     "arrow-counter-clockwise",
     "arrows-clockwise",
     "arrows-left-right",
@@ -43,6 +44,7 @@ icons = [
     "link",
     "magnifying-glass",
     "magnifying-glass-minus",
+    "minus",
     "note-pencil",
     "palette",
     "paperclip",

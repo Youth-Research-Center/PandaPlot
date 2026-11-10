@@ -128,3 +128,8 @@ def test_text_on_accent_is_readable_on_the_accent(tmp_path, theme, accent):
 
 def test_text_on_accent_is_white_for_the_default_accent(tmp_path):
     assert _make_manager(tmp_path).get_design_tokens()["text_on_accent"].upper() == "#FFFFFF"
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+def test_text_on_danger_is_white_in_both_themes(tmp_path, theme):
+    assert _make_manager(tmp_path, theme=theme).get_design_tokens()["text_on_danger"].upper() == "#FFFFFF"

@@ -90,7 +90,9 @@ class TestRelatedIds:
         for topic in catalog.topics():
             if topic.id == descriptive.DESCRIPTIVE_OVERVIEW_TOPIC_ID or topic.category is not HelpCategory.STATISTICS:
                 assert topic.steps, topic.id
+                assert all(step.strip() for step in topic.steps), topic.id
             assert topic.keywords, topic.id
+            assert all(keyword.strip() for keyword in topic.keywords), topic.id
 
 
 class TestStatisticsDerived:

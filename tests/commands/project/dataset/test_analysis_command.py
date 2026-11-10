@@ -327,7 +327,11 @@ def test_cleanup_is_a_documented_noop():
         "analysis_type": "derivative", "x_column": "x", "y_column": "y",
         "new_column_name": "dydx",
     })
-    command.cleanup()  # must not raise
+    state_before = dict(vars(command))
+
+    assert command.cleanup() is None
+
+    assert vars(command) == state_before
 
 
 class TestApplyAnalysisResultCommand:

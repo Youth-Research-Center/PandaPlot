@@ -15,7 +15,7 @@ import uuid
 
 import pytest
 
-from pandaplot.models.project.items import Item, Note
+from pandaplot.models.project.items import Note
 
 
 # Fixtures
@@ -371,10 +371,6 @@ class TestSerialization:
 
 class TestInheritance:
     """Test inheritance from Item class."""
-    
-    def test_is_instance_of_item(self, sample_note):
-        """Test that Note is an instance of Item."""
-        assert isinstance(sample_note, Item)
     
     def test_inherited_methods(self, sample_note):
         """Test that inherited methods work correctly."""

@@ -2,7 +2,7 @@
 from unittest.mock import Mock
 
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QPushButton
 
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.dialogs.chart.chart_data_page import ChartDataPage
@@ -151,11 +151,18 @@ def test_cards_container_is_wrapped_in_a_scroll_area():
     assert page.cards_scroll_area.widgetResizable() is True
 
 
-def test_page_exposes_a_step_rail_and_footer():
+def test_page_shows_the_wizard_step_rail_and_the_step_2_footer():
     page = _make_page()
 
-    assert page.step_rail is not None
-    assert page.footer is not None
+    assert [button.text() for button in page.step_rail.findChildren(QPushButton)] == ["Type", "Data", "Labels"]
+    footer = page.footer
+    assert footer.step_label.text() == "Step 2 of 3"
+    assert footer.back_button.isVisibleTo(page) is True
+    assert footer.next_button.isVisibleTo(page) is True
+    assert footer.finish_button.isVisibleTo(page) is False
+    assert footer.empty_link is not None
+    assert footer.empty_link.text() == "Create empty plot instead"
+    assert page.empty_button is footer.empty_link
 
 
 def test_two_collapsed_cards_show_different_swatch_colors():

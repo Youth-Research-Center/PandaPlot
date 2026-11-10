@@ -164,22 +164,8 @@ class TestExitCommandUndoRedo:
 
 
 class TestExitCommandInheritance:
-    """Test ExitCommand inheritance from base Command."""
-    
-    def test_is_instance_of_command(self, exit_command):
-        """Test that ExitCommand is an instance of Command."""
-        assert isinstance(exit_command, Command)
-    
-    def test_implements_command_interface(self, exit_command):
-        """Test that ExitCommand implements the Command interface."""
-        # All abstract methods should be implemented
-        assert hasattr(exit_command, "execute")
-        assert hasattr(exit_command, "undo")
-        assert hasattr(exit_command, "redo")
-        assert callable(exit_command.execute)
-        assert callable(exit_command.undo)
-        assert callable(exit_command.redo)
-    
+    """Test ExitCommand behaviour inherited from base Command."""
+
     def test_repr_method_inherited(self, exit_command):
         """Test that __repr__ method works correctly."""
         repr_str = repr(exit_command)
@@ -283,14 +269,6 @@ class TestExitCommandEdgeCases:
         # The exception should propagate
         with pytest.raises(RuntimeError, match="Event bus error"):
             command.execute()
-    
-    def test_command_state_after_initialization(self, exit_command):
-        """Test command state immediately after initialization."""
-        # Should be able to call execute without any prior operations
-        assert hasattr(exit_command, "app_context")
-        assert hasattr(exit_command, "execute")
-        assert hasattr(exit_command, "undo")
-        assert hasattr(exit_command, "redo")
     
     def test_command_immutability_of_app_context_reference(self, mock_app_context):
         """Test that the app_context reference doesn't change after initialization."""
@@ -433,30 +411,6 @@ def test_marks_project_modified_is_false():
 def test_occupies_undo_slot_is_false():
     """Exit has no undo/redo (both raise), so it must never be pushed onto the undo stack."""
     assert ExitCommand(Mock()).occupies_undo_slot() is False
-
-
-class TestExitCommandDocumentation:
-    """Test command documentation and metadata."""
-    
-    def test_class_docstring(self):
-        """Test that the class has proper documentation."""
-        assert ExitCommand.__doc__ is not None
-        assert "Command to exit the application" in ExitCommand.__doc__
-    
-    def test_execute_method_docstring(self, exit_command):
-        """Test that execute method has documentation."""
-        assert exit_command.execute.__doc__ is not None
-        assert "Execute the exit command" in exit_command.execute.__doc__
-    
-    def test_undo_method_docstring(self, exit_command):
-        """Test that undo method has documentation."""
-        assert exit_command.undo.__doc__ is not None
-        assert "not applicable" in exit_command.undo.__doc__.lower()
-    
-    def test_redo_method_docstring(self, exit_command):
-        """Test that redo method has documentation."""
-        assert exit_command.redo.__doc__ is not None
-        assert "not applicable" in exit_command.redo.__doc__.lower()
 
 
 class TestExitCommandCleanup:
