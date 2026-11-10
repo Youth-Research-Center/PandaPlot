@@ -38,7 +38,9 @@ files run in different processes and in no fixed order. Pass `-n 0` to run seria
 (required for `--pdb` and IDE debuggers). `pytest-timeout` aborts any single test
 (setup, call and teardown) that runs longer than 120s, so a hung Qt test cannot
 consume the whole job: it dumps all stacks and kills the worker, which xdist
-reports as `worker crashed while running <test>` (it retries at most once). Keep
+reports as `worker crashed while running <test>` (one worker replacement is allowed per
+session). `tests/xdist_crash_safe.py` replaces xdist's `loadfile` scheduler so a crashed worker
+cannot hang the run and the crashed test is not re-run. Keep
 legitimate tests well under that limit. `--cov` works with xdist.
 
 Every test runs with `HOME`/`USERPROFILE` redirected to its own empty directory
