@@ -40,7 +40,9 @@ def test_line_requires_resolvable_x_column_when_configured(project_with_series):
 
     data = resolve_series_data(project, series, "line")
 
-    assert data.error is not None
+    assert data.error == "column 'not_a_column' not found in 'Data'"
+    assert data.x_data is None
+    assert data.y_data is None
 
 
 def test_compute_axis_data_range_passes_chart_type_through(project_with_series):
@@ -85,7 +87,9 @@ def test_resolve_series_data_line_series_still_requires_x_column_when_chart_type
 
     data = resolve_series_data(project, series)
 
-    assert data.error is not None
+    assert data.error == "column 'not_a_column' not found in 'Data'"
+    assert data.x_data is None
+    assert data.y_data is None
 
 
 def test_compute_axis_data_range_uses_each_series_own_type_not_a_shared_chart_type(project_with_series):
@@ -128,7 +132,8 @@ def test_resolve_series_data_missing_z_column_errors(project_with_series):
         style=HeatmapSeriesStyle(z_column_id=""),
     )
     data = resolve_series_data(project, series)
-    assert data.error is not None
+    assert data.error == "no Z column configured"
+    assert data.z_data is None
 
 
 def _density_range_fixture():

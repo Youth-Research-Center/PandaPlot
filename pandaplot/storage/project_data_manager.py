@@ -1,6 +1,7 @@
 import json
 import logging
 import zipfile
+import zlib
 
 from PySide6.QtGui import QImage
 
@@ -66,7 +67,8 @@ class ProjectDataManager:
             names = set(zf.namelist())
             if "project.json" not in names:
                 raise UserFacingError("This is not a valid PandaPlot project file: it has no project data.")
-            raw_data = {name: zf.read(name) for name in names}
+            raw_data = {name: zf.read(name) for name in names - {COVER_IMAGE_ENTRY}}
+            cover_bytes = self._read_cover_entry(zf, names)
         # ← zip closed here; Windows file lock released before any deserialization
 
         # Phase 2: Deserialize entirely from in-memory bytes (no file lock held).
@@ -100,7 +102,7 @@ class ProjectDataManager:
             else:
                 failed_items.append(item_id)
 
-        project.cover_image = self._read_cover_image(project_dict, raw_data)
+        project.cover_image = self._validated_cover_image(project_dict, cover_bytes)
 
         project_root = project_dict.get("root", {})
         project.root.id = project_root.get("id", project.root.id)
@@ -112,13 +114,25 @@ class ProjectDataManager:
         project.failed_item_ids = failed_items
         return project
 
-    def _read_cover_image(self, project_dict: dict, raw_data: dict[str, bytes]) -> bytes | None:
+    def _read_cover_entry(self, zf: zipfile.ZipFile, names: set[str]) -> bytes | None:
+        """Read the optional cover entry, returning None when it is absent or cannot be read from the archive.
+
+        The cover is decorative, so a damaged entry (CRC or decompression error) must not stop the project opening.
+        """
+        if COVER_IMAGE_ENTRY not in names:
+            return None
+        try:
+            return zf.read(COVER_IMAGE_ENTRY)
+        except (zipfile.BadZipFile, zlib.error, OSError, EOFError, NotImplementedError, RuntimeError):
+            self.logger.warning("Project cover image %r is damaged and cannot be read; ignoring it", COVER_IMAGE_ENTRY, exc_info=True)
+            return None
+
+    def _validated_cover_image(self, project_dict: dict, data: bytes | None) -> bytes | None:
         """Return the cover image bytes, or None when absent or not a readable image."""
         entry = project_dict.get("cover_image")
         if entry is None:
             return None
-        data = raw_data.get(entry) if entry == COVER_IMAGE_ENTRY else None
-        if data is None:
+        if entry != COVER_IMAGE_ENTRY or data is None:
             self.logger.warning("Project references a missing cover image entry %r; ignoring it", entry)
             return None
         if QImage.fromData(data).isNull():

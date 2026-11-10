@@ -1103,14 +1103,24 @@ class TestHistoryChangedHook:
 
         assert len(calls) == 1
 
-    def test_no_hook_set_does_not_raise(self):
+    def test_no_hook_set_still_runs_every_operation_normally(self):
         """The hook is optional (None by default) -- every call site must
         tolerate that, not just the ones under test above."""
         executor = CommandExecutor()
-        executor.execute_command(MockCommand())
-        executor.undo()
-        executor.redo()
-        executor.clear_history()  # must not raise
+        command = MockCommand()
+        assert executor.on_history_changed is None
+
+        assert executor.execute_command(command) is True
+        assert executor.undo() is True
+        assert executor.redo() is True
+        assert (command.execute_count, command.undo_count, command.redo_count) == (1, 1, 1)
+        assert executor.undo_stack == [command]
+
+        executor.clear_history()
+
+        assert executor.undo_stack == []
+        assert executor.redo_stack == []
+        assert command.cleanup_count == 1
 
     def test_a_raising_hook_does_not_break_execute_commands_return_value(self):
         """on_history_changed is called right before undo()/redo()/

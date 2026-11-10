@@ -72,13 +72,20 @@ def test_reset_emits_reset_and_updated(tmp_path: Path):
     assert any(e == "config.updated" for e in reset_events)
 
 
-def test_no_crash_on_corrupt_file(tmp_path: Path):
+def test_corrupt_file_falls_back_to_defaults_without_overwriting_it(tmp_path: Path):
     bus = EventBus()
     path = tmp_path / "conf.json"
     path.write_text("{not valid")
     manager = ConfigManager(bus, config_path=path)
+    collector = EventCollector()
+    bus.subscribe("config.loaded", collector)
+
     cfg = manager.load()
-    assert isinstance(cfg, ApplicationConfig)
+
+    assert cfg == ApplicationConfig.default()
+    assert [e["event_type"] for e in collector.events] == ["config.loaded"]
+    assert collector.events[0]["config"] is cfg
+    assert path.read_text() == "{not valid"
 
 
 def test_backup_created(tmp_path: Path):

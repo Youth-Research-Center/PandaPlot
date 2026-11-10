@@ -1120,7 +1120,8 @@ def test_fit_rows_show_a_y_axis_badge():
 
     from PySide6.QtWidgets import QLabel
     labels = [w.text() for w in tab.findChildren(QLabel)]
-    assert "\U0001f527 A Fit" in labels
+    assert "A Fit" in labels
+    assert not any("\U0001f527" in label for label in labels)
     assert "Y₂" in labels
 
 

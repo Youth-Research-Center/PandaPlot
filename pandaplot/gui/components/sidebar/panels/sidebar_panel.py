@@ -6,10 +6,11 @@ from typing import override
 
 import shiboken6
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QScrollArea, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPlainTextEdit, QScrollArea, QTextEdit, QToolButton, QVBoxLayout, QWidget
 
 from pandaplot.gui.components.common.help_button import build_help_button, help_button_stylesheet
 from pandaplot.gui.components.common.icon_label import IconLabel
+from pandaplot.gui.components.common.status_message import StatusKind, StatusMessage
 from pandaplot.gui.core.widget_extension import PWidget
 from pandaplot.models.events.event_types import UIEvents
 from pandaplot.models.state.app_context import AppContext
@@ -26,6 +27,7 @@ class SidebarPanel(PWidget):
     """
 
     ICON_NAME: str | None = None  # bundled icon shown before the title
+    status_message: StatusMessage  # created by panels that show status messages
 
     def __init__(self, app_context: AppContext, parent: QWidget | None = None, **kwargs):
         super().__init__(app_context=app_context, parent=parent, **kwargs)
@@ -81,6 +83,31 @@ class SidebarPanel(PWidget):
 
         self.main_layout.addWidget(self._title_row)
         return self.title_label
+
+    def _status_output(self) -> QTextEdit | QPlainTextEdit:
+        """The text area a status message replaces: panels that show status messages override this.
+
+        Returns:
+            The panel's preview or results text widget.
+
+        Raises:
+            NotImplementedError: If the panel does not override this hook.
+        """
+        raise NotImplementedError(f"{type(self).__name__} must override _status_output() to show status messages")
+
+    def _show_status(self, kind: StatusKind, text: str) -> None:
+        """Show `text` as a status message in place of any preview text or report.
+
+        Args:
+            kind: The kind of the message: its icon, tint and the word read out by assistive technology.
+            text: The message. An empty text clears the message.
+        """
+        self._status_output().clear()
+        self.status_message.set_message(kind, text)
+
+    def _show_error(self, text: str) -> None:
+        """Show `text` as an error status in place of any preview text or report."""
+        self._show_status(StatusKind.ERROR, text)
 
     @override
     def _on_theme_changed(self, event_data: dict) -> None:

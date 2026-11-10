@@ -273,11 +273,15 @@ class TestCreateFolderCommand:
         app_state.has_project = True
         app_state.current_project = sample_project
         
+        items_before = list(sample_project.items_index)
+
         command = CreateFolderCommand(app_context)
         # Don't execute, just try to undo
-        command.undo()
-        
-        # Should complete without error (no folder to remove)
+        result = command.undo()
+
+        assert result is CommandResult.NOOP
+        assert list(sample_project.items_index) == items_before
+        app_state.event_bus.emit.assert_not_called()
 
     def test_undo_no_project(self, mock_app_context):
         """Test undo when no project is loaded."""
@@ -286,9 +290,10 @@ class TestCreateFolderCommand:
         
         command = CreateFolderCommand(app_context)
         command.created_folder_id = "test-id"  # Set manually
-        command.undo()
-        
-        # Should complete without error
+        result = command.undo()
+
+        assert result is CommandResult.NOOP
+        app_state.event_bus.emit.assert_not_called()
 
     def test_undo_with_exception(self, mock_app_context, sample_project):
         """Test undo when an exception occurs."""

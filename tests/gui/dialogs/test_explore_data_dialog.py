@@ -83,10 +83,20 @@ def test_dialog_builds_empty_state_actions_when_no_datasets():
     app_context = _context()
     app_context.get_app_state.return_value.has_project = False
 
-    dialog = _make_dialog(app_context)
+    on_import_data, on_create_dataset = Mock(), Mock()
 
-    assert hasattr(dialog, "import_btn")
-    assert hasattr(dialog, "create_btn")
+    dialog = _make_dialog(app_context, on_import_data=on_import_data, on_create_dataset=on_create_dataset)
+
+    assert dialog.import_btn.text() == "Import Data"
+    assert dialog.create_btn.text() == "Create Dataset"
+    assert dialog.import_btn.isEnabled()
+    assert dialog.create_btn.isEnabled()
+    dialog.import_btn.click()
+    on_import_data.assert_called_once_with()
+    on_create_dataset.assert_not_called()
+    dialog.create_btn.click()
+    on_create_dataset.assert_called_once_with()
+    on_import_data.assert_called_once_with()
 
 
 def test_dialog_shows_an_intro_explanation_regardless_of_branch():

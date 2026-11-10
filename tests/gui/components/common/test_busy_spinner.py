@@ -1,5 +1,7 @@
 """Tests for BusySpinner: start/stop drive visibility and the rotation timer."""
 
+from PySide6.QtGui import QColor
+
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 
 
@@ -38,7 +40,9 @@ def test_set_color_accepts_a_hex_string(qtbot):
     spinner = BusySpinner(color="#ff0000")
     qtbot.addWidget(spinner)
 
-    spinner.set_color("#00ff00")  # must not raise
+    spinner.set_color("#00ff00")
+
+    assert spinner._color == QColor("#00ff00")
 
 
 def test_advancing_the_timer_changes_the_angle(qtbot):

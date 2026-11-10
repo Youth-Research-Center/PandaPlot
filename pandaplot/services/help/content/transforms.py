@@ -84,7 +84,7 @@ def topics() -> list[HelpTopic]:
                 "An expression is one calculation, not a program. Assignments, import statements, names that start with an underscore, "
                 "and anything that reads or writes files are refused, and PandaPlot tells you why. "
                 'Use f-strings such as f"{x}" instead of .format() to build text.\n\n'
-                'Click the ? button next to "ƒ  Insert function ▾" to show the names you can use, or open "Names you can use in an expression".'
+                'Click the ? button next to "Insert function" to show the names you can use, or open "Names you can use in an expression".'
             ),
             example=(
                 "x * 2                        double every value\n"
@@ -121,7 +121,7 @@ def topics() -> list[HelpTopic]:
             category=HelpCategory.TRANSFORMS,
             summary="Ready-made expressions you can insert into the function box instead of typing them.",
             steps=(
-                'Click "ƒ  Insert function ▾" above the function box.',
+                'Click "Insert function" above the function box.',
                 "Open a category and click an entry.",
                 "The expression is inserted at the cursor, or fills the box if it is empty. Edit it to suit your data.",
             ),

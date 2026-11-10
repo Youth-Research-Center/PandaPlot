@@ -1,6 +1,6 @@
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect
-from PySide6.QtGui import QImage, QMouseEvent
+from PySide6.QtGui import QColor, QImage, QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.gui.dialogs.image.crop_canvas import CropCanvas
@@ -378,4 +378,10 @@ class TestCropCanvasMouseDrag:
     def test_paint_event_does_not_raise_on_null_image(self):
         canvas = CropCanvas()
         canvas.resize(100, 100)
-        canvas.repaint()  # must not raise even with no image loaded
+
+        canvas.repaint()
+
+        assert canvas.crop_rect().isNull()
+        rendered = canvas.grab().toImage()
+        assert rendered.pixelColor(50, 50) == QColor("#202020")
+        assert rendered.pixelColor(0, 0) == QColor("#202020")

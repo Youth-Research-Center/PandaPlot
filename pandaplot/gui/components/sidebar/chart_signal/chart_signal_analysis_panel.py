@@ -53,7 +53,6 @@ from pandaplot.gui.components.sidebar.chart.series_source_picker import (
     populate_chart_target_combo,
     populate_series_fit_sources,
     refresh_chart_target_combo_preserving_selection,
-    retint_combo_icons,
     series_source_hint,
 )
 from pandaplot.gui.components.sidebar.panels.sidebar_panel import SidebarPanel
@@ -606,10 +605,10 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
                 self._deferred_tab_change = None
                 self._on_tab_changed(deferred)
 
-    def _show_error(self, text: str) -> None:
-        """Show `text` as an error status in place of any report."""
-        self.results_text.clear()
-        self.status_message.set_message(StatusKind.ERROR, text)
+    @override
+    def _status_output(self) -> QTextEdit:
+        """The text area a status message replaces."""
+        return self.results_text
 
     def clear(self):
         if hasattr(self, "results_text"):
@@ -853,10 +852,6 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
             self._populate_sources()
 
     # -- theme ------------------------------------------------------------------
-
-    def _retint_source_combos(self) -> None:
-        retint_combo_icons(self.source_combo, self.app_context)
-        retint_combo_icons(self.plot_target_combo, self.app_context)
 
     @override
     def _apply_theme(self):

@@ -60,12 +60,16 @@ def test_unrelated_item_rename_does_not_touch_dataset_combo(monkeypatch):
     panel = ChartPropertiesPanel(app_context=app_context)
     panel.set_project(project)
 
-    monkeypatch.setattr(panel.data_tab, "set_project", lambda *_a, **_kw: (_ for _ in ()).throw(
-        AssertionError("set_project should not be called for a non-dataset rename")
-    ))
+    set_project_calls = []
+    monkeypatch.setattr(panel.data_tab, "set_project", lambda *args, **kwargs: set_project_calls.append((args, kwargs)))
+    combo_items_before = [panel.data_tab.dataset_combo.itemText(i) for i in range(panel.data_tab.dataset_combo.count())]
 
     chart.update_name("Chart renamed")
     panel._on_project_item_renamed({"item_id": chart.id, "new_name": "Chart renamed"})
+
+    assert set_project_calls == []
+    assert combo_items_before == ["ds"]
+    assert [panel.data_tab.dataset_combo.itemText(i) for i in range(panel.data_tab.dataset_combo.count())] == combo_items_before
 
 
 def test_dataset_rename_refreshes_expanded_detail_row_dataset_label():

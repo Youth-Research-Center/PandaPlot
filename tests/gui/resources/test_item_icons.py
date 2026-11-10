@@ -9,7 +9,7 @@ from PySide6.QtGui import QIcon
 from pandaplot.gui.resources.icon_library import build_icon, icon_svg
 from pandaplot.gui.resources.item_icons import DEFAULT_ITEM_ICON_NAME, ITEM_TYPE_ICON_NAMES, item_icon, item_icon_name
 from pandaplot.models.state.app_context import AppContext
-from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
+from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, fresh_icon_tokens, strongest_pixel
 
 EXPECTED_NAMES = {
     "project": "folder",
@@ -27,7 +27,7 @@ EXPECTED_NAMES = {
 @pytest.fixture
 def app_context():
     ctx = Mock(spec=AppContext)
-    ctx.get_manager.return_value.get_design_tokens.return_value = ICON_TOKENS
+    ctx.get_manager.return_value.get_design_tokens.return_value = fresh_icon_tokens()
     return ctx
 
 

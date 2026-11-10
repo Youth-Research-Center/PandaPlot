@@ -39,7 +39,10 @@ def test_uses_a_list_view_so_the_popup_can_be_placed():
     """The native menu-style popup container cannot be repositioned."""
     host, combo = _host_with_combo()
     try:
-        assert isinstance(combo.view(), QListView)
+        view = combo.view()
+        assert isinstance(view, QListView)
+        # A plain QComboBox installs its own QComboBoxListView, which gets the native menu-style popup.
+        assert view.metaObject().className() == "QListView"
     finally:
         host.close()
 

@@ -5,7 +5,7 @@ import re
 import pandas as pd
 import pytest
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QAction, QColor
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QToolBar
 
 from pandaplot.app import build_app_context
@@ -15,6 +15,7 @@ from pandaplot.models.project.items import Dataset
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.project.project import Project
 from pandaplot.services.theme.theme_manager import ThemeManager
+from tests.gui.icon_testing import assert_tinted, strongest_pixel
 
 LIGHT_TOKENS = {"text_primary": "#1C1E26", "text_muted": "#6B7280", "accent_icon_active": "#404BAC", "text_disabled": "#AEB2BC"}
 DARK_TOKENS = {"text_primary": "#E2E2E2", "text_muted": "#9AA0AB", "accent_icon_active": "#8995FF", "text_disabled": "#5B6270"}
@@ -69,19 +70,6 @@ def _pixels(action: QAction):
     return action.icon().pixmap(QSize(ICON_SIZE, ICON_SIZE)).toImage()
 
 
-def _strongest(action: QAction) -> QColor:
-    image = action.icon().pixmap(QSize(32, 32)).toImage()
-    pixels = (image.pixelColor(x, y) for x in range(image.width()) for y in range(image.height()))
-    return max(pixels, key=lambda pixel: pixel.alpha())
-
-
-def _assert_close(actual: QColor, expected: str) -> None:
-    wanted = QColor(expected)
-    assert abs(actual.red() - wanted.red()) < 12
-    assert abs(actual.green() - wanted.green()) < 12
-    assert abs(actual.blue() - wanted.blue()) < 12
-
-
 def test_toolbar_labels_match_the_expected_mapping_and_have_no_emoji(editor):
     actions = _toolbar_actions(editor)
 
@@ -111,11 +99,23 @@ def test_toolbar_shows_icons_beside_text_at_16px(editor):
     assert toolbar.iconSize() == QSize(ICON_SIZE, ICON_SIZE)
 
 
+def _expected_pixels(icon_name: str, palette: dict[str, str]):
+    icon = build_icon(icon_name, palette["text_primary"], size=ICON_SIZE, disabled_color=palette["text_disabled"])
+    return icon.pixmap(QSize(ICON_SIZE, ICON_SIZE)).toImage()
+
+
 def test_icons_are_retinted_when_the_theme_changes(editor, tokens):
-    action = _toolbar_actions(editor)["Refresh"]
-    _assert_close(_strongest(action), LIGHT_TOKENS["text_primary"])
+    actions = _toolbar_actions(editor)
+    for action in actions.values():
+        assert_tinted(strongest_pixel(action.icon()), LIGHT_TOKENS["text_primary"])
+    light_pixels = {label: _pixels(action) for label, action in actions.items()}
 
     tokens.update(DARK_TOKENS)
     editor._apply_theme()
 
-    _assert_close(_strongest(action), DARK_TOKENS["text_primary"])
+    # The same actions are re-tinted in place (not replaced), and every icon is now exactly the dark-theme rendering.
+    assert _toolbar_actions(editor) == actions
+    for label, action in actions.items():
+        assert_tinted(strongest_pixel(action.icon()), DARK_TOKENS["text_primary"])
+        assert _pixels(action) == _expected_pixels(EXPECTED_ICONS[label], DARK_TOKENS)
+        assert _pixels(action) != light_pixels[label]

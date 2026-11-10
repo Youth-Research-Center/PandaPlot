@@ -257,6 +257,20 @@ class TestChartAnalysisPanelQuickPlot:
         assert_tinted(strongest_pixel(panel.plot_target_combo.itemIcon(0)), "#00AA00")
         assert_tinted(strongest_pixel(panel.source_combo.itemIcon(0)), "#00AA00")
 
+    def test_apply_theme_keeps_the_combo_selection_and_emits_no_index_change(self, panel):
+        combos = [panel.source_combo, panel.plot_target_combo]
+        for combo in combos:
+            combo.setCurrentIndex(combo.count() - 1)
+        selection = [(combo.currentIndex(), combo.currentData()) for combo in combos]
+        changes = []
+        for combo in combos:
+            combo.currentIndexChanged.connect(changes.append)
+
+        panel._apply_theme()
+
+        assert [(combo.currentIndex(), combo.currentData()) for combo in combos] == selection
+        assert changes == []
+
     def test_plot_target_row_hides_when_checkbox_unchecked(self, panel):
         assert panel.plot_target_row.isVisibleTo(panel) is True
         panel.plot_result_cb.setChecked(False)
@@ -414,11 +428,19 @@ class TestChartAnalysisPanelQuickPlot:
         executor.execute_command.return_value = True
 
         panel.plot_result_cb.setChecked(False)
+        panel.result_name.setText("  My result  ")
         panel.apply()
 
-        assert executor.execute_command.called
+        executor.execute_command.assert_called_once()
         cmd = executor.execute_command.call_args[0][0]
-        assert isinstance(cmd, AnalyzeChartSeriesCommand)
+        assert type(cmd) is AnalyzeChartSeriesCommand
+        assert cmd.chart_id == "chart-1"
+        assert cmd.source_index == panel._selected_source()
+        assert cmd.analysis_type == panel.operation_combo.currentData()
+        assert cmd.parameters == panel._build_parameters()
+        assert cmd.result_name == "My result"
+        assert cmd.folder_id == panel.current_chart.parent_id
+        assert panel.status_message.kind() is StatusKind.SUCCESS
 
 
 class TestChartAnalysisPanelStatusMessage:

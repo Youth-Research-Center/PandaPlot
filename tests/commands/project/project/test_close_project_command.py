@@ -115,10 +115,15 @@ def test_marks_project_modified_is_false():
     assert command.marks_project_modified() is False
 
 
-def test_cleanup_does_not_raise():
-    app_context, _app_state = _make_app_context()
+def test_cleanup_is_a_noop_that_leaves_the_command_and_app_state_untouched():
+    app_context, app_state = _make_app_context()
     command = CloseProjectCommand(app_context)
-    command.cleanup()
+    state_before = dict(vars(command))
+
+    assert command.cleanup() is None
+
+    assert vars(command) == state_before
+    app_state.close_project.assert_not_called()
 
 
 def test_does_not_occupy_undo_slot():

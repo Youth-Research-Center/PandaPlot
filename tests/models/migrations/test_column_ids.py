@@ -76,5 +76,11 @@ def test_ignores_non_chart_items():
     project = Project(name="Test Project")
     dataset = Dataset(id="ds-1", name="Data", data=pd.DataFrame({"x": [1]}))
     project.add_item(dataset)
+    column_ids_before = dict(dataset.column_ids)
+    data_before = dataset.data.copy()
 
-    migrate_column_ids(project)  # must not raise
+    migrate_column_ids(project)
+
+    assert dataset.column_ids == column_ids_before
+    pd.testing.assert_frame_equal(dataset.data, data_before)
+    assert project.get_all_items() == [dataset]

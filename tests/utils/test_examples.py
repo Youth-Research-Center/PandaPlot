@@ -139,6 +139,25 @@ class TestDiscoverExampleProjects:
         assert example.cover_image is None
         assert (example.dataset_count, example.chart_count, example.note_count) == (0, 0, 0)
 
+    def test_damaged_cover_entry_keeps_example_without_cover(self, tmp_path, caplog):
+        cover = b"damaged-cover-bytes" * 8
+        path = tmp_path / "damaged.pplot"
+        project_json = {"name": "Damaged", "description": "Still listed.", "cover_image": "cover.png"}
+        with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as archive:
+            archive.writestr("cover.png", cover)
+            archive.writestr("project.json", json.dumps(project_json))
+        raw = bytearray(path.read_bytes())
+        raw[raw.index(cover)] ^= 0xFF
+        path.write_bytes(bytes(raw))
+
+        with caplog.at_level("WARNING"):
+            (example,) = discover_example_projects(tmp_path)
+
+        assert example.name == "Damaged"
+        assert example.summary == "Still listed."
+        assert example.cover_image is None
+        assert "cover" in caplog.text
+
     def test_legacy_file_without_example_key_is_listed(self, tmp_path):
         _write_pplot(tmp_path / "legacy.pplot", "Legacy", "Old text. More.")
 
