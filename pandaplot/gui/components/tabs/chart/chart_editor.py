@@ -1776,13 +1776,36 @@ class ChartEditorWidget(PWidget):
         """Set up event subscriptions for the chart editor."""
         # Subscribe to config updates to adjust display settings like DPI
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
-        # The status line names the chart's datasets, so a rename or removal must refresh it.
+        # The status line names the chart's datasets, so a rename, removal or restore must refresh it.
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_RENAMED, self._on_project_item_changed)
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, self._on_project_item_changed)
+        self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, self._on_project_item_added)
 
     def _on_project_item_changed(self, event_data: dict) -> None:
         """Refresh the status line when one of the chart's datasets is renamed or removed."""
         if event_data.get("item_id") in {series.dataset_id for series in self.chart.data_series}:
+            self._update_dataset_label()
+
+    def _on_project_item_added(self, event_data: dict) -> None:
+        """Refresh the status line when one of the chart's datasets is added back.
+
+        Undoing a delete emits PROJECT_ITEM_ADDED only for the restored item, so a dataset
+        restored inside a folder is found by checking the folder's subtree. A fit keeps its
+        source dataset's id when that dataset is deleted, and its chart gets no CHART_UPDATED
+        on undo, so without this the line would keep showing the id instead of the name.
+        """
+        item_id = event_data.get("item_id")
+        dataset_ids = {series.dataset_id for series in self.chart.data_series}
+        if not item_id or not dataset_ids:
+            return
+        if item_id in dataset_ids:
+            self._update_dataset_label()
+            return
+        project = self.app_context.get_app_state().current_project
+        if project is None:
+            return
+        item = project.find_item(item_id)
+        if item is not None and any(project.is_item_or_descendant(item, dataset_id) for dataset_id in dataset_ids):
             self._update_dataset_label()
 
     def _on_config_updated(self, data):
