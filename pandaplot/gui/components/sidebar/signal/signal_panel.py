@@ -15,7 +15,7 @@ from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.project.dataset.apply_signal_analysis_result_command import (
     ApplySignalAnalysisResultCommand,
 )
-from pandaplot.commands.project.dataset.signal_analysis_command import SignalAnalysisCommand, preview_error_text
+from pandaplot.commands.project.dataset.signal_analysis_command import SignalAnalysisCommand
 from pandaplot.gui.components.common.busy_spinner import BusySpinner
 from pandaplot.gui.components.common.drop_down_combo_box import DropDownComboBox
 from pandaplot.gui.components.common.p_button import PButton
@@ -404,7 +404,7 @@ class SignalPanel(SidebarPanel):
                 self.last_result = None
                 self._last_run_params = None
                 self.add_btn.setEnabled(False)
-                self.results_text.setText(f"❌ Analysis failed:\n{preview_error_text(describe_error(e))}")
+                self.results_text.setText(f"❌ Analysis failed:\n{describe_error(e).inline_text}")
 
         try:
             command.run_analysis_async(_on_complete)
@@ -416,7 +416,7 @@ class SignalPanel(SidebarPanel):
             self.last_result = None
             self._last_run_params = None
             self.add_btn.setEnabled(False)
-            self.results_text.setText(f"❌ Analysis failed:\n{preview_error_text(describe_error(e))}")
+            self.results_text.setText(f"❌ Analysis failed:\n{describe_error(e).inline_text}")
 
 
     @staticmethod

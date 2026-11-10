@@ -13,12 +13,7 @@ from PySide6.QtCore import QObject, Signal
 from pandaplot.models.project.items.dataset import Dataset
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.transform import expression_engine
-from pandaplot.utils.error_messages import ErrorDescription, describe_error
-
-
-def plain_error_text(description: ErrorDescription) -> str:
-    """Join a description's reason and next step into one line of user-facing text."""
-    return f"{description.reason} {description.next_step}".strip()
+from pandaplot.utils.error_messages import describe_error
 
 
 class TransformController(QObject):
@@ -104,7 +99,7 @@ class TransformController(QObject):
             
         except Exception as e:
             self.logger.exception("Preview generation failed")
-            return {"error": plain_error_text(describe_error(e))}
+            return {"error": describe_error(e).inline_text}
     
     def apply_transformation(self, dataset_id: str, source_column: str,
                            new_column_name: str, function_code: str,
@@ -178,7 +173,7 @@ class TransformController(QObject):
                 return True
             else:
                 if command.error_description is not None:
-                    message = plain_error_text(command.error_description)
+                    message = command.error_description.inline_text
                 else:
                     message = command.error_message or "The transformation could not be applied."
                 self.transform_failed.emit(dataset_id, message)
@@ -186,7 +181,7 @@ class TransformController(QObject):
                 
         except Exception as e:
             self.logger.exception("Transformation failed")
-            self.transform_failed.emit(dataset_id, plain_error_text(describe_error(e)))
+            self.transform_failed.emit(dataset_id, describe_error(e).inline_text)
             return False
     
     def get_transformation_templates(self) -> dict[str, list[dict[str, str]]]:

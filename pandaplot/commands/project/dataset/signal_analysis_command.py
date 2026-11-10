@@ -25,13 +25,7 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items import Dataset
 from pandaplot.models.state import AppContext, AppState
-from pandaplot.utils.error_messages import ErrorDescription, describe_error, describe_failure
-
-
-def preview_error_text(description: ErrorDescription | None) -> str:
-    """Join a failure's reason and next step into one inline-friendly message."""
-    description = description or describe_failure("The calculation returned no result.")
-    return f"{description.reason} {description.next_step}".strip()
+from pandaplot.utils.error_messages import describe_error, describe_failure
 
 
 class SignalAnalysisCommand(BackgroundTaskCommand):
@@ -110,12 +104,12 @@ class SignalAnalysisCommand(BackgroundTaskCommand):
                 on_complete(self.result, None)
             else:
                 self.result = None
-                on_complete(None, preview_error_text(outcome.get("error_description")))
+                on_complete(None, (outcome.get("error_description") or describe_failure("The calculation returned no result.")).inline_text)
 
         def _on_error(error_info) -> None:
             _, value, _ = error_info
             self.result = None
-            on_complete(None, preview_error_text(describe_error(value)))
+            on_complete(None, describe_error(value).inline_text)
 
         self.task_scheduler.run_task(
             task=self._compute_signal_task,

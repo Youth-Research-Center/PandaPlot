@@ -41,14 +41,7 @@ from pandaplot.commands.project.dataset.apply_signal_analysis_result_command imp
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project.items.chart import Chart
 from pandaplot.models.state import AppContext, AppState
-from pandaplot.utils.error_messages import ErrorDescription, describe_error
-
-
-def _plain_text(description: ErrorDescription | None) -> str:
-    """Join a description's reason and next step into the one-line text the preview panel shows."""
-    if description is None:
-        return "The analysis could not be completed."
-    return f"{description.reason} {description.next_step}".strip()
+from pandaplot.utils.error_messages import describe_error, describe_failure
 
 
 class ChartSignalAnalysisCommand(BackgroundTaskCommand):
@@ -220,7 +213,7 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
             y_segment = self._resolve_segment(chart)
         except ValueError as e:
             self.logger.exception("Chart signal analysis preview could not resolve the series")
-            on_complete(None, _plain_text(describe_error(e)))
+            on_complete(None, describe_error(e).inline_text)
             return
 
         def _on_result(outcome: dict) -> None:
@@ -229,12 +222,12 @@ class ChartSignalAnalysisCommand(BackgroundTaskCommand):
                 on_complete(self.result, None)
             else:
                 self.result = None
-                on_complete(None, _plain_text(outcome.get("error_description")))
+                on_complete(None, (outcome.get("error_description") or describe_failure("The analysis could not be completed.")).inline_text)
 
         def _on_error(error_info) -> None:
             _, value, _ = error_info
             self.result = None
-            on_complete(None, _plain_text(describe_error(value)))
+            on_complete(None, describe_error(value).inline_text)
 
         self.task_scheduler.run_task(
             task=self._compute_signal_task,

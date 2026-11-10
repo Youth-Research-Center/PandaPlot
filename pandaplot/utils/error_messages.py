@@ -31,6 +31,11 @@ class ErrorDescription:
     next_step: str
     details: str
 
+    @property
+    def inline_text(self) -> str:
+        """The reason and next step on one line, for inline status texts in panels."""
+        return f"{self.reason} {self.next_step}".strip()
+
 
 def describe_failure(reason: str, next_step: str = "") -> ErrorDescription:
     """Describe a failure that is not an exception.
@@ -130,6 +135,16 @@ _RULES: tuple[_Rule, ...] = (
         lambda e: isinstance(e, np.linalg.LinAlgError),
         "The calculation cannot be solved for this data, for example when the values are all the same.",
         "Check the selected columns, or try with more varied data.",
+    ),
+    (
+        lambda e: isinstance(e, SyntaxError),
+        "The formula has a typo, for example a missing bracket, quote or operator.",
+        "Check the formula and try again.",
+    ),
+    (
+        lambda e: isinstance(e, NameError),
+        "The formula uses a name that PandaPlot does not know.",
+        "Check the spelling of column names and functions in the formula.",
     ),
     (
         lambda e: isinstance(e, ZeroDivisionError | OverflowError | FloatingPointError),

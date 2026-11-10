@@ -135,3 +135,23 @@ def test_describe_failure_has_no_details():
         reason="The selected file is empty.", next_step="", details=""
     )
     assert describe_failure("Nope.", "Try again.").next_step == "Try again."
+
+
+def test_formula_typo_and_unknown_name_get_formula_wording():
+    try:
+        compile("x +* 2", "<formula>", "eval")
+    except SyntaxError as exc:
+        syntax = describe_error(exc)
+    try:
+        eval("x + foo", {"__builtins__": {}}, {"x": 1})
+    except NameError as exc:
+        name = describe_error(exc)
+
+    assert syntax.reason == "The formula has a typo, for example a missing bracket, quote or operator."
+    assert name.reason == "The formula uses a name that PandaPlot does not know."
+    assert name.details == "NameError: name 'foo' is not defined"
+
+
+def test_inline_text_joins_reason_and_next_step():
+    assert describe_failure("It failed.", "Try again.").inline_text == "It failed. Try again."
+    assert describe_failure("It failed.").inline_text == "It failed."
