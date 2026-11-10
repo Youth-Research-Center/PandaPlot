@@ -798,7 +798,8 @@ class TestMainMenuRecentSubmenu:
         executed_command = command_executor.execute_command.call_args[0][0]
         assert executed_command.file_path == "/a/Project A.pplot"
 
-    def test_triggering_recent_action_confirms_when_a_project_is_open(self, app_context):
+    def test_triggering_recent_action_loads_without_its_own_prompt_when_a_project_is_open(self, app_context):
+        """LoadProjectCommand owns the unsaved-changes prompt (including Save As for untitled projects)."""
         app_context.get_app_state().has_project = True
         recent = [{"name": "Project A", "path": "/a/Project A.pplot", "last_opened": "2026-08-31 10:00"}]
         with patch("pandaplot.gui.components.main_menu.main_menu.get_recent_projects", return_value=recent):
@@ -807,32 +808,13 @@ class TestMainMenuRecentSubmenu:
         command_executor = Mock()
         app_context.get_command_executor.return_value = command_executor
         ui_controller = Mock()
-        ui_controller.show_question.return_value = True
         app_context.get_ui_controller.return_value = ui_controller
 
         menu.recent_menu.actions()[0].trigger()
 
-        ui_controller.show_question.assert_called_once()
+        ui_controller.show_question.assert_not_called()
         command_executor.execute_command.assert_called_once()
-        executed_command = command_executor.execute_command.call_args[0][0]
-        assert executed_command.file_path == "/a/Project A.pplot"
-
-    def test_triggering_recent_action_does_not_load_when_confirmation_declined(self, app_context):
-        app_context.get_app_state().has_project = True
-        recent = [{"name": "Project A", "path": "/a/Project A.pplot", "last_opened": "2026-08-31 10:00"}]
-        with patch("pandaplot.gui.components.main_menu.main_menu.get_recent_projects", return_value=recent):
-            menu = MainMenu(parent=None, app_context=app_context)
-
-        command_executor = Mock()
-        app_context.get_command_executor.return_value = command_executor
-        ui_controller = Mock()
-        ui_controller.show_question.return_value = False
-        app_context.get_ui_controller.return_value = ui_controller
-
-        menu.recent_menu.actions()[0].trigger()
-
-        ui_controller.show_question.assert_called_once()
-        command_executor.execute_command.assert_not_called()
+        assert command_executor.execute_command.call_args[0][0].file_path == "/a/Project A.pplot"
 
     def test_rebuilds_on_config_updated_event(self, app_context):
         with patch("pandaplot.gui.components.main_menu.main_menu.get_recent_projects", return_value=[]):

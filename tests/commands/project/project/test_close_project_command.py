@@ -48,19 +48,19 @@ def test_execute_closes_without_asking_when_unmodified():
     app_state.close_project.assert_called_once()
 
 
-def test_execute_asks_for_confirmation_when_modified():
+def test_execute_offers_save_as_when_an_untitled_project_is_modified():
     app_context, app_state = _make_app_context(is_modified=True)
-    app_context.get_ui_controller.return_value.show_question.return_value = True
+    app_context.get_ui_controller.return_value.show_save_as_discard_cancel.return_value = "discard"
     command = CloseProjectCommand(app_context)
 
     assert command.execute() is CommandResult.SUCCESS
-    app_context.get_ui_controller.return_value.show_question.assert_called_once()
+    app_context.get_ui_controller.return_value.show_save_as_discard_cancel.assert_called_once()
     app_state.close_project.assert_called_once()
 
 
 def test_execute_aborts_close_when_user_declines_confirmation():
     app_context, app_state = _make_app_context(is_modified=True)
-    app_context.get_ui_controller.return_value.show_question.return_value = False
+    app_context.get_ui_controller.return_value.show_save_as_discard_cancel.return_value = "cancel"
     command = CloseProjectCommand(app_context)
 
     assert command.execute() is CommandResult.NOOP

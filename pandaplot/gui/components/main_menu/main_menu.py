@@ -268,18 +268,9 @@ class MainMenu(PMenuBar):
     def _load_recent_project(self, project_path: str):
         """Load a project chosen from File > Recent.
 
-        Mirrors show_examples_dialog's confirmation: only ask when there's a
-        currently open project to lose, since with none open there's nothing
-        to override.
+        LoadProjectCommand itself asks before replacing a modified project
+        (offering Save As... for an untitled one), so nothing is asked here.
         """
-        if self.app_context.get_app_state().has_project:
-            should_continue = self.app_context.get_ui_controller().show_question(
-                "Open Recent Project",
-                "Opening this recent project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
-            )
-            if not should_continue:
-                return
-
         self.app_context.get_command_executor().execute_command(
             LoadProjectCommand(self.app_context, project_path)
         )

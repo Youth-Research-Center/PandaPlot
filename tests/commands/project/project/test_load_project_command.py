@@ -799,3 +799,30 @@ class TestUndoRestoresSessionProject:
 
         session_manager.update_project.assert_called_with(None)
         assert not app_state.has_project
+
+
+class TestLoadProjectCommandUntitledProject:
+    """Opening another project over an edited untitled project offers Save As... (#629)."""
+
+    def _context(self, choice):
+        app_context, app_state = _make_configured_app_context(has_project=True, project_file_path=None, is_modified=True)
+        app_state.current_project.name = "Untitled"
+        ui_controller = app_context.get_ui_controller.return_value
+        ui_controller.show_save_as_discard_cancel.return_value = choice
+        return app_context, app_state, ui_controller
+
+    def test_offers_save_as_instead_of_the_plain_question(self):
+        app_context, _app_state, ui_controller = self._context("discard")
+        command = LoadProjectCommand(app_context, "/p/other.pplot")
+
+        assert command.execute() is CommandResult.SUCCESS
+        ui_controller.show_save_as_discard_cancel.assert_called_once()
+        ui_controller.show_question.assert_not_called()
+        command.task_scheduler.run_task.assert_called_once()
+
+    def test_cancel_keeps_the_current_project_and_loads_nothing(self):
+        app_context, _app_state, _ui_controller = self._context("cancel")
+        command = LoadProjectCommand(app_context, "/p/other.pplot")
+
+        assert command.execute() is CommandResult.NOOP
+        command.task_scheduler.run_task.assert_not_called()

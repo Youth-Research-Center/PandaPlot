@@ -38,7 +38,9 @@ class ExitCommand(Command):
         exit without warning. will_autosave=True since app.launch()'s
         aboutToQuit handler unconditionally flushes a save for an existing
         saved project before the process exits (see _flush_save_on_quit) --
-        the prompt must not claim continuing will discard those edits.
+        the prompt must not claim continuing will discard those edits. An
+        untitled project has no file to flush to, so the guard instead offers
+        Save As... / Discard / Cancel for it.
         """
         self.logger.info("Executing ExitCommand")
         if not confirm_discard_unsaved_changes(self.app_context, will_autosave=True):

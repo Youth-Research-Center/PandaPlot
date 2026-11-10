@@ -119,6 +119,8 @@ A `.pplot` file is a ZIP archive containing a project index and files for its it
 ### Auto-Save & Session Recovery
 PandaPlot supports optional auto-saving and automatic session state preservation across restarts. If enabled in Settings, project changes are automatically flushed to disk upon major operations.
 
+A project that was never saved, such as a new project or an opened example (examples always open as untitled copies), has no file to auto-save to. Closing or exiting PandaPlot, or opening another project, while it has unsaved changes asks whether to **Save As...**, **Discard** or **Cancel**; cancelling the Save As dialog keeps the project open. While you work, PandaPlot also keeps a recovery copy of the untitled project in its app data folder (`~/.pandaplot/recovery`), updated on the auto-save interval. If PandaPlot closes unexpectedly, the next launch asks whether to **Restore** that project; it opens as an unsaved untitled project so you can save it. The recovery copy is deleted once you save the project or discard it.
+
 ---
 
 ## Working with Data

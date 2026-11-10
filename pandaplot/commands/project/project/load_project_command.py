@@ -3,7 +3,11 @@ from collections.abc import Callable
 from typing import Any, override
 
 from pandaplot.commands.base_command import Command, CommandResult
-from pandaplot.commands.project.project.unsaved_changes import flush_pending_edits, remember_session_project
+from pandaplot.commands.project.project.unsaved_changes import (
+    confirm_discard_unsaved_changes,
+    flush_pending_edits,
+    remember_session_project,
+)
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.project import Project
 from pandaplot.models.state.app_context import AppContext
@@ -113,9 +117,10 @@ class LoadProjectCommand(Command):
                 return CommandResult.FAILURE
 
             if self.app_state.has_project and self.app_state.is_modified:
-                should_continue = self.ui_controller.show_question(
-                    "Open Project",
-                    "Opening a new project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
+                should_continue = confirm_discard_unsaved_changes(
+                    self.app_context,
+                    title="Open Project",
+                    discard_message="Opening a new project will close the current project.\nAny unsaved changes will be lost.\n\nDo you want to continue?",
                 )
                 if not should_continue:
                     self.logger.info("Load project cancelled by user (unsaved changes)")

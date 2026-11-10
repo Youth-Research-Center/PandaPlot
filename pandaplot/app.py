@@ -3,6 +3,7 @@ import os
 import sys
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
 from pandaplot.commands.command_executor import CommandExecutor
@@ -16,6 +17,7 @@ from pandaplot.models.events.event_types import AppEvents, ConfigEvents
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note, Sketch
 from pandaplot.models.state import AppContext, AppState, UnsavedChangesRegistry
 from pandaplot.services.autosave import AutoSaveManager
+from pandaplot.services.autosave.recovery import delete_recovery_copy, recovery_file_path
 from pandaplot.services.config import ConfigManager
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.qtasks import TaskScheduler
@@ -233,14 +235,46 @@ def _flush_save_on_quit(app_context: AppContext) -> None:
         logging.getLogger(__name__).exception("Failed to flush project save on quit")
 
 
+def offer_recovered_untitled_project(app_context: AppContext) -> None:
+    """Offer to restore the untitled project saved by the auto-save manager before a crash.
+
+    Restore opens the recovery copy as an untitled project and marks it
+    modified, so closing it prompts for Save As. Discard deletes the copy.
+    Does nothing when no recovery copy exists.
+    """
+    recovery_path = recovery_file_path()
+    if not recovery_path.is_file():
+        return
+    restore = app_context.get_ui_controller().show_choice(
+        "Restore Project",
+        "PandaPlot closed without saving an untitled project. Restore it?",
+        "Restore",
+        "Discard",
+    )
+    if not restore:
+        delete_recovery_copy()
+        return
+
+    def _mark_modified(_project) -> None:
+        app_context.get_app_state().mark_modified()
+
+    command = LoadProjectCommand(app_context, str(recovery_path), as_untitled_copy=True, on_loaded=_mark_modified)
+    app_context.get_command_executor().execute_command(command)
+
+
 def restore_last_session(app_context: AppContext, main_window: PandaMainWindow) -> None:
     """Reopen the project (and tabs) that were open at the end of the previous session.
 
-    No-op if no project was remembered, or the remembered file no longer exists.
+    A remembered titled project is restored as before and the untitled-project
+    recovery offer (if a recovery copy exists) follows once it has loaded, so
+    the question never competes with the load. Without a remembered project
+    (an untitled project is remembered as "no project") or when its file is
+    gone, the recovery offer is shown straight away.
     """
     session_manager = app_context.get_manager(SessionPersistenceManager)
     last_path = session_manager.last_project_path
     if not last_path or not os.path.isfile(last_path):
+        offer_recovered_untitled_project(app_context)
         return
 
     panes_data = session_manager.last_tab_panes
@@ -249,6 +283,8 @@ def restore_last_session(app_context: AppContext, main_window: PandaMainWindow) 
 
     def _on_loaded(project) -> None:
         main_window.tab_container.restore_tab_session(panes_data, active_tab_id, splitter_sizes)
+        # Deferred: this callback runs inside the load command's completion handler.
+        QTimer.singleShot(0, lambda: offer_recovered_untitled_project(app_context))
 
     command = LoadProjectCommand(app_context, last_path, on_loaded=_on_loaded)
     app_context.get_command_executor().execute_command(command)

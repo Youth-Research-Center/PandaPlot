@@ -257,6 +257,52 @@ class UIController:
             return "discard"
         return "cancel"
 
+    def show_choice(self, title: str, message: str, accept_label: str, reject_label: str) -> bool:
+        """
+        Show a two-button question with custom labels.
+
+        Args:
+            title (str): Dialog title
+            message (str): Question message
+            accept_label (str): Label of the button that returns True (the default button)
+            reject_label (str): Label of the button that returns False
+
+        Returns:
+            bool: True if the accept button was clicked, False for the other button or Esc.
+        """
+        box = QMessageBox(QMessageBox.Icon.Question, title, message, parent=self.parent_widget)
+        accept_button = box.addButton(accept_label, QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(reject_label, QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(accept_button)
+        box.exec()
+        return box.clickedButton() is accept_button
+
+    def show_save_as_discard_cancel(self, title: str, message: str) -> Literal["save_as", "discard", "cancel"]:
+        """
+        Show a three-way dialog offering Save As..., Discard, or Cancel.
+
+        Args:
+            title (str): Dialog title
+            message (str): Message explaining what is at stake
+
+        Returns:
+            Literal["save_as", "discard", "cancel"]: The user's choice (also "cancel" if the
+                dialog is dismissed via Esc/titlebar).
+        """
+        box = QMessageBox(QMessageBox.Icon.Warning, title, message, parent=self.parent_widget)
+        save_as_button = box.addButton("Save As...", QMessageBox.ButtonRole.AcceptRole)
+        discard_button = box.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(save_as_button)
+        box.exec()
+
+        clicked = box.clickedButton()
+        if clicked is save_as_button:
+            return "save_as"
+        if clicked is discard_button:
+            return "discard"
+        return "cancel"
+
     def get_text_input(self, title: str, message: str, default_text: str = "") -> str | None:
         """
         Show a text input dialog.

@@ -49,6 +49,7 @@ def test_confirm_discard_flushes_pending_note_edits_before_checking_is_modified(
     anything to confirm -- otherwise a fast close/exit racing the note's
     2s auto-save timer silently proceeds with no prompt at all."""
     app_context, app_state = _make_app_context(is_modified=False)
+    app_state.project_file_path = "/tmp/p.pplot"
     calls = []
 
     def fake_flush(ctx):
@@ -87,24 +88,11 @@ def test_confirm_discard_still_returns_true_without_asking_when_flush_finds_noth
 
 
 def test_confirm_discard_asks_plain_discard_question_without_offer_save():
-    app_context, _app_state = _make_app_context(is_modified=True)
+    app_context, app_state = _make_app_context(is_modified=True)
+    app_state.project_file_path = "/tmp/p.pplot"
     app_context.get_ui_controller.return_value.show_question.return_value = True
 
     result = confirm_discard_unsaved_changes(app_context)
-
-    assert result is True
-    app_context.get_ui_controller.return_value.show_question.assert_called_once()
-    app_context.get_ui_controller.return_value.show_save_discard_cancel.assert_not_called()
-
-
-def test_confirm_discard_falls_back_to_plain_question_when_offer_save_but_never_saved():
-    """No file path to save to (never-saved project) -- offering "Save and
-    Close" would need a Save As dialog this guard doesn't own, so it falls
-    back to the plain discard/cancel question."""
-    app_context, _app_state = _make_app_context(is_modified=True)
-    app_context.get_ui_controller.return_value.show_question.return_value = True
-
-    result = confirm_discard_unsaved_changes(app_context, offer_save=True)
 
     assert result is True
     app_context.get_ui_controller.return_value.show_question.assert_called_once()

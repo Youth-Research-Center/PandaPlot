@@ -318,32 +318,35 @@ class TestExitCommandUnsavedChangesGuard:
 
     def test_asks_and_proceeds_when_modified_and_confirmed(self):
         app_context, _ = self._make_context(has_project=True, is_modified=True, project_file_path=None)
-        app_context.get_ui_controller.return_value.show_question.return_value = True
+        app_context.get_ui_controller.return_value.show_save_as_discard_cancel.return_value = "discard"
         command = ExitCommand(app_context)
 
         assert command.execute() is CommandResult.SUCCESS
-        app_context.get_ui_controller.return_value.show_question.assert_called_once()
+        app_context.get_ui_controller.return_value.show_save_as_discard_cancel.assert_called_once()
         app_context.event_bus.emit.assert_called_once_with(AppEvents.APP_CLOSING)
 
     def test_cancels_when_modified_and_declined(self):
         app_context, _ = self._make_context(has_project=True, is_modified=True, project_file_path=None)
-        app_context.get_ui_controller.return_value.show_question.return_value = False
+        app_context.get_ui_controller.return_value.show_save_as_discard_cancel.return_value = "cancel"
         command = ExitCommand(app_context)
 
         assert command.execute() is CommandResult.NOOP
         app_context.event_bus.emit.assert_not_called()
 
-    def test_prompt_says_discard_for_a_never_saved_project(self):
+    def test_never_saved_project_is_offered_save_as_and_never_claims_autosave(self):
         """A project with no file path yet has nothing for
-        _flush_save_on_quit to write to, so exiting really does discard it."""
+        _flush_save_on_quit to write to, so exiting offers Save As... instead."""
         app_context, _ = self._make_context(has_project=True, is_modified=True, project_file_path=None)
-        app_context.get_ui_controller.return_value.show_question.return_value = True
+        ui_controller = app_context.get_ui_controller.return_value
+        ui_controller.show_save_as_discard_cancel.return_value = "discard"
         command = ExitCommand(app_context)
 
         command.execute()
 
-        _, message = app_context.get_ui_controller.return_value.show_question.call_args[0]
-        assert "discard" in message
+        _, message = ui_controller.show_save_as_discard_cancel.call_args[0]
+        assert "Save As" in message
+        assert "autosave" not in message.lower()
+        ui_controller.show_question.assert_not_called()
 
     def test_exits_without_asking_and_saves_for_an_already_saved_project(self):
         """Regression (#410): there's nothing to confirm for an autosaving
