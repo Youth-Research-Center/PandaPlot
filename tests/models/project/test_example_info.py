@@ -143,3 +143,16 @@ class TestSummaryFromDescription:
 
     def test_short_text_without_period_unchanged(self):
         assert summary_from_description("No period here") == "No period here"
+
+    def test_inline_code_keeps_identifiers_with_underscores_and_asterisks(self):
+        text = "Plot `time_s` against `voltage_V` and `a*b`."
+        assert summary_from_description(text) == "Plot time_s against voltage_V and a*b."
+
+    def test_snake_case_outside_code_is_kept(self):
+        assert summary_from_description("Uses time_s and 2 * 3 here.") == "Uses time_s and 2 * 3 here."
+
+    def test_emphasis_around_inline_code(self):
+        assert summary_from_description("See **`my_col`** and _the `x_y` axis_.") == "See my_col and the x_y axis."
+
+    def test_nested_emphasis_and_strikethrough(self):
+        assert summary_from_description("A **bold _and italic_** and ~~old~~ note.") == "A bold and italic and old note."

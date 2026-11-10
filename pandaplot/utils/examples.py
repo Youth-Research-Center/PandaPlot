@@ -3,6 +3,7 @@
 import json
 import logging
 import zipfile
+import zlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -71,7 +72,10 @@ def _read_example(pplot_path: Path) -> ExampleProject:
             raise TypeError("project.json is not an object")
         cover_image = None
         if project_meta.get("cover_image") == _COVER_IMAGE_ENTRY and _COVER_IMAGE_ENTRY in archive.namelist():
-            cover_image = archive.read(_COVER_IMAGE_ENTRY)
+            try:
+                cover_image = archive.read(_COVER_IMAGE_ENTRY)
+            except (zipfile.BadZipFile, zlib.error, OSError, EOFError, NotImplementedError, RuntimeError):
+                logger.warning("Ignoring damaged cover image in example project '%s'", pplot_path, exc_info=True)
 
     info = ExampleInfo.from_dict(project_meta.get("example"))
     ids = _item_ids_by_type(project_meta)

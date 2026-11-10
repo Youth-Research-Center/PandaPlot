@@ -274,3 +274,43 @@ def test_version_6_file_without_example_or_cover_loads_with_defaults(tmp_path, m
     assert loaded.name == "Old"
     assert loaded.example_info == ExampleInfo()
     assert loaded.cover_image is None
+
+
+def _write_zip_with_damaged_cover(path) -> None:
+    """Write a project zip whose stored cover.png entry fails its CRC check when read."""
+    cover = b"damaged-cover-bytes" * 8
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as zf:
+        zf.writestr("cover.png", cover)
+        zf.writestr("project.json", json.dumps({"name": "Damaged", "schema_version": 7, "cover_image": "cover.png"}))
+    raw = bytearray(path.read_bytes())
+    offset = raw.index(cover)
+    raw[offset] ^= 0xFF
+    path.write_bytes(bytes(raw))
+    with zipfile.ZipFile(path) as zf, pytest.raises(zipfile.BadZipFile):
+        zf.read("cover.png")
+
+
+def test_damaged_cover_entry_does_not_prevent_loading_project(tmp_path, manager, caplog):
+    path = tmp_path / "damaged.pplot"
+    _write_zip_with_damaged_cover(path)
+
+    with caplog.at_level("WARNING"):
+        loaded = manager.load(str(path))
+
+    assert loaded.name == "Damaged"
+    assert loaded.cover_image is None
+    assert "cover image" in caplog.text
+
+
+def test_damaged_other_entry_still_fails_loading(tmp_path, manager):
+    path = tmp_path / "damaged-item.pplot"
+    payload = b"item-payload-bytes" * 8
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED) as zf:
+        zf.writestr("items/x.json", payload)
+        zf.writestr("project.json", json.dumps({"name": "Damaged", "schema_version": 7}))
+    raw = bytearray(path.read_bytes())
+    raw[raw.index(payload)] ^= 0xFF
+    path.write_bytes(bytes(raw))
+
+    with pytest.raises(zipfile.BadZipFile):
+        manager.load(str(path))

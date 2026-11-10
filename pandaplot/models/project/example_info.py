@@ -169,8 +169,38 @@ class ExampleInfo:
 
 _HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
 _LINK_RE = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
-_EMPHASIS_RE = re.compile(r"(\*\*|__|\*|_|~~|`)")
+_CODE_SPAN_RE = re.compile(r"(`+)(.+?)\1")
+_EMPHASIS_RE = re.compile(r"(?<![\w*_])(\*\*|__|\*|_|~~)(?=\S)(.+?)(?<=\S)\1(?![\w*_])")
+_CODE_PLACEHOLDER_RE = re.compile("\ue000(\\d+)\ue001")
 _SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _strip_inline_markdown(text: str) -> str:
+    """Remove link syntax, emphasis delimiters and code ticks, keeping the text they wrap.
+
+    Code span contents are protected, so identifiers such as ``time_s`` or ``a*b`` survive. Outside code spans
+    only paired delimiters that wrap text are removed, so a lone ``*`` or the underscore in ``snake_case`` stays.
+
+    Args:
+        text: One paragraph of Markdown.
+
+    Returns:
+        Plain text with whitespace collapsed.
+    """
+    spans: list[str] = []
+
+    def protect(match: re.Match[str]) -> str:
+        spans.append(match.group(2).strip())
+        return f"\ue000{len(spans) - 1}\ue001"
+
+    plain = _LINK_RE.sub(r"\1", text)
+    plain = _CODE_SPAN_RE.sub(protect, plain)
+    previous = None
+    while previous != plain:
+        previous = plain
+        plain = _EMPHASIS_RE.sub(r"\2", plain)
+    plain = _CODE_PLACEHOLDER_RE.sub(lambda match: spans[int(match.group(1))], plain)
+    return re.sub(r"\s+", " ", plain).strip()
 
 
 def summary_from_description(text: str, max_chars: int = 160) -> str:
@@ -199,9 +229,7 @@ def summary_from_description(text: str, max_chars: int = 160) -> str:
         # Stop at the first line that completes a sentence; otherwise keep joining wrapped lines.
         if _SENTENCE_END_RE.search(" ".join(paragraph) + " ") or paragraph[-1].endswith((".", "!", "?")):
             break
-    plain = _LINK_RE.sub(r"\1", " ".join(paragraph))
-    plain = _EMPHASIS_RE.sub("", plain)
-    plain = re.sub(r"\s+", " ", plain).strip()
+    plain = _strip_inline_markdown(" ".join(paragraph))
     sentence = _SENTENCE_END_RE.split(plain, maxsplit=1)[0]
 
     if len(sentence) <= max_chars:
