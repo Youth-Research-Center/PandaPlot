@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import override
 
 from PySide6.QtCore import Qt, Signal
@@ -440,7 +441,7 @@ class WelcomeTab(PWidget):
         )
         dialog.exec()
 
-    def show_step_info(self, icon_name: str, title: str, intro: str, tips: list[str]):
+    def show_step_info(self, icon_name: str, title: str, intro: str, tips: list[str]) -> None:
         """Show a richer informational dialog for a getting-started step.
 
         Args:
@@ -452,9 +453,12 @@ class WelcomeTab(PWidget):
         dialog = GettingStartedStepDialog(self.app_context, icon_name, title, intro, tips, self)
         dialog.exec()
 
-    def create_action_button(self, title, description, callback, *, icon_name: str):
+    def create_action_button(self, title: str, description: str, callback: Callable[[], object], *, icon_name: str) -> QPushButton:
         """Create a styled action button with a themed icon above its title."""
         button = QPushButton()
+        # Visible text lives in child QLabels, which leaves the button itself unnamed for assistive tech.
+        button.setAccessibleName(title)
+        button.setAccessibleDescription(description)
         button.setMinimumHeight(100)
         button.setMinimumWidth(220)
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -505,6 +509,9 @@ class WelcomeTab(PWidget):
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         button.setObjectName("WelcomeListButton")
+        # Visible text lives in child QLabels, which leaves the button itself unnamed for assistive tech.
+        button.setAccessibleName(title)
+        button.setAccessibleDescription(description)
         
         # Create layout for button content
         button_layout = QVBoxLayout(button)
@@ -545,6 +552,9 @@ class WelcomeTab(PWidget):
         button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         button.setObjectName("WelcomeProjectButton")
+        # Visible text lives in child QLabels, which leaves the button itself unnamed for assistive tech.
+        button.setAccessibleName(str(project_name))
+        button.setAccessibleDescription(str(project_path))
 
         # Create layout for button content
         button_layout = QHBoxLayout(button)

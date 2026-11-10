@@ -313,7 +313,7 @@ class ChartTransformPanel(SidebarPanel, ChartSeriesContextMixin):
     def setup_event_subscriptions(self):
         self.setup_chart_series_context_subscriptions()
 
-    def _retint_source_combos(self):
+    def _retint_source_combos(self) -> None:
         retint_combo_icons(self.source_combo, self.app_context)
 
     @override

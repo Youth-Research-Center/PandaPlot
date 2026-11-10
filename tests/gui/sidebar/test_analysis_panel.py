@@ -244,6 +244,32 @@ class TestAnalysisPanelStatusMessage:
         assert panel.status_message.message() == ""
         assert "Analysis Preview" in panel.preview_text.toPlainText()
 
+    def test_a_preview_without_a_result_shows_an_error_status(self, panel, monkeypatch):
+        panel.result_column_name.setText("result_col")
+        panel.preview_text.setPlainText("stale preview")
+        monkeypatch.setattr(panel, "execute_analysis_preview", lambda *_args: None)
+
+        panel.preview_analysis()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Preview failed. Please check your parameters."
+        assert panel.preview_text.toPlainText() == ""
+
+    def test_a_preview_exception_shows_an_error_status(self, panel, monkeypatch):
+        panel.result_column_name.setText("result_col")
+        panel.preview_text.setPlainText("stale preview")
+
+        def explode(*_args):
+            raise ValueError("bad window")
+
+        monkeypatch.setattr(panel, "execute_analysis_preview", explode)
+
+        panel.preview_analysis()
+
+        assert panel.status_message.kind() is StatusKind.ERROR
+        assert panel.status_message.message() == "Preview error: bad window"
+        assert panel.preview_text.toPlainText() == ""
+
     def test_clear_inputs_clears_the_status_message(self, panel):
         panel.result_column_name.clear()
         panel.apply_analysis()

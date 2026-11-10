@@ -462,7 +462,7 @@ class ChartAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
         project = self.app_context.get_app_state().current_project
         refresh_chart_target_combo_preserving_selection(self.plot_target_combo, project, app_context=self.app_context)
 
-    def _retint_source_combos(self):
+    def _retint_source_combos(self) -> None:
         retint_combo_icons(self.source_combo, self.app_context)
         retint_combo_icons(self.plot_target_combo, self.app_context)
 

@@ -683,8 +683,8 @@ class TransformPanel(SidebarPanel):
     def apply_transform(self):
         """Apply the transformation to the dataset.
 
-        Each early-return validation branch also writes a clear message to
-        preview_text (#227), mirroring update_preview()'s existing pattern --
+        Each early-return validation branch also shows a clear message through
+        status_message (#227), mirroring update_preview()'s existing pattern --
         previously these only logged a warning, so clicking Apply without
         first clicking Preview (e.g. an empty function box) silently did
         nothing visible at all. With the Apply button now disabled until
@@ -749,7 +749,7 @@ class TransformPanel(SidebarPanel):
             else:
                 self.logger.error("TransformPanel: transform failed - see logs for details")
                 # transform_controller.transform_failed is emitted synchronously and
-                # already wrote the specific message to preview_text; fall back to a
+                # already showed the specific message in status_message; fall back to a
                 # generic one only if that signal wasn't the source of the failure.
                 if not self._last_transform_error:
                     self._set_preview_message("Transform failed - see logs for details", is_error=True)

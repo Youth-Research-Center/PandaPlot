@@ -421,3 +421,38 @@ def test_getting_started_step_dialog_shows_an_icon_label():
     assert isinstance(dialog.icon_label, IconLabel)
     assert dialog.icon_label.icon_name == "palette"
     assert dialog.title_label.text() == "Customize and Export"
+
+
+def test_action_cards_expose_an_accessible_name_and_description():
+    tab = _make_welcome_tab()
+    descriptions = {
+        "New Project": "Create a new data visualization project",
+        "Open Project": "Open an existing project file",
+        "Import Data": "Import CSV or Excel data files",
+        "Examples": "Browse sample projects and tutorials",
+    }
+
+    cards = {card.accessibleName(): card.accessibleDescription() for card in _cards(tab)}
+
+    assert cards == descriptions
+
+
+def test_getting_started_steps_expose_an_accessible_name_and_description():
+    tab = _make_welcome_tab()
+
+    steps = tab.findChildren(QPushButton, "WelcomeListButton")
+
+    assert steps
+    for step in steps:
+        labels = [label.text() for label in step.findChildren(QLabel)]
+        assert step.accessibleName() == labels[0]
+        assert step.accessibleDescription() == labels[1]
+
+
+def test_recent_project_items_expose_the_project_name_and_path():
+    tab = _make_welcome_tab()
+
+    item = _recent_item(tab, name="Demo", path="/projects/demo.ppp")
+
+    assert item.accessibleName() == "Demo"
+    assert item.accessibleDescription() == "/projects/demo.ppp"

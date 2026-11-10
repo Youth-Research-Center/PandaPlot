@@ -483,10 +483,10 @@ class AnalysisPanel(SidebarPanel):
                 
                 self.preview_text.setPlainText(preview_text)
             else:
-                self.preview_text.setText("Preview failed. Please check your parameters.")
+                self._show_status(StatusKind.ERROR, "Preview failed. Please check your parameters.")
                 
         except Exception as e:  # noqa: BLE001 -- GUI event-handler safety net -- an unexpected error here must not crash the UI
-            self.preview_text.setPlainText(f"Preview error: {e!s}")
+            self._show_status(StatusKind.ERROR, f"Preview error: {e!s}")
     
     def _show_status(self, kind: StatusKind, text: str) -> None:
         """Show `text` as a status message in place of any preview text."""

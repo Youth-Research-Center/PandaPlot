@@ -852,7 +852,7 @@ class ChartSignalAnalysisPanel(SidebarPanel, ChartSeriesContextMixin):
 
     # -- theme ------------------------------------------------------------------
 
-    def _retint_source_combos(self):
+    def _retint_source_combos(self) -> None:
         retint_combo_icons(self.source_combo, self.app_context)
         retint_combo_icons(self.plot_target_combo, self.app_context)
 
