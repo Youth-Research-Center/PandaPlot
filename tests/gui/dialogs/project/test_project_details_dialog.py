@@ -195,16 +195,60 @@ def test_chart_names_are_disambiguated_in_the_combos(qtbot, ctx, project):
     assert [dialog.start_note_combo.itemText(row) for row in range(dialog.start_note_combo.count())] == ["None", "Read me"]
 
 
-def test_stale_ids_are_not_shown_and_are_saved_away(qtbot, ctx, project):
+def test_stale_ids_are_not_shown_and_are_dropped_once_the_user_edits(qtbot, ctx, project):
     project.example_info = ExampleInfo(
         is_example=True, featured_chart_ids=("deleted-chart", project.chart_a.id), start_note_id="deleted-note")
     dialog = _dialog(qtbot, ctx, project)
 
     assert [combo.currentData() for combo in dialog.featured_combos] == [project.chart_a.id, None, None]
     assert dialog.start_note_combo.currentData() is None
+    dialog.credit_edit.setText("Edited")
     info = dialog.get_result().example_info
     assert info.featured_chart_ids == (project.chart_a.id,)
     assert info.start_note_id is None
+
+
+def test_untouched_dialog_returns_the_project_values_verbatim_and_the_command_is_a_noop(qtbot, ctx, project):
+    from pandaplot.commands.base_command import CommandResult
+    from pandaplot.commands.project.project import UpdateProjectDetailsCommand
+
+    project.description = "line one\r\nline two\u00a0end  \r\n"
+    project.example_info = ExampleInfo(
+        is_example=True, summary="  padded summary  ", tag_ids=("smoothing", "physics"),
+        featured_chart_ids=("deleted-chart", project.chart_a.id), start_note_id="deleted-note", data_credit=" credit ")
+    dialog = _dialog(qtbot, ctx, project)
+
+    result = dialog.get_result()
+
+    assert result.name == project.name
+    assert result.description == project.description
+    assert result.cover_image == project.cover_image
+    assert result.example_info == project.example_info
+    app_state = Mock()
+    app_state.has_project = True
+    app_state.current_project = project
+    ctx.get_app_state.return_value = app_state
+    command = UpdateProjectDetailsCommand(
+        ctx, name=result.name, description=result.description, cover_image=result.cover_image, example_info=result.example_info)
+    assert command.execute() is CommandResult.NOOP
+
+
+def test_untouched_fields_keep_their_stored_form_when_another_field_is_edited(qtbot, ctx, project):
+    project.description = "a\r\nb  "
+    project.example_info = ExampleInfo(is_example=True, summary=" spaced ", tag_ids=("smoothing", "physics"), data_credit=" c ")
+    dialog = _dialog(qtbot, ctx, project)
+    dialog.level_combo.setCurrentIndex(dialog.level_combo.findData(ExampleLevel.INTERMEDIATE.value))
+
+    result = dialog.get_result()
+
+    assert result.description == project.description
+    assert result.example_info.summary == " spaced "
+    assert result.example_info.data_credit == " c "
+    assert result.example_info.tag_ids == ("smoothing", "physics")
+    assert result.example_info.level is ExampleLevel.INTERMEDIATE
+
+    dialog.tag_checkboxes["business"].setChecked(True)
+    assert dialog.get_result().example_info.tag_ids != ("smoothing", "physics")
 
 
 def test_choose_image_downscales_the_picked_file(qtbot, ctx, project, tmp_path):
@@ -254,6 +298,23 @@ def test_choosing_an_unreadable_file_reports_an_error(qtbot, ctx, project, tmp_p
     ctx.get_ui_controller.return_value.show_error_message.assert_called_once()
 
 
+def test_choosing_a_file_over_the_size_limit_reports_the_size_message(qtbot, ctx, project, tmp_path):
+    from pandaplot.services.project import cover_image
+
+    project.cover_image = _png(10, 10)
+    path = tmp_path / "big.png"
+    path.write_bytes(_png(20, 20))
+    dialog = _dialog(qtbot, ctx, project)
+
+    with patch.object(cover_image, "MAX_COVER_FILE_BYTES", 5), patch.object(module.QFileDialog, "getOpenFileName", return_value=(str(path), "")):
+        dialog.choose_cover_button.click()
+
+    args, kwargs = ctx.get_ui_controller.return_value.show_error_message.call_args
+    assert args == ("Cover Image", "Couldn't use this image.")
+    assert "under 25 MB" in str(kwargs["error"])
+    assert dialog.get_result().cover_image == project.cover_image
+
+
 def test_remove_clears_the_cover(qtbot, ctx, project):
     project.cover_image = _png(50, 50)
     dialog = _dialog(qtbot, ctx, project)
@@ -280,6 +341,26 @@ def test_preview_toggle_renders_markdown_and_toggles_back(qtbot, ctx, project):
     dialog.preview_button.setChecked(False)
     assert dialog.description_edit.isVisible()
     assert not dialog.preview_browser.isVisible()
+
+
+def test_clicking_a_preview_link_opens_external_urls_and_keeps_the_document(qtbot, ctx, project):
+    from PySide6.QtCore import QUrl
+
+    dialog = _dialog(qtbot, ctx, project)
+    dialog.show()
+    dialog.description_edit.setPlainText("See [site](https://example.com) and [local](other.md)")
+    dialog.preview_button.setChecked(True)
+    before = dialog.preview_browser.toHtml()
+    assert dialog.preview_browser.openLinks() is False
+
+    with patch.object(module.QDesktopServices, "openUrl") as open_url:
+        dialog.preview_browser.anchorClicked.emit(QUrl("https://example.com"))
+        dialog.preview_browser.anchorClicked.emit(QUrl("mailto:a@example.com"))
+        dialog.preview_browser.anchorClicked.emit(QUrl("file:///etc/passwd"))
+        dialog.preview_browser.anchorClicked.emit(QUrl("other.md"))
+
+    assert [call.args[0].toString() for call in open_url.call_args_list] == ["https://example.com", "mailto:a@example.com"]
+    assert dialog.preview_browser.toHtml() == before
 
 
 def test_every_control_has_an_accessible_name_and_labels_have_buddies(qtbot, ctx, project):

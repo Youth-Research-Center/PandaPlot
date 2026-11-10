@@ -9,6 +9,7 @@ from shiboken6 import isValid
 
 from pandaplot.commands.app.exit_command import ExitCommand
 from pandaplot.commands.project.chart import CreateChartFromWizardCommand
+from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.commands.project.dataset import ImportDataCommand
 from pandaplot.commands.project.dataset.add_rows_columns_command import (
     AddRowsColumnsCommand,
@@ -411,10 +412,14 @@ class MainMenu(PMenuBar):
         self._update_dataset_dependent_actions()
         return chart_menu
 
-    def _update_project_dependent_actions(self):
+    def _update_project_dependent_actions(self) -> None:
         """Enable File > Project Details... only while a project is open."""
-        app_state = self.app_context.get_app_state()
-        self.project_details_action.setEnabled(bool(app_state.has_project and app_state.current_project))
+        self.project_details_action.setEnabled(get_current_project(self.app_context) is not None)
+
+    def _on_project_opened_or_closed(self) -> None:
+        """Refresh every action whose availability depends on the open project."""
+        self._update_dataset_dependent_actions()
+        self._update_project_dependent_actions()
 
     def _update_dataset_dependent_actions(self):
         """Enable the action that needs an existing dataset (row/column
@@ -429,7 +434,6 @@ class MainMenu(PMenuBar):
                 isinstance(item, Dataset) for item in app_state.current_project.get_all_items()
             )
         self.add_rows_columns_action.setEnabled(has_datasets)
-        self._update_project_dependent_actions()
 
     def _on_tab_changed(self, event_data: dict):
         """Track the active tab's dataset so menu dialogs can preselect it."""
@@ -444,8 +448,10 @@ class MainMenu(PMenuBar):
         from pandaplot.models.events.event_types import AppEvents, ConfigEvents
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_ADDED, lambda _data: self._update_dataset_dependent_actions())
         self.subscribe_to_event(ProjectEvents.PROJECT_ITEM_REMOVED, lambda _data: self._update_dataset_dependent_actions())
-        self.subscribe_to_event(ProjectEvents.PROJECT_LOADED, lambda _data: self._update_dataset_dependent_actions())
-        self.subscribe_to_event(ProjectEvents.PROJECT_CLOSED, lambda _data: self._update_dataset_dependent_actions())
+        # One handler per event: a widget keeps a single subscription per event, so a second
+        # subscribe_to_event for the same event would replace the first.
+        for project_event in (ProjectEvents.PROJECT_LOADED, ProjectEvents.PROJECT_CLOSED):
+            self.subscribe_to_event(project_event, lambda _data: self._on_project_opened_or_closed())
         self.subscribe_to_event(UIEvents.TAB_CHANGED, self._on_tab_changed)
         self.subscribe_to_event(AppEvents.HISTORY_CHANGED, self._update_undo_redo_actions)
         self.subscribe_to_event(ConfigEvents.CONFIG_UPDATED, self._update_recent_menu)
@@ -457,7 +463,7 @@ class MainMenu(PMenuBar):
         dialog = SettingsDialog(self.app_context, self.parent())
         dialog.exec()
 
-    def show_project_details_dialog(self):
+    def show_project_details_dialog(self) -> None:
         """Open the Project Details dialog for the current project."""
         from pandaplot.gui.dialogs.project.project_details_dialog import edit_project_details
         edit_project_details(self.app_context, self.window())

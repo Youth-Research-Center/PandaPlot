@@ -30,6 +30,21 @@ def env():
     return app_context, project
 
 
+@pytest.fixture
+def real_state_ctx():
+    from pandaplot.models.events.event_bus import EventBus
+    from pandaplot.models.state.app_state import AppState
+
+    project = Project("Original", description="Old notes")
+    app_state = AppState(EventBus())
+    app_state.load_project(project)
+    app_context = Mock()
+    app_context.get_app_state.return_value = app_state
+    app_context.get_ui_controller.return_value = Mock()
+    app_context.event_bus = Mock()
+    return app_context, app_state, project
+
+
 def _command(app_context, project, **overrides):
     values = {
         "name": project.name,
@@ -132,28 +147,23 @@ def test_occupies_undo_slot_and_marks_project_modified(env):
     assert command.marks_project_modified() is True
 
 
-def test_failure_while_applying_restores_every_field(env):
-    app_context, project = env
-    app_context.event_bus.emit.side_effect = RuntimeError("boom")
-    command = _command(app_context, project, name="N", description="D", cover_image=PNG_B, example_info=ExampleInfo(is_example=True))
+def test_undo_and_redo_abort_when_another_project_is_open(real_state_ctx):
+    app_context, app_state, project_a = real_state_ctx
+    command = _command(app_context, project_a, name="Renamed", description="New notes")
+    assert command.execute() is CommandResult.SUCCESS
 
-    assert command.execute() is CommandResult.FAILURE
-    assert (project.name, project.description, project.cover_image, project.example_info) == (
-        "Original", "Old notes", PNG_A, ExampleInfo(summary="old"))
-    app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
-    # The failed execute() left nothing to undo or redo.
-    assert command.undo() is CommandResult.NOOP
-    assert command.redo() is CommandResult.NOOP
+    project_b = Project("Other", description="B notes")
+    app_state.load_project(project_b)
 
+    assert command.undo() is CommandResult.ABORTED
+    assert (project_b.name, project_b.description) == ("Other", "B notes")
+    assert (project_a.name, project_a.description) == ("Renamed", "New notes")
+    assert command.redo() is CommandResult.ABORTED
+    assert (project_b.name, project_b.description) == ("Other", "B notes")
 
-def test_failure_during_undo_restores_the_applied_values(env):
-    app_context, project = env
-    command = _command(app_context, project, name="N", description="D")
-    command.execute()
-    app_context.event_bus.emit.side_effect = RuntimeError("boom")
-
-    assert command.undo() is CommandResult.FAILURE
-    assert (project.name, project.description) == ("N", "D")
+    app_state.load_project(project_a)
+    assert command.undo() is CommandResult.SUCCESS
+    assert (project_a.name, project_a.description) == ("Original", "Old notes")
 
 
 def test_cleanup_drops_held_cover_bytes(env):

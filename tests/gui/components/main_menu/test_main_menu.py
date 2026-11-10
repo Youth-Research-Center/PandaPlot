@@ -859,6 +859,9 @@ class TestMainMenuProjectDetails:
         assert not _find_file_action(menu, "Project Details...").isEnabled()
 
     def test_action_is_enabled_when_a_project_is_open_and_follows_project_events(self, app_context):
+        from pandaplot.models.events.event_types import ProjectEvents
+
+        app_context.event_bus = EventBus()
         app_state = app_context.get_app_state.return_value
         menu = MainMenu(parent=None, app_context=app_context)
         action = _find_file_action(menu, "Project Details...")
@@ -866,18 +869,17 @@ class TestMainMenuProjectDetails:
 
         app_state.has_project = True
         app_state.current_project = Project("Demo")
-        menu._update_dataset_dependent_actions()
+        app_context.event_bus.emit(ProjectEvents.PROJECT_LOADED, {"project": app_state.current_project})
         assert action.isEnabled()
 
         app_state.has_project = False
         app_state.current_project = None
-        menu._update_dataset_dependent_actions()
+        app_context.event_bus.emit(ProjectEvents.PROJECT_CLOSED, {})
         assert not action.isEnabled()
 
     def test_triggering_executes_the_update_command_when_accepted(self, app_context):
         from pandaplot.commands.project.project import UpdateProjectDetailsCommand
         from pandaplot.gui.dialogs.project.project_details_dialog import ProjectDetailsResult
-        from pandaplot.models.project import Project
         from pandaplot.models.project.example_info import ExampleInfo
 
         app_state = app_context.get_app_state.return_value
@@ -899,7 +901,6 @@ class TestMainMenuProjectDetails:
         assert command._new.description == "Notes"
 
     def test_triggering_does_nothing_when_cancelled(self, app_context):
-        from pandaplot.models.project import Project
 
         app_state = app_context.get_app_state.return_value
         app_state.has_project = True

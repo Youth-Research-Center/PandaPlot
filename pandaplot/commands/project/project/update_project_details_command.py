@@ -28,7 +28,8 @@ class _ProjectDetails:
 class UpdateProjectDetailsCommand(Command):
     """Set the current project's name, notes (``description``), cover image and example settings.
 
-    Returns NOOP when none of the four values changes. A name change emits the same
+    Returns NOOP when none of the four values changes. ``undo()``/``redo()`` act on the project the command
+    edited and return ABORTED, changing nothing, when another project is open. A name change emits the same
     ``PROJECT_CHANGED`` event as ``RenameProjectCommand``, which is what the window title and the project
     tree listen to; the other fields use the same event.
     """
@@ -47,6 +48,7 @@ class UpdateProjectDetailsCommand(Command):
         self.ui_controller = app_context.get_ui_controller()
         self._new = _ProjectDetails(name.strip(), description, cover_image, example_info)
         self._old: _ProjectDetails | None = None
+        self._project: Project | None = None
         self._applied = False
 
     @override
@@ -65,13 +67,9 @@ class UpdateProjectDetailsCommand(Command):
         if snapshot == self._new:
             return CommandResult.NOOP
 
-        try:
-            self._apply(project, self._new, restore_to=snapshot)
-        except Exception as e:
-            self.logger.exception("Failed to update project details")
-            self.ui_controller.show_error_message("Project Details", "Couldn't update the project details.", error=e)
-            return CommandResult.FAILURE
-        # Remember the project state only now that the change has been applied.
+        self._apply(project, self._new)
+        # Remember the project and its previous state only now that the change has been applied.
+        self._project = project
         self._old = snapshot
         self._applied = True
         return CommandResult.SUCCESS
@@ -85,34 +83,26 @@ class UpdateProjectDetailsCommand(Command):
         return self._replay(self._new)
 
     def _replay(self, details: _ProjectDetails | None) -> CommandResult:
-        project = get_current_project(self.app_context)
-        if not self._applied or details is None or project is None:
+        if not self._applied or details is None or self._project is None:
             return CommandResult.NOOP
-        try:
-            self._apply(project, details, restore_to=_ProjectDetails.of(project))
-        except Exception as e:
-            self.logger.exception("Failed to restore project details")
-            self.ui_controller.show_error_message("Project Details", "Couldn't update the project details.", error=e)
-            return CommandResult.FAILURE
+        # The undo history outlives the project: after Open or New the command's project is no longer the open one.
+        if get_current_project(self.app_context) is not self._project:
+            self.logger.warning("UpdateProjectDetailsCommand: the edited project is no longer the open project; nothing changed")
+            return CommandResult.ABORTED
+        self._apply(self._project, details)
         return CommandResult.SUCCESS
 
-    def _apply(self, project: Project, details: _ProjectDetails, *, restore_to: _ProjectDetails) -> None:
-        """Assign all four values and announce the change; put ``restore_to`` back if anything raises."""
-        try:
-            project.name = details.name
-            project.description = details.description
-            project.cover_image = details.cover_image
-            project.example_info = details.example_info
-            self.app_context.event_bus.emit(ProjectEvents.PROJECT_CHANGED, {"project": project})
-        except Exception:
-            project.name = restore_to.name
-            project.description = restore_to.description
-            project.cover_image = restore_to.cover_image
-            project.example_info = restore_to.example_info
-            raise
+    def _apply(self, project: Project, details: _ProjectDetails) -> None:
+        """Assign all four values and announce the change."""
+        project.name = details.name
+        project.description = details.description
+        project.cover_image = details.cover_image
+        project.example_info = details.example_info
+        self.app_context.event_bus.emit(ProjectEvents.PROJECT_CHANGED, {"project": project})
 
     @override
     def cleanup(self) -> None:
-        """Drop the cover image bytes the command holds."""
+        """Drop the cover image bytes and the project reference the command holds."""
         self._old = None
+        self._project = None
         self._new = _ProjectDetails(self._new.name, self._new.description, None, self._new.example_info)

@@ -1,11 +1,14 @@
 """Preparation of a project's cover image before it is stored in the project."""
 
+from pathlib import Path
+
 from PySide6.QtCore import QBuffer, QIODevice, Qt
-from PySide6.QtGui import QImage
+from PySide6.QtGui import QImage, QImageReader
 
 from pandaplot.utils.errors import UserFacingError
 
 DEFAULT_COVER_MAX_SIDE = 800
+MAX_COVER_FILE_BYTES = 25 * 1024 * 1024
 
 
 def prepare_cover_image(data: bytes, *, max_side: int = DEFAULT_COVER_MAX_SIDE) -> bytes:
@@ -30,6 +33,41 @@ def prepare_cover_image(data: bytes, *, max_side: int = DEFAULT_COVER_MAX_SIDE) 
         box = image.size().boundedTo(image.size().scaled(max_side, max_side, Qt.AspectRatioMode.KeepAspectRatio))
         image = image.scaled(box, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 
+    return _encode_png(image)
+
+
+def prepare_cover_image_from_file(path: str | Path, *, max_side: int = DEFAULT_COVER_MAX_SIDE) -> bytes:
+    """Read an image file, downscale it while decoding so its longest side is at most ``max_side``, and encode it as PNG.
+
+    Files larger than ``MAX_COVER_FILE_BYTES`` are rejected before they are read, and the decoder scales
+    large images down as it reads them, so a huge image never has to fit in memory at full size.
+
+    Args:
+        path: Path of the image file.
+        max_side: Maximum length of the longest side, in pixels.
+
+    Returns:
+        PNG-encoded bytes.
+
+    Raises:
+        UserFacingError: If the file is too large or is not an image PandaPlot can read.
+        OSError: If the file cannot be accessed.
+    """
+    file_path = Path(path)
+    if file_path.stat().st_size > MAX_COVER_FILE_BYTES:
+        raise UserFacingError("The image file is too large. Choose an image under 25 MB.")
+    reader = QImageReader(str(file_path))
+    reader.setAutoTransform(True)
+    size = reader.size()
+    if size.isValid() and max(size.width(), size.height()) > max_side:
+        reader.setScaledSize(size.scaled(max_side, max_side, Qt.AspectRatioMode.KeepAspectRatio))
+    image = reader.read()
+    if image.isNull():
+        raise UserFacingError("This file is not an image PandaPlot can read.")
+    return _encode_png(image)
+
+
+def _encode_png(image: QImage) -> bytes:
     buffer = QBuffer()
     buffer.open(QIODevice.OpenModeFlag.WriteOnly)
     # PySide6 accepts a str format at runtime; its stubs only list bytes.

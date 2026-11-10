@@ -1,12 +1,10 @@
 """Dialog for editing a project's name, notes, cover image and example settings (#597, #598, #613)."""
 
-import logging
 from dataclasses import dataclass
-from pathlib import Path
-from typing import override
+from typing import NamedTuple, override
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap, QStandardItemModel
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QPixmap, QStandardItemModel
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -41,16 +39,15 @@ from pandaplot.models.project.items import Item, Note
 from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.note_render.latex_markdown_renderer import render_body_html, wrap_document
-from pandaplot.services.project.cover_image import prepare_cover_image
+from pandaplot.services.project.cover_image import prepare_cover_image_from_file
 from pandaplot.services.theme.theme_manager import ThemeManager
 from pandaplot.utils.errors import UserFacingError
+from pandaplot.utils.file_filters import IMAGE_FILE_FILTER
 from pandaplot.utils.item_display_options import chart_display_options, disambiguated_display_options
-
-logger = logging.getLogger(__name__)
 
 COVER_THUMBNAIL_WIDTH = 160
 _PREVIEW_FONT_SIZE = 11.0
-_IMAGE_FILTER = "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp *.tif *.tiff);;All Files (*)"
+_EXTERNAL_LINK_SCHEMES = frozenset({"http", "https", "mailto"})
 _NO_COVER_TEXT = "No cover image. Examples show their first featured chart instead."
 _NAME_REQUIRED_TOOLTIP = "Enter a project name to continue."
 _DEFAULT_SUMMARY_PLACEHOLDER = "A one or two line summary shown on the example's card"
@@ -65,6 +62,22 @@ class ProjectDetailsResult:
     description: str
     cover_image: bytes | None
     example_info: ExampleInfo
+
+
+class _ControlValues(NamedTuple):
+    """What the dialog's controls show, used to tell which of them the user changed."""
+
+    name: str
+    description: str
+    cover_image: bytes | None
+    is_example: bool
+    summary: str
+    section: object
+    level: object
+    tags: frozenset[str]
+    featured: tuple[object, ...]
+    start_note: object
+    credit: str
 
 
 class ProjectDetailsDialog(PDialog):
@@ -101,6 +114,7 @@ class ProjectDetailsDialog(PDialog):
         self._updating_featured = False
         self._initialize()
         self._load(project)
+        self._loaded_state = self._widget_state()
 
     @override
     def _init_ui(self) -> None:
@@ -140,10 +154,11 @@ class ProjectDetailsDialog(PDialog):
 
         self.setTabOrder(self.name_edit, self.description_edit)
 
-    def _add_label(self, text: str, buddy: QWidget, layout: QVBoxLayout | QFormLayout | None = None) -> QLabel:
+    def _add_label(self, text: str, buddy: QWidget, layout: QVBoxLayout | None = None) -> QLabel:
+        """Create a label for ``buddy`` and, if ``layout`` is given, add it there."""
         label = QLabel(text)
         label.setBuddy(buddy)
-        if isinstance(layout, QVBoxLayout):
+        if layout is not None:
             layout.addWidget(label)
         return label
 
@@ -173,7 +188,9 @@ class ProjectDetailsDialog(PDialog):
 
         self.preview_browser = QTextBrowser()
         self.preview_browser.setAccessibleName("About this project preview")
+        self.preview_browser.setOpenLinks(False)
         self.preview_browser.setOpenExternalLinks(False)
+        self.preview_browser.anchorClicked.connect(self._on_preview_link_clicked)
         self.preview_browser.setMinimumHeight(140)
         self.preview_browser.hide()
 
@@ -242,19 +259,19 @@ class ProjectDetailsDialog(PDialog):
 
         self.summary_edit = QLineEdit()
         self.summary_edit.setAccessibleName("Short description")
-        form.addRow(self._form_label("Short description", self.summary_edit), self.summary_edit)
+        form.addRow(self._add_label("Short description", self.summary_edit), self.summary_edit)
 
         self.section_combo = DropDownComboBox()
         self.section_combo.setAccessibleName("Section")
         for section in ExampleSection:
             self.section_combo.addItem(section.label, section.value)
-        form.addRow(self._form_label("Section", self.section_combo), self.section_combo)
+        form.addRow(self._add_label("Section", self.section_combo), self.section_combo)
 
         self.level_combo = DropDownComboBox()
         self.level_combo.setAccessibleName("Level")
         for level in ExampleLevel:
             self.level_combo.addItem(level.label, level.value)
-        form.addRow(self._form_label("Level", self.level_combo), self.level_combo)
+        form.addRow(self._add_label("Level", self.level_combo), self.level_combo)
 
         self.tag_checkboxes: dict[str, QCheckBox] = {}
         for group, title in ((TagGroup.TOPIC, "Topic"), (TagGroup.TECHNIQUE, "Technique")):
@@ -279,25 +296,20 @@ class ProjectDetailsDialog(PDialog):
                 combo.addItem(display_name, chart_id)
             combo.currentIndexChanged.connect(self._refresh_featured_choices)
             self.featured_combos.append(combo)
-            form.addRow(self._form_label(f"Featured chart {index + 1}", combo), combo)
+            form.addRow(self._add_label(f"Featured chart {index + 1}", combo), combo)
 
         self.start_note_combo = DropDownComboBox()
         self.start_note_combo.setAccessibleName("Start here note")
         self.start_note_combo.addItem(_NONE_LABEL, None)
         for note_id, display_name in self._note_options:
             self.start_note_combo.addItem(display_name, note_id)
-        form.addRow(self._form_label("Start here note", self.start_note_combo), self.start_note_combo)
+        form.addRow(self._add_label("Start here note", self.start_note_combo), self.start_note_combo)
 
         self.credit_edit = QLineEdit()
         self.credit_edit.setAccessibleName("Data source and credit")
-        form.addRow(self._form_label("Data source and credit", self.credit_edit), self.credit_edit)
+        form.addRow(self._add_label("Data source and credit", self.credit_edit), self.credit_edit)
 
         self._content_layout.addWidget(self.example_group)
-
-    def _form_label(self, text: str, buddy: QWidget) -> QLabel:
-        label = QLabel(text)
-        label.setBuddy(buddy)
-        return label
 
     @override
     def _apply_theme(self) -> None:
@@ -390,6 +402,13 @@ class ProjectDetailsDialog(PDialog):
         self.description_edit.setVisible(not checked)
         self.preview_browser.setVisible(checked)
 
+    def _on_preview_link_clicked(self, url: QUrl) -> None:
+        """Open web and mail links in the system's handler; ignore every other link."""
+        if url.scheme().lower() in _EXTERNAL_LINK_SCHEMES:
+            QDesktopServices.openUrl(url)
+        else:
+            self.logger.info("Ignoring preview link %s", url.toString())
+
     def _render_preview(self) -> None:
         tokens = self.app_context.get_manager(ThemeManager).get_design_tokens()
         color = tokens["text_primary"]
@@ -411,13 +430,13 @@ class ProjectDetailsDialog(PDialog):
         self.remove_cover_button.setEnabled(self._cover_image is not None)
 
     def _choose_cover(self) -> None:
-        path, _filter = QFileDialog.getOpenFileName(self, "Choose Cover Image", "", _IMAGE_FILTER)
+        path, _filter = QFileDialog.getOpenFileName(self, "Choose Cover Image", "", IMAGE_FILE_FILTER)
         if not path:
             return
         try:
-            self._cover_image = prepare_cover_image(Path(path).read_bytes())
+            self._cover_image = prepare_cover_image_from_file(path)
         except (UserFacingError, OSError) as e:
-            logger.exception("Failed to use %s as a cover image", path)
+            self.logger.exception("Failed to use %s as a cover image", path)
             self.app_context.get_ui_controller().show_error_message("Cover Image", "Couldn't use this image.", error=e)
             return
         self._refresh_cover()
@@ -442,29 +461,63 @@ class ProjectDetailsDialog(PDialog):
                     continue
                 item.setEnabled(combo.itemData(row) not in taken)
 
+    def _widget_state(self) -> _ControlValues:
+        """What the controls currently show, as plain values (used to tell whether the user changed anything)."""
+        return _ControlValues(
+            name=self.name_edit.text(),
+            description=self.description_edit.toPlainText(),
+            cover_image=self._cover_image,
+            is_example=self.example_checkbox.isChecked(),
+            summary=self.summary_edit.text(),
+            section=self.section_combo.currentData(),
+            level=self.level_combo.currentData(),
+            tags=frozenset(tag_id for tag_id, box in self.tag_checkboxes.items() if box.isChecked()),
+            featured=tuple(combo.currentData() for combo in self.featured_combos),
+            start_note=self.start_note_combo.currentData(),
+            credit=self.credit_edit.text(),
+        )
+
     def get_result(self) -> ProjectDetailsResult:
         """Return the values currently chosen in the dialog.
 
-        Duplicate featured charts are dropped, keeping the first, and the combo order is the chart order.
+        If the user changed nothing, the project's current values come back exactly as they are, so applying the
+        result is a no-op. Otherwise duplicate featured charts are dropped (keeping the first, in combo order), ids
+        of deleted charts and notes are dropped, and text fields and tags the user did not touch keep their stored
+        form (whitespace, line endings, tag order).
         """
+        project = self._project
+        original = project.example_info
+        if self._widget_state() == self._loaded_state:
+            return ProjectDetailsResult(
+                name=project.name, description=project.description, cover_image=self._cover_image, example_info=original)
+
+        loaded = self._loaded_state
         featured: list[str] = []
         for combo in self.featured_combos:
             chart_id = combo.currentData()
             if chart_id is not None and chart_id not in featured:
                 featured.append(chart_id)
+        chosen_tags = {tag.id for tag in EXAMPLE_TAGS if self.tag_checkboxes[tag.id].isChecked()}
+        if chosen_tags == loaded.tags:
+            tag_ids = original.tag_ids
+        else:
+            tag_ids = tuple(tag.id for tag in EXAMPLE_TAGS if tag.id in chosen_tags)
+        summary = original.summary if self.summary_edit.text() == loaded.summary else self.summary_edit.text().strip()
+        credit = original.data_credit if self.credit_edit.text() == loaded.credit else self.credit_edit.text().strip()
         info = ExampleInfo(
             is_example=self.example_checkbox.isChecked(),
-            summary=self.summary_edit.text().strip(),
+            summary=summary,
             section=ExampleSection(self.section_combo.currentData()),
             level=ExampleLevel(self.level_combo.currentData()),
-            tag_ids=tuple(tag.id for tag in EXAMPLE_TAGS if self.tag_checkboxes[tag.id].isChecked()),
+            tag_ids=tag_ids,
             featured_chart_ids=tuple(featured),
             start_note_id=self.start_note_combo.currentData(),
-            data_credit=self.credit_edit.text().strip(),
+            data_credit=credit,
         )
+        description = project.description if self.description_edit.toPlainText() == loaded.description else self.description_edit.toPlainText()
         return ProjectDetailsResult(
-            name=self.name_edit.text().strip(),
-            description=self.description_edit.toPlainText(),
+            name=project.name if self.name_edit.text() == loaded.name else self.name_edit.text().strip(),
+            description=description,
             cover_image=self._cover_image,
             example_info=info,
         )
