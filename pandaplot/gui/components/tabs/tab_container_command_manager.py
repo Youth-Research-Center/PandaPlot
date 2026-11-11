@@ -44,7 +44,8 @@ class TabContainerCommandManager:
 
     def handle_example_project(self, project_path: str):
         """Handle example project selection from welcome tab (opens an untitled copy)."""
-        # on_loaded runs once after the load, not on redo, so redo does not re-open UI.
+        # on_loaded runs after a successful load. Redo of a kept load swaps the project back without calling it, so it does
+        # not re-open UI; only a redo that has to load the file again (the loaded project was dropped) opens the start item again.
         command = LoadProjectCommand(self.app_context, project_path, as_untitled_copy=True, on_loaded=self._open_example_start_item)
         self.app_context.get_command_executor().execute_command(command)
 
