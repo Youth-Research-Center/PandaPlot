@@ -34,6 +34,8 @@ def _run_inner_suite(tmp_path: Path) -> subprocess.CompletedProcess[str]:
     command = [sys.executable, "-m", "pytest", str(suite), "-q", "-p", "no:cacheprovider", "-p", "tests.xdist_crash_safe"]
     command += ["-o", "addopts=", "-c", str(tmp_path / "pytest.ini"), "--rootdir", str(tmp_path)]
     command += ["-n", "2", "--dist=loadfile", "--max-worker-restart=1"]
+    # No short test summary: on CI pytest does not truncate its lines, so the crash message would appear twice.
+    command += ["-rN"]
     try:
         return subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True, timeout=90, check=False)
     except subprocess.TimeoutExpired:
