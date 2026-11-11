@@ -117,7 +117,7 @@ A `.pplot` file is a ZIP archive containing a project index and files for its it
 - **Deleting Items**: Right-click an item and select **Delete**. All item deletions are fully undoable (`Ctrl+Z`).
 
 ### Project Details
-Choose **File → Project Details...** (or right-click the project at the top of the Project View) to edit:
+Choose **File → Project Details...**, click the info button on the project's row at the top of the Project View, or right-click that row, to edit:
 - **Name**: the project name. It cannot be empty.
 - **About this project**: your notes about the project, such as background and findings, written in Markdown. **Preview** shows how they will look.
 - **Cover image**: **Choose image...** picks a picture (under 25 MB) that is shrunk to at most 800 pixels and stored in the project; **Remove** clears it.
