@@ -227,10 +227,10 @@ class TestDiscoverExampleProjects:
 
         assert names == ["Aardvark", "banana", "zebra", "Cherry", "Apple"]
 
-    def test_bundled_examples_directory_discovers_five_projects(self):
+    def test_bundled_examples_directory_discovers_six_projects(self):
         examples = discover_example_projects(get_examples_dir())
 
-        assert len(examples) == 5
+        assert len(examples) == 6
         assert all(e.name and e.path for e in examples)
         assert [e.section for e in examples] == sorted((e.section for e in examples), key=list(ExampleSection).index)
 
