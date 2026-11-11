@@ -8,18 +8,21 @@ live if those settings change.
 A project that already has a file path is saved in place. An untitled project
 (a new project, or an opened example) has nowhere to write to and a blocking
 "Save As" dialog from a timer would be jarring, so while it has unsaved changes
-a recovery copy is written to the app data folder instead (see
-``pandaplot.services.autosave.recovery``). The project itself is left untitled
-and modified; the copy is offered for restore on the next launch. The copy is
-deleted once there is nothing left to recover: when the project is saved to a
-file, closed (which only happens after the unsaved-changes guard), or replaced
-by another project. A project whose path is inside the bundled
+this session's recovery copy is written to the app data folder instead, in the
+background (see ``pandaplot.services.autosave.recovery``). The project itself is
+left untitled and modified; if the session ends without saving it, the copy is
+offered for restore on the next launch. This session's copy is deleted once
+there is nothing left to recover: when the project is saved to a file, closed
+(which only happens after the unsaved-changes guard), or replaced by another
+project. Copies written by other sessions are never touched here. Recovery
+copies are only written while Auto-Save is enabled, since this timer drives them. A project whose path is inside the bundled
 examples folder is never written back to (#607).
 """
 from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 from PySide6.QtCore import QTimer
 
@@ -27,7 +30,12 @@ from pandaplot.models.events.event_bus import EventBus
 from pandaplot.models.events.event_types import ConfigEvents, ProjectEvents
 from pandaplot.models.state.app_state import AppState
 from pandaplot.models.state.config import AutoSaveConfig
-from pandaplot.services.autosave.recovery import delete_recovery_copy, recovery_file_path, recovery_temp_path
+from pandaplot.services.autosave.recovery import (
+    delete_session_recovery_copy,
+    hold_session_lock,
+    session_recovery_path,
+    session_recovery_temp_path,
+)
 from pandaplot.services.config.config_manager import ConfigManager
 from pandaplot.utils.examples import is_in_examples_dir
 
@@ -48,6 +56,10 @@ class AutoSaveManager:
         # (id(project), modification_revision) of the last recovery copy written,
         # so an idle untitled project is not rewritten on every tick.
         self._last_recovery_write: tuple[int, int] | None = None
+        # Bumped whenever this session's copy is deleted, so a background write that was
+        # already running when the copy became stale does not recreate it on completion.
+        self._recovery_generation = 0
+        self._recovery_write_in_flight = False
 
         event_bus.subscribe(ConfigEvents.CONFIG_UPDATED, self._on_config_updated)
         from pandaplot.models.events.event_types import AppEvents
@@ -59,13 +71,11 @@ class AutoSaveManager:
     def _on_project_saved(self, event_data: dict) -> None:
         """An untitled project that was just given a file has nothing left to recover."""
         if not event_data.get("previous_path"):
-            self._last_recovery_write = None
-            delete_recovery_copy()
+            self._discard_session_copy()
 
     def _on_project_closed(self, _event_data: dict) -> None:
         """A closed project was saved, discarded, or unmodified, so its recovery copy is stale."""
-        self._last_recovery_write = None
-        delete_recovery_copy()
+        self._discard_session_copy()
 
     def _on_project_loaded(self, event_data: dict) -> None:
         """Replacing an untitled project (after the unsaved-changes guard) makes its recovery copy stale.
@@ -76,8 +86,7 @@ class AutoSaveManager:
         """
         previous = event_data.get("previous_project")
         if previous is not None and not previous.project_file_path:
-            self._last_recovery_write = None
-            delete_recovery_copy()
+            self._discard_session_copy()
 
     def _on_app_closing(self, _event_data: dict) -> None:
         self.stop()
@@ -148,32 +157,72 @@ class AutoSaveManager:
         except Exception:
             self._logger.exception("Auto-save failed")
 
-    def _write_recovery_copy(self, project) -> None:
-        """Write a recovery copy of a modified untitled project, leaving the project untouched.
+    def _discard_session_copy(self) -> None:
+        """Delete this session's recovery copy and drop any background write still running for it."""
+        self._recovery_generation += 1
+        self._last_recovery_write = None
+        delete_session_recovery_copy()
 
-        The copy is written to a temporary name and renamed over the previous
-        copy, so a crash mid-write never destroys the last good copy. The
+    def _write_recovery_copy(self, project) -> None:
+        """Write this session's recovery copy of a modified untitled project in the background.
+
+        The copy is written to a temporary name on a worker thread and renamed over
+        the previous copy on the main thread, so a crash mid-write never destroys the
+        last good copy and a copy that became stale meanwhile is not recreated. The
         project's file path and modified flag are not changed.
         """
-        if not self._app_state.is_modified or self._app_state.is_saving:
+        if not self._app_state.is_modified or self._app_state.is_saving or self._recovery_write_in_flight:
             return
         stamp = (id(project), self._app_state.modification_revision)
-        if stamp == self._last_recovery_write and recovery_file_path().exists():
+        if stamp == self._last_recovery_write and session_recovery_path().exists():
             return
+        if not hold_session_lock():
+            self._logger.warning("Writing the recovery copy without holding its lock")
 
+        generation = self._recovery_generation
+        self._recovery_write_in_flight = True
+        try:
+            self._app_context.get_task_scheduler().run_task(
+                task=self._write_recovery_task,
+                task_arguments={"project": project, "temp_path": str(session_recovery_temp_path())},
+                on_result=lambda result: self._on_recovery_written(result, project_name=project.name, stamp=stamp, generation=generation),
+                on_error=lambda error_info: self._logger.error("Writing the recovery copy of '%s' failed: %s", project.name, error_info[1]),
+                on_finished=self._on_recovery_write_finished,
+            )
+        except Exception:
+            self._recovery_write_in_flight = False
+            self._logger.exception("Could not start writing the recovery copy of '%s'", project.name)
+
+    def _write_recovery_task(self, progress_callback, project, temp_path: str, **_kwargs) -> bool:
+        """Serialise ``project`` to ``temp_path`` on a worker thread."""
         from pandaplot.services.data_managers.project_manager import ProjectManager
 
-        temp_path = recovery_temp_path()
+        Path(temp_path).parent.mkdir(parents=True, exist_ok=True)
+        self._app_context.get_manager(ProjectManager).save_project(project, temp_path)
+        return True
+
+    def _on_recovery_written(self, _result: object, *, project_name: str, stamp: tuple[int, int], generation: int) -> None:
+        temp_path = session_recovery_temp_path()
+        if generation != self._recovery_generation:
+            # The copy became stale (saved, closed, replaced) while it was being written.
+            temp_path.unlink(missing_ok=True)
+            return
         try:
-            temp_path.parent.mkdir(parents=True, exist_ok=True)
-            self._app_context.get_manager(ProjectManager).save_project(project, str(temp_path))
-            os.replace(temp_path, recovery_file_path())
-        except Exception:
-            self._logger.exception("Writing the recovery copy of '%s' failed", project.name)
+            os.replace(temp_path, session_recovery_path())
+        except OSError:
+            self._logger.exception("Replacing the recovery copy of '%s' failed", project_name)
             temp_path.unlink(missing_ok=True)
             return
         self._last_recovery_write = stamp
-        self._logger.debug("Wrote recovery copy of untitled project '%s'", project.name)
+        self._logger.debug("Wrote recovery copy of untitled project '%s'", project_name)
+
+    def _on_recovery_write_finished(self) -> None:
+        """Always runs after the write (after ``_on_recovery_written`` on success); drops a leftover partial file."""
+        self._recovery_write_in_flight = False
+        try:
+            session_recovery_temp_path().unlink(missing_ok=True)
+        except OSError:
+            self._logger.warning("Could not delete the partial recovery copy", exc_info=True)
 
 
 __all__ = ["AutoSaveManager"]

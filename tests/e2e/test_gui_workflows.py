@@ -394,7 +394,7 @@ def test_closing_an_edited_example_offers_save_as_and_clears_the_recovery_copy(
     app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     from pandaplot.services.autosave import AutoSaveManager
-    from pandaplot.services.autosave.recovery import recovery_file_path
+    from pandaplot.services.autosave.recovery import session_recovery_path
     from pandaplot.utils.examples import discover_example_projects
 
     example = Path(discover_example_projects()[0].path)
@@ -409,9 +409,11 @@ def test_closing_an_edited_example_offers_save_as_and_clears_the_recovery_copy(
     assert state.is_modified
     assert state.project_file_path is None
 
-    context.get_manager(AutoSaveManager)._on_timer()
+    manager = context.get_manager(AutoSaveManager)
+    manager._on_timer()
+    qtbot.waitUntil(lambda: not manager._recovery_write_in_flight, timeout=10000)
 
-    assert recovery_file_path().is_file()
+    assert session_recovery_path().is_file()
     assert state.project_file_path is None
     assert state.is_modified
 
@@ -434,6 +436,6 @@ def test_closing_an_edited_example_offers_save_as_and_clears_the_recovery_copy(
     assert saved_path.is_file()
     assert state.project_file_path == str(saved_path)
     assert not state.is_modified
-    assert not recovery_file_path().exists()
+    assert not session_recovery_path().exists()
     reopened = context.get_manager(ProjectManager).load_project(str(saved_path))
     assert any(item.name == "Edit after opening" for item in reopened.get_all_items())

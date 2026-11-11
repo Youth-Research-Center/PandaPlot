@@ -8,7 +8,7 @@ import pytest
 from pandaplot.commands.project.project.unsaved_changes import confirm_discard_unsaved_changes
 from pandaplot.models.events import ProjectEvents
 from pandaplot.models.state import AppContext
-from pandaplot.services.autosave.recovery import recovery_file_path
+from pandaplot.services.autosave.recovery import recovery_dir, session_recovery_path
 from pandaplot.services.config.config_manager import ConfigManager
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.session import SessionPersistenceManager
@@ -41,7 +41,7 @@ def setup():
 
 
 def _make_recovery_file() -> Path:
-    path = recovery_file_path()
+    path = session_recovery_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"recovery")
     return path
@@ -59,7 +59,8 @@ def test_save_as_saves_sets_the_path_and_proceeds(setup, tmp_path):
     setup.pm.save_project.assert_called_once_with(setup.project, target)
     assert setup.project.project_file_path == target
     setup.state.mark_saved.assert_called_once()
-    setup.config.update.assert_called_once_with({"recent_projects": [target, "/old/a.pplot"]}, save=True)
+    # Like Ctrl+S Save As, no Recent Projects entry is written here (recent-project tracking is #210).
+    setup.config.update.assert_not_called()
     setup.session.update_project.assert_called_once_with(target)
     assert not recovery.exists()
     event_name, payload = setup.ctx.event_bus.emit.call_args.args
@@ -164,3 +165,30 @@ def test_unmodified_untitled_project_is_not_prompted(setup):
     assert confirm_discard_unsaved_changes(setup.ctx) is True
 
     setup.ui.show_save_as_discard_cancel.assert_not_called()
+
+
+def test_save_as_into_the_examples_dir_is_refused_and_keeps_the_project_untitled(setup, tmp_path, monkeypatch):
+    """Regression (#629 review): the untitled Save As skipped the examples-folder check SaveProjectCommand has."""
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
+    monkeypatch.setattr("pandaplot.utils.examples.get_examples_dir", lambda: examples_dir)
+    setup.ui.show_save_as_discard_cancel.return_value = "save_as"
+    setup.ui.show_save_project_dialog.return_value = str(examples_dir / "mine.pplot")
+
+    assert confirm_discard_unsaved_changes(setup.ctx) is False
+
+    setup.pm.save_project.assert_not_called()
+    setup.ui.show_warning_message.assert_called_once()
+    assert setup.project.project_file_path is None
+
+
+def test_discard_deletes_only_this_sessions_recovery_copy(setup):
+    mine = _make_recovery_file()
+    other = recovery_dir() / "untitled-other-session.pplot"
+    other.write_bytes(b"other")
+    setup.ui.show_save_as_discard_cancel.return_value = "discard"
+
+    assert confirm_discard_unsaved_changes(setup.ctx) is True
+
+    assert not mine.exists()
+    assert other.read_bytes() == b"other"

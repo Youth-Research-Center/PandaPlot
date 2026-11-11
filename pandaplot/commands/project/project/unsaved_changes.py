@@ -13,14 +13,12 @@ from pathlib import Path
 from pandaplot.models.events import ProjectEvents
 from pandaplot.models.state import AppState, UnsavedChangesRegistry
 from pandaplot.models.state.app_context import AppContext
-from pandaplot.services.autosave.recovery import delete_recovery_copy
-from pandaplot.services.config.config_manager import ConfigManager
+from pandaplot.services.autosave.recovery import delete_session_recovery_copy
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.session import SessionPersistenceManager
 from pandaplot.utils.examples import is_in_examples_dir
 
 PROJECT_FILE_SUFFIX = ".pplot"
-MAX_RECENT_PROJECTS = 50
 
 
 def flush_pending_edits(app_context: AppContext) -> bool:
@@ -86,24 +84,36 @@ def _save_now(app_context: AppContext, app_state: AppState, project_name: str) -
     return True
 
 
-def _remember_recent_project(app_context: AppContext, project_path: str) -> None:
-    """Move ``project_path`` to the front of the recent projects list.
+def refuse_save_into_examples_dir(app_context: AppContext, save_path: str) -> bool:
+    """Warn and return True when ``save_path`` is inside the bundled examples folder.
 
-    A failure is logged as a warning and never raised, since the save itself has already succeeded.
+    Saving there would let later saves (Ctrl+S, auto-save, the save on quit)
+    overwrite a bundled example (#607), so every save path is checked here.
+
+    Args:
+        app_context: Application context providing the UI controller.
+        save_path: The path chosen for the save.
+
+    Returns:
+        True if the save must not go ahead.
     """
-    try:
-        config_manager = app_context.get_manager(ConfigManager)
-        paths = [p for p in config_manager.config.recent_projects if p != project_path]
-        config_manager.update({"recent_projects": [project_path, *paths][:MAX_RECENT_PROJECTS]}, save=True)
-    except Exception:
-        logging.getLogger(__name__).warning("Failed to update recent projects list", exc_info=True)
+    if not is_in_examples_dir(save_path):
+        return False
+    logging.getLogger(__name__).warning("Refusing to save project into the examples directory: '%s'", save_path)
+    app_context.get_ui_controller().show_warning_message(
+        "Save Project",
+        "Projects can't be saved in the bundled examples folder.\n\nChoose a location outside it.",
+    )
+    return True
 
 
 def _save_untitled_as(app_context: AppContext, app_state: AppState, project_name: str) -> bool:
     """Ask for a path and synchronously save the untitled current project there.
 
     Returns True once the project is saved and now has that path (marked
-    saved, remembered in recents and the session, recovery copy deleted).
+    saved, remembered for the next session, this session's recovery copy
+    deleted). Like Ctrl+S Save As it does not add a Recent Projects entry
+    (recent-project tracking is #210).
     Returns False, leaving the project untitled and still modified, if the
     path dialog is cancelled, a save is already in flight, or the save fails.
     """
@@ -124,6 +134,8 @@ def _save_untitled_as(app_context: AppContext, app_state: AppState, project_name
     if not chosen:
         return False
     save_path = chosen if Path(chosen).suffix else chosen + PROJECT_FILE_SUFFIX
+    if refuse_save_into_examples_dir(app_context, save_path):
+        return False
 
     try:
         app_context.get_manager(ProjectManager).save_project(project, save_path)
@@ -136,9 +148,8 @@ def _save_untitled_as(app_context: AppContext, app_state: AppState, project_name
     # make a failed or cancelled Save As look like a titled project.
     project.project_file_path = save_path
     app_state.mark_saved()
-    _remember_recent_project(app_context, save_path)
     remember_session_project(app_context, save_path)
-    delete_recovery_copy()
+    delete_session_recovery_copy()
     app_context.event_bus.emit(ProjectEvents.PROJECT_SAVED, {"project": project, "file_path": save_path, "previous_path": None})
     return True
 
@@ -209,7 +220,7 @@ def confirm_discard_unsaved_changes(
         if choice == "save_as":
             return _save_untitled_as(app_context, app_state, project_name)
         if choice == "discard":
-            delete_recovery_copy()
+            delete_session_recovery_copy()
             return True
         return False
 

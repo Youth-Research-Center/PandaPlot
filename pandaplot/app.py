@@ -17,7 +17,7 @@ from pandaplot.models.events.event_types import AppEvents, ConfigEvents
 from pandaplot.models.project.items import Chart, Dataset, Folder, Image, ImageGallery, Note, Sketch
 from pandaplot.models.state import AppContext, AppState, UnsavedChangesRegistry
 from pandaplot.services.autosave import AutoSaveManager
-from pandaplot.services.autosave.recovery import delete_recovery_copy, recovery_file_path
+from pandaplot.services.autosave.recovery import claim_pending_recovery_copy, delete_session_recovery_copy
 from pandaplot.services.config import ConfigManager
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.qtasks import TaskScheduler
@@ -216,14 +216,15 @@ def _flush_save_on_quit(app_context: AppContext) -> None:
     lost if it hasn't ticked yet. This runs the save directly on the main
     thread instead of through SaveProjectCommand's background-task path, so
     it's guaranteed to finish before the process actually exits rather than
-    racing shutdown. It also deletes the untitled-project recovery copy when
-    there is nothing left to recover (no project, or an unmodified untitled one).
+    racing shutdown. It also deletes this session's untitled-project recovery
+    copy when there is nothing left to recover (no project, or an unmodified
+    untitled one); copies written by other sessions are never touched.
     """
     app_state = app_context.get_app_state()
     project = app_state.current_project if app_state.has_project else None
     if project is None:
-        # Nothing is open, so a leftover untitled recovery copy is stale.
-        delete_recovery_copy()
+        # Nothing is open, so this session's untitled recovery copy is stale.
+        delete_session_recovery_copy()
         return
     file_path = app_state.project_file_path
     if not file_path:
@@ -231,7 +232,7 @@ def _flush_save_on_quit(app_context: AppContext) -> None:
         # it has no unsaved changes; while it is still modified (the unsaved-changes guard was
         # bypassed, e.g. by an OS session end) the copy is all that is left, so keep it.
         if not app_state.is_modified:
-            delete_recovery_copy()
+            delete_session_recovery_copy()
         return
     if is_in_examples_dir(file_path):
         # A bundled example is never written back to (#607).
@@ -245,33 +246,40 @@ def _flush_save_on_quit(app_context: AppContext) -> None:
 
 
 def offer_recovered_untitled_project(app_context: AppContext) -> None:
-    """Offer to restore the untitled project saved by the auto-save manager before a crash.
+    """Offer to restore an untitled project left by a session that crashed or quit without saving it.
 
-    Restore opens the recovery copy as an untitled project and marks it
-    modified, so closing it prompts for Save As. Only an explicit Discard click
-    deletes the copy; dismissing the dialog (Esc, title-bar close) loads nothing
-    and keeps it, so it is offered again on the next launch. Does nothing when
-    no recovery copy exists.
+    Only a recovery copy whose session is no longer running is offered (see
+    ``claim_pending_recovery_copy``), so a copy another running instance is
+    writing is never offered or deleted. Restore opens the copy as an untitled
+    project, marks it modified (so closing it prompts for Save As) and adopts
+    the copy as this session's own. Only an explicit Discard click deletes it;
+    Not Now, Esc or the title-bar close loads nothing and keeps it, so it is
+    offered again on the next launch. Does nothing when no such copy exists.
     """
-    recovery_path = recovery_file_path()
-    if not recovery_path.is_file():
+    pending = claim_pending_recovery_copy()
+    if pending is None:
         return
     restore = app_context.get_ui_controller().show_choice(
         "Restore Project",
-        "PandaPlot closed without saving an untitled project. Restore it?",
+        "PandaPlot closed without saving an untitled project. Restore it?\n\n"
+        "Not Now keeps it, and you will be asked again the next time PandaPlot starts.",
         "Restore",
         "Discard",
     )
     if restore is None:
+        pending.release()
         return
     if not restore:
-        delete_recovery_copy()
+        pending.discard()
         return
 
-    def _mark_modified(_project) -> None:
+    def _on_restored(_project) -> None:
         app_context.get_app_state().mark_modified()
+        # Only now that the project is open does the copy become this session's (until then a
+        # failed load leaves it pending for the next launch).
+        pending.adopt()
 
-    command = LoadProjectCommand(app_context, str(recovery_path), as_untitled_copy=True, on_loaded=_mark_modified)
+    command = LoadProjectCommand(app_context, str(pending.path), as_untitled_copy=True, on_loaded=_on_restored)
     app_context.get_command_executor().execute_command(command)
 
 
