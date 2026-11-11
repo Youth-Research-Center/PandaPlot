@@ -257,25 +257,31 @@ class UIController:
             return "discard"
         return "cancel"
 
-    def show_choice(self, title: str, message: str, accept_label: str, reject_label: str) -> bool | None:
+    def show_choice(self, title: str, message: str, accept_label: str, reject_label: str, *, dismiss_label: str = "Not Now") -> bool | None:
         """
-        Show a two-button question with custom labels.
+        Show a question with an accept, a reject and a dismiss button.
+
+        The dismiss button is the escape button, so Esc and the title-bar close count as dismissing.
+        Without it Qt would make the reject button the escape button and a dismissal would reject.
 
         Args:
             title (str): Dialog title
             message (str): Question message
             accept_label (str): Label of the button that returns True (the default button)
-            reject_label (str): Label of the button that returns False
+            reject_label (str): Label of the (destructive) button that returns False
+            dismiss_label (str): Label of the button that returns None
 
         Returns:
             bool | None: True if the accept button was clicked, False if the reject button was
-                clicked, None if the dialog was dismissed (Esc or the title-bar close) without
-                choosing either, so callers can tell a deliberate rejection from a dismissal.
+                clicked, None if the dialog was dismissed (the dismiss button, Esc or the
+                title-bar close), so callers can tell a deliberate rejection from a dismissal.
         """
         box = QMessageBox(QMessageBox.Icon.Question, title, message, parent=self.parent_widget)
         accept_button = box.addButton(accept_label, QMessageBox.ButtonRole.AcceptRole)
-        reject_button = box.addButton(reject_label, QMessageBox.ButtonRole.RejectRole)
+        reject_button = box.addButton(reject_label, QMessageBox.ButtonRole.DestructiveRole)
+        dismiss_button = box.addButton(dismiss_label, QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(accept_button)
+        box.setEscapeButton(dismiss_button)
         box.exec()
         clicked = box.clickedButton()
         if clicked is accept_button:
