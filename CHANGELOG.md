@@ -25,7 +25,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 
 ### Added
 - The project's row in the Project Explorer has an info button that opens **Project Details...**, so the dialog no longer has to be found in the File menu or the context menu.
-- A bundled **Basic Statistics** example project that teaches descriptive statistics, histograms, box plots, scatter plots and correlation with a synthetic class of 120 students, with step-by-step notes (#35).
+- A bundled **Basic Statistics** example project that teaches descriptive statistics, histograms, box plots, scatter plots and correlation to students new to statistics, with a synthetic class of 120 students. It is organised in numbered folders, and its notes explain what each tool is, when to use it and how to read the results, with a Glossary and step-by-step exercises (#35).
 - The Examples dialog is redesigned: examples are grouped in sections as cards with a cover, short description, level, tags and what's inside; filter by topic and technique tags or search; **See details** shows the full description and live previews of the example's featured charts (#609, #610, #611).
 - **File → Project Details...** edits a project's name, its notes ("About this project", Markdown), a cover image, and, for projects marked **Use this project as an example**, the example's short description, section, level, tags, featured charts, start note and data credit (#597, #598, #613).
 - Closing or replacing an edited project that was never saved, such as an opened example, offers **Save As...**, and while Auto-Save is enabled an untitled project is kept in a per-instance recovery copy that PandaPlot offers to restore after a crash; **Not Now** (or Esc) keeps the copy for the next launch (#629).
