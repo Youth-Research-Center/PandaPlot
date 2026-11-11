@@ -203,9 +203,9 @@ def create_sample_project():
     methodology_content = """# Analysis Methodology
 
 ## Data Sources:
-- Monthly sales reports (Jan-Jun 2023)
-- Customer satisfaction surveys
-- Unit sales tracking system
+- The data is synthetic: this example's script generates it, so it does not describe a real shop.
+- Monthly sales: six months (January to June) of sales, units sold and returns.
+- Customer data: 100 made-up customers with an age, a purchase amount and a satisfaction score from 1 to 5.
 
 ## Analysis Techniques:
 - Time series analysis for sales trends

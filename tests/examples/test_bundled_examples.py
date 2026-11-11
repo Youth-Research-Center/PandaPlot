@@ -54,5 +54,29 @@ def test_example_loads_and_featured_charts_render(examples, name):
         assert isinstance(project.find_item(chart_id), Chart)
     assert isinstance(project.find_item(example.start_note_id), Note)
     for chart in (item for item in project.get_all_items() if isinstance(item, Chart)):
-        png = render_chart_to_png(chart, resolve_chart_series_data(project, chart), ChartSizeDefaults(20.0, 15.0, 50))
+        # A PNG alone proves little: unresolved series are skipped and an empty chart still renders.
+        assert chart.data_series, f"{chart.name} has no series"
+        resolved = resolve_chart_series_data(project, chart)
+        for series, data in zip(chart.data_series, resolved, strict=True):
+            assert data.error is None, f"{chart.name}: series {series.label!r} does not resolve: {data.error}"
+            if series.is_fit:
+                continue
+            dataset = project.find_item(series.dataset_id)
+            for column_id in _optional_column_ids(series):
+                assert dataset.column_name(column_id) is not None, f"{chart.name}: series {series.label!r} references a missing column"
+        png = render_chart_to_png(chart, resolved, ChartSizeDefaults(20.0, 15.0, 50))
         assert png is not None, f"{chart.name} did not render"
+
+
+_OPTIONAL_STYLE_ROLES = ("u", "v", "w", "z", "magnitude", "label", "twin_y")
+_ERROR_BAR_COLUMN_FIELDS = ("x_error_column_id", "y_error_column_id", "x_error_minus_column_id", "y_error_minus_column_id")
+
+
+def _optional_column_ids(series) -> list[str]:
+    """Column ids a series references outside x/y; the renderer resolves these leniently, so check them explicitly."""
+    style = series.style
+    ids = [getattr(style, f"{role}_column_id", "") for role in _OPTIONAL_STYLE_ROLES]
+    error_bars = getattr(style, "error_bars", None)
+    if error_bars is not None:
+        ids += [getattr(error_bars, field, "") for field in _ERROR_BAR_COLUMN_FIELDS]
+    return [column_id for column_id in ids if column_id]

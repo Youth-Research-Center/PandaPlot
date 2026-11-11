@@ -38,22 +38,22 @@ EXAMPLE_SUMMARY = (
     "stacked bar, error bar and vector charts."
 )
 
-EXAMPLE_DESCRIPTION = """\\
+EXAMPLE_DESCRIPTION = """\
 ## About this example
 
-This project is a tour of the chart types PandaPlot can draw. It starts with the graphs of familiar \\
-mathematical functions and then moves on to charts for everyday data. Every chart sits in a folder next to its data, \\
+This project is a tour of the chart types PandaPlot can draw. It starts with the graphs of familiar \
+mathematical functions and then moves on to charts for everyday data. Every chart sits in a folder next to its data, \
 so you can click a dataset, look at the table and see how the chart uses it.
 
 ## What is inside
 
-- **Linear**, **Quadratic**, **Periodic** and **Logarithm** folders: small tables for y = x + 4 style lines, \\
-parabolas, a sine wave and a natural logarithm, each with a chart. The **Periodic** chart also draws the sine curve \\
+- **Linear**, **Quadratic**, **Periodic** and **Logarithm** folders: small tables for y = x + 4 style lines, \
+parabolas, a sine wave and a natural logarithm, each with a chart. The **Periodic** chart also draws the sine curve \
 as a fit line over the data points.
 - **Vector** folder: a grid of arrows, drawn as a flat 2D chart and as a 3D chart.
-- **Percentage** folder: a donut chart of sales by category, and a **Distribution** subfolder with a box plot \\
-that compares three treatments.
-- **Measurements** folder: five repeated velocity readings for each nozzle size, a summary table with the mean \\
+- **Percentage** folder: a donut chart of sales by category, and a **Distribution** subfolder with a box plot \
+of six samples: a control group, two treatments, a skewed sample, a sample with blank cells and a very small sample.
+- **Measurements** folder: five repeated velocity readings for each nozzle size, a summary table with the mean \
 and standard error, and a chart of the means with error bars.
 - **Categorical** folder: a stacked bar chart of quarterly hardware and software revenue.
 - A short **Start here** note.
@@ -74,7 +74,7 @@ DATA_CREDIT = (
     "sample files in examples/datasets. None of it is real measurement data."
 )
 
-START_NOTE_CONTENT = """\\
+START_NOTE_CONTENT = """\
 # Start here
 
 Each folder in this project holds a dataset and a chart made from it.
