@@ -391,22 +391,30 @@ def test_keyboard_focus_on_the_button_is_visible(panel, qtbot, monkeypatch, them
     assert ThemeManager._contrast_ratio(ring, row_background) >= 3.0
 
 
-def test_the_root_row_follows_a_live_interface_font_change(panel):
+def test_the_root_row_follows_a_live_interface_font_change(panel, qtbot):
     panel, app_context, _ = panel
     app_context.get_app_state().load_project(_project_with_a_folder())
+    app = QApplication.instance()
+    # Applying a theme restyles the whole application; restore it so later tests on this worker are unaffected.
+    original_palette, original_font, original_stylesheet = app.palette(), app.font(), app.styleSheet()
     manager = app_context.get_manager(ThemeManager)
-    manager.set_qt_app(QApplication.instance())
+    manager.set_qt_app(app)
     manager.apply_current()
     config = manager._provider.config
     root = panel.tree.topLevelItem(0)
-    original = config.appearance.interface_font_size
+    original_size = config.appearance.interface_font_size
+
+    def heights() -> tuple[int, int]:
+        return panel.tree.visualItemRect(root).height(), panel.tree.visualItemRect(root.child(0)).height()
+
     try:
         for size in (36, 9):
             config.appearance.interface_font_size = size
             manager.apply_from_config(config)
-            QApplication.processEvents()
-            root_height = panel.tree.visualItemRect(root).height()
-            assert abs(root_height - panel.tree.visualItemRect(root.child(0)).height()) <= 2, size
+            # The font change reaches the tree through posted events; wait for the layout to settle.
+            qtbot.waitUntil(lambda: abs(heights()[0] - heights()[1]) <= 2, timeout=3000)
     finally:
-        config.appearance.interface_font_size = original
-        manager.apply_from_config(config)
+        config.appearance.interface_font_size = original_size
+        app.setStyleSheet(original_stylesheet)
+        app.setPalette(original_palette)
+        app.setFont(original_font)
