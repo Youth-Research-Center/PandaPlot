@@ -1,6 +1,7 @@
 from typing import override
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QGroupBox,
@@ -86,6 +87,7 @@ class ProjectViewPanel(SidebarPanel):
         self.tree = ProjectTreeWidget(self)
         self.tree.setColumnCount(2)
         self.tree.setHeaderLabels(["Project Structure", ""])
+        self.tree.header().setSectionsMovable(False)
         self.tree.headerItem().setData(ACTIONS_COLUMN, Qt.ItemDataRole.AccessibleTextRole, "Actions")
 
         # Enable context menu and interactions
@@ -271,6 +273,12 @@ class ProjectViewPanel(SidebarPanel):
             }}
         """)
 
+        # Hover on the Project Details button: a plain hover colour on a normal row; on the accent row a translucent
+        # overlay that darkens a light icon (or lightens a dark one), so the icon keeps its contrast.
+        icon_on_accent = QColor(tokens["text_on_accent"])
+        selected_hover_overlay = "rgba(0, 0, 0, 80)" if icon_on_accent.lightness() > 128 else "rgba(255, 255, 255, 80)"
+        hover_overlay = card_hover
+
         # Apply theme to tree widget
         self.tree.setStyleSheet(f"""
             QTreeWidget {{
@@ -292,6 +300,24 @@ class ProjectViewPanel(SidebarPanel):
             QTreeWidget::item:selected:hover {{
                 background-color: {accent};
                 color: {SELECTED_ROW_FOREGROUND};
+            }}
+            QTreeWidget QToolButton {{
+                background-color: transparent;
+                border: 1px solid transparent;
+                border-radius: 3px;
+                padding: 0;
+            }}
+            QTreeWidget QToolButton:hover {{
+                background-color: {hover_overlay};
+            }}
+            QTreeWidget QToolButton:focus {{
+                border-color: {base_fg};
+            }}
+            QTreeWidget QToolButton[onSelectedRow="true"]:hover {{
+                background-color: {selected_hover_overlay};
+            }}
+            QTreeWidget QToolButton[onSelectedRow="true"]:focus {{
+                border-color: {SELECTED_ROW_FOREGROUND};
             }}
             QHeaderView::section {{
                 background-color: {card_bg};

@@ -173,6 +173,8 @@ class ProjectTreeManager:
         width = side + _ACTIONS_COLUMN_PADDING
         header.setMinimumSectionSize(width)  # the style's default minimum is wider than a button
         header.resizeSection(ACTIONS_COLUMN, width)
+        # A font change resizes the rows without re-laying them out, which leaves the root row at its old height.
+        self.tree.doItemsLayout()
 
     def _tint_root_button(self) -> None:
         """Tint the button's icon for the row state: light on the accent of a selected row, the text colour otherwise."""
@@ -183,6 +185,10 @@ class ProjectTreeManager:
         selected = root_item is not None and root_item.isSelected()
         role = IconRole.ON_ACCENT if selected else IconRole.TEXT
         button.setIcon(themed_icon(self.app_context, "info", role=role))
+        # The panel's stylesheet draws the hover and focus states differently on the accent-coloured selected row.
+        button.setProperty("onSelectedRow", selected)
+        button.style().unpolish(button)
+        button.style().polish(button)
 
     def retint_icons(self) -> None:
         """Re-render every item icon from the current theme tokens.

@@ -70,7 +70,9 @@ def test_clicking_the_button_opens_project_details(panel, qtbot):
     panel, app_context, opened = panel
     app_context.get_app_state().load_project(_project_with_a_folder())
 
-    qtbot.mouseClick(_root_button(panel), Qt.MouseButton.LeftButton)
+    button = _root_button(panel)
+    assert button is not None
+    qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
 
     assert opened == [(app_context, panel)]
 
@@ -138,6 +140,15 @@ def test_the_button_is_re_sized_from_the_row_height_when_the_font_grows(panel):
     panel.project_tree_manager.retint_icons()
 
     assert button.height() > small
+    root = panel.tree.topLevelItem(0)
+    assert abs(panel.tree.visualItemRect(root).height() - panel.tree.visualItemRect(root.child(0)).height()) <= 2
+
+    font.setPointSize(9)
+    panel.tree.setFont(font)
+    panel.project_tree_manager.retint_icons()
+
+    assert button.height() <= small
+    assert abs(panel.tree.visualItemRect(root).height() - panel.tree.visualItemRect(root.child(0)).height()) <= 2
     assert panel.tree.columnWidth(1) == button.width() + 4
 
 
@@ -146,6 +157,7 @@ def test_the_same_button_survives_tree_rebuilds_and_keeps_focus(panel, qtbot):
     project = _project_with_a_folder()
     app_context.get_app_state().load_project(project)
     button = _root_button(panel)
+    assert button is not None
     button.setFocus()
     qtbot.waitUntil(lambda: QApplication.focusWidget() is button)
 
@@ -305,3 +317,96 @@ def test_a_drop_highlight_covers_every_column_of_the_row(panel):
 
     tree._clear_highlight()
     assert [root.background(column).color().alpha() for column in range(2)] == before
+
+
+def test_the_header_cannot_be_dragged_to_swap_the_columns(panel):
+    panel, _app_context, _ = panel
+
+    assert not panel.tree.header().sectionsMovable()
+
+
+def _themed(panel, app_context, monkeypatch, theme):
+    themed = ThemeManager.__new__(ThemeManager)
+    themed._current = ThemeContext(theme=theme, accent="#4A56C6", interface_font_size=10)
+    manager = app_context.get_manager(ThemeManager)
+    monkeypatch.setattr(manager, "get_design_tokens", themed.get_design_tokens)
+    monkeypatch.setattr(manager, "get_surface_palette", themed.get_surface_palette)
+    panel._apply_theme()
+    return themed.get_surface_palette(), themed.get_design_tokens()
+
+
+def _button_pixels(panel: ProjectViewPanel, button: QToolButton) -> list[QColor]:
+    QApplication.processEvents()
+    image = panel.tree.viewport().grab(button.geometry()).toImage()
+    return [QColor(image.pixel(x, y)) for x in range(image.width()) for y in range(image.height())]
+
+
+def _worst_contrast_of_icon(button: QToolButton, pixels: list[QColor]) -> float:
+    """Contrast between the icon colour and the most common (background) colour of the grabbed button area."""
+    background = max({pixel.name() for pixel in pixels}, key=lambda name: sum(pixel.name() == name for pixel in pixels))
+    return ThemeManager._contrast_ratio(strongest_pixel(button.icon()), QColor(background))
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("selected", [False, True])
+def test_the_icon_stays_visible_while_the_button_is_hovered(panel, monkeypatch, theme, selected):
+    panel, app_context, _ = panel
+    app_context.get_app_state().load_project(_project_with_a_folder())
+    _themed(panel, app_context, monkeypatch, theme)
+    button = _root_button(panel)
+    root = panel.tree.topLevelItem(0)
+    panel.tree.setCurrentItem(root if selected else root.child(0))
+    panel.project_tree_manager.retint_icons()
+
+    button.setAttribute(Qt.WidgetAttribute.WA_UnderMouse, on=True)
+    button.update()
+    try:
+        pixels = _button_pixels(panel, button)
+    finally:
+        button.setAttribute(Qt.WidgetAttribute.WA_UnderMouse, on=False)
+
+    assert _worst_contrast_of_icon(button, pixels) >= 3.0
+
+
+@pytest.mark.parametrize("theme", [Theme.LIGHT, Theme.DARK])
+@pytest.mark.parametrize("selected", [False, True])
+def test_keyboard_focus_on_the_button_is_visible(panel, qtbot, monkeypatch, theme, selected):
+    panel, app_context, _ = panel
+    app_context.get_app_state().load_project(_project_with_a_folder())
+    palette, _tokens = _themed(panel, app_context, monkeypatch, theme)
+    button = _root_button(panel)
+    root = panel.tree.topLevelItem(0)
+
+    button.setFocus()  # focusing a widget in a row makes that row current and selected
+    qtbot.waitUntil(lambda: button.hasFocus())
+    assert root.isSelected()
+    if not selected:
+        panel.tree.setCurrentItem(root.child(0))
+        assert button.hasFocus()
+    row_background = QColor(palette["accent"] if selected else palette["card_bg"])
+    QApplication.processEvents()
+    image = panel.tree.viewport().grab(button.geometry()).toImage()
+    ring = QColor(image.pixel(0, image.height() // 2))  # the left edge of the button is its focus border
+
+    assert ThemeManager._contrast_ratio(ring, row_background) >= 3.0
+
+
+def test_the_root_row_follows_a_live_interface_font_change(panel):
+    panel, app_context, _ = panel
+    app_context.get_app_state().load_project(_project_with_a_folder())
+    manager = app_context.get_manager(ThemeManager)
+    manager.set_qt_app(QApplication.instance())
+    manager.apply_current()
+    config = manager._provider.config
+    root = panel.tree.topLevelItem(0)
+    original = config.appearance.interface_font_size
+    try:
+        for size in (36, 9):
+            config.appearance.interface_font_size = size
+            manager.apply_from_config(config)
+            QApplication.processEvents()
+            root_height = panel.tree.visualItemRect(root).height()
+            assert abs(root_height - panel.tree.visualItemRect(root.child(0)).height()) <= 2, size
+    finally:
+        config.appearance.interface_font_size = original
+        manager.apply_from_config(config)
