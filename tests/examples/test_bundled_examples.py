@@ -1,7 +1,8 @@
 import pytest
 
 from examples.smoothing_derivatives.create_smoothing_example import create_project_data_manager
-from pandaplot.gui.components.tabs.chart.chart_editor import ChartSizeDefaults, render_chart_to_png, resolve_chart_series_data
+from pandaplot.gui.components.tabs.chart.chart_editor import ChartSizeDefaults, cm_to_inches, render_chart, resolve_chart_series_data
+from pandaplot.gui.components.tabs.chart.headless_chart_canvas import HeadlessChartCanvas
 from pandaplot.models.project.example_info import ExampleLevel, ExampleSection, example_tag
 from pandaplot.models.project.items import Chart, Note
 from pandaplot.utils.examples import discover_example_projects, get_examples_dir
@@ -13,6 +14,9 @@ EXPECTED = {
     "Sales Analysis Project": (ExampleSection.GETTING_STARTED, ExampleLevel.BEGINNER, {"business", "descriptive_statistics", "charts"}),
     "Smoothing and Derivatives": (ExampleSection.ANALYSING_DATA, ExampleLevel.INTERMEDIATE, {"signal_processing", "smoothing", "derivatives"}),
     "Functions": (ExampleSection.CHARTS, ExampleLevel.BEGINNER, {"mathematics", "charts"}),
+    "Basic Statistics": (
+        ExampleSection.ANALYSING_DATA, ExampleLevel.BEGINNER, {"statistics", "descriptive_statistics", "statistical_tests", "charts"},
+    ),
 }
 
 
@@ -21,7 +25,7 @@ def examples():
     return {example.name: example for example in discover_example_projects(get_examples_dir())}
 
 
-def test_five_examples_are_discovered(examples):
+def test_six_examples_are_discovered(examples):
     assert set(examples) == set(EXPECTED)
     assert "Funtions" not in examples
 
@@ -64,8 +68,9 @@ def test_example_loads_and_featured_charts_render(examples, name):
             dataset = project.find_item(series.dataset_id)
             for column_id in _optional_column_ids(series):
                 assert dataset.column_name(column_id) is not None, f"{chart.name}: series {series.label!r} references a missing column"
-        png = render_chart_to_png(chart, resolved, ChartSizeDefaults(20.0, 15.0, 50))
-        assert png is not None, f"{chart.name} did not render"
+        canvas = HeadlessChartCanvas(width=cm_to_inches(20), height=cm_to_inches(15), dpi=50)
+        result = render_chart(chart, canvas, resolved, ChartSizeDefaults(20.0, 15.0, 50), interactive=False)
+        assert result.series_errors == [], f"{chart.name} did not render cleanly: {result.series_errors}"
 
 
 _OPTIONAL_STYLE_ROLES = ("u", "v", "w", "z", "magnitude", "label", "twin_y")
