@@ -95,7 +95,7 @@ class ExamplesDialog(PDialog):
         # Visible text lives in child QLabels, which leaves the button itself
         # unnamed for assistive tech.
         button.setAccessibleName(example.name)
-        button.setAccessibleDescription(example.description or "")
+        button.setAccessibleDescription(example.summary or "")
 
         item_layout = QVBoxLayout(button)
         item_layout.setContentsMargins(14, 10, 14, 10)
@@ -109,8 +109,8 @@ class ExamplesDialog(PDialog):
         name_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         item_layout.addWidget(name_label)
 
-        if example.description:
-            desc_label = QLabel(example.description)
+        if example.summary:
+            desc_label = QLabel(example.summary)
             desc_label.setProperty("secondary", True)  # noqa: FBT003 - Qt method, no keyword args
             desc_label.setWordWrap(True)
             desc_label.setAlignment(Qt.AlignmentFlag.AlignLeft)

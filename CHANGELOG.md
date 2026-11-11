@@ -15,11 +15,13 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 
 ### Fixed
 - The bundled Sales Analysis sample project opens completely: its **Customer Distribution** chart was saved with an unknown chart type and failed to load, and its **Sales Trend** chart had no data series (#612).
+- Transient context menus in the tab bar, dataset table, image gallery, and sidebar icon bar are now deleted after closing instead of remaining attached to their parent widget (#587).
 - Buttons and other controls drawn by the platform style (for example the Back, Next and Cancel buttons of the Analyze Measurements wizard) were unreadable white-on-white when the app used the light theme while Windows was in dark mode (or the reverse): the app now tells Qt which colour scheme its theme uses.
 - The (x, y) mouse readout on the chart toolbar reserves a fixed amount of space, so moving the cursor over the chart or leaving it no longer resizes the toolbar and makes the chart area flicker; readouts too long for the space, such as two Y values, are shortened with an ellipsis (#511).
 - Adding an item beneath a non-folder project item keeps it in the nearest ancestor folder instead of relocating it to the root.
 - A chart with no series (made with "Create empty plot instead" or "Create Empty Chart") can now get data: **+ Add series** on the Data tab, or **Add Series** on the empty chart, opens a dialog to choose a dataset and the columns the chart type needs (#589). **Apply** on a chart with no series no longer silently adds a series from hidden settings.
 - Opening an example opens an untitled copy, so Save asks where to save it and the bundled example is never overwritten (#607).
+- Example projects (#608, #598): the Examples dialog shows each example's one-sentence summary instead of its full notes, and the summary taken from the notes no longer stops at "e.g." or a period inside code or bold text. A project cover taken from a phone photo follows the photo's orientation instead of being stored sideways, a very thin image can be used as a cover, and a damaged cover image is ignored instead of being kept and saved again.
 
 ### Added
 - Empty charts show "This chart has no data yet" with **Add Series** and **Import Data** buttons, and a dataset with no rows or columns shows a hint with **Add Rows / Columns...** (#596).
