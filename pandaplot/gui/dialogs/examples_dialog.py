@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from pandaplot.gui.core.widget_extension import PDialog, unsubscribe_widget_tree
+from pandaplot.gui.resources.themed_icons import themed_icon
 from pandaplot.models.project.example_info import EXAMPLE_TAGS, ExampleSection, TagGroup, example_tag
 from pandaplot.models.project.items import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -40,6 +41,7 @@ PREVIEW_HEIGHT = 170
 DESCRIPTION_FONT_SIZE = 11
 SUBTITLE = "Browse what PandaPlot can do. Open an example to explore it; your copy won't change the original."
 _ENTER_KEYS = (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+_FILTERS_BUTTON_PADDING = 40  # room for the button's own padding and the gap between its icon and label
 _EXTERNAL_LINK_SCHEMES = frozenset({"http", "https", "mailto"})
 _GROUP_LABELS = {TagGroup.TOPIC: "Topic", TagGroup.TECHNIQUE: "Technique"}
 
@@ -151,6 +153,12 @@ class ExamplesDialog(PDialog):
         self.search_edit.setAccessibleName("Search examples")
         self.search_edit.textChanged.connect(self._on_filters_changed)
         search_row.addWidget(self.search_edit, 1)
+        self.filters_button = PButton("Filters", role="secondary")
+        self.filters_button.setCheckable(True)
+        self.filters_button.setAccessibleName("Filters")
+        self.filters_button.toggled.connect(self._on_filters_toggled)
+        self._enter_activates(self.filters_button)
+        search_row.addWidget(self.filters_button)
         self.clear_button = PButton("Clear filters", role="secondary", on_click=self._clear_filters)
         self._enter_activates(self.clear_button)
         search_row.addWidget(self.clear_button)
@@ -161,6 +169,13 @@ class ExamplesDialog(PDialog):
 
         self.chips_widget = self._build_chips(page)
         layout.addWidget(self.chips_widget)
+        self.filters_button.setVisible(bool(self.tag_chips))
+        QWidget.setTabOrder(self.search_edit, self.filters_button)
+        QWidget.setTabOrder(self.filters_button, self.clear_button)
+        previous: QWidget = self.clear_button
+        for chip in self.tag_chips.values():
+            QWidget.setTabOrder(previous, chip)
+            previous = chip
 
         self.no_examples_label = QLabel("No example projects were found.", page)
         self.no_examples_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -220,7 +235,7 @@ class ExamplesDialog(PDialog):
 
         footer = QHBoxLayout()
         footer.addStretch(1)
-        self.close_btn = PButton("Cancel", role="secondary", on_click=self.reject)
+        self.close_btn = PButton("Close", role="secondary", on_click=self.reject)
         self._enter_activates(self.close_btn)
         footer.addWidget(self.close_btn)
         layout.addLayout(footer)
@@ -262,7 +277,7 @@ class ExamplesDialog(PDialog):
                 flow.addWidget(chip)
             row.addWidget(chips_host, 1)
             layout.addLayout(row)
-        widget.setVisible(bool(self.tag_chips))
+        widget.setVisible(False)  # collapsed until the Filters button is toggled; expanding needs tags
         return widget
 
     def _build_details_page(self) -> QWidget:
@@ -363,6 +378,24 @@ class ExamplesDialog(PDialog):
         self._selected_tag_ids = self._selected_tag_ids | {tag_id} if checked else self._selected_tag_ids - {tag_id}
         self._refresh()
 
+    def _on_filters_toggled(self, checked: bool) -> None:  # noqa: FBT001 -- connected to QAbstractButton.toggled
+        """Show or hide the tag chips; the cards below take or give back the space."""
+        if not checked and self.chips_widget.isAncestorOf(self.focusWidget()):
+            self.filters_button.setFocus()
+        self.chips_widget.setVisible(checked and bool(self.tag_chips))
+        self._sync_filters_button()
+        self._schedule_visible_covers()
+
+    def _sync_filters_button(self) -> None:
+        """Update the Filters button's caret, label, accessible description and fixed width from the toggle and the selected tags."""
+        count = len(self._selected_tag_ids)
+        button = self.filters_button
+        button.setText(f"Filters ({count})" if count else "Filters")
+        button.setAccessibleDescription(f"{count} {'filter' if count == 1 else 'filters'} active" if count else "No filters active")
+        button.setIcon(themed_icon(self.app_context, "caret-up" if button.isChecked() else "caret-down"))
+        widest = button.fontMetrics().horizontalAdvance("Filters (99)")
+        button.setMinimumWidth(widest + button.iconSize().width() + _FILTERS_BUTTON_PADDING)
+
     def _clear_filters(self) -> None:
         """Clear the search text and every tag chip."""
         for chip in self.tag_chips.values():
@@ -389,6 +422,7 @@ class ExamplesDialog(PDialog):
             chip.style().unpolish(chip)
             chip.style().polish(chip)
         self.clear_button.setEnabled(bool(query.strip()) or bool(self._selected_tag_ids))
+        self._sync_filters_button()
         self._layout_cards(self._matching_examples())
 
     def _desired_columns(self) -> int:
@@ -727,6 +761,7 @@ class ExamplesDialog(PDialog):
             f"QScrollArea {{ background: transparent; }}"
             f'QPushButton[chip="true"]:disabled {{ color: {tokens['text_disabled']}; border-color: {tokens['border_subtle']}; }}'
         )
+        self._sync_filters_button()
         self.title_label.setStyleSheet(f"{plain} font-size: 20px; font-weight: 700; color: {text_primary};")
         self.subtitle_label.setStyleSheet(f"{plain} color: {text_muted};")
         self.no_examples_label.setStyleSheet(f"{plain} color: {text_muted};")
