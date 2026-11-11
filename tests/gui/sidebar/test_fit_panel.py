@@ -13,6 +13,7 @@ from unittest.mock import Mock
 import numpy as np
 import pandas as pd
 import pytest
+import shiboken6
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QFrame, QPlainTextEdit
 
@@ -2364,3 +2365,15 @@ def test_live_switch_to_a_type_that_disallows_fits_disables_the_fit_controls_and
     assert panel.series_combo.isEnabled() is False
     assert panel.fit_button.isEnabled() is False
     assert panel.fit_results is not None
+
+
+def test_function_menu_belongs_to_the_panel(app_context):
+    """A parentless menu outlives its panel as a top-level widget that every later stylesheet change re-polishes (#648)."""
+    panel = FitPanel(app_context)
+    menu = panel.menu
+
+    assert menu.parent() is panel
+
+    shiboken6.delete(panel)
+
+    assert not shiboken6.isValid(menu)
