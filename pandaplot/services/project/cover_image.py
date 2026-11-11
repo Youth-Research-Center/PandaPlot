@@ -1,7 +1,7 @@
 """Preparation of a project's cover image before it is stored in the project."""
 
 from PySide6.QtCore import QBuffer, QIODevice, Qt
-from PySide6.QtGui import QImage
+from PySide6.QtGui import QImageReader
 
 from pandaplot.utils.errors import UserFacingError
 
@@ -9,7 +9,7 @@ DEFAULT_COVER_MAX_SIDE = 800
 
 
 def prepare_cover_image(data: bytes, *, max_side: int = DEFAULT_COVER_MAX_SIDE) -> bytes:
-    """Decode an image, downscale it so its longest side is at most ``max_side``, and encode it as PNG.
+    """Decode an image (applying its EXIF orientation), downscale it so its longest side is at most ``max_side``, and encode it as PNG.
 
     Images that already fit are never upscaled. Uses only ``QtGui``, so it is safe to call from commands.
 
@@ -23,11 +23,18 @@ def prepare_cover_image(data: bytes, *, max_side: int = DEFAULT_COVER_MAX_SIDE) 
     Raises:
         UserFacingError: If ``data`` is not an image PandaPlot can read.
     """
-    image = QImage.fromData(data)
+    source = QBuffer()
+    source.setData(data)
+    source.open(QIODevice.OpenModeFlag.ReadOnly)
+    reader = QImageReader(source)
+    reader.setAutoTransform(True)
+    image = reader.read()
     if image.isNull():
         raise UserFacingError("This file is not an image PandaPlot can read.")
     if max(image.width(), image.height()) > max_side:
-        box = image.size().boundedTo(image.size().scaled(max_side, max_side, Qt.AspectRatioMode.KeepAspectRatio))
+        box = image.size().scaled(max_side, max_side, Qt.AspectRatioMode.KeepAspectRatio)
+        box.setWidth(max(1, box.width()))
+        box.setHeight(max(1, box.height()))
         image = image.scaled(box, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 
     buffer = QBuffer()
