@@ -15,3 +15,5 @@ uv run python examples/curve_fitting/create_curve_fitting_example.py
 ```
 
 The generator creates both the `.pplot` project and this six-chart PNG preview. The project includes a straight-line fit, a weighted straight-line fit using the supplied uncertainties, a quadratic fit, a cosine fit, and two damped-cosine fits. The weighted-linear chart displays the supplied Y error bars. Every fitted curve includes a confidence band, equation, parameter values, and R²; the adjacent note explains why its model was chosen.
+
+The examples-browser metadata (summary, description, section, level, tags, featured charts, start note and data credit) is set in the generator script, not in the `.pplot` file by hand.

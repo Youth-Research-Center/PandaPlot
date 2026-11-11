@@ -9,6 +9,7 @@ from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QInputDialog, QLineEdit
 from pytestqt.qtbot import QtBot
 
+from pandaplot.commands.project.dataset.create_empty_dataset_command import CreateEmptyDatasetCommand
 from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
 from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
 from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
@@ -400,12 +401,16 @@ def test_example_opens_as_untitled_copy_and_save_never_overwrites_it(
     assert not state.is_modified
     assert str(example) not in [entry["path"] for entry in get_recent_projects(app_window.app_context)]
 
-    project.add_item(Sketch(name="Edit after opening"))
-    state.mark_modified()
+    executed = app_window.app_context.get_command_executor().execute_command(
+        CreateEmptyDatasetCommand(app_window.app_context, dataset_name="Edit after opening")
+    )
+    assert executed
+    assert state.is_modified
+    assert state.project_file_path is None
     saved_path = tmp_path / "my_copy.pplot"
-    dialog_calls = []
+    dialog_calls: list[tuple[object, ...]] = []
 
-    def pick_path(*args, **kwargs):
+    def pick_path(*args: object, **kwargs: object) -> tuple[str, str]:
         dialog_calls.append(args)
         return str(saved_path), "Project files"
 

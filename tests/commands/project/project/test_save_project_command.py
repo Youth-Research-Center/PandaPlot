@@ -337,3 +337,65 @@ def test_failed_save_without_a_description_falls_back_to_a_plain_reason():
     kwargs = app_context.get_ui_controller.return_value.show_error_message.call_args.kwargs
     assert kwargs["error"].reason == "The project could not be saved."
     assert kwargs["error"].details == ""
+
+
+def test_save_of_a_project_whose_path_is_inside_the_examples_dir_asks_for_a_new_location(tmp_path, monkeypatch):
+    """Defence in depth (#607): a project that still carries a bundled example's
+    path must never be written back to it; Save behaves as Save As."""
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
+    monkeypatch.setattr("pandaplot.utils.examples.get_examples_dir", lambda: examples_dir)
+    app_context, app_state = _make_app_context(
+        has_project=True, current_project=Mock(), project_file_path=str(examples_dir / "demo.pplot")
+    )
+    app_state.current_project.name = "P"
+    app_state.is_saving = False
+    app_state.modification_revision = 0
+    chosen = str(tmp_path / "copy.pplot")
+    app_context.get_ui_controller.return_value.show_save_project_dialog.return_value = chosen
+    task_scheduler = Mock()
+    app_context.get_task_scheduler.return_value = task_scheduler
+
+    assert SaveProjectCommand(app_context).execute() is CommandResult.SUCCESS
+
+    app_context.get_ui_controller.return_value.show_save_project_dialog.assert_called_once()
+    _, kwargs = task_scheduler.run_task.call_args
+    assert kwargs["task_arguments"]["save_path"] == chosen
+
+
+def _examples_app_context(tmp_path, monkeypatch, *, project_file_path=None):
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
+    monkeypatch.setattr("pandaplot.utils.examples.get_examples_dir", lambda: examples_dir)
+    app_context, app_state = _make_app_context(has_project=True, current_project=Mock(), project_file_path=project_file_path)
+    app_state.current_project.name = "P"
+    app_state.is_saving = False
+    app_state.modification_revision = 0
+    task_scheduler = Mock()
+    app_context.get_task_scheduler.return_value = task_scheduler
+    return app_context, app_state, examples_dir, task_scheduler
+
+
+def test_save_as_into_the_examples_dir_is_refused(tmp_path, monkeypatch):
+    """Regression (#607 review): Save As must not write a project into the bundled examples folder,
+    or later saves (Ctrl+S, auto-save, the save on quit) would overwrite a bundled example."""
+    app_context, app_state, examples_dir, task_scheduler = _examples_app_context(tmp_path, monkeypatch, project_file_path=str(tmp_path / "mine.pplot"))
+    ui_controller = app_context.get_ui_controller.return_value
+    ui_controller.show_save_project_dialog.return_value = str(examples_dir / "demo.pplot")
+
+    assert SaveProjectAsCommand(app_context).execute() is CommandResult.FAILURE
+
+    task_scheduler.run_task.assert_not_called()
+    app_state.begin_save.assert_not_called()
+    ui_controller.show_warning_message.assert_called_once()
+
+
+def test_first_save_into_the_examples_dir_is_refused(tmp_path, monkeypatch):
+    app_context, _app_state, examples_dir, task_scheduler = _examples_app_context(tmp_path, monkeypatch)
+    ui_controller = app_context.get_ui_controller.return_value
+    ui_controller.show_save_project_dialog.return_value = str(examples_dir / "sub" / "new.pplot")
+
+    assert SaveProjectCommand(app_context).execute() is CommandResult.FAILURE
+
+    task_scheduler.run_task.assert_not_called()
+    ui_controller.show_warning_message.assert_called_once()

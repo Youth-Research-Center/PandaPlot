@@ -12,7 +12,7 @@ MAX_COVER_FILE_BYTES = 25 * 1024 * 1024
 
 
 def prepare_cover_image(data: bytes, *, max_side: int = DEFAULT_COVER_MAX_SIDE) -> bytes:
-    """Decode an image, downscale it so its longest side is at most ``max_side``, and encode it as PNG.
+    """Decode an image (applying its EXIF orientation), downscale it so its longest side is at most ``max_side``, and encode it as PNG.
 
     Images that already fit are never upscaled. Uses only ``QtGui``, so it is safe to call from commands.
 
@@ -26,14 +26,10 @@ def prepare_cover_image(data: bytes, *, max_side: int = DEFAULT_COVER_MAX_SIDE) 
     Raises:
         UserFacingError: If ``data`` is not an image PandaPlot can read.
     """
-    image = QImage.fromData(data)
-    if image.isNull():
-        raise UserFacingError("This file is not an image PandaPlot can read.")
-    if max(image.width(), image.height()) > max_side:
-        box = image.size().boundedTo(image.size().scaled(max_side, max_side, Qt.AspectRatioMode.KeepAspectRatio))
-        image = image.scaled(box, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-
-    return _encode_png(image)
+    source = QBuffer()
+    source.setData(data)
+    source.open(QIODevice.OpenModeFlag.ReadOnly)
+    return _encode_png(_read_bounded(QImageReader(source), max_side))
 
 
 def prepare_cover_image_from_file(path: str | Path, *, max_side: int = DEFAULT_COVER_MAX_SIDE) -> bytes:
@@ -57,7 +53,25 @@ def prepare_cover_image_from_file(path: str | Path, *, max_side: int = DEFAULT_C
     file_path = Path(path)
     if file_path.stat().st_size > MAX_COVER_FILE_BYTES:
         raise UserFacingError("The image file is too large. Choose an image under 25 MB.")
-    reader = QImageReader(str(file_path))
+    return _encode_png(_read_bounded(QImageReader(str(file_path)), max_side))
+
+
+def _read_bounded(reader: QImageReader, max_side: int) -> QImage:
+    """Decode ``reader``'s image, applying its EXIF orientation, so its longest side is at most ``max_side``.
+
+    The decoder scales a large image down while reading it when it can report the size up front; otherwise
+    the decoded image is scaled down afterwards. Images that already fit are never upscaled.
+
+    Args:
+        reader: Reader positioned on the encoded image.
+        max_side: Maximum length of the longest side, in pixels.
+
+    Returns:
+        The decoded image.
+
+    Raises:
+        UserFacingError: If the reader's data is not an image PandaPlot can read.
+    """
     reader.setAutoTransform(True)
     size = reader.size()
     if size.isValid() and max(size.width(), size.height()) > max_side:
@@ -67,7 +81,7 @@ def prepare_cover_image_from_file(path: str | Path, *, max_side: int = DEFAULT_C
         raise UserFacingError("This file is not an image PandaPlot can read.")
     if max(image.width(), image.height()) > max_side:
         image = image.scaled(_bounded_size(image.size(), max_side), mode=Qt.TransformationMode.SmoothTransformation)
-    return _encode_png(image)
+    return image
 
 
 def _bounded_size(size: QSize, max_side: int) -> QSize:

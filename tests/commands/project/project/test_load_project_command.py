@@ -663,7 +663,7 @@ class TestAsUntitledCopy:
         assert app_state.project_file_path is None
 
     @staticmethod
-    def _open_then_undo(command_path: str, *, as_untitled_copy: bool):
+    def _open_then_undo(command_path: str, *, as_untitled_copy: bool) -> tuple[LoadProjectCommand, Mock, Mock, Mock]:
         """Open ``command_path``, then undo it, returning the pieces the redo tests need."""
         from pandaplot.models.events import EventBus
         from pandaplot.models.state.app_state import AppState
@@ -720,3 +720,82 @@ class TestAsUntitledCopy:
         assert command.redo() is CommandResult.SUCCESS
 
         session_manager.update_project.assert_called_once_with("/p/a.pplot")
+
+
+class TestBundledExamplesAlwaysOpenAsUntitledCopy:
+    """A file inside the bundled examples directory opens as an untitled copy
+    however it was reached (File > Open, recent projects, session restore)."""
+
+    @pytest.fixture
+    def examples_dir(self, tmp_path, monkeypatch):
+        directory = tmp_path / "examples"
+        directory.mkdir()
+        monkeypatch.setattr("pandaplot.utils.examples.get_examples_dir", lambda: directory)
+        return directory
+
+    def test_path_inside_examples_dir_is_an_untitled_copy_without_the_flag(self, env, examples_dir):
+        path = str(examples_dir / "demo.pplot")
+        command = LoadProjectCommand(env, path)
+        assert command.as_untitled_copy is True
+
+        project = Mock()
+        project.failed_item_ids = []
+        command._on_load_result({"success": True, "project": project, "file_path": path})
+
+        assert project.project_file_path is None
+        env.get_manager.return_value.update_project.assert_called_once_with(None)
+
+    def test_dotdot_path_that_resolves_into_examples_dir_is_detected(self, env, examples_dir):
+        (examples_dir / "sub").mkdir()
+        assert LoadProjectCommand(env, str(examples_dir / "sub" / ".." / "demo.pplot")).as_untitled_copy is True
+
+    def test_path_outside_examples_dir_is_unchanged(self, env, examples_dir, tmp_path):
+        path = str(tmp_path / "mine.pplot")
+        command = LoadProjectCommand(env, path)
+        assert command.as_untitled_copy is False
+
+        project = Mock()
+        project.failed_item_ids = []
+        command._on_load_result({"success": True, "project": project, "file_path": path})
+
+        assert project.project_file_path == path
+        env.get_manager.return_value.update_project.assert_called_once_with(path)
+
+    def test_sibling_directory_with_the_same_prefix_is_not_an_example(self, env, examples_dir):
+        assert LoadProjectCommand(env, str(examples_dir) + "-other/demo.pplot").as_untitled_copy is False
+
+
+class TestUndoRestoresSessionProject:
+    """Undoing a load must put the session back on the previous project, or the
+    next launch reopens the project the user just undid."""
+
+    def test_undo_of_a_normal_load_records_the_previous_projects_path(self):
+        _, _, _, session_manager = TestAsUntitledCopy._open_then_undo("/p/a.pplot", as_untitled_copy=False)
+
+        session_manager.update_project.assert_called_with("/p/current.pplot")
+        assert session_manager.update_project.call_args_list[-2].args == ("/p/a.pplot",)
+
+    def test_undo_of_an_untitled_copy_load_records_the_previous_projects_path(self):
+        _, _, _, session_manager = TestAsUntitledCopy._open_then_undo("/examples/demo.pplot", as_untitled_copy=True)
+
+        assert [call.args for call in session_manager.update_project.call_args_list] == [(None,), ("/p/current.pplot",)]
+
+    def test_undo_with_no_previous_project_records_no_project(self):
+        from pandaplot.models.events import EventBus
+        from pandaplot.models.state.app_state import AppState
+
+        app_state = AppState(EventBus())
+        session_manager = Mock()
+        app_context = Mock()
+        app_context.get_app_state.return_value = app_state
+        app_context.get_manager.return_value = session_manager
+        command = LoadProjectCommand(app_context, "/p/a.pplot")
+        assert command.execute() is CommandResult.SUCCESS
+        loaded = Mock()
+        loaded.failed_item_ids = []
+        command._on_load_result({"success": True, "project": loaded, "file_path": "/p/a.pplot"})
+
+        assert command.undo() is CommandResult.SUCCESS
+
+        session_manager.update_project.assert_called_with(None)
+        assert not app_state.has_project

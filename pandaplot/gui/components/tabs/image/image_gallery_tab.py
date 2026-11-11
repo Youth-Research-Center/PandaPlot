@@ -7,6 +7,7 @@ multi-select rename/delete/group-into-album and a double-click lightbox.
 from collections.abc import Callable
 from typing import ClassVar, override
 
+import shiboken6
 from PySide6.QtCore import QMimeData, QSize, Qt
 from PySide6.QtGui import QAction, QDrag, QImage, QPixmap
 from PySide6.QtWidgets import (
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QStackedWidget,
     QTreeWidget,
@@ -685,7 +687,11 @@ class ImageGalleryTab(PWidget):
             self.grid.clearSelection()
             item.setSelected(True)
         menu = self._build_context_menu(item)
-        menu.exec(self.grid.viewport().mapToGlobal(position))
+        try:
+            menu.exec(self.grid.viewport().mapToGlobal(position))
+        finally:
+            if shiboken6.isValid(menu):
+                menu.deleteLater()
 
     def _on_list_context_menu(self, position) -> None:
         item = self.list_view.itemAt(position)
@@ -695,7 +701,11 @@ class ImageGalleryTab(PWidget):
             self.list_view.clearSelection()
             item.setSelected(True)
         menu = self._build_context_menu(item)
-        menu.exec(self.list_view.viewport().mapToGlobal(position))
+        try:
+            menu.exec(self.list_view.viewport().mapToGlobal(position))
+        finally:
+            if shiboken6.isValid(menu):
+                menu.deleteLater()
 
     def _child_id_for_item(self, item) -> str:
         """Read the stored child id from either a grid tile (QListWidgetItem)
@@ -705,33 +715,31 @@ class ImageGalleryTab(PWidget):
         return item.data(Qt.ItemDataRole.UserRole)
 
     def _build_context_menu(self, item):
-        from PySide6.QtWidgets import QMenu
-
         menu = QMenu(self)
         selected = self._selected_children()
         has_image = any(isinstance(c, Image) for c in selected)
 
-        edit_action = QAction("Edit Image...", self)
+        edit_action = QAction("Edit Image...", menu)
         edit_action.setEnabled(len(selected) == 1 and isinstance(selected[0], Image))
         edit_action.triggered.connect(self._on_edit_image_clicked)
         menu.addAction(edit_action)
 
-        rename_action = QAction("Rename", self)
+        rename_action = QAction("Rename", menu)
         rename_action.setEnabled(len(selected) == 1)
         rename_action.triggered.connect(self._on_rename_clicked)
         menu.addAction(rename_action)
 
-        delete_action = QAction("Delete", self)
+        delete_action = QAction("Delete", menu)
         delete_action.setEnabled(len(selected) >= 1)
         delete_action.triggered.connect(self._on_delete_clicked)
         menu.addAction(delete_action)
 
-        move_action = QAction("Move...", self)
+        move_action = QAction("Move...", menu)
         move_action.setEnabled(has_image)
         move_action.triggered.connect(self._on_move_clicked)
         menu.addAction(move_action)
 
-        copy_action = QAction("Copy to...", self)
+        copy_action = QAction("Copy to...", menu)
         copy_action.setEnabled(has_image)
         copy_action.triggered.connect(self._on_copy_clicked)
         menu.addAction(copy_action)
@@ -740,7 +748,7 @@ class ImageGalleryTab(PWidget):
         child = self.current_gallery.get_item_by_id(child_id)
         if isinstance(child, ImageGallery) and len(selected) == 1:
             menu.addSeparator()
-            open_new_tab_action = QAction("Open in New Tab", self)
+            open_new_tab_action = QAction("Open in New Tab", menu)
             open_new_tab_action.triggered.connect(lambda: self._open_in_new_tab(child))
             menu.addAction(open_new_tab_action)
 

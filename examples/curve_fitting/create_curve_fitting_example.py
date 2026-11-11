@@ -18,6 +18,7 @@ from pandaplot.models.chart.fit_style import FitStyle
 from pandaplot.models.chart.series_style.scatter import ScatterSeriesStyle
 from pandaplot.models.chart.series_type import SeriesType
 from pandaplot.models.project import Project
+from pandaplot.models.project.example_info import ExampleInfo, ExampleLevel, ExampleSection
 from pandaplot.models.project.items import Chart, Dataset, Folder, Note
 from pandaplot.models.project.items.chart import DataSeries
 from pandaplot.services.fit.fit_service import FitResult, FitService
@@ -107,6 +108,64 @@ FIT_EXAMPLES = (
         ),
     ),
 )
+
+
+EXAMPLE_SUMMARY = (
+    "Fit straight lines, a curve and oscillating waves to six small datasets, and see how well each model matches. "
+    "A good first look at curve fitting for beginners."
+)
+
+EXAMPLE_DESCRIPTION = """\
+## About this example
+
+Curve fitting means finding a formula that follows your data. This project fits six small datasets with the \
+model that suits each one best, and each chart shows the fit, its equation and a shaded confidence band.
+
+## What is inside
+
+- **Six datasets**, from a perfectly straight line to a spring that swings back and forth and slowly settles.
+- **Six charts**, one per dataset. Each shows the measured points, the fitted curve and a 95% confidence band. \
+The noisy linear data also has error bars.
+- **Six fit notes**, one per chart, explaining why that model was chosen and listing the fitted equation, \
+the parameter values and R squared.
+- **A "Start here" note** with a short tour.
+
+## What you will learn
+
+- How to choose a model: a straight line for steady change, a quadratic for gentle curvature, a cosine for repeating waves \
+and a damped cosine for waves that fade.
+- How uncertainties on the data points make a fit "weighted", so more precise points count for more.
+- How to read R squared, the parameter values and the confidence band.
+
+## Where to start
+
+Open the note **Start here**, then look at **Noisy linear data with uncertainties Fit** and compare it with \
+**Spring response: damped cosine Fit**.
+"""
+
+DATA_CREDIT = (
+    "Synthetic data from the files in examples/fit-test-data, computed from simple formulas (the uncertainty "
+    "example also has random noise). These are not real measurements."
+)
+
+FEATURED_CHARTS = (
+    "Noisy linear data with uncertainties Fit",
+    "Spring response Fit",
+    "Spring response: damped cosine Fit",
+)
+
+START_NOTE_CONTENT = """\
+# Start here
+
+This project shows curve fitting on six small datasets. Each dataset has a chart and a note.
+
+1. Open **Linear: 4.2x - 2.3 Fit**. The fitted line passes through every point, and R squared is 1.
+2. Open **Noisy linear data with uncertainties Fit**. The points have error bars, and the line is weighted \
+so that precise points count for more.
+3. Open **Spring response Fit** to see a curved model, then the three **Spring response** cosine charts \
+for waves that repeat and fade.
+4. Read the fit note next to each chart to see why that model was chosen.
+"""
 
 
 def create_project_data_manager() -> ProjectDataManager:
@@ -202,10 +261,10 @@ def _save_preview(
 
 def create_curve_fitting_project() -> Path:
     """Fit each bundled dataset, save the project, and return its path."""
-    project = Project(
-        name="Curve Fitting Examples",
-        description="Six examples of choosing and applying curve-fit models.",
-    )
+    project = Project(name="Curve Fitting Examples", description=EXAMPLE_DESCRIPTION)
+    start_note = Note(name="Start here", content=START_NOTE_CONTENT)
+    project.add_item(start_note)
+    chart_ids: dict[str, str] = {}
     examples_folder = Folder(name="Datasets, Charts, and Fit Notes")
     project.add_item(examples_folder)
     fit_service = FitService()
@@ -265,6 +324,7 @@ def create_curve_fitting_project() -> Path:
             source_y_column=y_column,
         )
         project.add_item(chart, examples_folder.id)
+        chart_ids[chart.name] = chart.id
 
         note = Note(name=f"Fit note: {example.dataset_name}")
         parameter_summary = ", ".join(
@@ -280,6 +340,17 @@ def create_curve_fitting_project() -> Path:
         project.add_item(note, examples_folder.id)
 
         print(f"Fitted {example.dataset_name}: R² = {result.r_squared!s}")
+
+    project.example_info = ExampleInfo(
+        is_example=True,
+        summary=EXAMPLE_SUMMARY,
+        section=ExampleSection.ANALYSING_DATA,
+        level=ExampleLevel.BEGINNER,
+        tag_ids=("mathematics", "curve_fitting"),
+        featured_chart_ids=tuple(chart_ids[name] for name in FEATURED_CHARTS),
+        start_note_id=start_note.id,
+        data_credit=DATA_CREDIT,
+    )
 
     output_path = Path(__file__).with_name("curve_fitting_examples.pplot")
     preview_path = Path(__file__).with_name("curve_fitting_examples.png")

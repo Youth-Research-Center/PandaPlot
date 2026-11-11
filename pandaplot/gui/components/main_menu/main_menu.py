@@ -474,9 +474,9 @@ class MainMenu(PMenuBar):
         if not dialog.exec() or not dialog.selected_path:
             return
 
-        # LoadProjectCommand itself guards against replacing a modified
-        # project (and against reloading the one already open) -- no need
-        # to duplicate that check here.
+        # LoadProjectCommand itself confirms before replacing a modified
+        # project, so that check is not duplicated here. The example opens as
+        # an untitled copy, so it is never skipped as "already open".
         self.app_context.get_command_executor().execute_command(
             LoadProjectCommand(self.app_context, dialog.selected_path, as_untitled_copy=True)
         )
