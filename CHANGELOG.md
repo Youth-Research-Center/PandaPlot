@@ -24,6 +24,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - Example projects (#608, #598): the Examples dialog shows each example's one-sentence summary instead of its full notes, and the summary taken from the notes no longer stops at "e.g." or a period inside code or bold text. A project cover taken from a phone photo follows the photo's orientation instead of being stored sideways, a very thin image can be used as a cover, and a damaged cover image is ignored instead of being kept and saved again.
 
 ### Added
+- The project's row in the Project Explorer has an info button that opens **Project Details...**, so the dialog no longer has to be found in the File menu or the context menu.
 - A bundled **Basic Statistics** example project that teaches descriptive statistics, histograms, box plots, scatter plots and correlation with a synthetic class of 120 students, with step-by-step notes (#35).
 - The Examples dialog is redesigned: examples are grouped in sections as cards with a cover, short description, level, tags and what's inside; filter by topic and technique tags or search; **See details** shows the full description and live previews of the example's featured charts (#609, #610, #611).
 - **File → Project Details...** edits a project's name, its notes ("About this project", Markdown), a cover image, and, for projects marked **Use this project as an example**, the example's short description, section, level, tags, featured charts, start note and data credit (#597, #598, #613).
