@@ -178,7 +178,9 @@ _LINK_RE = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
 _CODE_SPAN_RE = re.compile(r"(`+)(.+?)\1")
 _EMPHASIS_RE = re.compile(r"(?<![\w*_])(\*\*|__|\*|_|~~)(?=\S)(.+?)(?<=\S)\1(?![\w*_])")
 _CODE_PLACEHOLDER_RE = re.compile("\ue000(\\d+)\ue001")
-_SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
+# Sentence-ending punctuation plus any closing emphasis, quote or bracket right after it ("**Done.**", "(see below.)").
+_SENTENCE_END_RE = re.compile(r"[.!?][*_~\"'\u201d\u2019)\]]*(?=\s)")
+_OPENING_PUNCTUATION = "([{\"'\u201c\u2018*_~"
 
 
 def _strip_inline_markdown(text: str) -> str:
@@ -225,10 +227,11 @@ def _first_sentence(markdown: str) -> str:
     masked = _CODE_SPAN_RE.sub(mask, markdown)
     sentence = masked
     for match in _SENTENCE_END_RE.finditer(masked):
-        preceding = masked[: match.start()].split()
-        if preceding and preceding[-1].lower() in _ABBREVIATIONS:
+        sentence_end = match.start() + 1
+        word = masked[:sentence_end].split()[-1].lstrip(_OPENING_PUNCTUATION).lower()
+        if word in _ABBREVIATIONS:
             continue
-        sentence = masked[: match.start()]
+        sentence = masked[: match.end()]
         break
     return _CODE_PLACEHOLDER_RE.sub(lambda match: spans[int(match.group(1))], sentence)
 
@@ -251,8 +254,9 @@ def summary_from_description(text: str, max_chars: int = 160) -> str:
     The first blank-line separated paragraph with real content is used. Heading lines are skipped, and for a
     list its first item is used without the marker. Markdown markers (emphasis, code ticks, links
     ``[t](u)`` -> ``t``) are removed, keeping code span contents intact. A sentence does not end inside a code
-    span or after ``e.g.``, ``i.e.``, ``etc.``, ``vs.`` or ``cf.``. A sentence longer than ``max_chars`` is cut
-    at a word boundary and ends with an ellipsis. When the text holds only headings, the first heading is used.
+    span or after ``e.g.``, ``i.e.``, ``etc.``, ``vs.`` or ``cf.`` (also after an opening parenthesis), and
+    closing emphasis, quotes or brackets right after the end punctuation stay with the sentence. A sentence
+    longer than ``max_chars`` is cut at a word boundary and ends with an ellipsis. When the text holds only headings, the first heading is used.
 
     Args:
         text: Markdown text.

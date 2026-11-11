@@ -184,6 +184,19 @@ class TestSummaryFromDescription:
     def test_abbreviation_does_not_end_sentence(self, abbrev):
         assert summary_from_description(f"Fit curves {abbrev} Gaussians to data. Next.") == f"Fit curves {abbrev} Gaussians to data."
 
+    @pytest.mark.parametrize("abbrev", ["(e.g.", "(i.e.", "(cf."])
+    def test_abbreviation_after_opening_parenthesis_does_not_end_sentence(self, abbrev):
+        text = f"Measure lengths {abbrev} with a ruler) and plot them. Next."
+        assert summary_from_description(text) == f"Measure lengths {abbrev} with a ruler) and plot them."
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [("**Important.** Read the notes first.", "Important."), ("*Note.* Then more.", "Note."), ("**Done!** Next step.", "Done!"),
+         ('She said "stop." Then left.', 'She said "stop."'), ("Fit a line (see below.) Then more.", "Fit a line (see below.)")],
+    )
+    def test_sentence_ending_inside_emphasis_quote_or_parenthesis(self, text, expected):
+        assert summary_from_description(text) == expected
+
 
 class TestDuplicateIds:
     def test_from_dict_dedupes_featured_before_truncating(self):

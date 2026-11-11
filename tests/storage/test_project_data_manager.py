@@ -326,9 +326,11 @@ def test_cover_png_is_stored_not_deflated(tmp_path, manager):
         assert zf.getinfo("cover.png").compress_type == zipfile.ZIP_STORED
 
 
-def test_truncated_png_cover_loads_as_none(tmp_path, manager):
+@pytest.mark.parametrize("length", [6, 40], ids=["inside-signature", "after-header"])
+def test_truncated_png_cover_loads_as_none(tmp_path, manager, length):
+    # 40 bytes keep the PNG signature and IHDR chunk, so only a full decode spots the missing pixel data.
     project = Project(name="Truncated")
-    project.cover_image = _png_bytes()[:6]
+    project.cover_image = _png_bytes()[:length]
     path = str(tmp_path / "trunc.pplot")
     manager.save(project, path)
 

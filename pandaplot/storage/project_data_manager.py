@@ -4,8 +4,7 @@ import zipfile
 import zlib
 from collections.abc import Callable, Collection
 
-from PySide6.QtCore import QBuffer, QIODevice
-from PySide6.QtGui import QImageReader
+from PySide6.QtGui import QImage
 
 from pandaplot.models.migrations.runner import run_cross_item_migrations
 from pandaplot.models.migrations.schema_version import CURRENT_SCHEMA_VERSION
@@ -22,12 +21,13 @@ _logger = logging.getLogger(__name__)
 _COVER_READ_ERRORS = (zipfile.BadZipFile, zlib.error, OSError, EOFError, NotImplementedError, RuntimeError)
 
 
-def _looks_like_image(data: bytes) -> bool:
-    """Cheap check that ``data`` starts with a header Qt can read; it does not decode the pixels."""
-    buffer = QBuffer()
-    buffer.setData(data)
-    buffer.open(QIODevice.OpenModeFlag.ReadOnly)
-    return QImageReader(buffer).canRead()
+def _decodes_as_image(data: bytes) -> bool:
+    """Return whether ``data`` fully decodes as an image.
+
+    A header check alone accepts a PNG cut off after its signature, so the pixels are decoded too. Stored covers are
+    downscaled to at most 800 pixels per side, so this is cheap.
+    """
+    return not QImage.fromData(data).isNull()
 
 
 def read_cover_entry(entry: object, names: Collection[str], read: Callable[[str], bytes]) -> bytes | None:
@@ -43,7 +43,7 @@ def read_cover_entry(entry: object, names: Collection[str], read: Callable[[str]
 
     Returns:
         The stored image bytes, or None (with a warning logged) when the entry is missing, unreadable or
-        its header is not a readable image.
+        does not decode as an image.
     """
     if entry is None:
         return None
@@ -55,7 +55,7 @@ def read_cover_entry(entry: object, names: Collection[str], read: Callable[[str]
     except _COVER_READ_ERRORS:
         _logger.warning("Project cover image %r is damaged and cannot be read; ignoring it", entry, exc_info=True)
         return None
-    if not _looks_like_image(data):
+    if not _decodes_as_image(data):
         _logger.warning("Project cover image %r is not a readable image; ignoring it", entry)
         return None
     return data
