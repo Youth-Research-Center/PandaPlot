@@ -3,8 +3,8 @@
 import sys
 
 import pytest
-from PySide6.QtCore import QEvent, QObject, Qt, QUrl
-from PySide6.QtGui import QColor, QImage, QPixmap
+from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QUrl
+from PySide6.QtGui import QColor, QImage, QPixmap, QTextCursor
 from PySide6.QtWidgets import QApplication, QDialog
 
 from pandaplot.app import build_app_context
@@ -666,11 +666,16 @@ def test_clicking_a_relative_link_in_the_description_keeps_the_document(make_dia
     dialog.cards[0].details_button.click()
     browser = dialog.description_browser
     before = browser.toPlainText()
-    cursor = browser.document().find("other")
-    assert not cursor.isNull()
-    assert browser.anchorAt(browser.cursorRect(cursor).center()) == "other.md"
+    found = browser.document().find("other")
+    assert not found.isNull()
+    # Click inside the word: the selection's cursorRect() is at its end, the link's edge, where font metrics decide the hit.
+    second, fourth = QTextCursor(browser.document()), QTextCursor(browser.document())
+    second.setPosition(found.selectionStart() + 1)
+    fourth.setPosition(found.selectionStart() + 4)
+    inside = QPoint((browser.cursorRect(second).x() + browser.cursorRect(fourth).x()) // 2, browser.cursorRect(second).center().y())
+    assert browser.anchorAt(inside) == "other.md"
 
-    qtbot.mouseClick(browser.viewport(), Qt.MouseButton.LeftButton, pos=browser.cursorRect(cursor).center())
+    qtbot.mouseClick(browser.viewport(), Qt.MouseButton.LeftButton, pos=inside)
 
     assert browser.toPlainText() == before
     assert not browser.openLinks()
