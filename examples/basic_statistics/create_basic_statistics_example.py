@@ -104,7 +104,7 @@ OPEN_STEP = "In the project tree, expand the **0 The data** folder and double-cl
 # Every definition is one line; the Glossary note lists them sorted by ``str.casefold``. "{p_hw}" is filled from the computed results.
 GLOSSARY_ENTRIES: dict[str, str] = {
     "ANOVA": (
-        "Short for analysis of variance. A test that asks whether the averages of three or more groups are further apart than chance "
+        "Short for analysis of variance. A test that asks whether the averages of two or more groups (usually three or more) are further apart than chance "
         "alone would make them. Its H0 is that all group means are equal."
     ),
     "Bin": "One of the equal-width intervals that a histogram splits the range into. The bar over a bin shows how many values fall in it.",
@@ -176,7 +176,7 @@ GLOSSARY_ENTRIES: dict[str, str] = {
     "Standard deviation": "The typical distance of a value from the mean. PandaPlot divides by n - 1 because the data are a sample.",
     "Symmetric": "The same on both sides of the middle, like a bell. The mean and the median are close.",
     "Two-sided": (
-        "A test setting that counts a difference in either direction, a correlation above 0 or below 0, as evidence. It is the default for **Alternative:**."
+        "A test setting that counts a result in either direction as evidence (for a correlation: above 0 or below 0). It is the default for **Alternative:**."
     ),
     "Variable": "Something that can have a different value for each person or thing measured, such as height. It is one column of a dataset.",
     "Variance": "The standard deviation squared.",
@@ -210,11 +210,11 @@ The project follows a made-up class of {student_count} students. We treat them a
 much bigger group. The bigger group is the **population**. Here, the population is all students of this age.
 
 Why does this matter? We can rarely measure everyone. So we measure a sample and then ask what it tells us about the \
-population. A tool such as the **p-value** helps you judge whether a pattern in the sample is likely to hold for the population \
-too, or is only a lucky accident of who was picked.
+population. A tool such as the **p-value** helps you judge whether a pattern in the sample could easily come from chance alone, that is, \
+from which students happened to be picked.
 
-The data are **synthetic**. A script made them up with a fixed random seed, and some patterns were put in on purpose so that \
-there is something to find. They do not describe real students.
+The data are **synthetic**, made up by a script. The note **About the data**, in the **0 The data** folder, explains the \
+columns and what synthetic means.
 
 ## The folders, in order
 
@@ -242,7 +242,8 @@ The **Glossary** note, next to this one, explains every technical word in one li
 ## How to open a panel
 
 The **Descriptive Statistics** and **Statistical Tests** panels only appear while a dataset tab is open and active, which means \
-it is the tab you are looking at. {open_class} Then click the panel's icon in the sidebar icon bar.
+it is the tab you are looking at. {open_class} Then click the panel's icon in the sidebar icon bar. Hover over an icon to see its \
+name: **Descriptive Statistics panel** and **Statistical Tests panel** for a dataset, **Chart Properties panel** for a chart.
 
 ## How to use the notes
 
@@ -286,8 +287,8 @@ The kind of a variable decides which tools make sense.
 - **Categorical** variables are labels. **Group** is categorical. You can count how many students are in each group, but you \
 cannot average A, B and C. (**Student** is text too, but it is only an id.)
 - **Numerical** variables are numbers you can do arithmetic with. There are two kinds:
-  - **Discrete**: separate values, usually whole numbers. **Age (years)** and **Shoe size (EU)** are discrete.
-  - **Continuous**: any value in a range, limited only by how finely you measure. **Height (cm)**, **Weight (kg)** and \
+    - **Discrete**: separate values, usually whole numbers. **Age (years)** and **Shoe size (EU)** are discrete.
+    - **Continuous**: any value in a range, limited only by how finely you measure. **Height (cm)**, **Weight (kg)** and \
 **Hours of sleep** are continuous.
 
 This is why the **Descriptive Statistics** panel lists only the five numeric columns. A mean of **Group** would mean nothing.
@@ -296,7 +297,7 @@ This is why the **Descriptive Statistics** panel lists only the five numeric col
 
 **Hours of sleep** has {sleep_missing} blank cells: two students whose sleep was not recorded. A blank cell means "not known". \
 It does not mean zero. Statistics tools skip blank cells, so **Hours of sleep** has a count of {sleep_count} instead of {student_count}. \
-Correlation tools drop a student only from the pairs where one of the two values is blank.
+A correlation between two columns leaves out only the students who have a blank in one of those two columns.
 
 ## Synthetic data
 
@@ -371,12 +372,8 @@ Here is how to get an SD by hand for the values 3, 5, 7. The mean is 5. The dist
 
 PandaPlot divides by n - 1 and not by n. This makes the sample's SD a better estimate of the population's spread.
 
-For data with a roughly bell-shaped histogram, about two thirds of the values lie within 1 SD of the mean. In this class the mean \
-height is {h_mean_1} cm and the SD is {h_sd_1} cm, so mean plus or minus SD runs from {h_low} to {h_high} cm. \
-{within_count} of the {student_count} heights ({within_pct}%) are in that range.
-
-A note on quartiles: PandaPlot finds Q1 and Q3 by linear interpolation. Some textbooks use the "median of each half" method \
-instead, so their Q1 and Q3 can differ slightly from the ones in PandaPlot.
+A note on quartiles: when a quartile falls between two values, PandaPlot takes a point part of the way between them. Some \
+textbooks use the "median of each half" method instead, so their Q1 and Q3 can differ slightly.
 
 ## Steps in PandaPlot
 
@@ -410,8 +407,13 @@ You can skip these rows at first:
 
 ## In this class
 
-For **Height (cm)**: mean {h_mean}, median {h_median}, SD {h_sd}, minimum {h_min}, maximum {h_max}. The mean and the median are \
-close, so height is roughly symmetric.
+For **Height (cm)**, the panel shows: mean {h_mean}, median {h_median}, SD {h_sd}, minimum {h_min}, maximum {h_max} \
+(the panel shows 6 significant digits). The mean and the median are close, which suggests height is roughly symmetric; \
+the **Height (cm)** histogram confirms it.
+
+For data with a roughly bell-shaped histogram, about two thirds of the values lie within 1 SD of the mean. Rounded to one \
+decimal, the mean height is {h_mean_1} cm and the SD is {h_sd_1} cm, so mean plus or minus SD runs from {h_low} to {h_high} cm. \
+{within_count} of the {student_count} heights ({within_pct}%) are in that range.
 
 **Hours of sleep** shows a **Count** of {sleep_count} and **Missing** of {sleep_missing}, because of the two blank cells.
 
@@ -432,7 +434,7 @@ A **histogram** shows the shape of one numerical column. It splits the range of 
 **bins**, counts how many values fall into each bin, and draws one bar per bin. The height of a bar is that count. A tall bar \
 means many values are there.
 
-For example, if 8, 20 and 12 heights fall into the bins 150 to 159, 160 to 169 and 170 to 179, the three bars have heights 8, 20 and 12.
+For example, if 8, 20 and 12 heights fall into the bins 150 up to 160, 160 up to 170 and 170 up to 180, the three bars have heights 8, 20 and 12.
 
 ## When to use it
 
@@ -463,9 +465,9 @@ mode: age {age_mode}, with {age_mode_count} students.
 
 ## Choosing the number of bins
 
-Too few bins hide detail. Too many bins make the shape jagged. To change the number of bins, open the chart, then open the \
-**Chart** tab of Chart Properties (it only appears while a chart tab is active) and change **Bins:**. Try 3, 10 and 30 on the \
-**Height (cm)** chart and notice how the picture changes while the data stays the same.
+Too few bins hide detail. Too many bins make the shape jagged. To change the number of bins, open the chart, click the \
+**Chart Properties panel** icon in the sidebar icon bar (it appears only while a chart tab is active), choose its **Chart** tab \
+and change **Bins:**. Try 3, 10 and 40 on the **Height (cm)** chart and notice how the picture changes while the data stays the same.
 
 ## Common mistakes
 
@@ -503,11 +505,11 @@ In the project tree, expand the **3 Box plots** folder and double-click the **He
 groups A, B and C.
 
 The medians (from **Descriptive Statistics** on **Height by group**) are {med_a} cm for A, {med_b} cm for B and {med_c} cm for C. \
-They rise from A to C, but the boxes overlap. So the groups differ on average, yet many students in one group are taller than \
-many students in another.
+They rise from A to C, but the boxes overlap: plenty of students in group A are taller than plenty of students in group C. \
+So the groups differ on average, but not for every student.
 
 One point lies beyond a whisker: {outlier_height} cm, in group {outlier_group} (student {outlier_student}). It is unusual \
-compared with its group, but it is a real measurement and not a mistake.
+for group {outlier_group}, but nothing suggests a mistake: group B has a student of {b_max} cm who is not unusual for group B.
 
 The **Height by group** dataset keeps the three groups in separate columns because a box plot reads one column for each box.
 
@@ -560,8 +562,8 @@ other accounts for. For example, r = 0.5 gives R-squared = 0.25, or 25%. It is n
 In the project tree, expand the **4 Correlation** folder and double-click a scatter chart to open it.
 
 - **Height vs Weight**: taller students tend to weigh more, so the dots rise from left to right. Its title shows r = {r_hw}, \
-which PandaPlot calls {strength_hw}. R-squared is {r2_hw}: about {r2_hw} of the variation in weight goes along with height. \
-The rest comes from other things.
+which PandaPlot calls {strength_hw}. The **R-squared** row shows {r2_row}: about {r2_hw} of the variation in weight goes along \
+with height (r is {r_hw_3} before rounding). The rest comes from other things.
 - **Height vs Hours of sleep**: the dots form a shapeless cloud. Here r = {r_hs}, which PandaPlot calls {strength_hs}.
 
 ## Steps in the Statistical Tests panel
@@ -617,7 +619,7 @@ chance does it easily.
 A coin makes this concrete. Suppose you toss a coin 10 times and at least 9 tosses land on the same side. Is the coin unfair? \
 If it is fair, there are 1024 equally likely sequences of 10 tosses, and {coin_count} of them have at least 9 tosses on the same \
 side (9 or 10 heads, or 9 or 10 tails). So chance alone gives this in {coin_count} out of 1024 cases, which is about {coin_p}. \
-That is the p-value. It counts both directions, which is what **Alternative:** two-sided does in the panel.
+That is the p-value, and {coin_p} is below 0.05, so you would reject H0, "the coin is fair". It counts both directions, which is what **Alternative:** two-sided does in the panel.
 
 ## Compare p with α
 
@@ -692,17 +694,19 @@ EXERCISES_NOTE_CONTENT = """\
 ## Warm-ups
 
 1. Read **Minimum** and **Maximum** of **Height (cm)** in the **Descriptive stats [Age (years), Height (cm), Weight (kg), \
-Shoe size (EU), Hours of sleep]** dataset in the **1 Descriptive statistics** folder. Which group is the tallest student in? \
-(Hint: the point beyond a whisker in the box plot.)
+Shoe size (EU), Hours of sleep]** dataset in the **1 Descriptive statistics** folder. In which group is the tallest student? \
+And the shortest? (Hint: the tallest is the point beyond a whisker in the box plot. For the shortest, look at the lowest point of \
+the box plot. Check: the tallest is student {tallest_student}, in group {tallest_group}, and the shortest is student \
+{shortest_student}, in group {shortest_group}.)
 2. Before you open the box plot, predict which group has the highest median height. Then open it and check.
 
 ## Exercises
 
 1. In the **Statistical Tests** panel, set **Test:** to **Spearman correlation (rank)** and run it on **Height (cm)** and \
-**Weight (kg)**. How close is it to the Pearson r? What to look for: both should be similar when the trend is a straight line.
-2. Change **Bins:** on the **Height (cm)** histogram to 3 and then 40. At what point does the shape stop being useful? \
+**Weight (kg)**. Compare its **Correlation rho** row with the Pearson r ({r_hw}). What to look for: the two should be similar when the trend is a straight line.
+2. Change **Bins:** on the **Height (cm)** histogram to 3, then 10, then 40. At what point does the shape stop being useful? \
 What to look for: the bell shape disappears at both extremes.
-3. {open_by_group} Choose the **Descriptive Statistics** panel and run it on all three columns, then compare the three medians \
+3. {open_by_group} Choose the **Descriptive Statistics** panel, click **Select all**, then **Compute**, and compare the three medians \
 with the box plot. What to look for: each median is the line inside its box.
 4. Weight and shoe size do not affect each other, yet r = {r_ws} in **Correlation matrix (Pearson r)**. Why? \
 What to look for: both depend on height. Run **Pearson correlation** on them to check, and read the p-value as explained in \
@@ -710,7 +714,8 @@ What to look for: both depend on height. Run **Pearson correlation** on them to 
 
 ## Challenges
 
-These two tests answer one question: are the group averages further apart than chance alone would make them?
+These two tests answer one question: are the group averages further apart than chance alone would make them? \
+The info button next to **Test:** (**About this test**) explains the selected test.
 
 1. **Challenge.** {open_by_group} In the **Statistical Tests** panel, set **Test:** to **One-way ANOVA**, select the three group \
 columns under **Groups:** (*Select 2+ numeric group columns (Ctrl/Shift-click).*) and click **Run**. The **H0** row says "all group \
@@ -870,6 +875,9 @@ def create_note_values(
     if len(outlier_rows) != 1:
         raise ValueError("The notes assume that the box plot outlier is exactly one student.")
 
+    shortest, tallest = measurements.loc[measurements[HEIGHT].idxmin()], measurements.loc[measurements[HEIGHT].idxmax()]
+    if (measurements[HEIGHT] == shortest[HEIGHT]).sum() != 1 or (measurements[HEIGHT] == tallest[HEIGHT]).sum() != 1:
+        raise ValueError("The notes assume a single tallest and a single shortest student.")
     height_weight, height_sleep = pearson_results[(HEIGHT, WEIGHT)], pearson_results[(HEIGHT, SLEEP)]
     age_height = spearman_results[(AGE, HEIGHT)]
     r_hw, r_hs = height_weight.statistic, height_sleep.statistic
@@ -906,6 +914,13 @@ def create_note_values(
         "r_hw": f"{r_hw:.2f}",
         "strength_hw": str(result_rows["hw"]["Strength"]),
         "r2_hw": f"{r_hw * r_hw:.0%}",
+        "r2_row": str(result_rows["hw"]["R-squared"]),
+        "r_hw_3": f"{r_hw:.3f}",
+        "b_max": f"{by_group[GROUP_HEIGHT_COLUMNS[1]].max():g}",
+        "tallest_student": str(tallest["Student"]),
+        "tallest_group": str(tallest["Group"]),
+        "shortest_student": str(shortest["Student"]),
+        "shortest_group": str(shortest["Group"]),
         "r_hs": f"{r_hs:.2f}",
         "strength_hs": str(result_rows["hs"]["Strength"]),
         "p_hw": str(result_rows["hw"]["p-value"]),

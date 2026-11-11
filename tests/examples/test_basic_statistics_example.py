@@ -282,7 +282,10 @@ def test_notes_use_the_exact_panel_labels(loaded):
         "*Select 2+ numeric group columns (Ctrl/Shift-click).*", "**Challenge.**",
     ):
         assert label in exercises
-    assert "**Chart** tab of Chart Properties" in notes["Histograms"].content
+    for label in ("**Chart Properties panel**", "its **Chart** tab"):
+        assert label in notes["Histograms"].content
+    for label in ("**Descriptive Statistics panel**", "**Statistical Tests panel**", "**Chart Properties panel**"):
+        assert label in notes["Start here"].content
     assert "**Bins:**" in notes["Histograms"].content
 
 
@@ -334,16 +337,16 @@ def test_descriptive_note_quotes_the_computed_values(loaded):
     within = int(np.sum((heights >= mean - sd) & (heights <= mean + sd)))
     assert 0.6 <= within / len(heights) <= 0.75
     descriptive = notes["Descriptive statistics"].content
-    assert (
-        f"For **Height (cm)**: mean {stats['Mean']}, median {stats['Median (Q2)']}, SD {stats['Std. deviation']}, "
-        f"minimum {stats['Minimum']}, maximum {stats['Maximum']}."
-    ) in descriptive
-    assert (
-        f"the mean height is {mean:.1f} cm and the SD is {sd:.1f} cm, so mean plus or minus SD runs from {mean - sd:.1f} to {mean + sd:.1f} cm. "
-        f"{within} of the {len(heights)} heights ({100 * within / len(heights):.1f}%) are in that range."
-    ) in descriptive
-    assert f"**Hours of sleep** shows a **Count** of {measurements[SLEEP].notna().sum()} and **Missing** of {measurements[SLEEP].isna().sum()}" in descriptive
+    for label, key in (("mean", "Mean"), ("median", "Median (Q2)"), ("SD", "Std. deviation"), ("minimum", "Minimum"), ("maximum", "Maximum")):
+        assert f"{label} {stats[key]}" in descriptive
+    assert "6 significant digits" in descriptive
+    for anchor in (f"mean height is {mean:.1f} cm", f"SD is {sd:.1f} cm", f"from {mean - sd:.1f} to {mean + sd:.1f} cm"):
+        assert anchor in descriptive
+    assert f"{within} of the {len(heights)} heights ({100 * within / len(heights):.1f}%)" in descriptive
+    assert f"**Count** of {measurements[SLEEP].notna().sum()}" in descriptive
+    assert f"**Missing** of {measurements[SLEEP].isna().sum()}" in descriptive
     assert f"**Group** has {measurements['Group'].value_counts().iloc[0]} students in each of A, B and C" in descriptive
+    assert "linear interpolation" not in descriptive
     assert f"The mean ({stats['Mean']}) and the median ({stats['Median (Q2)']})" in notes["Histograms"].content
 
 
@@ -375,7 +378,8 @@ def test_box_plot_note_quotes_medians_and_the_single_outlier(loaded):
     for column, median in zip(GROUP_HEIGHT_COLUMNS, medians, strict=True):
         assert float(median) == pytest.approx(by_group[column].median())
     box = notes["Box plots"].content
-    assert f"are {medians[0]} cm for A, {medians[1]} cm for B and {medians[2]} cm for C" in box
+    for group, median in zip("ABC", medians, strict=True):
+        assert f"{median} cm for {group}" in box
     beyond = {column: _beyond_whiskers(by_group[column].to_numpy(float)) for column in GROUP_HEIGHT_COLUMNS}
     assert sum(len(points) for points in beyond.values()) == 1
     assert len(beyond["Group C (cm)"]) == 1
@@ -383,7 +387,10 @@ def test_box_plot_note_quotes_medians_and_the_single_outlier(loaded):
     measurements = datasets["Class measurements"].data
     students = measurements[(measurements["Group"] == "C") & (measurements[HEIGHT] == outlier)]["Student"]
     assert len(students) == 1
-    assert f"One point lies beyond a whisker: {outlier:g} cm, in group C (student {students.item()})." in box
+    assert f"{outlier:g} cm, in group C (student {students.item()})" in box
+    b_max = by_group["Group B (cm)"].max()
+    assert len(beyond["Group B (cm)"]) == 0
+    assert f"group B has a student of {b_max:g} cm" in box
     assert outlier == by_group["Group C (cm)"].max() == measurements[HEIGHT].max()
 
 
@@ -405,8 +412,11 @@ def test_correlation_notes_quote_the_computed_results(loaded):
     assert f'"{spearman_h0}"' in real
     assert weight_rows["Conclusion"].startswith("Reject H0 (p = ") and sleep_rows["Conclusion"].startswith("Fail to reject H0 (p = ")
     assert "no significant evidence that" in sleep_rows["Conclusion"]
-    assert f"r = {weight.statistic:.2f}, which PandaPlot calls {weight_rows['Strength']}. R-squared is {weight.statistic**2:.0%}" in scatter
-    assert f"Here r = {sleep.statistic:.2f}, which PandaPlot calls {sleep_rows['Strength']}." in scatter
+    assert f"r = {weight.statistic:.2f}, which PandaPlot calls {weight_rows['Strength']}" in scatter
+    assert weight_rows["R-squared"] == "0.46647"
+    assert f"row shows {weight_rows['R-squared']}: about {weight.statistic**2:.0%}" in scatter
+    assert f"r is {weight.statistic:.3f} before rounding" in scatter
+    assert f"r = {sleep.statistic:.2f}, which PandaPlot calls {sleep_rows['Strength']}" in scatter
     assert f"This agrees with the tiny r = {sleep.statistic:.2f}." in real
     assert f"use {sleep_rows['N pairs']} students and the rest use {len(measurements)}" in scatter
     assert weight.p_value < 0.05 <= sleep.p_value
@@ -424,6 +434,8 @@ def test_coin_example_is_computed_and_two_sided(loaded):
     assert ways == 22
     assert f"{ways} of them have at least 9 tosses on the same side" in real
     assert f"{ways} out of 1024 cases, which is about {ways / 1024:.2g}" in real
+    assert f"{ways / 1024:.2g} is below 0.05, so you would reject H0" in real
+    assert ways / 1024 < 0.05
     assert f"{ways / 1024:.2g}" == "0.021"
 
 
@@ -454,6 +466,57 @@ def test_worked_examples_in_the_notes_are_correct():
     squares = [1, 4, 9, 16, 25]
     assert np.corrcoef([1, 2, 3, 4, 5], squares)[0, 1] == pytest.approx(0.98, abs=0.005)
     assert 0.5**2 == 0.25
+
+
+def test_worked_examples_appear_in_the_notes(loaded):
+    notes = _notes_by_name(loaded)
+    descriptive, histograms, box, scatter, real = (
+        notes[name].content
+        for name in ("Descriptive statistics", "Histograms", "Box plots", "Scatter plots and correlation", "Is it real? p-values, Pearson or Spearman, causation")
+    )
+    for text in (
+        "2, 3, 3, 4, 8", "(2 + 3 + 3 + 4 + 8) / 5 = 20 / 5 = 4", "median is 3", "5, 6, 6, 7, 8", "32 / 5 = 6.4", "median is 6",
+        "5, 6, 6, 7, 100", "124 / 5 = 24.8", "4, 4, 4, 4, 4 and 0, 0, 4, 8, 8", "3, 5, 7", "the SD is 2", "gives 4",
+    ):
+        assert text in descriptive
+    assert "Q1 is 10 and Q3 is 14" in box and "10 - 6 = 4" in box and "14 + 6 = 20" in box
+    assert "r = 0.5 gives R-squared = 0.25" in scatter
+    assert "x = 1, 2, 3, 4, 5 and y = 1, 4, 9, 16, 25" in real and "about 0.98" in real
+    assert "150 up to 160, 160 up to 170 and 170 up to 180" in histograms
+
+
+def test_tallest_and_shortest_student_in_the_warm_up(loaded):
+    measurements = _datasets_by_name(loaded)["Class measurements"].data
+    exercises = _notes_by_name(loaded)["Try it yourself"].content
+    tallest, shortest = measurements.loc[measurements[HEIGHT].idxmax()], measurements.loc[measurements[HEIGHT].idxmin()]
+    assert f"student {tallest['Student']}, in group {tallest['Group']}" in exercises
+    assert f"student {shortest['Student']}, in group {shortest['Group']}" in exercises
+    assert (shortest["Student"], shortest["Group"]) == ("S009", "A")
+    assert "**Correlation rho**" in exercises and "click **Select all**, then **Compute**" in exercises
+    assert "About this test" in exercises
+
+
+def test_bin_counts_agree_between_the_notes(loaded):
+    notes = _notes_by_name(loaded)
+    assert "Try 3, 10 and 40" in notes["Histograms"].content
+    assert "to 3, then 10, then 40" in notes["Try it yourself"].content
+
+
+def test_nested_list_items_are_indented_four_spaces(loaded):
+    for note in _notes_by_name(loaded).values():
+        for line in note.content.splitlines():
+            assert not re.match(r"^ {2}- ", line), f"{note.name}: Python-Markdown needs 4 spaces for a nested item: {line!r}"
+
+
+def test_notes_render_nested_lists_with_the_app_renderer(loaded):
+    from pandaplot.services.note_render.latex_markdown_renderer import render_body_html
+
+    for note in _notes_by_name(loaded).values():
+        assert render_body_html(note.content)
+    html = render_body_html(_notes_by_name(loaded)["About the data"].content)
+    numerical_item = re.search(r"<li>\s*<strong>Numerical</strong>.*?</li>", html, flags=re.DOTALL)
+    assert numerical_item is not None
+    assert "<ul>" in numerical_item.group(0), "Discrete and Continuous must be nested under Numerical"
 
 
 def _normalise(value, names: dict[str, str]):
