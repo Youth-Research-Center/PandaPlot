@@ -123,3 +123,30 @@ def test_execute_failure_passes_the_exception_to_the_dialog():
         assert command.execute() is CommandResult.FAILURE
     show = app_context.get_ui_controller.return_value.show_error_message
     show.assert_called_once_with("Rename Project Error", "Couldn't rename the project.", error=error)
+
+
+def test_undo_and_redo_abort_when_another_project_is_open():
+    from pandaplot.models.events.event_bus import EventBus
+    from pandaplot.models.state.app_state import AppState
+
+    project_a = Project("A")
+    app_state = AppState(EventBus())
+    app_state.load_project(project_a)
+    app_context = Mock()
+    app_context.get_app_state.return_value = app_state
+    app_context.get_ui_controller.return_value = Mock()
+    app_context.event_bus = Mock()
+    command = RenameProjectCommand(app_context, "A renamed")
+    assert command.execute() is CommandResult.SUCCESS
+
+    project_b = Project("B")
+    app_state.load_project(project_b)
+
+    assert command.undo() is CommandResult.ABORTED
+    assert command.redo() is CommandResult.ABORTED
+    assert project_b.name == "B"
+    assert project_a.name == "A renamed"
+
+    app_state.load_project(project_a)
+    assert command.undo() is CommandResult.SUCCESS
+    assert project_a.name == "A"
