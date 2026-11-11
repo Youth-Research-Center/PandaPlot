@@ -3,7 +3,7 @@
 import sys
 
 import pytest
-from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QUrl
+from PySide6.QtCore import QEvent, QObject, QPoint, QSize, Qt, QUrl
 from PySide6.QtGui import QColor, QImage, QPixmap, QTextCursor
 from PySide6.QtWidgets import QApplication, QDialog
 
@@ -220,6 +220,7 @@ def test_chips_are_hidden_when_no_example_has_tags(make_dialog):
 
     assert dialog.tag_chips == {}
     assert dialog.chips_widget.isHidden()
+    assert dialog.filters_button.isHidden()
 
 
 def test_chips_show_only_used_tags_with_counts_in_two_labelled_rows(make_dialog):
@@ -230,6 +231,198 @@ def test_chips_show_only_used_tags_with_counts_in_two_labelled_rows(make_dialog)
     assert dialog.tag_chips["physics"].text() == "Physics (2)"
     assert dialog.tag_chips["curve_fitting"].text() == "Curve fitting (2)"
     assert all(chip.isCheckable() for chip in dialog.tag_chips.values())
+
+
+def _many_tagged_examples() -> list[ExampleProject]:
+    tag_ids = ("physics", "mathematics", "statistics", "signal_processing", "business", "curve_fitting", "smoothing", "derivatives", "charts")
+    sections = (ExampleSection.GETTING_STARTED, ExampleSection.ANALYSING_DATA, ExampleSection.CHARTS)
+    return [
+        _example(f"Example {index}", tags=_tags(tag_ids[index % 9], tag_ids[(index + 5) % 9]), section=sections[index % 3]) for index in range(9)
+    ]
+
+
+def _icon_image(button) -> QImage:
+    return button.icon().pixmap(QSize(16, 16)).toImage()
+
+
+def test_filters_are_collapsed_when_the_dialog_opens(make_dialog):
+    dialog = make_dialog(_tagged_examples())
+
+    assert dialog.filters_button.isCheckable()
+    assert not dialog.filters_button.isChecked()
+    assert dialog.filters_button.isVisible()
+    assert dialog.chips_widget.isHidden()
+    assert dialog.filters_button.accessibleName() == "Filters"
+    assert dialog.search_edit.isVisible()
+    assert dialog.clear_button.isVisible()
+
+
+def test_filters_button_shows_and_hides_the_chips_and_swaps_the_caret(make_dialog):
+    dialog = make_dialog(_tagged_examples())
+    collapsed_icon = _icon_image(dialog.filters_button)
+    assert not collapsed_icon.isNull()
+
+    dialog.filters_button.click()
+
+    assert dialog.filters_button.isChecked()
+    assert dialog.chips_widget.isVisible()
+    assert _icon_image(dialog.filters_button) != collapsed_icon
+
+    dialog.filters_button.click()
+
+    assert dialog.chips_widget.isHidden()
+    assert _icon_image(dialog.filters_button) == collapsed_icon
+
+
+def test_filters_button_toggles_from_the_keyboard(make_dialog, qtbot):
+    dialog = make_dialog(_tagged_examples())
+
+    qtbot.keyClick(dialog.filters_button, Qt.Key.Key_Return)
+    assert dialog.chips_widget.isVisible()
+
+    qtbot.keyClick(dialog.filters_button, Qt.Key.Key_Space)
+    assert dialog.chips_widget.isHidden()
+
+
+def test_filters_button_counts_active_tags_collapsed_or_expanded(make_dialog):
+    dialog = make_dialog(_tagged_examples())
+    assert dialog.filters_button.text() == "Filters"
+    assert dialog.filters_button.accessibleDescription() == "No filters active"
+
+    dialog.filters_button.click()
+    dialog.tag_chips["physics"].click()
+    dialog.tag_chips["curve_fitting"].click()
+    assert dialog.filters_button.text() == "Filters (2)"
+    assert dialog.filters_button.accessibleDescription() == "2 filters active"
+
+    dialog.filters_button.click()
+    assert dialog.chips_widget.isHidden()
+    assert dialog.filters_button.text() == "Filters (2)"
+    assert dialog.filters_button.accessibleName() == "Filters"
+
+    dialog.tag_chips["physics"].setChecked(False)
+    assert dialog.filters_button.text() == "Filters (1)"
+    assert dialog.filters_button.accessibleDescription() == "1 filter active"
+
+
+def test_clear_filters_resets_the_count_without_changing_the_toggle(make_dialog):
+    dialog = make_dialog(_tagged_examples())
+    dialog.filters_button.click()
+    dialog.tag_chips["physics"].click()
+    assert dialog.filters_button.text() == "Filters (1)"
+
+    dialog.clear_button.click()
+
+    assert dialog.filters_button.text() == "Filters"
+    assert dialog.filters_button.accessibleDescription() == "No filters active"
+    assert dialog.filters_button.isChecked()
+    assert dialog.chips_widget.isVisible()
+
+
+def test_filters_button_width_does_not_change_with_the_count(make_dialog, qtbot):
+    dialog = make_dialog(_tagged_examples())
+    qtbot.wait(0)
+    button = dialog.filters_button
+    width = button.width()
+    search_width = dialog.search_edit.width()
+
+    button.setText("Filters (99)")
+    assert button.sizeHint().width() <= button.minimumWidth()
+    button.setText("Filters")
+
+    button.click()
+    dialog.tag_chips["physics"].click()
+    qtbot.wait(0)
+    assert button.text() == "Filters (1)"
+    assert button.width() == width
+    assert dialog.search_edit.width() == search_width
+
+    dialog.tag_chips["curve_fitting"].click()
+    qtbot.wait(0)
+    assert button.width() == width
+    assert dialog.search_edit.width() == search_width
+
+
+def test_enter_in_the_search_box_does_not_toggle_the_filters_or_open_an_example(make_dialog, qtbot):
+    dialog = make_dialog(_tagged_examples())
+    dialog.search_edit.setFocus()
+
+    qtbot.keyClick(dialog.search_edit, Qt.Key.Key_Return)
+
+    assert not dialog.filters_button.isChecked()
+    assert dialog.chips_widget.isHidden()
+    assert dialog.selected_path is None
+    assert dialog.result() != QDialog.DialogCode.Accepted
+
+
+def test_theme_change_retints_the_filters_caret(make_dialog, monkeypatch):
+    from pandaplot.models.events.event_types import ThemeEvents
+    from pandaplot.services.theme.theme_manager import ThemeManager
+    from tests.gui.icon_testing import assert_tinted, strongest_pixel
+
+    dialog = make_dialog(_tagged_examples())
+    manager = dialog.app_context.get_manager(ThemeManager)
+    tokens = manager.get_design_tokens()
+    before = strongest_pixel(dialog.filters_button.icon()).name()
+
+    new_color = "#ff0000" if before.lower() != "#ff0000" else "#00ff00"
+    monkeypatch.setattr(manager, "get_design_tokens", lambda: {**tokens, "text_primary": new_color})
+    dialog.app_context.event_bus.emit(ThemeEvents.THEME_CHANGED, {})
+
+    assert_tinted(strongest_pixel(dialog.filters_button.icon()), new_color)
+
+
+def test_toggling_the_filters_schedules_cover_requests(make_dialog, monkeypatch):
+    dialog = make_dialog(_tagged_examples())
+    calls = []
+    monkeypatch.setattr(dialog, "_schedule_visible_covers", lambda *_args: calls.append(1))
+
+    dialog.filters_button.click()
+    assert len(calls) == 1
+
+    dialog.filters_button.click()
+    assert len(calls) == 2
+
+
+def test_collapsing_the_filters_moves_focus_from_a_chip_to_the_toggle(make_dialog, qtbot):
+    dialog = make_dialog(_tagged_examples())
+    dialog.filters_button.click()
+    dialog.tag_chips["physics"].setFocus()
+    qtbot.waitUntil(lambda: dialog.tag_chips["physics"].hasFocus())
+
+    dialog.filters_button.click()
+
+    assert dialog.filters_button.hasFocus()
+
+
+def test_tab_order_is_search_filters_clear_then_chips(make_dialog):
+    dialog = make_dialog(_tagged_examples())
+    chain = []
+    widget = dialog.search_edit
+    for _ in range(20):
+        chain.append(widget)
+        widget = widget.nextInFocusChain()
+    focusable = [item for item in chain if item is dialog.search_edit or item in (dialog.filters_button, dialog.clear_button, *dialog.tag_chips.values())]
+
+    assert focusable[:3] == [dialog.search_edit, dialog.filters_button, dialog.clear_button]
+    assert focusable[3] in dialog.tag_chips.values()
+
+
+def test_content_takes_more_than_two_thirds_of_the_dialog_with_the_filters_collapsed(make_dialog, qtbot):
+    dialog = make_dialog(_many_tagged_examples())
+    qtbot.waitExposed(dialog)
+
+    assert dialog.chips_widget.isHidden()
+    assert dialog.list_scroll.height() / dialog.height() > 2 / 3
+
+
+def test_escape_still_closes_the_dialog_with_the_filters_expanded(make_dialog, qtbot):
+    dialog = make_dialog(_tagged_examples())
+    dialog.filters_button.click()
+
+    qtbot.keyClick(dialog, Qt.Key.Key_Escape)
+
+    assert dialog.result() == QDialog.DialogCode.Rejected
 
 
 def test_chip_counts_update_and_unavailable_tags_are_disabled(make_dialog):
@@ -490,8 +683,10 @@ def test_open_example_on_the_details_page_sets_selected_path_and_accepts(make_di
     assert dialog.result() == QDialog.DialogCode.Accepted
 
 
-def test_cancel_rejects_without_a_selection(make_dialog):
+def test_close_rejects_without_a_selection(make_dialog):
     dialog = make_dialog([_example()])
+
+    assert dialog.close_btn.text() == "Close"
 
     dialog.close_btn.click()
 
@@ -652,7 +847,7 @@ def test_enter_on_a_focused_see_details_button_opens_the_details(make_dialog, qt
     assert dialog.selected_path is None
 
 
-def test_enter_on_the_cancel_button_closes_the_dialog(make_dialog, qtbot):
+def test_enter_on_the_close_button_closes_the_dialog(make_dialog, qtbot):
     dialog = make_dialog([_example("Demo")])
 
     qtbot.keyClick(dialog.close_btn, Qt.Key.Key_Return)

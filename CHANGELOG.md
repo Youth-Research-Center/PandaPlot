@@ -25,6 +25,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 
 ### Added
 - The project's row in the Project Explorer has an info button that opens **Project Details...**, so the dialog no longer has to be found in the File menu or the context menu.
+- A bundled **Basic Statistics** example project that teaches descriptive statistics, histograms, box plots, scatter plots and correlation with a synthetic class of 120 students, with step-by-step notes (#35).
 - The Examples dialog is redesigned: examples are grouped in sections as cards with a cover, short description, level, tags and what's inside; filter by topic and technique tags or search; **See details** shows the full description and live previews of the example's featured charts (#609, #610, #611).
 - **File → Project Details...** edits a project's name, its notes ("About this project", Markdown), a cover image, and, for projects marked **Use this project as an example**, the example's short description, section, level, tags, featured charts, start note and data credit (#597, #598, #613).
 - Closing or replacing an edited project that was never saved, such as an opened example, offers **Save As...**, and while Auto-Save is enabled an untitled project is kept in a per-instance recovery copy that PandaPlot offers to restore after a crash; **Not Now** (or Esc) keeps the copy for the next launch (#629).
@@ -45,6 +46,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 - `Build Release Installer` GitHub Actions workflow: builds installers for Linux, Windows, and macOS, and publishes them to a GitHub Release with SHA256 checksums under a user-supplied version tag.
 
 ### Changed
+- In the Examples dialog, the topic and technique tag filters are collapsed behind a **Filters** button (showing how many tags are selected) so the example cards get more room, and the **Cancel** button is now **Close**.
 - The bundled examples have short descriptions, longer notes, sections, levels, tags and featured charts for the examples browser; the Functions example gets a proper name and a generator script (#612).
 - Error dialogs explain in plain language what went wrong and what to try next; the technical text is under **Show Details** (#595).
 - The last glyph buttons are bundled icons (#586): the image editor's rotate buttons, the sketch layer manager's add/delete/up/down buttons, the data tab's move, expand/collapse and remove-series buttons, the chart wizard series card's expand/collapse chevrons, the "Insert function" button and the style tab's "Fill to" list; destructive buttons show a red icon that turns white on hover; FIT series are shown with plain names. Status messages are announced to assistive technology (accessible name and an alert for errors and warnings), the transform panel shows failures as errors like the other panels, and the fit panel's "too few points" text follows the warning colour (#601). Icons are rendered once and cached, which makes rebuilding the project tree faster (#602).
