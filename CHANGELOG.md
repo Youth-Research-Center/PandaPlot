@@ -14,6 +14,7 @@ into the GitHub Release notes automatically (see `.github/workflows/release_inst
 ## [Unreleased]
 
 ### Fixed
+- Applying an **Interpolation** in the Analysis Operations panel no longer fails when **Points** (100 by default) is larger than the number of rows, and it now respects the Start and End rows. An interpolation has its own X values, so the result is added to the project as a new dataset (X and interpolated Y), as on the chart tab, instead of a column of the analyzed dataset (#576).
 - The bundled Sales Analysis sample project opens completely: its **Customer Distribution** chart was saved with an unknown chart type and failed to load, and its **Sales Trend** chart had no data series (#612).
 - Transient context menus in the tab bar, dataset table, image gallery, and sidebar icon bar are now deleted after closing instead of remaining attached to their parent widget (#587).
 - Buttons and other controls drawn by the platform style (for example the Back, Next and Cancel buttons of the Analyze Measurements wizard) were unreadable white-on-white when the app used the light theme while Windows was in dark mode (or the reverse): the app now tells Qt which colour scheme its theme uses.

@@ -85,8 +85,10 @@ class ApplyAnalysisResultCommand(Command):
                     "Index-aligned assignment: column '%s' set on %d of %d rows",
                     self.new_column_name, len(result_series), len(df_copy))
             else:
-                # Result does not map onto existing rows (e.g. interpolation
-                # resamples to a new grid): fill from the top, best effort.
+                # Result carries no index of this dataset's rows (a plain array,
+                # or a Series with an unrelated index): fill from the top.
+                # Interpolation never gets here -- it resamples onto a new grid
+                # and is stored as a new dataset (ApplyAnalysisDatasetResultCommand).
                 df_copy[self.new_column_name] = pd.NA
                 df_copy.iloc[:len(result_series), df_copy.columns.get_loc(
                     self.new_column_name)] = np.asarray(result_series)

@@ -12,7 +12,7 @@ from pandaplot.analysis.analysis_types import AnalysisType, DerivativeMethod, In
 from pandaplot.services.help.content import analysis, measurements, panels, transforms
 from pandaplot.services.help.content import panel_defaults as defaults
 from pandaplot.services.help.help_catalog import HelpCatalog
-from pandaplot.services.help.help_types import PANEL_TOPIC_IDS, HelpCategory, HelpTopic
+from pandaplot.services.help.help_types import PANEL_TOPIC_ANALYSIS, PANEL_TOPIC_IDS, HelpCategory, HelpTopic
 from pandaplot.services.transform.expression_engine import allowed_expression_names, get_transformation_templates
 
 _MODULES = (panels, analysis, transforms, measurements)
@@ -114,12 +114,24 @@ class TestAnalysisTopics:
         assert f"at {defaults.INTERPOLATION_POINTS_CHART.default} " in interpolation.explanation
         assert "(10 to 100000)" in interpolation.explanation
 
-    def test_interpolation_topic_explains_how_the_dataset_result_is_written(self, catalog: HelpCatalog) -> None:
+    def test_interpolation_topic_explains_that_the_result_is_a_new_dataset(self, catalog: HelpCatalog) -> None:
         interpolation = catalog.get(analysis.ANALYSIS_TOPIC_IDS[AnalysisType.INTERPOLATION])
         assert interpolation is not None
 
-        assert "first row of the dataset" in interpolation.explanation
-        assert "must not be larger than the number of rows" in interpolation.explanation
+        assert "stored as a new dataset" in interpolation.explanation
+        assert "only the rows in the Data Range are used" in interpolation.explanation
+        assert "Points can be larger than the number of rows" in interpolation.explanation
+        assert "must not be larger" not in interpolation.explanation
+        points = dict(interpolation.parameters)["Points"]
+        assert "can be larger than the number of rows" in points
+
+    def test_analysis_panel_topic_explains_that_interpolation_adds_a_dataset(self, catalog: HelpCatalog) -> None:
+        panel = catalog.get(PANEL_TOPIC_ANALYSIS)
+        assert panel is not None
+
+        assert "a new dataset with the new X values and the interpolated Y values is added to the project" in panel.explanation
+        assert "Points can be larger than the number of rows" in panel.explanation
+        assert "otherwise Apply fails" not in panel.explanation
 
     def test_chart_analysis_preview_is_not_described_as_summary_statistics(self, catalog: HelpCatalog) -> None:
         for analysis_type in (AnalysisType.INTEGRAL, AnalysisType.ARC_LENGTH, AnalysisType.SMOOTHING):

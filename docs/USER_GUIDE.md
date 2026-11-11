@@ -231,6 +231,7 @@ Calculations are computed asynchronously in background threads via the `TaskSche
 
 #### Interpolation
 - Resamples or interpolates datasets to uniform grids or higher resolutions using cubic spline interpolation (`scipy.interpolate.CubicSpline`).
+- The result has its own X values, so it is added to the project as a new dataset (X and interpolated Y) instead of a column. **Points** may be larger than the number of rows, and only the rows in the Data Range are interpolated.
 
 ### Curve Fitting
 Interactive curve fitting is available through the **Fit Panel** sidebar when viewing a Chart tab:

@@ -7,14 +7,18 @@ from unittest.mock import Mock
 import numpy as np
 import pandas as pd
 import pytest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from pandaplot.commands.base_command import CommandResult
+from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.gui.components.common.icon_label import IconLabel
 from pandaplot.gui.components.common.status_message import StatusKind
 from pandaplot.gui.components.sidebar.analysis.analysis_panel import AnalysisPanel
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.project import Project
+from pandaplot.models.state import AppState
 from pandaplot.models.state.app_context import AppContext
+from tests.commands.project.conftest import SyncTaskScheduler
 from tests.gui.icon_testing import ICON_TOKENS, assert_tinted, strongest_pixel
 
 
@@ -102,6 +106,78 @@ class TestAnalysisPanelParameters:
             "window_length": 11,
             "polynomial_order": 3,
         }
+
+
+class TestAnalysisPanelInterpolation:
+    """Interpolation is stored as a new dataset, not as a column (#576)."""
+
+    def test_result_field_names_a_dataset_for_interpolation(self, panel):
+        label = panel.result_layout.labelForField(panel.result_column_name)
+        assert label.text() == "Result Column:"
+        assert panel.result_column_name.placeholderText() == "Enter column name..."
+        assert not panel.replace_existing.isHidden()
+
+        panel.analysis_type_combo.setCurrentText("Interpolation")
+
+        assert label.text() == "Result Dataset:"
+        assert panel.result_column_name.placeholderText() == "Enter dataset name..."
+        assert panel.replace_existing.isHidden()
+
+        panel.analysis_type_combo.setCurrentText("Smoothing")
+
+        assert label.text() == "Result Column:"
+        assert panel.result_column_name.placeholderText() == "Enter column name..."
+        assert not panel.replace_existing.isHidden()
+
+    def test_parameters_explain_where_the_result_goes(self, panel):
+        panel.analysis_type_combo.setCurrentText("Interpolation")
+
+        texts = [label.text() for label in panel.parameters_group.findChildren(QLabel)]
+        assert "The result is added as a new dataset with the new X values and the interpolated Y values." in texts
+
+    def test_success_message_says_a_dataset_was_added(self, panel):
+        panel.analysis_type_combo.setCurrentText("Interpolation")
+        executed = _ready_to_apply(panel)
+
+        panel.apply_analysis()
+        executed["command"].on_complete(CommandResult.SUCCESS)
+
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        assert panel.status_message.message() == (
+            "Analysis applied successfully!\nThe interpolated values were added to the project as a new dataset."
+        )
+
+    def test_default_settings_on_a_small_dataset_create_the_interpolated_dataset(self, app_context):
+        """Acceptance criterion of #576: the default Points (100) is larger
+        than the 20 rows, and Apply used to fail with a pandas ValueError."""
+        project = Project(name="P")
+        x = np.linspace(0.0, 19.0, 20)
+        small = Dataset(id="ds-small", name="Small", data=pd.DataFrame({"x": x, "y": 2.0 * x}))
+        project.add_item(small)
+        app_state = Mock(spec=AppState)
+        app_state.has_project = True
+        app_state.current_project = project
+        app_state.event_bus = Mock()
+        app_context.get_app_state.return_value = app_state
+        app_context.get_task_scheduler.return_value = SyncTaskScheduler()
+        app_context.get_command_executor.return_value = CommandExecutor()
+        panel = AnalysisPanel(app_context)
+        panel.current_dataset = small
+        panel.current_dataset_id = "ds-small"
+        panel.update_column_choices()
+        panel.analysis_type_combo.setCurrentText("Interpolation")
+        assert panel.num_points_spin.value() == 100 > len(small.data)
+        assert panel.result_column_name.text() == "y_interpolation"
+
+        panel.apply_analysis()
+
+        assert panel.status_message.kind() is StatusKind.SUCCESS
+        (result,) = [item for item in project.get_all_items() if isinstance(item, Dataset) and item is not small]
+        assert result.name == "y_interpolation"
+        assert len(result.data) == 100
+        np.testing.assert_allclose(result.data["y (interpolated)"], 2.0 * result.data["x"])
+        assert list(small.data.columns) == ["x", "y"]
+        app_context.get_ui_controller.return_value.show_error_message.assert_not_called()
 
 
 def _ready_to_apply(panel, *, dispatch_return=True):

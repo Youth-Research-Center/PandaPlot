@@ -133,15 +133,16 @@ def topics() -> list[HelpTopic]:
                 ("Under Data Range, set Start Row and End Row to analyze only part of the data. Rows are numbered like the rows in the table, "
                 "starting at 1, and both ends are included. Next to each box the X and Y values at that row are shown."),
                 ("Under Result Configuration, type the Result Column name. It is filled in as <Y column>_<operation>; change it if you like. "
-                'Tick "Replace if exists" to overwrite a column with the same name.'),
+                'Tick "Replace if exists" to overwrite a column with the same name. For Interpolation this is the Result Dataset name '
+                "and there is nothing to replace."),
                 "Click Preview to see the number of result points and summary statistics.",
-                "Click Apply. The calculation runs in the background and the new column is added to the dataset.",
+                "Click Apply. The calculation runs in the background and the new column is added to the dataset. For Interpolation a new dataset is added instead.",
             ),
             explanation=(
                 "For Derivative, Integral, Arc Length and Smoothing, rows outside the Data Range are left empty in the new column.\n\n"
-                "Interpolation works differently. Its Y values belong to new, evenly spaced X positions, so they are written into the new column "
-                "from the first row of the dataset downwards, whatever the Data Range is, and any rows below them stay empty. "
-                "Points must not be larger than the number of rows in the dataset, otherwise Apply fails.\n\n"
+                "Interpolation works differently. Its Y values belong to new, evenly spaced X positions, so they cannot be written into a column "
+                "of this dataset. Instead a new dataset with the new X values and the interpolated Y values is added to the project, next to this one, "
+                "and only the rows in the Data Range are used. Points can be larger than the number of rows.\n\n"
                 "Clear empties the Result Column name, unticks Replace if exists, resets the Data Range to the whole dataset, "
                 "empties the preview and sets the Analysis Type back to Derivative. The Parameters keep their values."
             ),

@@ -140,6 +140,19 @@ def create_result_dataset(
     project = app_state.current_project
     unique_name = unique_sibling_name(project, folder_id, name)
     dataset = Dataset(id=str(uuid.uuid4()), name=unique_name, data=results_df, source_file=None)
+    add_result_dataset(app_state, folder_id, dataset)
+    return dataset
+
+
+def add_result_dataset(app_state: AppState, folder_id: str | None, dataset: Dataset) -> None:
+    """Add an already-built `dataset` to the project under `folder_id` and
+    announce it via ProjectEvents.PROJECT_ITEM_ADDED.
+
+    This is the add-and-announce half of create_result_dataset(), kept
+    separate so a command's redo() can put the *original* Dataset (same id,
+    same name) back instead of minting a new one.
+    """
+    project = app_state.current_project
     project.add_item(dataset, parent_id=folder_id)
     # Report folder_id as None (the existing "no folder" convention) unless
     # it still resolves to a real folder: project.add_item() silently
@@ -155,11 +168,10 @@ def create_result_dataset(
         "project": project,
         "item_id": dataset.id,
         "item_type": "dataset",
-        "item_name": unique_name,
+        "item_name": dataset.name,
         "item": dataset,
         "folder_id": reported_folder_id,
     })
-    return dataset
 
 
 def remove_result_dataset(app_state: AppState, dataset_id: str) -> None:

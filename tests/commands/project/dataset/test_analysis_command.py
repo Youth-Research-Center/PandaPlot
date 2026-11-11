@@ -10,9 +10,11 @@ import pytest
 from pandaplot.commands.base_command import CommandResult
 from pandaplot.commands.command_executor import CommandExecutor
 from pandaplot.commands.project.dataset.analysis_command import AnalysisCommand
+from pandaplot.commands.project.dataset.apply_analysis_dataset_result_command import ApplyAnalysisDatasetResultCommand
 from pandaplot.commands.project.dataset.apply_analysis_result_command import ApplyAnalysisResultCommand
-from pandaplot.models.events.event_types import DatasetEvents, DatasetOperationEvents
+from pandaplot.models.events.event_types import DatasetEvents, DatasetOperationEvents, ProjectEvents
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.items.folder import Folder
 from pandaplot.models.project.items.formula_column import FormulaColumnSpec
 from pandaplot.models.project.project import Project
 from pandaplot.models.state import AppContext, AppState
@@ -303,6 +305,212 @@ class TestAnalysisCommandGuards:
         assert "df" in kwargs["task_arguments"]
 
 
+def _interpolation_config(**overrides):
+    config = {
+        "analysis_type": "interpolation", "x_column": "x", "y_column": "y",
+        "new_column_name": "y_interpolation",
+        "parameters": {"method": "linear", "num_points": 100},
+    }
+    config.update(overrides)
+    return config
+
+
+def _datasets_other_than(project, source):
+    return [item for item in project.get_all_items() if isinstance(item, Dataset) and item is not source]
+
+
+class TestInterpolationAnalysis:
+    """An interpolation resamples onto a new X grid, so it is stored as a new
+    (X, Y) dataset rather than as a column of the analyzed dataset (#576)."""
+
+    def test_more_points_than_rows_creates_a_dataset_instead_of_failing(self, ctx):
+        """Regression test (#576): the default Points (100) is larger than a
+        small dataset's row count, and writing the longer result into the
+        source rows raised "Must have equal len keys and value"."""
+        app_context, project, dataset, _ = ctx
+        source_before = dataset.data.copy()
+        outcomes = []
+        command = AnalysisCommand(app_context, "ds-1", _interpolation_config(), on_complete=outcomes.append)
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        assert outcomes == [CommandResult.SUCCESS]
+        (result,) = _datasets_other_than(project, dataset)
+        assert result.name == "y_interpolation"
+        assert list(result.data.columns) == ["x", "y (interpolated)"]
+        assert len(result.data) == 100
+        x_new = np.linspace(0.0, 10.0, 100)
+        np.testing.assert_allclose(result.data["x"], x_new)
+        np.testing.assert_allclose(result.data["y (interpolated)"], np.interp(x_new, dataset.data["x"], dataset.data["y"]))
+        pd.testing.assert_frame_equal(dataset.data, source_before)
+        app_context.get_ui_controller.return_value.show_error_message.assert_not_called()
+
+    def test_data_range_selects_the_rows_that_are_interpolated(self, ctx):
+        """The old column write ignored Start/End and put the result in rows
+        1..N whatever range was chosen."""
+        app_context, project, dataset, _ = ctx
+        command = AnalysisCommand(app_context, "ds-1", _interpolation_config(
+            parameters={"method": "linear", "num_points": 5, "start_index": 3, "end_index": 8},
+        ))
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        (result,) = _datasets_other_than(project, dataset)
+        assert list(result.data["x"]) == pytest.approx([3.0, 4.0, 5.0, 6.0, 7.0])
+        assert list(result.data["y (interpolated)"]) == pytest.approx([9.0, 16.0, 25.0, 36.0, 49.0])
+
+    def test_result_name_may_equal_an_existing_column_name(self, ctx):
+        """The name is a dataset name, so it cannot collide with a column and
+        "Replace if exists" does not apply."""
+        app_context, project, dataset, _ = ctx
+        command = AnalysisCommand(app_context, "ds-1", _interpolation_config(new_column_name="y", replace_existing=False))
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        (result,) = _datasets_other_than(project, dataset)
+        assert result.name == "y"
+        assert list(dataset.data.columns) == ["x", "y"]
+
+    def test_running_it_twice_keeps_both_results_with_distinct_names(self, ctx):
+        app_context, project, dataset, _ = ctx
+        for _ in range(2):
+            command = AnalysisCommand(app_context, "ds-1", _interpolation_config())
+            assert command.execute() is CommandResult.SUCCESS
+
+        names = sorted(d.name for d in _datasets_other_than(project, dataset))
+        assert names == ["y_interpolation", "y_interpolation (2)"]
+
+    def test_result_is_placed_in_the_folder_of_the_source_dataset(self, ctx):
+        app_context, project, dataset, _ = ctx
+        folder = Folder(id="folder-1", name="Experiments")
+        project.add_item(folder)
+        project.add_item(dataset, parent_id="folder-1")
+        command = AnalysisCommand(app_context, "ds-1", _interpolation_config())
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        (result,) = _datasets_other_than(project, dataset)
+        assert result.parent_id == "folder-1"
+
+    def test_undo_removes_the_dataset_and_redo_restores_the_same_one(self, ctx):
+        app_context, project, dataset, event_bus = ctx
+        executor: CommandExecutor = app_context.get_command_executor()
+        command = AnalysisCommand(app_context, "ds-1", _interpolation_config())
+        assert executor.execute_command(command) is True
+        assert isinstance(executor.undo_stack[-1], ApplyAnalysisDatasetResultCommand)
+        (result,) = _datasets_other_than(project, dataset)
+        added = _emitted(event_bus, ProjectEvents.PROJECT_ITEM_ADDED)
+        assert [payload["item_id"] for payload in added] == [result.id]
+
+        assert executor.undo() is True
+        assert project.find_item(result.id) is None
+        assert _emitted(event_bus, ProjectEvents.PROJECT_ITEM_REMOVED)[-1]["item_id"] == result.id
+        assert list(dataset.data.columns) == ["x", "y"]
+
+        assert executor.redo() is True
+        restored = project.find_item(result.id)
+        assert restored is result
+        assert len(restored.data) == 100
+        added = _emitted(event_bus, ProjectEvents.PROJECT_ITEM_ADDED)
+        assert [payload["item_id"] for payload in added] == [result.id, result.id]
+        assert added[-1].keys() == added[0].keys()
+
+    def test_other_analyses_still_write_a_column(self, ctx):
+        """Only interpolation changes destination; the rest return one value per source row."""
+        app_context, project, dataset, _ = ctx
+        command = AnalysisCommand(app_context, "ds-1", {
+            "analysis_type": "smoothing", "x_column": "x", "y_column": "y",
+            "new_column_name": "ysmooth", "parameters": {"method": "rolling_mean", "window": 3},
+        })
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        assert "ysmooth" in dataset.data.columns
+        assert not _datasets_other_than(project, dataset)
+
+
+class TestApplyAnalysisDatasetResultCommand:
+    @pytest.fixture
+    def table(self):
+        return pd.DataFrame({"x": [0.0, 1.0, 2.0], "y (interpolated)": [0.0, 1.0, 4.0]})
+
+    def test_execute_adds_a_dataset_and_announces_it(self, ctx, table):
+        app_context, project, dataset, event_bus = ctx
+        command = ApplyAnalysisDatasetResultCommand(app_context, "Result", table)
+
+        assert command.execute() is CommandResult.SUCCESS
+
+        (result,) = _datasets_other_than(project, dataset)
+        assert command.result_dataset is result
+        assert result.name == "Result"
+        pd.testing.assert_frame_equal(result.data, table)
+        (payload,) = _emitted(event_bus, ProjectEvents.PROJECT_ITEM_ADDED)
+        assert payload["item_id"] == result.id
+        assert payload["item_type"] == "dataset"
+        assert payload["item_name"] == "Result"
+
+    def test_execute_without_a_project_fails_and_tells_the_user(self, ctx, table):
+        app_context, _, _, _ = ctx
+        app_context.get_app_state.return_value.has_project = False
+        command = ApplyAnalysisDatasetResultCommand(app_context, "Result", table)
+
+        assert command.execute() is CommandResult.FAILURE
+
+        assert command.result_dataset is None
+        app_context.get_ui_controller.return_value.show_error_message.assert_called_once()
+
+    def test_execute_failure_is_reported_and_keeps_no_executed_state(self, ctx, table, monkeypatch):
+        app_context, project, dataset, _ = ctx
+        monkeypatch.setattr(project, "add_item", Mock(side_effect=ValueError("boom")))
+        command = ApplyAnalysisDatasetResultCommand(app_context, "Result", table)
+
+        assert command.execute() is CommandResult.FAILURE
+
+        assert command.result_dataset is None
+        assert not _datasets_other_than(project, dataset)
+        call = app_context.get_ui_controller.return_value.show_error_message.call_args
+        assert call.args == ("Analysis Error", "Couldn't add the analysis result to the project.")
+        assert call.kwargs["error"] is not None
+
+    def test_redo_restores_the_original_dataset_with_the_same_id(self, ctx, table):
+        app_context, project, dataset, _ = ctx
+        command = ApplyAnalysisDatasetResultCommand(app_context, "Result", table)
+        assert command.execute() is CommandResult.SUCCESS
+        (result,) = _datasets_other_than(project, dataset)
+
+        assert command.undo() is CommandResult.SUCCESS
+        assert command.redo() is CommandResult.SUCCESS
+
+        assert project.find_item(result.id) is result
+        assert len(_datasets_other_than(project, dataset)) == 1
+
+    def test_undo_aborts_when_the_dataset_is_already_gone(self, ctx, table):
+        app_context, project, dataset, _ = ctx
+        command = ApplyAnalysisDatasetResultCommand(app_context, "Result", table)
+        assert command.execute() is CommandResult.SUCCESS
+        (result,) = _datasets_other_than(project, dataset)
+        project.remove_item(result)
+
+        assert command.undo() is CommandResult.ABORTED
+
+    def test_undo_and_redo_abort_before_anything_was_executed(self, ctx, table):
+        app_context, _, _, _ = ctx
+        command = ApplyAnalysisDatasetResultCommand(app_context, "Result", table)
+
+        assert command.undo() is CommandResult.ABORTED
+        assert command.redo() is CommandResult.ABORTED
+
+    def test_cleanup_releases_the_result_and_the_table(self, ctx, table):
+        app_context, _, _, _ = ctx
+        command = ApplyAnalysisDatasetResultCommand(app_context, "Result", table)
+        assert command.execute() is CommandResult.SUCCESS
+
+        command.cleanup()
+
+        assert command.result_dataset is None
+        assert command.result_data.empty
+
+
 def test_marks_project_modified_is_false(ctx):
     """Regression: execute() only dispatches the computation and returns
     SUCCESS before anything has actually mutated the project -- the
@@ -351,10 +559,10 @@ class TestApplyAnalysisResultCommand:
 
     def test_positional_assignment_does_not_materialize_a_python_list(self, ctx, monkeypatch):
         """Regression test (PR review): the positional-assignment branch
-        (result doesn't align to existing rows, e.g. interpolation resamples
-        to a new grid) used to coerce the result through `list(...)` before
-        assignment -- slow and memory-heavy for a large result. It must
-        assign directly from the array/Series instead."""
+        (a result that carries no index of the dataset's rows) used to coerce
+        the result through `list(...)` before assignment -- slow and
+        memory-heavy for a large result. It must assign directly from the
+        array/Series instead."""
         app_context, _, dataset, _ = ctx
         result = np.array([100.0, 200.0, 300.0])  # shorter than the dataset's 11 rows
 
