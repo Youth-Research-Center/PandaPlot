@@ -120,3 +120,20 @@ def test_search_matches_the_text_of_markdown_but_not_its_link_and_image_markup()
         assert filter_examples([linked], query=word, selected_tag_ids=NO_TAGS) == [], word
     for word in ("sources", "NOAA archive", "photo"):
         assert filter_examples([linked], query=word, selected_tag_ids=NO_TAGS) == [linked], word
+
+
+def test_search_ignores_the_targets_of_reference_style_links_and_images():
+    referenced = _example(
+        "Referenced",
+        description=(
+            "See [the NOAA archive][src], the [manual][] and ![a photo][pic].\n\n"
+            "[src]: https://noaa.example/data.csv\n"
+            '[manual]: <https://manual.example> "Manual"\n'
+            "   [pic]: cover.png 'Cover'\n"
+        ),
+    )
+
+    for word in ("noaa.example", "manual.example", "cover.png", "src", "pic", "http"):
+        assert filter_examples([referenced], query=word, selected_tag_ids=NO_TAGS) == [], word
+    for word in ("NOAA archive", "manual", "photo"):
+        assert filter_examples([referenced], query=word, selected_tag_ids=NO_TAGS) == [referenced], word

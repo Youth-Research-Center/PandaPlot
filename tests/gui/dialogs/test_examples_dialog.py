@@ -589,6 +589,29 @@ def test_covers_render_only_for_cards_in_view_and_the_rest_after_scrolling(make_
     assert len(rendered) < len(names)  # the middle was never in view
 
 
+
+def test_back_requests_covers_for_cards_brought_into_view_while_details_were_open(make_dialog, monkeypatch, qtbot):
+    rendered = _patch_renderer(monkeypatch)
+    names = [f"Ex{number:02d}" for number in range(24)]
+    charts = {f"c{number}": Chart(id=f"c{number}", name=name) for number, name in enumerate(names)}
+    examples = [_example(name, featured_chart_ids=(f"c{number}",)) for number, name in enumerate(names)]
+    dialog = make_dialog(examples, charts=charts)
+    qtbot.waitUntil(lambda: len(rendered) > 0)
+    qtbot.wait(100)
+    last = dialog.cards[-1]
+    assert last.cover_source is CoverSource.PLACEHOLDER
+
+    dialog.cards[0].details_button.click()
+    # Enlarged while the list is hidden: every card now fits, but the hidden list cannot request covers.
+    dialog.resize(dialog.width(), 20000)
+    qtbot.wait(100)
+    assert last.cover_source is CoverSource.PLACEHOLDER
+
+    dialog.back_button.click()
+
+    qtbot.waitUntil(lambda: last.cover_source is CoverSource.CHART_RENDER)
+    assert len(set(rendered)) == len(rendered)  # nothing was rendered twice
+
 def test_renders_are_requested_at_thumbnail_size_times_the_device_pixel_ratio(make_dialog, monkeypatch, qtbot):
     rendered = _patch_renderer(monkeypatch)
     charts = {"c1": Chart(id="c1", name="First")}

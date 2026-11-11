@@ -175,6 +175,9 @@ class ExampleInfo:
 
 _HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
 _LINK_RE = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+_REFERENCE_LINK_RE = re.compile(r"!?\[([^\]]*)\]\[[^\]]*\]")
+_REFERENCE_DEFINITION_RE = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*\S")
+_FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
 _CODE_SPAN_RE = re.compile(r"(`+)(.+?)\1")
 _EMPHASIS_RE = re.compile(r"(?<![\w*_])(\*\*|__|\*|_|~~)(?=\S)(.+?)(?<=\S)\1(?![\w*_])")
 _CODE_PLACEHOLDER_RE = re.compile("\ue000(\\d+)\ue001")
@@ -203,6 +206,7 @@ def _strip_inline_markdown(text: str) -> str:
 
     plain = _CODE_SPAN_RE.sub(protect, text)
     plain = _LINK_RE.sub(r"\1", plain)
+    plain = _REFERENCE_LINK_RE.sub(r"\1", plain)
     previous = None
     while previous != plain:
         previous = plain
@@ -214,8 +218,9 @@ def _strip_inline_markdown(text: str) -> str:
 def markdown_to_plain_text(text: str) -> str:
     """Return the words of a Markdown text without its markup, for searching.
 
-    Heading markers, emphasis delimiters and code ticks are removed, and links and images keep only their text, so
-    their targets (URLs, file names) are dropped.
+    Heading markers, emphasis delimiters and code ticks are removed, and links and images (inline ``[t](u)`` or
+    reference-style ``[t][r]`` and ``[t][]``) keep only their text. Reference definitions (``[r]: url``) outside
+    fenced code are dropped, so link and image targets (URLs, file names) are never searchable.
 
     Args:
         text: Markdown text.
@@ -225,7 +230,20 @@ def markdown_to_plain_text(text: str) -> str:
     """
     if not isinstance(text, str) or not text.strip():
         return ""
-    return _strip_inline_markdown(" ".join(_HEADING_RE.sub("", line) for line in text.splitlines()))
+    lines: list[str] = []
+    fence: str | None = None
+    for line in text.splitlines():
+        fence_match = _FENCE_RE.match(line)
+        if fence_match is not None:
+            marker = fence_match.group(1)
+            if fence is None:
+                fence = marker
+            elif marker[0] == fence[0] and len(marker) >= len(fence):
+                fence = None
+        elif fence is None and _REFERENCE_DEFINITION_RE.match(line):
+            continue
+        lines.append(_HEADING_RE.sub("", line))
+    return _strip_inline_markdown(" ".join(lines))
 
 
 _LIST_MARKER_RE = re.compile(r"^\s{0,3}(?:[-*+]|\d+[.)])\s+")

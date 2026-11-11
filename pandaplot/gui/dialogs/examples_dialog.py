@@ -541,6 +541,8 @@ class ExamplesDialog(PDialog):
         self._details_example = None
         self.stack.setCurrentWidget(self.list_page)
         self.list_scroll.verticalScrollBar().setValue(self._list_scroll_value)
+        # A resize while the list was hidden can bring cards into view without moving the scroll bar.
+        self._schedule_visible_covers()
         for widget in (self._origin_focus, self._origin_card):
             if widget is not None and shiboken6.isValid(widget) and widget.isVisible() and widget.isEnabled():
                 widget.setFocus()
