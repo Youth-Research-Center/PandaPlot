@@ -1904,6 +1904,7 @@ class ChartEditorWidget(PWidget):
             nav_toolbar = self.chart_canvas.navigation_toolbar
             nav_toolbar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
             toolbar_row.addWidget(nav_toolbar)
+            nav_toolbar.show()  # the canvas keeps it hidden until a layout adopts it
         toolbar_row.addStretch()
         preview_layout.addLayout(toolbar_row)
 

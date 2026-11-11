@@ -146,8 +146,11 @@ class DataTab(QWidget):
         # Persistent configuration form (dataset/X/Y/Y-axis/label). Created
         # once so signal connections in _connect_signals stay valid for the
         # tab's lifetime; it gets moved (reparented) into whichever card is
-        # currently expanded by _build_expanded_series_card.
+        # currently expanded by _build_expanded_series_card. While no card hosts
+        # it, the tab owns it (hidden), so Qt deletes it with the tab instead of
+        # leaving a parentless widget alive for the rest of the process.
         self._series_form_widget = QWidget()
+        self._series_form_widget.setParent(self)
         series_config_layout = QGridLayout(self._series_form_widget)
         series_config_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -367,8 +370,8 @@ class DataTab(QWidget):
         # Detach the persistent form widget from whatever card currently
         # hosts it *before* that card is torn down below, so it survives
         # the rebuild instead of being deleted as a child of a discarded card.
-        if self._series_form_widget.parent() is not None:
-            self._series_form_widget.setParent(None)
+        if self._series_form_widget.parent() is not self:
+            self._series_form_widget.setParent(self)
 
         while self._series_cards_layout.count():
             item = self._series_cards_layout.takeAt(0)

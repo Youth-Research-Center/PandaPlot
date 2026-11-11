@@ -42,6 +42,16 @@ def test_empty_chart_shows_empty_page_and_disables_nav_toolbar(env):
     assert editor.empty_state_panel.heading_label.text() == "This chart has no data yet"
 
 
+def test_nav_toolbar_is_shown_in_the_editor_toolbar_row(env, qtbot):
+    _, _, _, tab, editor = env
+    tab.show()
+    qtbot.waitExposed(tab)
+
+    toolbar = editor.chart_canvas.navigation_toolbar
+    assert toolbar.isVisible()
+    assert toolbar.parent() is not editor.chart_canvas
+
+
 def test_adding_series_switches_to_canvas_and_undo_restores_empty_page(env):
     app_context, dataset, chart, _, editor = env
     executor = app_context.get_command_executor()

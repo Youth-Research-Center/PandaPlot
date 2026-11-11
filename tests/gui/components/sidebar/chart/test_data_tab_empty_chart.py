@@ -3,6 +3,7 @@ import sys
 
 import pandas as pd
 import pytest
+import shiboken6
 from PySide6.QtWidgets import QApplication, QLabel
 
 from pandaplot.app import build_app_context
@@ -113,3 +114,27 @@ def test_panel_selects_the_new_series_on_series_selected_event():
     app_context.event_bus.emit(ChartEvents.SERIES_SELECTED, {"chart_id": chart.id, "series_index": 1, "index": 1})
 
     assert panel.data_tab.selected_index == 1
+
+
+def test_series_form_widget_stays_owned_by_the_tab_while_no_card_hosts_it():
+    """The shared form is detached while cards are rebuilt; it must never become a parentless widget (#648)."""
+    app_context, project, dataset = _setup()
+    empty = Chart(name="Empty", chart_type="line")
+    with_series = Chart(name="With series", chart_type="line")
+    with_series.add_data_series(dataset.id, x_column_id=dataset.column_id("x"), y_column_id=dataset.column_id("y"))
+    project.add_item(empty)
+    project.add_item(with_series)
+    tab = DataTab(app_context=app_context)
+    tab.set_project(project)
+    form = tab._series_form_widget
+    assert form.parent() is tab
+
+    tab.load(with_series)
+    assert form.parent() is not tab
+    assert form.parent() is not None
+
+    tab.load(empty)
+    assert form.parent() is tab
+
+    shiboken6.delete(tab)
+    assert not shiboken6.isValid(form)

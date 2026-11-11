@@ -7,6 +7,7 @@ and resized the canvas below it. The readout now reports a size that does not
 depend on its text, elides what does not fit, and keeps to a single line.
 """
 import pytest
+import shiboken6
 from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QWidget
 
 from pandaplot.gui.components.tabs.chart.chart_canvas import ChartCanvas
@@ -38,6 +39,7 @@ def toolbar_row(qtbot, canvas):
     row.setContentsMargins(0, 0, 0, 0)
     toolbar.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
     row.addWidget(toolbar)
+    toolbar.show()  # ChartCanvas keeps the toolbar hidden until a layout adopts it
     row.addStretch()
     qtbot.addWidget(host)
     host.resize(1200, 100)
@@ -137,3 +139,28 @@ def test_toolbar_keeps_its_pan_zoom_and_save_actions(canvas):
     labels = {action.text() for action in canvas.navigation_toolbar.actions() if not action.isSeparator()}
     assert {"Pan", "Zoom", "Save"} <= labels
     assert not labels & {"Home", "Back", "Forward"}
+
+
+def test_unplaced_toolbar_belongs_to_its_canvas_and_stays_hidden(qtbot):
+    """Wizard previews never lay the toolbar out; it must neither paint over the preview nor outlive its canvas (#648)."""
+    canvas = ChartCanvas()
+    toolbar = canvas.navigation_toolbar
+    menus = toolbar.findChildren(QWidget)
+
+    assert toolbar.parent() is canvas
+    canvas.show()
+    qtbot.waitExposed(canvas)
+    assert not toolbar.isVisible()
+    canvas.hide()
+
+    shiboken6.delete(canvas)
+
+    assert not shiboken6.isValid(toolbar)
+    assert not any(shiboken6.isValid(child) for child in menus)
+
+
+def test_toolbar_shows_once_a_layout_adopts_it(toolbar_row):
+    host, toolbar = toolbar_row
+
+    assert toolbar.isVisible()
+    assert toolbar.parent() is host
