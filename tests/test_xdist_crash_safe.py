@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.xdist_crash_safe import is_supported_xdist
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FILE_COUNT = 30
 
@@ -45,3 +47,12 @@ def test_worker_crash_neither_hangs_nor_reruns_the_crashed_test(tmp_path: Path) 
 
     assert re.search(rf"\b1 failed, {FILE_COUNT} passed\b", output), output
     assert output.count("crashed while running") == 1, output
+
+
+@pytest.mark.parametrize(
+    ("xdist_version", "supported"),
+    [("3.8.0", True), ("3.8.7", True), ("3.9.0", False), ("4.0.0", False), ("3.7.1", False), ("3.10.dev1", False), ("dev", False)],
+)
+def test_crash_safe_scheduler_only_claims_the_checked_xdist_series(xdist_version: str, *, supported: bool) -> None:
+    """Another xdist series falls back to xdist's scheduler instead of relying on unchecked internals."""
+    assert is_supported_xdist(xdist_version) is supported

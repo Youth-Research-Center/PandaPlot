@@ -5,10 +5,37 @@ Registered from ``tests/conftest.py`` so it is active on the xdist controller.
 
 from __future__ import annotations
 
+import warnings
+from importlib.metadata import version
+
 import pytest
 from xdist.remote import Producer
 from xdist.scheduler import LoadFileScheduling
 from xdist.workermanage import WorkerController
+
+SUPPORTED_XDIST_SERIES = (3, 8)
+"""The pytest-xdist ``major.minor`` whose private scheduler internals this module was checked against.
+
+``remove_node`` relies on ``assigned_work``, ``workqueue``, ``_pending_of`` and ``_reschedule``. On any
+other series the controller falls back to xdist's own scheduler instead of risking an internal error in
+exactly the crash case this module guards; re-check those internals before raising this.
+"""
+
+
+def is_supported_xdist(xdist_version: str) -> bool:
+    """Return whether ``xdist_version`` is in the series this scheduler was checked against.
+
+    Args:
+        xdist_version: The installed pytest-xdist version, e.g. ``"3.8.0"``.
+
+    Returns:
+        True if its ``major.minor`` equals ``SUPPORTED_XDIST_SERIES``.
+    """
+    parts = xdist_version.split(".")[:2]
+    try:
+        return tuple(int(part) for part in parts) == SUPPORTED_XDIST_SERIES
+    except ValueError:
+        return False
 
 
 class CrashSafeLoadFileScheduling(LoadFileScheduling):
@@ -75,8 +102,18 @@ def pytest_xdist_make_scheduler(config: pytest.Config, log: Producer) -> CrashSa
         log: The xdist logging producer.
 
     Returns:
-        The scheduler for ``loadfile``, otherwise None.
+        The scheduler for ``loadfile`` on a supported pytest-xdist series, otherwise None.
     """
-    if config.getoption("dist") == "loadfile":
-        return CrashSafeLoadFileScheduling(config, log)
-    return None
+    if config.getoption("dist") != "loadfile":
+        return None
+    xdist_version = version("pytest-xdist")
+    if not is_supported_xdist(xdist_version):
+        supported = ".".join(str(part) for part in SUPPORTED_XDIST_SERIES)
+        warnings.warn(
+            f"tests/xdist_crash_safe.py was checked against pytest-xdist {supported}.x, not {xdist_version}; "
+            "using xdist's default loadfile scheduler (a crashed worker may hang the run).",
+            pytest.PytestWarning,
+            stacklevel=1,
+        )
+        return None
+    return CrashSafeLoadFileScheduling(config, log)
