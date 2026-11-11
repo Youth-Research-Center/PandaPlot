@@ -46,6 +46,8 @@ norecursedirs = ["pandaplot_storybook"]
 # Run in parallel by default. `loadfile` keeps each test file on one worker because many GUI test
 # modules share module-scoped Qt fixtures. Workers are capped because each one loads Qt and
 # Matplotlib. Pass `-n 0` to run serially (needed for --pdb and IDE debuggers).
+# `tests/xdist_crash_safe.py` replaces xdist's `loadfile` scheduler so a crashed worker cannot hang the
+# run and the crashed test is not re-run.
 addopts = "-n auto --maxprocesses=8 --dist=loadfile --max-worker-restart=1"
 # A hung Qt test must fail instead of consuming the whole job. Covers setup, call and teardown;
 # the slowest legitimate test (an e2e workflow) takes about 50s under load. The `thread` method

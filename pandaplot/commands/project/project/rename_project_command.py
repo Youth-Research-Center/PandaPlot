@@ -6,6 +6,7 @@ from pandaplot.commands.base_command import Command, CommandResult
 from pandaplot.commands.project.current_project import get_current_project
 from pandaplot.gui.controllers.ui_controller import UIController
 from pandaplot.models.events.event_types import ProjectEvents
+from pandaplot.models.project import Project
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.models.state.app_state import AppState
 
@@ -26,6 +27,7 @@ class RenameProjectCommand(Command):
         self.new_name = new_name.strip()
         self.old_name: str | None = None
         self._applied: bool = False
+        self._project: Project | None = None
 
     @override
     def execute(self) -> CommandResult:
@@ -52,7 +54,8 @@ class RenameProjectCommand(Command):
             if self.new_name == self.old_name:
                 return CommandResult.NOOP
 
-            self._apply_rename(self.new_name)
+            self._apply_rename(project, self.new_name)
+            self._project = project
             self._applied = True
             return CommandResult.SUCCESS
 
@@ -61,35 +64,41 @@ class RenameProjectCommand(Command):
             self.ui_controller.show_error_message("Rename Project Error", "Couldn't rename the project.", error=e)
             return CommandResult.FAILURE
 
-    def _apply_rename(self, name: str) -> None:
-        project = get_current_project(self.app_context)
-        if project is None:
-            return
+    def _apply_rename(self, project: Project, name: str) -> None:
         project.name = name
         self.app_context.event_bus.emit(
             ProjectEvents.PROJECT_CHANGED, {"project": project})
 
+    def _is_project_open(self) -> bool:
+        """Whether the project this command renamed is still the open one (the undo history outlives it)."""
+        return self._project is not None and get_current_project(self.app_context) is self._project
+
     @override
     def undo(self) -> CommandResult:
-        if self._applied and self.old_name is not None:
-            self._apply_rename(self.old_name)
-            return CommandResult.SUCCESS
-        # The rename was never actually applied (execute() failed or was a
-        # NOOP), so there's nothing to undo.
-        return CommandResult.NOOP
+        if not (self._applied and self.old_name is not None and self._project is not None):
+            # The rename was never actually applied (execute() failed or was a
+            # NOOP), so there's nothing to undo.
+            return CommandResult.NOOP
+        if not self._is_project_open():
+            return CommandResult.ABORTED
+        self._apply_rename(self._project, self.old_name)
+        return CommandResult.SUCCESS
 
     @override
     def redo(self) -> CommandResult:
-        if self._applied and self.old_name is not None:
-            self._apply_rename(self.new_name)
-            return CommandResult.SUCCESS
-        # The rename was never actually applied (execute() failed or was a
-        # NOOP), so there's nothing to redo.
-        return CommandResult.NOOP
+        if not (self._applied and self.old_name is not None and self._project is not None):
+            # The rename was never actually applied (execute() failed or was a
+            # NOOP), so there's nothing to redo.
+            return CommandResult.NOOP
+        if not self._is_project_open():
+            return CommandResult.ABORTED
+        self._apply_rename(self._project, self.new_name)
+        return CommandResult.SUCCESS
 
     @override
     def cleanup(self) -> None:
-        """No undo-only resource to release -- old_name is needed by both
-        undo() and redo() (rename is symmetric via _apply_rename), and
-        _applied is a boolean guard flag, not a held reference."""
+        """No undo-only resource to release -- old_name and the renamed
+        project are needed by both undo() and redo() (rename is symmetric via
+        _apply_rename), and the project reference is small and goes away with
+        the command."""
         return

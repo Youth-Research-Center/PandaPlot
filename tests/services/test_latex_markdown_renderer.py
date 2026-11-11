@@ -5,8 +5,15 @@ fallback for invalid LaTeX, protection of escaped dollars, and that Markdown
 structure survives around embedded math.
 """
 
+import re
+from itertools import pairwise
+
+import pytest
+
 from pandaplot.services.note_render.latex_markdown_renderer import (
+    code_region_spans,
     is_escaped_at,
+    protect_code_regions,
     render_body_html,
     render_equation,
     wrap_document,
@@ -182,6 +189,55 @@ def test_tilde_fence_is_protected_like_backtick_fence():
     html = render_body_html("~~~\n![Chart](img-id =300x200)\n~~~")
     assert "pandaimgsize" not in html
     assert "<pre>" in html
+
+
+def test_code_region_spans_ignores_backticks_inside_a_fence():
+    """Inline code is only recognized outside fences, like protect_code_regions:
+    backticks inside a fenced block must not produce spans of their own."""
+    text = "before\n```\nuse `x` and `y`\n```\nafter `real`"
+
+    spans = code_region_spans(text)
+
+    assert [text[start:end] for start, end in spans] == ["```\nuse `x` and `y`\n```", "`real`"]
+
+
+def test_code_region_spans_inline_span_cannot_borrow_a_backtick_from_a_fence():
+    """An unmatched backtick before a fence must not pair with the fence's
+    first backtick -- the fence is stashed first, so that backtick is gone."""
+    text = "`![Chart](img-id) ```\ncode\n```"
+
+    spans = code_region_spans(text)
+
+    assert [text[start:end] for start, end in spans] == ["```\ncode\n```"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "plain text",
+        "Use `a` and `b` here",
+        "```\nuse `x` and `y`\n```\nafter `real`",
+        "`![Chart](img-id) ```\ncode\n```",
+        "````\ntext with ``` inside\n`x`\n````\n`y`",
+        "~~~\n`a`\n~~~\ntext `b`\n```py\n`c`\n```",
+        "``` `a` ```\n`b`",
+    ],
+)
+def test_code_region_spans_match_the_regions_protect_code_regions_stashes(text):
+    """The Artefacts list and the preview must agree on what is code."""
+    protected, blocks, token = protect_code_regions(text)
+
+    spans = code_region_spans(text)
+
+    assert sorted(text[start:end] for start, end in spans) == sorted(blocks)
+    assert all(prev_end <= start for (_, prev_end), (start, _) in pairwise(spans))
+    outside: list[str] = []
+    position = 0
+    for start, end in spans:
+        outside.append(text[position:start])
+        position = end
+    outside.append(text[position:])
+    assert "".join(outside) == re.sub(rf"zzcodeplaceholder-{token}-\d+zz", "", protected)
 
 
 def test_wrap_document_applies_colors():

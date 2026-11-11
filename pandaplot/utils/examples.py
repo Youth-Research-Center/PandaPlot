@@ -2,8 +2,8 @@
 
 import json
 import logging
+import os
 import zipfile
-import zlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,10 +16,10 @@ from pandaplot.models.project.example_info import (
     example_tag,
     summary_from_description,
 )
+from pandaplot.storage.project_data_manager import read_cover_entry
 
 logger = logging.getLogger(__name__)
 
-_COVER_IMAGE_ENTRY = "cover.png"
 _SECTION_ORDER = {section: index for index, section in enumerate(ExampleSection)}
 
 
@@ -48,6 +48,25 @@ def get_examples_dir() -> Path:
     return Path(__file__).resolve().parent.parent.parent / "examples"
 
 
+def is_in_examples_dir(path: str | os.PathLike[str] | None) -> bool:
+    """Return whether ``path`` lies inside the bundled examples directory.
+
+    Args:
+        path: A file path, possibly relative or containing symlinks.
+
+    Returns:
+        True when the resolved path is within ``get_examples_dir()``; False for an
+        empty or unresolvable path.
+    """
+    if not path:
+        return False
+    try:
+        return Path(path).resolve().is_relative_to(get_examples_dir().resolve())
+    except (OSError, ValueError, RuntimeError):
+        logger.debug("Could not resolve %r to test it against the examples directory", path, exc_info=True)
+        return False
+
+
 def _item_ids_by_type(project_meta: dict[str, Any]) -> dict[str, set[str]]:
     """Group the ids in project.json's ``item_files`` map by item type name."""
     ids: dict[str, set[str]] = {}
@@ -70,12 +89,7 @@ def _read_example(pplot_path: Path) -> ExampleProject:
         project_meta = json.loads(archive.read("project.json"))
         if not isinstance(project_meta, dict):
             raise TypeError("project.json is not an object")
-        cover_image = None
-        if project_meta.get("cover_image") == _COVER_IMAGE_ENTRY and _COVER_IMAGE_ENTRY in archive.namelist():
-            try:
-                cover_image = archive.read(_COVER_IMAGE_ENTRY)
-            except (zipfile.BadZipFile, zlib.error, OSError, EOFError, NotImplementedError, RuntimeError):
-                logger.warning("Ignoring damaged cover image in example project '%s'", pplot_path, exc_info=True)
+        cover_image = read_cover_entry(project_meta.get("cover_image"), set(archive.namelist()), archive.read)
 
     info = ExampleInfo.from_dict(project_meta.get("example"))
     ids = _item_ids_by_type(project_meta)
@@ -88,7 +102,7 @@ def _read_example(pplot_path: Path) -> ExampleProject:
     return ExampleProject(
         path=str(pplot_path),
         name=raw_name if isinstance(raw_name, str) and raw_name else pplot_path.stem,
-        summary=info.summary or summary_from_description(description),
+        summary=info.summary.strip() or summary_from_description(description),
         description=description,
         section=info.section,
         level=info.level,

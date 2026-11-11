@@ -21,8 +21,7 @@ from PySide6.QtWidgets import (
 from pandaplot.gui.components.common.p_button import PButton
 from pandaplot.gui.core.widget_extension import PDialog
 from pandaplot.models.state.app_context import AppContext
-
-_IMAGE_FILE_FILTER = "Image files (*.png *.jpg *.jpeg *.gif *.bmp *.webp);;All files (*.*)"
+from pandaplot.utils.file_filters import IMAGE_FILE_FILTER
 
 
 class ImageImportDialog(PDialog):
@@ -82,7 +81,7 @@ class ImageImportDialog(PDialog):
         pass
 
     def _browse_files(self):
-        paths, _ = QFileDialog.getOpenFileNames(self, "Select Images", "", _IMAGE_FILE_FILTER)
+        paths, _ = QFileDialog.getOpenFileNames(self, "Select Images", "", IMAGE_FILE_FILTER)
         if paths:
             self._set_selected_files(paths)
 

@@ -9,6 +9,7 @@ from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QInputDialog, QLineEdit
 from pytestqt.qtbot import QtBot
 
+from pandaplot.commands.project.dataset.create_empty_dataset_command import CreateEmptyDatasetCommand
 from pandaplot.gui.components.sidebar.project.project_view_panel import ProjectViewPanel
 from pandaplot.gui.components.tabs.sketch.sketch_tab import SketchTab
 from pandaplot.gui.components.tabs.sketch.tools.tool_manager import ToolMode
@@ -346,6 +347,42 @@ def test_empty_chart_gets_first_series_from_empty_state(
     qtbot.waitUntil(lambda: editor.preview_stack.currentWidget() is editor.empty_state_panel)
 
 
+def test_edit_project_details_from_the_file_menu_with_undo_and_redo(app_window: PandaMainWindow, qtbot: QtBot) -> None:
+    from pandaplot.gui.dialogs.project.project_details_dialog import ProjectDetailsDialog
+
+    new_project(qtbot, app_window)
+    project = app_window.app_context.app_state.current_project
+    original_description = project.description
+
+    def edit(dialog: ProjectDetailsDialog) -> None:
+        dialog.name_edit.setText("Renamed project")
+        dialog.description_edit.setPlainText("Findings. More text.")
+        dialog.example_checkbox.setChecked(True)
+        dialog.tag_checkboxes["physics"].setChecked(True)
+        qtbot.mouseClick(dialog.ok_button, Qt.MouseButton.LeftButton)
+
+    timer, errors = drive_modal(qtbot, ProjectDetailsDialog, edit)
+    click_menu(qtbot, app_window, "File", "Project Details...")
+    timer.stop()
+    assert not errors
+
+    assert project.name == "Renamed project"
+    assert project.description == "Findings. More text."
+    assert project.example_info.is_example
+    assert project.example_info.tag_ids == ("physics",)
+    assert app_window.windowTitle().startswith("Renamed project")
+
+    app_window.main_menu.undo_action.trigger()
+    assert project.name == "GUI workflow"
+    assert project.description == original_description
+    assert not project.example_info.is_example
+    assert app_window.windowTitle().startswith("GUI workflow")
+
+    app_window.main_menu.redo_action.trigger()
+    assert project.name == "Renamed project"
+    assert project.example_info.tag_ids == ("physics",)
+
+
 def test_example_opens_as_untitled_copy_and_save_never_overwrites_it(
     app_window: PandaMainWindow, qtbot: QtBot, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -364,12 +401,16 @@ def test_example_opens_as_untitled_copy_and_save_never_overwrites_it(
     assert not state.is_modified
     assert str(example) not in [entry["path"] for entry in get_recent_projects(app_window.app_context)]
 
-    project.add_item(Sketch(name="Edit after opening"))
-    state.mark_modified()
+    executed = app_window.app_context.get_command_executor().execute_command(
+        CreateEmptyDatasetCommand(app_window.app_context, dataset_name="Edit after opening")
+    )
+    assert executed
+    assert state.is_modified
+    assert state.project_file_path is None
     saved_path = tmp_path / "my_copy.pplot"
-    dialog_calls = []
+    dialog_calls: list[tuple[object, ...]] = []
 
-    def pick_path(*args, **kwargs):
+    def pick_path(*args: object, **kwargs: object) -> tuple[str, str]:
         dialog_calls.append(args)
         return str(saved_path), "Project files"
 
