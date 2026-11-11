@@ -230,3 +230,23 @@ def test_remember_session_project_logs_a_failure_with_traceback_and_does_not_rai
 
     record = next(r for r in caplog.records if "last_project_path" in r.getMessage())
     assert record.exc_info is not None
+
+
+def test_autosaving_exit_never_writes_into_the_examples_dir(tmp_path, monkeypatch):
+    """Regression (#607 review): a project whose path is a bundled example is treated like a never-saved
+    one on exit -- the user is asked, and nothing is written over the example."""
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
+    monkeypatch.setattr("pandaplot.utils.examples.get_examples_dir", lambda: examples_dir)
+    monkeypatch.setattr("pandaplot.commands.project.project.unsaved_changes.flush_pending_edits", lambda _ctx: True)
+    app_context, app_state = _make_app_context(is_modified=True)
+    app_state.project_file_path = str(examples_dir / "demo.pplot")
+    project_manager = Mock()
+    app_context.get_manager.return_value = project_manager
+    app_context.get_ui_controller.return_value.show_question.return_value = True
+
+    assert confirm_discard_unsaved_changes(app_context, will_autosave=True, offer_save=True) is True
+
+    project_manager.save_project.assert_not_called()
+    app_context.get_ui_controller.return_value.show_question.assert_called_once()
+    app_context.get_ui_controller.return_value.show_save_discard_cancel.assert_not_called()

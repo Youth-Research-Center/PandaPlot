@@ -101,6 +101,16 @@ class SaveProjectCommand(Command):
                 if not save_path:
                     return CommandResult.FAILURE  # User cancelled
 
+            if is_in_examples_dir(save_path):
+                # Writing into the examples folder would let later saves (Ctrl+S, auto-save, the
+                # save on quit) overwrite a bundled example (#607).
+                self.logger.warning("Refusing to save project into the examples directory: '%s'", save_path)
+                self.ui_controller.show_warning_message(
+                    "Save Project",
+                    "Projects can't be saved in the bundled examples folder.\n\nChoose a location outside it.",
+                )
+                return CommandResult.FAILURE
+
             # Remember the pre-save path so _on_save_result can tell whether
             # this save changed it (a Save As or a first save of a new
             # project) versus an ordinary same-path save.

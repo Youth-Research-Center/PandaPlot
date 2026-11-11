@@ -31,6 +31,7 @@ from pandaplot.storage.item_data_manager_factory import ItemDataManagerFactory
 from pandaplot.storage.note_data_manager import NoteDataManager
 from pandaplot.storage.project_data_manager import ProjectDataManager
 from pandaplot.storage.sketch_data_manager import SketchDataManager
+from pandaplot.utils.examples import is_in_examples_dir
 from pandaplot.utils.log import setup_logging
 
 
@@ -222,8 +223,8 @@ def _flush_save_on_quit(app_context: AppContext) -> None:
     if project is None:
         return
     file_path = app_state.project_file_path
-    if not file_path:
-        # Never-saved project: nothing to silently write to.
+    if not file_path or is_in_examples_dir(file_path):
+        # Never-saved project, or a bundled example (never written back to, #607): nothing to silently write to.
         return
     try:
         project_manager = app_context.get_manager(ProjectManager)

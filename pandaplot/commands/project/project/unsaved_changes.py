@@ -13,6 +13,7 @@ from pandaplot.models.state import AppState, UnsavedChangesRegistry
 from pandaplot.models.state.app_context import AppContext
 from pandaplot.services.data_managers.project_manager import ProjectManager
 from pandaplot.services.session import SessionPersistenceManager
+from pandaplot.utils.examples import is_in_examples_dir
 
 
 def flush_pending_edits(app_context: AppContext) -> bool:
@@ -126,6 +127,9 @@ def confirm_discard_unsaved_changes(app_context: AppContext, *, will_autosave: b
     project_name = app_state.current_project.name if app_state.current_project else "Unknown"
     ui_controller = app_context.get_ui_controller()
     file_path = app_state.project_file_path
+    if is_in_examples_dir(file_path):
+        # A bundled example is never written back to (#607), so it has no file to save to here.
+        file_path = None
     autosaving = will_autosave and bool(file_path)
 
     if autosaving:
