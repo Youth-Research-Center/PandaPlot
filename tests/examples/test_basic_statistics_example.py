@@ -169,9 +169,27 @@ def test_notes_and_start_note(loaded):
     for name in ("Start here", "1 Descriptive statistics", "2 Histograms", "3 Box plots", "4 Correlation", "5 Try it yourself"):
         assert notes[name].content.strip()
     assert loaded.find_item(loaded.example_info.start_note_id) is notes["Start here"]
-    assert "#638" in notes["1 Descriptive statistics"].content
+    assert "does not compute the mode yet" in notes["1 Descriptive statistics"].content
     assert "1.5 x IQR" in notes["3 Box plots"].content
     assert "correlation is not causation" in notes["4 Correlation"].content.lower()
     assert any(name.startswith("Descriptive stats report [") for name in notes)
     for note in notes.values():
-        assert note.content.isascii() or "α" in note.content
+        assert {character for character in note.content if not character.isascii()} <= {"α"}
+        assert "#6" not in note.content, "learner-facing notes must not cite issue numbers"
+
+
+def test_correlation_notes_quote_the_computed_results(loaded):
+    notes = _notes_by_name(loaded)
+    measurements = _datasets_by_name(loaded)["Class measurements"].data
+    weight = StatsEngine.run_test(StatTestType.PEARSON, [measurements[HEIGHT], measurements[WEIGHT]])
+    sleep = StatsEngine.run_test(StatTestType.PEARSON, [measurements[HEIGHT], measurements[SLEEP]])
+    spearman = StatsEngine.run_test(StatTestType.SPEARMAN, [measurements["Age (years)"], measurements[HEIGHT]])
+    correlation = notes["4 Correlation"].content
+    assert f"p = {weight.p_value:.2g}" in correlation
+    assert f"p = {sleep.p_value:.2f}" in correlation
+    assert f"rho = {spearman.statistic:.2f}" in correlation
+    assert "no straight-line trend" in correlation
+    matrix = create_correlation_matrix(measurements)
+    weight_shoe = matrix.loc[matrix["Variable"] == WEIGHT, "Shoe size (EU)"].item()
+    assert f"r = {weight_shoe:.2f}" in notes["5 Try it yourself"].content
+    assert "Reading the p-value" in correlation

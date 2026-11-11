@@ -44,6 +44,7 @@ WEIGHT = "Weight (kg)"
 SHOE_SIZE = "Shoe size (EU)"
 SLEEP = "Hours of sleep"
 NUMERIC_COLUMNS = (AGE, HEIGHT, WEIGHT, SHOE_SIZE, SLEEP)
+GROUP_COLORS = ("#1f77b4", "#ff7f0e", "#2ca02c")
 GROUP_HEIGHT_COLUMNS = tuple(f"Group {group} (cm)" for group in GROUP_NAMES)
 
 PEARSON_PAIRS = ((HEIGHT, WEIGHT), (HEIGHT, SLEEP))
@@ -133,15 +134,17 @@ Shoe size (EU), Hours of sleep]**.
 - **Mean** is the average. **Median** is the middle value when the data are sorted. If they differ a lot, the data \
 are lopsided or contain extreme values.
 - **Std. deviation** says how far values typically sit from the mean. **Variance** is its square. \
-**SEM** (standard error of the mean) says how precisely the mean is known and shrinks as **Count** grows.
+**Std. error of mean** (SEM) says how precisely the mean is known and shrinks as **Count** grows. \
+**Coeff. of variation** is the standard deviation as a fraction of the mean, so spreads of columns with different units can be compared. \
+**Range** is the largest value minus the smallest, and **Kurtosis** (excess) is about 0 for a bell shape and larger for heavy tails.
 - **Q1**, **Median** and **Q3** cut the sorted data into quarters. **IQR** is Q3 minus Q1: the range of the middle half.
 - **Missing** counts blank cells. Only **Hours of sleep** has two, and **Count** leaves them out.
 - **Skewness** is about 0 for a symmetric shape, positive for a long right tail and negative for a long left tail.
 
 ## What about the mode?
 
-The mode is the most common value. The Descriptive Statistics panel does not compute it yet (issue #638 tracks adding it). \
-The mode is only useful for discrete values such as **Age (years)**, where the same number repeats many times. \
+The mode is the most common value. PandaPlot does not compute the mode yet. \
+The mode is most useful for categories and whole numbers, such as the **Group** column or **Age (years)**, where the same value repeats many times. \
 For a measurement like height, almost every value is different, so the mode means little. \
 To find the mode of age, open the **Age (years)** histogram in the next note and read the tallest bar: it is 16.
 """
@@ -161,8 +164,8 @@ The tallest bar is the mode.
 
 ## Choosing the number of bins
 
-Too few bins hide detail, and too many make the shape jagged. To change the number of bins, select the chart \
-and open the **Chart** tab of Chart Properties, then change **Bins:**. Try 3, 10 and 30 on the **Height (cm)** chart \
+Too few bins hide detail, and too many make the shape jagged. To change the number of bins, open the chart (double-click it in the project tree), then open the **Chart** tab of Chart Properties \
+(it only appears while a chart tab is active) and change **Bins:**. Try 3, 10 and 30 on the **Height (cm)** chart \
 and notice how the picture changes while the data stays the same.
 """
 
@@ -181,7 +184,7 @@ A box plot shows the middle of the data and its spread without drawing every val
 ## The chart
 
 The **Height by group** chart has one box for each of groups A, B and C. The **Height by group** dataset keeps \
-the three groups in separate columns because a box plot series reads one column (issue #641 tracks grouping by a column). \
+the three groups in separate columns because a box plot series reads one column; PandaPlot cannot yet split one column into groups for a box plot. \
 Look at how the medians move up from A to C while the boxes overlap: the groups differ on average, but individual \
 students overlap a lot.
 """
@@ -190,7 +193,7 @@ CORRELATION_NOTE_CONTENT = """\
 # 4 Correlation
 
 Correlation measures how closely two columns move together. It runs from -1 (one goes up as the other goes down) \
-through 0 (no relationship) to +1 (they rise together).
+through 0 (no straight-line trend) to +1 (they rise together).
 
 ## The charts
 
@@ -210,18 +213,31 @@ The result lists **Correlation r**, **R-squared**, **Strength**, **p-value** and
 contains **Pearson correlation [Height (cm), Weight (kg)]**, **Pearson correlation [Height (cm), Hours of sleep]** and \
 **Spearman rank correlation [Age (years), Height (cm)]**.
 
+## Reading the p-value
+
+The **p-value** is the chance of seeing a correlation at least this large if the two columns really had no straight-line \
+trend. If p is below **Significance (α):** (0.05 by default), the result is unlikely to be chance, so there is evidence of a \
+relationship. Here, Height vs Weight has p = {p_height_weight} (evidence of a relationship), while Height vs Hours of sleep has \
+p = {p_height_sleep} (no evidence). A small p does not mean a strong effect: for how strong the relationship is, look at \
+**Strength** and r, not at p.
+
 ## Pearson or Spearman?
 
 **Pearson correlation** measures straight-line relationships and is pulled by extreme values. **Spearman correlation (rank)** \
 works on the ranks of the values, so it measures any steadily rising or falling relationship and copes better with \
-outliers and with whole-number data such as age.
+outliers and with ranked (ordinal) data.
 
 ## The correlation matrix
 
-**Correlation matrix (Pearson r)** lists r for every pair of the five numeric columns. PandaPlot has no matrix feature yet \
-(issue #639), so the generator script built this table by running the same Pearson test on each pair. To reproduce any cell, \
+**Correlation matrix (Pearson r)** lists r for every pair of the five numeric columns. There is no correlation-matrix feature yet, so this table was built by the example's script \
+by running the same Pearson test on each pair. To reproduce any cell, \
 run **Pearson correlation** in the **Statistical Tests** panel on those two columns. Because the test drops blank cells \
 pair by pair, pairs that include **Hours of sleep** use 118 students and the rest use 120.
+
+## Spearman in the bundled results
+
+**Spearman rank correlation [Age (years), Height (cm)]** gives rho = {rho_age_height}, close to 0. In this synthetic class \
+age was generated independently of height. Among real teenagers you would expect a positive trend.
 
 ## Correlation is not causation
 
@@ -240,8 +256,8 @@ EXERCISES_NOTE_CONTENT = """\
 3. Repeat with **Kruskal-Wallis (nonparametric)**. Do the two tests agree?
 4. Change **Bins:** on the **Height (cm)** histogram to 3 and then 40. At what point does the shape stop being useful?
 5. Run **Descriptive Statistics** on **Height by group** and compare the three medians with the box plot.
-6. Compute **Pearson correlation** for **Weight (kg)** and **Shoe size (EU)**. Is it above or below the value in the \
-**Correlation matrix (Pearson r)** for Height and Weight? Does that surprise you?
+6. Weight and shoe size do not affect each other, yet r = {r_weight_shoe} in **Correlation matrix (Pearson r)**. Why? \
+(Both depend on height.) Run **Pearson correlation** on them to check, and read the p-value as explained in note 4.
 """
 
 
@@ -327,6 +343,7 @@ def _build_series(chart: Chart, dataset: Dataset, *, x_column: str | None, y_col
 
 
 def _new_chart(name: str, chart_type: str, *, title: str, x_label: str = "", y_label: str = "") -> Chart:
+    """Create a chart of ``chart_type`` with its title and axis labels set."""
     chart = Chart(name=name, chart_type=chart_type)
     chart.config.title = title
     chart.config.x.label = x_label
@@ -334,11 +351,16 @@ def _new_chart(name: str, chart_type: str, *, title: str, x_label: str = "", y_l
     return chart
 
 
-_GROUP_COLORS = ("#1f77b4", "#ff7f0e", "#2ca02c")
-
 
 def create_project(measurements: pd.DataFrame | None = None) -> Project:
-    """Build the in-memory Basic Statistics project (not yet saved)."""
+    """Build the in-memory Basic Statistics project (not yet saved).
+
+    Args:
+        measurements: The class table; generated from the fixed seed when omitted.
+
+    Returns:
+        The project with its datasets, results, notes, charts and example metadata.
+    """
     measurements = create_class_measurements() if measurements is None else measurements
     project = Project(name="Basic Statistics", description=EXAMPLE_DESCRIPTION)
 
@@ -359,23 +381,32 @@ def create_project(measurements: pd.DataFrame | None = None) -> Project:
         result = StatsEngine.run_test(StatTestType.PEARSON, [measurements[name] for name in pair])
         pearson_results[pair] = result
         project.add_item(Dataset(name=result.result_name(), data=result.to_dataframe()))
+    spearman_results = {}
     for pair in SPEARMAN_PAIRS:
         result = StatsEngine.run_test(StatTestType.SPEARMAN, [measurements[name] for name in pair])
+        spearman_results[pair] = result
         project.add_item(Dataset(name=result.result_name(), data=result.to_dataframe()))
-    project.add_item(Dataset(name=CORRELATION_MATRIX_NAME, data=create_correlation_matrix(measurements)))
+    matrix = create_correlation_matrix(measurements)
+    project.add_item(Dataset(name=CORRELATION_MATRIX_NAME, data=matrix))
+    note_values = {
+        "p_height_weight": f"{pearson_results[(HEIGHT, WEIGHT)].p_value:.2g}",
+        "p_height_sleep": f"{pearson_results[(HEIGHT, SLEEP)].p_value:.2f}",
+        "rho_age_height": f"{spearman_results[(AGE, HEIGHT)].statistic:.2f}",
+        "r_weight_shoe": f"{matrix.loc[matrix['Variable'] == WEIGHT, SHOE_SIZE].item():.2f}",
+    }
 
     folders = {}
     for title, content in (
         ("1 Descriptive statistics", DESCRIPTIVE_NOTE_CONTENT),
         ("2 Histograms", HISTOGRAM_NOTE_CONTENT),
         ("3 Box plots", BOX_NOTE_CONTENT),
-        ("4 Correlation", CORRELATION_NOTE_CONTENT),
+        ("4 Correlation", CORRELATION_NOTE_CONTENT.format(**note_values)),
     ):
         folder = Folder(name=title)
         project.add_item(folder)
         project.add_item(Note(name=title, content=content), folder.id)
         folders[title] = folder
-    project.add_item(Note(name="5 Try it yourself", content=EXERCISES_NOTE_CONTENT))
+    project.add_item(Note(name="5 Try it yourself", content=EXERCISES_NOTE_CONTENT.format(**note_values)))
 
     height_histogram = _new_chart("Height (cm)", "hist", title="Heights of 120 students", x_label=HEIGHT, y_label="Number of students")
     _build_series(height_histogram, data, x_column=None, y_column=HEIGHT, label=HEIGHT, color="#1f77b4")
@@ -386,7 +417,7 @@ def create_project(measurements: pd.DataFrame | None = None) -> Project:
         project.add_item(chart, folders["2 Histograms"].id)
 
     box = _new_chart("Height by group", "box", title="Height by group", y_label=HEIGHT)
-    for column, color in zip(GROUP_HEIGHT_COLUMNS, _GROUP_COLORS, strict=True):
+    for column, color in zip(GROUP_HEIGHT_COLUMNS, GROUP_COLORS, strict=True):
         _build_series(box, by_group, x_column=None, y_column=column, label=column.removesuffix(" (cm)"), color=color)
     project.add_item(box, folders["3 Box plots"].id)
 
