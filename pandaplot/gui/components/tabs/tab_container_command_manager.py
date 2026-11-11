@@ -14,8 +14,12 @@ from pandaplot.commands.project.chart import CreateChartFromWizardCommand
 from pandaplot.commands.project.dataset import AnalyzeMeasurementsCommand
 from pandaplot.commands.project.dataset.create_empty_dataset_command import CreateEmptyDatasetCommand
 from pandaplot.commands.project.project import LoadProjectCommand, NewProjectCommand, OpenProjectCommand
+from pandaplot.models.events.event_data import TabOpenRequestedData
+from pandaplot.models.events.event_types import UIEvents
 from pandaplot.models.project.items.dataset import Dataset
+from pandaplot.models.project.project import Project
 from pandaplot.models.state.app_context import AppContext
+from pandaplot.utils.examples import example_start_item
 
 
 class TabContainerCommandManager:
@@ -40,8 +44,22 @@ class TabContainerCommandManager:
 
     def handle_example_project(self, project_path: str):
         """Handle example project selection from welcome tab (opens an untitled copy)."""
-        command = LoadProjectCommand(self.app_context, project_path, as_untitled_copy=True)
+        # on_loaded runs once after the load, not on redo, so redo does not re-open UI.
+        command = LoadProjectCommand(self.app_context, project_path, as_untitled_copy=True, on_loaded=self._open_example_start_item)
         self.app_context.get_command_executor().execute_command(command)
+
+    def _open_example_start_item(self, project: Project) -> None:
+        """Open the freshly loaded example's start note (or first featured chart) in a tab.
+
+        Args:
+            project: The example project that was just loaded.
+        """
+        item = example_start_item(project)
+        if item is None:
+            return
+        self.app_context.get_event_bus().emit(
+            UIEvents.TAB_OPEN_REQUESTED, TabOpenRequestedData(item_id=item.id, item_name=item.name).to_dict()
+        )
 
     def handle_import_data(self):
         """Handle import data request from welcome tab."""

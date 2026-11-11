@@ -16,6 +16,9 @@ from pandaplot.models.project.example_info import (
     example_tag,
     summary_from_description,
 )
+from pandaplot.models.project.items.chart import Chart
+from pandaplot.models.project.items.note import Note
+from pandaplot.models.project.project import Project
 from pandaplot.storage.project_data_manager import read_cover_entry
 
 logger = logging.getLogger(__name__)
@@ -139,3 +142,30 @@ def discover_example_projects(examples_dir: Path | None = None) -> list[ExampleP
 
     examples.sort(key=lambda example: (_SECTION_ORDER[example.section], example.name.casefold()))
     return examples
+
+
+def example_start_item(project: Project) -> Note | Chart | None:
+    """Pick the item an example project should open on: its start note, else its first featured chart.
+
+    Ids that no longer resolve to a note (or chart) are skipped.
+
+    Args:
+        project: The loaded project.
+
+    Returns:
+        The start note, else the first featured chart that exists, else None. None for a project that is not an example.
+    """
+    info = project.example_info
+    if not info.is_example:
+        return None
+    if info.start_note_id is not None:
+        item = project.find_item(info.start_note_id)
+        if isinstance(item, Note):
+            return item
+        logger.debug("Example start note %r is missing or not a note", info.start_note_id)
+    for chart_id in info.featured_chart_ids:
+        item = project.find_item(chart_id)
+        if isinstance(item, Chart):
+            return item
+        logger.debug("Example featured chart %r is missing or not a chart", chart_id)
+    return None
