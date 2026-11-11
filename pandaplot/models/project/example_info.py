@@ -203,6 +203,23 @@ def _strip_inline_markdown(text: str) -> str:
     return re.sub(r"\s+", " ", plain).strip()
 
 
+def markdown_to_plain_text(text: str) -> str:
+    """Return the words of a Markdown text without its markup, for searching.
+
+    Heading markers, emphasis delimiters and code ticks are removed, and links and images keep only their text, so
+    their targets (URLs, file names) are dropped.
+
+    Args:
+        text: Markdown text.
+
+    Returns:
+        Plain text with whitespace collapsed, or an empty string for empty input.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return ""
+    return _strip_inline_markdown(" ".join(_HEADING_RE.sub("", line) for line in text.splitlines()))
+
+
 def summary_from_description(text: str, max_chars: int = 160) -> str:
     """Return the first sentence of a Markdown description as plain text.
 

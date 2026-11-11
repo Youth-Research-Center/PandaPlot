@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pandaplot.gui.core.widget_extension import PDialog
+from pandaplot.gui.core.widget_extension import PDialog, unsubscribe_widget_tree
 from pandaplot.models.project.example_info import EXAMPLE_TAGS, ExampleSection, TagGroup, example_tag
 from pandaplot.models.project.items import Chart
 from pandaplot.models.state.app_context import AppContext
@@ -96,6 +96,7 @@ class ExamplesDialog(PDialog):
         self._details_example: ExampleProject | None = None
         self._details_token = 0
         self._origin_card: ExampleCard | None = None
+        self._origin_focus: QWidget | None = None
         self._list_scroll_value = 0
         self._columns = 0
         self._laid_out_key: tuple[tuple[str, ...], int] | None = None
@@ -524,6 +525,9 @@ class ExamplesDialog(PDialog):
         """Switch to the details page for an example."""
         self._list_scroll_value = self.list_scroll.verticalScrollBar().value()
         self._origin_card = next((card for card in self.cards if card.example.path == example.path), None)
+        focused = self.focusWidget()
+        # The card's own button (See details) when it was pressed with focus on it; the card itself otherwise.
+        self._origin_focus = focused if focused is not None and self._origin_card is not None and self._origin_card.isAncestorOf(focused) else None
         self._details_example = example
         self._populate_details(example)
         self.stack.setCurrentWidget(self.details_page)
@@ -537,10 +541,11 @@ class ExamplesDialog(PDialog):
         self._details_example = None
         self.stack.setCurrentWidget(self.list_page)
         self.list_scroll.verticalScrollBar().setValue(self._list_scroll_value)
-        if self._origin_card is not None and shiboken6.isValid(self._origin_card) and self._origin_card.isVisible():
-            self._origin_card.setFocus()
-        else:
-            self.search_edit.setFocus()
+        for widget in (self._origin_focus, self._origin_card):
+            if widget is not None and shiboken6.isValid(widget) and widget.isVisible() and widget.isEnabled():
+                widget.setFocus()
+                return
+        self.search_edit.setFocus()
 
     def _populate_details(self, example: ExampleProject) -> None:
         from pandaplot.gui.dialogs.example_card import ExampleMetaRow, describe_contents
@@ -670,10 +675,12 @@ class ExamplesDialog(PDialog):
 
     @override
     def done(self, result: int) -> None:
-        """Close, then release the cached projects and pictures; the dialog is not reused after it closes."""
+        """Close, then release the cached projects and pictures and leave the event bus; the dialog is not reused after it closes."""
         super().done(result)
         self._release_caches()
         self._released = True
+        # The bus holds the dialog's bound handlers, which would keep it (and its theme handler) alive after deleteLater().
+        unsubscribe_widget_tree(self)
 
     def _release_caches(self) -> None:
         self._details_token += 1

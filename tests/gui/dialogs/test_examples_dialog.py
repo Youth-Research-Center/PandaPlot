@@ -404,6 +404,43 @@ def test_back_keeps_query_chips_and_scroll_position(make_dialog, qtbot):
     assert dialog.focusWidget() is card
 
 
+def test_back_returns_focus_to_the_see_details_button_that_was_pressed(make_dialog, qtbot):
+    dialog = make_dialog([_example("A"), _example("B")])
+    card = dialog.cards[1]
+    card.details_button.setFocus()
+    qtbot.waitUntil(lambda: dialog.focusWidget() is card.details_button)
+
+    qtbot.keyClick(card.details_button, Qt.Key.Key_Return)
+    assert dialog.stack.currentWidget() is dialog.details_page
+    dialog.back_button.click()
+
+    assert dialog.focusWidget() is card.details_button
+
+
+def test_back_after_enter_on_the_card_returns_focus_to_the_card(make_dialog, qtbot):
+    dialog = make_dialog([_example("A")])
+    card = dialog.cards[0]
+    card.setFocus()
+    qtbot.waitUntil(lambda: dialog.focusWidget() is card)
+
+    qtbot.keyClick(card, Qt.Key.Key_Return)
+    dialog.back_button.click()
+
+    assert dialog.focusWidget() is card
+
+
+def test_closing_unsubscribes_the_dialog_from_the_event_bus(make_dialog):
+    from pandaplot.models.events.event_types import ThemeEvents
+
+    dialog = make_dialog([_example()])
+    bus = dialog.app_context.event_bus
+    assert dialog._on_theme_changed in bus._subscribers[ThemeEvents.THEME_CHANGED]
+
+    dialog.reject()
+
+    assert dialog._on_theme_changed not in bus._subscribers.get(ThemeEvents.THEME_CHANGED, [])
+
+
 def test_bottom_back_button_also_returns_to_the_list(make_dialog):
     dialog = make_dialog([_example()])
     dialog.cards[0].details_button.click()

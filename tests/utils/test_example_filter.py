@@ -95,3 +95,28 @@ def test_search_text_is_built_once_per_example_across_repeated_filtering():
 def test_tag_groups_come_from_the_tag_vocabulary():
     assert not hasattr(__import__("pandaplot.utils.example_filter", fromlist=["x"]), "_TAG_GROUPS")
     assert _names(filter_examples(ALL, query="", selected_tag_ids=frozenset({"physics", "not_a_tag"}))) == ["Pendulum", "Spring"]
+
+
+def test_search_covers_the_level_and_section_labels():
+    advanced = ExampleProject(
+        path="/examples/Fit.pplot", name="Fit", summary="", description="", section=ExampleSection.ANALYSING_DATA,
+        level=ExampleLevel.INTERMEDIATE, tags=(), featured_chart_ids=(), start_note_id=None,
+        data_credit="", cover_image=None, dataset_count=0, chart_count=0, note_count=0,
+    )
+    examples = [PENDULUM, advanced]
+
+    assert _names(filter_examples(examples, query=ExampleLevel.BEGINNER.label, selected_tag_ids=NO_TAGS)) == ["Pendulum"]
+    assert _names(filter_examples(examples, query=ExampleLevel.INTERMEDIATE.label, selected_tag_ids=NO_TAGS)) == ["Fit"]
+    assert _names(filter_examples(examples, query=ExampleSection.ANALYSING_DATA.label, selected_tag_ids=NO_TAGS)) == ["Fit"]
+
+
+def test_search_matches_the_text_of_markdown_but_not_its_link_and_image_markup():
+    linked = _example(
+        "Linked",
+        description="## Sources\n\nSee [the **NOAA** archive](https://noaa.example/data.csv) and ![a photo](cover.png).",
+    )
+
+    for word in ("http", "noaa.example", "png", "##", "**"):
+        assert filter_examples([linked], query=word, selected_tag_ids=NO_TAGS) == [], word
+    for word in ("sources", "NOAA archive", "photo"):
+        assert filter_examples([linked], query=word, selected_tag_ids=NO_TAGS) == [linked], word

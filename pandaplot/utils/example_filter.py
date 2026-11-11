@@ -3,19 +3,23 @@
 from collections.abc import Iterable
 from functools import lru_cache
 
-from pandaplot.models.project.example_info import EXAMPLE_TAGS, TagGroup, example_tag
+from pandaplot.models.project.example_info import EXAMPLE_TAGS, TagGroup, example_tag, markdown_to_plain_text
 from pandaplot.utils.examples import ExampleProject
 
 
 @lru_cache(maxsize=512)
-def _haystack(name: str, summary: str, description: str, tag_labels: tuple[str, ...]) -> str:
-    """The case-folded searchable text of an example, built once per distinct example."""
-    return " ".join([name, summary, description, *tag_labels]).casefold()
+def _haystack(name: str, summary: str, description: str, labels: tuple[str, ...]) -> str:
+    """The case-folded searchable text of an example, built once per distinct example.
+
+    The description is searched without its Markdown markup, so link targets and image file names do not match.
+    """
+    return " ".join([name, summary, markdown_to_plain_text(description), *labels]).casefold()
 
 
 def _matches_query(example: ExampleProject, words: list[str]) -> bool:
-    """Whether every word occurs (case-insensitively) in the name, summary, description or a tag label."""
-    haystack = _haystack(example.name, example.summary, example.description, tuple(tag.label for tag in example.tags))
+    """Whether every word occurs (case-insensitively) in the name, summary, description, level, section or a tag label."""
+    labels = (example.level.label, example.section.label, *(tag.label for tag in example.tags))
+    haystack = _haystack(example.name, example.summary, example.description, labels)
     return all(word in haystack for word in words)
 
 
@@ -33,8 +37,8 @@ def _matches_tags(example: ExampleProject, selected_tag_ids: frozenset[str]) -> 
 def filter_examples(examples: Iterable[ExampleProject], *, query: str, selected_tag_ids: frozenset[str]) -> list[ExampleProject]:
     """Return the examples that match the search text and the selected tags, in their original order.
 
-    Every whitespace-separated word of ``query`` must occur in the name, summary, description or a tag label
-    (case-insensitive). Selected tags combine with OR inside a group and AND across groups; a group with nothing
+    Every whitespace-separated word of ``query`` must occur in the name, summary, description (without its Markdown
+    markup), level, section or a tag label (case-insensitive). Selected tags combine with OR inside a group and AND across groups; a group with nothing
     selected does not filter. Ids that are not in the tag vocabulary are ignored.
 
     Args:
